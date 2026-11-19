@@ -482,9 +482,18 @@ server, keep it at or below the version in that line, or build the image with a 
   PGOPTIONS="-c app.role=system" pg_dump -Fc --enable-row-security -h db.example.com -U kalmido -d kalmido -f kalmido.dump
   ```
 
-  Restore with `pg_restore --clean --if-exists --no-owner --no-privileges --single-transaction --enable-row-security`
-  and the same `PGOPTIONS`, as the database owner, with Kalmido stopped, then start Kalmido (it creates its functions,
-  policies and rights again). The attachments are not in the database: copy the data folder as well.
+  Restore *(2.1431.0, #6609)*: with the database container of the installer, `update.sh --restore kalmido.dump` (see
+  [Back to the previous version](#back-to-the-previous-version)). Against an external server, with Kalmido stopped and as
+  the database owner, empty the schema and load the copy in one transaction; the `COMMIT` is sent only when `pg_restore`
+  read the whole copy, so an error leaves the database as it was:
+
+  ```bash
+  { printf '%s\n' 'BEGIN;' 'DROP SCHEMA public CASCADE;' 'CREATE SCHEMA public AUTHORIZATION pg_database_owner;' 'GRANT USAGE ON SCHEMA public TO PUBLIC;'; pg_restore --no-owner --no-privileges --enable-row-security -f - kalmido.dump && echo 'COMMIT;'; } | PGOPTIONS="-c app.role=system" psql -X -q -v ON_ERROR_STOP=1 -h db.example.com -U kalmido -d kalmido
+  ```
+
+  Then start Kalmido (it creates its functions, policies and rights again). A plain `pg_restore --clean` is not enough: it
+  drops only what the copy has, so a table of a newer version with a key to `users` stops it, or stays behind with its rows.
+  The attachments are not in the database: copy the data folder as well.
 - **After a PostgreSQL major upgrade, reindex.** The search index depends on the `unaccent` rules of the server:
   run `REINDEX DATABASE kalmido;` once after moving to a new major version. A new major version (18, ...) cannot open the
   `./pgdata` of 17: dump with 17, start the new version on an empty folder, restore.
@@ -2295,7 +2304,7 @@ stay blocked until you allow them.
   name gets no new version. The installer and `update.sh` switch a `KALMIDO_IMAGE` line with the old name in `.env` by themselves
   (version and digest stay); a `KALMIDO_IMAGE` you set elsewhere (your own compose or override file) you change yourself.
 - **A safe order:** backup, then pull and start, then check `GET /api/health` and a few counts (users, projects, tasks,
-  attachments) against the values before. If anything is off, go back by hand, no tool does it for you: see
+  attachments) against the values before. If anything is off, go back with `update.sh --restore` (2.1431.0): see
   [Back to the previous version](#back-to-the-previous-version).
 - **Keep the previous image** until the new version has proven itself; do not prune images right after an update.
 - **One release per week** *(since 2.641.0, #5011)*: GitHub gets one release page per ISO week, on the tag `vX.Y.Z` of the
@@ -2326,30 +2335,34 @@ stay blocked until you allow them.
 
 ### Back to the previous version
 
-*Since 2.359.3 (#2896).* Note the version you run before an update (Settings > Help). The installer keeps it in
-`.kalmido-version.prev` and names it at the end of `update.sh`. Which way to take:
+*Since 2.359.3 (#2896); one command since 2.1431.0 (#6609).* `update.sh` writes a copy of the database to
+`data/backups/kalmido-*.dump` before every update (the last 10 stay) and notes beside it which version made it
+(`kalmido-*.dump.version`). Going back to that version with that copy is one command:
 
-- **Only the image** is enough for every patch of the same minor and for **one step back** to the version that ran before
-  the last upgrade. The data stays as it is, also what was entered since; newer columns and tables are left alone. Check
-  the [format limits](UPGRADING.md#format-limits-going-back) first.
+```bash
+~/kalmido/update.sh --restore data/backups/kalmido-YYYYMMDD-HHMMSS.dump
+```
 
-  ```bash
-  KALMIDO_VERSION=vX.Y.Z ~/kalmido/update.sh
-  ```
+It stops Kalmido, keeps a copy of the database as it is now (named at the end), empties the database and loads the copy in
+one transaction (an error leaves the database as it was), then fetches and starts the version that made the copy.
+`KALMIDO_VERSION=vX.Y.Z` in front names another version. **Everything entered since the copy is lost.** The copy holds no
+attachments: files added since stay unused in the folder, files removed since do not come back; for those restore an
+in-app backup instead (*Back up now* before the update), on the version that made it.
 
-  With your own `.env`: set `KALMIDO_IMAGE=ghcr.io/kalmido/kalmido:X.Y.Z`, then `docker compose up -d`.
-- **The database copy as well** when you go further back, or when the update damaged data: `update.sh` writes one to
-  `data/backups/kalmido-*.dump` before every update (the last 10 stay), but only while the `db` service of this
-  installation runs: with an external `DATABASE_URL`, or with Kalmido stopped, there is no copy (`update.sh` warns and waits 15 seconds, then goes on). **Everything entered since is lost.** The copy
-  holds no attachments: files added since stay unused in the folder, files removed since do not come back. For those
-  restore an in-app backup instead (*Back up now* before the update), on the version that made it.
-
-  ```bash
-  docker compose stop kalmido
-  docker compose exec -T db sh -c 'PGOPTIONS="-c app.role=system" pg_restore --clean --if-exists --no-owner --no-privileges --single-transaction --enable-row-security -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < data/backups/kalmido-YYYYMMDD-HHMMSS.dump
-  ```
-
-  Then set the old version as above and start it.
+- **What the update prints.** At its end `update.sh` names the version before. Is it not below the
+  [format limit](UPGRADING.md#format-limits-going-back) of the database, the image alone goes back and keeps what was entered
+  since (`KALMIDO_VERSION=vX.Y.Z ~/kalmido/update.sh`); otherwise that image refuses to start and the line names only the
+  `--restore` command. With your own `.env`: set `KALMIDO_IMAGE=ghcr.io/kalmido/kalmido:X.Y.Z`, then `docker compose up -d`.
+- **A start that fails after an update:** `update.sh` stops the container (Docker would otherwise start it again and
+  again) and prints the `--restore` command with the version before and its copy, ready to paste.
+- **A version whose release page is gone.** Only the weekly releases of the last weeks keep a release page and an image
+  (the git tags of all versions stay). `KALMIDO_BUILD=1` in front of the command builds such a version from its git tag
+  (over HTTPS from GitHub, without a checksum list); without it the installer stops and says so.
+- **No copy** is made with an external `DATABASE_URL`, or while Kalmido is stopped (`update.sh` warns and waits 15
+  seconds, then goes on); `--restore` works only with the database container of the installer. An external server is
+  restored by hand, see *Backups outside the app* in [Database (PostgreSQL)](#database-postgresql).
+- **Windows** (`update.ps1`) has no `--restore` yet: run the restore of *Backups outside the app* ([Database (PostgreSQL)](#database-postgresql))
+  inside the `db` container, then `$env:KALMIDO_VERSION = 'vX.Y.Z'; update.ps1`.
 - **Never below 2.149,** see [UPGRADING.md](UPGRADING.md#format-limits-going-back).
 
 ### Update, downgrade and restore
@@ -2372,10 +2385,12 @@ stay blocked until you allow them.
 - **Format limits (2.359.3, #2896).** The guard also knows the [format limits](UPGRADING.md#format-limits-going-back): an
   image below the limit of its database refuses to start and names the step, even as the one step back.
 - **A database update that fails at the start** (since 2.1179.0, #2898; for example old data that breaks a new unique
-  index): the update runs in one transaction, so nothing is changed. The container stops with exit code 3 like the other
+  index): the update runs in one transaction, so nothing is changed. The app ends with exit code 3 like the other
   start checks, and the log has one line starting with `FATAL: updating the database to version`, which names the step
-  and the cause (no traceback). Start the previous version again, or remove the cause and start again; a backup is only
-  needed if the previous version does not start either.
+  and the cause (no traceback). `update.sh` then stops the container and prints the way back (2.1431.0, #6609); with
+  `restart: unless-stopped` of your own compose setup Docker starts it again and again, each time running the whole
+  database update anew - stop it with `docker compose stop kalmido`. Start the previous version again, or remove the
+  cause and start again; the copy of `update.sh --restore` is only needed if the previous version does not start either.
 - **Installer.** The first start after an update migrates the database, which can take minutes on a big one; the
   installer keeps waiting (up to 30 minutes) while the container runs and stops at once when it exits.
 - **Restore.** A backup made with a newer minor version than the running server is refused ("update Kalmido first, then
