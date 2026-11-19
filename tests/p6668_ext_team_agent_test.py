@@ -37,6 +37,8 @@ tenant-matrix: agent (only the agent's own events; the token reaches only what t
      person who said Yes -- 403 run_closed as with her request token, the card stays unused
  #6978 F6: locking a person or a role in the organisation that gives no orders (guest) deletes her request tokens at once
  #6978 F7: request tokens are known by asked_by + req_slot, never by their name (a token named "Agent request" is listed)
+ (q) #6808: after KALMIDO_REQ_MAIN_FROM every team agent's own token is its channel, also one that never asked; GET
+     /agent/chats needs the request token (before: the channel); the admin list names the day until then
  (o) merged with #6457: a team agent's run, a job of the run, a woken job and the dispatcher's job read only a request
      token through an env file of their own -- MCP server, kalmido_cli.py, agent_job.py never the long-lived one (no server)
 usage: p6668_ext_team_agent_test.py <datadir>      (KMT_NOSTART=1 / P6668_NOSTART=1: a running server)"""
@@ -977,8 +979,16 @@ r = requests.get(V + f"/tasks/{SX}", headers=XH, timeout=30)
 check(r.status_code == 403 and err(r).get("code") == "request_token_needed", f"(e) its own token: the content of a project 403 {r.status_code} {r.text[:160]}")
 r = requests.get(V + f"/tasks/{TX}", headers=XH, timeout=30)
 check(r.status_code == 403 and err(r).get("code") == "request_token_needed", f"(e) ... also of project one {r.status_code}")
-check(requests.get(V + "/agent/events", headers=XH, params={"since": 0}, timeout=30).ok and requests.get(V + "/agent", headers=XH, timeout=30).ok
-      and requests.get(V + "/agent/chats", headers=XH, timeout=30).ok, "(e) its own token keeps its channel: events, the agent, chats")
+check(requests.get(V + "/agent/events", headers=XH, params={"since": 0}, timeout=30).ok and requests.get(V + "/agent", headers=XH, timeout=30).ok,
+      "(e) its own token keeps its channel: events, the agent")
+# 2.1432 (#6808): GET /agent/chats reads what people wrote -- no part of the channel any more (before: 200 with every
+# person's conversation); the request token of carl's event reads carl's conversation only
+r = requests.get(V + "/agent/chats", headers=XH, timeout=30)
+check(r.status_code == 403 and err(r).get("code") == "request_token_needed",
+      f"(e) #6808: its own token reads no conversation (GET /agent/chats 403) {r.status_code} {r.text[:120]}")
+r = requests.get(V + "/agent/chats", headers=hdr(RC), timeout=30)
+check(r.ok and all((m.get("user") or {}).get("id") == uid["carl"] for m in r.json().get("data", [])),
+      f"(e) #6808: carl's request token reads carl's conversation only {r.status_code} {r.text[:120]}")
 check(requests.put(V + "/agent/status", headers=XH, json={"status": "idle"}, timeout=30).ok, "(e) ... and its status")
 # 2.1386.0 (#6668, review F1): the classes mine / send / pin are capped only in a run (run_person); with the long-lived token
 # nothing capped them -- without the fix these answered 200 with every project and person of the agent. The routes with a
@@ -1149,6 +1159,13 @@ r = requests.post(V + "/agent/request-token", headers=YH, json={"seqs": []}, tim
 check(r.status_code == 400, f"(d) no event: 400 {r.status_code}")
 check(dbx("SELECT per_request FROM agents WHERE user_id=?", (YT,)) == [(False,)],
       "(d) review F5: refused asks never switch an agent to per request (only an issued request token does)")
+# 2.1432 (#6808): the hint in Settings > Agents -- a team agent that never asked names the day (KALMIDO_REQ_MAIN_FROM,
+# default 2027-01-01) from which its own token reaches only its channel; one that asked (XT) needs none
+AGS = {a["id"]: a for a in A.get(B + "/api/admin/agents").json().get("agents", [])}
+check(AGS.get(YT, {}).get("req_main_due") == "2027-01-01" and AGS.get(XT, {}).get("req_main_due") is None,
+      f"(d) #6808: the admin list names the day on the agent that never asked {AGS.get(YT, {}).get('req_main_due')!r} {AGS.get(XT, {}).get('req_main_due')!r}")
+check(requests.get(V + "/tasks", headers=YH, params={"limit": 5}, timeout=30).ok,
+      "(d) #6808: before that day its own token keeps its whole reach (transition)")
 r = ask(None, operator=True)
 check(r.status_code == 409 and err(r).get("code") == "no_operator", f"(d) nobody chosen for its questions: 409 {r.status_code} {r.text[:160]}")
 r = ask([])
@@ -1259,5 +1276,25 @@ check(dbx("SELECT per_request FROM agents WHERE user_id=?", (FA,)) == [(False,)]
 check(requests.get(V + f"/tasks/{FT}", headers=FH, timeout=30).ok, "freelancer: her agent's own token reaches her project as before")
 r = requests.post(V + f"/tasks/{FT}/comments", headers=FH, json={"body": "from her agent"}, timeout=30)
 check(r.status_code == 201, f"freelancer: her agent comments in her project {r.status_code} {r.text[:160]}")
+
+# ================================================================ (q) #6808: after the transition day every team agent
+# The same data, the server started again with KALMIDO_REQ_MAIN_FROM in the past: the other team agent (YT) never asked
+# for a request token -- without #6808 its own token kept the whole reach (GET /tasks 200, GET /agent/chats 200).
+if fresh(env={"KALMIDO_REQ_MAIN_FROM": "2000-01-01"}, prefix="P6668", keep=True):
+    check(dbx("SELECT per_request FROM agents WHERE user_id=?", (YT,)) == [(False,)], "(q) #6808: the agent never asked")
+    for path in ("/tasks", "/agent/chats"):
+        r = requests.get(V + path, headers=YH, timeout=30)
+        check(r.status_code == 403 and err(r).get("code") == "request_token_needed",
+              f"(q) #6808: after the day its own token gets no {path} (request_token_needed) {r.status_code} {r.text[:120]}")
+    check(requests.get(V + "/agent/events", headers=YH, params={"since": 0}, timeout=30).ok
+          and requests.put(V + "/agent/status", headers=YH, json={"status": "idle"}, timeout=30).ok,
+          "(q) #6808: ... its channel stays (events, status)")
+    A = sess("alice")
+    AGS = {a["id"]: a for a in A.get(B + "/api/admin/agents").json().get("agents", [])}
+    check(YT in AGS and AGS[YT].get("req_main_due") is None, "(q) #6808: the day has passed: no hint any more")
+    check(requests.get(V + f"/tasks/{FT}", headers=FH, timeout=30).ok,
+          "(q) #6808: a personal agent (the person without an organisation) keeps its owner's reach")
+else:
+    print("(q) #6808: skipped -- a running server (KMT_NOSTART / P6668_NOSTART) cannot be started with KALMIDO_REQ_MAIN_FROM")
 
 raise SystemExit(done("p6668_ext_team_agent"))

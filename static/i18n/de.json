@@ -19470,6 +19470,7 @@
   "Coming from another program? Then enter the next number here": "Kommst du von einem anderen Programm? Dann hier die nächste Nummer eintragen",
   "Logo / letterhead": "Logo / Briefpapier",
   "Your logo on every document (optional)": "Dein Logo auf jedem Dokument (freiwillig)",
+  "Its starter asks for no request token yet: from {0} its own token reaches only its channel. Run the setup command on its computer again.": "Sein Starter holt noch kein Anfrage-Token: ab {0} erreicht sein eigenes Token nur noch seinen Kanal. Führe den Einrichtungsbefehl auf seinem Rechner noch einmal aus.",
   "Check for a new version every 6 hours": "Alle 6 Stunden nach einer neuen Version suchen",
   "The server asks GitHub every 6 hours for the latest release; nothing is installed automatically and the browser never contacts GitHub. The result shows below.": "Der Server fragt alle 6 Stunden bei GitHub nach der neuesten Version; nichts wird automatisch installiert und der Browser kontaktiert GitHub nie. Das Ergebnis steht weiter unten.",
   "The Kalmido AI is switched off in this organisation. An admin of the organisation can switch it on (Settings > Organisation > People).": "Die Kalmido-KI ist in dieser Organisation ausgeschaltet. Ein Admin der Organisation kann sie einschalten (Einstellungen > Organisation > Personen).",
