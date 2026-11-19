@@ -519,6 +519,7 @@ function ofdEditorHtml() {
     <div class="ofdgrid">
     ${vf ? '' : clients.length ? ofdF('client_id', tr('Client'), ofdBound(d, ofdSel('client_id', d.client_id, clients, cdn_on() ? tr('No client') : tr('free recipient')))) : typeof clientsOn === 'function' && clientsOn() ? `<div class="row fx8a_nocl"><label>${esc(tr('Client'))}</label><span class="muted">${esc(tr('No clients in this area yet'))}</span>${ro ? '' : `<button type="button" class="btn sm" data-ofd="client-new">${ic('plus', 's')}<span>${tr('Add client')}</span></button>`}</div>` : ''}
     ${d.client_id && (d.client_contacts || []).length ? ofdF('contact_id', tr('Contact person'), ofdSel('contact_id', d.contact_id ?? d.client_contacts[0].id, [...d.client_contacts.map(k => [k.id, k.name + (k.role ? ` (${k.role})` : '') + (k.is_default ? ' · ' + tr('default') : '')]), [0, tr('no contact person')]]), tr('the attention line of the address follows the choice')) : ''}
+    ${/*html-ok*/ ofd_authorHtml(d) /* (#7300): built with esc() */}
     ${/*html-ok*/ cdn_on() ? cdn_recHtml(d, ro) : ofd_recFixed(d) ? ofd_recFieldsHtml(d) : `${ofdF('recipient_name', tr('Recipient'), ofdIn('recipient_name', d.recipient?.name, {ph: tr('Company or name')}))}
     ${ofdF('recipient_lines', tr('Address lines'), ofdTa('recipient_lines', (d.recipient?.lines || []).join('\n'), 3, {ph: tr('one line each: name, attention, street, place')}))}`}
     ${ofdF('project_title', tr('Project title'), ofdTa('project_title', d.project_title, 2, {max: 1000, grow: 10}))}
@@ -1131,6 +1132,7 @@ async function ofdChange0(e) {
   if (f === 'recipient_name' || f === 'recipient_lines') { await ofdPatch({recipient: {name: $('#ofd-recipient_name')?.value ?? d.recipient?.name, lines: ($('#ofd-recipient_lines')?.value ?? (d.recipient?.lines || []).join('\n')).split('\n')}}); return; }
   if (f === 'client_id') { await ofdPatch({client_id: t.value ? +t.value : null, recipient_from_client: !!t.value}); return; }
   if (f === 'contract_id') { await ofdPatch({contract_id: t.value ? +t.value : null}); return; }
+  if (f === 'author_id') { await ofdPatch({author_id: t.value ? +t.value : null}); return; }  // (#7300)
   if (f === 'range_id') { await ofdPatch({range_id: t.value ? +t.value : null}); return; }  // 2.1365.0 (#6698)
   if (f === 'producing_on') { await ofdPatch({producing_on: t.checked ? 1 : 0}); return; }  // 2.47.0 (#1645)
   if (f === 'subtotals' || f === 'flat_print') { await ofdSave('PATCH', `/api/office/docs/${OFD.doc.id}`, {[f]: t.checked ? 1 : 0}); return; }  // 2.1041.0 (#5816, #5817): the document's, also with a part open
@@ -1815,12 +1817,23 @@ async function ofd_fileDlg(d) {
   menu(anchor, [{head: tr('File in a folder…')}, ...items], null, null, tr('File in a folder…'));
 }
 
+// (#7300): "Created by" of a quotation, a choice of the organisation's people (the server sends
+// author_choices only for a draft of an organisation; a personal office has none). A finalised one shows the name as text.
+function ofd_authorHtml(d) {
+  if (d.kind !== 'offer') return '';
+  const ch = d.author_choices || [];
+  if (!ch.length) return d.locked && d.author_name ? `<div class="row"><label>${esc(tr('Created by'))}</label><span>${esc(d.author_name)}</span></div>` : '';
+  const opts = ch.map(p => [p.id, p.name]);
+  if (d.author_id && !ch.some(p => p.id === d.author_id)) opts.push([d.author_id, d.author_name || tr('Former member')]);
+  return ofdF('author_id', tr('Created by'), ofdSel('author_id', d.author_id ?? '', opts, tr('Nobody')), tr('printed on the quotation as the contact person'));
+}
+
 // 2.351.0 A (#3312): client / project / year are filters at the top of the list (decision of 26.10.2026) -- the
 // automatic groups By client / By project / By year and the group "Folders" of the panel (2.199) are gone: every document
 // area of the panel opens as a tree of its own (office_tree.js). The choices: the clients, projects and years of the
 // quotations / invoices (GET /api/office/docs/groups); they combine.
 OFD.flt = OFD.flt || {client_id: '', project: '', year: ''};
-const ofd_grpQs = () => Object.entries(OFD.flt).filter(([, v]) => v).map(([k, v]) => `&${k}=${encodeURIComponent(v)}`).join('');
+const ofd_grpQs = () => Object.entries(OFD.flt).filter(([k, v]) => v && (k !== 'author_id' || OFD.kind === 'offer') /* (#7300): quotations only */).map(([k, v]) => `&${k}=${encodeURIComponent(v)}`).join('');
 async function ofd_grpLoad() {
   const key = OFC.info ? String(OFC.info.org_id) : ''; if (!key || OFD.grpBusy) return;
   OFD.grpBusy = true;
@@ -1832,7 +1845,8 @@ function ofd_fltHtml() {
   const g = OFD.groups?.key === String(OFC.info?.org_id) ? OFD.groups : (ofd_grpLoad(), null); if (!g) return '';
   const sel = (k, label, all, opts) => opts.length || OFD.flt[k] ? `<select id="ofd-flt-${k}" data-oflt="${k}" aria-label="${esc(label)}"><option value="">${esc(all)}</option>${opts.map(([v, n]) => `<option value="${esc(String(v))}" ${String(OFD.flt[k]) === String(v) ? 'selected' : ''}>${esc(String(n))}</option>`).join('')}</select>` : '';
   return sel('client_id', tr('Client'), tr('All clients'), g.clients.map(x => [x.id, x.name])) + sel('project', tr('Project'), tr('All projects'), g.projects.map(x => [x.name, x.name]))
-    + sel('year', tr('Year'), tr('All years'), g.years.map(x => [x.year, x.year]));
+    + sel('year', tr('Year'), tr('All years'), g.years.map(x => [x.year, x.year]))
+    + (OFD.kind === 'offer' && (g.authors || []).length > 1 ? sel('author_id', tr('Created by'), tr('All people'), g.authors.map(x => [x.id, x.name])) : '');  // (#7300)
 }
 
 // 2.272.0 E2 (#3038): the office trash - deleted drafts and master data, restore or delete for good, the trash period

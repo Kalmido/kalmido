@@ -81,11 +81,11 @@ from ..notify.alerts import fx2_mask_ip
 from .calc import TAX_KEYS, INV_VAT_NOTES, calc_tax_day, dec, money
 from .countries import fk_vat_territory
 from .girocode import gcq_rf, gcq_rf_ok
-from .docs import _j, _put_items, doc_create, doc_items, doc_row, odoc_trash, recalc
+from .docs import _j, _put_items, doc_create, doc_items, doc_row, fk_doc_contact_name, odoc_trash, recalc  # (#7203): + fk_doc_contact_name
 from .invoices import inv_missing, inv_paid_map, inv_state
 from .packs import office_pack_for
 from .ledger import ofx_locked
-from .pdfweb import _file_response, _render, epdf_name, epdf_out, epdf_stored
+from .pdfweb import _file_response, _model, _render, epdf_name, epdf_out, epdf_stored  # (#7203): + _model (the preview scrubbed)
 from .isshold import ihd_load
 from .mailstate import oms_public  # (#6820)
 from .issclients import ISC_REF_RE, isc_body, isc_gone, isc_limit_tell, isc_notice, isc_row, isc_text_check
@@ -505,7 +505,9 @@ def isd_public(c, iss, r, ref=None, origin=None, pm=None):
            "corrects_doc_id": r["cancels_id"] if r["kind"] == "credit" else None, "payments": pays,
            "mail": isd_mail(r),  # (#6820): the delivery state of its e-mail, never the address or an error text
            "updated_at": _ts(r["updated_at"])}
-    if r["status"] == "draft" and not trashed and r["issuer_id"] == iss["id"]:
+    # (#7203, reader F2): missing + flags only for a draft the key made itself (it has its client_ref) -- a person's
+    # correction draft inherits issuer_id, but what it lacks and its alarms are the person's business, not the key's
+    if r["status"] == "draft" and not trashed and r["issuer_id"] == iss["id"] and ref:
         r = oc_dec_fields(c, oid, "office_docs", r)
         s = office_settings(c, oid)
         pack = office_pack_for(s, calc_tax_day(dict(r))) or {}
@@ -773,6 +775,28 @@ def isd_get_ref(ref):
     return jsonify(out)
 
 
+def isd_scrub(c, oid, r, m):
+    """(#7203, reader F1): the key's preview shows only what the key can deliver -- the client's customer number and
+    contact person (a person sets them in the office, ISC_FIELDS has neither) leave the print model: the meta row of the
+    number and the attention line. The office's own preview and the finalised document keep them."""
+    cl = None
+    if r["client_id"]:
+        with system_ctx(c):  # the issuer's client (the caller checked the draft is the issuer's own)
+            cl = c.execute("SELECT id, customer_no, contact FROM clients WHERE id=?", (int(r["client_id"]),)).fetchone()
+    if cl is None:
+        return m
+    cno = str(cl["customer_no"] or "").strip()
+    who = {str(x).strip() for x in (fk_doc_contact_name(c, cl["id"], r["contact_id"] if "contact_id" in r.keys() else None), cl["contact"]) if str(x or "").strip()}
+    rec = m.get("recipient") or {}
+    if cno:
+        m["meta"] = [x for x in m.get("meta") or [] if str(x[1]).strip() != cno]
+        rec["customer_no"] = ""
+    if who:
+        rec["lines"] = [x for x in rec.get("lines") or [] if str(x).strip() not in who]
+        rec["contact"] = None
+    return m
+
+
 @app.get("/api/v1/issuer/docs/<int:did>/pdf")  # = ISD_PDF
 @v1_view
 @_answer
@@ -797,7 +821,8 @@ def isd_pdf(did):
     rev = _rev(r["issuer_rev"])
     if not rev or rev.get("doc") != isd_doc_fp(c, oid, r) or rev.get("client") != isd_client_fp(c, r["client_id"]):
         raise IsdErr(409, tr("A person changed this draft or its client in the office: no preview"), "edited_by_human")
-    pdf = epdf_out(c, oid, r, _render(c, oid, r)[0])  # ISS_REUSED: the person's preview of a draft (watermark: pdfweb.epdf_mark)
+    model = isd_scrub(c, oid, r, _model(c, oid, r["id"]))  # (#7203, reader F1): only what the key delivered
+    pdf = epdf_out(c, oid, r, _render(c, oid, r, model)[0])  # ISS_REUSED: the person's preview of a draft (watermark: pdfweb.epdf_mark)
     _log_read(c, iss, f"pdf:{int(did)}")
     c.commit()
     return _file_response(pdf, epdf_name(r) + ".pdf", "application/pdf")

@@ -202,7 +202,8 @@ function fileDropHint(t) {
   const txt = tr('Drop: one new task per file in {0}', lname(t.l));
   if (h.textContent !== txt) h.innerHTML = `${ic('upload', 's')}<span>${esc(txt)}</span>`;
   const r = (t.el.id === 'view' ? t.el : $('#view') || t.el).getBoundingClientRect();
-  h.style.left = Math.round(r.left + r.width / 2) + 'px'; h.style.top = Math.round(r.top + 12) + 'px';
+  // (#7342): centred over the view between left and right (start-mitte-7342.css), no translateX(-50%) on a half pixel
+  h.style.left = Math.round(r.left) + 'px'; h.style.right = Math.round(document.documentElement.clientWidth - r.right) + 'px'; h.style.top = Math.round(r.top + 12) + 'px';
 }
 async function filesToTasks(l, files) {
   files = noEmpty(files);
