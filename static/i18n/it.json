@@ -19661,6 +19661,7 @@
   "Clients are switched off for you in {0}. Select the workspace for the new client: {1}.": "I clienti sono disattivati per te in {0}. Scegli l’area di lavoro per il nuovo cliente: {1}.",
   "Clients are switched off for you in every workspace you may add clients to.": "I clienti sono disattivati per te in tutte le aree di lavoro in cui puoi aggiungere clienti.",
   "Width of the cell details": "Larghezza dei dettagli della cella",
+  "Width of the name column": "Larghezza della colonna dei nomi",
   "Your contact|pdf": "Vostro referente",
   "Former member": "Ex membro",
   "printed on the quotation as the contact person": "compare sul preventivo come referente",
