@@ -377,7 +377,7 @@ def rr_feasible(rep, d0):
 
 
 def rr_shift_days(parts, d0, d1):
-    """2.1423.0 (#6727): days by which the start of a rule may move towards the date d1 without changing any of its dates
+    """(#6727): days by which the start of a rule may move towards the date d1 without changing any of its dates
     from there on (0 = keep it). parts: {KEY: value} of the rule. DAILY / WEEKLY move by whole periods (interval x 1 / 7
     days, also with BYDAY, BYMONTH, WKST ...), MONTHLY / YEARLY by whole 400-year cycles (the Gregorian calendar repeats
     exactly, weekdays included) when the interval fits the cycle; a COUNT rule never moves (its dates are counted from

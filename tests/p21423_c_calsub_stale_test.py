@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # kalmido-suite: fresh
-"""2.1423.0 (#6551): a calendar subscription that could not be fetched for more than a day (CAL_STALE_S since its last
+"""(#6551): a calendar subscription that could not be fetched for more than a day (CAL_STALE_S since its last
 success) is "out of date". The owner decision (16.11.2026): a warning mark at the calendar and its events with "as of", one
 push; the old events stay and still count as busy (rather busy than booked twice). Own container (start.sh), checked as a
 person without an organisation (tests/freelancer_fixture.py); invented rows only.
