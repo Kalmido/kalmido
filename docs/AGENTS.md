@@ -1386,6 +1386,11 @@ A retry must not do the work twice. Two optional helpers (old agents keep workin
   e.g. a UUID per intended action): a repeat with the same key (same token's account, method and path) gets the first
   answer back with the header `Idempotent-Replayed: true` and changes nothing. A call that failed (4xx / 5xx) stores
   nothing, so retry it with the same key. Keys are kept for 14 days (at most the newest 5000 per account). A key used again within that time gets the old answer back and the action does not happen again. Use a new key for each new action.
+  Since 2.1437.0 (#6558) the whole first answer is kept only for tasks, habits, time, notes and chat; on any other route
+  (office drafts, contacts, documents ...) the repeat gets a short answer in the same shape: `ok`, the id fields (`id`,
+  `*_id`, `ids`) and `updated_at` -- read the object again when you need more. An answer that hands out a secret once (a
+  token, setup or recovery code, a webhook secret) is never kept: its repeat answers `{"ok": true}` and never shows the
+  secret again.
 
 ### Version required
 

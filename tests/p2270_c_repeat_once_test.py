@@ -6,7 +6,8 @@
    the OpenAPI describes expect_due and the header Idempotency-Key
  - header Idempotency-Key (offline queue, service worker, agents): the same key twice = one effect, the second answer is the
    first one (Idempotent-Replayed); also POST /api/tasks (one task, the same id) and API v1; a request that failed frees its
-   key; another person's same key is their own; without the header everything stays as before
+   key; another person's same key is their own; without the header everything stays as before; 2.1437.0 (#6558): a list
+   (not on the full-answer routes) keeps only its short answer: the repeat gets ok + id, the name is not in idem_keys
  - a person without an organisation (the own private workspace): the same -- freelancer-matrix: tasks
 usage: p2270_c_repeat_once_test.py <datadir>      (P2270C_NOSTART=1: use a running server)"""
 import sys
@@ -122,6 +123,15 @@ def run(s, who, lid):
     lst = s.get(B + "/api/state").json()["tasks"]
     check(r1.ok and r2.ok and r1.json()["id"] == r2.json()["id"] and [t["title"] for t in lst].count(f"Buy stamps {who}") == 1,
           f"{who}: a new task sent twice with one key = one task, the same id {r1.text[:120]} {r2.text[:120]}")
+    # 2.1437.0 (#6558): outside tasks, habits, time, notes and chat only the short answer is kept (ok, ids, updated_at)
+    k = uuid.uuid4().hex[:16]
+    r1 = s.post(B + "/api/lists", json={"name": f"Secret plans {who}"}, headers={"Idempotency-Key": k})
+    r2 = s.post(B + "/api/lists", json={"name": f"Secret plans {who}"}, headers={"Idempotency-Key": k})
+    row = kt.dbx("SELECT body FROM idem_keys WHERE k=?", (k,))
+    names = [x["name"] for x in s.get(B + "/api/state").json()["lists"]]
+    check(r1.ok and r2.ok and r2.headers.get("Idempotent-Replayed") == "true" and r2.json().get("id") == r1.json()["id"]
+          and "Secret plans" not in r2.text and row and "Secret plans" not in (row[0][0] or "") and names.count(f"Secret plans {who}") == 1,
+          f"{who}: #6558 a new list sent twice = one list, the repeat gets the short answer {r2.text[:120]} {row}")
     # a failed request frees its key
     k = uuid.uuid4().hex[:16]
     r = s.patch(B + "/api/tasks/987654321", json={"title": "x"}, headers={"Idempotency-Key": k})
