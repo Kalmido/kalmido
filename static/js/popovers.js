@@ -1026,7 +1026,7 @@ function taskMenu(anchor, id, o = {}) {
     }}] : []),
     // priority, assignee
     ...(inPanel ? [] : [PRIO_ROW(id)]),
-    ...(!(inPanel && $('#detail .dmeta [data-act="assign"]')) && collab() && l?.shared && t.id > 0 && !t.context && canAssign(t) && pz_show(t, 'who', t.assignee_id || t.assignee_group_id) ? [{label: tr('Assign…'), icon: 'user', next: 1, fn: () => assignMenu(anchor, id)}] : []),
+    ...(!(inPanel && $('#detail .dmeta [data-act="assign"]')) && asgOn([t]) && canAssign(t) ? [{label: tr('Assign…'), icon: 'user', next: 1, fn: () => assignMenu(anchor, id)}] : []),
     {head: tr('Time|menu')},
     // time
     ...(tFor(t) ? [...(inHead('[data-act="timer-toggle"]') ? [] : [S.timer && S.timer.task_id === id ? {label: tr('Stop timer'), icon: 'stop', fn: timerStop} : {label: tr('Start time tracking'), icon: 'clock', fn: () => timerStart({task_id: id})}]),

@@ -15,18 +15,15 @@ const ME = {key: '', chg: new Set(), sheet: false, on: false};
 const meTasks = () => [...S.multi].map(taskById).filter(t => t && t.id > 0);
 const meKey = () => [...S.multi].sort((a, b) => a - b).join(',');
 const meOneList = ts => ts.length && new Set(ts.map(t => t.list_id)).size === 1 ? ts[0].list_id : 0;
-// the people who can be assigned in every list of the selection
-function mePeople(ts) {
-  const lids = [...new Set(ts.map(t => t.list_id))];
-  let ps = listPeople(listById(lids[0]));
-  for (const lid of lids.slice(1)) { const ids = new Set(listPeople(listById(lid)).map(p => p.user_id)); ps = ps.filter(p => ids.has(p.user_id)); }
-  return ps;
-}
 const REP_PRE = () => [['', N_('None')], ['FREQ=DAILY', N_('Daily')], ['FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR', N_('Weekdays')], ['FREQ=WEEKLY', N_('Weekly')], ['FREQ=MONTHLY', N_('Monthly')], ['FREQ=YEARLY', N_('Yearly')]];
 const DL_TXT = [N_('Off|deadline'), N_('Deadline'), N_('Deadline, also on Today')];
 // the fields of the multi panel: label, icon, value per task (compared as JSON), its text, who may change it, the editor
 function meFields(ts) {
-  const lid = meOneList(ts), anyDue = ts.some(t => t.due), shared = collab() && ts.some(t => listById(t.list_id)?.shared || t.assignee_id);
+  const lid = meOneList(ts), anyDue = ts.some(t => t.due);
+  // 2.1444.0 (#7347): "Assignee" whenever the one condition holds (core.js asgOn: also unshared / organisation projects, "me"),
+  // the people + groups in all the projects (asgPeople / asgGroups, the detail's source); none in all = shown, locked, a hint
+  const who = asgOn(ts), ps = who ? asgPeople(ts) : [], gs = who ? asgGroups(ts) : [];
+  if (who && asgNeedOrgs(ts) && !o3a_orgsP) o3a_orgsLoad().then(() => meRender());
   const mse = mseMenuHere(null, ts) ? mseCtx() : null;
   const F = [
     {k: 'date', lab: N_('Date'), icon: 'cal', get: t => t.due ? t.due + (t.due_time ? ' ' + t.due_time : '') : '', text: v => v ? dueLabel({due: v.slice(0, 10), due_time: v.slice(11) || null}) : tr('No date'), open: meDateMenu},
@@ -34,10 +31,12 @@ function meFields(ts) {
       open: a => menu(a, DL_TXT.map((n, i) => ({label: tr(n), icon: i ? 'flag' : 'x', fn: () => meApply('deadline', t => t.due && (t.deadline || 0) !== i ? {deadline: i} : null, tr('Deadline'))})))}] : []),
     {k: 'priority', lab: N_('Priority'), icon: 'flag', get: t => t.priority || 0, text: v => prioWord(v),
       open: a => menu(a, [[7, N_('Urgent')], [5, N_('High')], [3, N_('Medium')], [1, N_('Low')], [0, N_('None')]].map(([p, n]) => ({label: tr(n), icon: 'flag', cls: p ? 'flag-' + p : '', fn: () => meApply('priority', t => (t.priority || 0) !== p ? {priority: p} : null, tr('Priority'))})))},
-    ...(shared ? [{k: 'assignee', lab: N_('Assignee'), icon: 'user', get: t => t.assignee_group_id ? 'g' + t.assignee_group_id : t.assignee_id || 0, perm: canAssign,
-      text: v => !v ? tr('Nobody') : String(v)[0] === 'g' ? (S.groups || []).find(g => 'g' + g.id === v)?.name || tr('Group') : personNameAny(v) || '?',
-      open: a => menu(a, [{label: tr('Nobody'), icon: 'x', fn: () => meApply('assignee', t => t.assignee_id || t.assignee_group_id ? {assignee_id: null, assignee_group_id: null} : null, tr('Assignee'))}, '-',
-        ...mePeople(ts).map(p => ({label: p.name + (S.me && p.user_id === S.me.id ? ' ' + tr('(me)') : ''), ...ac_mi(p.user_id), fn: () => meApply('assignee', t => t.assignee_id !== p.user_id || t.assignee_group_id ? {assignee_id: p.user_id, assignee_group_id: null} : null, tr('Assignee'))}))])}] : []),
+    ...(who ? [{k: 'assignee', lab: N_('Assignee'), icon: 'user', get: t => t.assignee_group_id ? 'g' + t.assignee_group_id : t.assignee_id || 0, perm: canAssign,
+      none: ps.length || gs.length ? '' : tr('Nobody is in all the selected projects'),
+      text: v => !v ? tr('Nobody') : String(v)[0] === 'g' ? gs.find(g => 'g' + g.group_id === v)?.name || (S.groups || []).find(g => 'g' + g.id === v)?.name || tr('Group') : personNameAny(v) || '?',
+      open: async a => { if (asgNeedOrgs(ts)) await o3a_orgsLoad(); const ps = asgPeople(ts), gs = asgGroups(ts); menu(a, [{label: tr('Nobody'), icon: 'x', fn: () => meApply('assignee', t => t.assignee_id || t.assignee_group_id ? {assignee_id: null, assignee_group_id: null} : null, tr('Assignee'))}, '-',
+        ...ps.map(p => ({label: p.name + (S.me && p.user_id === S.me.id ? ' ' + tr('(me)') : ''), ...ac_mi(p.user_id), fn: () => meApply('assignee', t => t.assignee_id !== p.user_id || t.assignee_group_id ? {assignee_id: p.user_id, assignee_group_id: null} : null, tr('Assignee'))})),
+        ...(gs.length ? ['-', ...gs.map(g => ({label: g.name + ' · ' + tr('Group'), icon: 'users', fn: () => meApply('assignee', t => t.assignee_group_id !== g.group_id || t.assignee_id ? {assignee_group_id: g.group_id, assignee_id: null} : null, tr('Assignee'))}))] : [])]); }}] : []),  // the organisation's people loaded first (like assignMenu)
     {k: 'list', lab: N_('Project'), icon: 'list', get: t => t.list_id, text: v => lname(listById(v)) || '?', perm: t => canEditList(t.list_id),
       open: a => mv_picker(a, meTasks().map(t => t.id), {filter: l => canEditList(l.id), pick: l => meApply('list', t => t.list_id !== l.id ? {list_id: l.id, section_id: null, ...(t.parent_id && !S.multi.has(t.parent_id) ? {parent_id: null} : {})} : null, tr('Moved to {0}', lname(l)))})},  // 2.455.0 (#3848)
     // 2.1365.0 (#6962): in "My tasks" with own sections first the own section (personal: everyone may), the project's as "Section of <project>"
@@ -184,13 +183,13 @@ function meWaitDialog() {
 // ---- the panel
 function meRow(f, ts) {
   const vals = ts.map(f.get), same = new Set(vals.map(v => JSON.stringify(v ?? null))).size === 1;
-  const lock = ts.filter(t => !f.perm(t)).length, chg = ME.chg.has(f.k), lab = f.raw ? f.lab : tr(f.lab);
+  const lock = f.none ? ts.length : ts.filter(t => !f.perm(t)).length, chg = ME.chg.has(f.k), lab = f.raw ? f.lab : tr(f.lab);  // 2.1444.0 (#7347): none = nothing fits all, locked with its hint
   const txt = same ? f.text(vals[0]) : tr('Mixed');
   const shift = f.k === 'date' && !lock ? `<span class="meshift" role="group" aria-label="${esc(tr('Shift each date'))}">${[-1, 1, 7].map(n => `<button type="button" class="btn sm" data-act="me-shift" data-n="${n}" ${ts.some(t => t.due) ? '' : 'disabled'} title="${esc(tr('Shift each date by {0}', meShiftLab(n)))}" aria-label="${esc(tr('Shift each date by {0}', meShiftLab(n)))}">${esc(meShiftLab(n))}</button>`).join('')}</span>` : '';
   return `<div class="mef ${chg ? 'chg' : ''} ${lock ? 'lock' : ''}" data-k="${esc(f.k)}"><span class="mel">${ic(f.icon, 's')}<span>${esc(lab)}</span></span>
     <button type="button" class="mev ${same ? '' : 'mixed'} ${f.toggle && same && vals[0] && vals[0] !== '' ? 'on' : ''}" data-act="me-f" data-f="${esc(f.k)}" ${f.toggle ? `aria-pressed="${same ? !!vals[0] : 'mixed'}"` : 'aria-haspopup="menu"'} ${lock ? 'disabled' : ''} aria-label="${esc(lab + ': ' + txt)}"><span class="mevt">${esc(txt)}</span>${f.toggle ? '' : ic('chev', 's')}</button>
     ${chg ? `<span class="mechg">${esc(tr('changed'))}</span>` : ''}${shift}
-    ${lock ? `<span class="melock">${ic('lock', 's')}${esc(trn('No permission for {0} task', 'No permission for {0} tasks', lock))}</span>` : ''}</div>`;
+    ${lock ? `<span class="melock">${ic('lock', 's')}${esc(f.none || trn('No permission for {0} task', 'No permission for {0} tasks', lock))}</span>` : ''}</div>`;
 }
 function meTagsHtml(ts) {
   const all = new Map();

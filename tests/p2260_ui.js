@@ -57,6 +57,12 @@ const getT = async id => (await call('GET', '/api/tasks/' + id));
   const QP = (await call('POST', '/api/lists', {name: 'Bob team'}, BCK)).id;
   await call('PUT', `/api/lists/${QP}/members`, {user_id: ME_ID, role: 'participant'}, BCK);
   const P1 = (await call('POST', '/api/tasks', {title: 'Alice part', list_id: QP, assignee_id: ME_ID}, BCK)).id;
+  // 2.1444.0 (#7347): an organisation project (everyone in the organisation may edit, bob is not a member of the project)
+  const ORG = (await call('POST', '/api/orgs', {name: 'Gardeners'})).id;
+  await call('PUT', `/api/orgs/${ORG}/members`, {user_id: BOB, role: 'member'});
+  const LO = (await call('POST', '/api/lists', {name: 'Org beds', org_id: ORG})).id;
+  await call('PATCH', `/api/lists/${LO}`, {org_visibility: 'org', org_edit: 1});
+  const OT = [await mk('Org bed one', {list_id: LO}), await mk('Org bed two', {list_id: LO})];
 
   // ================= #936 desktop (jsdom)
   let w = await boot({user: 'alice', hash: 'l/' + L}), d = w.document;
@@ -171,6 +177,35 @@ const getT = async id => (await call('GET', '/api/tasks/' + id));
   check(fld('assignee')?.classList.contains('lock') && /No permission for 1 task/.test(fld('assignee').textContent), '#936: a participant may not change the assignee: locked');
   check(fld('list')?.classList.contains('lock'), '#936: ... nor move to another list');
   check(!fld('date')?.classList.contains('lock') && !val('date').disabled, '#936: ... but the date is open');
+  // 2.1444.0 (#7347): "Assignee" no longer only in shared projects / with an assignee: an organisation project nobody is
+  // assigned in shows it, its menu has the organisation's people (the detail's source), picking one assigns all
+  w.eval(`S.multi = new Set(${JSON.stringify(OT)}); renderMultiBar()`);
+  check(await until(() => fld('assignee')), '#7347: organisation project, nobody assigned: "Assignee" in the multi panel');
+  check(fld('assignee') && !fld('assignee').classList.contains('lock') && !val('assignee').disabled, '#7347: ... open (not locked)');
+  click(w, val('assignee'));
+  const bobIt = await until(() => [...d.querySelectorAll('#pop .menu-list button')].find(b => /Bob Baker/.test(b.textContent)));
+  check(!!bobIt && [...d.querySelectorAll('#pop .menu-list button')].some(b => /Alice \(me\)/.test(b.textContent)), '#7347: the menu lists the organisation member and me: ' + [...d.querySelectorAll('#pop .menu-list button')].map(b => b.textContent.trim()).join('|'));
+  if (bobIt) click(w, bobIt);
+  check(await until(async () => (await Promise.all(OT.map(getT))).every(t => t.assignee_id === BOB)), '#7347: picking bob assigns every selected task');
+  check(await until(() => /Bob Baker/.test(val('assignee')?.textContent || '')), '#7347: the panel shows the new common assignee');
+  // an own, unshared project: "me" can be assigned
+  w.eval(`S.multi = new Set([${T[0]}, ${T[1]}]); renderMultiBar()`);
+  check(await until(() => fld('assignee') && !fld('assignee').classList.contains('lock')), '#7347: own unshared project: "Assignee" shows (me)');
+  click(w, val('assignee'));
+  const meIt = await until(() => [...d.querySelectorAll('#pop .menu-list button')].find(b => /\(me\)/.test(b.textContent)));
+  if (meIt) click(w, meIt);
+  check(await until(async () => (await getT(T[0])).assignee_id === ME_ID && (await getT(T[1])).assignee_id === ME_ID), '#7347: assigned to me');
+  await call('POST', '/api/tasks/batch', {ids: [T[0], T[1]], action: 'patch', data: {assignee_id: null}});
+  // nobody in all the projects (the state without me among a project's people): shown, locked, the hint
+  w.eval(`S.multi = new Set([${T[0]}, ${P1}]); window._m = listById(${QP}).members; listById(${QP}).members = (_m || []).filter(m => m.user_id !== ${ME_ID}); renderMultiBar()`);
+  check(await until(() => fld('assignee')?.classList.contains('lock')), '#7347: no common person: the field stays, locked');
+  check(val('assignee')?.disabled && /Nobody is in all the selected projects/.test(fld('assignee')?.textContent || ''), '#7347: ... with the hint: ' + fld('assignee')?.textContent.replace(/\s+/g, ' ').trim());
+  w.eval(`listById(${QP}).members = _m`);
+  // the one condition (core.js asgOn) in the task panel and the task's menu too: an own unshared project, a person with collaborators
+  w.eval(`S.multi.clear(); S.multiMode = false; openDetail(${T[2]})`);
+  check(await until(() => d.querySelector('#detail .dmeta .dwho[data-act="assign"]:not([aria-disabled])')), '#7347: own unshared project: the task panel has the assignee chip');
+  check(w.eval(`asgOn([taskById(${T[2]})]) && asgPeople([taskById(${T[2]})]).some(p => p.user_id === ${ME_ID})`), '#7347: the menu condition holds there too, me among the people');
+  w.eval('closeDetail()');
   w.eval('S.multi.clear(); S.multiMode = false; render()'); await sleep(100);
   check(!d.querySelector('#detail.multi'), 'cleared');
 
