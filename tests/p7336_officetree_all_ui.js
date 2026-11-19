@@ -1,13 +1,15 @@
 // kalmido-suite: fresh
-// #7336 UI test (regression): the arrow of an office area in the panel opens its tree under "All workspaces" too. Own
-// container (start.sh), jsdom at a computer's width, invented data only. Alice: Private + the organisations Alpha and Bravo.
-// - "All", the office's overview (no office open): Quotations opens to one node per office (Private, Alpha, Bravo); Alpha's
-//   node opens to its folder, its 20 newest quotations and More…, each link keeps the office (#office/s/<space>/...); the
-//   arrows close again. Invoices, Documents, Correspondence, Receipts open the same way (their trees load without an error)
-//   (before: the tree was loaded without the office, the server answered 400, the node opened to nothing)
-// - "All" with an office open (#office/s/org:<Alpha>): the tree of Alpha; then #office/s/private: Private's own tree (before:
-//   one cache per workspace, the other office's or the failed tree stayed)
-// - one workspace (Alpha chosen on top): the tree as before
+// #7336 UI test (regression), turned round by #7387 (owner decision 19.11.2026): under "All workspaces" with several offices
+// the panel shows ONE entry per office (Private, Alpha, Bravo) with its stripe; unfolded it holds that office's menu, whose
+// document areas are trees. Own container (start.sh), jsdom at a computer's width, invented data only. Alice: Private + the
+// organisations Alpha and Bravo.
+// - "All", the office's overview (no office open): Alpha's entry opens to its menu; its Quotations open to its folder, its 20
+//   newest quotations and More…, each link keeps the office (#office/s/<space>/...); the arrows close again. Invoices,
+//   Documents, Correspondence, Receipts of Alpha open the same way (their trees load without an error)
+//   (#7336 before: the tree was loaded without the office, the server answered 400, the node opened to nothing)
+// - "All" with an office open (#office/s/org:<Alpha>): Alpha's entry open and marked, its tree is the open office's; then
+//   #office/s/private: Private's own tree, Alpha's entry still reads Alpha's (one cache per office)
+// - one workspace (Alpha chosen on top): the tree as before, no entries per office
 // freelancer-matrix: n/a - nur Oberfläche, keine neue Route (Person ohne Organisation: p2351_a_officetree_ui)
 const {execFileSync} = require('child_process');
 const path = require('path');
@@ -52,57 +54,59 @@ const LS = {'tasks.sbbUnfold': '["office:money"]', 'tasks.ofmAll': 'true'};  // 
 
   const arrow = (d, k) => [...d.querySelectorAll('#side [data-act="sbb-tree"]')].find(b => b.dataset.k === k);
   const toggle = (d, k, open) => { const a = arrow(d, k); if (!a) return false; if (!!a.dataset.open !== open) a.click(); return true; };
-  const spNodes = d => [...d.querySelectorAll('#side [data-oftsp]')].map(x => x.dataset.oftsp).join();
+  const spNodes = d => [...d.querySelectorAll('#side .sbbt[data-ofmsp]')].map(x => x.dataset.ofmsp).join();
 
   // ================= "All", the office's overview
-  let w = await boot({hash: 'office/offers', allWs: true, ls: LS}), d = w.document;
-  check(await until(() => w.eval('typeof ofc_allOvr === "function" && ofc_allOvr()') && arrow(d, 'of:a:offers')), 'overview: Quotations has its arrow');
-  toggle(d, 'of:a:offers', true);
-  check(await until(() => spNodes(d) === `private,${WA},${WB}`), 'overview: the arrow opens Quotations to Private, Alpha, Bravo ' + spNodes(d));
-  check(arrow(d, 'of:a:offers')?.getAttribute('aria-expanded') === 'true', 'overview: the arrow says open');
-  toggle(d, `of:s:${WA}:offers`, true);
-  const alphaDocs = () => [...d.querySelectorAll('#side [data-oftspdoc^="offers:"]')];
+  let w = await boot({hash: 'office', allWs: true, ls: LS}), d = w.document;
+  const kp = sp => `of:s:${sp}:`;
+  check(await until(() => w.eval('typeof ofc_allOvr === "function" && ofc_allOvr()') && spNodes(d) === `private,${WA},${WB}`), 'overview: one entry per office (Private, Alpha, Bravo) ' + spNodes(d));
+  check(!arrow(d, 'of:a:offers') && !d.querySelector('#side [data-ofmsp-menu]'), 'overview: no mixed area node, every office closed at the very first time');
+  toggle(d, 'of:sp:' + WA, true);
+  check(await until(() => d.querySelector(`#side [data-ofmsp-menu="${WA}"] [data-ofm="offers"]`)), 'overview: Alpha\'s entry opens to its menu');
+  check(arrow(d, 'of:sp:' + WA)?.getAttribute('aria-expanded') === 'true', 'overview: the arrow says open');
+  toggle(d, kp(WA) + 'a:offers', true);
+  const alphaDocs = () => [...d.querySelectorAll(`#side [data-ofmsp-menu="${WA}"] [data-oftspdoc^="offers:"]`)];
   check(await until(() => alphaDocs().length === 20 && [...d.querySelectorAll('#side .sbbtn .n')].some(n => n.textContent === 'Alpha folder')),
-    'overview: Alpha opens to its folder and its 20 newest quotations ' + alphaDocs().length);
-  const more = await until(() => d.querySelector(`#side [data-oftmore="offers"]`));
+    'overview: Alpha\'s Quotations open to its folder and its 20 newest quotations ' + alphaDocs().length);
+  const more = await until(() => d.querySelector(`#side [data-ofmsp-menu="${WA}"] [data-oftmore="offers"]`));
   check(more && more.dataset.go === `office/s/${WA}/offers`, 'overview: More… opens Alpha\'s list ' + more?.dataset.go);
   const g0 = alphaDocs()[0]?.querySelector('.sbbtn')?.dataset.go || '';
   check(new RegExp(`^office/s/${WA}/offers/\\d+$`).test(g0), 'overview: a quotation\'s link keeps the office ' + g0);
   alphaDocs()[0].querySelector('.sbbtn').click();
   check(await until(() => w.location.hash === '#' + g0 && w.eval('S.route.wsp') === WA), 'overview: the quotation opens in Alpha ' + w.location.hash);
-  w.location.hash = '#office';  // the overview again (#office/offers inside an open office keeps that office, core.js)
+  w.location.hash = '#office';  // the overview again
   check(await until(() => w.eval('ofc_allOvr()') && alphaDocs().length === 20), 'back on the overview: Alpha stays open');
-  toggle(d, `of:s:${WA}:offers`, false);
-  check(await until(() => !alphaDocs().length && !d.querySelector('#side [data-oftmore]')), 'overview: Alpha closes again');
-  toggle(d, 'of:a:offers', false);
-  check(await until(() => !spNodes(d)), 'overview: Quotations closes again');
-  // the other areas of the office: the same nodes, their trees load without an error
+  toggle(d, kp(WA) + 'a:offers', false);
+  check(await until(() => !alphaDocs().length), 'overview: Alpha\'s Quotations close again');
+  // the other areas of the office: their trees load without an error
   for (const area of ['invoices', 'gendocs', 'letters', 'receipts']) {
-    if (!await until(() => arrow(d, 'of:a:' + area), 20)) { check(area !== 'invoices', `overview: ${area} is not in the panel`); continue; }
-    toggle(d, 'of:a:' + area, true);
-    check(await until(() => arrow(d, `of:s:${WA}:${area}`)), `overview: ${area} opens to the offices`);
-    toggle(d, `of:s:${WA}:${area}`, true);
+    if (!await until(() => arrow(d, kp(WA) + 'a:' + area), 20)) { check(area !== 'invoices', `overview: ${area} is not in Alpha's menu`); continue; }
+    toggle(d, kp(WA) + 'a:' + area, true);
     check(await until(() => w.eval(`Object.entries(OFT.ov).some(([k, v]) => k.endsWith('${WA}|${area}') && !v.err)`)), `overview: Alpha's tree of ${area} loads without an error`);
-    toggle(d, 'of:a:' + area, false);
+    toggle(d, kp(WA) + 'a:' + area, false);
   }
+  toggle(d, 'of:sp:' + WA, false);
+  check(await until(() => !d.querySelector(`#side [data-ofmsp-menu="${WA}"]`)), 'overview: Alpha\'s entry closes again');
   w.close();
 
   // ================= "All" with an office open: its own tree, never the other office's
-  w = await boot({hash: `office/s/${WA}/offers`, allWs: true, ls: LS}); d = w.document;
-  const node = id => d.querySelector(`#side .sbbt[data-sbbid="${id}"]`);
-  check(await until(() => arrow(d, 'of:a:offers')), 'Alpha open: Quotations has its arrow');
-  toggle(d, 'of:a:offers', true);
-  check(await until(() => node('f:offers:' + FA) && node('d:offers:' + QA[21])), 'Alpha open: its folder and its newest quotation');
+  w = await boot({hash: `office/s/${WA}/offers`, allWs: true, ls: {...LS, 'tasks.sbbOpen': JSON.stringify([kp(WA) + 'a:offers', kp('private') + 'a:offers'])}}); d = w.document;
+  const node = id => d.querySelector(`#side [data-ofmsp-menu="${WA}"] .sbbt[data-sbbid="${id}"]`);
+  check(await until(() => d.querySelector(`#side .sbbt.on[data-ofmsp="${WA}"]`) && arrow(d, 'of:sp:' + WA)?.dataset.open), 'Alpha open: its entry is open and marked');
+  check(await until(() => node('f:offers:' + FA) && node('d:offers:' + QA[21])), 'Alpha open: its folder and its newest quotation (the open office\'s tree)');
   w.location.hash = '#office/s/private/offers';
-  check(await until(() => node('d:offers:' + QP) && !node('f:offers:' + FA) && !node('d:offers:' + QA[21])), 'Private open: Private\'s tree, not Alpha\'s');
+  const pnode = id => d.querySelector(`#side [data-ofmsp-menu="private"] .sbbt[data-sbbid="${id}"]`);
+  check(await until(() => pnode('d:offers:' + QP) && !pnode('f:offers:' + FA) && !pnode('d:offers:' + QA[21])), 'Private open: Private\'s tree, not Alpha\'s');
   w.close();
 
   // ================= one workspace on top (Alpha)
   await call('PATCH', '/api/settings', {workspace: WA});
   w = await boot({hash: 'office/offers', allWs: true, ls: {...LS, 'tasks.sbbOpen': '["of:a:offers"]'}}); d = w.document;
-  check(await until(() => node('f:offers:' + FA) && node('d:offers:' + QA[21]) && !node('d:offers:' + QP)), 'workspace Alpha: the tree opens with Alpha\'s folder and quotations');
+  const n1 = id => d.querySelector(`#side .sbbt[data-sbbid="${id}"]`);
+  check(await until(() => n1('f:offers:' + FA) && n1('d:offers:' + QA[21]) && !n1('d:offers:' + QP)), 'workspace Alpha: the tree opens with Alpha\'s folder and quotations');
+  check(!spNodes(d), 'workspace Alpha: no entries per office');
   toggle(d, 'of:a:offers', false);
-  check(await until(() => !node('f:offers:' + FA)), 'workspace Alpha: closes again');
+  check(await until(() => !n1('f:offers:' + FA)), 'workspace Alpha: closes again');
   w.close();
 
   console.log(`p7336_officetree_all_ui: ${ok} ok, ${F.length} failed`);
