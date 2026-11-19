@@ -3816,7 +3816,7 @@ body.pop-open .pgrip,body.modal-open .pgrip,body.pop-open .lchead .lcg,body.moda
 /* 2.87.9 (#1965): one sheet over the page carries the drag cursor (and keeps hover effects still) instead of a rule on every
    element, which restyled the whole app when a drag started and ended */
 body.pgdrag{cursor:col-resize!important;user-select:none!important;-webkit-user-select:none!important}
-body.pgdrag:not(.lcwdrag)::after{content:"";position:fixed;inset:0;z-index:59;cursor:col-resize}
+body.pgdrag:not(.lcwdrag):not(.gdrag)::after{content:"";position:fixed;inset:0;z-index:59;cursor:col-resize}  /* #7293: not for the grips of grip.js (their own cover, grip.css .gcover) */
 /* 2.331.0 B (#3304): a ::after on body rebuilds the whole page's boxes when it comes and goes (~90 ms with 300 rows): the list
    column drags (width: body.lcwdrag, move: body.lcmoving) put a plain element over the page instead */
 .lccover{position:fixed;inset:0;z-index:59;cursor:col-resize}.lccover.mv{cursor:grabbing}
