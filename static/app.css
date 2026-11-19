@@ -6497,8 +6497,11 @@ html.mini-chat body.in-chat #view .chview .chmsgs{padding-inline:.75rem}  /* 2.1
    wrap, nothing is cut; 2.1353.0 (#6979): on the sign-in page only (not on Today any more), centred above the form and smaller:
    the text in --fs-s, the author in the smallest step, each verse line on its own line (no ' / ') */
 .qd{margin:0 0 1rem;overflow-wrap:break-word}
-.qd .qdo{margin:0;font-style:italic;color:var(--text2);line-height:var(--lh)}
-.qd figcaption{margin-top:.25rem;font-size:var(--fs-s);color:var(--muted);line-height:var(--lh-tight)}
+/* #7228: the author stands in the same line right behind the quote's last word (both inline); the name never breaks, it moves
+   to the next line as a whole when the line is full */
+.qd .qdo{display:inline;margin:0;font-style:italic;color:var(--text2);line-height:var(--lh)}
+.qd figcaption{display:inline;margin-left:.375em;font-size:var(--fs-s);color:var(--muted);line-height:var(--lh-tight)}
+.qd .qda{white-space:nowrap}
 .qd .qda[title]{cursor:help}
 .authscreen .qd,.authscreen .qdslot{text-align:center}
 .authscreen .qd .qdo{font-size:var(--fs-s);color:var(--muted)}

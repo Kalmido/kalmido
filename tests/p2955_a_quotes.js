@@ -8,6 +8,7 @@
 //   above the form (no "nice to have you here" greeting any more); 2.1017.0 (#5784): replaces the original + translation
 //   below it (#5239); no quote ends on a comma, semicolon or colon; the module loads on demand (lazy start: first a
 //   placeholder, then the line); drawing the page again twice keeps the same line and draws it at once (no placeholder)
+// - #7228: the author stands in the same line right behind the quote (quote and caption inline), the name never breaks
 // - 2.1353.0 (#6979): a ' / ' between two verse lines shows as a real line break (<br>), never as a slash; the data keep it
 // - German interface: a French original shows only the German text, a German one its original; French: the French original,
 //   else English; a sound poem always its original
@@ -108,6 +109,10 @@ const line = d => { const f = d.querySelector('.authscreen figure.qd'); return f
   check(L && Q.some(q => q[0] === L.n && (vis(q[2]) === L.o || vis(q[4]) === L.o)), 'sign-in page: a quote of the list');
   check(L && L.a === '— ' + want[5] && L.tip === want[6], 'sign-in page: "— Author", the work as the tooltip ' + (L && L.a));
   check(L && L.cap === L.a && !d.querySelector('.qdt'), 'sign-in page: below the quote only the author, no second text ' + (L && L.cap));
+  // #7228: the author in the same line right behind the quote (quote and caption inline), the name itself never breaks
+  const cs = sel => { const e = d.querySelector('.authscreen figure.qd ' + sel); return e ? w.getComputedStyle(e) : null; };
+  check(cs('.qdo')?.display === 'inline' && cs('figcaption')?.display === 'inline' && cs('.qda')?.whiteSpace === 'nowrap',
+    '#7228: the author stands in the same line behind the quote, no break before it, the name in one piece ' + JSON.stringify([cs('.qdo')?.display, cs('figcaption')?.display, cs('.qda')?.whiteSpace]));
   const sc = d.querySelector('.authscreen'), fig = sc?.querySelector('figure.qd');
   check(fig && !!(fig.compareDocumentPosition(sc.querySelector('#auth-form')) & 4), 'sign-in page: the quote stands above the form');
   check(sc && !/nice to have you here|Welcome back/.test(sc.textContent) && !sc.querySelector('.lghello'), 'sign-in page: no "nice to have you here" / "Welcome back" any more');
