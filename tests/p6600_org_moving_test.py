@@ -12,8 +12,9 @@ Invented companies, people and figures only. tenant-matrix: org
  - ending it: a member 403, its admin 200 - writing works again, the series whose period came meanwhile is paused (not made
    late, decision of 16.11.2026) and its admin gets the task "Invoice series ... paused"; the next watchdog run makes nothing
  - 2.1413.0 (#6951): opening the agreements while moving purges nothing of the organisation's trash (after the move it does);
-   a queue row added by a writing request is strict (runs inside the lock), by a reading one or after mv_allow not; an instance
-   admin who is no member ends a move (noted in the organisation's history), anybody else still 404
+   a queue row added by a writing request is strict (runs inside the lock), by a reading one or after mv_allow not (the export's
+   row: not strict); an instance admin who is no member ends a move only when the organisation has no active admin of its own
+   (else 409; noted in the organisation's history), anybody else still 404
 usage: p6600_org_moving_test.py <datadir>"""
 import os
 import re
@@ -197,6 +198,8 @@ r = A.post(B + f"/api/orgs/{ORG}/export")
 check(r.status_code == 202, f"the export of the organisation starts while it moves {r.status_code} {r.text[:160]}")
 st = until(lambda: (lambda j: j if j.get("state") in ("done", "failed") else None)(A.get(B + f"/api/orgs/{ORG}/export").json()), 120)
 check(st and st.get("state") == "done", f"... and finishes on the fixed state {st}")
+xs = dbx("SELECT strict FROM bg_jobs WHERE kind='ox:export' AND org_id=? ORDER BY id DESC LIMIT 1", (ORG,))
+check(xs and xs[0][0] is False, f"#6951 (reader F1): the export's queue row is not strict (the export may write its key while moving) {xs}")
 tick()
 check(made(SER) == [] and series(SER)[:2] == (True, TODAY), f"the watchdog leaves the series of the moving organisation alone {made(SER)} {series(SER)}")
 log = A.get(B + f"/api/orgs/{ORG}/lists").json().get("log", [])
@@ -229,7 +232,13 @@ check(r.ok and r.json().get("moving") is True, f"Beta's admin starts its move {r
 check(not dbx("SELECT 1 FROM org_members WHERE org_id=? AND user_id=?", (ORG2, ALICE)), "setup: the instance admin is no member of Beta")
 check(Bo.delete(B + M2).status_code == 404, "#6951: somebody else (no member, no instance admin) still gets 404")
 r = A.delete(B + M2)
-check(r.ok and r.json().get("moving") is False, f"#6951: the instance admin ends the move of an organisation he is not in {r.status_code} {r.text[:200]}")
+check(r.status_code == 409 and Ca.get(B + M2).json().get("moving") is True,
+      f"#6951 (reader F2): while Beta has an admin of its own, the instance admin does not end its move {r.status_code} {r.text[:200]}")
+dbx("UPDATE users SET disabled=true WHERE id=?", (CAROL,))  # Beta's only admin is gone
+r = A.delete(B + M2)
+check(r.ok and r.json().get("moving") is False,
+      f"#6951: without an active admin of its own the instance admin ends the move of an organisation he is not in {r.status_code} {r.text[:200]}")
+dbx("UPDATE users SET disabled=false WHERE id=?", (CAROL,))
 check(Ca.post(B + "/api/lists", json={"name": "Beta after", "org_id": ORG2}).status_code in (200, 201), "#6951: Beta writes again")
 lg = dbx("SELECT detail FROM org_list_log WHERE org_id=? AND action='move_off' ORDER BY id DESC LIMIT 1", (ORG2,))
 check(lg and "instance_admin" in str(lg[0][0]), f"#6951: the organisation's history notes that the instance admin ended it {lg}")
