@@ -45,9 +45,14 @@ EVI_SERVER_KEY = "i:evinvite"
 EVI_KEYS = ("title", "location", "all_day", "start", "end", "tz", "rrule", "exdates", "overrides", "status")
 
 
+def _mail_flags():
+    """(MAIL_OUT_ON, MAIL_PROOF) of integrations/mail.py - one function-local import from the higher layer (tools/check_layers.py)."""
+    from ..integrations.mail import MAIL_OUT_ON, MAIL_PROOF
+    return MAIL_OUT_ON, MAIL_PROOF
+
+
 def evi_mail_on():
-    from ..integrations.mail import MAIL_OUT_ON
-    return MAIL_OUT_ON
+    return _mail_flags()[0]
 
 
 def evi_flag(b):
@@ -110,9 +115,9 @@ def evi_day_max(c, uid):
 def evi_proved(c, uid):
     """2.1412.0 (#6355): invitations go out only from a person whose own address is confirmed (mailproof.py eproof_ok, the
     one check of #6352) - the address is Reply-To and ORGANIZER of every invitation."""
-    from ..integrations.mail import MAIL_PROOF
+    proof = _mail_flags()[1]
     u = c.execute("SELECT email, email_proved FROM users WHERE id=?", (uid,)).fetchone()
-    return bool(u) and bool(MAIL_PROOF.get("ok")) and MAIL_PROOF["ok"](u)
+    return bool(u) and bool(proof.get("ok")) and proof["ok"](u)
 
 
 def evi_precheck(c, uid, n):

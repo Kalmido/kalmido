@@ -41,7 +41,7 @@ from ..core.config import app, TZ
 from ..core.i18n import LANGS, N_, tr
 from ..core.db import body, bump, db, err, gsetting, iso, now_utc, usettings
 from ..core.pg import insert_id
-from ..core.env import env_bool  # 2.1308.0 (#6568)
+from ..core.env import env_bool, srv_recipient  # 2.1308.0 (#6568); 2.1412.0 (#6510)
 from ..core.errors import BadInput, UnknownFields
 from ..accounts.session import me
 from ..accounts.orgs import is_org_admin, user_orgs
@@ -324,7 +324,9 @@ def srv_defaults():
         if is_org_admin(c, me(), oid):
             nm = c.execute("SELECT name FROM orgs WHERE id=?", (oid,)).fetchone()
             ws.append({"key": f"org:{oid}", "name": nm[0] if nm else ""})
+    rp, rh = srv_recipient()  # 2.1412.0 (#6510): the set-up names where the agent's reading goes
     return jsonify(docs_scopes=ws, enabled_instance=not srv_off(c), provider=SRV_PROVIDER, default_name=tr(SRV_DEFAULT_NAME),
+                   recipient={"provider": rp, "host": rh},
                    default_model=SRV_DEFAULT_MODEL, default_instructions=tr(SRV_DEFAULT_INSTRUCTIONS),
                    starter=list(SRV_STARTER), flows=list(SRV_FLOWS), followup_days=SRV_FOLLOWUP_DAYS, followup_max=SRV_FOLLOWUP_MAX,
                    day_limit_default=SRV_DAY_LIMIT_DEFAULT,  # 2.638.0 (#4714)

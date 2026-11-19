@@ -74,6 +74,7 @@ plans = {x[1]: x[0] for x in dbx("SELECT id, srv_flow FROM agent_schedules WHERE
 check(set(plans) == {"briefing", "followup"}, f"the planned jobs carry their routine {plans}")
 d = Fr.get(B + "/api/agents/server/defaults").json()
 check(d.get("flows") == ["briefing", "tidy", "meetings", "followup"], f"the defaults name the routines {d.get('flows')}")
+check(d.get("recipient") == {"provider": "127.0.0.1", "host": "127.0.0.1"}, f"#6510: the set-up names where the reading goes {d.get('recipient')}")
 
 # ---------------------------------------------------------------- PUT flow_models: rights and the live list
 for bad, what in (({"briefing": "claude-unknown-1-0"}, "a model the provider does not list"), ({"nope": "claude-haiku-5-5"}, "an unknown routine"),
