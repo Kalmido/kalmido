@@ -194,11 +194,28 @@ def load_config(project_dir):
     if not cfg["lists"]:
         return cfg, "no lists in " + CONFIG_FILE
     # review F6 of 2.1406: close_ref comes from the project file the agent can write -- never a git option, never a job branch
-    if not re.fullmatch(r"(?![-/.])[\w./@^~-]{0,200}", cfg["close_ref"]) or re.search(r"(^|/)job/", cfg["close_ref"]):
+    # (reader F2 of job/5543: a plain ref name only -- no "..", "^", "~", "@" --, no job branch in any case, and a name that
+    # resolves must be a ref, never a bare commit id; it is checked against refs/heads/job/ after git resolved it)
+    if not close_ref_ok(project_dir, cfg["close_ref"]):
         return cfg, "close_ref in " + CONFIG_FILE + " is not used: a git ref, not an option and not a job branch (job/...)"
     if not str(cfg["check_cmd"]).strip():  # 2.1368.0 (#7028): no build without the project's check
         return cfg, "no check_cmd (KALMIDO_DISPATCH_CHECK_CMD in the runner's env file; a job ends only after the project's check)"
     return cfg, ""
+
+
+def close_ref_ok(repo, ref):
+    """review F6 / reader F2 (#7041): may close_ref of the project file name the commits that close tasks? "" (the current
+    branch) yes; else a plain ref name that is no git option and no job branch (job/<id> builds land through the check and
+    the pull request, never by being named here)."""
+    if not ref:
+        return True
+    if not re.fullmatch(r"[A-Za-z][\w./-]{0,199}", ref) or ".." in ref or re.search(r"(?i)(^|/)job/", ref):
+        return False
+    rc, full = git(repo, "rev-parse", "--symbolic-full-name", ref)  # ref never starts with "-" (checked above)
+    full = full.strip()
+    if rc == 0 and not full:  # it resolves, but to no ref: a commit id
+        return False
+    return not full.lower().startswith("refs/heads/job/")
 
 
 def places_of(agent, cfg):
@@ -294,7 +311,8 @@ def brief_missing(t, cfg, field_ids):
     Fundstellen), "size" (size_field or a list tag)."""
     notes = (t.get("notes") or "")[:BRIEF_NOTES_MAX]
     out = []
-    if not any(not re.fullmatch(r"(?i)\s*" + BRIEF_WHERE_WORDS + r"\s*:?\s*", m.group(1)) for m in re.finditer(BRIEF_DECISION_RX, notes)):
+    # reader F3 of job/5543: the bold text stripped first, then matched without \s* around it (linear on long blank runs)
+    if not any(not re.fullmatch(r"(?i)" + BRIEF_WHERE_WORDS + r"[ \t]*:?", m.group(1).strip()) for m in re.finditer(BRIEF_DECISION_RX, notes)):
         out.append("decision")
     if not re.search(BRIEF_WHERE_RX, notes):
         out.append("where")
