@@ -1134,8 +1134,8 @@ the household budget, for one). Agents and API tokens cannot do this; it is a pe
    key derived from `KALMIDO_SECRET_KEY` and readable only by the server, mode 0600); *Download* gives you the plain ZIP,
    *Delete now* removes it at once. The download asks for the same second step as showing a recovery key.
 2. **Set up the other server** (this guide) and sign in there (or ask its admin for an account).
-   **Then invite the people first, before the import** (for an organisation: all its members, *Settings > Organisation >
-   Invite by e-mail*) and let them accept. The import can only give assignments, comment authors and times to people it
+   **Then invite the people first, before the import** (for an organisation: all its members, *Settings > Organisation > People*)
+   and let them accept. The import can only give assignments, comment authors and times to people it
    finds on this server; for everybody else they stay empty or become plain names, and inviting them later does not bring
    them back (2.1424.0).
 3. **Import.** *Settings > Data > Import from a Kalmido export*: the file is uploaded in pieces (large exports work),
@@ -1150,7 +1150,7 @@ the household budget, for one). Agents and API tokens cannot do this; it is a pe
    the preview shows their name and the account found here, never an address -- every person of the file with *found* or
    *not found here*, and how many of them were found. People that are missing can be invited from the preview: type their
    address -- it must match the hash in the file, otherwise nobody is invited. Into an organisation its admin invites them
-   (2.1424.0; before, only a server admin could), the normal way of *Settings > Organisation > Invite by e-mail*: a new
+   (2.1424.0; before, only a server admin could), the normal way of inviting in *Settings > Organisation > People*: a new
    address gets an account with an invitation link by e-mail, the person joins only by accepting (with the role confirmed
    in the preview), the ticked projects are shared then; the day's limit of invitations and the e-mail budget apply, and a
    person who already has an account here that the admin may not see is invited the same quiet way as from the member
