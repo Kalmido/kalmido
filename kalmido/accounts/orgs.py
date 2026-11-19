@@ -167,16 +167,15 @@ def vis_mode(c):
 
 
 def user_orgs(c, uid):
+    """The ids of the organisations uid is in (not retired), as org_roles_of has them for this request: a personal agent only
+    where its person still is (#6605)."""
     m = instance_mode(c)
     if m == "shared":
         return []
+    from .orgroles import org_roles_cap, org_roles_of, org_roles_read
     if has_request_context() and request.method in ("GET", "HEAD"):  # 2.280.0 B (#3116): a read asks once per person, not per call
-        from .orgroles import org_roles_of
         return sorted(org_roles_of(c, uid))  # the same org ids (request cache, forgotten by acx_drop)
-    with system_ctx(c):  # 2.37.0 (#1150): memberships are structure the access rules need (also of other people)
-        # 2.223.2 A (#2859): a retired organisation grants no access (a membership row left from before is ignored)
-        return [r[0] for r in c.execute("SELECT m.org_id FROM org_members m JOIN orgs o ON o.id=m.org_id WHERE m.user_id=? "
-                                        "AND o.retired_at IS NULL ORDER BY m.org_id", (uid,))]
+    return sorted(org_roles_cap(c, uid, org_roles_read(c, uid)))  # a write asks the database each time
 
 
 def org_member_add(c, oid, uid, role="member", keep_office=True):
@@ -230,17 +229,13 @@ def org_names(c, uid):
 def org_role(c, uid, oid):
     """2.28.0 (#935): member | admin | None -- the person's role in organisation oid. 2.143.0 A (#2151): also guest | readonly |
     accounting (what each may do: accounts/orgroles.py; is_org_admin and == "admin" checks stay as they are)."""
-    if not oid or oid not in user_orgs(c, uid):
+    if not oid or instance_mode(c) == "shared":
         return None
+    from .orgroles import org_roles_cap, org_roles_of, org_roles_read
     if _rq("or") is not None:  # 2.369.6 (#3139): a read takes the role from the request cache user_orgs read (same rows)
-        from .orgroles import org_roles_of
         return org_roles_of(c, uid).get(oid)
-    with system_ctx(c):  # 2.37.0 (#1150): membership structure (also asked for other people)
-        r = c.execute("SELECT role FROM org_members WHERE org_id=? AND user_id=?", (oid, uid)).fetchone()
-    if not r:
-        return None
-    from .orgroles import role_known
-    return role_known(r["role"], oid, uid)  # 2.143.0 A (#2151, review): unknown -> guest
+    # #6605: a write reads fresh, narrowed as org_roles_of (a personal agent)
+    return org_roles_cap(c, uid, org_roles_read(c, uid)).get(oid)  # 2.143.0 A (#2151, review): unknown -> guest (role_known)
 
 
 def is_org_admin(c, uid, oid):
@@ -1639,6 +1634,9 @@ def org_member_put(oid, ghost=False):
             if cur["role"] == "admin":
                 rck_admin_gone(c, oid, uid)  # 2.539.0 (#4373)
             org_open_chan_off(c, oid, uid, role)  # 2.560.0 (#4698 b)
+            if role in ("guest", "accounting"):  # #6605: no agents in these roles -- their personal agents leave as with org_leave
+                for aid in org_agents_out(c, oid, uid):
+                    person_revoked(c, aid, oid, "leave")  # the core's revocation of each agent (as agents/admin.py _agent_org_set)
     elif uid != me() and (not g.user["is_admin"] or _operator_apart()):  # 2.148.1 A (#2480): an existing account joins only by accepting an invitation (2.306.0 D1, #2875: also the operator's)
         from .orginvite import ojn_invite
         ojn_invite(c, oid, uid, role)
@@ -1723,6 +1721,28 @@ def ol_back_log(c, oid, lr):
     oo_note(c, oid, real, "list", lr["name"], lr["id"], back=True)
 
 
+def org_agents_out(c, oid, uid, person=False):
+    """The personal agents of uid leave organisation oid (org_leave; #6605: uid's role became guest / accounting, which have no
+    agents): its lists, the events of its calendars, the membership, the office rights groups; they become private. person=True
+    (org_leave): uid's own invitations and rights groups go along. The core's revocation is the caller's (person_revoked
+    'leave' of uid takes their agents' rows too). Returns the agents' ids."""
+    ags = [r[0] for r in c.execute("SELECT user_id FROM agents WHERE owner_id=?", (uid,)).fetchall()]
+    for aid in ags:
+        c.execute("DELETE FROM list_members WHERE user_id=? AND list_id IN (SELECT id FROM lists WHERE org_id=?)", (aid, oid))
+        c.execute("DELETE FROM org_members WHERE org_id=? AND user_id=?", (oid, aid))
+    ppl = [uid, *ags] if person else ags
+    if ppl:
+        # 2.87.0 (#1983): the leaver and their agents are no longer invited to the events of the organisation's calendars
+        c.execute("DELETE FROM event_attendees WHERE user_id IN (%s) AND event_id IN (SELECT e.id FROM events e JOIN ev_cals k "
+                  "ON k.id=e.cal_id WHERE k.org_id=?)" % ",".join("?" * len(ppl)), (*ppl, oid))
+    c.execute("UPDATE agents SET org_id=NULL WHERE owner_id=? AND org_id=?", (uid, oid))
+    if ppl:
+        with system_ctx(c):  # 2.223.2 B (#2860): their office rights groups go too (coming back = no old groups)
+            c.execute("DELETE FROM office_rgroup_members WHERE org_id=? AND user_id IN (%s)" % ",".join("?" * len(ppl)), (oid, *ppl))
+    acx_drop()
+    return ags
+
+
 def org_leave(c, oid, uid, heir, back=None):
     """uid leaves organisation oid: their lists of that workspace go to heir (an organisation admin), uid leaves every list
     of the organisation (members and the agents it owns there stay with the lists), their personal agents of that workspace
@@ -1786,16 +1806,8 @@ def org_leave(c, oid, uid, heir, back=None):
     # are the shared core's revocation (person_revoked 'leave' below: members= of the kinds, restorable rows)
     # 2.46.0 (#1592, review fix): the leaver's personal agents leave the organisation with them -- its lists, calendars,
     # address books and the membership (an agent of an organisation is one of its members)
-    ags = [r[0] for r in c.execute("SELECT user_id FROM agents WHERE owner_id=?", (uid,)).fetchall()]
-    for aid in ags:
-        c.execute("DELETE FROM list_members WHERE user_id=? AND list_id IN (SELECT id FROM lists WHERE org_id=?)", (aid, oid))
-        c.execute("DELETE FROM org_members WHERE org_id=? AND user_id=?", (oid, aid))
-    # 2.87.0 (#1983): the leaver and their agents are no longer invited to the events of the organisation's calendars
-    c.execute("DELETE FROM event_attendees WHERE user_id IN (%s) AND event_id IN (SELECT e.id FROM events e JOIN ev_cals k "
-              "ON k.id=e.cal_id WHERE k.org_id=?)" % ",".join("?" * (len(ags) + 1)), (uid, *ags, oid))
-    c.execute("UPDATE agents SET org_id=NULL WHERE owner_id=? AND org_id=?", (uid, oid))
-    with system_ctx(c):  # 2.223.2 B (#2860): their office rights groups go too (coming back = no old groups)
-        c.execute("DELETE FROM office_rgroup_members WHERE org_id=? AND user_id IN (%s)" % ",".join("?" * (len(ags) + 1)), (oid, uid, *ags))
+    ags = org_agents_out(c, oid, uid, person=True)
+    with system_ctx(c):
         c.execute("DELETE FROM doc_fetchers WHERE org_id=? AND user_id=?", (oid, uid))  # 2.425.0 (#3453 review): their receipt fetchers end (coming back = no old key)
     person_revoked(c, uid, oid, "leave", heir=heir)  # 2.558.0 (#4709): the core's revocation (file store shares, team chat rooms, core objects)
     c.execute("DELETE FROM org_members WHERE org_id=? AND user_id=?", (oid, uid))

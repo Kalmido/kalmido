@@ -167,8 +167,9 @@ def _fs_role(c, uid, chain, pre=None):
     if agent:
         if org and _fs_receipt_hidden(c, uid, org, n, pre):
             return None  # 2.187.1 A (#2735): a share alone is not enough for an organisation's receipt (the area receipts)
-        role = "edit" if any(r["agent_id"] == uid for r in chain) else None
-        return _best(_shares_role(c, ids, uid, True, pre), role)
+        role = _best(_shares_role(c, ids, uid, True, pre), "edit" if any(r["agent_id"] == uid for r in chain) else None)
+        # #6605: an agent whose person is read-only in the organisation is read-only there too (orgroles.org_roles_cap)
+        return "view" if role and org and org_role_key(c, uid, org) == "readonly" else role
     if org and _fs_receipt_hidden(c, uid, org, n, pre):
         return None  # 2.187.0 C (#2476)
     if org and org_limited(c, uid, org):

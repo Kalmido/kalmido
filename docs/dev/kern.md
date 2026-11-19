@@ -130,7 +130,7 @@ is the only role and reads the shares itself (collab/tcxcore.py).
 | Member | - | `org_access` (edit by default) |
 | Read-only member | - | view |
 | Guest, accounting | - | only a personal share |
-| A share (person, group, agent; folder above too) | view / edit | view / edit (read-only members at most view) |
+| A share (person, group, agent; folder above too) | view / edit | view / edit (read-only members and their agents at most view) |
 | An agent | only a share | only a share, only of its own workspace |
 
 On top: another organisation never (404), what `hidden` names never opens through a share (agents and tokens: not even
@@ -144,6 +144,13 @@ their own support access). Writing into another organisation of the person is re
 `obj_need` (need other than view), `need_list` / `need_task` (write) and `files/store.need_node` (write / manage) answer
 403 code `support_session` (`core/access.py acx_sup_write`; "writing" = the caller asks for write access or the request
 method writes). A new area on these functions needs no path entry in `accounts/supportgrant.py`.
+
+The organisation role itself has one reading (#6605): `org_roles_of(c, uid)` (and `user_orgs` / `org_role`, which build on
+it) passes the stored memberships through `accounts/orgroles.py` `org_roles_cap`, per request and never in a longer cache:
+a personal agent has in each organisation at most the current role of its person (its person no longer there: no role).
+So a read-only person's agent is read-only too -- the role checks ask the agent's own role (`cap_list_role`, `org_readonly`,
+the file store's share role) and need no agent exception. A role change to guest / accounting takes the person's agents
+out of the organisation as leaving does (`accounts/orgs.py` `org_agents_out`).
 
 Office documents filed in a folder (`office/docref.py`, decision of #2742, confirmed with #5048): the folder share and the
 office groups are two ways in, and the higher one counts for the document itself -- a folder share can lift reading or

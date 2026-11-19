@@ -357,7 +357,7 @@ def _may_add(c, uid, agent, chain, oid, owner):
         return True
     if _shares_role(c, [x["id"] for x in chain], uid, agent) not in ("edit", "owner"):
         return False
-    return agent or not oid or org_role_key(c, uid, oid) != "readonly"
+    return not oid or org_role_key(c, uid, oid) != "readonly"  # #6605: an agent too (its role is at most its person's)
 
 
 def _new_in_folder(c, uid, agent, b):
