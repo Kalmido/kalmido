@@ -11,7 +11,7 @@ does -- without a server (a stub API in the process, a small HTTP stub and a fak
    to the job (inbox while it runs, a wake of the ended job in its session)
  - #1801 job_inbox: a person's message reaches the running job after its next tool step
  - #2422 abort: Stop with job_id ends that one local job
- - 2.1383.0 (#4063): before the time limit the job gets a hand-over reminder; at the limit no follow-up job starts
+ - 2.1406.0 (#4063): before the time limit the job gets a hand-over reminder; at the limit no follow-up job starts
 Pure Python, no container."""
 import importlib.util
 import json
@@ -97,7 +97,7 @@ if "WAITMSG" in first:
     line = sys.stdin.readline()  # the launcher plays the inbox in as the next user message
     seen({"inbox": json.loads(line)["message"]["content"][0]["text"] if line.strip() else ""})
     final = "Built, with the message."
-if "TIMELIMIT" in first:  # 2.1383.0 (#4063): a long job; the launcher's reminder comes in before the limit ends it
+if "TIMELIMIT" in first:  # 2.1406.0 (#4063): a long job; the launcher's reminder comes in before the limit ends it
     out({"type": "assistant", "message": {"content": [{"type": "text", "text": "a long build"},
          {"type": "tool_use", "name": "Bash", "input": {"command": "true"}}]}})
     line = sys.stdin.readline()
@@ -316,7 +316,7 @@ check(appr == {"title": "Demo hochladen"} and sugg == [], f"one suggestion of an
 b, appr, sugg, _ = agent_job.result_blocks("All built.\n\n```suggest\nShow the log\n```")
 check(appr is None and sugg == ["Show the log"], "a result that asks nothing keeps its button")
 
-# ================================================================ 2.1383.0 (#4063): the time limit = a hand-over note, no chain
+# ================================================================ 2.1406.0 (#4063): the time limit = a hand-over note, no chain
 agent_job.take_wakes()  # the wakes of the jobs above (the stub numbers jobs from REQS: no clear here, a fresh id)
 mark = len(REQS)
 rj = job("start", "--title", "Long", "--timeout-h", "0.003", "-", inp="TIMELIMIT build it all")  # 10 s, the reminder at 7.5 s

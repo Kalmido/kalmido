@@ -3234,14 +3234,14 @@ mode; `KALMIDO_DISPATCH=off|dry|on` on the computer outranks the switch). No mod
    in its description; 2.1394.0: or its dependency field *Blocked by* names an open task that is not built yet, see below), *waiting for a yes* (its title or description names a step without a way back, `one_way_rx`, and
    it lacks the tag `one_way_ok_tag`, default `approved`: a person sets that tag as the approval), *stuck* (2.1368.0: `max_bundles`
    bundles, default 3, left it open; see below), *not yours* (2.1308.0: the person did not create it, see below), *needs a brief*
-   (2.1383.0: only with `brief_required` on, see below) or *ready*,
+   (2.1406.0: only with `brief_required` on, see below) or *ready*,
 3. guard: a job that ended with a task still open gets exactly ONE second try (`max_tries`, default 2); then the task goes
    back to the list with the comment *Not finished in 2 jobs - back in the list* and into the next bundle, cut anew from the
    list (2.1368.0: no rescue of the same working copy again and again); only after `max_bundles` such bundles it is
    *stuck*. A running job with no progress line for `stale_h` hours, a stuck task, a one-way task and a branch outside
    `close_ref` for `branch_max_d` days are findings, each told **once** in the person's chat,
 4. close the built tasks: a comment naming the commit, then complete (never a task tagged `keep`),
-5. if a place is free (2.1383.0: `max_parallel` of the agent's work style, capped by `places`, default 4;
+5. if a place is free (2.1406.0: `max_parallel` of the agent's work style, capped by `places`, default 4;
    409 `slots_full` holds only the next build job) and no brake holds, cut the next bundle and start ONE job with
    `agent_job.py start --worktree` (2.1368.0: always its own working copy, branch `job/<id>`). The bundle is the first ready task in priority order
    (`first_tags`, then `title_classes`, then the task's priority, due date, id). With a `group_field` value, all ready tasks of
@@ -3251,7 +3251,7 @@ mode; `KALMIDO_DISPATCH=off|dry|on` on the computer outranks the switch). No mod
    of a build, never close tasks or start another job, run the project's `check_cmd` before each commit, and at the end
    commit on its branch and stop (never merge, push, open a pull request or deploy),
 6. once a day after `report_at` (default 18:00, local time): a short report into the person's chat (counts per state,
-   brakes, findings). 2.1383.0: it always names three numbers of the last 7 days - the median hours from *built* (the
+   brakes, findings). 2.1406.0: it always names three numbers of the last 7 days - the median hours from *built* (the
    author time of the task's commit) to *in `close_ref`* (the round that closed it), how many of the dispatcher's jobs
    ended with a task still open (neither in `close_ref` nor on a branch), and how often a safeguard was overridden (see
    *Overrides* below). Whoever sees them daily turns the cause sooner.

@@ -37,7 +37,7 @@ How it works
   - 2.619.0 (#2792): --audit = a review job in its own small area: at most KALMIDO_AUDIT_MAX (default 3) open audit jobs,
     never counted against the working copies of build jobs, not with --worktree / --parent; a read-only note goes in front
     of its brief (no commit, merge, push, deploy, nothing changed in Kalmido but comments and its result); list marks it.
-  - a time limit (KALMIDO_JOB_TIMEOUT_H, default 6) ends the job; it says so in its result. 2.1383.0 (#4063): ten minutes
+  - a time limit (KALMIDO_JOB_TIMEOUT_H, default 6) ends the job; it says so in its result. 2.1406.0 (#4063): ten minutes
     before it a reminder goes into the run (TIMEOUT_NOTE: notes file, commit the branch, the rest as a task comment), and
     the starter never starts a follow-up job by itself -- with the dispatcher on, it bundles the open tasks again (a try).
   - 2.1394.0 (#7031): model and effort per kind of job from Kalmido's runtime settings (GET /api/v1/agent runtime): model_job /
@@ -81,7 +81,7 @@ OPEN_STATES = ("starting", "running", "paused")
 MAX_RESUMES = 3
 CHAT_CHUNK = 7500
 STEP_GAP_S = 5.0
-# 2.1383.0 (#4063): a hand-over note instead of a chain of follow-up jobs -- this long before the time limit the run is reminded
+# 2.1406.0 (#4063): a hand-over note instead of a chain of follow-up jobs -- this long before the time limit the run is reminded
 TIMEOUT_WARN_S = 600
 TIMEOUT_NOTE = ("(Launcher: {0} minutes left until this job's time limit, then it is ended. Now: write the state into "
                 "JOB-NOTES.md in the working folder (what is done, what is left, what you found), commit your branch, and leave "
@@ -1063,7 +1063,7 @@ def cmd_start(argv):
         kj = api.req("POST", "/agent/jobs", body)
     except RuntimeError as e:
         print(refused(str(e)) or "the Kalmido job could not be created: " + str(e)[:200])  # 2.392.0 A (#3367)
-        # 2.1383.0 (#5199): exit 4 = 409 slots_full (all places of the work style taken): the dispatcher holds its next build
+        # 2.1406.0 (#5199): exit 4 = 409 slots_full (all places of the work style taken): the dispatcher holds its next build
         # job until a place is free; nothing else stops
         return 4 if "HTTP 409" in str(e) and '"slots_full"' in str(e) else 1
     jid = int(kj["id"])
@@ -1463,7 +1463,7 @@ def cmd_run(argv):
         except OSError:
             pass
         t0 = time.time()
-        warn_s, warned = min(TIMEOUT_WARN_S, j["timeout_s"] // 4), False  # 2.1383.0 (#4063): a short limit: at three quarters
+        warn_s, warned = min(TIMEOUT_WARN_S, j["timeout_s"] // 4), False  # 2.1406.0 (#4063): a short limit: at three quarters
         while p.poll() is None:
             time.sleep(1)
             cur = load(j["id"])
@@ -1500,7 +1500,7 @@ def cmd_run(argv):
                 except OSError:
                     pass
             if not warned and not result and time.time() - t0 > j["timeout_s"] - warn_s:
-                warned = True  # 2.1383.0 (#4063): once per run, as a user message (read after the next tool step)
+                warned = True  # 2.1406.0 (#4063): once per run, as a user message (read after the next tool step)
                 sent = False
                 if streaming and p.stdin and not state["sent_result"]:
                     try:
@@ -1576,7 +1576,7 @@ def cmd_run(argv):
     if timed_out:
         text = (text + "\n\n" if text else "") + (f"(The job reached its time limit of {j['timeout_s'] / 3600:g} h and was ended. "
                                                     "No follow-up job starts by itself: its notes are in JOB-NOTES.md and on its "
-                                                    "task; the open tasks are taken up again later.)")  # 2.1383.0 (#4063)
+                                                    "task; the open tasks are taken up again later.)")  # 2.1406.0 (#4063)
         if j.get("worktree"):
             text += f"\nThe work so far is on branch {j['worktree']['branch']}."
     elif not ok:
@@ -1610,7 +1610,7 @@ def cmd_run(argv):
                          "state": j["state"], "late": [{k: it.get(k) for k in ("t", "kind", "uid", "text")} for it in late]})
         return 0
     hint = "" if posted else "Its result could not be posted into the chat."
-    if timed_out:  # 2.1383.0 (#4063): the wake run hands over, it never continues the job by itself
+    if timed_out:  # 2.1406.0 (#4063): the wake run hands over, it never continues the job by itself
         hint = (hint + " " if hint else "") + ("It reached its time limit. Do not start a follow-up job by yourself: say what "
                                                "is left and offer a new start; the dispatcher (when on) takes the open tasks up again.")
     add_wake(j, "done" if ok and not timed_out else "failed", text,  # 2.46.6 (#1445): a wake run instead of a note
