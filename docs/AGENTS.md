@@ -263,7 +263,9 @@ only over `https://` or from the Kalmido itself. The script, served by your own 
    (`--ip-rule current|off|ADDRESSES` / `-IpRule ...` answers without asking; Enter or no terminal = no rule). The redeem
    then sends `allowed_ips` (`"current"` = the address Kalmido sees, IPv6 as its /64, or IPs / networks); Kalmido sets the
    key's address rule (`api_tokens.allowed_ips`, the same rule as for every token) when it is within the agent's own one
-   and answers `allowed_ips` / `allowed_ips_applied`; a wrong address is `400` before the code is used. For Claude Code it
+   and answers `allowed_ips` / `allowed_ips_applied`; a wrong address is `400` before the code is used. *#7051:*
+   `PATCH /api/my/agents/<id>` (admin: `/api/admin/agents/<id>`) `{"machine_ip_reset": <computer id>}` gives that one key the
+   agent's own rule again (`404` for a key of another agent or a request token; logged). For Claude Code it
    writes the deny rules of the hardened profile into the project folder's `.claude/settings.local.json` (`WebFetch`,
    `WebSearch`, `Read` of the env files in `~/.kalmido` (`*.env`) and of the env file, `Edit` of the env file; entries already there stay, nothing twice),
 4. starts the agent in event mode (`agent_launcher.sh` / `.ps1 --events -- claude --mcp-config <instance>/mcp.json`)
