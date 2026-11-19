@@ -15,6 +15,9 @@
 # the image is built locally from the source.
 # To update later: run update.sh in the install folder (or this command again). Your .env, data/ and
 # secret/ are kept, and the database is backed up to data/backups/ first.
+# Back to the version before, with its database copy (2.1431.0, #6609): update.sh --restore data/backups/kalmido-<when>.dump
+# (stops Kalmido, keeps a copy of the database as it is now, empties it, loads the copy in one transaction and starts the
+# version that made the copy; KALMIDO_VERSION names another one).
 # A new installation prints the one-time setup code from the server log (the setup page asks for it),
 # keeps the server key in secret/kalmido.key and backs up daily into data/backups/.
 #
@@ -22,7 +25,8 @@
 #   KALMIDO_DIR      install folder                        (default: $HOME/kalmido)
 #   KALMIDO_PORT     port on 127.0.0.1                     (default: 3040)
 #   KALMIDO_VERSION  release tag (vX.Y.Z) or branch        (default: the latest release; main only when named)
-#   KALMIDO_BUILD=1  always build locally instead of pulling the prebuilt image
+#   KALMIDO_BUILD=1  always build locally instead of pulling the prebuilt image (2.1431.0, #6609: also a release whose release
+#                    page is gone, from its git tag)
 #   KALMIDO_URL      the address people open, https://...  (goes into PUBLIC_URL of .env, new or existing;
 #                                                           default: a new .env says http://localhost:<port>)
 #   KALMIDO_CLAMAV   1 = virus scanner on, 0 = off           (default: a new installation runs it from about 3 GB of
@@ -183,10 +187,28 @@ release_assets() {
     SUMS="$TMPD/SHA256SUMS"
   elif [ "$code" = 404 ] && release_before_sums "$VERSION"; then
     warn "Release $VERSION has no checksum list (older release): the download is not checked."
+  elif [ "$code" = 404 ] && [ "${KALMIDO_BUILD:-0}" = 1 ] && tag_exists "$VERSION"; then
+    # 2.1431.0 (#6609): release pages and images of older weeks are pruned (prune-releases.yml), the git tags stay. Named on
+    # purpose with KALMIDO_BUILD=1, such a version is built from its tag - checked as much as a branch: over HTTPS from GitHub,
+    # no checksum list, no prebuilt image. Without it the stop below stays (it names this way).
+    warn "Release $VERSION has no release page any more (older weeks are pruned): building it from its git tag (KALMIDO_BUILD=1). The source comes over HTTPS from GitHub and is not checked against a checksum list."
   else
+    hint=""
+    if [ "$code" = 404 ]; then
+      hint="
+A version that ran here before and whose release page is gone (only the last weeks keep one): KALMIDO_BUILD=1 builds it from its git tag."
+    fi
     die "Could not fetch the checksum list of release $VERSION (answer: ${code:-none}). Nothing was changed.
 Is $VERSION an existing release? Since 2.641 only one version per week gets a release page (the list:
-$GH/releases); a version in between has none - name the release of its week. Otherwise try again later."
+$GH/releases); a version in between has none - name the release of its week. Otherwise try again later.$hint"
+  fi
+}
+# 2.1431.0 (#6609): does the git tag exist on GitHub? (git ls-remote, else the source archive of the tag answers)
+tag_exists() {
+  if command -v git >/dev/null 2>&1; then
+    git ls-remote --exit-code --tags "$GH.git" "refs/tags/$1" >/dev/null 2>&1
+  else
+    curl -fsSIL --max-time 60 -o /dev/null "$GH/archive/refs/tags/$1.tar.gz" 2>/dev/null
   fi
 }
 # releases before 2.277 carry no SHA256SUMS (#2914)
@@ -249,7 +271,7 @@ choose_image() {
 
 # before an update: consistent copy of the database (pg_dump in the db service, custom format); the last 10 copies are
 # kept in data/backups/. 2.1034.0 (#5304): the copy of a SQLite tasks.db (installs before 2.37) is gone.
-backup_db() {
+backup_db() {  # $1 = keep: no old copy is removed (2.1431.0, #6609: the copy a restore loads may be the oldest one)
   # 2.512.0 (#4174): no copy possible: say so and leave time to stop, never go on in silence
   (cd "$DIR" && dc ps -q db 2>/dev/null | grep -q .) || {
     warn "No database service of this installation is running (an external DATABASE_URL, or Kalmido is stopped): no copy of the database was made. The update goes on in 15 seconds; press Ctrl+C to back up your database first."
@@ -264,8 +286,12 @@ backup_db() {
     || { rm -f "$DIR/data/backups/$name"; die "Could not back up the database. Nothing was changed."; }
   say "Saved data/backups/$name"
   DBCOPY="data/backups/$name"
+  # 2.1431.0 (#6609): the version that made the copy, beside it: update.sh --restore starts that one again
+  ran=$(head -n 1 "$DIR/.kalmido-version" 2>/dev/null || true)
+  [ -z "$ran" ] || printf '%s\n' "$ran" > "$DIR/data/backups/$name.version"
+  [ "${1:-}" != keep ] || return 0
   # shellcheck disable=SC2012
-  ls -1t "$DIR"/data/backups/kalmido-*.dump 2>/dev/null | tail -n +11 | while IFS= read -r old; do rm -f "$old"; done
+  ls -1t "$DIR"/data/backups/kalmido-*.dump 2>/dev/null | tail -n +11 | while IFS= read -r old; do rm -f "$old" "$old.version"; done
 }
 
 write_update_script() {
@@ -274,12 +300,13 @@ write_update_script() {
 # Updates this Kalmido installation (written by the Kalmido installer):
 # backs up the database to data/backups/, fetches the latest release (or KALMIDO_VERSION=v1.2.3),
 # pulls the prebuilt image (or builds it) and restarts. Your .env, data/ and secret/ are kept.
+# Back to the version before with its database copy: ./update.sh --restore data/backups/kalmido-<when>.dump
 set -eu
 cd "$(dirname "$0")"
 KALMIDO_DIR=$(pwd)
 export KALMIDO_DIR
 # the installer of the latest release (before 2.277: kalmido.com/install.sh, which now forwards there)
-curl -fsSL "${KALMIDO_INSTALLER_URL:-https://github.com/Kalmido/kalmido/releases/latest/download/install.sh}" | sh
+curl -fsSL "${KALMIDO_INSTALLER_URL:-https://github.com/Kalmido/kalmido/releases/latest/download/install.sh}" | sh -s -- "$@"
 UPD
   chmod 755 "$DIR/update.sh"
 }
@@ -673,7 +700,7 @@ wait_health() {
     if [ -n "$cid" ]; then
       st=$(docker inspect -f '{{.State.Status}} {{.RestartCount}}' "$cid" 2>/dev/null || echo "gone 0")
       if [ "${st%% *}" != running ] || [ "${st##* }" != "$rc0" ]; then
-        die "Kalmido stopped while starting (${st%% *}). The reason is at the end of the log:
+        start_failed "Kalmido stopped while starting (${st%% *}). The reason is at the end of the log:
   cd \"$DIR\" && docker compose logs --tail 50 kalmido"
       fi
     fi
@@ -685,6 +712,116 @@ wait_health() {
   done
   die "Kalmido did not answer on http://127.0.0.1:$PORT within 30 minutes.
 Check the logs: cd \"$DIR\" && docker compose logs --tail 50"
+}
+
+# 2.1431.0 (#6609): a start that fails after an update. restart: unless-stopped (docker-compose.yml) would start the container
+# again and again, each time with the whole database update: update.sh stops it and prints the way back, ready to paste.
+start_failed() {
+  if [ -z "${UPDATE:-}" ] || [ -n "${RESTORE:-}" ]; then die "$1"; fi
+  (cd "$DIR" && dc stop kalmido >/dev/null 2>&1) || true
+  die "$1
+Kalmido is stopped now (Docker would otherwise start it again and again).
+$(back_command)"
+}
+
+# the way back to the version before this update (stdout)
+back_command() {
+  prev=$(head -n 1 "$DIR/.kalmido-version.prev" 2>/dev/null || true)
+  if [ -n "${DBCOPY:-}" ]; then
+    printf 'Back to the version before%s with the database copy of before (what was entered since is lost):\n  %s"%s/update.sh" --restore "%s/%s"\n' \
+      "${prev:+ ($prev)}" "${prev:+KALMIDO_VERSION=$prev }" "$DIR" "$DIR" "$DBCOPY"
+  elif [ -n "$prev" ]; then
+    printf 'No copy of the database was made (an external database). A database update that fails changes nothing, so the version before starts again:\n  KALMIDO_VERSION=%s "%s/update.sh"\n' "$prev" "$DIR"
+  else
+    printf 'Going back: docs/SELF-HOSTING.md, Back to the previous version.\n'
+  fi
+}
+
+is_ver() { printf '%s' "$1" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; }
+
+# X.Y.Z >= X.Y.Z (both checked with is_ver)
+ver_ge() {
+  awk -v a="$1" -v b="$2" 'BEGIN { split(a, x, "."); split(b, y, "."); for (i = 1; i <= 3; i++) { if (x[i] + 0 > y[i] + 0) exit 0; if (x[i] + 0 < y[i] + 0) exit 1 } exit 0 }'
+}
+
+# the value of a fixed key of kalmido_meta in the database container of this installation ("" when not known)
+db_value() {
+  printf "SELECT value FROM kalmido_meta WHERE key='%s';\n" "$1" \
+    | (cd "$DIR" && dc exec -T db sh -c 'PGOPTIONS="-c app.role=system" psql -X -q -t -A -U "$POSTGRES_USER" -d "$POSTGRES_DB"') 2>/dev/null \
+    | head -n 1 | tr -d '\r'
+}
+
+# 2.1431.0 (#6609): the line about the version before at the end of an update. The image alone goes back only while the version
+# before is not below the format limit of the database (back_floor, kalmido/core/db.py appver_check); after a jump over a
+# limit that image refuses to start, so the line names the way with the database copy instead.
+prev_note() {
+  prev=$(head -n 1 "$DIR/.kalmido-version.prev" 2>/dev/null || true)  # 2.359.2 (#2897)
+  [ -n "${UPDATE:-}" ] && [ -z "${RESTORE:-}" ] && [ -n "$prev" ] && [ "$prev" != "$VERSION" ] || return 0
+  pv=${prev##*/}; pv=${pv#v}
+  floor=$(db_value back_floor)
+  if is_ver "$pv" && is_ver "$floor" && ver_ge "$pv" "$floor"; then
+    say "Previous:   $prev  (back to it, the data as it is now: KALMIDO_VERSION=$prev \"$DIR/update.sh\"${DBCOPY:+; with the database of before: \"$DIR/update.sh\" --restore \"$DIR/$DBCOPY\"})"
+  elif [ -n "${DBCOPY:-}" ]; then
+    if is_ver "$floor"; then why="this database has a format limit at $floor"; else why="it may not read this database"; fi
+    say "Previous:   $prev  ($why: back to it only with the database copy of before, what is entered since is lost:"
+    say "            KALMIDO_VERSION=$prev \"$DIR/update.sh\" --restore \"$DIR/$DBCOPY\")"
+  else
+    say "Previous:   $prev  (no copy of the database was made; going back: docs/SELF-HOSTING.md, Back to the previous version)"
+  fi
+}
+
+# 2.1431.0 (#6609): update.sh --restore COPY. pg_restore --clean alone (the old way of the docs) drops only what the copy has:
+# a table of a newer version with a foreign key to users stopped it ("cannot drop constraint users_pkey"), or left newer
+# tables behind with their rows. So the schema is emptied and the copy loaded in ONE transaction: the COMMIT is sent only after
+# pg_restore read the whole copy, so a broken or cut copy, or any error, ends the connection with the transaction open and
+# the database stays as it was. The last line says it went through.
+RESTORE_OK="kalmido-restore-ok"
+RESTORE_SQL='{ printf "%s\n" "BEGIN;" "DROP SCHEMA public CASCADE;" "CREATE SCHEMA public AUTHORIZATION pg_database_owner;" "GRANT USAGE ON SCHEMA public TO PUBLIC;"; pg_restore --no-owner --no-privileges --enable-row-security -f - && printf "%s\n" "COMMIT;" "SELECT '"'"'kalmido-restore-ok'"'"';"; } | PGOPTIONS="-c app.role=system" psql -X -q -t -A -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+
+# the copy (absolute, or relative to the install folder) and the version to start: KALMIDO_VERSION, else the one noted beside it
+restore_locate() {
+  case "$RESTORE" in
+    /*) RESTORE_FILE="$RESTORE" ;;
+    *) RESTORE_FILE="$DIR/$RESTORE" ;;
+  esac
+  [ -f "$DIR/docker-compose.yml" ] || die "$DIR is no Kalmido installation: --restore loads a copy into an existing one. Nothing was changed."
+  [ -f "$RESTORE_FILE" ] && [ -s "$RESTORE_FILE" ] \
+    || die "The database copy $RESTORE was not found (or is empty). The copies: ls -lt \"$DIR/data/backups\". Nothing was changed."
+  [ "$(dd if="$RESTORE_FILE" bs=5 count=1 2>/dev/null)" = PGDMP ] \
+    || die "$RESTORE is no database copy of update.sh (pg_dump -Fc). An in-app backup is restored in the app (Settings > Server > Backup). Nothing was changed."
+  if [ -z "${KALMIDO_VERSION:-}" ]; then
+    KALMIDO_VERSION=$(head -n 1 "$RESTORE_FILE.version" 2>/dev/null || true)
+    [ -n "$KALMIDO_VERSION" ] || die "Which version made $RESTORE is not noted beside it (copies before 2.1431.0). Name it:
+  KALMIDO_VERSION=vX.Y.Z \"$DIR/update.sh\" --restore \"$RESTORE\"
+(the version before the last update: $(head -n 1 "$DIR/.kalmido-version.prev" 2>/dev/null || echo 'not noted')). Nothing was changed."
+  fi
+  # only the database container of this installation; an own server (DATABASE_URL) is restored by hand
+  profile_names | grep -qx localdb || die "update.sh --restore loads the copy into the database container of this installation; this one uses its own database server (no localdb in COMPOSE_PROFILES of .env). Restore it there by hand: docs/SELF-HOSTING.md, Back to the previous version. Nothing was changed."
+}
+
+# Kalmido stopped, the database running and ready, a copy of it as it is now (it is replaced next)
+restore_prepare() {
+  step "Stopping Kalmido for the restore"
+  (cd "$DIR" && dc stop kalmido) || die "Could not stop Kalmido. Nothing was changed."
+  (cd "$DIR" && dc up -d db) || die "Could not start the database service. Nothing was changed; Kalmido is stopped (start it again: cd \"$DIR\" && docker compose up -d)."
+  i=0
+  until (cd "$DIR" && dc exec -T db sh -c 'pg_isready -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"') >/dev/null 2>&1; do
+    i=$((i + 1))
+    [ "$i" -lt 120 ] || die "The database did not get ready within 4 minutes. Nothing was changed; Kalmido is stopped."
+    sleep 2
+  done
+  backup_db keep
+  SAFETY="$DBCOPY"
+}
+
+restore_load() {
+  step "Loading the database copy $RESTORE"
+  out=$( (cd "$DIR" && dc exec -T db sh -c "$RESTORE_SQL") < "$RESTORE_FILE") || true
+  printf '%s\n' "$out" | grep -qx "$RESTORE_OK" || die "The copy could not be loaded (the error is above); the database is as it was before. Kalmido is stopped.
+Start it as it was: cd \"$DIR\" && docker compose up -d   (or try another copy: ls -lt \"$DIR/data/backups\")"
+  # an in-app restore that was cut off noted foreign keys to bring back; the loaded copy has its own
+  rm -f "$DIR/data/backups/.dropped-fks.json"
+  say "Loaded $RESTORE (the database as it was before: $SAFETY)"
 }
 
 # the one-time setup code the server printed (only while no account exists); empty otherwise
@@ -725,12 +862,27 @@ address_note() {
   esac
 }
 
+# 2.1431.0 (#6609): the options of update.sh / the installer
+parse_args() {
+  RESTORE=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --restore) [ $# -ge 2 ] && [ -n "$2" ] || die "--restore needs the database copy: update.sh --restore data/backups/kalmido-<when>.dump"
+                 RESTORE="$2"; shift 2 ;;
+      --restore=?*) RESTORE="${1#--restore=}"; shift ;;
+      *) die "Unknown option $1. Options: --restore <database copy> (the rest goes by environment variables, see the head of install.sh)." ;;
+    esac
+  done
+}
+
 main() {
   command -v curl >/dev/null 2>&1 || die "curl is required."
   [ -n "${HOME:-}" ] || die "HOME is not set."
   DIR="${KALMIDO_DIR:-$HOME/kalmido}"
+  parse_args "$@"
   check_url
   check_clamav_opt
+  if [ -n "$RESTORE" ]; then restore_locate; fi  # sets KALMIDO_VERSION from the copy when not named
   resolve_version
   release_assets
   detect_port
@@ -739,7 +891,9 @@ main() {
   esac
 
   printf '\n\033[1mKalmido installer\033[0m\n'
-  if [ "$VERSION" = main ]; then
+  if [ -n "$RESTORE" ]; then
+    say "Restores the database copy $RESTORE in $DIR and starts version $VERSION with it"
+  elif [ "$VERSION" = main ]; then
     say "Installs the unreleased development version from GitHub (branch main, as you asked) into $DIR"
   elif [ -n "${KALMIDO_VERSION:-}" ]; then
     say "Installs version $VERSION from GitHub into $DIR"
@@ -758,13 +912,17 @@ main() {
   step "Checking Docker"
   check_docker
 
-  if [ -n "$UPDATE" ]; then backup_db; fi
+  SAFETY=""
+  if [ -n "$RESTORE" ]; then restore_prepare; elif [ -n "$UPDATE" ]; then backup_db; fi
   fetch_code
   mkdir -p "$DIR/data" "$DIR/secret"
   chmod 700 "$DIR/secret" 2>/dev/null || true  # the server key (secret/kalmido.key), apart from data/ and its backups
+  if [ -n "$RESTORE" ]; then restore_load; fi
   write_env
   choose_image
   write_override
+  # 2.1431.0 (#6609): an update writes update.sh before the start, so a failed start already has the one with --restore
+  if [ -n "$UPDATE" ]; then write_update_script; fi
   compose_up
   wait_health
   write_update_script
@@ -794,10 +952,10 @@ main() {
   say "Backups:    daily into data/backups/ (Settings > Server > Backup); copy them to another disk too"
   if [ -n "$IMAGE" ]; then say "Image:      $IMAGE (prebuilt)"; else say "Image:      kalmido:local (built on this computer)"; fi
   say "Update:     \"$DIR/update.sh\"  (backs up the database first; admins also see new versions in Settings > Server > Server)"
-  prev=$(head -n 1 "$DIR/.kalmido-version.prev" 2>/dev/null || true)  # 2.359.2 (#2897)
-  if [ -n "$UPDATE" ] && [ -n "$prev" ] && [ "$prev" != "$VERSION" ]; then
-    say "Previous:   $prev  (back to it: KALMIDO_VERSION=$prev \"$DIR/update.sh\"${DBCOPY:+; the database of before: $DBCOPY})"
+  if [ -n "$RESTORE" ]; then
+    say "Restored:   $RESTORE  (the database as it was before the restore: $SAFETY)"
   fi
+  prev_note  # 2.1431.0 (#6609)
   clamav_note  # 2.1284.0 (#6606): on, off for little memory (loud), or off by choice; each with the command to switch
   say "Stop:       cd \"$DIR\" && docker compose down"
   # 2.538.0 (#4361): down -v also removes the named volumes (virus-scan database, temp); pgdata/ is a folder written by the
