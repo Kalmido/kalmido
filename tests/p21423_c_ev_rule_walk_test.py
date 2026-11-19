@@ -6,9 +6,9 @@ dateutil walked every date from DTSTART (FREQ=DAILY from 1900: about 46 000 date
 Own container (start.sh), the app's own functions in a probe; invented rows only. Each case measures its time, and its
 dates are compared with the unmoved rule (the reference, outside the timing).
 
- - 20 timed daily series from 1900 (Europe/Berlin, the window crosses the end of summer time): same dates, fast
+ - 100 timed daily series from 1900 (Europe/Berlin, the window crosses the end of summer time): same dates, fast
  - weekly every 2nd week on Monday + Thursday from 1900 (all day), daily from 1900 with UNTIL inside the window,
-   an EXDATE in the window, yearly from 1900, monthly from 1900 (first Monday, every workday 20 times, the 31st by
+   an EXDATE in the window, yearly from 1900, monthly from 1900 (first Monday, every workday 100 times, the 31st by
    default, every 5th month, the last workday by BYSETPOS), every 3rd year on the first Monday of November, COUNT=9999
    from 2000 (never moved): all the same dates as the unmoved rule
  - is_occ of a daily series from 1900: a real date yes, another time no -- fast
@@ -72,13 +72,13 @@ def run(key, r, n=1, compare=True):
         out[key] = [traceback.format_exc()[-800:], 0, 0]
 
 with app.test_request_context("/", headers={"Accept-Language": "en"}):
-    run("daily_1900", row("1900-01-01T09:00", "1900-01-01T10:00", "FREQ=DAILY"), n=20)
+    run("daily_1900", row("1900-01-01T09:00", "1900-01-01T10:00", "FREQ=DAILY"), n=100)
     run("weekly2_1900", row("1900-01-01", "1900-01-02", "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,TH", all_day=1))
     run("until_1900", row("1900-01-01T18:30", "1900-01-01T19:00", "FREQ=DAILY;UNTIL=20261028"))
     run("exdate_1900", row("1900-01-01", "1900-01-02", "FREQ=DAILY", all_day=1, exdates="2026-10-30,2026-11-02"))
     run("yearly_1900", row("1900-10-25", "1900-10-26", "FREQ=YEARLY", all_day=1))
     run("monthly_1mo", row("1900-01-01T08:00", "1900-01-01T09:00", "FREQ=MONTHLY;BYDAY=1MO"))
-    run("monthly_workdays", row("1900-01-01T08:00", "1900-01-01T17:00", "FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR"), n=20)
+    run("monthly_workdays", row("1900-01-01T08:00", "1900-01-01T17:00", "FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR"), n=100)
     run("monthly_31", row("1900-01-31", "1900-02-01", "FREQ=MONTHLY", all_day=1))
     run("monthly_i5", row("1900-03-03T12:00", "1900-03-03T13:00", "FREQ=MONTHLY;INTERVAL=5"))
     run("monthly_last_wd", row("1900-01-31T16:00", "1900-01-31T17:00", "FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1"))
@@ -94,7 +94,7 @@ with app.test_request_context("/", headers={"Accept-Language": "en"}):
         m.EV_WALK_MAX = keep
     r = row("1900-01-01T09:00", "1900-01-01T10:00", "FREQ=DAILY")
     t0 = time.monotonic()
-    hits = [m.is_occ(r, "2026-11-02T09:00") for _ in range(10)] + [m.is_occ(r, "2026-11-02T10:00")]
+    hits = [m.is_occ(r, "2026-11-02T09:00") for _ in range(50)] + [m.is_occ(r, "2026-11-02T10:00")]
     out["is_occ"] = [hits, round(time.monotonic() - t0, 3)]
     out["walk_max"] = getattr(m, "EV_WALK_MAX", None)
 print(json.dumps(out))
@@ -107,8 +107,8 @@ r = subprocess.run(["docker", "exec", "-i", CT, "python", "-"], input=PROBE, cap
 check(r.returncode == 0, "#6727 the probe runs in the app container " + r.stderr[-1500:])
 P = json.loads(r.stdout.strip().splitlines()[-1]) if r.returncode == 0 else {}
 print("measured:", json.dumps(P)[:3000])
-# 20 expansions of a daily series from 1900 took about 8 s before (0,4 s each); moved, they take milliseconds
-FAST = 1.0
+# 100 expansions of a daily series from 1900 took 4,4 s before on a fast test machine (0,044 s each, ten times that on a small server); moved, a few ms
+FAST = 0.5
 
 
 def got(key, fast=FAST):
@@ -127,7 +127,7 @@ for key, want in (("weekly2_1900", None), ("until_1900", 9), ("exdate_1900", 20)
 res, n = got("walk_cap")
 check(res == ["2026-11-04"], f"#6727 a rule passing more than EV_WALK_MAX dates before the window: only its extra date ({res})")
 hits, secs = P.get("is_occ") or [[], 99]
-check(hits == [True] * 10 + [False] and secs < FAST, f"#6727 is_occ of a daily series from 1900: right and fast ({hits}, {secs} s)")
+check(hits == [True] * 50 + [False] and secs < FAST, f"#6727 is_occ of a daily series from 1900: right and fast ({hits}, {secs} s)")
 check(P.get("walk_max") == 10000, f"#6727 the walk stop is the documented one ({P.get('walk_max')})")
 
 sys.exit(kt.done("p21423_c_ev_rule_walk"))
