@@ -19,11 +19,11 @@
 
 ## What's new
 
-**2.1415.0** (2026-11-19):
-- **Projects**: a PO number per project that quotations and invoices take over; calmer project page with half tiles in two columns.
-- **Office**: the client list and office figures load faster; post-calculation keeps hour positions by time; import checks storage before it starts.
-- **Agents**: starter rights profile "Programming agent", own block list and protected control files; server agents say where their content goes.
-- **Phone**: swipe right opens the folded sidebar; event invitations go out only from a confirmed address.
+**2.1426.0** (2026-11-19):
+- **Agents**: Kalmido AI is now a per-organisation switch (off by default, admins only); personal agents' roles are capped by their person's role; starter dispatcher gains brief checks, build places and override logging.
+- **Organisations**: the target admin invites missing people from the import preview; exports notify when ready or failed, check disk space and run one at a time per server.
+- **Office**: merged clients and contacts keep their links, and undo restores them.
+- **Release**: version data is stamped from the tag when the image is built.
 
 Full history: [CHANGELOG.md](CHANGELOG.md).
 
