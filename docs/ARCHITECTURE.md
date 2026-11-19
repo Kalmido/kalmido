@@ -852,14 +852,16 @@ Since 2.37.0 Kalmido runs on PostgreSQL 17 only (`DATABASE_URL`); SQLite is gone
   previews of a web process go to the worker the same way. On SIGTERM (`bgj_on_term`) a process puts its running rows
   back at once (rows with runs left wait, one-run rows fail "stopped") and ends.
 - **Retries, highest age and the alarm of the queue (2.1408.0, #6388).** A row whose function raises waits again with a
-  growing gap (30 s, doubled per run) while its kind has runs left (`bgj_fn(retry=)`, default its `tries`; `mail:*` and
-  `push:*` 3 - a raising function sent nothing); a lost run still counts against `tries`. A waiting row older than its
+  growing gap (30 s, doubled per run) while its kind has runs left (`bgj_fn(retry=)`, default its `tries`); the `mail:*`
+  and `push:*` kinds catch their own send errors and keep one run (#7181); a lost run still counts against `tries`. A waiting row older than its
   kind's highest age (`bgj_fn(max_age=)`, `mail:*` 24 h, `push:*` 1 h) is failed `expired`, a row of a kind no process knows
   after 24 h `unknown kind`. The watchdog (`aa_bgjobs`, notify/alerts.py) sends an admin alert (kind storage) when more than
-  `KALMIDO_BG_ALARM_FAILED` rows failed within an hour or the oldest due row waits over 15 min; `/api/admin/health` shows
-  `failed_1h`, `failed_kinds` and `oldest_wait_s` in `queue`. `BGJ_ON_STOP` hooks run at SIGTERM before the rows are put
-  back: a server agent's run ends as interrupted and the person it worked for reads "please send it again" in the chat
-  (a lost run the same at the next claim) - no second run on its own.
+  `KALMIDO_BG_ALARM_FAILED` rows failed within an hour or the oldest due row waits over 15 min (only kinds the process knows,
+  no export / import while every long slot is taken, #7181); `/api/admin/health` shows
+  `failed_1h`, `failed_kinds` and `oldest_wait_s` in `queue`. `BGJ_ON_STOP` hooks run at SIGTERM right after the rows are put
+  back (#7181: the release first, a slow chat note never costs it): a server agent's run ends as interrupted and the
+  person it worked for reads "please send it again" in the chat (a lost run the same at the next claim, without naming a
+  restart; the run's own end then says nothing more) - no second run on its own.
 - **Session limits.** Every connection runs with `statement_timeout` 30 s, `idle_in_transaction_session_timeout`
   5 min and `jit=off`. Network calls (mail, calendar and contact sync, Web Push) run outside open transactions.
   `init_db` and the backup lift the statement limit for themselves.
