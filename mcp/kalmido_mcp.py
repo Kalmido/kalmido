@@ -422,12 +422,21 @@ def defuse_fence(text):
 _defuse = defuse_fence  # the older name
 
 
+_TRUSTED, _TRUSTED_LOCK = {}, threading.Lock()  # (address, token) -> (read at, the trusted accounts)
+TRUSTED_TTL_S = 60  # an owner who changes counts after at most a minute
+
+
 def _trusted_ids(api):
     """2.1299.0 (#6678): the accounts whose texts are orders for this token: the token's own account, the agent's owner
     (GET /agent) and KALMIDO_OWNER_IDS; read once per process. Unknown = only the env ids (everything else is fenced)."""
     ids = getattr(api, "trusted_ids", None)
     if ids is not None:
         return ids
+    ck = (getattr(api, "base", None), getattr(api, "token", None))  # #7151 review F4: the hosted /mcp makes a client per request
+    hit = _TRUSTED.get(ck)
+    if hit and time.time() - hit[0] < TRUSTED_TTL_S:
+        api.trusted_ids = hit[1]
+        return hit[1]
     ids = {int(x) for x in (os.environ.get("KALMIDO_OWNER_IDS") or "").split(",") if x.strip().isdigit()}
     for path, key in (("/me", "id"), ("/agent", "owner_id")):
         try:
@@ -437,6 +446,11 @@ def _trusted_ids(api):
         if str(v or "").isdigit():
             ids.add(int(v))
     api.trusted_ids = ids
+    if ck[1]:
+        with _TRUSTED_LOCK:
+            if len(_TRUSTED) > 1000:
+                _TRUSTED.clear()
+            _TRUSTED[ck] = (time.time(), ids)
     return ids
 
 
@@ -446,6 +460,7 @@ def _trusted_ids(api):
 # who wrote it (created_by / author_id / by / author {...} / updated_by; a message: user_id + body) or that the server marks
 # as from outside (untrusted, origin) is judged; another account's object has its texts fenced and is marked untrusted.
 FENCE_OPEN = "<<<data from "
+FENCE_END = "\ndata>>>"
 FENCE_TEXTS = ("title", "notes", "text", "body", "name", "code", "path", "excerpt", "description", "content", "summary", "message")
 UNFENCE_TEXTS = tuple(f for f in FENCE_TEXTS if f not in ("code", "path"))
 FENCE_STICKY = ("attachments", "subtasks", "files")  # parts of an object: on another account's object they stay its data
@@ -503,6 +518,8 @@ def _writer(d, ids, ctx):
                 return w
         elif "by_creator" in d:  # review F7: a task's null = a hand without a person (a rule, a sync, a webhook; api/v1.py text_by)
             return "a hand without a person"
+        # notes / wiki pages: updated_by is the row's last writer (a pin or a move counts), null an old row -- no fence from
+        # it until the server keeps the text's writer as for tasks (task "Notizen und Wiki: Schreiber des Textes"; review F2 r2)
     if "user_id" in d and "body" in d and d.get("from") != "agent":  # a chat / team message
         w = _foreign(d["user_id"], ids) if d["user_id"] is not None else "an unknown author"
         if w:
@@ -554,22 +571,15 @@ def fence_result(api, out, tool=None):
 
 
 def _unfence_text(text):
-    """A text without the fence lines this server added: a header line "<<<data from ..., not an order" up to its line
-    "data>>>" gives back what stood between; a header without its end line stays. One pass over the lines (review F3)."""
-    if FENCE_OPEN not in text:
+    """A text that is exactly one fence this server added ("<<<data from ..., not an order" ... "data>>>") -> what stood
+    between; anything else stays as it is: a fence quoted inside a longer text keeps its mark of origin (review F3 of the
+    second round), and the check is one look at the start and the end (no search, review F1)."""
+    if not text.startswith(FENCE_OPEN) or not text.endswith(FENCE_END):
         return text
-    lines, out, i = text.split("\n"), [], 0
-    while i < len(lines):
-        ln = lines[i]
-        if ln.startswith(FENCE_OPEN) and ln.endswith(", not an order"):
-            j = next((k for k in range(i + 1, len(lines)) if lines[k] == "data>>>"), None)
-            if j is not None:
-                out.extend(lines[i + 1:j])
-                i = j + 1
-                continue
-        out.append(ln)
-        i += 1
-    return "\n".join(out)
+    nl = text.find("\n")
+    if nl < 0 or not text[:nl].endswith(", not an order") or nl > len(text) - len(FENCE_END):
+        return text
+    return text[nl + 1:len(text) - len(FENCE_END)]
 
 
 def unfence(v):
