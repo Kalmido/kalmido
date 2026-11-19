@@ -99,6 +99,18 @@ def need_agent_admin(c, aid, kill=False, cred=False, read=False):
 AGENT_SUPPORT_KEYS = {"enabled"}
 
 
+def machine_ip_reset(c, aid, tid):
+    """#7051 (Fable reader N3): one computer's key of agent aid takes the agent's address rule again ("Remove address rule";
+    none = any address). #7114 (reader #5427 F1, F3): only a computer's key, never a request token (it keeps the narrower
+    rule of the computer that asked, reqtoken.py), and the change is logged like the agent's own rule."""
+    if type(tid) is not int or not c.execute("SELECT 1 FROM api_tokens WHERE id=? AND user_id=? AND name<>?",
+                                             (tid, aid, REQ_TOKEN_NAME)).fetchone():
+        raise Denied(404)
+    a = c.execute("SELECT allowed_ips FROM agents WHERE user_id=?", (aid,)).fetchone()
+    c.execute("UPDATE api_tokens SET allowed_ips=? WHERE id=?", ((a[0] if a else "") or "", tid))
+    print("agent", aid, "token", tid, "address rule reset to the agent's", "by", login_log_who(g.user), flush=True)
+
+
 AGENT_TOKEN_CREATED = "Agent (created)"
 
 
@@ -380,12 +392,14 @@ def admin_agent_update(aid):
             except BadInput:
                 c.rollback()
                 raise
-        if "scopes" in b or "allowed_ips" in b or "machine_ip_reset" in b:  # 2.15.0 (#479); #7051
+        if "scopes" in b or "allowed_ips" in b:  # 2.15.0 (#479)
             try:
                 agent_scopes_set(c, aid, b)
             except BadInput:
                 c.rollback()
                 raise
+        if "machine_ip_reset" in b:  # #7051
+            machine_ip_reset(c, aid, b["machine_ip_reset"])
         if "list_ids" in b:  # 2.30.0 (#919): limited to selected lists of its own
             from ..agents.safety import agent_lists_set
             try:
@@ -831,12 +845,14 @@ def my_agent_update(aid):
         except BadInput:
             c.rollback()
             raise
-    if "scopes" in b or "allowed_ips" in b or "machine_ip_reset" in b:  # 2.15.0 (#479), #7051: the owner decides what the agent may do (within the admin's limit)
+    if "scopes" in b or "allowed_ips" in b:  # 2.15.0 (#479): the owner decides what the agent may do (within the admin's limit)
         try:
             agent_scopes_set(c, aid, b)
         except BadInput:
             c.rollback()
             raise
+    if "machine_ip_reset" in b:  # #7051: after a new agent rule of the same request
+        machine_ip_reset(c, aid, b["machine_ip_reset"])
     if "list_ids" in b:  # 2.30.0 (#919): the owner limits it to selected lists
         from ..agents.safety import agent_lists_set
         try:
