@@ -19402,9 +19402,5 @@
   "Request token expired: a job could not go on": "Token di richiesta scaduto: un job non ha potuto continuare",
   "Once somebody else changes the title or notes of such a task, the agent leaves it until you change them yourself.": "Se qualcun altro cambia il titolo o le note di un'attività del genere, l'agente la lascia finché non li cambi tu.",
   "No tracked time: billed with 0 h": "Nessun tempo registrato: fatturato con 0 h",
-  "The actual sum is below zero: the fixed discounts are larger than the tracked amount. Check the discounts before you create the draft.": "La somma effettiva è sotto zero: gli sconti fissi superano l'importo registrato. Controlla gli sconti prima di creare la bozza.",
-  "The storage of the target is too small for the files of this export: they need {0}, {1} are free, {2} are missing. {3}": "Lo spazio di archiviazione della destinazione è troppo piccolo per i file di questa esportazione: servono {0}, liberi {1}, mancano {2}. {3}",
-  "Ask the operator for more storage or a larger plan, or free up space, then start the import again.": "Chiedi all’operatore più spazio o un piano più grande, oppure libera spazio, poi avvia di nuovo l’importazione.",
-  "The storage of the target was full before every file was in: nothing was imported ({0} missing). {1}": "Lo spazio della destinazione si è esaurito prima che entrassero tutti i file: non è stato importato nulla (mancano {0}). {1}",
-  "Coding agent on a project with live clients: checklist": "Agente di programmazione su un progetto con clienti in produzione: checklist"
+  "The actual sum is below zero: the fixed discounts are larger than the tracked amount. Check the discounts before you create the draft.": "La somma effettiva è sotto zero: gli sconti fissi superano l'importo registrato. Controlla gli sconti prima di creare la bozza."
 }
