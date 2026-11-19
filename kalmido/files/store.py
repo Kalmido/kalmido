@@ -36,6 +36,7 @@ from ..core.access import Denied, act_for, acx_of, acx_sup_write_row, collab_all
 from ..core.orgcrypt import oc_read_file, oc_write_file, oc_user_space
 from ..core.pg import system_ctx  # 2.149.0 G (#2517): pulled up from functions
 from ..core.objhooks import OBJ  # 2.566.0 (#4712): the kinds of the shared core (fs_org_live)
+from ..accounts.supportgrant import sga_is_support  # 2.1412.0 (#7140)
 
 FS_DIR = "files"  # below ATT_DIR
 FS_VERSIONS_KEEP = 20  # 2.152.0 D (#2173): older versions of a file go (rows; the stored file by the orphan clean-up) while ret_on("files")
@@ -57,7 +58,6 @@ from ..accounts.orgroles import org_limited, org_role_key, need_org_write  # 2.3
 from ..tasks.attachments import safe_name, unexec_name, need_attachment  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.orgretain import odl_custodian  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.orgs import is_org_admin  # 2.369.5 (#2517): pulled up from functions
-from ..accounts.supportgrant import sga_is_support  # 2.1412.0 (#7140)
 from ..lists.projects import need_list_file  # 2.369.5 (#2517): pulled up from functions
 
 

@@ -52,6 +52,7 @@ from ..files.fslock import fsl_need_plain  # 2.353.0 F (#2758)
 from ..accounts.orgs import is_org_admin
 from ..accounts.supportgrant import sga_is_support  # review of 2.1254.0 (#6294)
 from ..core.objwords import osw_match, osw_put, osw_register  # 2.1002.0 (#5279): the shared word index
+from ..files.store import FS_EML_REFUSED, fs_eml_refused  # 2.1412.0 (#7140)
 
 HBM_BODY_MAX = 200000   # characters of the plain text kept
 HBM_FILES = 20          # attachments of one mail at most
@@ -70,7 +71,6 @@ from ..core.db import now_iso as _now  # noqa: E402  2.149.0 G (#2517): was an o
 from ..team.clients import client_rows  # 2.369.5 (#2517): pulled up from functions
 from ..files.web import _send  # 2.369.5 (#2517): pulled up from functions
 from ..files.store import ROLE_RANK, _free_name, fs_folder, fs_role, fs_put  # 2.369.5 (#2517): pulled up from functions
-from ..files.store import FS_EML_REFUSED, fs_eml_refused  # 2.1412.0 (#7140)
 from ..tasks.attachments import unexec_name  # 2.369.5 (#2517): pulled up from functions
 from ..files.upsafe import UploadRefused, up_marks  # 2.369.5 (#2517): pulled up from functions
 from ..collab.liste2eguard import le2b_off  # 2.369.5 (#2517): pulled up from functions
