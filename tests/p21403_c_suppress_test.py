@@ -168,6 +168,22 @@ try:
     put(d, "static/js/z.js", "api('POST', '/api/x', {});\napi('DELETE', '/api/x/1');\n")
     rc, out = run(RUL, d)
     check(rc == 0 and "notice (not red yet): rule client-write: 2" in out, f"a further write in the client: a notice ({out[-300:]})")
+    # #7262: the product rules seen in the code text (docs/dev/produkt-regeln.md)
+    os.makedirs(os.path.join(d, "static", "i18n"), exist_ok=True)
+    put(d, "static/js/miniwin.js", "function mw_open(id) { return window.open('/?mini=1'); }\n")
+    put(d, "static/i18n/de.json", '{"Like it 👍": "Gefällt 👍", "Save": "Speichern"}\n')
+    rc, out = run(RUL, d)
+    check(rc == 0 and "window-open" not in out and "rule emoji" not in out,
+          f"#7262: window.open inside miniwin.js and the thumbs in a text are no finding ({out[-300:]})")
+    put(d, "static/js/y.js", "function show(u) { window.open(u, '_blank'); }\n")
+    rc, out = run(RUL, d)
+    check(rc == 1 and "rule window-open: 1, the baseline allows 0" in out and "mw_desk()" in out,
+          f"#7262: a new window.open in the client: red, the way behind mw_desk() named ({out[-400:]})")
+    os.remove(os.path.join(d, "static/js/y.js"))
+    put(d, "static/i18n/de.json", '{"Show as chip": "Als Chip zeigen", "Done 🎉": "Fertig 🎉", "Files": "Meine Ablage"}\n')
+    rc, out = run(RUL, d)
+    check(rc == 1 and "rule wording: 2, the baseline allows 0" in out and "rule emoji: 1, the baseline allows 0" in out
+          and "Privat" in out, f"#7262: 'chip', an old name of Private and an emoji in the texts: red ({out[-500:]})")
 finally:
     shutil.rmtree(d, ignore_errors=True)
 

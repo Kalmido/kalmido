@@ -222,6 +222,16 @@
     "static/sw.js": 3
    }
   },
+  "emoji": {
+   "total": 5,
+   "files": {
+    "static/i18n/de.json": 1,
+    "static/i18n/es.json": 1,
+    "static/i18n/fr.json": 1,
+    "static/i18n/it.json": 1,
+    "static/i18n/nl.json": 1
+   }
+  },
   "env": {
    "total": 282,
    "files": {
@@ -1567,6 +1577,37 @@
     "static/js/workspace.js": 61,
     "static/js/wscolor.js": 35,
     "static/sw.js": 46
+   }
+  },
+  "window-open": {
+   "total": 24,
+   "files": {
+    "static/js/ablage.js": 1,
+    "static/js/chatwin.js": 1,
+    "static/js/docs.js": 2,
+    "static/js/docview.js": 1,
+    "static/js/events.js": 1,
+    "static/js/integrations.js": 1,
+    "static/js/msvview.js": 1,
+    "static/js/office_cfiles.js": 1,
+    "static/js/office_docs.js": 2,
+    "static/js/office_doctpl.js": 2,
+    "static/js/office_letterhead.js": 1,
+    "static/js/office_letters.js": 1,
+    "static/js/office_peppol.js": 1,
+    "static/js/setcore.js": 1,
+    "static/js/sheetkinds.js": 1,
+    "static/js/sheetprint.js": 1,
+    "static/js/sheetsize.js": 1,
+    "static/js/videorev.js": 1,
+    "static/js/wikioff.js": 1,
+    "static/js/wkcm.js": 2
+   }
+  },
+  "wording": {
+   "total": 1,
+   "files": {
+    "static/i18n/de.json": 1
    }
   }
  }
