@@ -26,6 +26,7 @@ N = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, N)
 from freelancer_fixture import freelancer  # noqa: E402
 from kt import FAILS, OKS, check, sess  # noqa: E402
+from kt import dbx as kt_dbx  # noqa: E402  2.1412.0 (#6355)
 
 DATA = sys.argv[1] if len(sys.argv) > 1 else os.path.join(N, ".data")
 ROOT = os.path.dirname(N)
@@ -191,6 +192,9 @@ if j:
 
 # ================================================================ event invitation through its route
 D = (date.today() + timedelta(days=5)).isoformat()
+# 2.1412.0 (#6355): invitations go out only from a confirmed own address
+kt_dbx("UPDATE users SET email=COALESCE(NULLIF(email, ''), 'alice@example.com') WHERE id=?", (ALICE,), data=DATA)
+kt_dbx("UPDATE users SET email_proved=lower(email) WHERE id=?", (ALICE,), data=DATA)
 CAL = A.post(B + "/api/evcals", json={"name": "Alice Termine", "org_id": None}).json()["id"]
 r = A.post(B + "/api/events", json={"cal_id": CAL, "title": "Start <x>", "start": f"{D}T10:00", "end": f"{D}T11:00", "tz": "Europe/Berlin",
                                     "description": "Bring <notes>", "send_invites": True, "attendees": [{"email": "ext1@example.com", "name": "Ext"}]})
@@ -205,6 +209,7 @@ if m:
 
 # ================================================================ a freelancer without an organisation
 FID, Fr = freelancer(B, A)
+kt_dbx("UPDATE users SET email_proved=lower(email) WHERE id=?", (FID,), data=DATA)  # 2.1412.0 (#6355)
 FCAL = Fr.post(B + "/api/evcals", json={"name": "Frida Kalender"}).json()["id"]
 r = Fr.post(B + "/api/events", json={"cal_id": FCAL, "title": "Kundentermin", "start": f"{D}T12:00", "end": f"{D}T13:00", "send_invites": True,
                                      "attendees": [{"email": "kundin@example.com", "name": "Kundin"}]})

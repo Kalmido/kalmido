@@ -19,6 +19,7 @@ from ..events.model import (
 from ..events.ics import ics_export
 from ..events.invite import evi_after_delete, evi_after_restore, evi_after_save, evi_estimate, evi_flag, evi_precheck, evi_send, evi_snap
 from ..events.invite import evi_cal_cancel  # 2.947.0 (#5367)
+from ..events.invite import evi_held  # 2.1412.0 (#6355)
 from ..events.model import ev_tell  # 2.947.0 (#5367)
 from ..api.common import v1_call  # 2.149.0 G (#2517): pulled up from functions
 from ..tasks.tasks import task_create, task_no_origin  # 2.369.5 (#2517): pulled up from functions; 2.1389.0 (#7005)
@@ -431,20 +432,27 @@ def event_get(eid):
 @app.post("/api/events")
 def event_new():
     need_feat("events")
-    return jsonify(op_event_new(db(), me(), body())), 201
+    return jsonify(_with_held(op_event_new(db(), me(), body()))), 201
+
+
+def _with_held(out):
+    """2.1412.0 (#6355): invite_held = guests outside Kalmido a limit (or a missing confirmed address) kept from their
+    invitation / change / cancellation mail in this save (only when there are any); the editor says so."""
+    n = evi_held()
+    return {**out, "invite_held": n} if n and isinstance(out, dict) else out
 
 
 @app.patch("/api/events/<int:eid>")
 def event_edit(eid):
     need_feat("events")
-    return jsonify(op_event_edit(db(), me(), eid, body(), occ_arg()))
+    return jsonify(_with_held(op_event_edit(db(), me(), eid, body(), occ_arg())))
 
 
 @app.delete("/api/events/<int:eid>")
 def event_delete(eid):
     need_feat("events")
     op_event_delete(db(), me(), eid, occ_arg())
-    return jsonify(ok=True)
+    return jsonify(_with_held({"ok": True}))
 
 
 @app.post("/api/events/<int:eid>/restore")

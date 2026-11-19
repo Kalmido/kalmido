@@ -171,6 +171,7 @@ ALICE = A.get(B + "/api/state").json()["me"]["id"]
 A.patch(B + f"/api/users/{ALICE}", json={"email": "alice@example.com"})
 if not one("SELECT email FROM users WHERE id=?", (ALICE,)):
     dbx("UPDATE users SET email='alice@example.com' WHERE id=?", (ALICE,))
+dbx("UPDATE users SET email_proved=lower(email) WHERE id=?", (ALICE,))  # 2.1412.0 (#6355): invitations need a confirmed address
 orgs = {}
 for name in ("Alpha Team", "Gamma Leer"):
     r = A.post(B + "/api/admin/orgs", json={"name": name, "admin_id": ALICE})
@@ -185,6 +186,7 @@ for u in ("bob", "carol"):
 Bo, Ca = usess("bob"), usess("carol")
 dbx("UPDATE users SET email_proved=lower(email) WHERE id=?", (uid["bob"],))  # 2.983.0 (#5643): a share by address binds only a proved address (a mailed link / OIDC); here set directly
 FID, Fr = freelancer(B, A)
+dbx("UPDATE users SET email_proved=lower(email) WHERE id=?", (FID,))  # 2.1412.0 (#6355): invitations need a confirmed address
 Fr.patch(B + "/api/settings", json={"lang": "en", "features": FEATURES, "tour": "done"})
 D = (date.today() + timedelta(days=5)).isoformat()
 PNG = png()

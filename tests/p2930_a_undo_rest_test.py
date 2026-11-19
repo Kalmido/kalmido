@@ -326,6 +326,7 @@ check(res.get("redone") == 1 and CAL in cal_ids() and A.get(B + f"/api/events/{E
 
 # review F3: taking back the restore of a calendar whose event invited an external attendee books no mail
 kt.dbx("UPDATE users SET email='alice@example.com' WHERE id=? AND (email IS NULL OR email='')", (ALICE,))
+kt.dbx("UPDATE users SET email_proved=lower(email) WHERE id=?", (ALICE,))  # 2.1412.0 (#6355): invitations need a confirmed address
 C3 = A.post(B + "/api/evcals", json={"name": "Einladungen Beispiel"}).json()["id"]
 r = A.post(B + "/api/events", json={"cal_id": C3, "title": "Abnahme Beispiel", "start": f"{D}T14:00", "end": f"{D}T15:00", "send_invites": True,
                                     "attendees": [{"email": "gast@example.com", "name": "Gast Beispiel"}]})

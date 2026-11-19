@@ -318,8 +318,12 @@ it. A repeating event goes as one invitation with its rule and its changed or le
   changed (a new version of the same invitation). Changing only the notes mails nobody.
 - Removing an invited attendee, deleting the event or its calendar, or setting it to *Cancelled* sends a cancellation
   (method CANCEL) to everyone who got an invitation. Undo of a delete invites them again.
-- Only who may change the event sends invitations. At most 100 attendees per event and 200 invitation mails per person and
-  day. Without mail sending on the server nothing is sent and the editor says so.
+- Only who may change the event sends invitations, and only with a confirmed own address (Settings > Account, *Confirm
+  address*); without one the editor says so instead of the switch. At most 100 attendees per event and 200 invitation
+  mails per person and day (30 in the account's first 30 days), and like every mail at most 5 a day to the same address.
+  A cancellation to someone who had an invitation is never held back by that per-address limit. When a limit kept guests
+  from their mail, the message after saving says how many - let them know yourself. Without mail sending on the server
+  nothing is sent and the editor says so.
 - Agents never send invitations (`send_invites` from an agent token is refused with 403), see [API.md](API.md#events).
 
 **Subscription link.** In the calendars list (Calendar > Calendars, the menu of a calendar) *Subscription link* makes a

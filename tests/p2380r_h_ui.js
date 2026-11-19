@@ -29,6 +29,7 @@ const online = w => { w.__offline = false; w.eval('OUT.retryAt = 0'); w.dispatch
   await call('POST', '/api/admin/setup', {lang: 'en', collab_all: true, modules: ['cal', 'comments']});
   await call('PATCH', '/api/settings', {lang: 'en', tour: 'done', features: 'cal,comments,events,contacts,wiki,files'});
   sql("UPDATE users SET email='alice@example.com' WHERE username='alice'");
+  sql("UPDATE users SET email_proved=lower(email) WHERE username='alice'");  // 2.1412.0 (#6355): invitations need a confirmed address
   const cal = await call('POST', '/api/evcals', {name: 'Alice Termine'});
   const P = (await call('POST', '/api/lists', {name: 'Flyer'})).id;
   const T = (await call('POST', '/api/tasks', {title: 'Drucken', list_id: P})).id;
