@@ -13,7 +13,7 @@ from ..core.i18n import tr
 from ..core.db import body, bump, db, err, iso, now_utc, uset, usettings
 from ..accounts.session import me
 from ..accounts.login import login_log_who  # 2.239.0 B (#2888)
-from ..core.access import Denied, need_collab, collab_all, need_list, list_state_sql, list_archived_sql
+from ..core.access import Denied, need_collab, collab_all, need_list, list_roles, list_state_sql, list_archived_sql, live_sql
 from ..core.errors import BadInput
 from ..api.common import v1_call, V1Error  # 2.149.0 G (#2517): pulled up from functions
 from ..lists.lists import folder_under  # 2.411.0 (#3516)
@@ -239,8 +239,35 @@ def folder_apply(c, lid, keys=None, force=False, dry=False, uid=None):
 
 
 def folder_lists(c, owner, folder):
-    return [r for r in c.execute(f"SELECT id, name, folder FROM lists WHERE owner_id=? AND NOT is_inbox AND {list_state_sql()} AND quicknote=0 ORDER BY sort, id", (owner,))
+    """The lists of owner in folder (and its subfolders) that owner still owns by role. #6607: a list with owner_id=owner
+    whose role is no longer "owner" (read-only in its organisation, out of its organisation, a token limited to lists)
+    is left out -- the folder's settings, agents and public links never reach it."""
+    rows = [r for r in c.execute(f"SELECT id, name, folder FROM lists WHERE owner_id=? AND NOT is_inbox AND {list_state_sql()} AND quicknote=0 ORDER BY sort, id", (owner,))
             if folder_under(r["folder"] or "", folder)]
+    roles = list_roles(c, owner, [r["id"] for r in rows]) if rows else {}
+    return [r for r in rows if roles.get(r["id"]) == "owner"]
+
+
+def need_folder_write(c, uid, folder):
+    """#6607: 403 when a write on uid's folder (with its subfolders) would reach something uid may not change: a list there
+    with owner_id=uid whose role is no longer "owner" (read-only in its organisation ...), or a folder node in the tree of
+    an organisation where uid's role does not write (need_org_write). The folder's sharing, settings, agents, Playbook,
+    notification template, repositories and dissolving ask this first; renaming / ordering the own sidebar does not."""
+    from ..accounts.orgroles import need_org_write
+    from ..lists.lffolder import lf_folder_nodes
+    if not folder:
+        return
+    for n in lf_folder_nodes(c, uid, folder):
+        if n["org_id"]:
+            need_org_write(c, uid, n["org_id"])
+    rows = [r for r in c.execute(f"SELECT id, org_id, folder FROM lists WHERE owner_id=? AND NOT is_inbox AND {live_sql()}", (uid,)).fetchall()
+            if folder_under(r["folder"] or "", folder)]
+    roles = list_roles(c, uid, [r["id"] for r in rows]) if rows else {}
+    for r in rows:
+        if roles.get(r["id"]) != "owner":
+            if r["org_id"]:
+                need_org_write(c, uid, r["org_id"])  # the read-only / guest text of the organisation
+            raise Denied(403, tr("Only the owner can change this project"))
 
 
 def _clean_props(c, b):
@@ -349,6 +376,7 @@ def folder_props_put():
     apply = b.get("apply", "all")
     if apply not in FOLDER_APPLY:
         return err(tr("Invalid value: {0}", "apply"))
+    need_folder_write(c, me(), f)  # #6607
     try:
         new = _clean_props(c, b.get("props") or {})
     except BadInput as e:
@@ -399,6 +427,8 @@ def list_folder_reset(lid):
     c, b = db(), body()
     r = c.execute("SELECT owner_id FROM lists WHERE id=?", (lid,)).fetchone()
     if not r or r[0] != me():
+        raise Denied(403, tr("Only the owner can change this project"))
+    if need_list(c, lid, write=False) != "owner":  # #6607: the owner by role (read-only in the organisation: view)
         raise Denied(403, tr("Only the owner can change this project"))
     keys = b.get("keys")
     if isinstance(keys, list):

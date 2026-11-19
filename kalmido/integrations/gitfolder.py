@@ -24,6 +24,7 @@ from ..accounts.login import login_log_who  # 2.239.0 B (#2888)
 from ..core.access import Denied, list_role, need_list, reading_sql, list_archived_sql
 from ..core.errors import BadInput
 from ..agents.core import is_agent, need_person
+from ..lists.folders import need_folder_write  # #6607
 from ..lists.lists import folder_under, clean_folder, FOLDER_SEP  # 2.369.5 (#2517): pulled up from functions
 from ..integrations.git import GIT_MAX_CONNS, git_public, git_clean_input, git_connect, git_key_error  # 2.369.5 (#2517): pulled up from functions
 
@@ -254,6 +255,7 @@ def gf_add():
         return err(str(e))
     if token and not SECRET_KEY:
         return err(git_key_error(), 409)
+    need_folder_write(c, me(), f)  # #6607
     lists = _owner_lists(c, me(), f)
     if not lists:
         return err(tr("This folder has no projects"), 404)

@@ -32,6 +32,7 @@ from ..core.access import Denied, list_role, need_collab, list_state_sql
 from ..core.errors import BadInput
 from ..api.common import v1_args, v1_call, v1_view
 from ..lists.lists import FOLDER_SEP, _in_folder, clean_folder, folder_under  # 2.369.5 (#2517): pulled up from functions
+from ..lists.folders import need_folder_write  # #6607
 from ..lists.lffolder import lf_people, lf_people_rows  # 2.958.0 (#5245): the folders' shares (folder_people is gone)
 
 NOTIF_TPLS = ("read", "work", "all", "custom")
@@ -313,6 +314,7 @@ def folder_tpl_put():
     f = clean_folder(str(b.get("folder") or ""), strict=False)
     if not f or not _my_folder(c, f):
         raise Denied(404)
+    need_folder_write(c, me(), f)  # #6607
     try:
         tpl, cust = _tpl_in(b)
         uid = _uid_in(b)

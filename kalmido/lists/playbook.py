@@ -32,7 +32,7 @@ from ..collab.comments import user_names
 from ..core.errors import BadInput
 from ..api.common import v1_args, v1_json, v1_view
 from ..lists.lists import folder_under, clean_folder  # 2.369.5 (#2517): pulled up from functions
-from ..lists.folders import folder_lists  # 2.369.5 (#2517): pulled up from functions
+from ..lists.folders import folder_lists, need_folder_write  # 2.369.5 (#2517): pulled up from functions
 from ..collab.news import news_add  # 2.369.5 (#2517): pulled up from functions
 
 PB_MAX = 8000          # characters of one Playbook
@@ -568,6 +568,7 @@ def pb_folder_put():
         base = _int_arg(b["base_version"], "base_version") if b.get("base_version") is not None else None
     except BadInput as e:
         return err(str(e))
+    need_folder_write(c, uid, f)  # #6607: the folder's Playbook reaches its lists
     write_lock(c, f"playbook:{uid}:{f}")  # review M1
     cur = pb_current(c, owner=uid, folder=f)
     cv = cur["version"] if cur else 0
@@ -608,6 +609,7 @@ def pb_folder_restore():
         v = _int_arg(b.get("version"), "version")
     except BadInput as e:
         return err(str(e))
+    need_folder_write(c, uid, f)  # #6607
     old = pb_version_out(c, v, owner=uid, folder=f)
     nv, ts, changed = pb_save(c, old["text"], "restore", uid, owner=uid, folder=f)
     if changed:

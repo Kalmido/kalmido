@@ -140,6 +140,7 @@
   "kalmido/integrations/webhooks.py:need_wh": "own logic: a switch of the server (webhooks, 409), not who may do what",
   "kalmido/life/model.py:need_life": "own logic: a switch of the server (a life area's feature switch of the person, 409), not who may do what",
   "kalmido/lists/fields.py:need_field": "loads its row and asks the core's need_list (manage) (core/access.py); no rule of its own",
+  "kalmido/lists/folders.py:need_folder_write": "#6607: a folder is a person's sidebar path, no core object - asks the core's list_roles for every project in it and need_org_write for its nodes; no rule of its own",
   "kalmido/lists/groups.py:grp_role": "not a check: the input value of a group share's role (since stage 7d, #5245: fs_shares.list_role of the node's group share)",
   "kalmido/lists/groups.py:need_group": "own logic: which groups a person sees (grp_visible); groups are holders of shares, not objects",
   "kalmido/lists/listtrash.py:otr_can": "own logic: who sees / restores a deleted list in the trash; stage 7d (#5245) moves lists onto the core",

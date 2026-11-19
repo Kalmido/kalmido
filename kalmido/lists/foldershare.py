@@ -21,7 +21,7 @@ from ..core.access import Denied, need_collab
 from ..core.errors import BadInput  # 2.149.0 G (#2517): pulled up from functions
 from ..api.common import v1_call  # 2.149.0 G (#2517): pulled up from functions
 from ..lists.lists import FOLDER_SEP, folder_under, clean_folder, list_agent_set  # 2.369.5 (#2517): pulled up from functions
-from ..lists.folders import folder_props_of, folder_lists, _list_agent as la, folder_apply, _clean_props  # 2.369.5 (#2517): pulled up from functions
+from ..lists.folders import folder_props_of, folder_lists, need_folder_write, _list_agent as la, folder_apply, _clean_props  # 2.369.5 (#2517): pulled up from functions
 from ..lists.ownership import owner_transfer  # 2.369.5 (#2517): pulled up from functions
 from ..lists.groups import grp_folder_rows  # 2.958.0 (#5245): the folder nodes' group shares (group_shares is gone)
 
@@ -179,6 +179,7 @@ def sh_agents_put():
         f = _folder_arg()
     except _Bad as e:
         return err(str(e))
+    need_folder_write(c, me(), f)  # #6607
     aid = b.get("agent_id")
     try:
         _clean_props(c, {"agent_id": aid})
@@ -240,6 +241,7 @@ def sh_agents_delete():
     aid = b.get("agent_id")
     if not isinstance(aid, int) or isinstance(aid, bool):
         return err(tr("Invalid value: {0}", "agent_id"))
+    need_folder_write(c, me(), f)  # #6607
     c.execute("DELETE FROM folder_agents WHERE owner_id=? AND folder=? AND agent_id=?", (me(), f, aid))
     sh_mirror(c, me(), f)
     removed = 0
@@ -271,6 +273,7 @@ def sh_folder_owner():
         f = _folder_arg()
     except _Bad as e:
         return err(str(e))
+    need_folder_write(c, me(), f)  # #6607
     try:
         new = int(b.get("user_id") or 0)
     except (TypeError, ValueError):
@@ -334,6 +337,7 @@ def sh_pub_put():
         f = _folder_arg()
     except _Bad as e:
         return err(str(e))
+    need_folder_write(c, me(), f)  # #6607
     on = b.get("on")
     if not isinstance(on, bool) or ("notes" in b and not isinstance(b["notes"], bool)):
         return err(tr("Invalid value: {0}", "on"))
