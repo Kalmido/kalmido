@@ -556,10 +556,13 @@ coding agents, building files, own tools.
   Only the agent's own long-lived token may ask (`403 request_token_main`); a personal agent gets `{"token": null}` (its
   own token is already its owner's). **From the first request token on, the agent's own token reaches only its channel** (events,
   status, usage and quota -- the class own of the route table above -- plus, by name, the routes the reference starter
-  sends with it: `GET /agent/events`, `GET /agent/chats`, `POST /agent/chats/{id}` with `.../withdraw`, `GET /agent/jobs`,
+  sends with it: `GET /agent/events`, `POST /agent/chats/{id}` with `.../withdraw`, `GET /agent/jobs`,
   `GET` / `PATCH /agent/jobs/{id}`, `POST /agent/progress`, `POST /agent/typing`; api/runfor.py `REQ_MAIN_CHANNEL`); every
-  other route -- also `/search`, `/news`, `/time/*`, `/office/*`, `/briefing`, `/me/waiting`, `/layouts/*` -- answers `403 request_token_needed` -- use the request token there. A program that never asks keeps its
-  token's whole reach (as before 2.1386); the reference starter asks before every run, gives ONLY the request token to
+  other route -- also `/search`, `/news`, `/time/*`, `/office/*`, `/briefing`, `/me/waiting`, `/layouts/*` -- answers `403 request_token_needed` -- use the request token there.
+  2.1432 (#6808): `GET /agent/chats` (what people wrote) is no part of the channel either: read a conversation with the
+  request token of that person's event. A program that never asks keeps its token's whole reach only until the server's
+  day `KALMIDO_REQ_MAIN_FROM` (default 2027-01-01, docs/ENV.md); from then on the channel rule holds for **every** team
+  agent, asked or not (*Settings > Agents* names the day on each team agent that has not asked yet). The reference starter asks before every run, gives ONLY the request token to
   the run (2.1386.0 with #6457: an env file of the run with only that token, `KALMIDO_ENV_FILE` of the run -- the MCP
   server, `kalmido_cli.py`, `agent_job.py` and the usage hook read it there, never the starter's env file), reads the task and
   posts the task's answer with it.

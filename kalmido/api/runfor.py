@@ -25,11 +25,14 @@ The classes:
   safe     no access question (help texts, the OpenAPI document, the server's announcement)
 Personal agents, ordinary tokens and people are untouched: their token carries no requester (run_person() is None)."""
 import re
+from datetime import datetime, timezone
 
 from flask import g, request
 
 from ..accounts.orgroles import org_role_key
 from ..core.access import list_role, run_person
+from ..core.db import now_utc
+from ..core.env import env_default, env_str
 from ..core.i18n import tr
 from ..core.pg import system_ctx
 from ..api.common import v1_err
@@ -134,11 +137,42 @@ def run_class_refuse(c, aid, by):
 # them as a whole: /search, /news, /time/*, /office/*, /briefing, /me/waiting, /layouts/* ... need the request token.
 # tests/p6668_ext_team_agent_test.py checks every route of RUN_ROUTES against these two.
 REQ_MAIN_PASS = ("own", "safe", "noagent")
+# 2.1432 (#6808): GET /agent/chats is no part of it any more -- it reads what people wrote; the reference starter reads the
+# answered message with the run's request token (mcp/agent_run.py reply_message through run_api).
 REQ_MAIN_CHANNEL = frozenset((
-    "GET /agent/chats", "POST /agent/chats/{}", "POST /agent/chats/{}/messages/{}/withdraw",
+    "POST /agent/chats/{}", "POST /agent/chats/{}/messages/{}/withdraw",
     "GET /agent/events", "GET /agent/jobs", "GET /agent/jobs/{}", "PATCH /agent/jobs/{}",
     "POST /agent/progress", "POST /agent/typing",
 ))
+
+
+def _req_main_from():
+    """2.1432 (#6808): the day (UTC) from which the channel rule holds for every team agent (KALMIDO_REQ_MAIN_FROM,
+    core/env.py; a malformed value = the default)."""
+    for v in (env_str("KALMIDO_REQ_MAIN_FROM"), env_default("KALMIDO_REQ_MAIN_FROM")):
+        try:
+            return datetime.strptime(v, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        except (TypeError, ValueError):
+            continue
+    return datetime(2027, 1, 1, tzinfo=timezone.utc)
+
+
+REQ_MAIN_FROM = _req_main_from()
+
+
+def req_main_on(a):
+    """2.1432 (#6808): does the long-lived token of agent row a (owner_id, per_request) reach only its channel? A team agent
+    (no owner) that once asked for a request token (agents.per_request, #6668) -- and from REQ_MAIN_FROM on every team agent,
+    also one whose program never asks (an older starter, an own script). A personal agent never: its token is its owner's."""
+    return a is not None and not a["owner_id"] and (bool(a["per_request"]) or now_utc() >= REQ_MAIN_FROM)
+
+
+def req_main_due(a):
+    """2.1432 (#6808): agents/admin.py agent_admin_dict -- the day (YYYY-MM-DD) on which team agent a, which has not asked for
+    a request token yet, starts to reach only its channel (the hint in Settings > Agents: update its starter), else None."""
+    if a is None or a["owner_id"] or a["per_request"] or now_utc() >= REQ_MAIN_FROM:
+        return None
+    return REQ_MAIN_FROM.date().isoformat()
 
 
 def req_main_open(key):
@@ -160,7 +194,7 @@ def req_main_gate(c, row, u):
         return None  # review F3: only a change, and agents/control.py ctl_gate checks the card and the Yes-sayer's rights
     with system_ctx(c):  # structure: the agent row
         a = c.execute("SELECT owner_id, per_request FROM agents WHERE user_id=?", (u["id"],)).fetchone()
-    if a is None or a["owner_id"] or not a["per_request"]:
+    if not req_main_on(a):  # 2.1432 (#6808): from REQ_MAIN_FROM on also a team agent that never asked
         return None
     if req_main_open(run_key(request.method, request.url_rule.rule)):
         g.req_main = True  # review R3 F4: lists/sections.py need_filter holds a shared view for this token

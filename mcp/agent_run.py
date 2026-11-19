@@ -3992,7 +3992,9 @@ class Runner:
             self.refresh_agent()
         for ev in evs:  # 2.615.0 (#3757 / #3751): the answered message in full, not only Kalmido's 140-character quote
             rp = ((ev.get("data") or {}).get("message") or {}).get("reply") if ev.get("event") == "chat" else None
-            full = self.api.reply_message(uid, rp) if rp and hasattr(self.api, "reply_message") else None
+            # 2.1432 (#6808): with the run's request token -- a team agent's own token no longer reads GET /agent/chats
+            rapi = getattr(self, "run_api", None) or self.api
+            full = rapi.reply_message(uid, rp) if rp and hasattr(rapi, "reply_message") else None
             if full:
                 rp["full"] = full
         prompt = self.make_prompt(evs, uid, self.prompt_extra(uid, key)

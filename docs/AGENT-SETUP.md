@@ -146,8 +146,11 @@ an existing `CLAUDE.md` stays as it is and the rules come next to it as `CLAUDE.
 2.1386.0 (#6668): a team agent works **per request**: before each run the starter asks Kalmido for a token of that request
 (`POST /api/v1/agent/request-token`, valid 8 hours) and gives only that token to the run -- it reaches what the person who
 asked reaches themselves, and an order of a person who only reads becomes an approval card. From then on the token in
-`kalmido-agent.env` reaches only the agent's own channel (events, status, chat, jobs); keep the starter up to date
-(the setup command again) so its runs get their request tokens. The list work of the dispatcher runs for the person
+`kalmido-agent.env` reaches only the agent's own channel (events, status, sending chat messages, jobs -- not reading
+the chat, 2.1432.0); keep the starter up to date (the setup command again) so its runs get their request tokens.
+2.1432.0 (#6808): from 1 January 2027 (the server's `KALMIDO_REQ_MAIN_FROM`) this holds for every team agent, also one
+whose starter or program has never asked for a request token; until then *Settings > Agents* shows the day on such an
+agent -- run the setup command again on its computer. The list work of the dispatcher runs for the person
 chosen under *Permission questions go to*. Without a request token (the person may not give the agent orders, nobody is
 chosen, Kalmido cannot be reached) the starter skips the request and shows it in the agent's status; it never runs with
 the token of `kalmido-agent.env` instead. Removing a computer under *Settings > Agents* ends its request tokens at once.
