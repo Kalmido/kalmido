@@ -805,7 +805,8 @@ chat messages of one person that arrive together: one run). It does what a hoste
   the card is withdrawn as expired and the next prompt of that chat tells the agent (a no). A press on an expired card
   gets a short answer; the same answer twice (button and thumbs) counts once.
 - **Permission questions in the chat** (2.44.0, Claude Code only): a tool call outside the agent's allow list asks the
-  person in the chat (*Allow* / *Deny*, a thumbs up / down or *yes* / *no* while exactly one question is open). The runner
+  person in the chat (*Allow* / *Deny*, a thumbs up / down or *yes* / *no* while exactly one question is open; a bare *yes* / *no* written
+  after an approval card that came after the question answers neither - quote the question or the card). The runner
   hands each run its own settings file with a `PermissionRequest` hook (`--settings`; your own settings stay untouched;
   a command with its own `--settings` gets none). No answer in 9 minutes (`KALMIDO_PERM_TIMEOUT`, seconds) is a no; a
   task run asks the agent's owner (or `KALMIDO_PERM_USER`). Only the agent's operator answers (2.126.0): the owner,

@@ -299,6 +299,22 @@ r.state.data["perms"] = {"20001": {"uid": 7, "at": time.time()}}
 r.approvals = {}
 resolved.clear()
 check(r.intercept([chat("ja")])[0]["event"] == "chat" and resolved == [], f"#5473 F2: a yes older than the question answers nothing {resolved}")
+# #7141 (Fable reader H1 of job/5443): a card posted after the question makes a bare yes unclear -- it answers neither;
+# a reply to the question still answers it; a card older than the question does not stand in the way
+r.state.data["perms"] = {"801": {"uid": 7, "at": time.time()}}
+r.approvals = {"805": {"uid": 7, "title": "Deploy", "what": "", "at": time.time()}}
+resolved.clear()
+out = r.intercept([chat("ja")])
+check(resolved == [] and out and out[0]["event"] == "chat" and "805" in r.approvals,
+      f"#7141: a bare yes with a newer card open answers neither the question nor the card: {resolved} {out}")
+ev = chat("ja")
+ev["data"]["message"]["reply_to"] = 801
+check(r.intercept([ev]) == [] and resolved == [("801", "allow")], f"#7141: a yes quoting the question answers it: {resolved}")
+r.state.data["perms"] = {"801": {"uid": 7, "at": time.time()}}
+r.approvals = {"700": {"uid": 7, "title": "Deploy", "what": "", "at": time.time()}}
+resolved.clear()
+check(r.intercept([chat("ja")]) == [] and resolved == [("801", "allow")], f"#7141: a card older than the question: the yes answers it {resolved}")
+r.approvals = {}
 r.resolve_perm = keep_rp
 check(ar.is_drop({"message": {"origin": "drop", "untrusted": True}}) and not ar.is_drop({"message": {"origin": "drop"}})
       and not ar.is_drop({"message": {}}), "is_drop: origin drop and untrusted together")
