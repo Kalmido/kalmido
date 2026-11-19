@@ -125,8 +125,9 @@ PURPOSE_EXTRA = {"office": ("clients", "workload", "forms", "office", "agents", 
 # account (name, password, picture, sign-in, push, settings), the news it has read. Everything else is read-only.
 # 2.49.0 (#1537): + the onboarding (a kid's first start marks it done, no sample list) and the parents' PIN (#1551)
 # 2.115.0 B (#2062): + ending own sessions (Active sessions; the PIN guards it like the other account settings)
+# (#6586): + the step-up POST of the own export.json (Download JSON), which a child could fetch before with a plain GET
 KID_WRITE = re.compile(r"^/api/(auth/.+|me|me/(avatar|2fa/.+|passkeys(/.*)?|sessions/.+)|push/.+|news/(read|dismiss)|settings"
-                       r"|tasks/\d+/(complete|reopen|undo)|family/rewards/\d+/request|onboarding|me/pin/(unlock|lock))$")
+                       r"|tasks/\d+/(complete|reopen|undo)|family/rewards/\d+/request|onboarding|me/pin/(unlock|lock)|export\.json)$")
 
 
 def is_kid(c, uid):

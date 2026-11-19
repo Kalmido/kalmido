@@ -13,6 +13,7 @@
  - M8 (#1894): the backup archive takes agent chat files, budget receipts and document previews along (folder rule)
  - M9 (#1895): the default of KALMIDO_TRUSTED_PROXIES no longer contains the Docker bridge gateway (static check;
    the behaviour is in p2100_api_test.py)"""
+from kt import su_get  # (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import json
 import os
 import re
@@ -147,6 +148,8 @@ check(dav(KPW).status_code == 401, f"M5: the old app password stops {dav(KPW).st
 check(not dbx("SELECT 1 FROM api_tokens WHERE user_id=?", (ids["kiddo"],)), "M5: the child's tokens are deleted")
 check(not dbx("SELECT 1 FROM app_passwords WHERE user_id=?", (ids["kiddo"],)), "M5: the child's app passwords are deleted")
 check(Ki.get(B + "/api/state").ok, "M5: the web session of the child keeps working")
+r = su_get(Ki, B + "/api/export.json")  # (#6586): the step-up POST is a write a child account may do (family.KID_WRITE)
+check(r.ok and "tasks" in r.json(), f"#6586: a child account downloads its own JSON export behind the step-up {r.status_code} {r.text[:200]}")
 
 # ============================================================ M6: time entries of health lists need "private"
 # 2.148.1 (#2480/#2483): a new list lands in alice's only organisation, and a health list made of it would leave it
