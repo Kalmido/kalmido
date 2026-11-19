@@ -5,8 +5,10 @@
    other fields back but leaves the invoicing fields (VAT ID, customer number, payment terms ...) as they are now, like the
    save (team/clients.py cl_bill_strip) would
  - #4638: under "All workspaces" an office request names its area in the header X-Kalmido-Office-Space (office/model.py
-   office_space): only "private" or one of the person's own organisations, only while the setting is "All"; another value =
-   400, a chosen workspace outranks the header; a write lands in the named area
+   office_space): only "private" or one of the person's own organisations; another value = 400; a write lands in the named area
+ - #7297: the header wins under a chosen workspace too (the app names the area with every office request, so a setting the
+   server never got - a failed PATCH, the split view's right half - opens no other office and no "Choose a workspace");
+   a foreign organisation in the header stays refused (400), also under a chosen workspace
  - #4638 (review): the same area as the query parameter _osp (links, window.open: no header); header wins, token ignores it
  - freelancer-matrix: office (a person without an organisation: "private" works, a foreign organisation is refused)
 usage: p2577_b_office_test.py <datadir>"""
@@ -93,12 +95,20 @@ st = where(A, "private")
 check(st[0] == 200 and st[2] and st[1] not in (ORG, ORG2), f"header private: the personal office {st}")
 check(where(A, "org:999999")[0] == 400, f"header of a foreign organisation: 400 {where(A, 'org:999999')}")
 check(where(A, "all")[0] == 400 and where(A, "org:x")[0] == 400, "header with another value: 400")
-check(where(Bo, f"org:{ORG2}")[:2] == (200, ORG), f"bob (workspace chosen) names Bravo, not his: the setting rules {where(Bo, f'org:{ORG2}')}")
+check(where(Bo, f"org:{ORG2}")[0] == 400, f"#7297: bob (workspace chosen) names Bravo, not his: 400, never another office {where(Bo, f'org:{ORG2}')}")
+check(where(Bo, "org:999999")[0] == 400, "#7297: bob (workspace chosen), a foreign organisation in the header: 400")
 Bo.patch(B + "/api/settings", json={"workspace": "all"})
 check(where(Bo)[:2] == (200, ORG), f"bob under All with one organisation: as before its office {where(Bo)}")
 check(where(Bo, f"org:{ORG2}")[0] == 400, f"bob under All names Bravo (no member): 400, never another office {where(Bo, f'org:{ORG2}')}")
 A.patch(B + "/api/settings", json={"workspace": f"org:{ORG}"})
-check(where(A, f"org:{ORG2}")[:2] == (200, ORG), f"alice with a workspace chosen: the header does nothing {where(A, f'org:{ORG2}')}")
+# 2.1437.0 (#7297): the saved setting says one organisation, the app shows (and names) another of hers: the named one
+check(where(A, f"org:{ORG2}")[:2] == (200, ORG2), f"#7297: alice with a workspace chosen names her other organisation: its office {where(A, f'org:{ORG2}')}")
+st = where(A, "private")
+check(st[0] == 200 and st[2], f"#7297: alice with an organisation chosen names Private: her personal office {st}")
+check(where(A)[:2] == (200, ORG), f"#7297: without a header the setting as before {where(A)}")
+check(where(A, "org:999999")[0] == 400, f"#7297: a foreign organisation under a chosen workspace: 400 {where(A, 'org:999999')}")
+A.patch(B + "/api/settings", json={"workspace": "all"})
+check(where(A, f"org:{ORG}")[:2] == (200, ORG), "#7297: the setting still 'All' (a PATCH that never arrived), the app names Example Studio: its office, no 400")
 
 
 # 2.577.0 (#4638, review): a download link / window.open cannot send the header: the same area as ?_osp= (core.js ofc_spUrl)
@@ -108,7 +118,8 @@ def whereq(s, sp, hd=None):
     return r.status_code, j.get("org_id")
 
 
-check(whereq(A, f"org:{ORG2}") == (200, ORG), f"query _osp with a workspace chosen: ignored, the setting rules {whereq(A, f'org:{ORG2}')}")
+A.patch(B + "/api/settings", json={"workspace": f"org:{ORG}"})
+check(whereq(A, f"org:{ORG2}") == (200, ORG2), f"#7297: query _osp with a workspace chosen: the named area too {whereq(A, f'org:{ORG2}')}")
 A.patch(B + "/api/settings", json={"workspace": "all"})
 check(whereq(A, f"org:{ORG2}") == (200, ORG2), f"query _osp=org:{ORG2} under All: its office {whereq(A, f'org:{ORG2}')}")
 check(whereq(A, f"org:{ORG}") == (200, ORG), f"query _osp=org:{ORG} under All: its office {whereq(A, f'org:{ORG}')}")
@@ -142,6 +153,10 @@ check(st[0] == 200 and st[2], f"freelancer: her own office as before {st}")
 st = where(Fr, "private")
 check(st[0] == 200 and st[2], f"freelancer: header private = her own office {st}")
 check(where(Fr, f"org:{ORG}")[0] == 400, f"freelancer: an organisation she is not in: 400 {where(Fr, f'org:{ORG}')}")
+Fr.patch(B + "/api/settings", json={"workspace": "private"})
+st = where(Fr, "private")
+check(st[0] == 200 and st[2], f"#7297 freelancer: workspace Private + header private (what the app now sends): her own office {st}")
+check(where(Fr, f"org:{ORG}")[0] == 400, "#7297 freelancer: workspace Private, a foreign organisation in the header: 400")
 
 print(f"p2577_b_office: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)

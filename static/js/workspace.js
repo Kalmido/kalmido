@@ -125,14 +125,62 @@ function ws_target(ws) {
   if (mod === 'msv') return null;  // a list on another server belongs to no workspace
   return WS_ROOT[a] || a;
 }
+// 2.1437.0 (#7297): ONE way the shown workspace is set and saved (wsSet, wsFollow, o3a_toPrivate, the office's move). The new
+// value is held over every state load from the moment it is set (core.js OPT: a load that ended before the PATCH even started
+// put the old one back - the silent jump to "All") until a state that began after the save holds it (OPT_DONE). A save that
+// fails takes the switch back and says so. The split view's right half / the own window (miniwin.js MW_GUARD, #5358) never
+// sends the setting: its workspace stays this window's own, held over every load; the office there names its area with each
+// request (core.js ofc_spHdr), so it never depends on the main window's setting.
+const WSH = {p: null};
+function ws_hold(ws) {
+  if (WSH.p) { OPT.delete(WSH.p); OPT_DONE.delete(WSH.p); }
+  const p = WSH.p = {ws, put: () => { if (S.settings) S.settings.workspace = ws; }};
+  OPT.add(p); p.put(); LS.set('ws', ws);
+  return p;
+}
+// true = saved (or this window's own); false = not saved (from: the workspace before, shown again with a note; null = nothing to take back)
+async function ws_save(p, from) {
+  if (typeof MW_GUARD !== 'undefined' && MW_GUARD) return true;
+  try { await api('PATCH', '/api/settings', {workspace: p.ws}); }
+  catch {
+    OPT.delete(p);
+    if (WSH.p !== p) return false;  // a newer switch meanwhile: its own save decides
+    WSH.p = null;
+    if (from && from !== p.ws && wsCur() === p.ws && wsOptions().includes(from)) {
+      toast(tr('The workspace could not be switched: {0} is shown again', wsName(from)), null, 6000);
+      await wsSet(from, {local: true});
+    }
+    return false;
+  }
+  OPT.delete(p);
+  if (WSH.p === p) { p.end = S.wseq || 0; p.at = Date.now(); OPT_DONE.add(p); }
+  return true;
+}
+// 2.1437.0 (#7297): wsCur never falls back to "All" without a word: a state whose organisations no longer hold the saved one (the
+// person left or was removed) switches to "All workspaces" with a note and saves it (applyState calls this after every load)
+const WSG = {names: {}};
+function ws_gone() {
+  const v = S.settings?.workspace || 'all';
+  for (const w of S.me?.workspaces || []) WSG.names['org:' + w.id] = w.name;
+  if (!S.booted || !S.workspaces || !v.startsWith('org:') || wsOrg(v.slice(4))) return;  // the last organisation gone too (wsOn() off)
+  const nm = WSG.names[v] || tr('Organisation');
+  setTimeout(() => {
+    if ((S.settings?.workspace || '') !== v || wsOrg(v.slice(4))) return;
+    toast(tr('You are no longer a member of {0}: all workspaces are shown', nm), null, 9000);
+    wsSet('all');
+  }, 0);
+}
 // o.keep: the caller goes on to its own target (a link into the other workspace, News' or the office's "Switch"): the page
 // only follows the filter (a list or private module not there -> the inbox, as before) and the caller then opens its target
+// o.local: 2.1437.0 (#7297) only shown, not saved (ws_save takes a failed switch back with it)
 async function wsSet(ws, o = {}) {
   if (!wsOptions().includes(ws)) ws = 'all';
   const from = wsCur();
   if (WSV.ws === from) wsv_save(from);  // 2.397.0 (#3404)
   if (typeof vm_leave === 'function') vm_leave();  // 2.497.0 (#4048): the place of the view left: no route may follow (the page stays)
-  S.settings.workspace = ws; LS.set('ws', ws);
+  let sv = null;
+  if (o.local) { if (WSH.p) { OPT.delete(WSH.p); OPT_DONE.delete(WSH.p); WSH.p = null; } S.settings.workspace = ws; LS.set('ws', ws); }
+  else sv = ws_hold(ws);  // 2.1437.0 (#7297): held over a state load until saved
   // 2.455.0 (#3847): the phone's open drawer stays and shows the new workspace; route() must not close it either
   const hold = !!$('#side.open') && typeof SBM !== 'undefined';
   if (hold) SBM.keep = true; else closeSide?.();
@@ -158,7 +206,7 @@ async function wsSet(ws, o = {}) {
   } else { render(); WSV.ws = to; }  // no route follows
   if (typeof VM !== 'undefined') VM.noSel = false;
   if (hold) SBM.keep = false;  // the next tap on an entry closes the drawer
-  try { await api('PATCH', '/api/settings', {workspace: ws}); } catch { /* api() said it */ }
+  if (sv && !await ws_save(sv, from)) return;  // 2.1437.0 (#7297): not saved = taken back (ws_save) or a newer switch goes on
   if (typeof AB2 !== 'undefined') { AB2.org = null; ab2_reload(); }  // 2.96.0 D (#1941): absences follow the switch (server reads it)
   // 2.305 (bundle): the disposition too -- it followed only the state reload of the live update, which 2.280.0 (#3109) may brake for 8 s
   if (typeof DPV !== 'undefined') { DPV.org = null; if (S.route?.mod === 'workload' && WLV.tab === 'dispo') dp_reload(); else { DPV.data = null; DPV.free = null; } }
@@ -172,12 +220,12 @@ function wsFollow(key) {
   const ws = wsOf(l);
   if (!wsOptions().includes(ws)) return;  // an organisation the person is not in (a list shared from outside): leave the filter
   const from = wsCur();
-  S.settings.workspace = ws; LS.set('ws', ws);
+  const sv = ws_hold(ws);  // 2.1437.0 (#7297)
   // 2.523.0 (#4189): the target's own state comes back like on a switch (wsSet); route() saved the old one just before (wsv_leave),
   // the page stays the link's target (wsv_restore is synchronous and does not touch the page)
   const kept = (LS.get('wsView', {}) || {})[ws];
   if (kept) wsv_restore(kept, ws);
-  api('PATCH', '/api/settings', {workspace: ws}).catch(() => {});
+  ws_save(sv, from);
   ws_autoNote(from);
 }
 // 2.484.0 (#3950): Kalmido switched the workspace by itself (a link to a private module or to a list of another workspace): a short

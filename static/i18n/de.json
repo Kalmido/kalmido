@@ -19489,6 +19489,8 @@
   "The export of {0} is ready. Download it within {1} hours.": "Der Export von {0} ist fertig. Lade ihn innerhalb von {1} Stunden herunter.",
   "The export of {0} failed. Please try again later or ask the server admin.": "Der Export von {0} ist fehlgeschlagen. Bitte versuche es später noch einmal oder frag den Server-Admin.",
   "The export of {0} failed: there was not enough space on the server. Please ask the server admin.": "Der Export von {0} ist fehlgeschlagen: Auf dem Server war nicht genug Platz. Bitte frag den Server-Admin.",
+  "The workspace could not be switched: {0} is shown again": "Der Arbeitsbereich konnte nicht gewechselt werden: {0} wird wieder gezeigt",
+  "You are no longer a member of {0}: all workspaces are shown": "Du bist nicht mehr Mitglied von {0}: Alle Arbeitsbereiche werden gezeigt",
   "Not updated since {0}": "Nicht aktualisiert seit {0}",
   "Calendar {0} could not be updated: its events as of {1} still block times here.": "Der Kalender {0} ließ sich nicht aktualisieren: seine Termine mit Stand {1} blockieren hier weiter Zeiten.",
   "Calendar {0} could not be updated for more than a day. Its events are as of {2} and still count as busy.": "Der Kalender {0} ließ sich seit über einem Tag nicht aktualisieren. Seine Termine haben den Stand {2} und zählen weiter als belegt.",
