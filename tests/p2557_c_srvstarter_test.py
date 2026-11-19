@@ -25,6 +25,7 @@ A = sess("alice")
 A.post(B + "/api/admin/setup", json={"org_name": "Example Org", "lang": "en", "collab_all": True, "modules": ["comments"]})
 A.patch(B + "/api/settings", json={"lang": "en", "tour": "done"})
 ORG = A.get(B + "/api/state").json()["me"]["workspaces"][0]["id"]
+check(A.patch(B + f"/api/orgs/{ORG}", json={"server_agents": True}).ok, "setup: alice switches the Kalmido AI on")  # (#6363): the Kalmido AI is off in a new organisation
 A.put(B + "/api/admin/agent-policy", json={"user_agents": True, "max_per_user": 10})
 FID, F = freelancer(B, A)
 OID, O = freelancer(B, A, "otto")

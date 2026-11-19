@@ -1435,7 +1435,6 @@
   "The last update check failed ({0}); it tries again later.": "De laatste updatecontrole is mislukt ({0}); hij probeert het later opnieuw.",
   "Up to date (checked {0}).": "Bijgewerkt (gecontroleerd {0}).",
   "Checked {0}.": "Gecontroleerd {0}.",
-  "Check daily for a new version": "Dagelijks controleren op een nieuwe versie",
   "Collaboration is on for everyone": "Samenwerking staat aan voor iedereen",
   "Collaboration is switched off on this server (an admin can switch it on)": "Samenwerking is op deze server uitgeschakeld (een beheerder kan het aanzetten)",
   "Switched off on this server, for everyone. Your own setting applies again once an admin switches it back on.": "Op deze server voor iedereen uitgeschakeld. Je eigen instelling geldt weer zodra een beheerder het weer aanzet.",
@@ -7271,7 +7270,6 @@
   "Admin · applies to everyone": "Admin · geldt voor iedereen",
   "What notifies you as an admin": "Waarover je als admin meldingen krijgt",
   "Updates": "Updates",
-  "The server asks GitHub once a day for the latest release; nothing is installed automatically and the browser never contacts GitHub. The result shows below.": "De server vraagt GitHub één keer per dag naar de nieuwste versie; er wordt niets automatisch geïnstalleerd en de browser neemt nooit contact op met GitHub. Het resultaat staat hieronder.",
   "Server-wide rules for every agent. Agents themselves are created under Settings > Agents: Status (team) or Set up (personal).": "Regels voor elke agent op de server. Agents zelf maak je aan onder Instellingen > Agents: Status (team) of Instellen (persoonlijk).",
   "Teal": "Blauwgroen",
   "Pink": "Roze",
@@ -19423,5 +19421,12 @@
   "Effort for review jobs": "Inspanning voor reviewjobs",
   "Organisation settings": "Organisatie-instellingen",
   "An organisation is set up by the admin of this server. An organisation’s admin can then invite you by e-mail.": "Een organisatie wordt aangemaakt door de beheerder van deze server. De beheerders van de organisatie kunnen je daarna per e-mail uitnodigen.",
-  "The organisation “{0}” is set up": "De organisatie „{0}” is aangemaakt"
+  "The organisation “{0}” is set up": "De organisatie „{0}” is aangemaakt",
+  "Check for a new version every 6 hours": "Elke 6 uur controleren op een nieuwe versie",
+  "The server asks GitHub every 6 hours for the latest release; nothing is installed automatically and the browser never contacts GitHub. The result shows below.": "De server vraagt GitHub elke 6 uur naar de nieuwste versie; er wordt niets automatisch geïnstalleerd en de browser neemt nooit contact op met GitHub. Het resultaat staat hieronder.",
+  "The Kalmido AI is switched off in this organisation. An admin of the organisation can switch it on (Settings > Organisation > People).": "De Kalmido-AI is in deze organisatie uitgeschakeld. Een beheerder van de organisatie kan hem inschakelen (Instellingen > Organisatie > Personen).",
+  "Kalmido AI in this organisation": "Kalmido-AI in deze organisatie",
+  "{0} set “{1}” in the organisation {2} to {3}.": "{0} heeft „{1}” in de organisatie {2} op {3} gezet.",
+  "Agents on the Kalmido server may then work in this organisation: the server sends what a run reads (tasks, comments, chats and files of the projects shared with the agent) to the AI provider Anthropic (USA), with the key stored for the agent. Off, no content of the organisation goes there.": "Agents op de Kalmido-server mogen dan in deze organisatie werken: de server stuurt wat een run leest (taken, opmerkingen, chats en bestanden van de projecten die met de agent gedeeld zijn) naar de AI-aanbieder Anthropic (VS), met de sleutel die voor de agent is opgeslagen. Uit: er gaat geen inhoud van de organisatie naartoe.",
+  "Kalmido AI in {0}": "Kalmido-AI in {0}"
 }

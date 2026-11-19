@@ -16,6 +16,7 @@ from ..core.config import app, ATT_DIR, DB, NTFY_URL, PUBLIC_URL, SECRET_KEY, SE
 from ..core.schema import GLOBAL_DEFAULTS
 from ..core.i18n import lang, LANGS, N_, tr, trn
 from ..core.db import body, connect, db, default_uid, err, gset, gsetting, iso, local_now, now_utc, usettings
+from ..core.pg import like_escape  # (#6363): the stem of a value key (_aa_cool)
 from ..accounts.session import GATE, me
 from ..tasks.validation import valid_hm
 from ..core.errors import BadInput
@@ -62,13 +63,14 @@ AA_WD_WHAT = {"section": N_("a whole watchdog part"), "settings of user": N_("ac
               "digest of user": N_("daily digests"),
               "collab push": N_("collaboration pushes"), "time entry": N_("time tracking"), "tick": N_("the watchdog loop")}
 AA_SWITCH_LABEL = {"collab_all": N_("Collaboration for everyone"), "time_all": N_("Time tracking for everyone"),
-                   "update_check": N_("Check daily for a new version"), "aa_on": N_("Admin alerts"),
+                   "update_check": N_("Check for a new version every 6 hours"), "aa_on": N_("Admin alerts"),
                    "twofa_required": N_("Require two-factor authentication for built-in sign-ins"),
                    "passkey_login": N_("Allow signing in with a passkey without the password"),
                    "oidc_autocreate": N_("Create accounts on the first OIDC sign-in"), "bk_on": N_("Automatic backups"),
                    "public_links": N_("Public links to projects"),
                    "mcp_remote": N_("Hosted MCP access"),  # 2.488.0 (#3363)
-                   "server_agents": N_("Server agents (run on this server with their own API key)")}  # 2.557.0 (#4670)
+                   "server_agents": N_("Server agents (run on this server with their own API key)"),  # 2.557.0 (#4670)
+                   "org_server_agents": N_("Kalmido AI in this organisation")}  # (#6363): aa_org_switch
 _AA_LOCK = threading.Lock()
 _AA = {"q": [], "b": {}, "int": {}, "disk_at": 0.0, "qc_at": 0.0, "storage": {}, "qc": {}}
 
@@ -271,15 +273,44 @@ def aa_title(kind, lg):
     return tr("Kalmido test alert", lg=lg) if kind == "test" else tr("Kalmido admin: {0}", tr(AA_LABEL[kind], lg=lg), lg=lg)
 
 
+# (#6363, reader F1 of job/5551): the hourly cap counts per kind of alert, the family of its key (the part before the first
+# ':' or '|': "ratelimit", "2faoff", "admin", "switch", "orgswitch" ...), never over all of them together: an alert that a
+# customer can set off (an organisation's switch) never silences the delivery of another security alert.
+# Value keys (reader F4): "<stem>:<value>" of AA_VALUE_KEYS - the cooldown swallows only a repeat of the value last delivered
+# for the stem; a value that differs from it always goes out (the switch itself is braked where it is changed).
+AA_VALUE_KEYS = ("orgswitch:",)
+
+
+def aa_family(key):
+    return re.split(r"[:|]", str(key), maxsplit=1)[0]
+
+
+def _aa_cool(c, kind, key, since):
+    """The row a new alert of (kind, key) counts as a repeat of within the cooldown, or None."""
+    if str(key).startswith(AA_VALUE_KEYS) and ":" in key:
+        stem = key.rsplit(":", 1)[0] + ":"
+        r = c.execute("SELECT id, key FROM admin_alerts WHERE kind=? AND key LIKE ? AND created_at>? AND state!='capped' "
+                      "ORDER BY id DESC LIMIT 1", (kind, like_escape(stem) + "%", since)).fetchone()
+        return r if r and r[1] == key else None
+    return c.execute("SELECT id FROM admin_alerts WHERE kind=? AND key=? AND created_at>? AND state!='capped' "
+                     "ORDER BY id DESC LIMIT 1", (kind, key, since)).fetchone()
+
+
+def _aa_capped(c, cfg, key, now):
+    fam = aa_family(key)
+    rows = c.execute("SELECT key FROM admin_alerts WHERE kind!='test' AND state IN ('sent','failed') AND sent_at>?",
+                     (iso(now - timedelta(hours=1)),)).fetchall()
+    return sum(1 for r in rows if aa_family(r[0]) == fam) >= cfg["max_hour"]
+
+
 def aa_emit(c, cfg, kind, key, text, args=(), n=None, click=None, skip=None):
-    """Cooldown per (kind, key), then the daily summary queue or the hourly cap, then ntfy. Stores the alert
-    (the settings list) and returns its state: sent | failed | queued | capped | cooldown | '' (off)."""
+    """Cooldown per (kind, key), then the daily summary queue or the hourly cap (per family of keys, aa_family), then ntfy.
+    Stores the alert (the settings list) and returns its state: sent | failed | queued | capped | cooldown | '' (off)."""
     if not cfg["on"] or (kind != "test" and kind not in cfg["kinds"]):
         return ""
     args, now = list(args), now_utc()
     if kind != "test" and cfg["cooldown_h"]:
-        r = c.execute("SELECT id FROM admin_alerts WHERE kind=? AND key=? AND created_at>? AND state!='capped' "
-                      "ORDER BY id DESC LIMIT 1", (kind, key, iso(now - timedelta(hours=cfg["cooldown_h"])))).fetchone()
+        r = _aa_cool(c, kind, key, iso(now - timedelta(hours=cfg["cooldown_h"])))
         if r:
             c.execute("UPDATE admin_alerts SET repeats=repeats+1 WHERE id=?", (r[0],))
             c.commit()
@@ -287,8 +318,7 @@ def aa_emit(c, cfg, kind, key, text, args=(), n=None, click=None, skip=None):
     sent, ok = None, 0
     if kind != "test" and cfg["mode"] == "digest":
         state = "queued"
-    elif kind != "test" and c.execute("SELECT COUNT(*) FROM admin_alerts WHERE kind!='test' AND state IN ('sent','failed') "
-                                      "AND sent_at>?", (iso(now - timedelta(hours=1)),)).fetchone()[0] >= cfg["max_hour"]:
+    elif kind != "test" and _aa_capped(c, cfg, key, now):
         state = "capped"
     elif not aa_recipients(c, cfg, skip):  # 2.5.2 (K04): nobody to send it to yet (no device / topic): only listed
         state = "listed"
@@ -569,6 +599,15 @@ def aa_switch(c, admin, key, value, cfg=None):
         aa_emit(c, cfg, "security", k, N_("{0} set “{1}” to {2}."), args)
     else:
         aa_now("security", k, N_("{0} set “{1}” to {2}."), args)
+
+
+def aa_org_switch(admin, oid, org_name, key, value):
+    """(#6363): security alert for a changed switch of an organisation (its admin changed it), like aa_switch with the
+    organisation's name: AA_SWITCH_LABEL[key]. The key names the organisation and the direction without a time (reader F1 of
+    job/5551, AA_VALUE_KEYS): the cooldown counts repeats of the same value, a changed value always goes out (F4); the
+    switch is braked in accounts/orgs.py ORG_SWITCH_HOUR and its family has its own hourly cap."""
+    args = [admin["username"], {"t": AA_SWITCH_LABEL[key]}, org_name, {"t": N_("on|switch") if value else N_("off|switch")}]
+    aa_now("security", f"orgswitch:{key}:{int(oid)}:{int(bool(value))}", N_("{0} set “{1}” in the organisation {2} to {3}."), args)
 
 
 def _rls_state():

@@ -43,6 +43,7 @@ A.patch(B + "/api/settings", json={"lang": "en", "features": FEAT, "tour": "done
 ALICE = A.get(B + "/api/state").json()["me"]["id"]
 ORG = A.post(B + "/api/admin/orgs", json={"name": "Alpha", "admin_id": ALICE}).json()["id"]
 A.patch(B + "/api/settings", json={"workspace": f"org:{ORG}"})
+check(A.patch(B + f"/api/orgs/{ORG}", json={"server_agents": True}).ok, "setup: alice switches the Kalmido AI on")  # (#6363): the Kalmido AI is off in a new organisation
 A.put(B + "/api/admin/agent-policy", json={"user_agents": True, "max_per_user": 10})
 FID, F = freelancer(B, A, features=FEAT)
 
@@ -300,6 +301,7 @@ check(starter(Bo, GB).get("state") == "created", "starter: with both rights crea
 r = A.post(B + "/api/users", json={"username": "carol", "display_name": "Carol Other", "password": "password123", "email": "carol@example.com"})
 check(r.ok, "carol " + r.text[:160])
 ORG2 = A.post(B + "/api/admin/orgs", json={"name": "Beta", "admin_id": r.json()["id"]}).json()["id"]
+dbx("UPDATE orgs SET srv_agents=1 WHERE id=?", (ORG2,))  # (#6363): the Kalmido AI is off in a new organisation (carol, its admin)
 r = A.post(B + "/api/admin/agents", json={"username": "teamki2", "display_name": "Team KI", "provider": SP, "org_id": ORG2, "scopes": ["read", "office"]})
 check(r.status_code in (200, 201), f"a team server agent of another organisation {r.status_code} {r.text[:200]}")
 x = starter(A, r.json()["id"])

@@ -107,6 +107,19 @@ def migr_textby6677(c):  # 2.1375.0 (#6677): tasks.title_by / content_by of the 
     gset(c, "migr_textby6677", "1")
 
 
+def migr_srvorg6363(c):  # (#6363): the Kalmido AI per organisation (orgs.srv_agents, default off), once at the update
+    # An organisation whose admins already chose a server agent keeps it on: a team server agent of it with a stored key, or
+    # a personal server agent with a key placed in it whose owner is one of its admins. Every other one starts off (the
+    # narrower default): its admin switches it on. A new database runs it on empty tables (nothing on).
+    with pg_system_ctx(c):  # every organisation and agent (row-level security)
+        c.execute("""UPDATE orgs o SET srv_agents=1 WHERE o.srv_agents=0 AND o.personal_of IS NULL AND EXISTS(
+                       SELECT 1 FROM agents a JOIN agent_server s ON s.agent_id=a.user_id
+                       WHERE a.org_id=o.id AND a.provider='kalmido-server' AND COALESCE(s.key_sealed, '')<>''
+                         AND (a.owner_id IS NULL OR EXISTS(SELECT 1 FROM org_members m WHERE m.org_id=o.id
+                                                             AND m.user_id=a.owner_id AND m.role='admin')))""")
+    gset(c, "migr_srvorg6363", "1")
+
+
 STEPS = [  # (phase, key, once, f): the order of init_db (2.1356.0, #6824); 2.1380.0 (#6826): the one-shots before MIN_FROM are gone
     ("cdn_backfill", "migr_upg2103", True, migr_upg2103),
     ("cdn_backfill", "migr_upg2360", True, migr_upg2360),
@@ -115,6 +128,7 @@ STEPS = [  # (phase, key, once, f): the order of init_db (2.1356.0, #6824); 2.13
     ("cdn_backfill", "migr_allow2380", False, migr_allow2380),
     ("cdn_backfill", "migr_liststate5537", False, migr_liststate5537),
     ("cdn_backfill", "migr_textby6677", True, migr_textby6677),
+    ("cdn_backfill", "migr_srvorg6363", True, migr_srvorg6363),
 ]
 
 

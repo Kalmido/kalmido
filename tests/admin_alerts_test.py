@@ -167,7 +167,7 @@ m = wait_for(lambda: [x for x in admin_msgs("t-alice") if "Update available" in 
 # 2.1179.0 C (#2898): the alert says to back up first
 check(len(m) == 1 and "9.9.9 is available" in m[0]["msg"] and "Back up first" in m[0]["msg"] and m[0]["click"].endswith("/releases/tag/v9.9.9"),
       f"update alert with the release link: {m}")
-check(any("Check daily for a new version" in x["msg"] and " off" in x["msg"] for x in admin_msgs("t-alice")),
+check(any("Check for a new version every 6 hours" in x["msg"] and " off" in x["msg"] for x in admin_msgs("t-alice")),
       "switching the update check is a security alert too")
 switch("update_check", False)
 switch("update_check", True)
@@ -328,7 +328,40 @@ it = until(lambda: (lambda i: i if i and i[0]["state"] == "capped" else None)(al
 check(not admin_msgs() and it[0]["state"] == "capped" and it[0]["delivered"] is False, f"over the hourly cap: listed, not sent: {it[:1]}")
 r = A.post(B + "/api/admin/alerts/test")
 check(r.json()["ok"] is True and len(admin_msgs()) == 2, "the test alert ignores the cap (both admins)")
+
+# (#6363, readers F1 / F4 of job/5551): the cap counts per family of alerts - the Kalmido AI switch of an organisation, which a
+# customer's admin can press, never silences another security alert; its key names the organisation and the value without a
+# time, and a value that differs from the last one delivered always goes out (only a repeat waits out the cooldown)
+check(A.delete(B + "/api/admin/alerts").ok, "F1: the list emptied (no alert of the last hour counts)")
+clear()
+GORG = A.post(B + "/api/admin/orgs", json={"name": "Gamma", "admin_id": me_id(A)}).json()["id"]
+check(A.patch(B + f"/api/orgs/{GORG}", json={"server_agents": True}).ok, "F1: alice switches the Kalmido AI on in Gamma")
+until(lambda: dbx(f"SELECT state FROM admin_alerts WHERE key='orgswitch:org_server_agents:{GORG}:1'"), 15)
+check(A.patch(B + f"/api/orgs/{GORG}", json={"server_agents": False}).ok, "F1: ... and off again")
+st = until(lambda: dbx(f"SELECT state FROM admin_alerts WHERE key='orgswitch:org_server_agents:{GORG}:0'"), 15)
+check(dbx(f"SELECT state FROM admin_alerts WHERE key='orgswitch:org_server_agents:{GORG}:1'") == [("sent",)] and st == [("capped",)],
+      f"F1: the organisation's switch fills only its own hour ({st})")
+switch("collab_all", False)
+m = wait_for(lambda: [x for x in admin_msgs("t-alice") if "Collaboration for everyone" in x["msg"]])
+check(m and " off" in m[0]["msg"], f"F1: a server switch is still delivered after the organisation's alerts used up their cap: {m}")
+switch("collab_all", True)
 patch({"max_hour": 100})
+# F4: the last delivered value of Gamma is "on" (the "off" was capped): "on" again is a repeat (cooldown, counted on the row),
+# then "off" differs and goes out, then "on" differs again and goes out
+K1, K0 = f"orgswitch:org_server_agents:{GORG}:1", f"orgswitch:org_server_agents:{GORG}:0"
+check(A.patch(B + f"/api/orgs/{GORG}", json={"server_agents": True}).ok, "F4: on again")
+st = until(lambda: dbx("SELECT state, repeats FROM admin_alerts WHERE key=? AND repeats=1", (K1,)), 15)
+check(st == [("sent", 1)], f"F4: 'on' again after a capped 'off' repeats the last delivered value: counted, not sent ({st})")
+check(A.patch(B + f"/api/orgs/{GORG}", json={"server_agents": False}).ok, "F4: off")
+st = until(lambda: (lambda r: r if len(r) == 2 else None)(dbx("SELECT state FROM admin_alerts WHERE key=? ORDER BY id", (K0,))), 15)
+check(st == [("capped",), ("sent",)], f"F4: 'off' differs from the last delivered 'on' and goes out ({st})")
+check(A.patch(B + f"/api/orgs/{GORG}", json={"server_agents": True}).ok, "F4: on")
+st = until(lambda: (lambda r: r if len(r) == 2 else None)(dbx("SELECT state FROM admin_alerts WHERE key=? ORDER BY id", (K1,))), 15)
+check(st == [("sent",), ("sent",)], f"F4: on - off - on: the 'on' differs from the last delivered 'off' and goes out within the cooldown ({st})")
+check(A.patch(B + f"/api/orgs/{GORG}", json={"server_agents": False}).ok, "F4: the 6th change of the hour")
+r = A.patch(B + f"/api/orgs/{GORG}", json={"server_agents": True})
+on = next((o for o in A.get(B + "/api/orgs").json()["orgs"] if o["id"] == GORG), {}).get("server_agents")
+check(r.status_code == 429 and on is False, f"F4: the 7th change of the hour is braked (6 per organisation and person) ({r.status_code} {on})")
 
 # ---- daily summary mode
 clear()
