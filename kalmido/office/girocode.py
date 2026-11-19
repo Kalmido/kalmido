@@ -18,15 +18,37 @@ GCQ_NAME_MAX = 70
 GCQ_REF_MAX = 140
 GCQ_AMOUNT_MAX = Decimal("999999999.99")
 GCQ_BIC_RE = re.compile(r"^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$")
+GCQ_RF_RE = re.compile(r"RF\d{2}[A-Z0-9-]{1,32}")
 
 
 def _clean(v, n):
     return re.sub(r"\s+", " ", str(v or "")).strip()[:n]
 
 
-def gcq_payload(name, iban, bic, amount, ref, currency="EUR"):
+def gcq_rf(ref):
+    """(#6819): an ISO 11649 creditor reference (RF + check digits + up to 21 characters; hyphens as sent are only grouping) -> its
+    electronic form without hyphens, else None (no RF reference)."""
+    s = str(ref or "").upper()
+    if not GCQ_RF_RE.fullmatch(s):
+        return None
+    s = s.replace("-", "")
+    return s if 5 <= len(s) <= 25 else None
+
+
+def gcq_rf_ok(ref):
+    """The mod-97 check of an RF reference (ISO 11649: the first four characters moved to the end, letters as 10..35, the
+    number mod 97 = 1)."""
+    s = gcq_rf(ref)
+    if not s:
+        return False
+    num = "".join(str(int(ch, 36)) for ch in s[4:] + s[:4])
+    return int(num) % 97 == 1
+
+
+def gcq_payload(name, iban, bic, amount, ref, currency="EUR", sref=""):
     """The EPC QR text or None when no code may be printed (not EUR, no valid IBAN, no name, amount not in 0.01 ..
-    999999999.99)."""
+    999999999.99). (#6819): sref = an ISO 11649 creditor reference (RF..., without hyphens) as the structured
+    reference (element 9; the unstructured remittance stays empty then, EPC069-12 allows only one of them)."""
     if (currency or "").upper() != "EUR":
         return None
     iban = re.sub(r"\s+", "", str(iban or "")).upper()
@@ -44,9 +66,10 @@ def gcq_payload(name, iban, bic, amount, ref, currency="EUR"):
     bic = re.sub(r"\s+", "", str(bic or "")).upper()
     if not GCQ_BIC_RE.match(bic):
         bic = ""
-    ref = _clean(ref, GCQ_REF_MAX)
+    sref = re.sub(r"[^A-Z0-9]", "", str(sref or "").upper())[:25]
+    ref = "" if sref else _clean(ref, GCQ_REF_MAX)
     while True:
-        els = ["BCD", "002", "1", "SCT", bic, name, iban, f"EUR{amt}", "", "", ref]
+        els = ["BCD", "002", "1", "SCT", bic, name, iban, f"EUR{amt}", "", sref, ref]
         while els[-1] == "":  # EPC069-12: unused trailing elements are left out (a draft has no number yet)
             els.pop()
         out = "\n".join(els)
@@ -89,8 +112,10 @@ def gcq_model(r, m, s, snd=None):
     # open amount, the discount stays a line of the payment text); a reminder for its total
     # open amount; a draft (no payments or credit notes yet) its gross
     amount = tot.get("open") if r["kind"] == "invoice" and ofx_locked(r) and tot.get("open") not in (None, "") else tot.get("gross") or 0
-    code = gcq_payload((m.get("sender_fields") or {}).get("name") or "", pay.get("iban"), pay.get("bic"), amount,
-                       r["number"] or "", r["currency"])
+    # (#6819): an invoice issuer's bank account (docpay.dpy_render): its holder is the payee (banks check the name
+    # against the IBAN), its remittance the reference (RF: structured, without hyphens) or the document number
+    code = gcq_payload(pay.get("holder") or (m.get("sender_fields") or {}).get("name") or "", pay.get("iban"), pay.get("bic"), amount,
+                       pay.get("remit") or r["number"] or "", r["currency"], sref=pay.get("sref") or "")
     if code:
         pay["girocode"] = code
     return m

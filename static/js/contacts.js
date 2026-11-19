@@ -479,6 +479,7 @@ document.addEventListener('click', async e => {
   } else if (k === 'cmenu' && CT.card) {
     const c = CT.card, w = ctCardW(c);  // 2.1238.0 (#6161, Stufe 1): the same rule as the card's Edit (was the book's role only)
     menu(b, [...fv2_menuRow('r:contact:' + c.id) /* 2.441.0 (#3592): opened beside the list a contact has no address of its own */,
+      ctCanNew() && c.kind !== 'group' && (c.org || '').trim() && {label: tr('Add a colleague at the same company'), icon: 'users', fn: () => ct_mate(c)},  // #7296
       evCanNew() && {label: tr('Invite to a new event'), icon: 'cal',  /* 2.1238.0 (#6161, Stufe 1): only where an event may be made */ fn: () => evEditor({attendees: [{contact_id: c.id, name: c.fn, email: c.emails?.[0]?.value || '', partstat: 'needs-action'}]})},
       typeof nwl_ctItem === 'function' && nwl_ctItem(c, w, b),  // 2.55.0 (#1455): the newsletter consent
       ctk_clientItem(c, ctBook(c.book_id)),  // 2.119.1 B (#2082): create a client from the contact / open its client
@@ -675,7 +676,17 @@ function cte_one(el, old) {  // a phone / e-mail / website field: checked, marke
 }
 // a website typed without its scheme ("www.example.org") gets https:// (the server keeps only addresses with one)
 const cte_url = el => { const v = (el?.value || '').trim(); if (el?.dataset.ctk === 'urls' && v && !/^[a-z][a-z0-9+.-]*:/i.test(v) && /^[^\s/@:]+\.[^\s@]+$/.test(v)) { el.value = 'https://' + v; el.dispatchEvent(new Event('input', {bubbles: true})); } };
-async function ctEditor(c, cf, draft) {  // draft: 2.576.0 (#4764) the input of a new contact whose save failed
+// #7296: "Add a colleague at the same company": a new contact (the normal new one, POST /api/contacts) with the company, department,
+// business addresses, websites, the company's landline (phones of the kind Work) and the address book of c; name, e-mail, mobile,
+// birthday, note, photo and tags stay empty. The look-alike check leaves out the taken landline (it is the company's, not a double)
+function ct_mate(c) {
+  const biz = (k, ok) => (c[k] || []).filter(x => ok((x.type || [])[0])).map(x => ({...x}));
+  const book = ctBook(c.book_id), phones = biz('phones', t => t === 'work');
+  ctEditor(null, undefined, {kind: 'individual', org: c.org || '', dept: c.dept || '', book_id: ctWrite(book) ? c.book_id : 0,
+    addresses: biz('addresses', t => t !== 'home'), urls: biz('urls', t => t !== 'home'),
+    phones: [{value: '', type: ['cell']}, ...phones], emails: [{value: '', type: ['work']}]}, {mate: phones.map(x => x.value)});
+}
+async function ctEditor(c, cf, draft, mate) {  // draft: (#4764) the input of a new contact whose save failed; mate: #7296 (ct_mate)
   if (c && !cf) await loadModule('objsave').catch(() => { /* offline without the copy: saved as before */ });
   const books = (S.books || []).filter(b => ctWrite(b) && (wsObjIn(b) || (c && b.id === c.book_id)));  // 2.30.0 (#1036): of the shown workspace (+ the contact's own)
   const fold = !!c && !ctWrite(ctBook(c.book_id));  // 2.351.0 B (#2749): changed through its folder: stays in its address book
@@ -738,7 +749,7 @@ async function ctEditor(c, cf, draft) {  // draft: 2.576.0 (#4764) the input of 
     return o;
   };
   const start = JSON.stringify(form());  // 2.1174.0 (#6120): Esc / the backdrop ask only when something was typed
-  const gclose = modalGuard(md, () => !!draft || !!cf || JSON.stringify(form()) !== start);
+  const gclose = modalGuard(md, () => (!!draft && !(mate && !mate.typed)) || !!cf || JSON.stringify(form()) !== start);  // #7296: the prefilled colleague asks only once typed
   md._close = () => md._saving ? undefined : gclose();
   const wk = () => kind === 'org' || !!$('#ct-org', md)?.value.trim();
   const mailKind = () => {  // a new contact with a company: its e-mail is "Work" (unless chosen)
@@ -826,7 +837,7 @@ async function ctEditor(c, cf, draft) {  // draft: 2.576.0 (#4764) the input of 
     if (bad) { cte_show(bad); return; }  // 2.1174.0 (#6120): at the field, the dialog stays
     // 2.1177.0 (#6116): Save is locked until the look-alike check answered (a double click = one contact); away(false) frees it again
     b.disabled = true; b.setAttribute('aria-busy', 'true');
-    if (!c && !await ctx_dupAsk(body, md)) { b.disabled = false; b.removeAttribute('aria-busy'); return; }  // 2.119.1 A (#2084): a look-alike first (the next Save creates it anyway)
+    if (!c && !await ctx_dupAsk(mate ? {...body, phones: body.phones.filter(x => !mate.mate.includes(x.value))} : body, md)) { b.disabled = false; b.removeAttribute('aria-busy'); return; }  // (#2084): a look-alike first (the next Save creates it anyway)
     // 2.559.0 (#4660): the dialog closes and the contact shows at once (ct_saveOpt), no GET /api/state; an error takes it back
     // 2.1174.0 (#6120): the dialog only steps aside while it saves: a refused value brings it back as it was, the field marked
     LS.set('ctBook', body.book_id); away(true);
@@ -841,7 +852,7 @@ async function ctEditor(c, cf, draft) {  // draft: 2.576.0 (#4764) the input of 
       if (e?.cf) { const x = e.cf; ctEditor({...x.cur, ...x.mine}, x); toast(tr('Changed by someone else in the meantime')); }
       // 2.576.0 (#4764): another error (no connection, a server error, a rejected value): the dialog comes back with what was
       // typed (an edit: the typed fields count as changed, as after a conflict); api() / the save showed the reason
-      else if (e?.message !== 'auth') { const mine = dlg ? objDiff(dlg.base, body) : body; if (c) ctEditor({...c, ...mine}, dlg ? {cur: c, theirs: [], mine, both: []} : undefined); else ctEditor(null, undefined, body); }
+      else if (e?.message !== 'auth') { const mine = dlg ? objDiff(dlg.base, body) : body; if (c) ctEditor({...c, ...mine}, dlg ? {cur: c, theirs: [], mine, both: []} : undefined); else ctEditor(null, undefined, body, mate && {...mate, typed: true}); }
     }
   });
   // 2.1174.0 (#6120): a phone / e-mail / website is checked when its field is left; Ctrl+Enter (Cmd+Enter) saves

@@ -117,3 +117,6 @@
 .ihdbox{margin:.5rem 0}
 .ihdbox p{margin:0 0 .375rem}
 .ihdlist{margin:.25rem 0 .5rem;padding-left:1.25rem;overflow-wrap:anywhere}
+/* #7292: a client's locations right under the main client, indented; the main client's line on a location's card */
+.msclients .ctlist .ctrow.clsite{padding-left:2.25rem}
+.msclcard .clparent a{color:inherit}

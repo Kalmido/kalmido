@@ -57,6 +57,7 @@ MAX_ITEMS = 300
 MAX_FIELDS = 20
 
 
+from .mailstate import OMS_BAD, OMS_FILTER, oms_public, oms_set, oms_was_mailed  # noqa: E402 -- imported after the module constants like the lines below (#6820)
 from .model import office_ctx as _ctx  # noqa: E402  2.149.0 G (#2517): was an own copy
 from .rights import ofr_admin_or  # noqa: E402  2.187.0 B (#2476)
 from .rights import office_can, ofr_rights  # noqa: E402  2.1238.0 (#6161): ofd_role_edit
@@ -411,7 +412,8 @@ def _calc_doc(r, home="EUR"):  # 2.189.0 (#2475): home = the office's home curre
             "sur_standard": _sur_legacy(r),  # 2.1228.0 (#6254, review)
             "mk_per_part": _mk_legacy(r),  # 2.1249.0 (#6281)
             "mk_flat_line": _mk_flat(r),  # 2.1309.0 (#6490)
-            "sub_legacy": _sub_legacy(r)}  # 2.1327.0 (#6816)
+            "sub_legacy": _sub_legacy(r),  # (#6816)
+            "prod_sub_legacy": _prod_sub_legacy(r)}  # (#7291)
 
 
 def _sur_legacy(r):
@@ -450,6 +452,17 @@ def _sub_legacy(r):
     if not ofx_locked(r) and (dict(r).get("status") or "draft") == "draft":
         return 0
     return 0 if _j(r["totals"], {}).get("it_sub") else 1
+
+
+def _prod_sub_legacy(r):
+    """(#7291): 1 = quotation row r left the draft (like _sub_legacy) and was last computed with the positions'
+    subtotal before the producing line (#6816; its cached / frozen totals hold "it_sub" 1, not 2): it keeps those lines (PDF,
+    the client's view, the hash of an open approval link). A draft takes the subtotal after producing."""
+    if dict(r).get("kind") != "offer":
+        return 0
+    if not ofx_locked(r) and (dict(r).get("status") or "draft") == "draft":
+        return 0
+    return 1 if _j(r["totals"], {}).get("it_sub") == 1 else 0
 
 
 def _mk_stale(c, oid, r):
@@ -562,6 +575,9 @@ def doc_public(c, oid, r, admin, items=True):
     d["recipient_missing"] = bool(d["recipient"].pop("missing", False))  # street, postcode or city missing at the client
     for k in ("issuer_rev", "ref_sha256"):  # (#6701): internal fingerprints
         d.pop(k, None)
+    d["mail"] = oms_public(r)  # (#6820): {state, at} instead of the two columns
+    d.pop("mail_state", None)
+    d.pop("mail_at", None)
     if d.get("issuer_id"):  # (#6701): "made by invoice issuer <name>" and its unconfirmed statements
         from .issdocs import isd_office_view
         d.update(isd_office_view(c, oid, r))
@@ -695,7 +711,8 @@ def doc_brief(r, pm=None, lg=None, today=None):
          "net_incl_raw": t.get("net_incl_raw"), "updated_at": r["updated_at"], "created_by": r["created_by"],
          "locked": ofx_locked(r), "due_date": r["due_date"] if "due_date" in r.keys() else None, "cancels_id": r["cancels_id"] if "cancels_id" in r.keys() else None,
          "inv_type": r["inv_type"] if "inv_type" in r.keys() else "",  # 2.120.0 A (#2087)
-         "trial": bool(r["trial"]) if "trial" in r.keys() else False}  # 2.144.10 A (#2576)
+         "trial": bool(r["trial"]) if "trial" in r.keys() else False,  # (#2576)
+         "mail": oms_public(r)}  # (#6820): the delivery state of its e-mail
     if r["kind"] in ("invoice", "credit"):
         d["range_id"] = doc_range_id(r)  # 2.1365.0 (#6698): the number range (None = the main range)
     if r["kind"] == "offer":  # 2.1064.0 (#5818): sent, no answer and past "valid until" = the mark "expired" in the list
@@ -1680,6 +1697,9 @@ def odoc_list():
     if st in STATUSES + ("issued", "paid", "cancelled") and st not in ("partial", "overdue"):
         sql += " AND status=?"
         args.append(st)
+    elif st == OMS_FILTER:  # (#6820): "Delivery failed" (refused by the mail server or marked by a person)
+        sql += " AND mail_state IN (?, ?)"
+        args += list(OMS_BAD)
     if request.args.get("trial") in ("0", "1"):  # 2.144.10 A (#2576): only trial / only real documents
         sql += " AND trial=?"
         args.append(int(request.args["trial"]))
@@ -2024,6 +2044,27 @@ def odoc_status(did):
     return jsonify(doc_public(c, oid, doc_row(c, oid, did), office_role(c, uid, oid) == "admin", items=False))
 
 
+@app.post("/api/office/docs/<int:did>/mail-bounced")
+def odoc_mail_bounced(did):
+    """(#6820): {bounced: true|false} -> the document: a person marks the mail as not delivered (a bounce in the
+    mailbox) or takes the mark back (state sent again; office/mailstate.py). 409 when the document never went out by e-mail.
+    Office write right (rights.py ofr_gate: POST under docs = edit of the area offers)."""
+    c, uid, oid = _ctx()
+    write_lock(c, f"office_doc_{int(did)}")
+    r = doc_row(c, oid, did)  # 404: another area's, or in the trash
+    b = body()
+    on = (b if isinstance(b, dict) else {}).get("bounced", True) not in (False, 0, "0", "false")
+    st = oms_public(r)["state"]
+    if on and not oms_was_mailed(c, oid, r):
+        raise Denied(409, tr("This document has not been sent by e-mail"))
+    if not on and st != "bounced":
+        raise Denied(409, tr("This document is not marked as not delivered"))
+    oms_set(c, oid, did, "bounced" if on else "sent", uid)
+    bump(c)
+    c.commit()
+    return jsonify(doc_public(c, oid, doc_row(c, oid, did), office_role(c, uid, oid) == "admin", items=False))
+
+
 def odoc_set_status(c, oid, did, st, uid, r=None):
     """2.50.0 (#1200): the status change of document did (checked, logged, purchase, pipeline), shared by the route above
     and the customer's approval (office/signoff.py, uid None). Denied 403 / 409 when not allowed; the caller commits."""
@@ -2049,8 +2090,8 @@ def odoc_set_status(c, oid, did, st, uid, r=None):
                 ofx_log(c, oid, "status", doc_id=did, detail={"before": {"status": r["status"]}, "after": {"status": "paid"}})
                 return
     if r["kind"] == "offer" and r["status"] == "draft" and st != "draft" and not ofx_locked(r) and (dict(r).get("markup_pct") is not None
-                                                                                          or not _j(r["totals"], {}).get("it_sub")):
-        recalc(c, oid, did)  # 2.1309.0 (#6490): its totals as the draft shows them (mk_pct_line), so it keeps that line once sent; 2.1327.0 (#6816): + it_sub
+                                                                                          or _j(r["totals"], {}).get("it_sub") != 2):
+        recalc(c, oid, did)  # (#6490): its totals as the draft shows them (mk_pct_line), so it keeps that line once sent; (#6816): + it_sub; (#7291): it_sub 2
     c.execute("UPDATE office_docs SET status=?, updated_at=?, sent_at=COALESCE(sent_at, ?) WHERE id=? AND org_id=?",
               (st, iso_ms(now_utc()), ts if st in ("sent", "accepted", "declined", "superseded") else None, did, oid))  # 2.571.0 (#4776): updated_at in ms
     if r["kind"] != "offer":
@@ -2104,7 +2145,8 @@ DUP_SKIP = {"id", "number", "status", "created_at", "updated_at", "sent_at", "cr
             "client_ref", "inv_type",
             "range_id",
             "issuer_id", "issuer_wish", "issuer_rev", "ref_sha256"}  # (#6701): a copy a person makes is never the issuer's (a correction inherits it in invoices.inv_credit_of)  # (#6698): a copy starts in the main range (a correction takes its invoice's range in invoices.inv_credit_of)  # (#3046): the device's id of the request that made the original  # 2.126.0 A (#1979 F6): a fresh fee state, made by the person copying
-DUP_SKIP |= {"deleted_at", "deleted_by", "rev", "updated_by", "trash_refs"}  # 2.1005.0 (#5415): the core's trash columns stay the original's
+DUP_SKIP |= {"deleted_at", "deleted_by", "rev", "updated_by", "trash_refs"}
+DUP_SKIP |= {"mail_state", "mail_at"}  # (#6820): a copy was never mailed  # (#5415): the core's trash columns stay the original's
 DUP_ITEM_SKIP = {"id", "tax_pct", "net", "tax_amount"}
 
 

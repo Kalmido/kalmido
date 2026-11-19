@@ -555,6 +555,22 @@ and e-mail, always), of a reached limit of new clients or of 200 changes of clie
 invoicing fields a person may not see (VAT ID, e-mail for invoices, buyer reference) show in the mark as "changed" only. An
 organisation import keeps a client's mark but not its issuer (issuers are not exported).
 
+**Paid at issue, the issuer's bank account** (2.1435, #6819; `office/docpay.py`): the payment block of an invoice is chosen when a
+person finalises it and frozen with the sender snapshot (`sender.pay`); PDF, GiroCode and e-invoice read it from there.
+- *Issue as paid* (finalise dialog, every invoice with an amount, only who may record payments: `403`; body
+  `as_paid {date, method: transfer|card|direct_debit|paypal|online|cash|other}`): the invoice says "Paid on <date> by <method>",
+  amount outstanding 0, no bank account, no GiroCode, no due date; the e-invoice has the gross as prepaid (BT-113) and the payment
+  means card `48` (XRechnung: `ZZZ` with the text, BR-DE-24 wants card details), cash `10`, else `ZZZ` with the text (never `30`
+  without an IBAN, BR-61). The payment of the gross is booked through the usual payment booking in the same transaction. An
+  invoice issuer's `wish.paid` stands beside it as an unconfirmed statement and fills date and method; a person ticks it per
+  document (no batch, nothing automatic, #1146).
+- An issuer's draft with `wish.payee`: that account (holder, IBAN, BIC) stands on the PDF, in the GiroCode (the holder as the payee)
+  and in the e-invoice (BT-83 remittance, BT-84 IBAN, BT-85 holder) instead of the office's own. With the mark *a payment can only be
+  matched by its reference* the PDF prints a fixed sentence with the reference (document language) and the reference replaces the
+  invoice number as the remittance; an ISO 11649 reference (`RF..`, its check digits are checked by the draft route: `400`) without
+  its hyphens, in the GiroCode as the structured reference. An account removed meanwhile or a missing reference stops finalising
+  (`missing`). The issuer's `due_date` / `due_days` apply while the draft has no due date of its own.
+
 ## Country packs
 
 Tax rates, number and date formats, the labels of the documents and the default texts are not in the code but in a

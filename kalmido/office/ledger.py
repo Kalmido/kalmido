@@ -398,14 +398,17 @@ def ofx_past_year(r):
         return False
 
 
-def ofx_finalize(c, oid, uid, did, manual=None, reason="", to_today=False, hold_ok=None):
+def ofx_finalize(c, oid, uid, did, manual=None, reason="", to_today=False, hold_ok=None, as_paid=None):
     """Finalises document did of organisation oid (see the module text). 409 when it already is.
     2.1384.0 (#6700): hold_ok = the dialog's confirmation of its client's hold mark (office/isshold.py ihd_check: the mark's
     "at"); None = a way without a dialog (a series), refused (409 client_hold) while the mark stands.
     2.1289.0 (#6481 N3, S3): manual = a hand-set number of an invoice / correction, checked and given in the same transaction
     (docs._assign_number, reason = why it skips numbers); the caller checked the right (the office admin's).
     2.1380.0 (#6976): to_today = a draft dated in an earlier year (ofx_past_year) is dated today first (due date moves along);
-    other documents ignore it."""
+    other documents ignore it.
+    (#6819): as_paid = the dialog's "Issue as paid" {date, method} (docpay.dpy_as_paid): the payment block frozen in the
+    sender snapshot (docpay.dpy_freeze; else an invoice issuer's bank account), the payment booked after the finalising in the
+    same transaction (docpay.dpy_book, invoices.inv_pay_add)."""
     from .docs import _assign_number, _j, doc_items, doc_row, doc_totals
     from .invoices import inv_before_finalize, inv_after_finalize
     write_lock(c, f"office_doc_{int(did)}")  # 2.39.0 (#1209 audit M1): two parallel finalise calls -> the second gets 409, no lost number
@@ -423,6 +426,10 @@ def ofx_finalize(c, oid, uid, did, manual=None, reason="", to_today=False, hold_
         ofx_date_today(c, oid, r, "past_year")  # 2.1380.0 (#6976): the finalise dialog's "Set the date to today"
         r = doc_row(c, oid, did)
     pack = office_pack_for(s, calc_tax_day(dict(r))) or {}  # 2.531.0 (#4498): the rates of its day of service (frozen below)
+    if r["kind"] == "invoice" and r["issuer_id"]:  # (#6819): the due date an invoice issuer asked for, if the draft has none
+        from .docpay import dpy_due_apply
+        dpy_due_apply(c, oid, r)
+        r = doc_row(c, oid, did)
     if r["kind"] != "offer":  # 2.38.0 (#1021, F1): the required fields of an invoice (400 with the list), due date
         write_lock(c, f"office_num_{int(oid)}")  # 2.126.0 A (#1979 F5): the date check and the number in one go (docs._assign_number)
         if r["kind"] == "credit":  # 2.354.0 review (#2838): the required-field check with the invoice's rates like the totals
@@ -471,8 +478,14 @@ def ofx_finalize(c, oid, uid, did, manual=None, reason="", to_today=False, hold_
     sender["company"]["sender_line"] = ofx_sender_line(sender["company"])  # 2.97.1 (#2224): frozen with the rest
     sender["logo_size"], sender["logo_pos"] = s.get("logo_size") or "m", s.get("logo_pos") or "r"  # 2.406.0 (#3501): frozen
     sender["girocode"] = 1 if int(s.get("girocode", 1) or 0) else 0  # 2.147.1 B (#2054): the GiroCode decision, frozen (girocode.py)
+    from .docpay import dpy_freeze
+    dpay = dpy_freeze(c, oid, uid, r, as_paid, t.get("gross")) if r["kind"] == "invoice" else None  # (#6819)
+    if dpay:
+        sender["pay"] = dpay
+        # paid: no bank account anywhere; an issuer's account: only that one (customers would pay the office's footer account)
+        sender["company"]["bank_lines"] = []
     from .payonline import pol_freeze
-    pay_url = pol_freeze(c, oid, r)
+    pay_url = pol_freeze(c, oid, r) if not dpay else ""  # (#6819): paid = nothing to pay; an issuer's account = only that one
     if pay_url:
         sender["payonline"] = pay_url  # 2.469.0 (#3459): the pay link the stored PDF prints, frozen with the rest
     if s.get("exempt_reason"):
@@ -533,6 +546,9 @@ def ofx_finalize(c, oid, uid, did, manual=None, reason="", to_today=False, hold_
                                                      "pack_version": tsnap["version"], "logo_sha256": sha})
     if r["kind"] != "offer":  # 2.38.0: status issued, a credit note settles its invoice, the stored PDF / XML (F2)
         inv_after_finalize(c, oid, uid, doc_row(c, oid, did))
+    if dpay and dpay["mode"] == "paid":  # (#6819): the confirmed payment, booked like a person's (same transaction)
+        from .docpay import dpy_book
+        dpy_book(c, oid, uid, doc_row(c, oid, did), dpay)
     try:  # review job/2606: data that cannot be read now (decryption) never undoes the finalising - it stays "pending"
         with c.savepoint():
             hch_append(c, oid, did, s)  # 2.531.0 (#4497): its place in the hash chain of its series (not a quotation / trial document)
@@ -636,7 +652,10 @@ def ofx_finalize_post(did):
     manual, reason = odoc_finalize_number(c, oid, did)  # 2.1289.0 (#6481 N3, S3): {number?, reason?} of the finalise dialog
     # 2.1380.0 (#6976): {to_today: true} dates a draft of an earlier year today before it gets its number
     # 2.1384.0 (#6700): {client_hold_ok} the dialog's confirmation of the client's hold mark (number-preview client_hold.at)
-    r = ofx_finalize(c, oid, uid, did, manual, reason, to_today=isinstance(b, dict) and b.get("to_today") is True, hold_ok=ihd_ok(b))
+    # (#6819): {as_paid: {date, method}} "Issue as paid" (docpay.py: only who may record payments, invoices only)
+    from .docpay import dpy_as_paid
+    r = ofx_finalize(c, oid, uid, did, manual, reason, to_today=isinstance(b, dict) and b.get("to_today") is True, hold_ok=ihd_ok(b),
+                     as_paid=dpy_as_paid(b))
     bump(c)
     c.commit()
     return jsonify(doc_public(c, oid, r, office_role(c, uid, oid) == "admin"))

@@ -34,7 +34,7 @@ from ..office.owrite import ow_history_answer, ow_write  # 2.567.0 (#4711): the 
 # client's. Budget: hours and / or an amount; 80 % turns the bar amber, 100 % red. The timesheet is the time report
 # filtered to the client's lists (CSV, printable page).
 CLIENT_FIELDS = ("name", "name_extra", "display_name", "short_code", "icon", "color", "contact", "email", "phone", "address", "note", "rate", "budget_h", "budget_amount",
-                 "org_id", "archived")
+                 "org_id", "archived", "parent_id")  # #7292: parent_id = the main client of a location
 CLIENT_TEXT_MAX = {"name": 80, "name_extra": 120, "display_name": 80, "short_code": 6, "icon": 8, "color": 20, "contact": 120, "email": 200, "phone": 60, "address": 500, "note": 4000}
 # 2.36.2 (#1021, E): structured billing fields (office & finance; people only, never in agent answers)
 CLIENT_BILLING = ("street", "address_extra", "zip", "city", "country", "vat_id", "customer_no", "buyer_reference", "email_invoice", "payment_terms_days",
@@ -167,6 +167,9 @@ def clean_client(c, uid, b, new=False):
         elif k in ("budget_h", "budget_amount"):
             v = _num(v, k, 0, 1e9)
             v = v or None
+        elif k == "parent_id":  # #7292: the main client (cl_parent_check once the workspace is known)
+            if v is not None and (not isinstance(v, int) or isinstance(v, bool) or v < 1):
+                raise BadInput(tr("Invalid value: {0}", k))
         elif k == "archived":
             if not isinstance(v, bool):
                 raise BadInput(tr("Invalid value: {0}", k))
@@ -221,6 +224,77 @@ def clean_client(c, uid, b, new=False):
         if not out.get("name"):
             raise BadInput(tr("Name missing"))
     return out
+
+
+# ---------------------------------------------------------------- #7292: a client's locations
+# A location is a normal client with clients.parent_id = its main client: its own address, currency, e-invoice, contact
+# persons, projects and documents stay its own. One level only, the main client in the same workspace (an organisation's, or
+# the same person's private clients). A link counts only while that holds (cl_parent_map): a client moved or copied into
+# another workspace, a main client in the trash or one that became a location itself leave the location on its own, no row
+# is rewritten. The main client deleted for good: the foreign key sets parent_id NULL.
+CL_SITE_SUM = ("seconds", "rounded", "amount", "month_seconds", "month_amount", "estimate_min", "estimated", "open", "done")
+
+
+def cl_area(r):
+    return ("o", r["org_id"]) if r["org_id"] is not None else ("p", r["created_by"])
+
+
+def cl_parent_map(c, rows):
+    """{client id: main client id} of the client rows whose link counts (see above)."""
+    want = {int(r["id"]): int(r["parent_id"]) for r in rows if "parent_id" in r.keys() and r["parent_id"]}
+    if not want:
+        return {}
+    ps = {x["id"]: x for x in c.execute("SELECT id, org_id, created_by, parent_id, deleted_at FROM clients WHERE id = ANY(?)", (sorted(set(want.values())),))}
+    by = {int(r["id"]): r for r in rows}
+    return {cid: pid for cid, pid in want.items()
+            if pid in ps and pid != cid and ps[pid]["deleted_at"] is None and not ps[pid]["parent_id"] and cl_area(ps[pid]) == cl_area(by[cid])}
+
+
+def cl_parent_check(c, uid, cid, area, pid):
+    """#7292: may client cid (None = a new one) of workspace area (cl_area) become a location of client pid? BadInput if not."""
+    if pid is None:
+        return
+    p = next((x for x in client_rows(c, uid) if x["id"] == pid), None)
+    if not p:
+        raise BadInput(tr("The main client does not exist or you cannot see it"))
+    if pid == cid:
+        raise BadInput(tr("A client cannot be its own main client"))
+    if cl_area(p) != area:
+        raise BadInput(tr("The main client has to be in the same workspace"))
+    if p["parent_id"]:
+        raise BadInput(tr("The main client is a location itself; locations have no locations of their own"))
+    if cid and c.execute(f"SELECT 1 FROM clients WHERE parent_id=? AND {live_sql()} LIMIT 1", (cid,)).fetchone():
+        raise BadInput(tr("This client has locations itself, so it cannot become a location"))
+
+
+def cl_sites(c, uid, r, month=None, own=None):
+    """#7292: {sites: [{id, name, label, archived, budget_h, budget_amount, stats}], group: {stats, budget_h, budget_amount, budget}}
+    of main client r for uid (the locations uid sees, not in the trash; group = r's own figures own + all of its locations),
+    or {} when it has none."""
+    rows = [x for x in client_rows(c, uid) if x["parent_id"] == r["id"]] if "parent_id" in r.keys() else []
+    pm = cl_parent_map(c, rows)
+    rows = [x for x in rows if pm.get(int(x["id"])) == r["id"]]
+    if not rows:
+        return {}
+    lids = client_lists_many(c, uid, [x["id"] for x in rows])
+    sts = client_stats_many(c, uid, lids, month)
+    hide = agent_time_hidden()
+    sites = []
+    tot = {k: (own or {}).get(k) or 0 for k in CL_SITE_SUM}
+    for x in rows:
+        st = sts[int(x["id"])]
+        for k in CL_SITE_SUM:
+            tot[k] += st[k] or 0
+        sites.append({"id": x["id"], "name": x["name"], "label": cdn_label(c, uid, x), "archived": bool(x["archived"]),
+                      "budget_h": x["budget_h"], "budget_amount": x["budget_amount"], "stats": cl_stats_blank(st) if hide else st})
+    tot["amount"], tot["month_amount"] = round(tot["amount"], 2), round(tot["month_amount"], 2)
+    tot["month"] = (own or {}).get("month") or next(iter(sts.values()))["month"]
+    def sumb(k):
+        return round(sum(x[k] or 0 for x in [r, *rows]), 2) or None
+    bud = {"budget_h": sumb("budget_h"), "budget_amount": sumb("budget_amount")}
+    grp = {"stats": cl_stats_blank(tot) if hide else tot, **bud,
+           "budget": {"pct_h": None, "pct_amount": None, "level": "none"} if hide else budget_state(tot, bud)}
+    return {"sites": sites, "group": grp}
 
 
 def client_stats(c, uid, cid, lids, month=None):
@@ -303,7 +377,7 @@ def client_pre(c, uid, rows, stats=False, month=None):
     lids = client_lists_many(c, uid, ids)
     oids = sorted({int(r["org_id"]) for r in rows if r["org_id"]})
     orgs = {x[0]: x[1] for x in c.execute(f"SELECT id, name FROM orgs WHERE id IN ({','.join('?' * len(oids))})", oids)} if oids else {}
-    return {"user": _user(c, uid), "lists": lids, "orgs": orgs, "contacts": fk_contacts_many(c, ids),
+    return {"user": _user(c, uid), "lists": lids, "orgs": orgs, "contacts": fk_contacts_many(c, ids), "parents": cl_parent_map(c, rows),  # #7292
             "stats": client_stats_many(c, uid, lids, month) if stats and ids else {}}
 
 
@@ -319,6 +393,7 @@ def client_public(c, uid, r, stats=False, month=None, pre=None):
         u = _user(c, uid)
     d = {k: r[k] for k in ("id", "name", "name_extra", "display_name", "short_code", "icon", "color", "contact", "email", "phone", "address", "note", "rate", "budget_h",
                            "budget_amount", "org_id", "created_by", "created_at", "updated_at")}
+    d["parent_id"] = (pre["parents"] if pre is not None else cl_parent_map(c, [r])).get(int(r["id"]))  # #7292: the main client (a link that counts)
     d.update(archived=bool(r["archived"]), org_name=org[0] if org else "", lists=lids,
              can_delete=bool(u and (u["is_admin"] or r["created_by"] == uid)), label=cdn_label(c, uid, r))
     from ..office.contacts_cl import fk_contacts
@@ -359,9 +434,10 @@ def clients_brief(c, uid):
         return []
     rows = client_rows(c, uid)
     labels = cdn_labels(rows)  # 2.97.0 B (#1951): the name pickers show
-    lids = client_lists_many(c, uid, [r["id"] for r in rows])  # 2.640.0 (#4185): one query for all clients (was one per client)
+    lids = client_lists_many(c, uid, [r["id"] for r in rows])  # (#4185): one query for all clients (was one per client)
+    pm = cl_parent_map(c, rows)  # #7292
     return [{"id": r["id"], "name": r["name"], "name_extra": r["name_extra"], "display_name": r["display_name"], "label": labels[r["id"]], "icon": r["icon"],
-             "color": r["color"], "org_id": r["org_id"], "archived": bool(r["archived"]), "lists": lids[int(r["id"])]}
+             "color": r["color"], "org_id": r["org_id"], "archived": bool(r["archived"]), "lists": lids[int(r["id"])], "parent_id": pm.get(int(r["id"]))}
             for r in rows]
 
 
@@ -384,9 +460,10 @@ def clients_list():
     rows = client_rows(c, uid, archived=arch)
     if request.args.get("brief") in ("1", "true"):
         # the names only: the offers / invoices area compares them (office_docs.js) and needs no hours, contacts or billing
+        pm = cl_parent_map(c, rows)  # #7292
         return jsonify(clients=[{"id": r["id"], "name": r["name"], "name_extra": r["name_extra"], "display_name": r["display_name"],
                                  "label": cdn_label(c, uid, r), "icon": r["icon"], "color": r["color"], "org_id": r["org_id"],
-                                 "archived": bool(r["archived"])} for r in rows])
+                                 "archived": bool(r["archived"]), "parent_id": pm.get(int(r["id"]))} for r in rows])
     # every client's lists, organisation, contacts and hours read at once (a fixed number of statements, not some ten per client)
     pre = client_pre(c, uid, rows, stats=True, month=request.args.get("month"))
     return jsonify(clients=[client_public(c, uid, r, stats=True, month=request.args.get("month"), pre=pre) for r in rows])
@@ -427,6 +504,7 @@ def client_get(cid):
             st = cl_stats_blank(st)
         per.append({"id": lid, "name": lr["name"], "kind": lr["kind"], "rate": lr["rate"], "status": lr["status"], **st})
     d["per_list"] = per
+    d.update(cl_sites(c, uid, r, request.args.get("month"), d.get("stats")))  # #7292: the locations and the sums with them
     d["blocks_off"] = client_blocks_off(c, r)  # 2.435.0 A (#3600)
     from .clientmerge import clm_history
     if (g.user["kind"] or "user") != "agent":  # 2.63.0 B (#1513): the client's reports (customer portal) the person sees
@@ -448,7 +526,8 @@ def client_create():
         f["org_id"] = ws_chosen_org(c, uid)
         if sga_org_foreign(c, f["org_id"]):  # 2.538.0 (#4365): a support session's new client lands privately
             f["org_id"] = None
-    cl_bill_strip(c, uid, f.get("org_id"), f)  # 2.187.1 A (#2735)
+    cl_bill_strip(c, uid, f.get("org_id"), f)  # (#2735)
+    cl_parent_check(c, uid, None, cl_area({"org_id": f.get("org_id"), "created_by": uid}), f.get("parent_id"))  # #7292
     ts = iso(now_utc())
     f.update(created_by=uid, created_at=ts, updated_at=iso_ms(now_utc()))  # 2.269.0 C (#3017): the base of the next save
     cid = insert_id(c, f"INSERT INTO clients({','.join(f)}) VALUES({','.join('?' * len(f))})", list(f.values()))
@@ -493,6 +572,10 @@ def client_update(cid):
             cl_bill_strip(c, uid, f["org_id"], f)
         if "org_id" in f and old.get("issuer_id"):  # 2.1384.0 (#6700): an invoice issuer's client stays in the issuer's area
             raise Denied(409, tr(CL_ISSUER_STAYS))
+        if "org_id" in f and "parent_id" not in f and old.get("parent_id"):
+            f["parent_id"] = None  # #7292: into another workspace without its main client
+        if f.get("parent_id") is not None:
+            cl_parent_check(c, uid, cid, cl_area({"org_id": f.get("org_id", old["org_id"]), "created_by": old["created_by"]}), f["parent_id"])
         if "org_id" in f:
             h6c_client_move_ok(c, uid, need_client(c, cid, uid))
             if cl_locked_docs(c, cid):  # 2.126.0 A (#1979 F7): its finalised documents keep it; 2.148.1 B (#2484): also a personal office's
@@ -895,6 +978,16 @@ def cdn_labels(rows):
                 sum(1 for x in twin if (x["country"] or "").strip() == country) == 1 else city or country
             if extra:
                 out[r["id"]] = f"{cdn_name1(r)} ({extra})"
+    # #7292: a location without a display name of its own: "main client · location" (pickers of documents, lists); the location
+    # part is its city when it has the main client's name, else its own label. A display name keeps the first word (#1951)
+    base, by = dict(out), {r["id"]: r for r in rows}
+    for r in rows:
+        p = by.get(r["parent_id"]) if "parent_id" in r.keys() and r["parent_id"] else None
+        if not p or ((r["display_name"] if "display_name" in r.keys() else "") or "") or p["parent_id"] or p["id"] == r["id"] or cl_area(p) != cl_area(r):
+            continue
+        city = ((r["city"] if "city" in r.keys() else "") or "").strip()
+        own = city if city and cdn_name1(r).strip().lower() == cdn_name1(p).strip().lower() else base[r["id"]]
+        out[r["id"]] = f"{base[p['id']]} · {own}"
     return out
 
 

@@ -278,8 +278,9 @@ check(not sql("SELECT paused FROM office_issuers WHERE id=?", (IID2,))[0][0], "a
 r = kget(KEY, f"/docs/{DOC1}")
 j = r.json() if r.ok else {}
 check(r.ok and set(j) <= {"doc_id", "client_ref", "origin", "kind", "status", "range", "number", "date", "service_from", "service_to", "due_date",
-                          "totals", "corrects_doc_id", "payments", "missing", "flags", "updated_at"} and "Studio Dezember" not in r.text,
+                          "totals", "corrects_doc_id", "payments", "missing", "flags", "mail", "updated_at"} and "Studio Dezember" not in r.text,
       f"GET: the fixed list of fields, not the person's project title {sorted(j)}")
+check(j.get("mail") == {"state": "none", "at": None}, f"(#6820): mail {{state, at}} of a draft never mailed {j.get('mail')}")
 check(kget(KEY, "/docs/by-ref/kauf:1").json().get("doc_id") == DOC1, "by-ref")
 check(kget(KEY2, f"/docs/{DOC1}").status_code == 404, "another issuer's draft: 404")
 check(kget(KEY, "/docs/by-ref/none:1").status_code == 404, "an unknown ref: 404")
@@ -357,6 +358,13 @@ check(D2 in seen and seen[D2]["number"] and seen[D2]["status"] != "draft", f"cha
 check(CRD in seen and seen[CRD]["kind"] == "credit" and seen[CRD]["corrects_doc_id"] == D2 and seen[CRD]["client_ref"] is None and seen[CRD]["origin"] == "manual",
       f"changed_since: the person's correction, kind credit, corrects_doc_id, origin manual {seen.get(CRD)}")
 check(CP not in seen and pages >= 2, f"no person's copy; the cursor pages {pages}")
+# (#6820): the delivery state of the mail - a person's "Delivery failed" on the mailed invoice shows as bounced with its
+# time, never the address or an error text (the mail itself went out in a test of its own: p6820_office_mail_state_test.py)
+sql("UPDATE office_docs SET mail_state='sent', mail_at=CURRENT_TIMESTAMP WHERE id=?", (D2,), write=True)
+r = A.post(B + D + f"/{D2}/mail-bounced", json={})
+j = kget(KEY, f"/docs/{D2}").json()
+check(r.ok and (j.get("mail") or {}).get("state") == "bounced" and j["mail"].get("at") and set(j["mail"]) == {"state", "at"},
+      f"#6820: the key sees mail bounced with its time, nothing else {r.status_code} {j.get('mail')}")
 
 # ---------------------------------------------------------------- withdraw
 W1 = kpost(KEY, body("wd:1", ext="acc:2")).json()["doc_id"]

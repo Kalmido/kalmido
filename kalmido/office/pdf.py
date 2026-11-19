@@ -1871,7 +1871,10 @@ def office_pdf(model, logo_bytes=None, xml=None, meta=None):
     pay_end = []  # (height, draw) of the bank line + GiroCode, placed after the closing (see below)
     if pay and (pay.get("text") or pay.get("iban") or pay.get("pay_url")):
         iban = str(pay.get("iban") or "").replace(" ", "")
-        bank = " · ".join(x for x in (str(pay.get("bank_name") or ""), ("IBAN " + " ".join(iban[i:i + 4] for i in range(0, len(iban), 4))) if iban else "",
+        bank = " · ".join(x for x in (str(pay.get("bank_name") or ""),
+                                     # (#6819): an invoice issuer's bank account names its holder (office/docpay.py)
+                                     (f'{pay.get("holder_label") or ""}: {pay["holder"]}'.lstrip(": ") if pay.get("holder") else ""),
+                                     ("IBAN " + " ".join(iban[i:i + 4] for i in range(0, len(iban), 4))) if iban else "",
                                      ("BIC " + str(pay["bic"])) if pay.get("bic") else "") if x)
         gcq = str(pay.get("girocode") or "")  # 2.147.1 B (#2054): the GiroCode right of the bank line (office/girocode.py)
         pol = str(pay.get("pay_url") or "")  # 2.469.0 (#3459): the pay link, frozen with the document (office/payonline.py): its code left of the GiroCode
@@ -1888,7 +1891,7 @@ def office_pdf(model, logo_bytes=None, xml=None, meta=None):
         # totals, the bank line apart at the bottom, the closing asked for the transfer a third time)
         pay_one = []
         if pt_lines and (pb_lines or gcq):
-            ref_ = str(m.get("number") or "").strip()
+            ref_ = str(pay.get("ref") or m.get("number") or "").strip()  # (#6819): the reference an issuer's account requires
             pay_one = ([(t_, body, C_INK, lh) for t_ in pdf_wrap(str(pay.get("text") or ""), body, pb_w)] + [("", FS_SMALL, C_INK2, pb_lh * 0.5)]
                        + [(t_, FS_SMALL, C_INK2, pb_lh) for t_ in pb_lines]
                        + [(t_, FS_SMALL, C_INK2, pb_lh) for t_ in (pdf_wrap(f"{L['ref_text']}: {ref_}", FS_SMALL, pb_w) if ref_ else [])])

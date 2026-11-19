@@ -2583,6 +2583,7 @@ _CLIENT = {"name": {"type": "string"}, "name_extra": {"type": "string", "descrip
            "email": {"type": "string"}, "phone": {"type": "string"}, "address": {"type": "string"}, "note": {"type": "string"},
            "rate": {"type": "number"}, "budget_h": {"type": "number"}, "budget_amount": {"type": "number"}, "org_id": {"type": "integer"},
            "archived": {"type": "boolean"},
+           "parent_id": {"type": ["integer", "null"], "description": "#7292: the main client this one is a location of (same workspace, one level; null = none)"},
            # 2.40.0 (#1380): the contact persons (the whole list; "contact" stays the default's name)
            "contacts": {"type": "array", "description": "2.40.0: the contact persons [{id?, name, role?, email?, phone?, is_default?, contact_id?}]: "
                         "with id = keep / change, without = new; 2.269.0: a missing one stays (update_client: contacts_removed deletes); 2.59.0: contact_id = a contact of an address "

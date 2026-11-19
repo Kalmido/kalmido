@@ -2036,16 +2036,21 @@ buttons; the key never finalises, numbers, sends or books.
 - `wish` (unconfirmed, shown to the person, applied when a person finalises from #6819 on): `send` (bool), `paid` `{amount, date,
   method: transfer|card|direct_debit|paypal|online|cash|other, provider?, online_ref?}`, `payee` (the id of a bank account an
   admin allowed this issuer) with `payee_check` (the last four characters of its IBAN: another = `409 payee_mismatch`, nothing
-  made, an alarm; an unknown id `404 payee_unknown`), `reference` (`[A-Z0-9-]{1,35}`), `due_days` or `due_date` (both: `400`; a
-  due date less than 7 days after the invoice's date stops finalising).
+  made, an alarm; an unknown id `404 payee_unknown`), `reference` (`[A-Z0-9-]{1,35}`; an ISO 11649 reference `RFnn...` with wrong
+  check digits: `400 invalid_field`), `due_days` or `due_date` (both: `400`; a due date less than 7 days after the invoice's date
+  stops finalising). From #6819: the account stands on the invoice (PDF, GiroCode, e-invoice BT-83/84/85); with its mark "only
+  with the reference" the reference replaces the invoice number as the remittance (an RF reference without hyphens). `paid` is
+  applied only when a person ticks "Issue as paid" for the document: then no account, no due date, amount outstanding 0.
 - The answer, and every read: `{doc_id, client_ref, origin: issuer|manual, kind: invoice|credit, status
   (draft|issued|sent|partial|overdue|paid|cancelled|withdrawn), range, number, date, service_from, service_to, due_date, totals
-  {net, tax, gross, currency}, corrects_doc_id, payments [{date, amount, method}], updated_at}`, for a draft also `missing` and
+  {net, tax, gross, currency}, corrects_doc_id, payments [{date, amount, method}], mail {state, at}, updated_at}`, for a draft also `missing` and
   `flags`: `over_limit` (over `max_gross` or `day_gross`: made anyway, an alarm), `client_new`, `client_changed` (the client's
   data from the key are not checked yet), `vat_territory` (the client's postcode lies in a territory with VAT rules of its own
   that has no country code: ES 35 / 38 Canary Islands, 51 Ceuta, 52 Melilla; IT 23041 Livigno, 22061 Campione d'Italia; GR
   63086 / 63087 Mount Athos; FI 22 Aland; FR 971-976 overseas; DE 78266 Buesingen, DE 27498 Heligoland; Kalmido derives no VAT
-  case from it, a person decides).
+  case from it, a person decides). `mail` (2.1435.0): the delivery state of the document's e-mail, `state` `none` | `sent` (the
+  mail server took it) | `failed` (the mail server refused it) | `bounced` (a person of the office marked it as not delivered),
+  `at` the time of the last change or `null`; never the address or an error text. A change of it counts for `changed_since`.
 - `GET /api/v1/issuer/docs?changed_since=<ISO time>&cursor=&limit=` -> `{docs: [... + changed_at], next_cursor}`: the source of
   truth of the reconciliation, oldest change first: its drafts, the corrections a person made of its invoices (`origin: manual`,
   no `client_ref`) and the documents a person numbered in its range (`origin: manual`).

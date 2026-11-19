@@ -76,6 +76,7 @@ def _col(r, k, default=None):
     return r[k] if r is not None and k in r.keys() and r[k] is not None else default
 
 
+from .mailstate import oms_failed_after, oms_set  # noqa: E402 -- imported after the module constants like the line below (#6820)
 from .model import office_ctx as _ctx  # noqa: E402  2.149.0 G (#2517): was an own copy
 
 
@@ -437,6 +438,8 @@ def inv_missing_keyed(c, oid, r, s, pack, items):
         m = isd_due_missing(r, isd_wish_of(c, oid, r))
         if m:
             miss.append(("due_date", m))
+        from .docpay import dpy_missing
+        miss += dpy_missing(c, oid, r)  # (#6819): the issuer's bank account removed, or its reference missing
     # 2.296.0 B (#3169): a 0 % position of a taxed invoice needs the reason of its exemption (section 14 (4) no. 8 UStG, BT-120)
     if r["vat_mode"] != "novat" and not str(s.get("exempt_reason") or "").strip() and any(
             it.get("kind") in ("service", "discount") and it.get("tax") == "exempt" and pack_tax(pack, "exempt") == 0 for it in items):  # 2.357.0 (#3217): a 0 % standard / reduced rate is zero rated (Z), no reason
@@ -1212,6 +1215,10 @@ def inv_render(c, oid, r, m, t, pack, L, lang, fmt_date):
     sf, st = m.get("service_from") or "", m.get("service_to") or ""
     m["service_period_text"] = (fmt_date(sf, pack) if sf == st or not st else (fmt_date(st, pack) if not sf else f"{fmt_date(sf, pack)} – {fmt_date(st, pack)}")) if (sf or st) else ""
     snd = _j(r["sender"], {}) if ofx_locked(r) else {}
+    from .docpay import dpy_of
+    dpay = dpy_of(snd) if kind == "invoice" else None  # (#6819): the payment block frozen when finalising (docpay.py)
+    if dpay and dpay["mode"] == "paid":  # issued as paid: no due date on it
+        m["due_date"], m["due_date_text"] = "", ""
     fields = snd.get("fields") if snd else ofx_company(c, oid)
     m["sender_fields"] = {k: (fields or {}).get(k) or "" for k in ("name", "street", "address_extra", "zip", "city", "country", "email", "website", "phone", "tax_number", "vat_id",
                                                                    "iban", "bic", "bank_name", "register_court", "register_no", "managing_directors")}  # 2.99.0 D (#2188): + address_extra (BT-36)
@@ -1341,7 +1348,10 @@ def inv_render(c, oid, r, m, t, pack, L, lang, fmt_date):
                 lab = tr(INV_TAX_ON, lab, tl.get("base_text") or fmt_money(tl.get("base") or 0, lang, cur), lg=lang)
             rows.append([lab, tl.get("amount_text") or fmt_money(tl.get("amount") or 0, lang, cur)])
         rows.append([L.get("credit_total" if kind == "credit" else "invoice_total", tr("Total|credit note" if kind == "credit" else "Total|invoice", lg=lang)), tot["gross_text"]])
-        if kind == "invoice" and dec(mf["paid"]) > 0:
+        if dpay and dpay["mode"] == "paid":  # (#6819): the frozen payment of "Issue as paid" (kept in the stored PDF)
+            rows += [[L.get("paid", tr("Already paid|document", lg=lang)), fmt_money(dec(dpay["amount"]), lang, cur)],
+                     [L.get("open", tr("Amount outstanding|document", lg=lang)), fmt_money(Decimal(0), lang, cur)]]
+        elif kind == "invoice" and dec(mf["paid"]) > 0:
             # 2.509.0 (#4331): today's payment state, named for pdfweb._model: the PDF of a finalised document leaves them out (the preview keeps them)
             tot["paid_rows"] = [[L.get("paid", tr("Already paid|document", lg=lang)), fmt_money(mf["paid"], lang, cur)],
                                 [L.get("open", tr("Amount outstanding|document", lg=lang)), tot["open_text"]]]
@@ -1359,6 +1369,9 @@ def inv_render(c, oid, r, m, t, pack, L, lang, fmt_date):
     if kind == "invoice":
         ptext = ((texts.get("payment_note") or {}).get(lang) or tr("Payable by {date} without deduction.|document", lg=lang)).replace("{date}", m["due_date_text"]) if m["due_date"] else ""
     m["payment"] = {"iban": sfd["iban"], "bic": sfd["bic"], "bank_name": sfd["bank_name"], "text": ptext} if kind not in ("credit", "delivery") else None
+    if dpay:  # (#6819): issued as paid / an invoice issuer's bank account instead of the office's own
+        from .docpay import dpy_render
+        dpy_render(r, m, dpay, lang, fmt_date, pack, r["number"] or "")
     from .girocode import gcq_model
     gcq_model(r, m, None if ofx_locked(r) else office_settings(c, oid), snd)  # 2.147.1 B (#2054): the GiroCode (EPC QR text)
     if kind == "invoice" and ofx_locked(r) and snd.get("payonline") and isinstance(m.get("payment"), dict):
@@ -1533,6 +1546,7 @@ def inv_send_mail(c, oid, uid, m, r=None):
               "WHERE id=? AND org_id=?", (ts, ts, r["id"], oid))
     ofx_log(c, oid, "send", doc_id=r["id"], detail=m["detail"])
     oub_barrier(c, uid, oid, OUB_SENT, oub_doc_name(r))  # 2.747.0 (#5252): a refused mail rolls it back with the marks
+    oms_set(c, oid, r["id"], "sent")  # (#6820): the mail server takes it (a refusal rolls it back with the marks)
     try:
         _mail(m["to"], m["subject"], m["text"], attachments=m["files"], cc=m["cc"], from_name=m["from_name"], reply_to=m["reply_to"], **m["kw"])
     except Exception:
@@ -1540,6 +1554,7 @@ def inv_send_mail(c, oid, uid, m, r=None):
             c.rollback()  # the marks above go, the day's count of the log with them
             h6c_refund(c, *m["budget"])
             c.commit()
+            oms_failed_after(c, oid, r["id"])  # (#6820): failed, committed on its own (every caller sends with later=True)
         raise
     from ..integrations.webhooks import who_note
     who_note("invoice.sent", "invoice", r["id"])  # 2.115.0 A (#2061): mailed

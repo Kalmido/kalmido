@@ -118,7 +118,11 @@ class Smtp(socketserver.StreamRequestHandler):
                 frm = s.split(":", 1)[1].strip(" <>")
                 self.w("250 OK\r\n")
             elif u.startswith("RCPT TO"):
-                to.append(s.split(":", 1)[1].strip(" <>"))
+                rc = s.split(":", 1)[1].strip(" <>")
+                if rc.lower().startswith("refuse@"):  # (#6820): a recipient the server refuses (the mail's state failed)
+                    self.w("550 no such user\r\n")
+                    continue
+                to.append(rc)
                 self.w("250 OK\r\n")
             elif u == "DATA":
                 self.w("354 go\r\n")

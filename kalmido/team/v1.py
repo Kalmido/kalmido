@@ -148,7 +148,12 @@ def pkgc_spec(paths, schemas, op, ok, errs, ref, pid, nul, page, q):
         "can_delete": {"type": "boolean"}, "stats": stats, "updated_at": {"type": "string", "description": "2.269.0: send it back as expect_updated_at"},
         "budget": {"type": "object", "properties": {"pct_h": nul("integer"), "pct_amount": nul("integer"),
                                                     "level": {"type": "string", "enum": ["none", "ok", "warn", "over"]}}},
-        "per_list": {"type": "array", "items": {"type": "object"}, "description": "GET /clients/{id}: estimate vs. actual per list"}}}
+        "per_list": {"type": "array", "items": {"type": "object"}, "description": "GET /clients/{id}: estimate vs. actual per list"},
+        "parent_id": nul("integer", description="#7292: the main client this client is a location of (null = none)"),
+        "sites": {"type": "array", "items": {"type": "object"}, "description": "#7292, GET /clients/{id} of a main client: its locations "
+                  "[{id, name, label, archived, budget_h, budget_amount, stats}] (missing = none)"},
+        "group": {"type": "object", "description": "#7292, GET /clients/{id} of a main client: stats, budget_h, budget_amount and budget "
+                  "of the main client and all its locations together (missing = no locations)"}}}
     cin = {"type": "object", "additionalProperties": False, "properties": {
         "name": {"type": "string", "maxLength": 80}, "icon": {"type": "string"}, "color": {"type": "string", "description": "#rrggbb"},
         "contact": {"type": "string"}, "email": {"type": "string"}, "phone": {"type": "string"}, "address": {"type": "string"},
@@ -156,7 +161,9 @@ def pkgc_spec(paths, schemas, op, ok, errs, ref, pid, nul, page, q):
                      "without = new; is_default marks the default, else the first). 2.269.0 (#3017): missing ones stay, "
                      "PATCH deletes only the ids in contacts_removed"},
         "note": {"type": "string"}, "rate": num, "budget_h": num, "budget_amount": num,
-        "org_id": nul("integer", description="One of your organisations (default: your first)"), "archived": {"type": "boolean"}}}
+        "org_id": nul("integer", description="One of your organisations (default: your first)"), "archived": {"type": "boolean"},
+        "parent_id": nul("integer", description="#7292: make it a location of this main client (same workspace, one level: the main "
+                         "client is no location and this client has no locations itself; null = none)")}}
     cup = {**cin, "properties": {**cin["properties"],  # 2.269.0 C (#3017)
                                  "contacts_removed": {"type": "array", "items": {"type": "integer"}, "description": "Ids of contact persons to delete"},
                                  "expect_updated_at": {"type": "string", "description": "The updated_at you read last: someone else saved "

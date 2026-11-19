@@ -1474,6 +1474,7 @@ ROUTES = {
     "GET /api/v1/issuer/clients/by-ref/{}": "office", "PUT /api/v1/issuer/clients/by-ref/{}": "office",  # 2.1384.0 (#6700): p6700_office_issuer_clients_test.py
     "POST /api/v1/issuer/invoices": "office", "GET /api/v1/issuer/docs": "office", "GET /api/v1/issuer/docs/{}": "office",  # 2.1427.0 (#6701): p6701_office_issuer_invoices_test.py
     "GET /api/v1/issuer/docs/by-ref/{}": "office", "GET /api/v1/issuer/docs/{}/pdf": "office", "POST /api/v1/issuer/docs/{}/withdraw": "office",  # 2.1427.0 (#6701): p6701_office_issuer_invoices_test.py
+    "POST /api/office/docs/{}/mail-bounced": "office",  # (#6820): p6820_office_mail_state_test.py (another organisation's document 404)
     "POST /api/clients/{}/issuer-hold": "client",  # 2.1384.0 (#6700): need_client of the person (p6700_office_issuer_clients_test.py: another organisation 404)
     # 2.144.0 A (#2412): Stop in the agent chat (who may write the agent) and the agent's confirmation (p2144_a_api_test.py)
     "POST /api/agents/{}/abort": "agent", "POST /api/v1/agent/aborted": "agent",
