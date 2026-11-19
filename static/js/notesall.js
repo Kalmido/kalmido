@@ -31,14 +31,14 @@ function sb_noteCardsHtml() {
   if (!vis.length) return q || S.sbn.lid ? `<div class="empty">${tr('No notes match.')}</div>` : symEmpty('note', tr('No notes yet.'), sb_noteWritable().length ? tr('Meeting notes, briefings, decisions: write them next to the tasks.') : '');
   return `<ul class="ntcards" aria-label="${esc(tr('Notes'))}">${vis.map(n => {
     const l = listById(n.list_id), ex = n.excerpt ?? S.sbn.ex[n.id] ?? '';
-    return `<li><a href="#note/${n.id}" class="ntcard sbncard"${/*html-ok*/ wso_row(l || null) /* 2.1327.0 (#6719): a note follows its project's organisation */}>
+    return `<li><a href="#note/${n.id}" class="ntcard sbncard"${/*html-ok*/ wso_row(l || null, '', wsCur() === 'all') /* 2.1327.0 (#6719): a note follows its project's organisation; #7393: under "All" a private note wears my Private colour (as #6957) */}>
       <span class="ntt">${n.pinned ? `<span class="ntpin" title="${esc(tr('Pinned'))}">${ic('pin', 's')}</span>` : ''}${esc(n.title)}</span>
       ${ex ? `<span class="ntx">${esc(ex.slice(0, 140))}</span>` : ''}
       <span class="ntm"><span class="sbnl">${l ? licMark(l, 'sm', true) : ''}${esc(l ? lname(l) : '?')}</span>${/*html-ok*/ l ? wso_origin(l, 'nto') : '' /* 2.1327.0 (#6719): under "All" where it comes from */}${(n.tags || []).map(t => `<span class="tag">#${esc(t)}</span>`).join('')}<time title="${esc(fmtWhen(n.updated_at))}">${esc(relTime(n.updated_at))}</time></span></a></li>`;
   }).join('')}</ul>`;
 }
 // 2.1327.0 (#6719): the open note and a project's notes page are the open object of the project's organisation (wscolor.js loads
-// after this file: registered at DOMContentLoaded); the private list "Notes" is neutral
+// after this file: registered at DOMContentLoaded); the private list "Notes" gives 'private': no frame, under "All" my Private tone on #view (#7393, wso_locVars)
 document.addEventListener('DOMContentLoaded', () => wso_open('notes', () => S.route?.mod === 'notes' && (S.nt.lid || S.route.lid) ? listById(S.nt.lid || S.route.lid) || null : null), {once: true});
 function sb_notesView() { return `<div class="ntwrap"><div class="ntview sbnall">${sb_notesListHtml()}</div></div>`; }
 // 2.602.0 (#4817): the list alone - the page's on a phone, the panel's on a computer (chat.js nt_panelHtml)
