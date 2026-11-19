@@ -506,7 +506,8 @@ def ofr_acc_cap(c, uid, oid, area=None):
     """2.1340.0 (#6613): 403 for a person of the organisation role accounting (not ruled by groups) in an area of ACC_NONE or
     on a route of ACC_NO_ROUTES; everybody else: nothing. Runs in ofr_gate (every /api/office/* path) and in office_org."""
     area = area or ofr_area_of(request.path)
-    if area not in ACC_NONE and request.path not in ACC_NO_ROUTES:
+    # #6953 (reader job/5148 F2): the office log by prefix, so a later sub-route of /api/office/log is closed too
+    if area not in ACC_NONE and not any(request.path == p or request.path.startswith(p + "/") for p in ACC_NO_ROUTES):
         return
     if pb_owner(c, oid) is None and not _is_agent(c, uid) and org_role(c, uid, oid) == "accounting":
         raise Denied(403, tr(NO_RIGHT))
