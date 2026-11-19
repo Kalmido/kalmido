@@ -1014,10 +1014,12 @@ jobs:
     # The seeded old database is kept as an artifact: the quarterly fixture of tests/fixtures/upgrade/ (README there).
     # 2.1011.0 (#5713): the start is the live version (newest tag latest-ok/X.Y.Z below VERSION; without a release page it is
     # installed from that tag), not the latest release (2.502.0 for months); .dockerignore keeps pgdata/ out of the build.
-    name: Install the last release (install.sh), update to this commit (update.sh)
+    # 2.1431.0 (#6609): then back with update.sh --restore <the copy of the update> and checked again (step 5; 60 minutes:
+    # a version before without release page is built again from its tag).
+    name: Install the last release (install.sh), update to this commit (update.sh), back (update.sh --restore)
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1027,7 +1029,7 @@ jobs:
           python-version: "3.12"
       - name: Test dependencies (requests for the seed and the checks)
         run: pip install --require-hashes -r tests/requirements.lock
-      - name: install.sh (last release) -> data -> update.sh (this commit) -> checks
+      - name: install.sh (last release) -> data -> update.sh (this commit) -> checks -> update.sh --restore -> checks
         run: python3 tools/install_upgrade_check.py run --ref "$GITHUB_SHA" --dir "$RUNNER_TEMP/kalmido-install" --out "$RUNNER_TEMP/upgrade-fixture"
       - name: The one-liner of a stranger (install.sh without KALMIDO_VERSION -> latest release, prebuilt image)
         if: always()  # its own verdict, also when the update check above is red

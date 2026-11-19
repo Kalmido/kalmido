@@ -5,13 +5,17 @@ tests/upgrade_seed.py (which wrote <version>.json: what that release showed) and
 the installer wrote. Not a suite of its own; tests/p2589_d_install_upgrade_test.py runs the same checks against the test server.
 
     python3 install_upgrade_verify.py <datadir> <version>.json <candidate VERSION> [<install folder> [<ref of the update>]]
+    python3 install_upgrade_verify.py <datadir> <version>.json <VERSION before> <install folder> <its ref> --restored
 
 <datadir> holds .kalmido-db ("<db container> <database>", tests/dbx.py); KALMIDO_TEST_PORT / KALMIDO_TEST_CONTAINER as in kt.py.
 Checks: the server runs the candidate (/api/version, kalmido_meta.app_version), its log since the start has no traceback, the
 old accounts sign in and see their data as before (upgrade_views.data_checks: lists, tasks, comments, office documents, clients,
 time entries, the agent, the boundaries between organisation, private workspace and frida), a write works. With the install
 folder also what update.sh promises: a database copy in data/backups/, .kalmido-version = the candidate's ref and
-.kalmido-version.prev = the version of before (vX.Y.Z or latest-ok/X.Y.Z, #5713), update.sh is still there."""
+.kalmido-version.prev = the version of before (vX.Y.Z or latest-ok/X.Y.Z, #5713), update.sh is still there.
+--restored (2.1431.0, #6609): after update.sh --restore <the copy of the update>: the version before runs again on the database
+of before (kalmido_meta, /api/version), the data of the seed are there, the task written after the update is gone, a copy of
+the database as it was before the restore was kept, .kalmido-version names the version before."""
 import glob
 import json
 import os
@@ -44,7 +48,7 @@ def verify(E, version, install_dir=None, ref=None):
     A = users["alice"]
     v = A.get(B + "/api/version")
     check(v.ok and v.json().get("app") == version, f"{tag}: /api/version names {version}: {v.status_code} {v.text[:200]}")
-    t = A.post(B + "/api/tasks", json={"list_id": E["ids"]["team"], "title": "Nach dem Update angelegt"})
+    t = A.post(B + "/api/tasks", json={"list_id": E["ids"]["team"], "title": AFTER_UPDATE})
     check(t.ok, f"{tag}: a new task in the old org project: {t.status_code} {t.text[:200]}")
     nt = t.json().get("id") if t.ok else None
     check(nt and any(x["id"] == nt for x in users["bob"].get(B + "/api/state").json()["tasks"]), f"{tag}: bob sees the new org task")
@@ -67,10 +71,38 @@ def verify(E, version, install_dir=None, ref=None):
     check(os.access(os.path.join(install_dir, "update.sh"), os.X_OK), f"{tag}: update.sh is still there")
 
 
+AFTER_UPDATE = "Nach dem Update angelegt"  # the write of verify(): made on the candidate, after the copy
+
+
+def verify_restored(E, version, install_dir, ref):
+    """2.1431.0 (#6609): the checks after update.sh --restore (see the head)."""
+    tag = f"--restore -> {version}"
+    meta = dict(kt.dbx("SELECT key, value FROM kalmido_meta"))
+    check(meta.get("app_version") == version, f"{tag}: kalmido_meta.app_version = {version} ({meta.get('app_version')})")
+    r = subprocess.run(["docker", "logs", kt.CT], capture_output=True, text=True)
+    bad = bad_lines(r.stdout + r.stderr)
+    check(r.returncode == 0 and not bad, f"{tag}: server log without traceback: {bad[:5]}")
+    users = data_checks(E, tag)
+    A = users["alice"]
+    v = A.get(B + "/api/version")
+    check(v.ok and v.json().get("app") == version, f"{tag}: /api/version names {version}: {v.status_code} {v.text[:200]}")
+    titles = [x.get("title") for x in A.get(B + "/api/state").json().get("tasks", [])]
+    check(AFTER_UPDATE not in titles, f"{tag}: the task written after the update is gone (the database of before)")
+    dumps = glob.glob(os.path.join(install_dir, "data", "backups", "kalmido-*.dump"))
+    check(len(dumps) >= 2, f"{tag}: the copy of the update and the copy of before the restore are there ({len(dumps)})")
+    with open(os.path.join(install_dir, ".kalmido-version"), encoding="utf-8") as f:
+        got = f.readline().strip()
+    check(got == ref, f"{tag}: .kalmido-version = {ref} ({got})")
+    check(os.access(os.path.join(install_dir, "update.sh"), os.X_OK), f"{tag}: update.sh is still there")
+
+
 if __name__ == "__main__":
     if len(sys.argv) < 4:
         sys.exit(__doc__)
     with open(sys.argv[2], encoding="utf-8") as f:
         EXP = json.load(f)
+    if sys.argv[-1] == "--restored" and len(sys.argv) == 7:
+        verify_restored(EXP, sys.argv[3], sys.argv[4], sys.argv[5])
+        sys.exit(kt.done("install_upgrade_verify --restored"))
     verify(EXP, sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else None, sys.argv[5] if len(sys.argv) > 5 else None)
     sys.exit(kt.done("install_upgrade_verify"))

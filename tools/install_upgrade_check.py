@@ -10,6 +10,9 @@
   3. the update.sh that installer wrote updates it to the candidate: KALMIDO_VERSION=<commit> and KALMIDO_INSTALLER_URL = the
      candidate's install.sh (a released installation fetches the newest release's installer; the candidate has no release yet)
   4. tests/install_upgrade_verify.py: candidate version, sign-in, the data as before, a write, the database copy of update.sh
+  5. 2.1431.0 (#6609): the way back - the candidate's update.sh --restore <the copy of step 3> brings back the database of
+     before and starts the version before; install_upgrade_verify.py --restored: that version, the data of the seed, the
+     write of step 4 gone, a copy of the database as it was before the restore
 
   python3 tools/install_upgrade_check.py prev                  the start before the candidate: "<ref> (release|tag)" (stdout)
   python3 tools/install_upgrade_check.py setup-code CONTAINER  the newest one-time setup code in the container's log
@@ -18,7 +21,7 @@
                                                                published for linux/amd64 AND linux/arm64 (red with the image
                                                                and what it lacks; needs docker and network to the registries)
   python3 tools/install_upgrade_check.py run [--prev TAG] [--ref REF] [--dir DIR] [--out DIR] [--port N]
-                                                               steps 1-4 (needs docker + compose, git, curl, network to GitHub)
+                                                               steps 1-5 (needs docker + compose, git, curl, network to GitHub)
   python3 tools/install_upgrade_check.py latest [--dir DIR] [--port N] [--keep]
                                                                2.1336.0 (#6505): the one-liner as a stranger runs it - this
                                                                checkout's install.sh WITHOUT KALMIDO_VERSION: it must find the
@@ -34,6 +37,7 @@ starts from it by itself. 2.1336.0 (#6505): an installer that could not pull the
 (PULL_FAILED) and builds locally; both runs count that as red - the nightly job stayed green while every new installation
 built locally from the old image name. Python standard library only."""
 import argparse
+import glob
 import os
 import re
 import subprocess
@@ -315,6 +319,21 @@ def run(argv):
 
     step("4. sign-in, data, version (tests/install_upgrade_verify.py)")
     r = subprocess.run([sys.executable, "install_upgrade_verify.py", data, os.path.join(out, pv + ".json"), cand, d, ref],
+                       cwd=os.path.join(ROOT, "tests"), env=dict(tenv, KALMIDO_TEST_CONTAINER=app))
+    if r.returncode:
+        return r.returncode
+
+    # 2.1431.0 (#6609): the way back the docs name - one command, run once a night
+    copies = sorted(glob.glob(os.path.join(d, "data", "backups", "kalmido-*.dump")), key=os.path.getmtime)
+    if not copies:
+        sys.exit("install-upgrade: update.sh made no database copy to go back to")
+    step(f"5. back to {prev}: update.sh --restore {os.path.relpath(copies[-1], d)}")
+    sh_install([os.path.join(d, "update.sh"), "--restore", os.path.relpath(copies[-1], d)],
+               env=dict(base, KALMIDO_INSTALLER_URL="file://" + os.path.join(ROOT, "install.sh")))
+    app = compose_id(d, "kalmido")
+    with open(os.path.join(data, ".kalmido-db"), "w", encoding="utf-8") as f:
+        f.write(f"{compose_id(d, 'db')} kalmido\n")  # (compose may have made a new db container for the version before)
+    r = subprocess.run([sys.executable, "install_upgrade_verify.py", data, os.path.join(out, pv + ".json"), pv, d, prev, "--restored"],
                        cwd=os.path.join(ROOT, "tests"), env=dict(tenv, KALMIDO_TEST_CONTAINER=app))
     return r.returncode
 
