@@ -1505,7 +1505,7 @@ def jn9_job_names(c, ids, uid):
     if pids:
         rows.update({j["id"]: j for j in c.execute(f"SELECT * FROM agent_jobs WHERE id IN ({','.join('?' * len(pids))})", pids)})
     seen = {i: j for i, j in rows.items() if job_visible(c, j, uid)}
-    # 2.1398.0 (#6863), #7162 (reader F14): the name of a job whose words this person does not read is not given (as job_dict)
+    # (#6863), #7162 (reader F14): the name of a job whose words this person does not read is not given (as job_dict)
     seen = {i: (j if not job_words_muted(c, j, uid) else {**{k: j[k] for k in j.keys()}, "title": "", "name": None}) for i, j in seen.items()}
     out = {}
     for i in ids:
