@@ -1,0 +1,57 @@
+{
+  "_comment": "2.1400 (#7115): the rights profiles of the one-command setup (static/agent/setup.sh --profile, setup.ps1 -Profile) for Claude Code, written into the project folder's .claude/settings.local.json (allow / deny added, defaultMode set; entries already there stay). {job} = the job tool's command prefix (two spellings), {inst} = the instance folder as a rule path. block_extra goes into the env file as KALMIDO_BLOCK_EXTRA when it has none yet (docs/AGENT-SECURITY.md, project_block). See docs/AGENT-SETUP.md section 7.",
+  "profiles": {
+    "hardened": {
+      "defaultMode": "dontAsk",
+      "allow": ["mcp__kalmido", "Read(./**)"],
+      "deny": ["Edit", "Write", "WebFetch", "WebSearch", "Read(./.env)", "Read(./**/.env)", "Bash(cat:*)", "Bash(curl:*)"]
+    },
+    "standard": {
+      "defaultMode": "default",
+      "allow": ["mcp__kalmido", "Read(./**)", "Edit(./WORKFLOW-KALMIDO.md)", "Edit(./NOTIZEN.md)", "{job}"],
+      "deny": ["WebFetch", "WebSearch", "Read(./.env)", "Read(./**/.env)", "Bash(cat:*)", "Bash(curl:*)"]
+    },
+    "dev": {
+      "defaultMode": "default",
+      "allow": [
+        "mcp__kalmido", "Read(./**)", "Edit(./**)", "{job}",
+        "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git blame:*)",
+        "Bash(git rev-parse:*)", "Bash(git branch:*)", "Bash(git switch:*)", "Bash(git checkout:*)",
+        "Bash(git add:*)", "Bash(git commit:*)", "Bash(git restore:*)", "Bash(git rm:*)", "Bash(git mv:*)",
+        "Bash(git fetch origin)", "Bash(git pull --ff-only)", "Bash(git merge:*)", "Bash(git stash:*)",
+        "Bash(git worktree:*)",
+        "Bash(ls:*)", "Bash(pwd)", "Bash(grep:*)", "Bash(head:*)", "Bash(tail:*)",
+        "Bash(wc:*)", "Bash(diff:*)", "Bash(mkdir:*)", "Bash(which:*)",
+        "Bash(make:*)", "Bash(npm test:*)", "Bash(npm run:*)", "Bash(npm ci:*)", "Bash(npm install)",
+        "Bash(pnpm test:*)", "Bash(pnpm run:*)", "Bash(pnpm install)", "Bash(yarn test:*)", "Bash(yarn run:*)", "Bash(yarn install)", "Bash(pytest:*)", "Bash(python3 -m pytest:*)", "Bash(python -m pytest:*)",
+        "Bash(go build:*)", "Bash(go test:*)", "Bash(go vet:*)", "Bash(cargo build:*)", "Bash(cargo test:*)",
+        "Bash(cargo check:*)", "Bash(mvn test:*)", "Bash(mvn verify:*)", "Bash(mvn package:*)", "Bash(./gradlew test:*)",
+        "Bash(./gradlew build:*)", "Bash(gradle test:*)", "Bash(gradle build:*)", "Bash(dotnet build:*)",
+        "Bash(dotnet test:*)", "Bash(composer install)", "Bash(composer test:*)", "Bash(bundle exec rspec:*)", "Bash(bundle exec rake:*)", "Bash(tsc:*)", "Bash(eslint:*)",
+        "Bash(ruff:*)", "Bash(prettier:*)"
+      ],
+      "deny": [
+        "WebFetch", "WebSearch",
+        "Bash(git push --force:*)", "Bash(git push -f:*)", "Bash(git push --force-with-lease:*)",
+        "Bash(git push --delete:*)", "Bash(git push --mirror:*)", "Bash(git push origin main:*)",
+        "Bash(git push origin master:*)", "Bash(git push -u origin main:*)", "Bash(git push -u origin master:*)",
+        "Bash(git push origin HEAD:main:*)", "Bash(git push origin HEAD:master:*)",
+        "Bash(git tag:*)", "Bash(git update-ref:*)", "Bash(git reset --hard:*)", "Bash(git clean:*)",
+        "Bash(docker system prune:*)", "Bash(docker image prune:*)", "Bash(docker volume prune:*)",
+        "Bash(docker container prune:*)", "Bash(docker builder prune:*)",
+        "Bash(sudo:*)", "Bash(su:*)", "Bash(reboot:*)", "Bash(shutdown:*)", "Bash(poweroff:*)", "Bash(halt:*)",
+        "Bash(systemctl reboot:*)", "Bash(systemctl poweroff:*)",
+        "Bash(ssh:*)", "Bash(scp:*)", "Bash(sftp:*)", "Bash(curl:*)", "Bash(wget:*)",
+        "Read(~/.ssh/**)", "Read(~/.aws/**)", "Read(~/.config/gh/**)", "Read(~/.config/gcloud/**)", "Read(~/.azure/**)",
+        "Read(~/.kube/**)", "Read(~/.docker/config.json)", "Read(~/.gnupg/**)", "Read(~/.netrc)",
+        "Read(~/.git-credentials)", "Read(~/.npmrc)", "Read(~/.pypirc)", "Read(**/.env*)", "Edit(**/.env*)",
+        "Edit(./.git/**)", "Edit(**/.git/hooks/**)", "Edit(**/.git/config)",
+        "Edit(**/.claude/settings*.json)", "Edit(~/.claude/settings*.json)", "Edit(~/.claude.json)",
+        "Edit(**/KALMIDO-DISPATCH.json)", "Edit(**/KALMIDO-DISPATCH-STOP)",
+        "Edit({inst}/*.*)", "Edit({inst}/VERSION)", "Edit({inst}/state/*.*)", "Edit({inst}/state/*STOP*)",
+        "Edit({inst}/state/jobs/*/*.*)"
+      ],
+      "block_extra": "path:~/.ssh, path:~/.aws, path:~/.config/gh, path:~/.config/gcloud, path:~/.azure, path:~/.kube, path:~/.docker/config.json, path:~/.gnupg, path:~/.netrc, path:~/.git-credentials, path:~/.npmrc, path:~/.pypirc, path:.env*"
+    }
+  }
+}

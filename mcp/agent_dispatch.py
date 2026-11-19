@@ -19,8 +19,10 @@ chosen lists off deterministically -- no model decides what comes next:
   5. when a place is free and no brake holds: cut the next bundle (priority order, task sizes as points) and start ONE
      job (agent_job.py start --worktree) with a brief built from the tasks,
   5a. 2.1368.0 (#7028): a job of the dispatcher ends in a pull request, never in a merge or a deploy. Once it ended, the
-     dispatcher runs the project's check (check_cmd, required, only from the runner's env file) in the job's working copy
-     itself, with a cleaned environment and without git hooks: red = no pull request,
+     dispatcher runs the project's check (check_cmd, required, only from the runner's env file) itself on a fresh copy of the
+     job branch's commit (2.1400.0, #7057: never the job's working copy; exactly that commit is pushed), with a cleaned
+     environment and without git hooks; a repository config key outside the allow list SAFE_GIT_KEY_RX
+     and a push address other than KALMIDO_DISPATCH_PUSH_URL refuse the landing: red = no pull request,
      the person is told and the tasks go back to the list; green = it pushes the job branch (job/<id>, never another
      branch) and opens ONE pull request (pr_cmd) with an approval card ("Ready to merge") on the bundle's first task.
      Merging stays the person's step; the tasks close once their commits are in close_ref,
@@ -29,9 +31,10 @@ chosen lists off deterministically -- no model decides what comes next:
 Switched on in Kalmido: Settings > Agents > (agent) > Runtime > "Work the list off" (GET /api/v1/agent runtime.dispatch:
 "" off, "dry" dry run, "on"); KALMIDO_DISPATCH (off | dry | on) on this computer outranks it. A dry run reads everything
 and writes nothing: what it would do goes to <state dir>/dispatch-dry.log and into the daily report.
-The project configuration is KALMIDO-DISPATCH.json in the project folder (KALMIDO_DISPATCH_CONFIG = another path); without
-lists in it the dispatcher stays idle. Keys and defaults: DEFAULTS. A stop file (<state dir>/dispatch-STOP or
-KALMIDO-DISPATCH-STOP in the project folder) holds new starts; closing and the guard go on.
+The project configuration is KALMIDO-DISPATCH.json in the runner's state folder (KALMIDO_DISPATCH_CONFIG = another path;
+2.1400, #7117: the agent's tools cannot change it there); one in the project folder is still read but may only tighten
+(load_config). Without lists the dispatcher stays idle. Keys and defaults: DEFAULTS. A stop file (<state dir>/dispatch-STOP,
+or KALMIDO-DISPATCH-STOP in the project folder: it can only stop) holds new starts; closing and the guard go on.
 
 usage: agent_dispatch.py [--state DIR] [--dry-run] [--once]   one tick from the command line (the runner's environment:
                                                               KALMIDO_URL, KALMIDO_TOKEN); --dry-run prints what it would do
@@ -88,6 +91,8 @@ DEFAULTS = {
     "check_timeout_min": 30,  # the dispatcher's check run at most this long (then red)
     "push_remote": "origin",  # where the dispatcher pushes the job branch job/<id> (never another branch); a name of
                               # `git remote`; only from KALMIDO_DISPATCH_PUSH_REMOTE
+    "push_url": "",           # required (2.1400.0, #7057): the push address of push_remote, only from KALMIDO_DISPATCH_PUSH_URL;
+                              # the dispatcher pushes only to it and only while `git remote get-url --push` says the same
     "base": "",               # the pull request's target branch ("" = close_ref without its remote, else the current branch);
                               # only from KALMIDO_DISPATCH_BASE
     "pr_cmd": "gh pr create --head {branch} --base {base} --title {title} --body-file -",  # opens the pull request and prints
@@ -101,11 +106,22 @@ DEFAULTS = {
 # KALMIDO-DISPATCH.json: the project folder is the agent's working place, a job could write a command there that the
 # dispatcher would then run with the runner's rights. Such a key in the file is not used and keeps the dispatcher idle.
 EXEC_KEYS = {"check_cmd": "KALMIDO_DISPATCH_CHECK_CMD", "pr_cmd": "KALMIDO_DISPATCH_PR_CMD",
-             "push_remote": "KALMIDO_DISPATCH_PUSH_REMOTE", "base": "KALMIDO_DISPATCH_BASE"}
+             "push_remote": "KALMIDO_DISPATCH_PUSH_REMOTE", "base": "KALMIDO_DISPATCH_BASE", "push_url": "KALMIDO_DISPATCH_PUSH_URL"}
 # the check runs the branch's code: its environment carries no Kalmido variables and no credentials
 SECRET_ENV_RX = re.compile(r"(?i)^(KALMIDO_|GH_|GITHUB_|ANTHROPIC_|OPENAI_|AWS_|SSH_AUTH_SOCK$|GIT_ASKPASS$|SSH_ASKPASS$)"
                            r"|TOKEN|SECRET|PASSW|API_?KEY|CREDENTIAL|PRIVATE_?KEY")
 NO_HOOKS = ("-c", "core.hooksPath=/dev/null")  # git hooks of the job's repository never run for the dispatcher
+# 2.1400.0 (#7057, review 2.1368 F8): the repository's own config is writable by the agent (.git/config of the project
+# folder); a key there could let a push or a checkout of the dispatcher run a command or go elsewhere with the runner's
+# rights (sshCommand, credential helpers, insteadOf, http proxies, push options, submodules, filters, ...). Reader F3: an
+# allow list, not a block list -- in scope local / worktree only these keys; any other one refuses the landing
+SAFE_GIT_KEY_RX = re.compile(r"(?i)^(core\.(repositoryformatversion|filemode|bare|logallrefupdates|ignorecase|precomposeunicode"
+                             r"|symlinks|autocrlf|eol|safecrlf|quotepath|abbrev|longpaths|checkstat|trustctime)"
+                             r"|remote\.[^\n]*\.(url|fetch|tagopt|prune|gh-resolved)|branch\.[^\n]*\.(remote|merge|rebase|pushremote|description)"
+                             r"|user\.(name|email)|extensions\.(worktreeconfig|objectformat|refstorage|preciousobjects)"
+                             r"|gc\.(auto|autopacklimit|autodetach|pruneexpire|reflogexpire|reflogexpireunreachable"
+                             r"|worktreepruneexpire|packrefs|writecommitgraph)|maintenance\.(auto|strategy)|fetch\.(prune|prunetags)|pull\.(rebase|ff)|init\.defaultbranch"
+                             r"|lfs\.repositoryformatversion|rerere\.enabled|status\.[a-z]+|color\.[a-z.]+|advice\.[a-z]+)$")
 # 2.1368.0 (#7028): keys that are gone -- named once in the log, never used
 RETIRED = {"worktree": "every job of the dispatcher has its own working copy (branch job/<id>)",
            "finish_cmd": "a job ends in a pull request with an approval card; merging and deploying are the person's"}
@@ -120,6 +136,7 @@ SAME_FILE_SHARE = 0.2  # a file named by more than this share of the class's tas
 
 
 LOGGED = set()
+MOVE_HINT = ""  # reader F6 (2.1400): where the project folder's configuration should go ("" = nothing to move)
 
 
 def log_once(msg):
@@ -149,32 +166,109 @@ def write_json(path, data):
     os.replace(tmp, path)
 
 
-def load_config(project_dir):
-    """DEFAULTS + KALMIDO-DISPATCH.json (unknown keys are named once in the log and left out); (config, problem)."""
-    path = os.environ.get("KALMIDO_DISPATCH_CONFIG") or os.path.join(project_dir, CONFIG_FILE)
-    cfg = dict(DEFAULTS)
-    if not os.path.isfile(path):
-        return cfg, "no " + CONFIG_FILE
+# 2.1400 (#7117): the configuration lives in the runner's state folder (<state dir>/KALMIDO-DISPATCH.json or
+# KALMIDO_DISPATCH_CONFIG), where the agent's tools are denied; a KALMIDO-DISPATCH.json in the project folder (the agent's
+# working place) is still read, but may only tighten: the limits below at most the value of the state folder's file (or
+# DEFAULTS without one; 0 = "never" counts as the loosest value), the tags of skip_tags / keep_tags only added, the rules
+# that hold work back (STATE_ONLY) never changed. With a state folder file the project file changes nothing else.
+TIGHTEN = ("places", "max_writes", "job_timeout_h", "stau_max", "usage_limit_pct", "max_tries", "max_bundles",
+           "bundle_points", "bundle_max")
+ZERO_OFF = ("stau_max", "usage_limit_pct")  # 0 = this brake never holds: the loosest value
+ADD_ONLY = ("skip_tags", "keep_tags")
+STATE_ONLY = ("one_way_rx", "one_way_ok_tag", "waiting_rx")
+
+
+def _read_config(path):
+    """A configuration file -> (its known keys or None, problem, the EXEC_KEYS it names)."""
     try:
         with open(path, encoding="utf-8") as f:
             raw = json.load(f)
     except (OSError, ValueError):
         raw = None
     if not isinstance(raw, dict):
-        return cfg, CONFIG_FILE + " is no JSON object"
+        return None, CONFIG_FILE + " is no JSON object", set()
     for k in sorted(k for k in raw if k in RETIRED):
         log_once(f"configuration key {k} is retired: {RETIRED[k]}")
     unknown = sorted(k for k in raw if k not in DEFAULTS and k not in RETIRED)
     if unknown:
         log_once("unknown keys in the configuration left out: " + ", ".join(unknown))
-    in_file = sorted(k for k in raw if k in EXEC_KEYS)
+    out = {}
     for k, v in raw.items():
-        if k in EXEC_KEYS:
+        if k in EXEC_KEYS or k not in DEFAULTS:
             continue
-        if k in DEFAULTS and (type(v) is type(DEFAULTS[k]) or (isinstance(DEFAULTS[k], float) and isinstance(v, int))):
-            cfg[k] = v
-        elif k in DEFAULTS:
+        if type(v) is type(DEFAULTS[k]) or (isinstance(DEFAULTS[k], float) and isinstance(v, int)):
+            out[k] = v
+        else:
             log_once(f"configuration key {k}: wrong type, default kept")
+    return out, "", {k for k in raw if k in EXEC_KEYS}
+
+
+def _looser(k, base, v):
+    """True when v loosens the limit k against base (TIGHTEN: a higher value; ZERO_OFF: 0 = never is the loosest)."""
+    if k in ZERO_OFF:
+        if base <= 0:
+            return False
+        if v <= 0:  # reader F8 (2.1400): a negative value switches the brake off like 0
+            return True
+    return v > base
+
+
+def _tighten(cfg, raw, full):
+    """2.1400 (#7117): the project folder's file over cfg. full: no state folder file -- its other keys count as before."""
+    for k, v in raw.items():
+        if k in TIGHTEN:
+            if _looser(k, cfg[k], v):
+                log_once(f"{CONFIG_FILE} in the project folder may only tighten {k}: {v} not used, {cfg[k]} kept "
+                         "(set it in the state folder's " + CONFIG_FILE + ")")
+            else:
+                cfg[k] = v
+        elif k in ADD_ONLY:
+            cfg[k] = list(cfg[k]) + [x for x in v if x not in cfg[k]]
+        elif k in STATE_ONLY or not full:
+            if v != cfg[k]:
+                log_once(f"{CONFIG_FILE} in the project folder cannot change {k} (only the state folder's file)")
+        else:
+            cfg[k] = v
+
+
+def config_paths(project_dir, state_dir=None):
+    """2.1400 (#7117): (the runner's file: KALMIDO_DISPATCH_CONFIG or <state dir>/KALMIDO-DISPATCH.json, the project's)."""
+    main = os.environ.get("KALMIDO_DISPATCH_CONFIG") or (os.path.join(os.path.expanduser(state_dir), CONFIG_FILE) if state_dir else "")
+    return main, os.path.join(project_dir, CONFIG_FILE)
+
+
+def load_config(project_dir, state_dir=None):
+    """DEFAULTS + the state folder's KALMIDO-DISPATCH.json + the project folder's one, which may only tighten (2.1400,
+    #7117; unknown keys are named once in the log and left out); (config, problem)."""
+    cfg = dict(DEFAULTS)
+    main, proj = config_paths(project_dir, state_dir)
+    have_main = bool(main) and os.path.isfile(main)
+    have_proj = os.path.isfile(proj) and not (have_main and os.path.abspath(proj) == os.path.abspath(main))
+    if not have_main and not have_proj:
+        return cfg, "no " + CONFIG_FILE
+    global MOVE_HINT
+    # reader F6 of 2.1400: an installation from before has its configuration only in the project folder -- it counts as
+    # before (limits at most the defaults), the person is told once to move it into the state folder
+    MOVE_HINT = main if (have_proj and not have_main and main) else ""
+    if MOVE_HINT:
+        log_once(f"{CONFIG_FILE} is only in the project folder (the agent can write there): move it to {main}")
+    in_file = set()
+    if have_main:
+        raw, problem, ex = _read_config(main)
+        if raw is None:
+            return cfg, problem
+        cfg.update(raw)
+        in_file |= ex
+    if have_proj:
+        raw, problem, ex = _read_config(proj)
+        if raw is None and not have_main:
+            return cfg, problem
+        if raw is None:
+            log_once("the project folder's " + problem + ": not used")
+        else:
+            _tighten(cfg, raw, not have_main)
+        in_file |= ex
+    in_file = sorted(in_file)
     for k, var in EXEC_KEYS.items():  # review F2: commands, remote and base only from the runner's environment
         v = os.environ.get(var)
         if v is not None and v.strip():
@@ -186,6 +280,8 @@ def load_config(project_dir):
         return cfg, "no lists in " + CONFIG_FILE
     if not str(cfg["check_cmd"]).strip():  # 2.1368.0 (#7028): no build without the project's check
         return cfg, "no check_cmd (KALMIDO_DISPATCH_CHECK_CMD in the runner's env file; a job ends only after the project's check)"
+    if not str(cfg["push_url"]).strip():  # 2.1400.0 (#7057): the push address is fixed by the person, not by the repository
+        return cfg, "no push_url (KALMIDO_DISPATCH_PUSH_URL in the runner's env file: the address the job branches are pushed to)"
     return cfg, ""
 
 
@@ -492,9 +588,19 @@ def brief_of(bundle, cfg, field_ids, owner=None, comments=None):
 
 # ---- the host: git, jobs, the API
 
+def git_env():
+    """2.1400.0 (#7057): git of the dispatcher never sees the runner's Kalmido variables (its token)."""
+    return {k: v for k, v in os.environ.items() if not k.startswith("KALMIDO_")}
+
+
 def git(repo, *args, timeout=60):
     try:
-        p = subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True, timeout=timeout)
+        # reader F7 (2.1400): every git of the dispatcher (also the round's fetch / log) without the repository's hooks and fsmonitor
+        # reader F1 of round 3: no automatic gc / maintenance either (gc.* hooks of the repository's config)
+        p = subprocess.run(["git", "-C", repo, *NO_HOOKS, "-c", "core.fsmonitor=false", "-c", "gc.auto=0", "-c", "maintenance.auto=false",
+                            *args], capture_output=True, text=True,
+                           timeout=timeout, env=git_env(),
+                           stdin=subprocess.DEVNULL)
         return p.returncode, p.stdout
     except (OSError, subprocess.SubprocessError):
         return 127, ""
@@ -512,7 +618,11 @@ def evidence_of(repo, cfg, now=None, skip=()):
     now = now or time.time()
     out = {"done": {}, "branch": {}, "branch_files": {}, "ok": False}
     if cfg["fetch"]:
-        git(repo, "fetch", "--quiet", timeout=120)
+        ok, why = push_url_ok(cfg, repo)  # reader F2 (2.1400): the fetch goes only to the fixed address, like the push
+        if ok:
+            git(repo, "fetch", "--quiet", "--no-auto-maintenance", cfg["push_remote"] or "origin", timeout=120)
+        else:
+            log_once("no fetch: " + why)
     ref = cfg["close_ref"] or "HEAD"
     rc, txt = git(repo, "log", "--format=%h\t%s", "-n", "5000", ref)
     if rc != 0:
@@ -579,7 +689,8 @@ class Writer:
         try:
             fn()
             return True
-        except (Exception, SystemExit) as e:  # noqa: BLE001 - 2.1368.0 (#5198): a refused write (409 approval needed, any error) never ends the round
+        except Exception as e:  # noqa: BLE001 - 2.1368.0 (#5198): a refused write (409 approval needed, any error) never ends the round;
+            # 2.1400.0 (#7057): a stop (SystemExit of the runner's signal handler) is no error and ends it
             log(f"{what}: {type(e).__name__} {str(e)[:120]}")
             return False
 
@@ -711,19 +822,61 @@ def pr_args(cfg, branch, base, title):
     return [a.replace("{branch}", branch).replace("{base}", base).replace("{title}", title) for a in shlex.split(cfg["pr_cmd"])]
 
 
-def open_pr(cfg, repo, cwd, branch, title, body):
-    """Push the job branch (only job/*) and open the pull request; (url | None, why)."""
-    if not branch.startswith("job/"):
-        return None, "not a job branch"
+def unsafe_git_config(repo):
+    """2.1400.0 (#7057, F8): the keys of the repository's own config (scope local / worktree, includes counted there) outside
+    the allow list SAFE_GIT_KEY_RX (reader F3) -- anything that could run a command or redirect a push; [] = safe. Unreadable
+    = unsafe."""
+    rc, out = git(repo, "config", "--list", "--show-scope", "--name-only")
+    if rc != 0:
+        return ["(config unreadable)"]
+    bad = set()
+    for ln in out.splitlines():
+        scope, _, key = ln.partition("\t")
+        if scope in ("local", "worktree") and not SAFE_GIT_KEY_RX.match(key.strip()):
+            bad.add(key.strip().lower())
+    return sorted(bad)
+
+
+def push_url_ok(cfg, repo):
+    """2.1400.0 (#7057, F8): (ok, why) -- push_remote is a remote of the repository and its push address (git remote get-url
+    --push) is exactly push_url of the runner's env file."""
     remote = cfg["push_remote"] or "origin"
     rc, out = git(repo, "remote")
     if rc != 0 or remote not in out.split():  # review F2: only a remote the repository names, never a URL or an option
-        return None, "push_remote is no remote of the repository"
-    rc, _ = git(repo, *NO_HOOKS, "push", "--quiet", "--no-verify", remote, f"{branch}:refs/heads/{branch}", timeout=180)
+        return False, "push_remote is no remote of the repository"
+    rc, out = git(repo, "remote", "get-url", "--push", remote)
+    if rc != 0 or out.strip() != str(cfg["push_url"]).strip():
+        return False, "the push address of " + remote + " is not KALMIDO_DISPATCH_PUSH_URL"
+    return True, ""
+
+
+def pr_env(cfg):
+    """reader F2 (2.1400): pr_cmd's environment. gh picks its repository from the remotes (and gh-resolved), which the agent
+    can write: for a GitHub push_url GH_REPO names the repository of push_url, so the pull request lands where the push went."""
+    env = dict(os.environ)
+    m = re.match(r"^(?:https://|ssh://git@|git@)github\.com[:/]([\w.-]+)/([\w.-]+?)(?:\.git)?/?$", str(cfg.get("push_url") or "").strip())
+    if m:
+        env["GH_REPO"] = m.group(1) + "/" + m.group(2)
+    return env
+
+
+def open_pr(cfg, repo, cwd, branch, title, body, sha):
+    """Push exactly the checked commit sha as the job branch (only job/*) to push_url and open the pull request;
+    (url | None, why). 2.1400.0 (#7057, F9): the commit that was checked is the one pushed, never the branch's head of now."""
+    if not branch.startswith("job/"):
+        return None, "not a job branch"
+    ok, why = push_url_ok(cfg, repo)
+    if not ok:
+        return None, why
+    bad = unsafe_git_config(repo)
+    if bad:
+        return None, "the repository's config sets " + ", ".join(bad)
+    rc, _ = git(repo, *NO_HOOKS, "push", "--quiet", "--no-verify", str(cfg["push_url"]).strip(), f"{sha}:refs/heads/{branch}", timeout=180)
     if rc != 0:
         return None, f"push failed (exit {rc})"
     try:
-        p = subprocess.run(pr_args(cfg, branch, base_of(cfg, repo), title), cwd=cwd, input=body, capture_output=True, text=True, timeout=180)
+        p = subprocess.run(pr_args(cfg, branch, base_of(cfg, repo), title), cwd=cwd, input=body, capture_output=True, text=True, timeout=180,
+                           env=pr_env(cfg))
     except (OSError, subprocess.SubprocessError, ValueError) as e:
         return None, f"pr_cmd: {type(e).__name__}"
     m = re.search(r"https?://\S+", p.stdout or "")
@@ -810,7 +963,7 @@ class Dispatcher:
         mode = mode_of(agent)
         if mode == "off" and dry is None:
             return None
-        cfg, problem = load_config(self.project_dir)
+        cfg, problem = load_config(self.project_dir, self.host.state_dir)
         if not force and now - self.last < max(1, int(cfg["interval_min"])) * 60:
             return None
         self.last = now
@@ -835,6 +988,17 @@ class Dispatcher:
             log(problem)
             return res
         jobs = host_jobs(self.host.state_dir)
+        # reader F7 (2.1400): the repository's own config is checked before any git of the round (fetch, log, landing)
+        bad = unsafe_git_config(self.project_dir)
+        if bad:
+            res["problem"] = "the repository's config sets " + ", ".join(bad)
+            log(res["problem"])
+            self.finding(res, "gitcfg:" + ",".join(bad), self.say("dispatch_git_refused", ", ".join(bad)))
+            tell = [f for f in res["findings"] if f.get("new")]
+            if tell and not dry and self.owner():
+                self.chat(self.say("dispatch_findings") + "\n" + "\n".join("- " + f["text"] for f in tell))
+            self.save()
+            return res
         ev = evidence_of(self.project_dir, cfg, now, skip=set(self.reg["red"]))
         if not ev["ok"]:
             res["problem"] = "no git repository (or close_ref unknown) in the project folder"
@@ -879,6 +1043,8 @@ class Dispatcher:
                 self.finding(res, f"yes:{tid}", self.say("dispatch_needs_yes", f"#{tid}", cfg["one_way_ok_tag"]))
             elif st == "stuck":
                 self.finding(res, f"stuck:{tid}", self.say("dispatch_stuck", f"#{tid}", int(cfg["max_tries"]) * int(cfg["max_bundles"])))
+        if MOVE_HINT:  # reader F6 (2.1400): told once in the chat and the day report
+            self.finding(res, "config-move", self.say("dispatch_config_move", CONFIG_FILE, MOVE_HINT))
         res["brakes"] = self.brakes(cfg)
         # 2.1368.0 (#4060): the jam brake -- building was never the bottleneck, landing is; closing and the guard go on
         jam = sum(1 for st in states.values() if st == "on_branch")
@@ -916,7 +1082,7 @@ class Dispatcher:
             if tell and not dry and self.owner():
                 text = self.say("dispatch_findings") + "\n" + "\n".join("- " + f["text"] for f in tell)
                 self.chat(text)
-        except (Exception, SystemExit) as e:  # noqa: BLE001 - #5198: the report never ends the round
+        except Exception as e:  # noqa: BLE001 - #5198: the report never ends the round (a stop does, #7057)
             log(f"report: {type(e).__name__} {str(e)[:120]}")
         if dry:
             self.dry_log(w.done, res)
@@ -964,7 +1130,8 @@ class Dispatcher:
 
     def land(self, jid, e, j, ev, cfg, res, w):
         """2.1368.0 (#7028): the fixed end of an ended job of the dispatcher. Its branch carries commits of its tasks: the
-        dispatcher runs check_cmd in the job's working copy (the job's word is not enough). Red: no pull request, the branch
+        dispatcher runs check_cmd on a fresh copy of the branch's commit (the job's word is not enough; 2.1400.0, #7057: never in
+        the job's working copy, and exactly the checked commit is pushed). Red: no pull request, the branch
         counts for nothing any more (reg red), its tasks go back to the list, the person is told. Green: push job/<id> and
         open ONE pull request (pr_cmd), an approval card ("Ready to merge", kind merge_request) on the bundle's first task.
         Never a merge, never another branch. e["land"]: none | empty | red | pr | no_pr."""
@@ -979,17 +1146,26 @@ class Dispatcher:
             w(f"check {br} and open a pull request for " + " ".join(f"#{t}" for t in tids))
             return
         repo = wt.get("repo") or self.project_dir
-        path, tmp = wt.get("path") or "", None
-        if not os.path.isdir(path):  # the working copy was cleaned away: a temporary one of the branch
-            import tempfile
-            tmp = tempfile.mkdtemp(prefix="kalmido-check-")
-            rc, _ = git(repo, *NO_HOOKS, "worktree", "add", "--detach", tmp, br, timeout=120)
-            path = tmp if rc == 0 else ""
+        # 2.1400.0 (#7057, F8): the repository's own config runs nothing of the dispatcher's -- refused before any checkout
+        bad = unsafe_git_config(repo)
+        if bad:
+            e["land"] = "no_pr"
+            self.finding(res, f"nopr:{jid}", self.say("dispatch_land_refused", f"#{jid}", br, "the repository's config sets " + ", ".join(bad)))
+            return
+        # 2.1400.0 (#7057, F9): the check runs on a fresh copy of the branch's commit of now (sha), never in the job's working
+        # copy (a file not committed there made it green for a state nobody pushes); exactly this sha is pushed
+        rc, out = git(repo, "rev-parse", "--verify", "--quiet", br + "^{commit}")
+        sha = out.strip() if rc == 0 else ""
+        import tempfile
+        tmp = tempfile.mkdtemp(prefix="kalmido-check-")
+        rc, _ = git(repo, *NO_HOOKS, "-c", "core.fsmonitor=false", "worktree", "add", "--detach", tmp, sha, timeout=120) if sha else (1, "")
         try:
-            green, why = run_check(cfg["check_cmd"], path, cfg["check_timeout_min"]) if path else (False, "no working copy")
+            green, why = run_check(cfg["check_cmd"], tmp, cfg["check_timeout_min"]) if rc == 0 else (False, "no copy of the branch's commit")
         finally:
-            if tmp:
-                git(repo, *NO_HOOKS, "worktree", "remove", "--force", tmp, timeout=120)
+            git(repo, *NO_HOOKS, "worktree", "remove", "--force", tmp, timeout=120)
+            if os.path.isdir(tmp):
+                import shutil
+                shutil.rmtree(tmp, ignore_errors=True)
         if not green:
             e["land"] = "red"
             self.reg["red"] = (self.reg["red"] + [br])[-200:]
@@ -1002,7 +1178,7 @@ class Dispatcher:
         summary = "\n".join([f"- #{t} {by_id.get(str(t), '')}".rstrip() for t in tids] +
                              ["", "Check green.", f"Built by job #{jid} of the Kalmido dispatcher on {br}; "
                               "merging is the person's step."])
-        url, why = open_pr(cfg, repo, path if os.path.isdir(path) else repo, br, title[:200], summary)
+        url, why = open_pr(cfg, repo, repo, br, title[:200], summary, sha)
         if not url:
             e["land"] = "no_pr"
             self.finding(res, f"nopr:{jid}", self.say("dispatch_pr_failed", f"#{jid}", br, why))

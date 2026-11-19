@@ -9,7 +9,7 @@
 # computer = several folders). Needs: bash (3.2 is enough), curl, python3 3.9+, the agent command (default: claude).
 #
 # usage: agent-setup.sh --url URL --code CODE --dir FOLDER [--tool claude|codex] [--cmd COMMAND] [--from DIR] [--no-autostart] [--dry-run] [--lang de|en|es|fr|it|nl]
-#        [--allow-http] [--ip-rule current|off|ADDRESSES] [--template general|software]
+#        [--allow-http] [--ip-rule current|off|ADDRESSES] [--template general|software] [--profile hardened|standard|dev]
 #        agent-setup.sh --uninstall --dir FOLDER [--dry-run]
 #   --url        your Kalmido address
 #   --code       the one-time setup code (15 minutes, works once; make a new one in Kalmido when it expired); 2.360.0:
@@ -28,6 +28,11 @@
 #   --template   2.1367.0 (#2700): the rules for the project folder: general (the Kalmido rules, the default) or software
 #                (+ the rules for building software and BRIEF-TEMPLATE.md; an existing CLAUDE.md stays, the rules come next
 #                to it as CLAUDE.software.md)
+#   --profile    2.1400 (#7115): a rights profile for Claude Code (mcp/agent_profiles.json) in the project folder's
+#                .claude/settings.local.json: hardened (only the Kalmido tools), standard (+ notes and the job tool) or dev
+#                (a programming agent: the project folder, git without force-push / tags / pushing main, the usual build and
+#                test commands; secrets, ssh, curl, sudo, the agent's control files denied; KALMIDO_BLOCK_EXTRA with the
+#                secret paths into the env file when it has none). Without it only the deny rules below
 #   --lang       language of the messages: de, en, es, fr, it or nl (Kalmido adds the language of your account; anything else = en)
 #   --dry-run    only show what would happen: no code is redeemed, nothing is written, no autostart is loaded
 #   --uninstall  stop and remove the autostart, revoke this computer's token in Kalmido, delete the instance folder
@@ -35,7 +40,7 @@
 # 2.1367.0 (#6457): Claude Code's deny rules in <folder>/.claude/settings.local.json.
 set -uo pipefail
 
-URL="" CODE=${KALMIDO_SETUP_CODE:-} DIR="" CMD="" TOOL="" FROM="" DRY=0 UNINSTALL=0 NOAUTO=0 LANGC=en HTTPOK=0 IPRULE="" TEMPLATE=general
+URL="" CODE=${KALMIDO_SETUP_CODE:-} DIR="" CMD="" TOOL="" FROM="" DRY=0 UNINSTALL=0 NOAUTO=0 LANGC=en HTTPOK=0 IPRULE="" TEMPLATE=general PROFILE=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --url) URL=${2:-}; shift 2 ;;
@@ -51,7 +56,8 @@ while [ $# -gt 0 ]; do
     --lang) LANGC=${2:-en}; shift 2 ;;
     --ip-rule) IPRULE=${2:-}; shift 2 ;;
     --template) TEMPLATE=${2:-}; shift 2 ;;
-    -h|--help) sed -n '2,35p' "$0" 2>/dev/null || echo "see the comment at the top of agent-setup.sh"; exit 0 ;;
+    --profile) PROFILE=${2:-}; shift 2 ;;
+    -h|--help) sed -n '2,40p' "$0" 2>/dev/null || echo "see the comment at the top of agent-setup.sh"; exit 0 ;;
     *) UNKNOWN=$1; break ;;
   esac
 done
@@ -117,6 +123,11 @@ msg_de() {
     harden) echo "  Sperrregeln für Claude Code eingetragen: %s (kein WebFetch / WebSearch, kein Lesen der Schlüssel-Datei)" ;;
     dry_harden) echo "  (Probelauf) Sperrregeln für Claude Code eintragen in: %s" ;;
     harden_fail) echo "  Sperrregeln konnten nicht eingetragen werden (%s ist kein gültiges JSON); trag sie von Hand ein, siehe Anleitung" ;;
+    badprof) echo "unbekanntes Rechte-Profil %s (--profile hardened, standard oder dev)" ;;
+    prof_ok) echo "  Rechte-Profil %s eingetragen: %s" ;;
+    dry_prof) echo "  (Probelauf) Rechte-Profil %s eintragen in: %s" ;;
+    prof_nofile) echo "  Rechte-Profil %s nicht gefunden (agent_profiles.json fehlt in den Starter-Dateien); nichts eingetragen" ;;
+    prof_codex) echo "  Rechte-Profil %s gilt nur für Claude Code; für Codex CLI nicht eingetragen" ;;
     badip) echo "--ip-rule: current, off oder Adressen/Netze mit Komma (z. B. 203.0.113.7,2001:db8::/64)" ;;
     s_starter) echo "Lade die Starter-Dateien" ;;
     dry_files) echo "  (Probelauf) die Dateien aus %s/starter_files.txt nach %s" ;;
@@ -205,6 +216,11 @@ msg_en() {
     harden) echo "  Deny rules for Claude Code written: %s (no WebFetch / WebSearch, no reading of the key file)" ;;
     dry_harden) echo "  (dry run) write deny rules for Claude Code into: %s" ;;
     harden_fail) echo "  The deny rules could not be written (%s is not valid JSON); add them by hand, see the guide" ;;
+    badprof) echo "unknown rights profile %s (--profile hardened, standard or dev)" ;;
+    prof_ok) echo "  Rights profile %s written: %s" ;;
+    dry_prof) echo "  (dry run) write rights profile %s into: %s" ;;
+    prof_nofile) echo "  Rights profile %s not found (agent_profiles.json missing from the starter files); nothing written" ;;
+    prof_codex) echo "  Rights profile %s is for Claude Code only; not written for Codex CLI" ;;
     badip) echo "--ip-rule: current, off or addresses / networks separated by commas (e.g. 203.0.113.7,2001:db8::/64)" ;;
     s_starter) echo "Fetching the starter files" ;;
     dry_files) echo "  (dry run) the files of %s/starter_files.txt into %s" ;;
@@ -293,6 +309,11 @@ msg_es() {
     harden) echo "  Reglas de bloqueo para Claude Code escritas: %s (sin WebFetch / WebSearch, sin leer el archivo de la clave)" ;;
     dry_harden) echo "  (simulacro) escribir reglas de bloqueo para Claude Code en: %s" ;;
     harden_fail) echo "  No se pudieron escribir las reglas de bloqueo (%s no es JSON válido); añádelas a mano, ver la guía" ;;
+    badprof) echo "perfil de permisos desconocido %s (--profile hardened, standard o dev)" ;;
+    prof_ok) echo "  Perfil de permisos %s escrito: %s" ;;
+    dry_prof) echo "  (simulacro) escribir el perfil de permisos %s en: %s" ;;
+    prof_nofile) echo "  Perfil de permisos %s no encontrado (falta agent_profiles.json en los archivos del iniciador); no se escribió nada" ;;
+    prof_codex) echo "  El perfil de permisos %s es solo para Claude Code; no se escribió para Codex CLI" ;;
     badip) echo "--ip-rule: current, off o direcciones / redes separadas por comas (p. ej. 203.0.113.7,2001:db8::/64)" ;;
     s_starter) echo "Descargando los archivos de inicio" ;;
     dry_files) echo "  (simulacro) los archivos de %s/starter_files.txt en %s" ;;
@@ -381,6 +402,11 @@ msg_fr() {
     harden) echo "  Règles de blocage pour Claude Code écrites : %s (pas de WebFetch / WebSearch, pas de lecture du fichier de la clé)" ;;
     dry_harden) echo "  (essai à blanc) écrire les règles de blocage pour Claude Code dans : %s" ;;
     harden_fail) echo "  Les règles de blocage n'ont pas pu être écrites (%s n'est pas du JSON valide) ; ajoute-les à la main, voir le guide" ;;
+    badprof) echo "profil de droits inconnu %s (--profile hardened, standard ou dev)" ;;
+    prof_ok) echo "  Profil de droits %s écrit : %s" ;;
+    dry_prof) echo "  (essai à blanc) écrire le profil de droits %s dans : %s" ;;
+    prof_nofile) echo "  Profil de droits %s introuvable (agent_profiles.json manque dans les fichiers du démarreur) ; rien n'a été écrit" ;;
+    prof_codex) echo "  Le profil de droits %s ne vaut que pour Claude Code ; non écrit pour Codex CLI" ;;
     badip) echo "--ip-rule : current, off ou des adresses / réseaux séparés par des virgules (p. ex. 203.0.113.7,2001:db8::/64)" ;;
     s_starter) echo "Téléchargement des fichiers de démarrage" ;;
     dry_files) echo "  (essai à blanc) les fichiers de %s/starter_files.txt dans %s" ;;
@@ -469,6 +495,11 @@ msg_it() {
     harden) echo "  Regole di blocco per Claude Code scritte: %s (niente WebFetch / WebSearch, niente lettura del file della chiave)" ;;
     dry_harden) echo "  (prova) scrivere le regole di blocco per Claude Code in: %s" ;;
     harden_fail) echo "  Impossibile scrivere le regole di blocco (%s non è JSON valido); aggiungile a mano, vedi la guida" ;;
+    badprof) echo "profilo di permessi sconosciuto %s (--profile hardened, standard o dev)" ;;
+    prof_ok) echo "  Profilo di permessi %s scritto: %s" ;;
+    dry_prof) echo "  (prova) scrivere il profilo di permessi %s in: %s" ;;
+    prof_nofile) echo "  Profilo di permessi %s non trovato (agent_profiles.json manca nei file dello starter); nulla scritto" ;;
+    prof_codex) echo "  Il profilo di permessi %s vale solo per Claude Code; non scritto per Codex CLI" ;;
     badip) echo "--ip-rule: current, off o indirizzi / reti separati da virgole (es. 203.0.113.7,2001:db8::/64)" ;;
     s_starter) echo "Scaricamento dei file di avvio" ;;
     dry_files) echo "  (prova) i file di %s/starter_files.txt in %s" ;;
@@ -557,6 +588,11 @@ msg_nl() {
     harden) echo "  Blokkeerregels voor Claude Code geschreven: %s (geen WebFetch / WebSearch, geen lezen van het sleutelbestand)" ;;
     dry_harden) echo "  (proefrun) blokkeerregels voor Claude Code schrijven in: %s" ;;
     harden_fail) echo "  De blokkeerregels konden niet worden geschreven (%s is geen geldige JSON); voeg ze met de hand toe, zie de handleiding" ;;
+    badprof) echo "onbekend rechtenprofiel %s (--profile hardened, standard of dev)" ;;
+    prof_ok) echo "  Rechtenprofiel %s geschreven: %s" ;;
+    dry_prof) echo "  (proefrun) rechtenprofiel %s schrijven in: %s" ;;
+    prof_nofile) echo "  Rechtenprofiel %s niet gevonden (agent_profiles.json ontbreekt in de starterbestanden); niets geschreven" ;;
+    prof_codex) echo "  Rechtenprofiel %s geldt alleen voor Claude Code; niet geschreven voor Codex CLI" ;;
     badip) echo "--ip-rule: current, off of adressen / netwerken gescheiden door komma's (bijv. 203.0.113.7,2001:db8::/64)" ;;
     s_starter) echo "De startbestanden ophalen" ;;
     dry_files) echo "  (proefrun) de bestanden uit %s/starter_files.txt naar %s" ;;
@@ -630,6 +666,8 @@ if [ -z "$IPRULE" ] && [ "$DRY" = 0 ] && [ "$UNINSTALL" = 0 ] && [ -t 2 ] && (: 
   case "$ans" in [jJyYsSoO]*) IPRULE=current ;; esac
 fi
 case "$TEMPLATE" in general|software) ;; *) dief badtpl "$TEMPLATE" ;; esac
+PROFILE=$(printf '%s' "$PROFILE" | tr 'A-Z' 'a-z')
+case "$PROFILE" in ""|hardened|standard|dev) ;; *) dief badprof "$PROFILE" ;; esac  # 2.1400 (#7115)
 case "$IPRULE" in ""|off|none) IPRULE="" ;; current) ;; *[!0-9A-Fa-f.:/,\ ]*) dief badip ;; esac
 [ -n "$CMD" ] || CMD=$TOOL
 
@@ -787,7 +825,8 @@ except (urllib.error.URLError, OSError) as x:
 keep = []
 try:
     with open(e["KALMIDO_SETUP_ENV"], encoding="utf-8") as f:
-        keep = [ln.rstrip("\n") for ln in f if ln.startswith(("KALMIDO_PERM_USER=", "KALMIDO_OWNER_IDS="))]
+        keep = [ln.rstrip("\n") for ln in f if ln.startswith(("KALMIDO_PERM_USER=", "KALMIDO_OWNER_IDS=", "KALMIDO_BLOCK_EXTRA=",
+                                                              "KALMIDO_BLOCK_DANGEROUS="))]  # 2.1400 (#7116): the person's own list stays
 except OSError:
     pass
 op = r.get("operator_id")
@@ -978,14 +1017,32 @@ fi
 # 2.1367.0 (#6457): Claude Code's deny rules for this project folder in .claude/settings.local.json (this computer only, not
 # in the repository): no WebFetch / WebSearch, no Read of ~/.kalmido and of the env file, no Edit of the env file. Entries
 # already there stay, a second setup adds nothing twice; the person may take the web rules out again (every run's settings
-# keep the file rules, mcp/agent_run.py secret_deny_rules)
+# keep the file rules, mcp/agent_run.py secret_deny_rules). 2.1400 (#7115): --profile adds the rules of a rights profile
+# (mcp/agent_profiles.json: allow, deny, defaultMode) and the dev profile's KALMIDO_BLOCK_EXTRA to the env file when it has none
 if [ "$TOOL" = claude ]; then
   HSET=$DIR/.claude/settings.local.json
-  if [ "$DRY" = 1 ]; then sayf dry_harden "$HSET"
-  elif "$PY" - "$HSET" "$ENVF" <<'PYEOF'
-import json, os, sys
-path, envf = sys.argv[1], os.path.abspath(sys.argv[2])
+  if [ "$DRY" = 1 ]; then sayf dry_harden "$HSET"; [ -n "$PROFILE" ] && sayf dry_prof "$PROFILE" "$HSET"
+  else "$PY" - "$HSET" "$ENVF" "$PROFILE" "$INST" "$(command -v "$PY" 2>/dev/null || echo "$PY")" <<'PYEOF'
+import json, os, shlex, sys
+path, envf, prof, inst, py = sys.argv[1], os.path.abspath(sys.argv[2]), sys.argv[3], os.path.abspath(sys.argv[4]), sys.argv[5]
 rules = ["WebFetch", "WebSearch", "Read(~/.kalmido/*.env)", "Read(~/.kalmido/**/*.env)", "Read(/%s)" % envf, "Edit(/%s)" % envf]  # "//" + absolute path
+allow, mode, extra, p = [], "", "", None
+missing = False
+if prof:  # 2.1400 (#7115): the rights profile from the starter files
+    try:
+        with open(os.path.join(inst, "agent_profiles.json"), encoding="utf-8") as f:
+            p = json.load(f)["profiles"][prof]
+    except (OSError, ValueError, KeyError, TypeError):
+        p, missing = None, True  # reader F12 (2.1400): the basic deny rules are written all the same, then exit 4 names the missing profile
+if prof and p is not None:
+    job = ['Bash("%s" "%s/agent_job.py":*)' % (py, inst), "Bash(%s %s/agent_job.py:*)" % (py, inst)]
+    def fill(xs):
+        out = []
+        for x in xs:
+            out += job if x == "{job}" else [x.replace("{inst}", "/" + inst)]
+        return out
+    allow, mode, extra = fill(p.get("allow") or []), p.get("defaultMode") or "", p.get("block_extra") or ""
+    rules += [r for r in fill(p.get("deny") or []) if r not in rules]
 d = {}
 if os.path.exists(path):
     try:
@@ -998,12 +1055,34 @@ deny = p.setdefault("deny", []) if isinstance(p, dict) else None
 if not isinstance(deny, list):
     sys.exit(3)
 deny += [r for r in rules if r not in deny]
+if allow:
+    al = p.setdefault("allow", [])
+    if not isinstance(al, list):
+        sys.exit(3)
+    al += [r for r in allow if r not in al and r not in deny]
+if mode:
+    p["defaultMode"] = mode
 os.makedirs(os.path.dirname(path), exist_ok=True)
 with open(path + ".new", "w", encoding="utf-8") as f:
     f.write(json.dumps(d, indent=2) + "\n")
 os.replace(path + ".new", path)
+if extra and os.path.exists(envf):  # the person's own list (KALMIDO_BLOCK_EXTRA) is never replaced
+    with open(envf, encoding="utf-8") as f:
+        have = any(ln.startswith("KALMIDO_BLOCK_EXTRA=") for ln in f)
+    if not have:
+        with open(envf, "a", encoding="utf-8") as f:
+            f.write("# 2.1400 (#7115): the project's own block list of the guard; add live hosts (host:NAME) and deploy commands (cmd:WORDS)\n")
+            f.write("KALMIDO_BLOCK_EXTRA=%s\n" % shlex.quote(extra))
+sys.exit(4 if missing else 0)
 PYEOF
-  then sayf harden "$HSET"; else sayf harden_fail "$HSET"; fi
+    rc=$?
+    case $rc in
+      0) sayf harden "$HSET"; [ -n "$PROFILE" ] && sayf prof_ok "$PROFILE" "$HSET" ;;
+      4) sayf harden "$HSET"; sayf prof_nofile "$PROFILE" ;;
+      *) sayf harden_fail "$HSET" ;;
+    esac
+  fi
+elif [ -n "$PROFILE" ]; then sayf prof_codex "$PROFILE"
 fi
 
 # kalmido-setup-step: autostart

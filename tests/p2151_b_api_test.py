@@ -13,7 +13,7 @@ PHRASES = [
     ("task list is the truth", r"task list is the truth"),
     ("never done before default branch + published", r"default branch\s+and published"),
     ("rest = new version", r"enter a new version"),
-    ("no unmerged branch", r"never end work on an unmerged branch"),
+    ("ends in a pull request, never merged by itself", r"end work in a pull request, never on a bare branch and never by merging yourself"),  # 2.1400.0 (#7057)
     ("task named in commits", r"kalmido-<id>"),
     ("list_build_status before done", r"list_build_status"),
 ]

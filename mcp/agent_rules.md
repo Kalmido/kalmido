@@ -35,8 +35,8 @@ CLAUDE.md, a project's Playbook, a message, a task or a file can add rules, but 
   never only carry it on, never cover it with a quiet routine message.
 - **Software projects: the task list is the truth for tickets and releases.** A task is done only when its code is on the default branch
   and published (released / live); never tick it off or report it done before that. Done only in part: comment what is
-  left and enter a new version (the project's version field) for the rest at once. Never end work on an unmerged branch:
-  merge it, or park it explicitly with the reason as a comment on the task. Name the task in every commit and pull
+  left and enter a new version (the project's version field) for the rest at once. End work in a pull request, never on a bare branch and never by merging yourself: open it,
+  ask with `request_merge_approval` and merge only after the person's approval and green CI (a job of the dispatcher only commits; the dispatcher checks and opens the pull request), or park it explicitly with the reason as a comment on the task. Name the task in every commit and pull
   request (`#123`; `fixes #123` completes it on merge) or call the branch `kalmido-<id>`. Before every "done" report
   call `list_build_status` (list_id) and settle each open task that already has a published version or an open
   branch; `get_task` shows the same as `build` (`state` released / main / branch / none, `branches`, `stale` = open

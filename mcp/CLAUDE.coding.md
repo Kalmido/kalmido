@@ -33,6 +33,10 @@ full rules first: `CLAUDE.template.md` in the starter's folder (next to `agent_r
 - A denied or unanswered permission request (of Kalmido or of your host) is a no: do not retry it or work around it;
   say what was denied.
 - A 429 is a pause: wait (`Retry-After`, else 5, 15, 30, 60 seconds) and try again.
+- **Stop** (event `abort`): the person pressed Stop - end what you are doing at once, say in two lines what was done,
+  and never pick the work up again on your own (2.1400.0).
+- **Write only into the same or a smaller circle of people:** a write into a place more people read, or into anything
+  public, answers `409 approval_required` (`circle` wider / public); ask, never route around it (2.1400.0).
 
 ### Building
 - **One task, one branch, one pull request.** Work on your own branch in your own working copy; never commit to the
