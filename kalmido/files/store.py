@@ -36,7 +36,7 @@ from ..core.access import Denied, act_for, acx_of, acx_sup_write_row, collab_all
 from ..core.orgcrypt import oc_read_file, oc_write_file, oc_user_space
 from ..core.pg import system_ctx  # 2.149.0 G (#2517): pulled up from functions
 from ..core.objhooks import OBJ  # 2.566.0 (#4712): the kinds of the shared core (fs_org_live)
-from ..accounts.supportgrant import sga_is_support  # 2.1412.0 (#7140)
+from ..accounts.supportgrant import sga_is_support  # (#7140)
 
 FS_DIR = "files"  # below ATT_DIR
 FS_VERSIONS_KEEP = 20  # 2.152.0 D (#2173): older versions of a file go (rows; the stored file by the orphan clean-up) while ret_on("files")
@@ -801,7 +801,7 @@ def fs_version_row(c, nid, version=None):
                      (nid,)).fetchone()
 
 
-# 2.1397.0 (#6320): a filed mail's original .eml carries the account's secret filing address in its headers: closed to a
+# (#6320): a filed mail's original .eml carries the account's secret filing address in its headers: closed to a
 # support session. 2.1412.0 (#7140, review of job/5474 F1): checked here in fs_read, the one reader every route, export
 # and ZIP goes through (was only in files/web.py _send and files/bulk.py, the wiki export read it); the filed mail's own
 # view (hub/mailview.py) reads with eml_ok - it shows the mail with the address blacked out, not the file.
@@ -820,7 +820,7 @@ def fs_eml_refused(c, nid):
 
 def fs_read(c, nid, version=None, eml_ok=False):
     """The plain bytes of file nid (version: that number, default the current one; a link: its original). No rights check
-    (need_node first). Raises Denied(404) when there is no content; 2.1412.0 (#7140): Denied(403) for a support session and
+    (need_node first). Raises Denied(404) when there is no content; (#7140): Denied(403) for a support session and
     a filed mail's .eml (fs_eml_refused) unless eml_ok."""
     if not eml_ok:
         fs_eml_refused(c, nid)

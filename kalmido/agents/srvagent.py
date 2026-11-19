@@ -48,7 +48,7 @@ from ..core.i18n import N_, tr
 from ..core.db import body, db, err, gsetting, iso, now_utc
 from ..core.access import Denied
 from ..core.errors import BadInput
-from ..core.env import env_int, SRV_AGENT_MARK  # 2.1412.0 (#6510)
+from ..core.env import env_int, SRV_AGENT_MARK  # (#6510)
 from ..accounts.session import me
 from ..accounts.supportgrant import sga_is_support  # 2.557.0 (2nd review)
 from .srvstarter import SRV_DAY_LIMIT_DEFAULT, SRV_DEFAULT_INSTRUCTIONS, SRV_DEFAULT_MODEL, SRV_FLOWS, srv_day_cap, srv_hosted  # 2.1308.0 (#6568): + hosted, ceiling; 2.557.0: the bridge of the parts is gone; 2.638.0 (#4714): + the day limit

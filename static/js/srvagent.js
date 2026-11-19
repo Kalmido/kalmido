@@ -155,7 +155,7 @@ async function srv_newModal(o = {}) {
   let d; try { d = await srv_defaults(true); } catch { toast(tr('Only available online.')); return; }
   const md = /** @type {any} */ (modal(`<h3>${tr('New agent on the Kalmido server')}</h3>
     <div class="shint keep">${esc(tr('Kalmido calls the model itself with your own API key whenever something comes for the agent (assigned, @mention, chat, listening in, a planned job). No computer of your own is needed.'))}</div>
-    ${d.recipient ? `<div class="shint keep" id="srv-dest">${esc(tr('What this agent reads in the project goes to {0} ({1}).', d.recipient.provider, d.recipient.host))}</div>` : ''}${''/* 2.1412.0 (#6510) */}
+    ${d.recipient ? `<div class="shint keep" id="srv-dest">${esc(tr('What this agent reads in the project goes to {0} ({1}).', d.recipient.provider, d.recipient.host))}</div>` : ''}${''/* (#6510) */}
     ${d.enabled_instance ? `${o.admin ? `<div class="row"><label for="srv-own">${tr('Belongs to')}</label><select id="srv-own"><option value="me">${esc(tr('Personal agent of {0}', S.me?.display_name || ''))}</option><option value="team">${tr('Team agent')}</option></select></div>` : srv_teamOwnHtml()}
     <div class="row"><label for="srv-name">${tr('Display name')}</label><input id="srv-name" value="${esc(d.default_name || '')}" maxlength="60"></div>
     <div class="row"><label for="srv-user">${tr('Username')}</label><input id="srv-user" class="unin" autocapitalize="off" autocomplete="off" spellcheck="false" maxlength="32"></div>

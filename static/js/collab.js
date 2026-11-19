@@ -327,7 +327,7 @@ function newsText(it, U) {
     case 'support': return sgaNewsText(d, q);  // 2.1350.0 (#6502)
     case 'orgjoinres': return d.yes ? tr('{0} accepted your invitation to {1}', who, q(d.name || '')) : tr('{0} rejected your invitation to {1}', who, q(d.name || ''));
     case 'orgrole': return tr('{0} changed your role in {1}: {2}', who, q(d.name || ''), esc(({admin: tr('Admin'), readonly: tr('Read-only'), accounting: tr('Accounting'), guest: tr('Guest')})[d.role] || tr('Member')));
-    // 2.1412.0 (#6510): a server agent names the real receiver (provider and host); an older entry with the internal mark
+    // (#6510): a server agent names the real receiver (provider and host); an older entry with the internal mark
     // 'kalmido-server' says only "its AI provider"
     case 'agentjoin': return d.host ? tr('{0} added the agent {1} to {2}. What this agent reads in the project goes to {3} ({4}).', who, q(d.agent || ''), q(newsListName(it)), q(d.provider || ''), q(d.host))
       : d.provider && d.provider !== 'kalmido-server' ? tr('{0} added the agent {1} to {2}. It runs at {3}. What it reads in the project goes there.', who, q(d.agent || ''), q(newsListName(it)), q(d.provider))

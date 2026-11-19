@@ -438,7 +438,7 @@ SRV_AGENT_MARK = "kalmido-server"  # agents.provider of a server agent (agents/s
 
 
 def srv_recipient():
-    """2.1412.0 (#6510): (provider, host) - where what a server agent reads goes: the model provider behind
+    """(#6510): (provider, host) - where what a server agent reads goes: the model provider behind
     KALMIDO_SRVAGENT_ANTHROPIC_URL ("Anthropic" for its own address, otherwise the host that is set). The hint "agent
     added" (admin/hosting.py) and the set-up (agents/srvstarter.py) name it instead of the internal mark SRV_AGENT_MARK.
     Here in the core layer so that both reach it without an upward import."""
