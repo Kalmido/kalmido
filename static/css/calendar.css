@@ -45,7 +45,7 @@ body.cgdrag #wbody{touch-action:none}
 .apb-onrow{display:flex;align-items:flex-start;gap:.75rem;min-height:2.75rem;cursor:pointer}
 .apb-onrow small{display:block;margin-top:.125rem}
 .apb-warn{margin:0 0 .75rem;padding:.5rem .75rem;border-radius:.5rem;background:var(--accent-soft);font-size:var(--fs-s)}
-/* 2.1423.0 (#6551): a subscription out of date - its mark, its line in the event, its row under Calendars, the note on the booking page */
+/* (#6551): a subscription out of date - its mark, its line in the event, its row under Calendars, the note on the booking page */
 .cevstale{color:var(--danger)}
 .cevsub.cevstale{opacity:1}
 .cevstale svg.i{width:var(--ic-s);height:var(--ic-s);vertical-align:-.125em}

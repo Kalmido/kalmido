@@ -334,7 +334,7 @@ function newsText(it, U) {
       : tr('{0} added the agent {1} to {2}. What it reads in the project goes to its AI provider.', who, q(d.agent || ''), q(newsListName(it)));  // 2.24.0 (#896)
     case 'followup': return d.note ? tr('Follow up today: waiting on {0}', q(d.note)) : tr('Follow up today: the task is waiting on someone');
     case 'usage': return aiuNewsText(d);  // 2.1.1 (#326)
-    case 'proposal': return d.title || d.assistant ? tr('{0} has a proposal for you: {1}', d.assistant ? q(tr('Assistant')) : who, q(d.title || ''))  // 2.3.0; 2.75.0 (#1411): the built-in assistant has no person
+    case 'proposal': return d.title || d.assistant ? tr('{0} has a proposal for you: {1}', d.assistant ? q(tr('Assistant')) : who, q(d.title || ''))  // (#1411): the built-in assistant has no person
       : tr('{0} has a proposal for you', who);  // #7159: a team agent's words reach only who reads all it reads
     case 'upscan': return tr('The virus scanner found {0} in your file {1}. The file is locked.', esc(d.sig || '?'), q(d.name || ''));  // 2.61.0 (#1818)
     case 'filereq': { const d = it.data || {}; return trn('{0} file arrived through {1}', '{0} files arrived through {1}', d.n || 1, q(d.title || '')) + (d.name ? ' · ' + q(d.name) : ''); }  // 2.122.0 A (#2097)

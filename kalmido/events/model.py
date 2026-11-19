@@ -500,7 +500,7 @@ def _until_utc(rule, zone, all_day):
 
 def ev_rule(r, near=None):
     """dateutil rule of the series (None: not repeating / not expandable) -- start: naive (all day) or aware (timed).
-    2.1423.0 (#6727): near (a local date) = only the dates from about there on are read: the start moves towards it by
+    (#6727): near (a local date) = only the dates from about there on are read: the start moves towards it by
     whole periods (rr_shift_days, same dates from there on), so dateutil does not walk from a start in 1900 to today."""
     rule = r["rrule"]
     if not rule or rr_problem(rule):
@@ -516,7 +516,7 @@ def ev_rule(r, near=None):
 
 
 def _ev_move(rule, st, near):
-    """2.1423.0 (#6727): (rule, start) with the start moved towards the local date near, the same dates from the new
+    """(#6727): (rule, start) with the start moved towards the local date near, the same dates from the new
     start on; the new start stays at least a week before near. A COUNT rule stays (its dates count from the start).
     DAILY / WEEKLY: whole periods (rr_shift_days, as the subscriptions). MONTHLY / YEARLY: to the first day of a period
     (whole intervals of months / years later), after the dates dateutil would take from the start (BYMONTHDAY = its
@@ -545,7 +545,7 @@ def _ev_move(rule, st, near):
     return ";".join(f"{a}={b}" for a, b in parts.items()), st.replace(year=st.year + m // 12, month=m % 12 + 1, day=1)
 
 
-# 2.1423.0 (#6727): dates a rule may pass before the wanted range (after the move of ev_rule). Only a COUNT rule cannot
+# (#6727): dates a rule may pass before the wanted range (after the move of ev_rule). Only a COUNT rule cannot
 # move, and it has at most 9999 dates (rr_problem); the stop is the guard for whatever slips past the move. Above it the
 # rule shows no dates there, only its extra dates (RDATE) and changed occurrences. 10 000 dates take some milliseconds.
 EV_WALK_MAX = 10000
@@ -554,7 +554,7 @@ EV_WALK_MAX = 10000
 
 
 def ev_dates_from(rule, a):
-    """2.1423.0 (#6727): the dates of rule from a on (inclusive), lazily; stops after EV_WALK_MAX dates before a."""
+    """(#6727): the dates of rule from a on (inclusive), lazily; stops after EV_WALK_MAX dates before a."""
     n = 0
     for dt in rule:
         if dt >= a:
@@ -677,7 +677,7 @@ def ev_expand(r, lo, hi, cap=EV_OCC_CAP):
         b = datetime(hi.year, hi.month, hi.day) + timedelta(days=2)
         if not r["all_day"]:
             a, b = a.replace(tzinfo=zone), b.replace(tzinfo=zone)
-        rule = ev_rule(r, a.date()) or rule  # 2.1423.0 (#6727): start moved close to the range, walk with a stop
+        rule = ev_rule(r, a.date()) or rule  # (#6727): start moved close to the range, walk with a stop
         seen = set()
         try:
             for dt in ev_dates_from(rule, a):
@@ -1212,7 +1212,7 @@ def is_occ(r, occ):
         return occ == r["start"]
     try:
         dt = datetime.fromisoformat(occ[:10]) if r["all_day"] else wall(occ).replace(tzinfo=ev_zone(r["tz"]))
-        rule = ev_rule(r, dt.date() - timedelta(days=2))  # 2.1423.0 (#6727): start moved close to occ, walk with a stop
+        rule = ev_rule(r, dt.date() - timedelta(days=2))  # (#6727): start moved close to occ, walk with a stop
         hit = next(ev_dates_from(rule, dt), None) if rule is not None else None
     except (ValueError, TypeError, OverflowError, AttributeError):
         return False
