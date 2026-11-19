@@ -19,12 +19,12 @@
 
 ## What's new
 
-**2.1441.0** (2026-11-19):
-- **Office**: invoices can be issued as paid; documents show whether their e-mail was delivered; invoice issuer keys fetch the finished PDF / XML of their own documents.
-- **Clients and contacts**: clients can have locations under a main client; "Add a colleague at the same company" in a contact's menu.
-- **Undo**: Ctrl+Z only takes back steps of this window or of the last 2 minutes; otherwise "Recent steps" opens with the step marked.
-- **Mail**: a mail attachment that cannot be filed is named at the task and in the News instead of being dropped; admins are alerted when sending e-mail keeps failing.
-- **Workspaces**: the office opens reliably with its full menu; the logo always leads to Start.
+**2.1447.0** (2026-11-19):
+- **Office**: quotations have a "Created by" field, printed on the PDF as "Your contact"; the country in an English document's address is in English; returned e-mails mark an invoice or letter "not delivered" with the reason.
+- **Clients**: duplicate a client or add it as a new location from the client page menu.
+- **Import and export**: the export says whether another Kalmido server can import it; an import keeps a report with every warning, skips a single oversized file instead of failing, and resumes after an interruption.
+- **Tasks**: dragging a selection into your own sections in My tasks always moves all of it and can be undone; several tasks can be assigned together in every kind of project.
+- **Agents**: model and effort are chosen from a list (Fable, Opus, Sonnet, Haiku).
 
 Full history: [CHANGELOG.md](CHANGELOG.md).
 
@@ -315,8 +315,9 @@ project). You type `RESTORE` to confirm. Kalmido then:
    until nothing else runs;
 3. makes a **safety backup** of the current state (listed as "before a restore");
 4. swaps the attachments folder and replaces the database with `pg_restore` (one transaction), runs the migrations;
-   if anything fails, the previous database and attachments are put back. Backups from before 2.37 (`tasks.db`) are
-   moved over into PostgreSQL the same way as on the first start of 2.37;
+   if anything fails, the previous database and attachments are put back. Backups from before 2.37 (SQLite, a `tasks.db` in
+   the zip) are listed and checked but refused before anything changes: restore such a backup with 2.36 and update
+   from there (docs/UPGRADING.md);
 5. ends every session except yours (you get a fresh one; with single sign-on nothing changes). The backup settings
    (`bk_` keys) stay as they are.
 
