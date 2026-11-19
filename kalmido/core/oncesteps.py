@@ -107,6 +107,35 @@ def migr_textby6677(c):  # 2.1375.0 (#6677): tasks.title_by / content_by of the 
     gset(c, "migr_textby6677", "1")
 
 
+def migr_outside7124(c):
+    """#7124 (review F4 of job/5425): attachments.outside (2.1391.0, #6906) once for the files from before it. A file came from
+    outside Kalmido (a mail, a public form) when it hangs on a task that a mail or a form made (tasks.tt_id 'mail:...' from
+    integrations/mail.py / reqmail.py, 'origin:form:...' from team/forms.py via agents/core.py task_mark_origin) and was stored
+    with the task (within the hour: a file a person uploads later stays theirs), or on a comment without an account (a mail
+    reply / a portal answer, integrations/taskmail.py tmr_comment, reqmail.py rq_comment). The 2.24.0 backfill
+    (admin/hosting.py quota_backfill) wrote the task's creator as their uploader, so the API named a person for them."""
+    with pg_system_ctx(c):  # every organisation's files (row-level security)
+        c.execute("""UPDATE attachments a SET outside = 1 FROM tasks t
+                     WHERE a.task_id = t.id AND a.outside = 0 AND a.comment_id IS NULL
+                       AND (t.tt_id LIKE 'mail:%' OR t.tt_id LIKE 'origin:form:%')  -- pg-ok: the source keys are written in this case
+                       AND a.created_at <= t.created_at + INTERVAL '1 hour'""")
+        c.execute("""UPDATE attachments a SET outside = 1 FROM obj_comments k
+                     WHERE a.comment_id = k.id AND k.user_id IS NULL AND a.outside = 0""")
+    gset(c, "migr_outside7124", "1")
+
+
+def migr_srvorg6363(c):  # (#6363): the Kalmido AI per organisation (orgs.srv_agents, default off), once at the update
+    # An organisation whose admins already chose a server agent keeps it on: a team server agent of it with a stored key, or
+    # a personal server agent with a key placed in it whose owner is one of its admins. Every other one starts off (the
+    # narrower default): its admin switches it on. A new database runs it on empty tables (nothing on).
+    with pg_system_ctx(c):  # every organisation and agent (row-level security)
+        c.execute("""UPDATE orgs o SET srv_agents=1 WHERE o.srv_agents=0 AND o.personal_of IS NULL AND EXISTS(
+                       SELECT 1 FROM agents a JOIN agent_server s ON s.agent_id=a.user_id
+                       WHERE a.org_id=o.id AND a.provider='kalmido-server' AND COALESCE(s.key_sealed, '')<>''
+                         AND (a.owner_id IS NULL OR EXISTS(SELECT 1 FROM org_members m WHERE m.org_id=o.id
+                                                             AND m.user_id=a.owner_id AND m.role='admin')))""")
+    gset(c, "migr_srvorg6363", "1")
+
 STEPS = [  # (phase, key, once, f): the order of init_db (2.1356.0, #6824); 2.1380.0 (#6826): the one-shots before MIN_FROM are gone
     ("cdn_backfill", "migr_upg2103", True, migr_upg2103),
     ("cdn_backfill", "migr_upg2360", True, migr_upg2360),
@@ -115,6 +144,8 @@ STEPS = [  # (phase, key, once, f): the order of init_db (2.1356.0, #6824); 2.13
     ("cdn_backfill", "migr_allow2380", False, migr_allow2380),
     ("cdn_backfill", "migr_liststate5537", False, migr_liststate5537),
     ("cdn_backfill", "migr_textby6677", True, migr_textby6677),
+    ("cdn_backfill", "migr_outside7124", True, migr_outside7124),
+    ("cdn_backfill", "migr_srvorg6363", True, migr_srvorg6363),
 ]
 
 

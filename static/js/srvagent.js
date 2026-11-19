@@ -60,6 +60,9 @@ async function srv_defaults(fresh) {
 }
 const srv_is = a => !!a && (a.provider === SRV_PROV || !!a.server);  // 2.1044.0 (#5825): server = the flag of the agent objects in /api/state
 const srv_offHtml = () => `<div class="shint keep srvoff" role="note">${ic('alert', 's')} ${esc(tr('Agents on the Kalmido server are switched off on this server (an admin can allow them: Settings > Organisation > Agents).'))}</div>`;
+// (#6363): the agent's organisation has the Kalmido AI off (its admin switches it on)
+const SRV_ORG_OFF = N_('The Kalmido AI is switched off in this organisation. An admin of the organisation can switch it on (Settings > Organisation > People).');
+const srv_orgOffHtml = () => `<div class="shint keep srvoff" role="note">${ic('alert', 's')} ${esc(tr(SRV_ORG_OFF))}</div>`;
 // the fields both dialogs share: provider, key, model, instructions (j = GET …/server or the defaults)
 function srv_fieldsHtml(j, isNew) {
   const keyRow = !isNew && j.has_key
@@ -187,6 +190,8 @@ async function srv_newModal(o = {}) {
     // 2.777.0 C (#5378): the chosen projects; an agent works in ONE workspace, so they decide the workspace of an agent of mine
     const pj = $$('[data-srv-pj]:checked', md).map(x => +x.dataset.srvPj), pws = [...new Set(pj.map(id => listById(id)?.org_id || null))];
     if (pws.length > 1) { show(tr('Select projects of one workspace: an agent works in one workspace.')); return; }
+    const worg = +String($('#srv-own', md)?.value || '').replace('org:', '') || pws[0] || 0;  // (#6363): before the agent is made
+    if (worg && (d.orgs_off || []).includes(worg)) { show(tr(SRV_ORG_OFF)); return; }
     b.disabled = true; show('');
     let r;
     try {
@@ -265,7 +270,7 @@ async function srv_editModal(a, notes, calm) {
   const draw = async () => {
     try { j = await api('GET', `/api/agents/${a.id}/server`); } catch (x) { $('#srv-ed', md).innerHTML = `<div class="muted mhint">${esc(x instanceof Offline ? tr('Only available online.') : x.message)}</div>`; return; }
     if (!md.isConnected) return;
-    $('#srv-ed', md).innerHTML = (j.enabled_instance === false ? srv_offHtml() : '') + srv_fieldsHtml(j, false) + srv_flowsHtml(j) + srv_webHtml(j);
+    $('#srv-ed', md).innerHTML = (j.enabled_instance === false ? srv_offHtml() : '') + (j.enabled_org === false ? srv_orgOffHtml() : '') + srv_fieldsHtml(j, false) + srv_flowsHtml(j) + srv_webHtml(j);
     $('[data-m="srv-save"]', md).hidden = false;
     srv_modelsFill(md, a.id, j.model).then(m => srv_flowsFill(md, m));
   };
