@@ -44,7 +44,7 @@ Review of 16.11.2026 (G1 - G13), all in the direction "in doubt a card":
     title / log) is a message to that person (control.ctl_meta_circle); a job without a task shows its words only to who
     reads every source (job_mute); a proposal for the rules / playbook / layout of a project is a write into that project
     (circle_of), a layout proposal a message to its person too.
-  * 2.1418.0 (#7142, decision of #6863): an agent without a chosen control level counts as "free" for this rule: every step
+  * (#7142, decision of #6863): an agent without a chosen control level counts as "free" for this rule: every step
     as before, a write into a wider / public circle, a message or job to a person outside it = a card; its status text,
     progress line and job words are hidden from people who do not read every source (wk_mute / st_mute / job_mute).
 
@@ -427,14 +427,14 @@ def _target(c, a, path, va, b):
     aid = a["user_id"]
     if path == "/lists":
         # a new project of the agent is its own until somebody shares it (an agent's share waits for a person): nobody reads
-        # it. 2.1418.0 (#7142): also a team agent's and one for an organisation -- a project without a folder and not of a
+        # it. (#7142): also a team agent's and one for an organisation -- a project without a folder and not of a
         # family gets no person on creation (lists.list_created: folder people and groups come only through a folder; the
         # organisation reads it only once it is opened, access.ov_open; the admins' overview only shared ones, orgtasks.ot_lists).
         # In a folder or of a family: not nameable
         own = not any(b.get(k) not in (None, "", False) for k in ("folder", "family"))
         return None, (frozenset() if own else None)
     if path == "/filters" or path == "/filters/{}":
-        # 2.1418.0 (#7142): a saved view the agent keeps for itself (POST /api/v1/filters makes only private ones) is read by
+        # (#7142): a saved view the agent keeps for itself (POST /api/v1/filters makes only private ones) is read by
         # nobody else; a project's shared view: not nameable here (and the route holds it, lists/sections.py need_filter)
         if path == "/filters":
             return None, frozenset()

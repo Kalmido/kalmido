@@ -474,11 +474,11 @@ def ctl_gate():
         if a is None:
             return None
         if a["owner_id"] or not act_for(a["user_id"]):
-            # 2.1418.0 (#7142, decision of #6863): no level chosen: every step as before (no card, no history line), but the
+            # (#7142, decision of #6863): no level chosen: every step as before (no card, no history line), but the
             # circle rule as on "free" -- a write into a wider / public circle, a message or job to a person outside it = a card
             d, legacy = {**CTL_DEFAULTS, "level": "free", "projects": {}}, True
         else:
-            # 2.1287.0 (#6454): a team agent's run for a person, no level chosen: free where that person writes themselves
+            # (#6454): a team agent's run for a person, no level chosen: free where that person writes themselves
             # (as before), an approval card for everything in a project they only read (nolevel below)
             d, nolevel = {**CTL_DEFAULTS, "level": "free", "projects": {}}, True
     if web is not None:  # decision 05.11.2026: with the web, every change by card - whatever the level (also none chosen)
@@ -513,12 +513,12 @@ def ctl_gate():
     if person:
         ok = False
     elif legacy and (request.method == "DELETE" or step == "one_way"):
-        return None  # 2.1418.0 (#7142): no level chosen -- a deletion carries no words into a circle: as before
+        return None  # (#7142): no level chosen -- a deletion carries no words into a circle: as before
     elif ok:  # 2.1284.0 (#6453): free only towards the same or a smaller circle of people; a wider or public target = a card
         circle = circle_of(c, a, request.method, path, request.view_args or {}, b, lids)
         ok = not circle
     if ok and legacy:
-        return None  # 2.1418.0 (#7142): no level chosen and inside the circle: as before 2.235.0
+        return None  # (#7142): no level chosen and inside the circle: as before the control levels
     mid = None
     if not ok:
         hdr = request.headers.get(CTL_HEADER, "").strip()
@@ -770,7 +770,7 @@ def ctl_claim(c, a, hdr, step, lids, circle=None):
         return None, {"reason": "approver_rights", "sources": False}  # who reads every source the agent could carry there (not just the target)
     if not lids and not agent_shares(c, aid, who):
         return None, {"reason": "approver_shares"}
-    if not lids and not a["owner_id"]:  # 2.1287.0 (#6454): a team agent's card without a project needs the person's own write right
+    if not lids and not a["owner_id"]:  # (#6454): a team agent's card without a project needs the person's own write right
         if not ctl_obj_write(c, who):
             return None, {"reason": "approver_rights"}
         g.ctl_for = who  # every role function of this request answers at most this person's role (core/access.py act_for)
