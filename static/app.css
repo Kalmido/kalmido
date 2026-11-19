@@ -5943,6 +5943,10 @@ html.mini-task #app,html.mini-task #app.detail-open{grid-template-columns:minmax
 [data-ly="today"] .lyb > .lymore{background:none}
 [data-ly="today"] .lyb.lym[data-lyk="tasks"] .ghead{padding-right:2.25rem}
 @media (pointer:coarse){ [data-ly="today"] .lyb.lym[data-lyk="tasks"] > .lymore{top:0} [data-ly="today"] .lyb.lym[data-lyk="tasks"] .ghead{padding-right:3rem} }
+/* #7211: the narrow layout's strip of shown fields (render.js lcBar, its "Columns" at the right end) is the block's first row:
+   it keeps clear of the "…" like the headings do (on a 320 px phone the "…" lay over "Columns") */
+[data-ly="today"] .lyb.lym[data-lyk="tasks"] .lcbar{padding-right:2.25rem}
+@media (pointer:coarse){ [data-ly="today"] .lyb.lym[data-lyk="tasks"] .lcbar{padding-right:3.25rem} }
 /* 2.354.0 C (#3009): the head of "Overdue" carries "All to today" / "Another day…": its right edge keeps clear of the block's "…"
    (the button's width + its offset), so the two never overlap at any width */
 [data-ly="today"] .lyb.lym[data-lyk="tasks"] .ghead:has(.odact){padding-right:3.25rem}
