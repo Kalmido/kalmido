@@ -46,6 +46,10 @@ OCR_ANON_S = _env_int("KALMIDO_OCR_ANON_S", 90, 10, 7200)
 # Used up: its documents and files stay waiting and come up again once the oldest seconds of the hour have run out --
 # nothing is dropped; the other workspaces go on. Kept in the queue process (a restart starts a fresh hour)
 OCR_WS_HOUR_S = _env_int("KALMIDO_OCR_WS_HOUR_S", 1800, 60, 86400)
+# 2.1413.0 (#6951, Fable review of job/5128): of it, anonymous sources (OCR_ANON_S) use at most this share: a stranger's files
+# wait once it is used up, the members' own always keep the rest of the hour
+OCR_ANON_SHARE = 0.5
+OCR_ANON_KEY = "{0}~anon"  # the second account of a workspace in _SPENT (its anonymous seconds, counted in the whole too)
 OCR_HOUR = 3600
 # 2.1283.0 (#6427): pages cut off after which a document ends: the time limit, a tool killed by a signal (its CPU limit),
 # or a failure that took at least half the page time. A damaged page that fails at once costs nothing and does not count
@@ -97,12 +101,16 @@ _SPENT = {}  # 2.1337.0 (#6651): workspace -> deque of (monotonic time, recognit
 _SPENT_LOCK = threading.Lock()
 
 
-def ocr_charge(ws, seconds, clock=time.monotonic):
-    """2.1337.0 (#6651): book the seconds one recognition of workspace ws took (its hour budget, OCR_WS_HOUR_S)."""
+def ocr_charge(ws, seconds, clock=time.monotonic, anon=False):
+    """2.1337.0 (#6651): book the seconds one recognition of workspace ws took (its hour budget, OCR_WS_HOUR_S).
+    2.1413.0 (#6951): anon = an anonymous source's -- booked on the anonymous share as well (ocr_anon_tired)."""
     if not ws or seconds <= 0:
         return
     with _SPENT_LOCK:
-        _SPENT.setdefault(ws, collections.deque()).append((clock(), float(seconds)))
+        t = clock()
+        _SPENT.setdefault(ws, collections.deque()).append((t, float(seconds)))
+        if anon:
+            _SPENT.setdefault(OCR_ANON_KEY.format(ws), collections.deque()).append((t, float(seconds)))
 
 
 def ocr_spent(ws, clock=time.monotonic):
@@ -120,8 +128,16 @@ def ocr_spent(ws, clock=time.monotonic):
 def ocr_tired(clock=time.monotonic):
     """2.1337.0 (#6651): the workspaces whose hour budget is used up -- the queues skip their waiting rows meanwhile."""
     with _SPENT_LOCK:
-        names = list(_SPENT)
+        names = [w for w in _SPENT if not w.endswith("~anon")]
     return sorted(w for w in names if ocr_spent(w, clock) >= OCR_WS_HOUR_S)
+
+
+def ocr_anon_tired(clock=time.monotonic):
+    """2.1413.0 (#6951): the workspaces whose anonymous share (OCR_ANON_SHARE of the hour budget) is used up -- the queues
+    leave their waiting files / documents of anonymous sources meanwhile, the members' own go on."""
+    with _SPENT_LOCK:
+        names = [w[:-5] for w in _SPENT if w.endswith("~anon")]
+    return sorted(w for w in names if ocr_spent(OCR_ANON_KEY.format(w), clock) >= OCR_WS_HOUR_S * OCR_ANON_SHARE)
 
 
 def ocr_ws_sql(names):

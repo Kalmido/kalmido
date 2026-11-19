@@ -11,11 +11,12 @@ to the organisation's log (org_list_log, actions move_on / move_off: Projects of
 
 GET    /api/orgs/<org id>/moving   every member: {moving, since?, by_name?, why?}
 POST   /api/orgs/<org id>/moving   an admin: {confirm: the organisation's name, why?} -> starts it (409 when it runs already)
-DELETE /api/orgs/<org id>/moving   an admin: ends it -> {moving: false, paused: [series ids]}
+DELETE /api/orgs/<org id>/moving   an admin: ends it -> {moving: false, paused: [series ids]}; 2.1413.0 (#6951): an instance admin
+                                   too (not a member: org log move_off with instance_admin), so no organisation stays read only
 People only (agents 403); app only (APP_ONLY "* /api/orgs" in tests/parity_test.py)."""
 import json
 
-from flask import jsonify
+from flask import g, jsonify
 
 from ..core.config import app
 from ..core.db import body, bump, db, iso, local_now, now_utc
@@ -82,10 +83,23 @@ def org_moving_start(oid):
     return jsonify(_out(_org(c, oid)))
 
 
+def _need_ender(c, oid):
+    """2.1413.0 (#6951, Fable review of job/5128): an admin of the organisation ends the move - or an instance admin (a person),
+    so an organisation whose last admin is gone never stays read only. True when it is the instance admin's way."""
+    try:
+        _need_org_admin(c, oid)
+        return False
+    except Denied:
+        u = g.get("user")
+        if not (u and u["is_admin"] and (u["kind"] or "user") != "agent"):  # a person (agents/core.py is_agent), never an agent
+            raise
+        return True
+
+
 @app.delete("/api/orgs/<int:oid>/moving")
 def org_moving_end(oid):
     c = db()
-    _need_org_admin(c, oid)
+    inst = _need_ender(c, oid)
     r = _org(c, oid)
     if not r["moving_at"]:
         return jsonify(moving=False, paused=[])
@@ -93,7 +107,12 @@ def org_moving_end(oid):
     with system_ctx(c):  # the organisation's own row
         c.execute("UPDATE orgs SET moving_at=NULL, moving_by=NULL, moving_by_name='', moving_why='' WHERE id=?", (int(oid),))
     paused = mv_series_pause(c, oid)
-    _log(c, oid, "move_off", {"paused": len(paused)} if paused else None)
+    detail = dict({"paused": len(paused)} if paused else {}, **({"instance_admin": True} if inst else {}))
+    if inst:  # 2.1413.0 (#6951): in the organisation's log as well, written as system (the instance admin need not be a member)
+        with system_ctx(c):
+            _log(c, oid, "move_off", detail)
+    else:
+        _log(c, oid, "move_off", detail or None)
     bump(c)
     c.commit()
     mv_forget()

@@ -281,9 +281,9 @@ for nid, s in [(x, Fr) for x in fr_docs] + [(dq, Bo)]:
 QUEUE = ("from kalmido.core.db import connect\nfrom kalmido.core.pg import system_ctx\nfrom kalmido.docs.ingest import DOCS_NEXT\nc = connect()\n"
          "with system_ctx(c):\n"
          "    c.execute(\"UPDATE doc_meta SET state='wait' WHERE node_id IN ({ids})\")\n"
-         "    a = c.execute(DOCS_NEXT, ('{{}}', '{{}}')).fetchone()[0]\n"
-         "    b = c.execute(DOCS_NEXT, ('{{}}', '{{u{fid}}}')).fetchone()[0]\n"
-         "    d = c.execute(DOCS_NEXT, ('{{}}', '{{u{fid},o{org}}}')).fetchone()[0]\n"
+         "    a = c.execute(DOCS_NEXT, ('{{}}', '{{}}', '{{}}')).fetchone()[0]\n"
+         "    b = c.execute(DOCS_NEXT, ('{{}}', '{{}}', '{{u{fid}}}')).fetchone()[0]\n"
+         "    d = c.execute(DOCS_NEXT, ('{{}}', '{{}}', '{{u{fid},o{org}}}')).fetchone()[0]\n"
          "    print('next', a, b, d)\n"
          "c.rollback()\nc.close()")
 out = in_ct(QUEUE.format(ids=",".join(str(x) for x in fr_docs + [dq]), fid=FID, org=ORG))
