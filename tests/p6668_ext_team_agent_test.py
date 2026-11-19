@@ -772,6 +772,21 @@ def _r4f1():
         mode_keep = r.req_mode
         r.req_mode = lambda: None
         check(r.server_job_of(901, 5) is None, f"F10: the agent's mode not known: the server's job counts as not read {r.server_job_of(901, 5)!r}")
+        # #7162 (Fable reader job/5481 F12): the wake loop asked the server only in mode team -- with the mode not known
+        # (GET /agent not read after a restart) a wake ran without the check; now it waits in its folder for the next look
+        del queued[:]
+        aj.revive_lost = lambda api=None: []
+        try:
+            aj.add_wake({**forged, "id": 909, "title": "early"}, "done", "result")
+            r.job_watch()
+            check(not queued and os.path.isfile(os.path.join(aj.state_dir(), "wakes", "909.json")),
+                  f"F12: the mode not known: no wake run, the wake waits in its folder {queued}")
+            r.req_mode = mode_keep
+            r.job_watch()
+            check(not queued and not os.path.exists(os.path.join(aj.state_dir(), "wakes", "909.json")),
+                  f"F12: once the mode is known the server's check drops the forged wake {queued}")
+        finally:
+            aj.revive_lost = keep
         r.req_mode = mode_keep
         # F11: a job continued after a restart whose server job could not be read was lost for good (OSError, revived set);
         # now it stays lost without revived / lost_handled and is continued on the next look once the server answers

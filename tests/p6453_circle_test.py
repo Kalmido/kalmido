@@ -639,6 +639,35 @@ check(r.ok and appr_title(BOB, JW2) == "", f"F7: ... nor through PATCH state wai
 r = requests.post(V + "/agent/jobs", headers=HT, json={"title": "Alice's own plan", "task_id": K_ALI, "state": "waiting"})
 JW3 = r.json().get("id") if r.ok else None
 check(appr_title(ALICE, JW3) == "Alice's own plan", f"F7: a task in the project only alice reads: her News keeps the title {appr_title(ALICE, JW3)!r}")
+# #7162 (Fable reader job/5481 F14): a job WITH a task in the open project -- job_dict hides its title from bob (WK_MUTE), but
+# "Waiting for me", the chat's job cards (jcd_jobs) and the job names (jn9_job_names) asked job_words_hidden (jobs without a
+# task only) and gave it; now all three ask job_words_muted like job_dict and job_notify
+kt.dbx("UPDATE users SET is_admin=TRUE WHERE id=?", (BOB,))  # bob sees the agent's jobs (core.job_visible), as in F4
+try:
+    wi = next((x for x in BS.get(B + "/api/inbox").json().get("items", []) if x["kind"] == "job" and x["id"] == JW), None)
+    check(wi is None or wi["title"] == "", f"F14: bob's waiting list has the task's job without its title {wi}")
+    out = subprocess.run(["docker", "exec", kt.CT, "python", "-c", f"""import json, app
+from kalmido.core.db import connect
+from kalmido.core.pg import system_ctx
+from kalmido.agents.jobchat import jcd_jobs
+from kalmido.agents.core import jn9_job_names
+c = connect()
+with system_ctx(c):
+    print(json.dumps({{"card": {{k: jcd_jobs(c, {TA}, [{{"job_id": {JW}}}], u).get(str({JW})) for k, u in (("bob", {BOB}), ("alice", {ALICE}))}},
+                      "name": {{k: jn9_job_names(c, [{JW}], u).get({JW}) for k, u in (("bob", {BOB}), ("alice", {ALICE}))}}}}))
+c.close()"""], capture_output=True, text=True)
+    try:
+        jc = json.loads(out.stdout.strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        jc = {"error": (out.stdout + out.stderr)[-600:]}
+    cb, ca = (jc.get("card") or {}).get("bob") or {}, (jc.get("card") or {}).get("alice") or {}
+    check(cb.get("id") == JW and cb.get("title") == "" and "plan" not in str(cb.get("name")),
+          f"F14: the chat's job card of the task's job has no title or name for bob {jc}")
+    check(ca.get("title") == "Alice's private plan", f"F14: ... alice's has them {jc}")
+    nb = (jc.get("name") or {}).get("bob")
+    check("plan" not in json.dumps(nb), f"F14: the job's name for bob carries no title {jc.get('name')}")
+finally:
+    kt.dbx("UPDATE users SET is_admin=FALSE WHERE id=?", (BOB,))
 for x in (JW, JW2, JW3):
     kt.dbx("UPDATE agent_jobs SET state='done' WHERE id=?", (x,))
 for path, body in ((f"/lists/{L_OWN}/rules/proposals", {"name": "x"}), (f"/lists/{L_OWN}/playbook/proposals", {"text": "x"})):

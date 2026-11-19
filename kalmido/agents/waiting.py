@@ -28,7 +28,7 @@ from ..core.i18n import tr
 from ..integrations.delivery import GATE_ALL, WAIT_KINDS, WAIT_MAX
 from ..tasks.briefing import brief_blocked, brief_lists
 from .chat import chat_approvals_of
-from .core import agent_shares, is_agent, is_approver, job_may_act, job_words_hidden, need_person
+from .core import agent_shares, is_agent, is_approver, job_may_act, job_words_muted, need_person
 from .watch import watch_open
 from .srvteam import srv_prop_team_ids  # 2.569.0 B (#4675): a server agent's proposal in a team project; 2.611.0 D (#4784): all at once
 
@@ -91,8 +91,8 @@ def _jobs(s):
             continue
         ok = ((j["user_id"] == uid or j["id"] in team) and j["prop_state"] == "ready") if j["kind"] else job_may_act(c, j, uid, "approve")  # 2.569.0 B (#4675)
         if ok:
-            # Fable reader job/5498 F4: a job without a task whose words uid does not read shows no title here either (job_dict)
-            out.append(_item("job", j["id"], "" if job_words_hidden(c, j, uid) else j["title"], j["updated_at"], tasks.get(j["task_id"]), agent_id=j["agent_id"],
+            # Fable reader job/5498 F4, #7162 (F14): a job whose words uid does not read shows no title here either (job_dict)
+            out.append(_item("job", j["id"], "" if job_words_muted(c, j, uid) else j["title"], j["updated_at"], tasks.get(j["task_id"]), agent_id=j["agent_id"],
                              agent_name=names.get(j["agent_id"], ""), proposal=bool(j["kind"])))
             if len(out) >= WAIT_MAX:
                 break
