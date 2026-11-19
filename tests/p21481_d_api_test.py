@@ -132,6 +132,7 @@ ME = A.get(B + "/api/state").json()["me"]
 ALICE, ORG = ME["id"], ME["workspaces"][0]["id"]
 if not dbx("SELECT email FROM users WHERE id=?", (ALICE,))[0][0]:
     dbx("UPDATE users SET email='alice@example.com' WHERE id=?", (ALICE,))
+dbx("UPDATE users SET email_proved=lower(email) WHERE id=?", (ALICE,))  # 2.1412.0 (#6355): invitations need a confirmed address
 FID, Fr = freelancer(B, A, features=FEAT)  # freelancer-matrix: personal
 r = A.post(B + "/api/admin/agents", json={"scopes": ["read", "tasks:write", "comments", "structure", "calendar", "contacts", "delete"],
                                           "username": "helper", "display_name": "Helper"})

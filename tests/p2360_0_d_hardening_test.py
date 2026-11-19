@@ -104,6 +104,7 @@ ALICE = A.get(B + "/api/state").json()["me"]["id"]
 ORG = A.get(B + "/api/state").json()["me"]["workspaces"][0]["id"]
 if not dbx("SELECT email FROM users WHERE id=?", (ALICE,))[0][0]:
     dbx("UPDATE users SET email='alice@example.com' WHERE id=?", (ALICE,))
+dbx("UPDATE users SET email_proved=lower(email) WHERE id=?", (ALICE,))  # 2.1412.0 (#6355): invitations need a confirmed address
 uid = {}
 for u in ("bob", "carol"):
     r = A.post(B + "/api/users", json={"orgs": [{"id": ORG, "role": "member"}], "username": u, "display_name": u.title(),
@@ -250,12 +251,20 @@ r = A.post(B + "/api/events", json={"cal_id": CAL, "title": "Grenze", "start": f
                                     "send_invites": True, "attendees": [{"email": "Gast.Vier@example.com"}, {"email": "gast.fuenf@example.com"}]})
 check(r.status_code == 201, "#6548: an event with a guest whose day is used up " + r.text[:200])
 EV6548 = r.json().get("id") if r.ok else None
+check(r.ok and r.json().get("invite_held") == 1, f"#6355: the answer names the guest a limit kept from the mail {r.text[:200]}")
 check(bool(until(lambda: mails("gast.fuenf@example.com"), 10)), "#6548: the other guest gets the invitation")
 check(not mails("gast.vier@example.com") and not mails("Gast.Vier@example.com"),
       "#6548: no invitation to an address whose 5 mails of the day are used up (also in other case)")
 iv = dbx("SELECT lower(email), invited_seq FROM event_attendees WHERE event_id=? ORDER BY id", (EV6548,))
 check([x[1] is None for x in iv] == [True, False], f"#6548: the refused guest stays uninvited (gets it with the next change) {iv}")
 dbx("DELETE FROM mail_counts WHERE k='r:gast.vier@example.com'")
+# 2.1412.0 (#6355): the cancellation reaches who had an invitation even when the address's 5 mails of the day are used up
+n5 = len(mails("gast.fuenf@example.com"))
+dbx("INSERT INTO mail_counts(k,day,n) VALUES('r:gast.fuenf@example.com',?,5) ON CONFLICT(k) DO UPDATE SET n=5, day=excluded.day", (uday,))
+check(A.delete(B + f"/api/events/{EV6548}").ok, "#6355: delete the event")
+mc = until(lambda: len(mails("gast.fuenf@example.com")) > n5 and mails("gast.fuenf@example.com"), 10)
+check(bool(mc) and "METHOD:CANCEL" in ics_of(mc[-1]), "#6355: the cancellation skips the limit per receiving address")
+dbx("DELETE FROM mail_counts WHERE k='r:gast.fuenf@example.com'")
 for bad in ("<bob.neu@example.com>", "bob.neu@example.com,1.a", "bob.neu@example.com;x@example.com", '"bob"@example.com', "Bob <bob.neu@example.com>"):
     r = A.patch(B + f"/api/users/{uid['bob']}", json={"email": bad})
     check(r.status_code == 400, f"#6548: {bad!r} is no single plain address ({r.status_code})")

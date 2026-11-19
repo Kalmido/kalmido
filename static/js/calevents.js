@@ -242,7 +242,8 @@ async function evDelete(ev, occ) {
   };
   // 2.1246.0 (#6267): the toast's Undo goes through the server's step since #6159 (not the restore below): at_once shows the
   // event back at once there as well (#4659), Redo takes it out at once; a refusal draws the calendar as it was
-  if (mode === 'all') offerUndo(tr('Event deleted'), histAdd({label: lbl, res: j, post: re, at_once: {undo: run => evOpt(back, run), redo: run => evOpt(evPuts(put, lk), run)}, undo: () => evOpt(back, () => api('POST', `/api/events/${ev.id}/restore`)), redo: () => api('DELETE', `/api/events/${ev.id}`)}));
+  const held = typeof evi_heldMsg === 'function' ? evi_heldMsg(j) : '';  // 2.1412.0 (#6355): cancellations a limit held back
+  if (mode === 'all') offerUndo(held ? `${tr('Event deleted')}. ${held}` : tr('Event deleted'), histAdd({label: lbl, res: j, post: re, at_once: {undo: run => evOpt(back, run), redo: run => evOpt(evPuts(put, lk), run)}, undo: () => evOpt(back, () => api('POST', `/api/events/${ev.id}/restore`)), redo: () => api('DELETE', `/api/events/${ev.id}`)}));
   else offerUndo(tr('This date was removed'), histAdd({label: lbl, res: j, post: re, undo: () => evOccBack(ev, occ), redo: () => api('DELETE', `/api/events/${ev.id}?occ=${encodeURIComponent(occ)}`)}));  // 2.800.0 (#5466): with Undo
 }
 // 2.800.0 (#5466): the Undo of "only this date": the date leaves the left-out ones again through undoWrite (only exdates, with
@@ -617,7 +618,9 @@ async function evEditor(o = {}) {
       // 2.1178.0 (#6153): saving a changed event offers Undo like dragging and deleting: the server's step of the PATCH (obj_undo,
       // events/evundo.py: the row as it was - the series' old fields, or "Only this date" without its new own change; histAdd takes
       // the group of the answer, j._ugid)
-      if (ev && j?._ugid > 0) offerUndo(tr('Event saved'), histAdd({label: body.title || ev.title || tr('(no title)'), res: j, post: () => { calInvalidate(); renderView(); }}));  // no group: nothing was written
+      const held = typeof evi_heldMsg === 'function' ? evi_heldMsg(j) : '';  // 2.1412.0 (#6355): guests without their mail
+      if (held && !(ev && j?._ugid > 0)) toast(held);
+      if (ev && j?._ugid > 0) offerUndo(held ? `${tr('Event saved')}. ${held}` : tr('Event saved'), histAdd({label: body.title || ev.title || tr('(no title)'), res: j, post: () => { calInvalidate(); renderView(); }}));  // no group: nothing was written
       else toast(ev ? tr('Event saved') : tr('Event created'));
     }
   });
