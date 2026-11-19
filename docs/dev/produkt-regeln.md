@@ -53,7 +53,8 @@ file. What can be seen in the text of the code is checked by `tools/check_rules.
 - **Arrows on rows** (06.11.2026, #4908): › (the icon `right`) opens a view or a form; ˅ (`chev`) only unfolds in place
   (aria-expanded, it turns).
 - **Organisation colour everywhere** (14.11.2026, #6179 - #6188): whatever belongs to an organisation carries its colour
-  in every area, in the navigation (the entry marked) and in the opened object; Private stays neutral.
+  in every area, in the navigation (the entry marked) and in the opened object; Private stays neutral - except in a
+  mixed view ("All workspaces"), where Private wears the person's own chosen Private colour, if any (#6957, #7393).
 
 ## Touch, gestures and calm
 
