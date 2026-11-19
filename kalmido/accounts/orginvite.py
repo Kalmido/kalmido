@@ -232,10 +232,10 @@ def oinv_new_account(c, oid, email, role, name, lg, by, direct, bg=True):
     return uid, invite_new(c, uid, by, send=True, days=None if direct else OJN_DAYS, bg=bg)
 
 
-def oinv_day_left(c, by):
-    """2.1424.0 (#6580): how many new invitations admin `by` may still send today (OINV_DAY, counted like org_invite_new)."""
-    since = iso(now_utc() - timedelta(days=1))
-    return max(0, OINV_DAY - c.execute("SELECT COUNT(*) FROM org_invites WHERE created_by=? AND created_at>?", (by, since)).fetchone()[0])
+def oinv_count(by, n):
+    """2.1424.0 (#6580, reader F1/F2): n invitations of admin `by` on the day counter of POST /invites ("oinv:<id>", every try
+    counts before the address is looked up, a withdrawal gives nothing back) -> False once the day's OINV_DAY are used up."""
+    return not any(hit_limit(f"oinv:{by}", OINV_DAY, 86400) for _ in range(n))
 
 
 def oinv_by_import(c, oid, email, role, name, by):
@@ -244,19 +244,20 @@ def oinv_by_import(c, oid, email, role, name, by):
     request: a new address becomes a new account with an invitation (oinv_new_account, never direct: the person joins by
     accepting); an address with an account the admin may not see gets what org_member_put gives it -- an ordinary invitation
     (ojn_invite) for a proved address outside a company of its own, else a silent one (ojn_silent, #3570: the admin learns
-    nothing either way). -> the account id the invitation lies on, or None (the day's limit is reached, the person is a
-    member already: nothing invited). The caller commits."""
+    nothing either way). The day's limit is counted by the caller before the run (oinv_count). -> (the account id the
+    invitation lies on, True when this call made the account), or (None, False): the person is a member already.
+    The caller commits."""
     em = (email or "").strip().lower()[:200]
-    if not EMAIL_RE.fullmatch(em) or not oinv_day_left(c, by):
-        return None
+    if not EMAIL_RE.fullmatch(em):
+        return None, False
     write_lock(c, "accounts")  # user names and addresses are checked and taken in one go
     with system_ctx(c):  # whether the address has an account (structure; never told to the admin)
         r = c.execute("SELECT id, disabled, kind, email_proved FROM users WHERE lower(email)=? ORDER BY (email_proved=lower(email)) DESC, id LIMIT 1",
                       (em,)).fetchone()
         if r and c.execute("SELECT 1 FROM org_members WHERE org_id=? AND user_id=?", (oid, r["id"])).fetchone():
-            return None
+            return None, False
     if not r:
-        return oinv_new_account(c, oid, em, role, name, None, by, False, bg=False)[0]
+        return oinv_new_account(c, oid, em, role, name, None, by, False, bg=False)[0], True
     selfm = c.execute("SELECT self_made FROM orgs WHERE id=?", (oid,)).fetchone()
     hidden = (r["disabled"] or (r["kind"] or "user") == "agent" or ((r["email_proved"] or "") != em and not _oinv_pending(c, r["id"]))
               or bool(selfm and selfm[0]) and not may_see(c, by, r["id"]))
@@ -264,7 +265,7 @@ def oinv_by_import(c, oid, email, role, name, by):
         ojn_silent(c, oid, r["id"], role, em, by=by)
     else:
         ojn_invite(c, oid, r["id"], role, by=by)
-    return r["id"]
+    return r["id"], False
 
 
 def _no_link_if_sent(inv, uid=None):

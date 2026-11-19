@@ -1152,7 +1152,8 @@ the household budget, for one). Agents and API tokens cannot do this; it is a pe
    address -- it must match the hash in the file, otherwise nobody is invited. Into an organisation its admin invites them
    (2.1424.0; before, only a server admin could), the normal way of inviting in *Settings > Organisation > People*: a new
    address gets an account with an invitation link by e-mail, the person joins only by accepting (with the role confirmed
-   in the preview), the ticked projects are shared then; the day's limit of invitations and the e-mail budget apply, and a
+   in the preview), the ticked projects are shared then; every typed address counts on the day's limit of invitations (not for a server admin) and the e-mail budget applies; the
+   undo of the import ends the invitations and deletes an account it made that was never used. A
    person who already has an account here that the admin may not see is invited the same quiet way as from the member
    settings (the admin learns nothing about the address; tell the person yourself). Into the private space only a server
    admin invites (a new account of the server). Assignments to people that are not taken over stay empty; comments of such

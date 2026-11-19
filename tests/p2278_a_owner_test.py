@@ -256,6 +256,7 @@ check(r.ok, f"the import is undone {r.status_code} {r.text[:200]}")
 check(not one("SELECT 1 FROM org_joins WHERE org_id=? AND user_id=?", (GAMMA, NG)), "the undo withdraws the invitation")
 check(json.loads(one("SELECT pending_lists FROM org_joins WHERE org_id=? AND user_id=?", (GAMMA, CAROL)) or "[]") == [[2, "edit", BOB]], "#3132: the undo drops only its own notes")
 check(not one("SELECT 1 FROM org_invites WHERE org_id=? AND user_id=?", (GAMMA, NG)), "#6580: the undo ends the org_invites row too (like Withdraw)")
+check(not one("SELECT 1 FROM users WHERE id=?", (NG,)), "#6580 (reader F4): the undo deletes the never used account the import made, like Withdraw")
 Dv.delete(B + f"/api/account/import/{iid}")
 dbx("UPDATE users SET is_admin=false WHERE id=?", (DAVE,))
 
@@ -285,9 +286,12 @@ check(one("SELECT role FROM org_joins WHERE org_id=? AND user_id=? AND created_b
 check(one("SELECT 1 FROM user_invites WHERE user_id=?", (NG,)), "#6580: the invitation link")
 iv = {x["email"]: x for x in Dv.get(B + f"/api/orgs/{GAMMA}/invites").json()["invites"]}
 check(iv.get("gina@example.com", {}).get("state") == "invited" and iv["gina@example.com"]["user_id"] is None, f"#6580: in dave's open invitations, no account id {iv}")
+IMP = one("SELECT max(id) FROM imports WHERE user_id=?", (DAVE,))
+r = Dv.post(B + f"/api/imports/{IMP}/undo")
+check(r.ok and not one("SELECT 1 FROM users WHERE id=?", (NG,)) and not one("SELECT 1 FROM org_joins WHERE org_id=? AND user_id=?", (GAMMA, NG)),
+      f"#6580 (reader F4): dave's undo ends the invitation and deletes the never used account {r.status_code} {r.text[:160]}")
 Dv.delete(B + f"/api/account/import/{iid}")
 # an address with an account dave may not see (made by the instance admin, in no organisation of dave): the same answer, silent
-dbx("DELETE FROM users WHERE id=?", (NG,))
 r = A.post(B + "/api/users", json={"username": "gina2", "display_name": "Gina Privat", "password": "password123", "email": "gina@example.com"})
 assert r.ok, r.text
 G2 = r.json()["id"]
@@ -300,8 +304,17 @@ check(one("SELECT silent FROM org_joins WHERE org_id=? AND user_id=? AND created
 check(one("SELECT COUNT(*) FROM users WHERE lower(email)='gina@example.com'") == 1, "#6580: never a second account for the address")
 iv = {x["email"]: x for x in Dv.get(B + f"/api/orgs/{GAMMA}/invites").json()["invites"]}
 check(iv.get("gina@example.com", {}).get("state") == "invited" and iv["gina@example.com"]["user_id"] is None, f"#6580: the list shows it like a new address {iv}")
+check(one("SELECT 1 FROM users WHERE id=?", (G2,)), "#6580: an existing account stays at any undo (never made by the import)")
 Dv.delete(B + f"/api/account/import/{iid}")
 dbx("DELETE FROM users WHERE id=?", (G2,))
+# reader F1/F2: every typed address counts on the day counter of Settings > Organisation > People (20 a day), before it is looked up
+for k in range(20):
+    Dv.post(B + f"/api/orgs/{GAMMA}/invites", json={"email": f"limit{k}@example.org"})
+iid, pv = opened(Dv, OX, RK)
+r = Dv.post(B + f"/api/account/import/{iid}/run", json={"target": GAMMA, "people": {EH("gina@example.com"): {"invite": True, "email": "gina@example.com"}}, "again": True})
+check(r.status_code == 429 and not one("SELECT 1 FROM users WHERE lower(email)='gina@example.com'"),
+      f"#6580 (reader F1): the day's invitations used up -> 429, nothing starts {r.status_code} {r.text[:160]}")
+Dv.delete(B + f"/api/account/import/{iid}")
 
 # ---------------------------------------------------------------- P4: a person without organisation, into the private workspace
 FID, Fr = freelancer(B, A)

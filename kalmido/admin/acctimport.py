@@ -77,7 +77,8 @@ from ..core.schema import MAX_DEPTH  # 2.149.0 G (#2517): pulled up from functio
 from ..office.model import pb_personal  # 2.1316.0 (#6577): umz_office_space
 from ..life.model import JOURNAL_MAX, jr_open, jr_seal  # 2.306.0 A (#2885); 2.531.0 (#4317): + JOURNAL_MAX, jr_open
 from ..accounts.orginvite import ojn_drop_later, ojn_invite, ojn_later  # 2.278.0 A (#3095)
-from ..accounts.orginvite import OINV_DAY, oinv_by_import, oinv_day_left, oinv_on  # 2.1424.0 (#6580)
+from ..accounts.orginvite import OINV_DAY, oinv_by_import, oinv_count, oinv_on, oinv_pending  # 2.1424.0 (#6580)
+from ..accounts.users import user_purge  # 2.1424.0 (#6580)
 from ..collab.e2e import _pub, e2e_has_keys, e2e_import_keys, e2e_same_keys  # 2.278.0 C (#3091)
 from .oilock import oil_preview, OIL_NODES, OIL_LOCKS, OIL_KEYS  # #4300: locked folders of the file store
 from ..hub.absence import ABS_HALF, ABS_KINDS, ABS_NOTE_MAX, ABS_SPAN_MAX, DATE_RE  # 2.765.0 (#3965)
@@ -2463,9 +2464,11 @@ def umz_invite(c, run, uid, email, name, role="member"):
     Organisation > Invite by e-mail (orginvite.oinv_by_import: the day's limit, the mail budget, an address with an account
     the admin may not see stays silent, #3570) -> the account the invitation lies on (None: nobody invited)."""
     if run.org:
-        nid = oinv_by_import(c, run.org, email, role, name, uid)
+        nid, made = oinv_by_import(c, run.org, email, role, name, uid)
         if nid:
             run.created.setdefault("org_joins", []).append([run.org, nid])
+        if made:  # reader F4: the undo deletes it like Withdraw when it was never used
+            run.created.setdefault("org_made", []).append([run.org, nid])
         return nid
     if c.execute("SELECT 1 FROM users WHERE lower(email)=?", (email,)).fetchone():
         return None  # the address exists but the admin does not see it: never a second account
@@ -2484,6 +2487,26 @@ def umz_invite(c, run, uid, email, name, role="member"):
     except Denied:
         return None
     return nid
+
+
+def umz_undo_made(c, made):
+    """2.1424.0 (#6580, reader F4): the accounts the import made for its invitations into an organisation, at its undo (their
+    invitations are gone already): one never used (oinv_pending) with no membership, other invitation (also a silent one,
+    #3570) or project is deleted like Withdraw deletes it; otherwise its unused invitation link ends unless another
+    invitation is still open. -> the files to remove after the commit."""
+    files = []
+    for _oid, who in made:
+        who = int(who)
+        with system_ctx(c):  # accounts that are no member of anything of the importing admin
+            busy = c.execute("""SELECT 1 FROM org_members WHERE user_id=? UNION ALL SELECT 1 FROM org_joins WHERE user_id=?
+                                UNION ALL SELECT 1 FROM lists WHERE owner_id=? AND NOT is_inbox""", (who, who, who)).fetchone()
+            if not c.execute("SELECT 1 FROM users WHERE id=?", (who,)).fetchone():
+                continue
+            if not busy and oinv_pending(c, who):
+                files += user_purge(c, who)
+            elif not c.execute("SELECT 1 FROM org_joins WHERE user_id=? AND NOT silent", (who,)).fetchone():
+                c.execute("DELETE FROM user_invites WHERE user_id=? AND used_at IS NULL", (who,))
+    return files
 
 
 def umz_unwrite(run):
@@ -3158,11 +3181,13 @@ def umz_undo(c, uid, r):
         c.execute("DELETE FROM org_joins WHERE org_id=? AND user_id=? AND created_by=?", (int(oid), int(who), uid))
         c.execute("DELETE FROM org_invites WHERE org_id=? AND user_id=? AND created_by=?", (int(oid), int(who), uid))  # 2.1424.0 (#6580): like Withdraw
         ojn_drop_later(c, int(oid), int(who), uid)
+    gone = umz_undo_made(c, cr.get("org_made") or [])
     c.execute("UPDATE imports SET undone_at=? WHERE id=?", (iso(now_utc()), r["id"]))
     bump(c)
     c.commit()
     oi_undo_files(cr)  # 2.272.0 C (#3027): the files of the tasks stay with them in the trash (the trash run deletes them)
     unlink_files(tpl_paths)  # 2.464.0 (#3865)
+    unlink_files(gone)  # 2.1424.0 (#6580)
     print("account import undo", r["id"], "user", uid, "tasks", out["tasks"], "kept", out["kept_tasks"], "area rows", n_oi,
           "kept rows", out["kept_rows"], "into the trash", out["trash_rows"], flush=True)
     return out
@@ -3363,8 +3388,9 @@ def umz_invites(c, uid, st, org, picks, can_invite, mails_out=None):
     with one user name are one seat), never an agent or an account with a quota of its own (it never joins the pool), an
     invitation only for an address whose hash is the key's (else umz_share invites nobody), distinct addresses.
     2.1424.0 (#6580): mails_out (a set) gets the addresses invited by e-mail (the day's limit of the invitations)."""
-    if org is None or (st.get("preview") or {}).get("kind") != "org":
+    if org is None:
         return 0
+    org_kind = (st.get("preview") or {}).get("kind") == "org"  # reader F3: an account export invites by e-mail into an organisation too
     ids, salt = st.get("people_ids") or {}, st.get("people_salt")
     accounts, mails = set(), set()
     for k, v in picks.items():
@@ -3372,7 +3398,7 @@ def umz_invites(c, uid, st, org, picks, can_invite, mails_out=None):
             continue
         hid = ids[k] or ((umz_find_login(c, uid, v.get("login")) or {"id": None})["id"] if v.get("login") else None)
         if hid:
-            if v.get("share"):
+            if v.get("share") and org_kind:
                 accounts.add(hid)
         elif v.get("invite") and can_invite:
             em = _email(v.get("email"))
@@ -3439,15 +3465,17 @@ def umz_go(iid):
     can_invite = umz_may_invite(c, org)
     mails = set()
     invites = umz_invites(c, uid, st, org, picks, can_invite, mails)
-    if org is not None and mails:
-        if len(mails) > oinv_day_left(c, uid):  # 2.1424.0 (#6580): all or nothing, like the storage below
-            c.rollback()
-            return err(tr("Too many invitations today (at most {0}). Try again tomorrow.", OINV_DAY), 429)
     short = umz_room_at(c, uid, org, int(st.get("need") or 0), invites)  # 2.1402.0 (#6579): all or nothing, before the run
     if short:
         c.rollback()
         e = umz_room_err(short)
         return jsonify(error=tr_stored([e.text, *e.args_]), code="quota_exceeded", **short), 409
+    # 2.1424.0 (#6580, reader F1/F2): every typed address counts on the day counter of Settings > Organisation > People before
+    # anything is looked up (an address with an account counts like a new one; undo or withdrawal give nothing back); over
+    # the limit nothing starts. A server admin invites without this limit, as before.
+    if org is not None and mails and not g.user["is_admin"] and not oinv_count(uid, len(mails)):
+        c.rollback()
+        return err(tr("Too many invitations today (at most {0}). Try again tomorrow.", OINV_DAY), 429)
     c.rollback()
     try:
         _thread(uid, umz_run, iid, {"org": org, "people": picks, "can_invite": can_invite, "invites": invites}, iid=iid,
