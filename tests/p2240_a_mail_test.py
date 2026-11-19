@@ -224,7 +224,8 @@ check(row and "huge-scan.bin" in (row[0][1] or ""), "#6531: a file over the size
 check(until(lambda: "2" in stubfile("seen"), 20) and "2" not in stubfile("deleted"),
       f"#6531: the mail stays in the mailbox (seen, not deleted) {stubfile('seen')} {stubfile('deleted')}")
 nw = dbx("SELECT data FROM notifications WHERE user_id=? AND kind='attskip' AND task_id=?", (FID, tid))
-check(nw and "receipt-scan.bin" in nw[0][0] and '"quota"' in nw[0][0], f"#6531: the owner gets a News item with the file and the reason {nw}")
+check(nw and "receipt-scan.bin" in nw[0][0] and '"quota"' in nw[0][0] and '"untrusted": true' in nw[0][0],
+      f"#6531: the owner gets a News item with the file and the reason, its name marked as from outside (review F3) {nw}")
 it = Fr.get(B + "/api/news").json()
 items = it.get("items", it) if isinstance(it, dict) else it
 check(any(x.get("kind") == "attskip" and x.get("task_id") == tid for x in items or []), "#6531: the News item is in her feed")

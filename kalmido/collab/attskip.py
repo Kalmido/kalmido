@@ -51,12 +51,30 @@ def att_skip_note(c, tid, skipped, owner=None, lg=None):
         r = c.execute("SELECT created_by FROM tasks WHERE id=?", (tid,)).fetchone()
         who = r[0] if r else None
     lg = lg or (lang(c, who) if who else "en")
+    skipped = [(att_skip_name(n), w) for n, w in skipped]
     text = "\n".join("— " + tr("File not filed: {0} ({1})", n, tr(ATT_SKIP_WHY.get(w, ATT_SKIP_WHY["denied"]), lg=lg), lg=lg)
-                     for n, w in skipped)
+                     for n, w in skipped[:ATT_SKIP_LINES])
+    if len(skipped) > ATT_SKIP_LINES:
+        text += f"\n— … +{len(skipped) - ATT_SKIP_LINES}"
     if who:  # (s given: about the person's own storage, also without the collaboration module, like "ptlimit")
-        news_add(c, who, "attskip", task_id=tid, actor=0, s=usettings(c, who),
-                 data={"names": [n[:120] for n, _w in skipped[:5]], "n": len(skipped), "why": skipped[0][1]})
+        att_skip_news(c, who, skipped, task_id=tid)
     return text
+
+
+ATT_SKIP_LINES = 20  # review F2: the note stays short (a mail carries at most 20 files anyway)
+
+
+def att_skip_name(name):
+    """review F2: a file name a stranger chose, on one line and at most 120 characters (it goes into a note and the News)."""
+    return " ".join(str(name or "").split())[:120] or "?"
+
+
+def att_skip_news(c, who, skipped, task_id=None):
+    """The News item "attskip" for who. review F3: the names come from outside (a mail, a form): the entry says so
+    (untrusted, origin), so the agents' data fence fences its text (name) as data."""
+    names = [att_skip_name(n) for n, _w in skipped[:5]]
+    news_add(c, who, "attskip", task_id=task_id, actor=0, s=usettings(c, who),
+             data={"name": ", ".join(names), "n": len(skipped), "why": skipped[0][1], "untrusted": True, "origin": "mail"})
 
 
 def att_skip_task(c, tid, skipped, owner=None):

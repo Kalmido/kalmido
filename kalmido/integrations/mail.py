@@ -523,7 +523,7 @@ def mail_try_lost(box, u):
     so the owners hear of it."""
     c = connect()
     try:
-        n = len(c.execute("UPDATE mail_in_seen SET state='gave' WHERE box=? AND imap_uid=? AND state='open' RETURNING 1",
+        n = len(c.execute("UPDATE mail_in_seen SET state='gave' WHERE box=? AND imap_uid=? AND state IN ('open', 'later') RETURNING 1",
                           (box, u.decode() if isinstance(u, bytes) else str(u))).fetchall())
         c.commit()
         return n
@@ -535,7 +535,8 @@ def mail_try_gone(box, u):
     """2.1269 (#6386): an open attempt whose mail is not in the folder any more (moved or deleted by hand): nothing to try."""
     c = connect()
     try:
-        c.execute("UPDATE mail_in_seen SET state='done' WHERE box=? AND imap_uid=? AND state='open'", (box, u.decode()))
+        # #6874 review F1: a mail put back for later that is gone ends too (else it is due in every round and holds the others up)
+        c.execute("UPDATE mail_in_seen SET state='done' WHERE box=? AND imap_uid=? AND state IN ('open', 'later')", (box, u.decode()))
         c.commit()
     finally:
         c.close()
