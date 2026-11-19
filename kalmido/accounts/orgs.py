@@ -166,13 +166,16 @@ def vis_mode(c):
     return "org"  # 2.46.0 (#1592): workspaces
 
 
-def user_orgs(c, uid):
+def user_orgs(c, uid, raw=False):
     """The ids of the organisations uid is in (not retired), as org_roles_of has them for this request: a personal agent only
-    where its person still is (#6605)."""
+    where its person still is (#6605), a support session only those with support access (#6977 F1). raw=True: every stored
+    membership -- only for the account's own access context (core/access.py _ctx_build narrows a support session itself)."""
     m = instance_mode(c)
     if m == "shared":
         return []
     from .orgroles import org_roles_cap, org_roles_of, org_roles_read
+    if raw:
+        return sorted(org_roles_read(c, uid))  # 2.37.0 (#1150) / 2.223.2 A (#2859): read as system, a retired organisation grants nothing
     if has_request_context() and request.method in ("GET", "HEAD"):  # 2.280.0 B (#3116): a read asks once per person, not per call
         return sorted(org_roles_of(c, uid))  # the same org ids (request cache, forgotten by acx_drop)
     return sorted(org_roles_cap(c, uid, org_roles_read(c, uid)))  # a write asks the database each time
@@ -234,7 +237,7 @@ def org_role(c, uid, oid):
     from .orgroles import org_roles_cap, org_roles_of, org_roles_read
     if _rq("or") is not None:  # 2.369.6 (#3139): a read takes the role from the request cache user_orgs read (same rows)
         return org_roles_of(c, uid).get(oid)
-    # #6605: a write reads fresh, narrowed as org_roles_of (a personal agent)
+    # #6605 / #6977 F1: a write reads fresh, narrowed as org_roles_of (a personal agent, a support session)
     return org_roles_cap(c, uid, org_roles_read(c, uid)).get(oid)  # 2.143.0 A (#2151, review): unknown -> guest (role_known)
 
 

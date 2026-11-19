@@ -150,7 +150,10 @@ it) passes the stored memberships through `accounts/orgroles.py` `org_roles_cap`
 a personal agent has in each organisation at most the current role of its person (its person no longer there: no role).
 So a read-only person's agent is read-only too -- the role checks ask the agent's own role (`cap_list_role`, `org_readonly`,
 the file store's share role) and need no agent exception. A role change to guest / accounting takes the person's agents
-out of the organisation as leaving does (`accounts/orgs.py` `org_agents_out`).
+out of the organisation as leaving does (`accounts/orgs.py` `org_agents_out`). In a support session (#6977 F1) the same cap keeps only the
+organisations of the narrowed context (`sga_orgs_readable`), so a route that checks the role and then reads in the system
+context answers no organisation without its own grant (`tests/p6977_support_roles_src_test.py` holds that reading routes
+do not work out memberships themselves).
 
 Office documents filed in a folder (`office/docref.py`, decision of #2742, confirmed with #5048): the folder share and the
 office groups are two ways in, and the higher one counts for the document itself -- a folder share can lift reading or
