@@ -50,6 +50,19 @@ const STUB = 'http://127.0.0.1:8095';
     'popover of the HTML event: everything escaped, only the https URL linked');
   check(w.__xss === undefined, 'no script ran');
   w.eval('closePop()');
+  // 2.1423.0 (#6551): a subscription out of date (the server's stale + synced_at, p21423_c_calsub_stale_test.py): its events wear
+  // a warning mark with "as of" instead of the link mark, the popover says since when
+  const lsub = w.eval(`S.cal.items.find(e => e.title === 'Lunch with Sam')?.sub`);
+  w.eval(`Object.assign(S.cal.subs[${JSON.stringify(lsub)}], {stale: true, synced_at: '2026-11-18T13:05:00Z'}); renderView()`);
+  const lc = await until(() => [...d.querySelectorAll('.cal .cev, .agenda .cevrow')].find(c => /Lunch with Sam/.test(c.textContent) && c.querySelector('.cevstale')));
+  check(lc && /^Not updated since \S/.test(lc.querySelector('.cevstale').getAttribute('aria-label') || '') && !lc.querySelector('[aria-label="Subscribed calendar"]'),
+    '#6551: an event of an out-of-date subscription wears the warning mark with "as of"');
+  if (lc) { click(w, lc); await sleep(200); }
+  check(/Not updated since/.test(d.querySelector('#pop .cevpop .cevstale')?.textContent || ''), '#6551: its popover says since when');
+  w.eval('closePop()');
+  w.eval(`delete S.cal.subs[${JSON.stringify(lsub)}].stale; renderView()`);
+  check(await until(() => [...d.querySelectorAll('.cal .cev, .agenda .cevrow')].some(c => /Lunch with Sam/.test(c.textContent) && c.querySelector('[aria-label="Subscribed calendar"]'))),
+    '#6551: fetched again, the link mark is back');
   // ---- week + day
   w.eval(`S.calMode = 'week'; S.calSel = today(); renderView()`);
   await until(() => d.querySelector('.wcev'));
