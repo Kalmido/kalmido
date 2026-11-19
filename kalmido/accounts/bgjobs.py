@@ -23,6 +23,13 @@ KALMIDO_SECRET_KEY, which never lives in the database, so a copy of the database
 done; done rows go after BGJ_KEEP_DONE_H hours, failed ones after BGJ_KEEP_FAILED_D days. A kind is a function registered
 with @bgj_fn(kind) that gets the payload's arguments; it runs in the same context as the thread before (own connections,
 no request). Without the database (bgj_add fails) the work runs in a thread as before.
+
+2.1408.0 (#6388): a row whose function raises waits again with a growing gap (BGJ_RETRY_S, doubled per run) while its kind
+has runs left (bgj_fn retry=, default its tries; mail:* and push:* 3: their function raising means nothing went out); a
+waiting row of a kind with a highest age (bgj_fn max_age=, mail:* 24 h, push:* 1 h) older than that is failed 'expired'
+instead of going out days late, a row of a kind no process knows after BGJ_UNKNOWN_H hours 'unknown kind'. bgj_trouble
+gives the numbers the watchdog alerts the admins with (notify/alerts.py aa_bgjobs). BGJ_ON_STOP: functions a stopping process calls before it releases its rows (the
+server agent tells the person whose request it was working on).
 """
 import base64
 import json
@@ -33,7 +40,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 from ..core.config import app, SECRET_KEY
-from ..core.db import connect, iso
+from ..core.db import connect, iso, parse_iso
 from ..core.env import env_int  # 2.370.3 (#2760)
 from ..core.db import db_log_err  # 2.239.0 B (#2888): no values of database errors in the log
 from ..core.pg import system_ctx
@@ -56,9 +63,16 @@ BGJ_SLOTS = 4           # rows running at once per process
 BGJ_STOP_WAIT_S = env_int("KALMIDO_BG_STOP_WAIT_S", 8, lo=0, hi=60)  # 2.370.3 (#2760, review 1): a stop waits this long for running rows (< Docker's 10 s)
 BGJ_PROGRESS_KEEP_H = 1  # 2.370.3 (review 7): the progress of an ended row (counts, names of bad cards) is emptied after this
 BGJ_LONG_SLOTS = env_int("KALMIDO_BG_LONG_SLOTS", 4, lo=1)  # 2.370.3 (#2760): exports / imports at once per process
+BGJ_RETRY_S = 30        # 2.1408.0 (#6388): s before the second run of a row whose function raised; doubled per further run
+BGJ_UNKNOWN_H = 24      # 2.1408.0 (#6388): a row of a kind no process knows is failed after this ('unknown kind')
+# 2.1408.0 (#6388): per kind prefix: (runs at most when the function raises, highest age in s of a waiting row)
+BGJ_PREFIX = {"mail:": (3, 24 * 3600), "push:": (3, 3600)}
 BGJ_FNS = {}            # kind -> function(*args)
 BGJ_TRIES_OF = {}       # kind -> runs at most (review 2.193.0: a mail is not sent a second time after a lost run)
-_Q = {"thread": None, "house": 0.0}
+BGJ_RETRY_OF = {}       # 2.1408.0 (#6388): kind -> runs at most when its function raises
+BGJ_AGE_OF = {}         # 2.1408.0 (#6388): kind -> highest age (s) of a waiting row; no entry = none
+BGJ_ON_STOP = []        # 2.1408.0 (#6388): f() called when the process stops, before its rows are released
+_Q = {"thread": None, "house": 0.0, "watch": 0.0}
 _SLOTS = {"busy": 0, "long": 0}
 _LOCK = threading.Lock()
 _WAKE = threading.Event()
@@ -76,13 +90,21 @@ def _now():
     return datetime.now(timezone.utc)
 
 
-def bgj_fn(kind, tries=BGJ_TRIES, gate=True, long=False):
+def bgj_fn(kind, tries=BGJ_TRIES, gate=True, long=False, retry=None, max_age=None):
     """Registers the function of a kind (decorator); it gets the arguments bgj_add was given. tries: runs at most (1 for
     work that must not happen twice, e.g. a mail: a lost run is then failed, not repeated). gate: see the top. long: an
-    export / import (2.370.3, #2760): its own slots, never in the way of the short rows."""
+    export / import (2.370.3, #2760): its own slots, never in the way of the short rows. 2.1408.0 (#6388): retry = runs at
+    most when the function raises (None: the prefix's in BGJ_PREFIX, else tries), max_age = s a row may wait (None: the
+    prefix's, else no limit)."""
+    pre = next((v for k, v in BGJ_PREFIX.items() if kind.startswith(k)), None)
+
     def deco(fn):
         BGJ_FNS[kind] = fn
         BGJ_TRIES_OF[kind] = tries
+        BGJ_RETRY_OF[kind] = retry if retry is not None else pre[0] if pre else tries
+        age = max_age if max_age is not None else pre[1] if pre else None
+        if age:
+            BGJ_AGE_OF[kind] = int(age)
         if not gate:
             BGJ_NO_GATE.add(kind)
         if long:
@@ -268,14 +290,31 @@ def bgj_house(c, force=False):
             else:
                 failed += c.execute("UPDATE bg_jobs SET state='failed', error='lost', payload='', finished_at=? WHERE id=?",
                                     (iso(now), r["id"])).rowcount
+        expired = _expire(c, now)  # 2.1408.0 (#6388)
         c.execute("UPDATE bg_jobs SET progress='' WHERE state IN ('done', 'failed') AND progress != '' AND finished_at < ?",
                   (iso(now - timedelta(hours=BGJ_PROGRESS_KEEP_H)),))  # 2.370.3 (review 7)
         gone = c.execute("DELETE FROM bg_jobs WHERE (state='done' AND finished_at < ?) OR (state='failed' AND finished_at < ?)",
                          (iso(now - timedelta(hours=BGJ_KEEP_DONE_H)), iso(now - timedelta(days=BGJ_KEEP_FAILED_D)))).rowcount
     c.commit()
-    if again or failed:
-        print(f"bgjobs: {again} lost run(s) waiting again, {failed} failed", flush=True)
-    return {"again": again, "failed": failed, "gone": gone}
+    if again or failed or expired:
+        print(f"bgjobs: {again} lost run(s) waiting again, {failed} failed, {expired} too old / of no known kind", flush=True)
+    return {"again": again, "failed": failed, "gone": gone, "expired": expired}
+
+
+def _expire(c, now):
+    """2.1408.0 (#6388): waiting rows older than their kind's highest age are failed 'expired' (a push from hours ago helps
+    nobody), rows of a kind no process knows after BGJ_UNKNOWN_H hours 'unknown kind' (they waited for ever). The payload
+    goes. Under the caller's system_ctx; returns how many."""
+    n = 0
+    for kind, age in sorted(BGJ_AGE_OF.items()):
+        n += c.execute("""UPDATE bg_jobs SET state='failed', error='expired', payload='', finished_at=?
+                          WHERE state='wait' AND kind=? AND created_at < ?""", (iso(now), kind, iso(now - timedelta(seconds=age)))).rowcount
+    known = sorted(BGJ_FNS)
+    if known:
+        n += c.execute("""UPDATE bg_jobs SET state='failed', error='unknown kind', payload='', finished_at=?
+                          WHERE state='wait' AND created_at < ? AND kind NOT IN (""" + ",".join("?" * len(known)) + ")",
+                       (iso(now), iso(now - timedelta(hours=BGJ_UNKNOWN_H)), *known)).rowcount
+    return n
 
 
 def _kinds_free():
@@ -311,6 +350,19 @@ def _finish(rid, state, error="", run=None):
         with system_ctx(c):  # the queue's own row
             c.execute("UPDATE bg_jobs SET state=?, error=?, payload='', finished_at=? WHERE id=?" + (" AND attempts=? AND state='run'" if run else ""),
                       (state, error[:200], iso(_now()), rid, *((run,) if run else ())))
+        c.commit()
+    finally:
+        c.close()
+
+
+def _retry(rid, run, error):
+    """2.1408.0 (#6388): the run raised and its kind has runs left: the row waits again, BGJ_RETRY_S * 2^(run - 1) s from now
+    (the payload stays). Only this run of the row (a late end of a run the housekeeping gave up never touches the next)."""
+    c = connect()
+    try:
+        with system_ctx(c):  # the queue's own row
+            c.execute("""UPDATE bg_jobs SET state='wait', started_by='', error=?, run_after=? WHERE id=? AND attempts=? AND state='run'""",
+                      (error[:200], iso(_now() + timedelta(seconds=BGJ_RETRY_S * 2 ** max(0, run - 1))), rid, run))
         c.commit()
     finally:
         c.close()
@@ -365,11 +417,16 @@ def _run_row(rid, kind, args, run, gated=False):
     except Exception as e:  # noqa: BLE001 -- the kinds log their own errors as before
         print("bgjobs:", kind, "failed:", db_log_err(e), flush=True)
         state, error = "failed", type(e).__name__
+        if run and run < BGJ_RETRY_OF.get(kind, 1) and not _Q.get("stopping"):  # 2.1408.0 (#6388): again, a while later
+            state = "retry"
     finally:
         _CUR.rid = None
         stop.set()
         try:
-            _finish(rid, state, error, run)
+            if state == "retry":
+                _retry(rid, run, error)
+            else:
+                _finish(rid, state, error, run)
         except Exception as e:  # noqa: BLE001 -- no database: the housekeeping finds the row without a beat later
             print("bgjobs: finish", rid, type(e).__name__, flush=True)
         with _LOCK:
@@ -428,7 +485,26 @@ def bgj_counts(c):
         rows = c.execute("SELECT state, COUNT(*) AS n FROM bg_jobs GROUP BY state").fetchall()
     out = {"wait": 0, "run": 0, "done": 0, "failed": 0}
     out.update({r["state"]: int(r["n"]) for r in rows})
+    out.update(bgj_trouble(c))  # 2.1408.0 (#6388)
     return out
+
+
+def bgj_trouble(c):
+    """2.1408.0 (#6388): {"failed_1h": rows failed in the last hour, "failed_kinds": their kinds (at most 5, the most first),
+    "oldest_wait_s": how long the oldest due row waits (0 = none)} - numbers and kind names only."""
+    now = _now()
+    with system_ctx(c):  # counts of the queue over every workspace, no content
+        fk = c.execute("""SELECT kind, COUNT(*) AS n FROM bg_jobs WHERE state='failed' AND finished_at >= ? GROUP BY kind
+                          ORDER BY n DESC, kind""", (iso(now - timedelta(hours=1)),)).fetchall()
+        old = c.execute("SELECT MIN(run_after) FROM bg_jobs WHERE state='wait' AND run_after <= ?", (iso(now),)).fetchone()[0]
+    wait_s = 0
+    if old:
+        try:
+            wait_s = max(0, int((now - parse_iso(old)).total_seconds()))
+        except (TypeError, ValueError):
+            wait_s = 0
+    return {"failed_1h": sum(int(r["n"]) for r in fk), "failed_kinds": [r["kind"] for r in fk[:5]], "oldest_wait_s": wait_s}
+
 
 
 def bgj_pending(c, kind):
@@ -568,6 +644,11 @@ def bgj_on_term():
         end = time.monotonic() + BGJ_STOP_WAIT_S  # review 1: the running rows get the time Docker gives before its SIGKILL
         while (_SLOTS["busy"] or _SLOTS["long"]) and time.monotonic() < end:
             time.sleep(0.1)
+        for f in list(BGJ_ON_STOP):  # 2.1408.0 (#6388): e.g. the server agent tells whose request it was working on
+            try:
+                f()
+            except Exception as e:  # noqa: BLE001 -- a stop hook never keeps the rows from being released
+                print("bgjobs: stop hook", type(e).__name__, flush=True)
         try:
             bgj_release()
         except Exception as e:  # noqa: BLE001 -- no database: the housekeeping finds the rows after BGJ_LOST s

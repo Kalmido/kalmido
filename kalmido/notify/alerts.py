@@ -25,6 +25,7 @@ from ..notify.push import (
 )
 from ..core.env import env_bool
 from ..core.rls import STATE  # 2.149.0 G (#2517): pulled up from functions
+from ..accounts.bgjobs import bgj_trouble  # 2.1408.0 (#6388)
 
 
 # ---------------------------------------------------------------- admin alerts (ntfy, admins only)
@@ -514,6 +515,32 @@ def aa_flush_loop():
                     c.close()
         except Exception as e:  # noqa: BLE001
             print("admin alerts flush:", type(e).__name__, e, flush=True)
+
+
+# 2.1408.0 (#6388): failed and long-waiting rows of the queue bg_jobs (accounts/bgjobs.py) were seen by nobody
+AA_BG_FAILED = _env_int("KALMIDO_BG_ALARM_FAILED", 10)  # more rows failed within an hour = an alert
+AA_BG_WAIT_S = 900   # the oldest due row waits longer = an alert (is the worker running?)
+AA_BG_EVERY = 300    # s between two looks
+_AA["bg_at"] = 0.0
+
+
+def aa_bgjobs(c, force=False):
+    """2.1408.0 (#6388), a section of the watchdog (notify/push.py): an admin alert (kind storage; the same key waits out the
+    cooldown) when more than AA_BG_FAILED rows of the queue failed in the last hour or the oldest due row waits longer than
+    AA_BG_WAIT_S - numbers and kind names only. Every AA_BG_EVERY s; returns the numbers (None between two looks)."""
+    now = time.monotonic()
+    if not force and now - _AA["bg_at"] < AA_BG_EVERY:
+        return None
+    _AA["bg_at"] = now
+    t = bgj_trouble(c)
+    if t["failed_1h"] > AA_BG_FAILED:
+        aa_now("storage", "bgjobs:failed", Nn_("{0} background job failed in the last hour ({1}).",
+                                                "{0} background jobs failed in the last hour ({1})."),
+               [t["failed_1h"], ", ".join(t["failed_kinds"])], t["failed_1h"])
+    if t["oldest_wait_s"] > AA_BG_WAIT_S:
+        aa_now("storage", "bgjobs:waiting", N_("The oldest background job has been waiting for {0} minutes. Is the worker running?"),
+               [t["oldest_wait_s"] // 60])
+    return t
 
 
 def aa_tick(c):

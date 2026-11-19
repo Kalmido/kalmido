@@ -761,7 +761,7 @@ def watchdog_tick(c):
 
 
 def _watchdog_tick(c):
-    from ..notify.alerts import aa_tick
+    from ..notify.alerts import aa_bgjobs, aa_tick
     from ..tasks.dayplan import _wd_review
     from ..agents.chat import chat_files_gc
     from ..agents.core import burst_tick, tidy_tick
@@ -889,6 +889,7 @@ def _watchdog_tick(c):
     # so do the knowledge files and table files deleted on their own (part kinds wiki_file / sheet_file; wka_tick, shk_tick gone)
     from ..wiki.wkhist import wkx_tick
     _wd_section(c, "wiki held versions", wkx_tick)  # 2.528.0 D (#4306): versions held at a lock, after the trash period
+    _wd_section(c, "background queue", aa_bgjobs)  # 2.1408.0 (#6388): failed / long-waiting rows of bg_jobs -> an admin alert
     _wd_section(c, "admin alerts", aa_tick)
 
 
