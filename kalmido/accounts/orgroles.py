@@ -156,9 +156,15 @@ def cap_list_role(c, uid, oid, role):
     return role
 
 
-def roles_public(c):
-    """The roles an organisation admin can hand out, with their short explanation (the app's picker)."""
-    return [{"key": k, "label": tr(lb), "hint": tr(h)} for k, lb, h in ROLE_TEXTS]
+def roles_public(c, oid=None):
+    """The roles an organisation admin can hand out, with their short explanation (the app's picker). #6527: with oid each
+    role also says in one sentence what it may in the office of that organisation (office: the invitation dialog shows it)."""
+    out = [{"key": k, "label": tr(lb), "hint": tr(h)} for k, lb, h in ROLE_TEXTS]
+    if oid:
+        start = office_new_tpl(c, oid)
+        for r in out:
+            r["office"] = tr(ROLE_OFFICE_NEW[r["key"]] if start == "staff" and r["key"] in ROLE_OFFICE_NEW else ROLE_OFFICE[r["key"]])
+    return out
 
 
 ROLE_TEXTS = (
@@ -168,3 +174,30 @@ ROLE_TEXTS = (
     ("accounting", N_("Accounting"), N_("Reads and exports the office, uploads receipts; otherwise only what is shared personally")),
     ("guest", N_("Guest"), N_("Sees only what is shared with them personally")),
 )
+# #6527: the built-in office groups (office/rights.py TEMPLATES) an organisation may name as the start of its new members
+# (orgs.office_new_tpl; "legacy" = "Previous access" is no row at all, so never named here)
+OFFICE_START_TPLS = ("staff", "readonly", "none", "projects", "bookkeeping")
+
+
+def office_new_tpl(c, oid):
+    """#6527: the built-in office group a new member of organisation oid starts with ('' = none: "Previous access")."""
+    with system_ctx(c):  # the organisation's own setting (also while a person is joining)
+        r = c.execute("SELECT office_new_tpl FROM orgs WHERE id=?", (oid,)).fetchone()
+    k = (r[0] if r else "") or ""
+    return k if k in OFFICE_START_TPLS else ""
+
+
+# #6527: what a role may in the office, one sentence each (the invitation dialog). ROLE_OFFICE: an organisation whose members
+# without an office group keep "Previous access" (the organisations of before); ROLE_OFFICE_NEW: a company created by a person,
+# whose new members start in the group "Staff" (office/rights.py ofr_join_default)
+ROLE_OFFICE = {
+    "member": N_("In the office: quotations, invoices, clients, contracts and the office settings. Restrict it in the office settings under Rights."),
+    "admin": N_("In the office: everything, including the office rights."),
+    "readonly": N_("In the office: reads quotations, invoices, clients and contracts."),
+    "accounting": N_("In the office: reads and exports the bookkeeping, invoices, receipts and bank."),
+    "guest": N_("In the office: nothing."),
+}
+ROLE_OFFICE_NEW = {
+    "member": N_("In the office: only their own receipts, travel expenses, drives and times. You give more in the office settings under Rights."),
+    "readonly": N_("In the office: only their own receipts, travel expenses, drives and times, read-only. You give more in the office settings under Rights."),
+}

@@ -42,6 +42,9 @@ async function oinvSend(oid, email, role) {
 // 2.364.0 C (#3041): ONE invitation dialog for the three ways before (field + Add, "Invite by e-mail", Administration > New
 // user): by e-mail (an invitation, or added when invitations are off) or -- only for the server's admins, as before -- by a
 // link to pass on (a new account in this organisation with this role, POST /api/users invite + send: false). on = invitations on.
+// #6527: below the role's hint: what it may in the office (one sentence from the server, accounts/orgroles.py ROLE_OFFICE) and that
+// projects are shared one by one -- a new member sees no project of the organisation until it is shared or open to everyone
+const oinvOffice = (/** @type {any[]} */ hints, /** @type {string} */ k) => [(hints.find(x => x.key === k) || {}).office || '', k === 'guest' ? '' : tr('Projects are shared one by one, or opened to everyone in the organisation in the project\'s settings.')].filter(Boolean).join(' ');
 function oinvDialog(oid, hints = [], on = true) {
   const lk = !!S.me?.is_admin;
   /** @type {any} */
@@ -53,6 +56,7 @@ function oinvDialog(oid, hints = [], on = true) {
     <div class="row"><label for="oinv-mail">${tr('E-mail')}</label><input id="oinv-mail" type="email" required maxlength="200" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="send"></div>
     <div class="row"><label for="oinv-role">${tr('Role')}</label>${oinvRoleSel('oinv-role', 'member', hints)}</div>
     <div class="shint oinvrolehint">${esc((hints.find(x => x.key === 'member') || {}).hint || '')}</div>
+    <div class="shint oinvoffice">${esc(oinvOffice(hints, 'member'))}</div>
     <div class="shint oinvmh">${!on ? tr('With an account, the person is added; without one, nothing happens (invitations are switched off on this server).') : S.me?.is_admin ? tr('Without an account, a new one is created in this organisation and the person gets an e-mail to choose a password. With an account, the person is added.')
       : tr('Without an account, a new one is created and the person gets an e-mail to choose a password. Either way the person joins by accepting the invitation.')}</div>
     <div class="shint oinvlk" hidden>${tr('A new account in this organisation. You get a link to pass on (it works once and for 7 days); with it the person chooses a password. The e-mail is optional.')}</div>
@@ -68,7 +72,7 @@ function oinvDialog(oid, hints = [], on = true) {
     setTimeout(() => $(lnk ? '#oinv-name' : '#oinv-mail', md)?.focus(), 0);
   });
   if (lk && typeof userNameFollow === 'function') userNameFollow(md, 'oinv-name', 'oinv-user', 'oinv-userhint');
-  $('#oinv-role', md).addEventListener('change', e => { $('.oinvrolehint', md).textContent = (hints.find(x => x.key === /** @type {any} */ (e.target).value) || {}).hint || ''; });  // 2.143.0 A (#2151)
+  $('#oinv-role', md).addEventListener('change', e => { const k = /** @type {any} */ (e.target).value; $('.oinvrolehint', md).textContent = (hints.find(x => x.key === k) || {}).hint || ''; $('.oinvoffice', md).textContent = oinvOffice(hints, k); });  // 2.143.0 A (#2151), #6527
   md.querySelector('form').addEventListener('submit', async e => {
     e.preventDefault();
     const email = $('#oinv-mail', md).value.trim(), role = $('#oinv-role', md).value, sb = md.querySelector('[type=submit]');

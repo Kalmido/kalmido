@@ -140,7 +140,7 @@ async function orr_del(gid) {
 }
 
 // ---- Log
-const ORR_ACT = {member_groups: N_('changed the groups of {0}'), group_create: N_('created the group {0}'), group_change: N_('changed the group {0}'), group_delete: N_('deleted the group {0}'), group_restore: N_('restored the group {0}')};
+const ORR_ACT = {member_groups: N_('changed the groups of {0}'), group_create: N_('created the group {0}'), group_change: N_('changed the group {0}'), group_delete: N_('deleted the group {0}'), group_restore: N_('restored the group {0}'), member_start: N_('{0} joined and starts in the default group')};  // #6527: office/rights.py ofr_join_default
 function orr_logHtml(d) {
   if (ORR.logErr) return ofcFail(ORR.logErr, () => { ORR.logErr = null; ORR.log = null; ORR.logBusy = false; });  // 2.1076.0 (#5450)
   if (!ORR.log) { if (!ORR.logBusy) { ORR.logBusy = true; setTimeout(orr_logLoad, 0); } return loadingHtml('big'); }
@@ -148,7 +148,7 @@ function orr_logHtml(d) {
   const when = iso => typeof ofdWhen === 'function' ? ofdWhen(iso) : iso;
   return `<ul class="orr-log" role="list">${ORR.log.map(x => {
     const gname = x.after?.name || x.before?.name || (x.group ? orr_refName(d, x.group) : '');
-    const what = tr(ORR_ACT[x.action] || x.action, x.action === 'member_groups' ? x.user_name || '?' : gname);
+    const what = tr(ORR_ACT[x.action] || x.action, /^member_(groups|start)$/.test(x.action) ? x.user_name || '?' : gname);
     const lines = orr_logLines(d, x);
     return `<li><details class="orr-le" data-orr-open="l:${x.id}" ${ORR.open.has('l:' + x.id) ? 'open' : ''}><summary><span class="muted">${esc(when(x.at))}</span> <b>${esc(x.by_name || '?')}</b> <span>${esc(what)}</span></summary>${lines.length ? `<ul class="orr-ld" role="list">${lines.map(l => `<li>${esc(l)}</li>`).join('')}</ul>` : ''}</details></li>`;
   }).join('')}</ul>`;
@@ -156,6 +156,7 @@ function orr_logHtml(d) {
 function orr_logLines(d, x) {
   const an = k => (d.areas || []).find(a => a.key === k)?.name || k, sn = k => (d.specials || []).find(s => s.key === k)?.name || k;
   const arrow = (a, b) => tr('{0} → {1}', a, b);
+  if (x.action === 'member_start') return [(x.after || []).map(r => orr_refName(d, r)).join(', ')];  // #6527
   if (x.action === 'member_groups') return [arrow((x.before || []).map(r => orr_refName(d, r)).join(', ') || tr('Previous access'), (x.after || []).map(r => orr_refName(d, r)).join(', '))];
   const b = x.before || {}, a = x.after || {}, out = [];
   if (x.action === 'group_change' && b.name !== a.name) out.push(`${tr('Name')}: ${arrow(b.name || '', a.name || '')}`);

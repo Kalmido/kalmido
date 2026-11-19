@@ -1,5 +1,6 @@
 """Organisations (#752) and workspaces (2.28.0, #935): people in 1..n organisations, whom a person may see, which
 workspace (private / an organisation) a list and an agent belong to, the organisation's own admins."""
+import json
 import os
 import re
 
@@ -189,6 +190,32 @@ def org_member_add(c, oid, uid, role="member", keep_office=True):
     if n == 1:  # 2.363.3 (#3133): back within a day: their assignments and "coming along" return (every way of joining comes here)
         from .orgleave import olv_rejoin
         olv_rejoin(c, oid, uid, role)
+        _office_start(c, oid, uid, role)  # #6527: a person who already has an office group keeps it
+
+
+def _office_start(c, oid, uid, role):
+    """#6527: a member / read-only person of a company with a default office group (orgs.office_new_tpl, accounts/orgroles.py
+    office_new_tpl) without any office group row starts in it -- on joining and when their role becomes member / read-only;
+    never the silent "Previous access" (no row) with quotations, invoices and the office settings. Admins are not ruled by
+    groups, a guest sees nothing of the office, accounting keeps its fixed reading; agents (no row = no office access) and
+    people with a row keep theirs. Written into the office rights log like a change on the rights page (office/rights.py
+    ofr_log, action member_start). The caller commits."""
+    if role not in ("member", "readonly"):
+        return False
+    from .orgroles import office_new_tpl  # orgroles imports this module at its top
+    tpl = office_new_tpl(c, oid)
+    if not tpl:
+        return False
+    by = g.user["id"] if has_request_context() and getattr(g, "user", None) is not None else uid
+    with system_ctx(c):  # the office's rights structure for a person who is joining (also when an admin adds them)
+        if c.execute("SELECT 1 FROM users WHERE id=? AND kind='agent'", (uid,)).fetchone() or \
+                c.execute("SELECT 1 FROM office_rgroup_members WHERE org_id=? AND user_id=?", (oid, uid)).fetchone():
+            return False
+        at = iso(now_utc())
+        c.execute("INSERT INTO office_rgroup_members(org_id, user_id, tpl, created_at) VALUES(?,?,?,?)", (oid, uid, tpl, at))
+        c.execute("INSERT INTO office_rights_log(org_id, by_user, target_user, group_ref, action, before, after, at) VALUES(?,?,?,?,?,?,?,?)",
+                  (oid, by, uid, f"tpl:{tpl}", "member_start", "", json.dumps([f"tpl:{tpl}"]), at))
+    return True
 
 
 def _office_keep_on_join(c, uid):
@@ -862,6 +889,7 @@ def _member_ops(c, oid, b):
     for u in ops.get("admins_remove", []):  # only an admin becomes a member; guest / read-only / accounting keep their role (#2151)
         if c.execute("UPDATE org_members SET role='member' WHERE org_id=? AND user_id=? AND role='admin'", (oid, u)).rowcount:
             org_role_news(c, oid, u, "member")
+            _office_start(c, oid, u, "member")  # #6527
             rck_admin_gone(c, oid, u)  # 2.539.0 (#4373)
     gone = [u for u in ops.get("members_remove", []) if c.execute("SELECT 1 FROM org_members WHERE org_id=? AND user_id=?", (oid, u)).fetchone()]
     was = set(rck_org_admins(c, oid)) if gone else set()  # 2.539.0 (#4373)
@@ -1136,8 +1164,10 @@ def org_self_create():
             return err(tr("You already have a company with this name"), 409)
         if org_self_made_n(c, uid) >= ORG_SELF_MAX:
             return err(tr("You already have {0} companies of your own", ORG_SELF_MAX), 409)
-        oid = insert_id(c, "INSERT INTO orgs(name,icon,domains,created_at,self_made) VALUES(?,?,?,?,?)",
-                        (name, _clean_icon(b.get("icon")), "", iso(now_utc()), uid))
+        # #6527: its new members start in the office group "Staff" (their own receipts, travel, drives and times), not in
+        # the silent "Previous access" with quotations, invoices and the office settings; its admins give more
+        oid = insert_id(c, "INSERT INTO orgs(name,icon,domains,created_at,self_made,office_new_tpl) VALUES(?,?,?,?,?,?)",
+                        (name, _clean_icon(b.get("icon")), "", iso(now_utc()), uid, "staff"))
         org_member_add(c, oid, uid, "admin", keep_office=False)
         bump(c)
         c.commit()
@@ -1426,7 +1456,7 @@ def org_mine_dict(c, r, uid):
                          **({"pending": True} if admin and m["signup"] == "pending" else {})} for m in mem],  # 2.464.0 (#3882)
             "lists": c.execute(f"SELECT COUNT(*) FROM lists WHERE org_id=? AND {otr_live('')}", (r["id"],)).fetchone()[0] if full else 0,
             "limited": not full or not org_writes(c, uid, r["id"]),  # 2.143.0 A (#2151): guest / read-only / accounting
-            "roles": roles_public(c),  # 2.143.0 A (#2151): the roles an admin hands out, with their explanation
+            "roles": roles_public(c, r["id"] if admin else None),  # 2.143.0 A (#2151): the roles an admin hands out, with their explanation; #6527: + the office sentence for its admins
             "moving": mv_info(r)}  # 2.1337.0 (#6600): the move (read only) or None
 
 
@@ -1639,6 +1669,7 @@ def org_member_put(oid, ghost=False):
             if cur["role"] == "admin":
                 rck_admin_gone(c, oid, uid)  # 2.539.0 (#4373)
             org_open_chan_off(c, oid, uid, role)  # 2.560.0 (#4698 b)
+            _office_start(c, oid, uid, role)  # #6527: e.g. an admin who becomes a member
     elif uid != me() and (not g.user["is_admin"] or _operator_apart()):  # 2.148.1 A (#2480): an existing account joins only by accepting an invitation (2.306.0 D1, #2875: also the operator's)
         from .orginvite import ojn_invite
         ojn_invite(c, oid, uid, role)
