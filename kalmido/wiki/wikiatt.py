@@ -44,7 +44,7 @@ from .pages import (WIKI_ZIP_FILES, WIKI_ZIP_FILE_MAX, wiki_clean_path, wiki_fit
 from ..docs.pagesize import PG_MAX, pg_of  # #5227: a picture's size from its header
 from .wikie2e import wke_mode, wke_page_mode  # 2.369.5 (#2517): pulled up from functions; 2.637.0 (#4745): wke_mode
 from .wkembed import WEM_LINK_RE, wem_find_file, wem_visible  # 2.1324.0 (#6589): the file store's files of the export
-from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
+from ..core.env import env_int  # (#6615): a wrong value = one warning with its name
 
 WKA_LANG = threading.local()  # 2.177.0 (#2685): the language of the person a background import (wkimport.py) works for
 WKA_TOO_LARGE = N_("The archive is too large")

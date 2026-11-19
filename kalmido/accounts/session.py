@@ -26,7 +26,7 @@ from ..core.ratedb import rate_known_add, rate_known_at  # 2.312.0 C (#3265): kn
 # ---------------------------------------------------------------- auth
 
 from ..core.ctx import me  # noqa: E402,F401  2.149.0 G (#2517): moved to core/ctx.py, re-exported here
-from ..core.env import env_float  # 2.1437.0 (#6615): a wrong value = one warning with its name
+from ..core.env import env_float  # (#6615): a wrong value = one warning with its name
 
 
 def _peer_trusted():

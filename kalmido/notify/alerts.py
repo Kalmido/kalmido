@@ -57,8 +57,8 @@ AA_KEEP = 500         # rows kept in admin_alerts
 AA_LIST = 50          # rows shown in the settings
 AA_STORAGE_EVERY = 600
 AA_QC_EVERY = 86400
-AA_SCAN_EVERY = 60     # 2.1437.0 (#6615): s between two looks at the virus scanner (a PING)
-AA_SCAN_DOWN_S = _env_int("KALMIDO_CLAMD_ALERT_S", 300)  # 2.1437.0 (#6615): s the scanner does not answer before the alert
+AA_SCAN_EVERY = 60     # (#6615): s between two looks at the virus scanner (a PING)
+AA_SCAN_DOWN_S = _env_int("KALMIDO_CLAMD_ALERT_S", 300)  # (#6615): s the scanner does not answer before the alert
 AA_SCAN_TEXT = N_("The virus scanner ({0}) has not answered for {1} min: uploads are taken and marked “Unchecked”. Start the clamav service (COMPOSE_PROFILES in .env) or switch the scan off with KALMIDO_CLAMD= (empty).")
 AA_SCAN_STRICT = N_("The virus scanner ({0}) has not answered for {1} min: uploads are taken and marked “Unchecked” and cannot be opened until it has checked them. Start the clamav service (COMPOSE_PROFILES in .env) or switch the scan off with KALMIDO_CLAMD= (empty).")
 # names of the watchdog parts in _wd_fail (shown in the alert)
@@ -457,7 +457,7 @@ def _aa_storage(c, cfg, now):
 
 
 def _aa_scanner(c, cfg, now):
-    """2.1437.0 (#6615): a virus scanner that is set (KALMIDO_CLAMD) but has not answered for AA_SCAN_DOWN_S: one storage alert
+    """(#6615): a virus scanner that is set (KALMIDO_CLAMD) but has not answered for AA_SCAN_DOWN_S: one storage alert
     (its cooldown as every alert). The upload stays as decided in #1818: taken and marked "Unchecked", never refused; in
     strict mode such files cannot be opened until the scanner checked them -- which is why the admin hears it. The compose
     file sets KALMIDO_CLAMD=clamav:3310 by default, the clamav service runs only with its profile: the text says both ways."""
@@ -611,7 +611,7 @@ def aa_tick(c):
         _aa_integrations(c, cfg, ints, now)
     if "storage" in cfg["kinds"]:
         _aa_storage(c, cfg, now)
-        _aa_scanner(c, cfg, now)  # 2.1437.0 (#6615)
+        _aa_scanner(c, cfg, now)  # (#6615)
     _aa_digest(c, cfg)
 
 

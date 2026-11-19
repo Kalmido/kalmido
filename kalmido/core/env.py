@@ -408,7 +408,7 @@ def env_str(name, default=None):
 
 
 def _warn_num(name, v, what, default):
-    """2.1437.0 (#6615): a number variable with a value that is no number: one line with its name (per process), then the default."""
+    """(#6615): a number variable with a value that is no number: one line with its name (per process), then the default."""
     if name not in _WARNED:
         _WARNED.add(name)
         print(f"warning: {name}={v[:20]!r} is not {what}: using the default ({default})", file=sys.stderr, flush=True)
@@ -432,7 +432,7 @@ def env_int(name, default, lo=None, hi=None):
 
 
 def env_float(name, default, lo=None, hi=None):
-    """2.1437.0 (#6615): a number (also with a decimal point), the same way as env_int."""
+    """(#6615): a number (also with a decimal point), the same way as env_int."""
     v = (os.environ.get(name) or "").strip()
     try:
         n = float(v) if v else float(default)
@@ -450,14 +450,14 @@ def env_float(name, default, lo=None, hi=None):
 
 
 def env_unknown(environ=None):
-    """2.1437.0 (#6615): the KALMIDO_* names in the environment that Kalmido does not read (not in VARS, the one list
+    """(#6615): the KALMIDO_* names in the environment that Kalmido does not read (not in VARS, the one list
     tools/env_check.py checks the code against): a typo like KALMIDO_SMTP_HOSTT would else stay silently without effect."""
     environ = os.environ if environ is None else environ
     return sorted(k for k in environ if k.startswith("KALMIDO_") and k not in _BY)
 
 
 def env_unknown_warn():
-    """2.1437.0 (#6615): one log line at the start (app.py, the first web process) naming the unknown KALMIDO_* variables."""
+    """(#6615): one log line at the start (app.py, the first web process) naming the unknown KALMIDO_* variables."""
     unk = env_unknown()
     if unk:
         print(f"warning: Kalmido does not know {', '.join(unk)} (a typo? the known names: docs/ENV.md): no effect", file=sys.stderr, flush=True)
@@ -465,7 +465,7 @@ def env_unknown_warn():
 
 
 def env_port(name="PORT", default=3040):
-    """2.1437.0 (#6615): the port to listen on; a value that is no port (1-65535) ends the start with one FATAL line naming the
+    """(#6615): the port to listen on; a value that is no port (1-65535) ends the start with one FATAL line naming the
     variable (a default here would listen where the proxy does not look)."""
     v = (os.environ.get(name) or "").strip()
     if not v:

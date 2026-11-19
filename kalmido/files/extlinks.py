@@ -57,7 +57,7 @@ from .store import fs_mail_rows, fs_log_add  # 2.369.5 (#2517): pulled up from f
 from .store import _fs_receipt_hidden, _fs_receipts_hidden_ids  # 2.649.0 A (#5049)
 from .scan import sc_guard  # 2.369.5 (#2517): pulled up from functions
 from .bulk import fs_zip_build, abm_send_zip, abm_drop  # 2.369.5 (#2517): pulled up from functions
-from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
+from ..core.env import env_int  # (#6615): a wrong value = one warning with its name
 
 XL_PREFIX = "/s/f/"
 XL_DAYS = {"1d": 1, "7d": 7, "30d": 30}

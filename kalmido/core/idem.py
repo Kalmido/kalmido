@@ -13,7 +13,7 @@ waited for a moment; or it committed and then failed) lets the repeat run as bef
 committed effect, so a request that committed and then failed (5xx, e.g. a push after the commit) keeps its key as done,
 and a repeat that finds a committed claim without an answer gets {"ok": true} instead of applying the change a second time
 (a log entry, a new row). API v1 (agents, who may retry a call whose later steps failed) stays as before.
-2.1437.0 (#6558): the answer's text is kept only for the routes of IDEM_FULL (tasks, habits, time, notes and chat: what the
+(#6558): the answer's text is kept only for the routes of IDEM_FULL (tasks, habits, time, notes and chat: what the
 app's offline queue sends again and reads back); any other route, and a kept answer over IDEM_MAX_BODY, keeps only its short
 answer (idem_short: the original's shape with ok, the id fields and updated_at, nothing else) -- an agent's office draft, a
 contact, a document no longer lie readable in idem_keys and every backup. A route that hands out a secret sets
@@ -36,12 +36,12 @@ IDEM_HEADER = "Idempotency-Key"
 IDEM_DAYS = 14  # 2.380 H (#3387): as long as the offline queue lives (a change sent after days is no false conflict)
 IDEM_MAX_KEYS = 5000  # 2.380 (#3387 review): kept keys per person; the oldest beyond go (14 days must not mean unbounded)
 IDEM_MAX_BODY = 256 * 1024  # bytes of a stored answer; a larger one keeps its short answer (2.1437.0 #6558, was {"ok": true})
-# 2.1437.0 (#6558): the routes whose whole answer is kept (app and API v1): what the offline queue / service worker send again
+# (#6558): the routes whose whole answer is kept (app and API v1): what the offline queue / service worker send again
 # and read back (the new task's fields, a note's text and updated_at, a chat message). Everything else: idem_short.
 IDEM_FULL = re.compile(r"^/api/(?:v1/)?(?:tasks|habits|time|notes|notepads|lists/\d+/notes|team/messages|agent/chats|agents/\d+/chat)(?:/|$)")
 _IDEM_ID = re.compile(r"^(?:id|ids|.+_id|.+_ids)$")
 _IDEM_KEEP = ("ok", "updated_at")
-# 2.1437.0 (#6558): field names of a secret shown once; such a field with a text value: only the short answer is kept
+# (#6558): field names of a secret shown once; such a field with a text value: only the short answer is kept
 _IDEM_SECRET = re.compile(r"(?:^|_)(?:token|tokens|secret|secrets|code|codes|password|passphrase|key|keys|otpauth)$")
 IDEM_WAIT = 10.0  # 2.575.0 (#3948): was 3 s; a 503 retry of the MCP client during a long write must not write twice; s: a repeat that arrives while the first request is still running waits this long for its answer
 IDEM_PRUNE = {"at": 0.0}  # 2.1315.0 (#6409): the last run of idem_prune (time.time())
@@ -79,7 +79,7 @@ def _idem_replay(r):
 
 
 def idem_secretish(v):
-    """2.1437.0 (#6558): True when the answer holds, at any depth, a field named like a secret (token, secret, code, key, password
+    """(#6558): True when the answer holds, at any depth, a field named like a secret (token, secret, code, key, password
     ...) with a text value (or a list of texts): such an answer keeps only its short answer, whatever the route."""
     if isinstance(v, dict):
         return any((_IDEM_SECRET.search(str(k).lower()) and (isinstance(x, str) and x or isinstance(x, list) and any(isinstance(y, str) for y in x)))
@@ -90,7 +90,7 @@ def idem_secretish(v):
 
 
 def idem_short(v):
-    """2.1437.0 (#6558): the short answer in the shape of the original: ok, every id field (id, ids, *_id, *_ids) and updated_at,
+    """(#6558): the short answer in the shape of the original: ok, every id field (id, ids, *_id, *_ids) and updated_at,
     at any depth (a dict / list keeps what holds such fields, the rest goes). -> the reduced value (None: nothing to keep)."""
     if isinstance(v, dict):
         out = {}
@@ -109,7 +109,7 @@ def idem_short(v):
 
 
 def idem_body(path, data, no_body=False):
-    """2.1437.0 (#6558): the text kept with a key for a 2xx JSON answer (bytes) of `path`: the whole answer on IDEM_FULL up to
+    """(#6558): the text kept with a key for a 2xx JSON answer (bytes) of `path`: the whole answer on IDEM_FULL up to
     IDEM_MAX_BODY and without a secret-named field, else the short answer; None (a repeat gets {"ok": true}) for a route
     marked idem_no_body (it hands out a secret) or an answer that is no JSON."""
     if no_body:
@@ -190,7 +190,7 @@ def idem_store(resp):
         return resp
     ok, body = 200 <= resp.status_code < 300, None
     # 2.391.0 (#3362 review B1): idem_no_body = an answer with a secret shown once is never stored (a repeat gets {"ok": true}:
-    # the effect happened, the secret is not handed out twice); 2.1437.0 (#6558): the whole text only on IDEM_FULL (idem_body)
+    # the effect happened, the secret is not handed out twice); (#6558): the whole text only on IDEM_FULL (idem_body)
     no_body = g.pop("idem_no_body", False)
     if ok and not resp.direct_passthrough and not resp.is_streamed and "json" in (resp.content_type or ""):
         body = idem_body(request.path, resp.get_data(), no_body)

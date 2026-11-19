@@ -31,7 +31,7 @@ from psycopg.pq import TransactionStatus
 from psycopg.types.string import TextLoader
 from psycopg.types.datetime import TimestamptzLoader
 from psycopg_pool import ConnectionPool, PoolTimeout
-from .env import env_int, env_float  # 2.1437.0 (#6615): a wrong value = one warning with its name
+from .env import env_int, env_float  # (#6615): a wrong value = one warning with its name
 
 Error = psycopg.Error
 DatabaseError = psycopg.DatabaseError

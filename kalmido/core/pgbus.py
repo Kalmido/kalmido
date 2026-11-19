@@ -19,7 +19,7 @@ import time
 from . import config
 from .db import connect
 from .pg import WEB_PROCS, connect_listen
-from .env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
+from .env import env_int  # (#6615): a wrong value = one warning with its name
 
 BUS_CHANNEL = "kalmido_bus"
 BUS_MAX = 7000          # bytes of one payload (Postgres: below 8000)

@@ -44,7 +44,7 @@ const ofcMemberHint = () => !ofcNoBooks() ? '' : `<p class="muted ofcmbr">${ic('
 // loads it again) instead of looking empty; ofcNoHit = the one "nothing matches" of the office (was eight wordings)
 const ofcAdmOnly = (size = 'big') => noAccessState({sub: tr('Only for admins of the office.'), size});
 const ofcFail = (sub, reset, size = 'big') => errorState({sub: sub || undefined, size, retry: reset ? () => { reset(); ofcDraw(); } : undefined, action: ofc_noAreaBtns(sub)});
-// 2.1437.0 (#7297): the server's "Which workspace? The office always belongs to a workspace." (code
+// (#7297): the server's "Which workspace? The office always belongs to a workspace." (code
 // office_no_area) gets a button per workspace with an office right under it, wherever it shows (the office's pages, Settings >
 // Company & office); a click chooses that workspace and opens its office. ofcErrHere notes the answer's text (the screens keep
 // only the text); with a workspace chosen the app names its area with every request, so it does not come there
@@ -222,7 +222,7 @@ function viewOffice() {
   if (OFC.info) ofm_admSeen(OFC.info.role === 'admin', OFC.info.rights, OFC.info.used, OFC.info.settings?.menu_off);  // 2.276.0 A (#3039): + used; 2.440.0 (#3609): + the points switched off
   if (OFC.info && !OFC.infoErr && S.route.tab === 'settings' && tab === 'settings') ofc_setJump();
   let body;
-  if (OFC.infoErr) body = errorState({sub: OFC.infoErr, retry: () => { OFC.infoErr = null; ofcDraw(); }, action: ofc_noAreaBtns(OFC.infoErr)});  // 2.1437.0 (#7297): + the workspaces  // 2.1076.0 (#5450): the reason + "Try again" (viewOffice loads the info again)
+  if (OFC.infoErr) body = errorState({sub: OFC.infoErr, retry: () => { OFC.infoErr = null; ofcDraw(); }, action: ofc_noAreaBtns(OFC.infoErr)});  // (#7297): + the workspaces  // (#5450): the reason + "Try again" (viewOffice loads the info again)
   else if (!OFC.info) body = loadingHtml('big');
   else if (tab === 'start') body = (pb_hintHtml() || '') + ofcMemberHint() + ofm_startHtml();  // 2.87.9 (#1917); 2.356.0 D (#3006): + the members' line
   else if (tab === 'settings' && (S.route.tab === 'rights' || (ofr_grp() && ofr_lvOf('settings') === 'none')) && typeof orr_html === 'function') body = orr_html();  // 2.187.0 A (#2476): the page "Rights" (a person without the settings: only "My rights")
@@ -731,7 +731,7 @@ async function pb_move() {
   if (!await askConfirm(tr('Move your private office into “{0}”?', name), tr('Turns this private office into a new organisation with you as its admin: documents, numbers, settings, master data and your private clients go with it. This cannot be undone.'), {ok: tr('Move'), danger: true})) return;
   try {
     const j = await api('POST', '/api/office/move', {name, confirm: true});
-    await refreshMe(); S.workspaces = true; ws_save(ws_hold('org:' + j.org_id), null);  // 2.1437.0 (#7297): saved too (was only local: the next state load went back)
+    await refreshMe(); S.workspaces = true; ws_save(ws_hold('org:' + j.org_id), null);  // (#7297): saved too (was only local: the next state load went back)
     pb_reset(true); OFC.ws = typeof wsCur === 'function' ? wsCur() : ''; render();
     toast(tr('The organisation “{0}” now holds your office', j.name));
   } catch (x) { ofcErr(x); }
@@ -758,7 +758,7 @@ async function pb_transfer() {
   if (!yes || !pv?.ok) return;
   try {
     const j = await api('POST', '/api/office/move/org', {org, confirm: true});
-    await refreshMe(); ws_save(ws_hold('org:' + j.org_id), null);  // 2.1437.0 (#7297): saved too (was only local)
+    await refreshMe(); ws_save(ws_hold('org:' + j.org_id), null);  // (#7297): saved too (was only local)
     pb_reset(true); OFC.ws = typeof wsCur === 'function' ? wsCur() : ''; render();
     // 2.1327.0 (#6591): the check of the organisation's hash chain after the move, in the toast and at the access log
     const k = j.chain; if (k) OFC.chain = k;
@@ -1034,7 +1034,7 @@ function ost_tplHtml() {
 function biz_paint() {
   const box = $('#s-biz'); if (!box) return;
   pb_wsFollow();
-  if (OFC.infoErr) { const b = ofc_noAreaBtns(OFC.infoErr); box.innerHTML = `<p class="muted">${esc(OFC.infoErr)}</p>${/*html-ok*/ b ? `<div class="eacts ofcnoarea">${/*html-ok*/ b}</div>` : ''}`; return; }  // 2.1437.0 (#7297): + the workspaces
+  if (OFC.infoErr) { const b = ofc_noAreaBtns(OFC.infoErr); box.innerHTML = `<p class="muted">${esc(OFC.infoErr)}</p>${/*html-ok*/ b ? `<div class="eacts ofcnoarea">${/*html-ok*/ b}</div>` : ''}`; return; }  // (#7297): + the workspaces
   if (!OFC.info) { if (!OFC.infoLoading && !OFC.pbWait) setTimeout(ofcInfo, 0); box.innerHTML = loadingHtml('row'); return; }
   const rights = typeof orr_html === 'function' && OFC.info.rights;  // 2.470.0 (#3596): members too, their "My rights" (was a tab of the old page)
   // 2.470.0 (#3596): the areas are put in order before the drawing: setHtml keeps input being typed, and a field moved afterwards would lose the focus
@@ -1242,7 +1242,7 @@ const ofcNoMail = () => tr('E-mail sending is not set up on this server yet: who
 /** @param {any} x @returns {string} */
 function ofcErrHere(x) {
   const t = ofcErrTxt(x), el = x?.shown && $('#toast');
-  if (x?.data?.code === 'office_no_area') OFC_NOAREA.add(t);  // 2.1437.0 (#7297): drawn with a button per workspace (ofc_noAreaBtns)
+  if (x?.data?.code === 'office_no_area') OFC_NOAREA.add(t);  // (#7297): drawn with a button per workspace (ofc_noAreaBtns)
   if (el && !el.classList.contains('hidden') && el.textContent.trim().startsWith(t)) el.classList.add('hidden');
   if (x && typeof x === 'object') x.shown = true;
   return t;
@@ -1286,7 +1286,7 @@ document.addEventListener('click', async e => {
   if (a === 'pb-move') { pb_move(); return; }  // 2.47.3 (#1360)
   if (a === 'pb-transfer') { pb_transfer(); return; }  // 2.137.0 D (#1981)
   if (a === 'org-out') { ofc_orgOut(); return; }  // 2.356.0 A (#2926)
-  if (a === 'noarea') { ofc_noAreaGo(b.dataset.ws); return; }  // 2.1437.0 (#7297)
+  if (a === 'noarea') { ofc_noAreaGo(b.dataset.ws); return; }  // (#7297)
   if (a === 'pb-ws') { if (ofc_sp()) go('office/s/' + b.dataset.ws); else if (typeof wsSet === 'function') wsSet(b.dataset.ws, {keep: true}); return; }  // 2.577.0 (#4638): under "All" the area's address  // 2.47.3 (#1360); 2.397.0 (#3404): the office stays
   if (a === 'new') { e.preventDefault(); ofcModal(b.dataset.kind, null); }
   else if (a === 'open') { e.preventDefault(); const r = ofcRow(b.dataset.kind, +b.dataset.id); if (r) ofcModal(b.dataset.kind, r); }

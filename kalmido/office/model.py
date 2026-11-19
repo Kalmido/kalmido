@@ -14,7 +14,7 @@ from datetime import date
 
 from flask import g, has_request_context, jsonify, request
 
-from ..core.config import app  # 2.1437.0 (#7297): OfficeNoArea's answer
+from ..core.config import app  # (#7297): OfficeNoArea's answer
 from ..core.i18n import LANGS, N_, tr
 from ..core.pg import DatabaseError, insert_id, like_escape, qi, table_columns, system_ctx, write_lock
 from ..core.db import db, iso, local_now, now_utc, usettings
@@ -35,13 +35,13 @@ from ..accounts.supportgrant import sga_scope_check  # 2.538.0 (#4365)
 from .packs import PACK_FEATURES  # 2.369.5 (#2517): pulled up from functions
 
 OFFICE_FEAT = "office"
-# 2.1437.0 (#7297): no "at the top" any more (it pointed nowhere in Settings > Company & office); the app
+# (#7297): no "at the top" any more (it pointed nowhere in Settings > Company & office); the app
 # puts a button per workspace with an office right under it (office.js ofc_noAreaHtml, code office_no_area)
-OFFICE_NO_ORG = N_("Which workspace? The office always belongs to a workspace.")  # 2.47.3 (#1360)
+OFFICE_NO_ORG = N_("Which workspace? The office always belongs to a workspace.")  # (#1360)
 
 
 class OfficeNoArea(BadInput):
-    """2.1437.0 (#7297): no office area chosen (OFFICE_NO_ORG) -- a 400 with code office_no_area, so the app offers the areas."""
+    """(#7297): no office area chosen (OFFICE_NO_ORG) -- a 400 with code office_no_area, so the app offers the areas."""
 
     def __init__(self):
         super().__init__(tr(OFFICE_NO_ORG))
@@ -275,7 +275,7 @@ def office_space(orgs, ws):
     setting workspace may hold, so the header can do nothing the setting cannot). Another value = 400 instead of silently
     some other office (a change meant for an organisation the person left never lands elsewhere). Agents and API tokens:
     no header (as before, their own setting).
-    2.1437.0 (#7297): the header wins under a chosen workspace too -- the app names the office's area with EVERY office
+    (#7297): the header wins under a chosen workspace too -- the app names the office's area with EVERY office
     request (core.js ofc_spHdr), so a setting the server never got (a failed PATCH, the split view's right half that sends
     none, miniwin.js MW_GUARD) or one another tab changed meanwhile cannot open another office or "Choose a workspace".
     Checked the same way: only "private" or one of the person's own organisations, anything else stays refused."""
@@ -297,7 +297,7 @@ def office_space(orgs, ws):
 
 def office_where(c, uid):
     """2.187.0 (#2476): (office area id, uid's role there) -- the first half of office_org without the role checks.
-    2.577.0 (#4638): under "All workspaces" the request's own area (office_space); 2.1437.0 (#7297): under any workspace."""
+    (#4638): under "All workspaces" the request's own area (office_space); (#7297): under any workspace."""
     orgs = user_orgs(c, uid)
     ws = office_space(orgs, (usettings(c, uid).get("workspace") or "").strip())
     m = re.fullmatch(r"org:(\d{1,9})", ws)

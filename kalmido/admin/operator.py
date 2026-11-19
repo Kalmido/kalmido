@@ -182,7 +182,7 @@ def operator_status():
 def operator_setup_code():
     """A fresh one-time code for the first setup page (the customer creates the first admin with it). Only while the
     instance has no account at all; afterwards 409. Not possible with a fixed code or the check turned off (409)."""
-    g.idem_no_body = True  # 2.1437.0 (#6558): the setup code is shown once, never kept with an idempotency key
+    g.idem_no_body = True  # (#6558): the setup code is shown once, never kept with an idempotency key
     op_gate("setup-code")
     c = db()
     code = ""

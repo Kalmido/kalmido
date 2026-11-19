@@ -125,7 +125,7 @@ function ws_target(ws) {
   if (mod === 'msv') return null;  // a list on another server belongs to no workspace
   return WS_ROOT[a] || a;
 }
-// 2.1437.0 (#7297): ONE way the shown workspace is set and saved (wsSet, wsFollow, o3a_toPrivate, the office's move). The new
+// (#7297): ONE way the shown workspace is set and saved (wsSet, wsFollow, o3a_toPrivate, the office's move). The new
 // value is held over every state load from the moment it is set (core.js OPT: a load that ended before the PATCH even started
 // put the old one back - the silent jump to "All") until a state that began after the save holds it (OPT_DONE). A save that
 // fails takes the switch back and says so. The split view's right half / the own window (miniwin.js MW_GUARD, #5358) never
@@ -156,7 +156,7 @@ async function ws_save(p, from) {
   if (WS_HOLD.p === p) { p.end = S.wseq || 0; p.at = Date.now(); OPT_DONE.add(p); }
   return true;
 }
-// 2.1437.0 (#7297): wsCur never falls back to "All" without a word: a state whose organisations no longer hold the saved one (the
+// (#7297): wsCur never falls back to "All" without a word: a state whose organisations no longer hold the saved one (the
 // person left or was removed) switches to "All workspaces" with a note and saves it (applyState calls this after every load)
 const WSG = {names: {}};
 function ws_gone() {
@@ -172,7 +172,7 @@ function ws_gone() {
 }
 // o.keep: the caller goes on to its own target (a link into the other workspace, News' or the office's "Switch"): the page
 // only follows the filter (a list or private module not there -> the inbox, as before) and the caller then opens its target
-// o.local: 2.1437.0 (#7297) only shown, not saved (ws_save takes a failed switch back with it)
+// o.local: (#7297) only shown, not saved (ws_save takes a failed switch back with it)
 async function wsSet(ws, o = {}) {
   if (!wsOptions().includes(ws)) ws = 'all';
   const from = wsCur();
@@ -180,7 +180,7 @@ async function wsSet(ws, o = {}) {
   if (typeof vm_leave === 'function') vm_leave();  // 2.497.0 (#4048): the place of the view left: no route may follow (the page stays)
   let sv = null;
   if (o.local) { if (WS_HOLD.p) { OPT.delete(WS_HOLD.p); OPT_DONE.delete(WS_HOLD.p); WS_HOLD.p = null; } S.settings.workspace = ws; LS.set('ws', ws); }
-  else sv = ws_hold(ws);  // 2.1437.0 (#7297): held over a state load until saved
+  else sv = ws_hold(ws);  // (#7297): held over a state load until saved
   // 2.455.0 (#3847): the phone's open drawer stays and shows the new workspace; route() must not close it either
   const hold = !!$('#side.open') && typeof SBM !== 'undefined';
   if (hold) SBM.keep = true; else closeSide?.();
@@ -206,7 +206,7 @@ async function wsSet(ws, o = {}) {
   } else { render(); WSV.ws = to; }  // no route follows
   if (typeof VM !== 'undefined') VM.noSel = false;
   if (hold) SBM.keep = false;  // the next tap on an entry closes the drawer
-  if (sv && !await ws_save(sv, from)) return;  // 2.1437.0 (#7297): not saved = taken back (ws_save) or a newer switch goes on
+  if (sv && !await ws_save(sv, from)) return;  // (#7297): not saved = taken back (ws_save) or a newer switch goes on
   if (typeof AB2 !== 'undefined') { AB2.org = null; ab2_reload(); }  // 2.96.0 D (#1941): absences follow the switch (server reads it)
   // 2.305 (bundle): the disposition too -- it followed only the state reload of the live update, which 2.280.0 (#3109) may brake for 8 s
   if (typeof DPV !== 'undefined') { DPV.org = null; if (S.route?.mod === 'workload' && WLV.tab === 'dispo') dp_reload(); else { DPV.data = null; DPV.free = null; } }
@@ -220,7 +220,7 @@ function wsFollow(key) {
   const ws = wsOf(l);
   if (!wsOptions().includes(ws)) return;  // an organisation the person is not in (a list shared from outside): leave the filter
   const from = wsCur();
-  const sv = ws_hold(ws);  // 2.1437.0 (#7297)
+  const sv = ws_hold(ws);  // (#7297)
   // 2.523.0 (#4189): the target's own state comes back like on a switch (wsSet); route() saved the old one just before (wsv_leave),
   // the page stays the link's target (wsv_restore is synchronous and does not touch the page)
   const kept = (LS.get('wsView', {}) || {})[ws];
@@ -258,7 +258,7 @@ function wsBlinkPlan() {
   clearTimeout(wsBlinkT); wsBlinkT = 0;
   if (wsBlinkCalm()) return;
   wsBlinkT = setTimeout(() => {
-    const b = $('#kbar .kbbrand') || $('#side .sbbrand'), a = document.activeElement;  // 2.1437.0 (#7299): the brand is its own link  // 2.152.3 A (#2619): a computer: the head bar
+    const b = $('#kbar .kbbrand') || $('#side .sbbrand'), a = document.activeElement;  // (#7299): the brand is its own link  // (#2619): a computer: the head bar
     if (b && !document.hidden && !(a && (/INPUT|TEXTAREA|SELECT/.test(a.tagName) || a.isContentEditable)) && $('#pop')?.classList.contains('hidden') !== false) {
       b.classList.remove('blink'); void b.offsetWidth; b.classList.add('blink');
       setTimeout(() => b.classList.remove('blink'), 600);
@@ -269,7 +269,7 @@ function wsBlinkPlan() {
 try { matchMedia('(prefers-reduced-motion: reduce)').addEventListener?.('change', wsBlinkPlan); } catch { /* old engine */ }
 wsBlinkPlan();
 // the chip in the header (a click opens the switch as a menu)
-// 2.1437.0 (#7299): always there, "All workspaces" too (its grid symbol): it is the only way to switch now (the brand leads to Start).
+// (#7299): always there, "All workspaces" too (its grid symbol): it is the only way to switch now (the brand leads to Start).
 // Without an organisation it shows Private like the head bar's switch (#1933 P4: its menu holds "Add an organisation"); not for a
 // child or an agent without one (nothing to switch, nothing to add)
 function wsChip() {

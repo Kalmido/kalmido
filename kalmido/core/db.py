@@ -437,12 +437,12 @@ def _has_files(d):
     return False
 
 
-PG_MAJOR = 17  # 2.1437.0 (#6615): the PostgreSQL version Kalmido needs (docs/SELF-HOSTING.md, the postgres image of docker-compose.yml)
+PG_MAJOR = 17  # (#6615): the PostgreSQL version Kalmido needs (docs/SELF-HOSTING.md, the postgres image of docker-compose.yml)
 PG_EXTENSIONS = ("unaccent", "pg_trgm")  # init_db creates them (message search); both ship with PostgreSQL (contrib)
 
 
 def pg_requirements(c):
-    """2.1437.0 (#6615): what the database server lacks, as lines for the log ([] = all there): a major version older than
+    """(#6615): what the database server lacks, as lines for the log ([] = all there): a major version older than
     PG_MAJOR (a newer one only warns), an extension of PG_EXTENSIONS that is neither installed nor installable, or one this
     database user may not create (CREATE on the database; both are trusted extensions since PostgreSQL 13)."""
     out = []
@@ -483,7 +483,7 @@ def startup_guard():
         wait_ready(DATABASE_URL, env_int("KALMIDO_DB_WAIT", 60))
         c = connect_direct(DATABASE_URL)
         try:
-            bad = pg_requirements(c)  # 2.1437.0 (#6615): an old PostgreSQL / a missing extension in plain words, not mid init_db
+            bad = pg_requirements(c)  # (#6615): an old PostgreSQL / a missing extension in plain words, not mid init_db
             if bad:
                 for line in bad:
                     print(f"FATAL: {line}", flush=True)

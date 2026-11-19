@@ -31,7 +31,7 @@ from ..collab.liste2eguard import LE2B_OFF_MSG, le2b_list_locked  # 2.369.5 (#25
 from ..tasks.attachments import safe_name, unexec_name  # 2.369.5 (#2517): pulled up from functions
 from ..core.pages import save_attachment_bytes  # 2.369.5 (#2517): pulled up from functions
 from ..lists.public import PUB_ACTOR  # 2.369.5 (#2517): pulled up from functions
-from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
+from ..core.env import env_int  # (#6615): a wrong value = one warning with its name
 
 
 # ---------------------------------------------------------------- 2.23.0 (#463 / #341): forms -> tasks

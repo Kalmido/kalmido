@@ -13,7 +13,7 @@ import threading
 import time
 from datetime import timedelta
 
-from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
+from ..core.env import env_int  # (#6615): a wrong value = one warning with its name
 from ..core.config import app
 from ..core.db import connect, iso, now_utc
 from ..accounts.session import GATE, bg_here

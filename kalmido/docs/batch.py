@@ -28,7 +28,7 @@ from ..accounts.session import me
 from ..files.store import download_name, fs_log_add, fs_read, fs_role, fs_visible_sql  # 2.750.0 (#4876): + download_name
 from . import store as S
 from .web import doc_update  # 2.369.5 (#2517): pulled up from functions
-from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
+from ..core.env import env_int  # (#6615): a wrong value = one warning with its name
 
 DSR_IDS = 2000          # documents per request (the selection's limit in docs.js, DC_SMV_MAX)
 DSR_EDIT = 500          # documents per change request (each one learns: the client sends larger choices in parts)

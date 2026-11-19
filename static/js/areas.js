@@ -108,7 +108,7 @@ const OFM_ITEMS = [
 // "All > Alpha" and "Alpha" share one menu; was per workspace (under 'uid:org:N' nothing yet = the admin points gone)
 const ofm_area = () => (typeof ofc_spCur === 'function' ? ofc_spCur() : '') || 'all';
 const ofm_ws = () => `${S.me?.id || ''}:${ofm_area()}`;
-// 2.1437.0 (#7297): the split view's right half / the own window write no LS (miniwin.js MW_GUARD): their answers stay in this
+// (#7297): the split view's right half / the own window write no LS (miniwin.js MW_GUARD): their answers stay in this
 // window (OFM_MEM), so its menu knows the role too; the main window reads LS as before (another tab may have written it)
 const OFM_MEM = {};
 const ofm_mem = () => typeof MW_GUARD !== 'undefined' && MW_GUARD;
@@ -134,13 +134,13 @@ function ofm_adm() {
   return !!ofm_get('ofmAdm')[ws];
 }
 function ofm_admSeen(adm, rights, used, menuOff = []) {
-  const f = ofm_get('ofmOff'); if (JSON.stringify(f[ofm_ws()] || []) !== JSON.stringify(menuOff)) { f[ofm_ws()] = menuOff; ofm_put('ofmOff', f); }  // 2.440.0 (#3609)
+  const f = ofm_get('ofmOff'); if (JSON.stringify(f[ofm_ws()] || []) !== JSON.stringify(menuOff)) { f[ofm_ws()] = menuOff; ofm_put('ofmOff', f); }  // (#3609)
   const o = ofm_get('ofmAdm'); if (!!o[ofm_ws()] !== adm) { o[ofm_ws()] = adm; ofm_put('ofmAdm', o); }
-  const u = ofm_get('ofmUsed'); if (used && JSON.stringify(u[ofm_ws()] || null) !== JSON.stringify(used)) { u[ofm_ws()] = used; ofm_put('ofmUsed', u); }  // 2.276.0 A (#3039)
+  const u = ofm_get('ofmUsed'); if (used && JSON.stringify(u[ofm_ws()] || null) !== JSON.stringify(used)) { u[ofm_ws()] = used; ofm_put('ofmUsed', u); }  // (#3039)
   // 2.187.0 A (#2476): + the levels of a person ruled by office groups (null = as before), so #clients / #contacts show the right menu
   const lv = rights && rights.levels && !rights.legacy && rights.manager !== 'admin' ? rights.levels : null, l = ofm_get('ofmLv');
   if (JSON.stringify(l[ofm_ws()] || null) !== JSON.stringify(lv)) { if (lv) l[ofm_ws()] = lv; else delete l[ofm_ws()]; ofm_put('ofmLv', l); }
-  const ow = ofm_get('ofmOwn'), on = ofm_legOwnOf(rights);  // 2.545.0 (#4592): the own areas of a member in "Previous access"
+  const ow = ofm_get('ofmOwn'), on = ofm_legOwnOf(rights);  // (#4592): the own areas of a member in "Previous access"
   if (JSON.stringify(ow[ofm_ws()] || []) !== JSON.stringify(on)) { if (on.length) ow[ofm_ws()] = on; else delete ow[ofm_ws()]; ofm_put('ofmOwn', ow); }
 }
 // 2.545.0 (#4592): a member in "Previous access" has the level "own" in some areas (server: office/rights.py LEGACY_OWN,
@@ -474,7 +474,7 @@ const o3a_hidRow = h => { const m = /data-go="(\w+)/.exec(h); return !!m && o3a_
 function o3a_toPrivate(mod) {
   if (!o3a_hid(mod)) return;
   const from = wsCur();
-  ws_save(ws_hold('private'), from);  // 2.1437.0 (#7297): held over a state load, taken back with a note when not saved
+  ws_save(ws_hold('private'), from);  // (#7297): held over a state load, taken back with a note when not saved
   ws_autoNote(from);  // 2.484.0 (#3950): a short note with "Back"
 }
 // ---- 2.152.2 (#2622): sidebar B on a computer. Left a narrow bar of the areas (icon, small word below), next to it ONE

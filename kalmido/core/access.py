@@ -16,7 +16,7 @@ from .pg import qi, set_ctx_hook, st_ids, system_ctx as pg_system, table_columns
 from .dlock import DL_FEAT_AREA, dl_area_locked, dl_list_hidden, dl_lists_sql, dl_task_hidden, dl_task_sql  # 2.235.0 B (#2902): an agent's data lock
 from .dlock import dl_tasks_locked  # 2.674.0 B (#4194)
 from ..core.pg import system_ctx as _sys, LOOKUP  # 2.369.5 (#2517): pulled up from functions
-from .env import env_float  # 2.1437.0 (#6615): a wrong value = one warning with its name
+from .env import env_float  # (#6615): a wrong value = one warning with its name
 
 
 # ---------------------------------------------------------------- access control

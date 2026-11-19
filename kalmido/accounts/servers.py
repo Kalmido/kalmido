@@ -738,7 +738,7 @@ def msv_self_patch():
 def msv_code():
     """{name?} -> {code, token_id}: a personal API token ON THIS server with just the scopes the other app needs (the
     usual limits of Settings > Account > API tokens; visible and revocable there), packed with this server's address."""
-    g.idem_no_body = True  # 2.1437.0 (#6558): the server code is shown once, never kept with an idempotency key
+    g.idem_no_body = True  # (#6558): the server code is shown once, never kept with an idempotency key
     from ..api.v1 import token_create
     msv_gate()
     b = body()

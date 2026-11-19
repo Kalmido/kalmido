@@ -1080,7 +1080,7 @@ def docs_rule_add():
     """{ws, kind: any|all|exact|regex|fuzzy, match, sender?, type?, tags?, folder?} -- 2.581.0 (#4803) + the flow keys of
     docs/rules.py clean_rule (trigger, on, days, from, sources, filename, has_tags, has_type, has_sender, untag, fields, task,
     notify, webhook, name, off); match is optional for a flow with other filters. A new webhook secret comes back once (hook_secret)."""
-    g.idem_no_body = True  # 2.1437.0 (#6558): a new hook secret is shown once, never kept with an idempotency key
+    g.idem_no_body = True  # (#6558): a new hook secret is shown once, never kept with an idempotency key
     c = db()
     _no_agent()
     uid = me()
@@ -1105,7 +1105,7 @@ def _rule_ws(c, rid):
 def docs_rule_edit(rid):
     """The flow's keys (docs_rule_add) and / or pos. 2.635.0 (#4856): expect_updated_at = the flow's updated_at the form was
     filled from; changed since -> 409 with the flows under "rules" (core/conflict.py)."""
-    g.idem_no_body = True  # 2.1437.0 (#6558): a new hook secret is shown once, never kept with an idempotency key
+    g.idem_no_body = True  # (#6558): a new hook secret is shown once, never kept with an idempotency key
     c = db()
     _no_agent()
     ws = _rule_ws(c, rid)

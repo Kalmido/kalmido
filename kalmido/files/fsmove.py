@@ -39,7 +39,7 @@ from .fslock import fl_is_locked, fsl_space_guard  # 2.353.0 A (#2758); 2.953 (#
 from ..core.pg import system_ctx  # 2.149.0 G (#2517): pulled up from functions
 from ..accounts.orgs import is_org_admin  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.orgout import OO_ADMIN_ONLY, oo_denied, oo_into_note, org_out_ok, org_out  # 2.369.5 (#2517): pulled up from functions
-from ..core.env import env_float  # 2.1437.0 (#6615): a wrong value = one warning with its name
+from ..core.env import env_float  # (#6615): a wrong value = one warning with its name
 
 _KEEP = object()   # an item without its own parent: the request's parent
 _BAD = object()    # a sealed value that cannot be opened

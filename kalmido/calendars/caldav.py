@@ -507,7 +507,7 @@ def apppw_get():
 
 @app.post("/api/me/app-passwords")
 def apppw_post():
-    g.idem_no_body = True  # 2.1437.0 (#6558): the app password is shown once, never kept with an idempotency key
+    g.idem_no_body = True  # (#6558): the app password is shown once, never kept with an idempotency key
     if g.get("auth_via") not in ("session", "proxy"):  # 2.539.0 B (#4375): only from the web app's sign-in, never a token / app password
         raise Denied(403, tr("App passwords are created only in the web app (Settings > Account > App passwords)"))
     row, pw = apppw_create(db(), g.user, body().get("name"))

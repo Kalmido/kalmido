@@ -36,7 +36,7 @@ from ..accounts.session import _rate_blocked, _rate_fail, _token_hash, client_ip
 from ..accounts.pictures import avatar_url, avatar_path  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.orgs import may_see  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.signup import cinv_signup_on  # 2.1191.0 (#4550): the switch of the invitation links (accounts/cinvite.py)
-from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
+from ..core.env import env_int  # (#6615): a wrong value = one warning with its name
 
 DISC_DAY = 30            # searches per account and day
 DISC_CHECK_DAY = 300     # addresses of the address book check per account and day

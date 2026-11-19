@@ -75,9 +75,9 @@ if __name__ == "__main__":
         from kalmido.core.db import skfp_warn_changed
         skfp_warn_changed()  # 2.190.0 R (#2592): KALMIDO_SECRET_KEY_CHANGED left on
         from kalmido.core.env import env_unknown_warn
-        env_unknown_warn()  # 2.1437.0 (#6615): a misspelt variable (KALMIDO_SMTP_HOSTT) is named once, not silently ignored
+        env_unknown_warn()  # (#6615): a misspelt variable (KALMIDO_SMTP_HOSTT) is named once, not silently ignored
     from waitress import serve
-    from kalmido.core.config import PORT as port  # 2.1437.0 (#6615): checked at the start (a value that is no port = FATAL)
+    from kalmido.core.config import PORT as port  # (#6615): checked at the start (a value that is no port = FATAL)
     listen = f"0.0.0.0:{port}" + (f" 0.0.0.0:{AUTH_PROXY_PORT}" if AUTH_PROXY_PORT and AUTH_PROXY_PORT != str(port) else "")
     # 2.642.0 (#4975): KALMIDO_WEB_PROCS > 1 -- every process binds the same port(s) with SO_REUSEPORT (admin/worker.py); the
     # first one starts the others after its start-up work (migrations, setup code) is done

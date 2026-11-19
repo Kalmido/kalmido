@@ -40,7 +40,7 @@ from ..collab.comments import collab_user, lang_of  # 2.369.5 (#2517): pulled up
 from ..collab.news import KIND_ROW, news_add, notif_ok  # 2.369.5 (#2517): pulled up from functions
 from ..notify.push import push_prio, push_reachable  # 2.369.5 (#2517): pulled up from functions
 from ..notify.taskbell import tbl_level, tbl_sent, tbl_urgent_users, TBL_PRIO  # 2.369.5 (#2517): pulled up from functions
-from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
+from ..core.env import env_int  # (#6615): a wrong value = one warning with its name
 
 PT_TOKEN_RE = re.compile(r"[A-Za-z0-9_-]{20,64}")
 PT_EMAIL_MAX = 200
