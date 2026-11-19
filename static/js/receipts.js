@@ -89,12 +89,7 @@ function rc_projPicker(b) {
     first: recent.length ? {head: tr('Recently selected'), lists: recent, rest: tr('Other projects')} : null,
     pick: l => to(l.id)});
 }
-async function rc_projSet(v) {
-  const id = RC.id, from = rc_cur(), to = {...from, project_id: v};
-  try { await rc_put(id, to); } catch { rc_draw(); return; }
-  const label = tr('Changed receipt');
-  histToast(label, histAdd({label, undo: () => rc_put(id, from), redo: () => rc_put(id, to)}));
-}
+const rc_projSet = v => rc_edit(RC.id, 'project_id', v);  // 2.1405.0 (#6998): only the project, against the version
 document.addEventListener('click', e => {
   const b = /** @type {HTMLElement} */ (e.target).closest?.('.rc-slot [data-rcp="pick"]');
   if (b && RC.d) { e.preventDefault(); rc_projPicker(/** @type {HTMLElement} */ (b)); }
@@ -186,11 +181,34 @@ function rc_putLocal(id, v) {
     return () => { if (RC.d?.receipt === r) Object.assign(r, old); };
   };
 }
+// 2.1405.0 (#6998, as the bookkeeping's sheet #6327): a field of the document view sends only itself with the version the
+// slot read (receipt.updated_at, '' = no receipt yet; receipts/suggest.py rc_put): changed on another device meanwhile ->
+// 409, nothing written, the slot shows the current state (the conflict's answer) and api() says why. Before, every change
+// sent the whole slot (rc_cur) without a version and put back what another device had changed in the other fields.
+const rc_got = id => j => { if (RC.id === id && j?.receipt) { RC.d = j; rc_draw(); } };
 async function rc_put(id, v) {
-  const draw = () => { if (RC.id === id) rc_draw(); };
-  const j = await optWrite(rc_putLocal(id, v), () => api('PUT', `/api/docs/${id}/receipt`, v), draw, {mod: true});
-  if (RC.id === id) { RC.d = j; rc_draw(); }
-  return {};
+  const draw = () => { if (RC.id === id) rc_draw(); }, at = RC.id === id ? RC.d?.receipt?.updated_at || '' : '';
+  try {
+    const j = await optWrite(rc_putLocal(id, v), () => api('PUT', `/api/docs/${id}/receipt`, {...v, expect_updated_at: at}), draw, {mod: true});
+    rc_got(id)(j);
+    return j;
+  } catch (x) {
+    if (x?.status === 409 && x.data?.receipt?.receipt) rc_got(id)(x.data.receipt);
+    throw x;
+  }
+}
+// 2.1405.0 (#6998): one field changed, one undo step: undo / redo send only that field (and "a receipt" when the change made
+// the document one) through undoStep (core.js) against the version the last write left; changed elsewhere since -> said
+async function rc_edit(id, k, val) {
+  const r = RC.d?.receipt || {}, was = rc_cur()[k];
+  if (JSON.stringify(was ?? null) === JSON.stringify(val ?? null)) return;
+  let j;
+  try { j = await rc_put(id, {[k]: val}); } catch { rc_draw(); return; }
+  const label = tr('Changed receipt'), url = `/api/docs/${id}/receipt`;
+  const from = {[k]: was, keep: !!r.is_receipt}, to = {[k]: val, keep: !!j?.receipt?.is_receipt};
+  let at = j?.receipt?.updated_at || '';
+  const step = (old, now) => () => undoStep(url, old, at, {now, method: 'PUT', label, verEmpty: true, then: x => { at = x?.receipt?.updated_at || ''; rc_got(id)(x); }});
+  histToast(label, histAdd({label, undo: step(from, to), redo: step(to, from)}));
 }
 async function rc_post(id, sid, act, body) {
   const j = await api('POST', `/api/receipt-suggestions/${sid}/${act}`, body);
@@ -199,13 +217,8 @@ async function rc_post(id, sid, act, body) {
 }
 document.addEventListener('change', async e => {
   const f = e.target.closest('.rc-slot [data-rcf]'); if (!f || !RC.d) return;
-  const id = RC.id, from = rc_cur(), to = {...from};
-  if (f.dataset.rcf === 'vat') to.vat_pct = f.value || null;  // 2.540.0 (#4471): the project has its own picker (rc_projPicker)
-  else if (f.dataset.rcf === 'rc13b') to.rc13b = f.value;  // 2.545.0 (#4387)
-  else to.category = f.value.trim();
-  try { await rc_put(id, to); } catch { rc_draw(); return; }
-  const label = tr('Changed receipt');
-  histToast(label, histAdd({label, undo: () => rc_put(id, from), redo: () => rc_put(id, to)}));
+  const k = f.dataset.rcf === 'vat' ? 'vat_pct' : f.dataset.rcf === 'rc13b' ? 'rc13b' : 'category';  // 2.540.0 (#4471): the project has its own picker (rc_projPicker); 2.545.0 (#4387): rc13b
+  rc_edit(RC.id, k, k === 'vat_pct' ? f.value || null : k === 'rc13b' ? f.value : f.value.trim());  // 2.1405.0 (#6998): only this field
 });
 document.addEventListener('click', e => {  // 2.576.0 (#4487): a jump of "Also in" closes the document's sheet (a phone, the file store)
   const b = e.target.closest?.('.rc-also [data-rcgo]'); if (!b) return;
@@ -227,10 +240,11 @@ document.addEventListener('click', async e => {
 });
 // 2.185.0 A (#2583): "Add as receipt" -- one undo step (all empty = no receipt again)
 async function rc_einvTake(id, b) {
-  const take = async () => { const j = await api('POST', `/api/docs/${id}/receipt/einvoice`); if (RC.id === id) { RC.d = j; rc_draw(); } return {}; };
+  let at = '';  // 2.1405.0 (#6998): the undo puts the empty assignment back against the version the take left (undoStep)
+  const take = async () => { const j = await api('POST', `/api/docs/${id}/receipt/einvoice`); at = j?.receipt?.updated_at || ''; rc_got(id)(j); return {}; };
   try { await take(); } catch { b.disabled = false; return; }
   const label = tr('Added as receipt');
-  histToast(label, histAdd({label, undo: () => rc_put(id, {project_id: null, category: '', vat_pct: null}), redo: take}));
+  histToast(label, histAdd({label, undo: () => undoStep(`/api/docs/${id}/receipt`, {project_id: null, category: '', vat_pct: null, keep: false}, at, {method: 'PUT', full: true, verEmpty: true, label, then: rc_got(id)}), redo: take}));
 }
 // 2.121.0 A (#2092): what the recognition read off a receipt (supplier, number, net, VAT rate, gross) -- one line
 // "Recognised: ..." with Take over / Discard while it would change something (doc.extracted.new); Take over and Discard are
