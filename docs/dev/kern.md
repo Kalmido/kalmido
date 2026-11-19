@@ -1511,6 +1511,21 @@ as its empty grid; the calendar's pinch zoom and the trackpad's sideways swipe s
 `swn_owns(target)` (2.1408.0, #6693) tells whether an attached leafing area owns a touch there; a gesture of the page (the
 sidebar's swipe to the right, events.js) asks it and the rows (`RSW_REG`) first and leaves their touches alone.
 
+### Dropping tasks: the drop core (2.1444.0, #7344, step 1 of audit #5731)
+
+Where a dragged task or selection lands is read **once**, for the mouse and the finger, for one task and a selection (one
+task = a selection of one): `static/js/dragmulti.js` -- `dropAt(el, y, after)` (a row before / after it, the head of a group,
+a "New ..." button with `data-dropnew`), `dropFor`, `dropRun(ids, el, y, after)`, `dropNo(el, y, ids)`. What a place means
+belongs to the **adapter of the container** in `DROP_ADAPTERS`: `{on(), where(tgt, ids) -> null | {no: text} | place,
+put(ids, place)}`. `where` answers "do you take it?" (the highlight and the message instead of a silent nothing), `put` does
+the whole gesture as one step of the history (`histGroup`): structure first (a subtask out of its parent with `detachPatch`,
+#6436), then the place. The middle of a row (= make subtasks, `dgMakeSubs`) comes before the core and is the same everywhere.
+
+Adapters today: "My tasks" (`mineorder.js` `moWhere` / `moPut`: own order, own sections, "New section"; a task of "Unassigned
+in your projects" is assigned to me, the own order is this device's own part of the Undo step). Next steps: the board,
+Alt+arrow and the multi panel of My tasks (#7354), the project list's single drag (#7351), a check against new special
+ways (#7352). Tests: `tests/p21389_a_mine_multidrag_ui.js`.
+
 ## Calm view: a redraw keeps the reading place (2.924.0, #5224)
 
 The view moves only when the person makes it move; a jump the person asked for (a link, a search hit, "go to ...") is one
