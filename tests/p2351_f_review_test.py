@@ -154,7 +154,8 @@ S = share(A, LF, user_id=U["carl"], role="view")
 check(role(Ca, "office_letter", LT) == "view" and content(Ca, NLT) == 200, "(m1) a share with carl: he reads it through the folder")
 A.delete(B + f"/api/files/shares/{S}")
 r = Ca.get(B + f"{O}/gen-docs/tree")
-check(r.ok, f"(m1) the Documents tree stays readable for carl (only letters are not bookkeeping) ({r.status_code})")
+# (#5719): since 2.1340.0 (#6613, point 3) the accounting role reads no generated documents / templates either (ACC_NONE)
+check(r.status_code == 403, f"(m1) the Documents tree is closed to carl as well (#6613: generated documents are not bookkeeping) ({r.status_code})")
 
 # ---------------------------------------------------------------- (m2) an agent with an office group and a project restriction
 L1 = A.post(B + "/api/lists", json={"name": "Project One", "org_id": ORG}).json()["id"]
