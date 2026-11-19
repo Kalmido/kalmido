@@ -486,7 +486,7 @@ def approval_run(c, j):
 
 def agent_scopes_set(c, aid, b):
     """{scopes?, allowed_ips?} of an agent (admin: team agents, owner: personal ones) -> stored on the agent and on its
-    tokens (a new token gets them too)."""
+    tokens (a new token gets them too). One computer's key: agents/admin.py machine_ip_reset (#7051)."""
     if "scopes" in b:
         sc = ",".join(scopes_clean(b["scopes"], {"is_admin": 0}, agent=True))
         c.execute("UPDATE agents SET scopes=? WHERE user_id=?", (sc, aid))
@@ -500,6 +500,7 @@ def agent_scopes_set(c, aid, b):
         # onto all its keys -- an unchanged one keeps the rule a computer got at its setup (agent_setup redeem, allowed_ips)
         if old is None or (old[0] or "") != ips:
             c.execute("UPDATE api_tokens SET allowed_ips=? WHERE user_id=?", (ips, aid))
+            print("agent", aid, "address rule", ips or "-", "by", login_log_who(g.user), flush=True)  # #7114 (reader #5427 F1)
 
 
 def agent_scope_dict(c, a):

@@ -124,7 +124,8 @@ as well; the two web rules you may take out of `settings.local.json` again if th
 once whether this computer's key should work only from its current internet address (`--ip-rule current` / `-IpRule current`
 answers without the question, `off` skips it, or name IPs / networks; Enter or no terminal = no rule). Kalmido stores the
 rule on that computer's key only and never makes it wider than the agent's own address rule. Take it only with a fixed
-address: when the address changes, the agent cannot reach Kalmido until you change the rule (*Settings > Agents >* the agent).
+address: when the address changes, the agent cannot reach Kalmido until you change the rule (*Settings > Agents >* the agent:
+*Remove address rule* at the computer in *Set up on a computer* gives its key the agent's own rule again, none = any address).
 
 2.1400 (#7115): the dialog also offers a *Rights profile* for Claude Code (`--profile hardened|standard|dev` /
 `-RightsProfile hardened|standard|dev`; the rules are in [`mcp/agent_profiles.json`](../mcp/agent_profiles.json), a starter
@@ -876,7 +877,12 @@ chat messages of one person that arrive together: one run). It does what a hoste
   e-mail, a form or an import are named in the day report, never built (2.1375.0: also a task of yours whose title or
   description someone else changed last, until you change it yourself; 2.1389.0: never a copy, a saved chat message or a
   `Rest:` task), and comments
-  of others reach the job only as data. Start with *Dry run*: it only
+  of others reach the job only as data. 2.1406.0: with `"brief_required": true` it builds only tasks with a brief (a bold
+  decision line, a section *Where* and a size); the rest waits as *needs a brief*. How many jobs run at once is *Max
+  parallel* of the agent's work style (capped by `places` in the file, default 4, and by `KALMIDO_JOB_WORKTREES`, default 2). Every switch on the computer that
+  suspends a safeguard (`KALMIDO_PERM_RELAY=0`, `KALMIDO_APPROVAL_CHECK=0`, `KALMIDO_SESSION_RESUME=0`, `KALMIDO_BLOCK_DANGEROUS=0`, `KALMIDO_PERMISSION_MODE`, `KALMIDO_DISPATCH` on
+  against the app, a removed stop file) is logged at the start and counted in the day report; the report also names the
+  median hours from built to landed and the share of jobs that ended with open tasks (7 days). Start with *Dry run*: it only
   reports what it would do. Details and every key: [AGENTS.md](AGENTS.md#working-a-list-off-24810).
 - **Long work as a job** (2.44.0, [`mcp/agent_job.py`](../mcp/agent_job.py)): work that takes more than about ten minutes (a release
   build, an audit, a full test run) the agent starts with `"<python>" "<mcp>/agent_job.py" start --title "..." [--worktree] -` (the brief on
@@ -916,7 +922,10 @@ chat messages of one person that arrive together: one run). It does what a hoste
   working copies of build jobs, not with `--worktree` / `--parent`; a read-only note goes in front of its brief (no commit,
   merge, push, deploy, nothing written but comments and the result) and `list` marks it.
   `--worktree` gives it its own `git worktree` and branch `job/<id>` (at most `KALMIDO_JOB_WORKTREES` open, default 2); `list`,
-  `status ID` and `stop ID` do what they say; `KALMIDO_JOB_TIMEOUT_H` (default 6) ends a job that runs too long. After the
+  `status ID` and `stop ID` do what they say; `KALMIDO_JOB_TIMEOUT_H` (default 6) ends a job that runs too long (2.1406.0: ten minutes before, the
+  job is reminded to write its state into `JOB-NOTES.md`, commit its branch and leave the rest as a comment on its task; the
+  starter never starts a follow-up job by itself - with *Work the list off* on, the dispatcher takes the open tasks up again
+  in its next round, which counts as one try against `max_tries`). After the
   command compacted its conversation (`compact_boundary`) the brief is played in again -- this needs an agent command that
   takes a stream of user messages (Claude Code: `--input-format stream-json`, used automatically for a command named `claude`);
   other commands cannot be reminded. Stop, resume and the brief survive because everything lives in the state folder

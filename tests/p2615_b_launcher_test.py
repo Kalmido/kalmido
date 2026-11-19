@@ -11,6 +11,7 @@ does -- without a server (a stub API in the process, a small HTTP stub and a fak
    to the job (inbox while it runs, a wake of the ended job in its session)
  - #1801 job_inbox: a person's message reaches the running job after its next tool step
  - #2422 abort: Stop with job_id ends that one local job
+ - 2.1406.0 (#4063): before the time limit the job gets a hand-over reminder; at the limit no follow-up job starts
 Pure Python, no container."""
 import importlib.util
 import json
@@ -96,6 +97,13 @@ if "WAITMSG" in first:
     line = sys.stdin.readline()  # the launcher plays the inbox in as the next user message
     seen({"inbox": json.loads(line)["message"]["content"][0]["text"] if line.strip() else ""})
     final = "Built, with the message."
+if "TIMELIMIT" in first:  # 2.1406.0 (#4063): a long job; the launcher's reminder comes in before the limit ends it
+    out({"type": "assistant", "message": {"content": [{"type": "text", "text": "a long build"},
+         {"type": "tool_use", "name": "Bash", "input": {"command": "true"}}]}})
+    line = sys.stdin.readline()
+    seen({"reminder": json.loads(line)["message"]["content"][0]["text"] if line.strip() else ""})
+    import time
+    time.sleep(120)
 if "CARDRESULT" in first:
     final = "Ready to upload.\n\n```approval\nUpload the demo\n```"
 if "answered your approval card" in first:
@@ -307,6 +315,26 @@ b, appr, sugg, _ = agent_job.result_blocks("Der Upload braucht deine Website-Fre
 check(appr == {"title": "Demo hochladen"} and sugg == [], f"one suggestion of an asking result becomes the card: {appr} {sugg}")
 b, appr, sugg, _ = agent_job.result_blocks("All built.\n\n```suggest\nShow the log\n```")
 check(appr is None and sugg == ["Show the log"], "a result that asks nothing keeps its button")
+
+# ================================================================ 2.1406.0 (#4063): the time limit = a hand-over note, no chain
+agent_job.take_wakes()  # the wakes of the jobs above (the stub numbers jobs from REQS: no clear here, a fresh id)
+mark = len(REQS)
+rj = job("start", "--title", "Long", "--timeout-h", "0.003", "-", inp="TIMELIMIT build it all")  # 10 s, the reminder at 7.5 s
+tid_ = int(rj.stdout.split("#")[1].split()[0]) if "#" in rj.stdout else 0
+check(tid_ and until(lambda: any("minutes left until this job's time limit" in str(x.get("reminder") or "") for x in seen()), 40),
+      f"#4063: before the limit the run gets the reminder: {seen()[-1:]}")
+rem = next((str(x.get("reminder")) for x in seen() if x.get("reminder")), "")
+check("JOB-NOTES.md" in rem and "commit your branch" in rem and "add_comment" in rem and "Do not start a follow-up job" in rem,
+      f"#4063: notes file, commit, comment, no follow-up job: {rem}")
+wk = []
+check(until(lambda: wk.extend(agent_job.take_wakes()) or any(w["job"]["id"] == tid_ for w in wk), 40),
+      f"#4063: at the limit the job ends and wakes the chat agent: {wk}")
+check(any(w["job"]["id"] == tid_ and w["job"]["state"] == "failed" and "Do not start a follow-up job by yourself" in str(w.get("hint")) for w in wk),
+      f"#4063: the wake run is told not to continue: {wk}")
+check(sum(1 for q in REQS[mark:] if q["m"] == "POST" and q["p"] == "/api/v1/agent/jobs") == 1, "#4063: no follow-up job was started")
+check(any(q["m"] == "PATCH" and q["p"].endswith(f"/jobs/{tid_}") and b"hand-over note sent" in q["body"] for q in REQS[mark:]), "#4063: its log says so")
+res_ = [q["body"].decode(errors="replace") for q in REQS[mark:] if q["m"] == "POST" and q["p"] == "/api/v1/agent/chats/7"]
+check(any("time limit" in b and "No follow-up job starts by itself" in b for b in res_), f"#4063: the result says so: {res_[-1:]}")
 
 # ================================================================ part F: the review findings (#3658 / #3757)
 agent_job.STATE_DIR = None

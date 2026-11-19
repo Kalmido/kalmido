@@ -32,7 +32,7 @@ from ..core.config import ATT_DIR, MAX_FILE_MB
 from ..core.i18n import N_, tr
 from ..core.db import insert_id, iso, now_utc, write_lock, db
 from ..core.dlock import dl_chain_cut, dl_wiki_folders, dl_wiki_step_sql  # 2.1045.0 (#5823)
-from ..core.access import Denied, act_for, acx_of, acx_sup_write_row, collab_all
+from ..core.access import Denied, act_for, acx_of, acx_sup_write_row, collab_all, live_sql
 from ..core.orgcrypt import oc_read_file, oc_write_file, oc_user_space
 from ..core.pg import system_ctx  # 2.149.0 G (#2517): pulled up from functions
 from ..core.objhooks import OBJ  # 2.566.0 (#4712): the kinds of the shared core (fs_org_live)
@@ -274,15 +274,16 @@ class _FsPre:
                 out.setdefault(r[0], []).append(r[1])
         return out
 
-    def is_receipt(self, c, nid):
+    def is_receipt(self, c, nid, org=None):
+        """org: only a receipt of that organisation (#6953, the listing's rule in fs_visible_sql_c)."""
         if nid not in self.ids:
-            return c.execute("SELECT 1 FROM rc_receipts WHERE node_id=?", (nid,)).fetchone() is not None
+            return _fs_is_receipt(c, nid, org)
         if self._rc is None:
-            self._rc, ids = set(), sorted(self.ids)
+            self._rc, ids = {}, sorted(self.ids)
             for k in range(0, len(ids), 500):
                 part = ids[k:k + 500]
-                self._rc |= {x[0] for x in c.execute(f"SELECT node_id FROM rc_receipts WHERE node_id IN ({','.join('?' * len(part))})", part)}
-        return nid in self._rc
+                self._rc.update({x[0]: x[1] for x in c.execute(f"SELECT node_id, org_id FROM rc_receipts WHERE node_id IN ({','.join('?' * len(part))})", part)})
+        return nid in self._rc and (org is None or self._rc[nid] == org)
 
     def locks(self, c):
         if self._locks is None:
@@ -379,14 +380,39 @@ def _fs_limited_role(c, uid, org, chain, ids, pre=None):
         if root and any(r["id"] == root for r in chain):
             # 2.1340.0 (#6613): only the documents folder itself and the receipts in it (a file with an rc_receipts row),
             # not every document of the other members (contracts, staff papers); own uploads and shares as above
+            # #6953 (reader job/5148 F2, F3): a receipt of THIS organisation (the listing's rule), and a folder below the
+            # documents folder with such a receipt somewhere inside it -- the folder only, to walk to the receipts
             nid = chain[0]["id"]
-            if nid == root or (pre.is_receipt(c, nid) if pre is not None else
-                               c.execute("SELECT 1 FROM rc_receipts WHERE node_id=?", (nid,)).fetchone() is not None):
+            if nid == root or (pre.is_receipt(c, nid, org) if pre is not None else _fs_is_receipt(c, nid, org)) \
+                    or (chain[0]["kind"] == "folder" and _fs_has_receipt_below(c, nid, org)):
                 role = _best(role, "view")  # own receipts stay 'edit' (review)
     share = _shares_role(c, ids, uid, False, pre)
     if rk == "readonly" and share:
         share = "view"
     return _best(share, role)
+
+
+def _fs_is_receipt(c, nid, org=None):
+    if org is None:
+        return c.execute("SELECT 1 FROM rc_receipts WHERE node_id=?", (nid,)).fetchone() is not None
+    return c.execute("SELECT 1 FROM rc_receipts WHERE node_id=? AND org_id=?", (nid, org)).fetchone() is not None
+
+
+def _fs_has_receipt_below(c, nid, org):
+    """#6953: is there a receipt of organisation org (not in the trash) anywhere below folder nid?"""
+    return c.execute(f"WITH RECURSIVE d(id) AS (SELECT id FROM fs_nodes WHERE parent_id=? AND {live_sql()} "
+                     f"UNION SELECT x.id FROM fs_nodes x JOIN d ON x.parent_id = d.id WHERE {live_sql('x')}) "
+                     "SELECT 1 FROM rc_receipts r WHERE r.org_id=? AND r.node_id IN (SELECT id FROM d) LIMIT 1",
+                     (nid, org)).fetchone() is not None
+
+
+def fs_children_seen(c, uid, n, rows):
+    """#6953 (reader F1 of job/5543): the children of folder n that account uid may list. The accounting role may walk a folder
+    below the documents folder that holds a receipt (_fs_limited_role), but lists in it only what it may open itself -- the
+    receipts, its own uploads, shares; every listing of a folder's children (web, API v1) goes through here."""
+    if n["role"] == "owner" or not n["org_id"] or org_role_key(c, uid, n["org_id"]) != "accounting":
+        return rows
+    return [r for r in rows if fs_role(c, r["id"], uid)]
 
 
 def _fs_open_area(c, chain):
@@ -495,8 +521,15 @@ def fs_visible_sql_c(c, uid):
     # 2.1045.0 (#5823): an excluded knowledge folder is listed only when it (or a node below it) is shared itself; 2.1225.0
     # (#5862): for people too (the exclusions of a whole knowledge area shared with them)
     step = dl_wiki_step_sql(c, uid)
-    # 2.1340.0 (#6613): the accounting role's documents folder itself is listed, without descending into it (fv would)
-    root_u = f" UNION SELECT id FROM fs_nodes WHERE id IN ({','.join(map(str, roots))})" if roots else ""
+    # 2.1340.0 (#6613): the accounting role's documents folder itself is listed, without descending into it (fv would);
+    # #6953 (reader job/5148 F3): so are the folders between it and a receipt of the organisation (fs_role's rule)
+    rl = ",".join(map(str, roots))
+    root_u = (f" UNION SELECT id FROM fs_nodes WHERE id IN ({rl})"
+              f" UNION SELECT id FROM fs_nodes WHERE kind = 'folder' AND id IN (WITH RECURSIVE ra(id, pid) AS ("
+              f"SELECT n.id, n.parent_id FROM fs_nodes n JOIN rc_receipts r ON r.node_id = n.id WHERE r.org_id IN ({','.join(map(str, acc))}) AND {live_sql('n')} "
+              f"UNION SELECT p.id, p.parent_id FROM fs_nodes p JOIN ra ON p.id = ra.pid WHERE ra.id NOT IN ({rl})) "
+              f"SELECT id FROM ra WHERE id IN (WITH RECURSIVE dr(id) AS (SELECT id FROM fs_nodes WHERE id IN ({rl}) "
+              f"UNION SELECT x.id FROM fs_nodes x JOIN dr ON x.parent_id = dr.id) SELECT id FROM dr))") if roots else ""
     return (f"(WITH RECURSIVE fv(id) AS (SELECT n.id FROM fs_nodes n WHERE ({seed}) AND ({orgs}) "
             f"UNION SELECT n.id FROM fs_nodes n JOIN fv ON n.parent_id = fv.id WHERE ({orgs}){step}), "
             f"fd(id) AS (SELECT id FROM fs_nodes WHERE deleted_at IS NOT NULL "

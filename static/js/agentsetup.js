@@ -33,6 +33,7 @@ function ains_machinesHtml(ms) {
       <small class="muted">${esc((f8c_plainTok(m) ? [m.created_at && tr('created {0}', fmtWhen(m.created_at)), m.connected ? tr('connected') : m.last_used_at ? tr('last used {0}', relTime(m.last_used_at)) : tr('never used')]
         : [m.connected ? tr('connected') : m.last_used_at ? tr('last contact {0}', relTime(m.last_used_at)) : tr('never connected'), ains_osName(m.os), m.folder,
             (m.allowed_ips || []).length && tr('only from {0}', m.allowed_ips.join(', '))]).filter(Boolean).join(' · '))}</small></span>
+      ${(m.allowed_ips || []).length ? `<button class="btn sm" data-m="ains-ipreset" aria-label="${esc(tr('Remove the address rule of {0}', m.host || m.prefix))}">${tr('Remove address rule')}</button>` : ''}
       <button class="btn sm danger" data-m="ains-del" aria-label="${esc(tr('Remove computer {0}', m.host || m.prefix))}">${ic('trash', 's')} ${tr('Remove computer')}</button></div>`).join('');
 }
 // 2.47.3 (#1729): the command that takes an agent off one computer again (stops the autostart, revokes the key when it still
@@ -121,6 +122,11 @@ function ains_setupModal(a, base) {
     if (m === 'ains-copy') {
       const ok = await clipCopy($('#ains-cmd', md).value);
       if (ok) toast(tr('Copied')); else { $('#ains-cmd', md).select(); toast(tr('Copy failed, select the text by hand')); }
+      return;
+    }
+    if (m === 'ains-ipreset') {  // #7051 (Fable reader N3): the computer's key takes the agent's address rule again (none = any address)
+      const id = +b.closest('[data-ainsm]').dataset.ainsm;
+      try { await api('PATCH', base, {machine_ip_reset: id}); toast(tr('Saved')); ms(); } catch (x) { show(x.message); }
       return;
     }
     if (m === 'ains-del') {

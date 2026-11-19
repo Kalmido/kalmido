@@ -523,7 +523,11 @@ def sig_list_list(lid):
     rows = c.execute("SELECT * FROM office_signoffs WHERE list_id=? AND kind='acceptance' ORDER BY id DESC LIMIT 50", (lid,)).fetchall()
     ms = [{"id": r["id"], "title": r["title"]} for r in c.execute(f"SELECT id, title FROM tasks WHERE list_id=? AND ms=1 AND {live_sql()} ORDER BY sort, id LIMIT 100", (lid,))]
     secs = [{"id": r["id"], "name": r["name"]} for r in c.execute("SELECT id, name FROM sections WHERE list_id=? ORDER BY sort, id", (lid,))]
-    return jsonify(signoffs=[sig_public(c, r) for r in rows], milestones=ms, sections=secs, enabled=public_links_on(c, "signoff"))
+    # #6953 (reader job/5148 F1): the link's address and the signer's data only for who may change the links, as at a quotation
+    org = (c.execute("SELECT org_id FROM lists WHERE id=?", (lid,)).fetchone() or [None])[0]
+    ed = not org or ofr_allows(c, g.user["id"], org, "offers", "edit")
+    full = ed and (not org or office_role(c, g.user["id"], org) == "admin")
+    return jsonify(signoffs=[sig_public(c, r, full, ed) for r in rows], milestones=ms, sections=secs, enabled=public_links_on(c, "signoff"))
 
 
 @app.post("/api/lists/<int:lid>/signoffs")

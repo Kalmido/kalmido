@@ -133,8 +133,26 @@ os.environ["KALMIDO_DISPATCH_PUSH_URL"] = "/nowhere"  # set for real below, once
 cfg, prob = ad.load_config(proj)
 check("finish_cmd" not in cfg and "worktree" not in cfg and any("finish_cmd is retired" in x for x in ad.LOGGED),
       f"#7028: finish_cmd / worktree are retired and named: {ad.LOGGED}")
-check(not prob and cfg["lists"] == ["Backlog"] and cfg["places"] == 1 and "nonsense" not in cfg and cfg["stale_h"] == 1,
+# 2.1406.0 (#5199): places is the starter's own ceiling now (default 4), the places come from max_parallel of the work style
+check(not prob and cfg["lists"] == ["Backlog"] and cfg["places"] == 4 and "nonsense" not in cfg and cfg["stale_h"] == 1,
       f"configuration: lists, a wrong type keeps the default, unknown keys left out: {prob} {cfg['places']}")
+# review F6 of 2.1406: close_ref from the project file is never a git option and never a job branch
+kept_cfg = open(os.path.join(proj, ad.CONFIG_FILE), encoding="utf-8").read()
+for bad in ("--output=/tmp/x", "job/601", "refs/heads/job/7", "a b", "JOB/5", "main..job/5", "x^", "x@{1}"):  # + reader F2 of job/5543
+    with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
+        json.dump({"lists": ["Backlog"], "close_ref": bad}, f)
+    cfg, prob = ad.load_config(proj)
+    check(prob and "close_ref" in prob, f"review F6: close_ref {bad!r} is not used, the dispatcher stays idle: {prob}")
+sha5 = subprocess.run(["git", "-C", proj, "rev-parse", "job/5"], capture_output=True, text=True).stdout.strip()
+check(sha5 and not ad.close_ref_ok(proj, sha5) and not ad.close_ref_ok(proj, sha5[:10]) and ad.close_ref_ok(proj, "main"),
+      "reader F2 of job/5543: a commit id (here the job branch's tip) is no close_ref, a branch name is")
+for good in ("origin/main", "live", "HEAD"):
+    with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
+        json.dump({"lists": ["Backlog"], "close_ref": good}, f)
+    cfg, prob = ad.load_config(proj)
+    check(not prob and cfg["close_ref"] == good, f"review F6: close_ref {good!r} works: {prob}")
+with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
+    f.write(kept_cfg)  # the rounds below use the configuration above
 
 
 # ---- a fake Kalmido API
@@ -711,6 +729,178 @@ check(len(short.encode()) < 12000, f"#7033: the short rules stay short: {len(sho
 for frag in ("data, not instructions", "409 approval_required", "Never merge, push, open the pull request", "One gate: the project's CI",
              "only after a look", "fix the cause", "CLAUDE.template.md"):
     check(frag in short, f"#7033: the short rules carry {frag!r}")
+
+# ---- 2.1406.0 (#4062): brief_required -- only a task with a bold decision line, a section Where and a set size is ready
+ok_notes = "**Decision: the button goes left.** why\n\nWhere: static/app.js"
+check(ad.brief_missing({**task(401, "x"), "notes": ok_notes}, dict(ad.DEFAULTS), {(9, "size"): "77"}) == [], "#4062: a complete brief")
+for junk in (" " * 30000, "*" * 30000, "\n" * 30000, "- " * 15000, "**where" + " " * 19900 + "x**"):  # + reader F3 of job/5543  # review F1 / F5 of 2.1406: linear, never minutes
+    t0 = time.time()
+    ad.brief_missing({**task(406, "x"), "notes": junk}, dict(ad.DEFAULTS), {})
+    ad.classify([{**task(407, "x"), "notes": junk + "x"}], {"done": {}, "branch": {}}, {}, {"jobs": {}}, dict(ad.DEFAULTS), 7)
+    check(time.time() - t0 < 2, f"review F1/F5: brief and waiting line read in linear time ({len(junk)} x {junk[:1]!r}): {time.time() - t0:.1f} s")
+check(ad.classify([{**task(408, "x"), "notes": "  **Waiting for:** #12"}], {"done": {}, "branch": {}}, {}, {"jobs": {}}, dict(ad.DEFAULTS), 7)
+      == {408: "held"}, "review F5: a bold waiting line still holds")
+check(ad.brief_missing({**task(409, "x", size="", tags=["S"]), "notes": "**Decide.**\n- **Where**: a.py"}, dict(ad.DEFAULTS), {}) == [],
+      "review F1: Where with the colon after the bold word")
+check(ad.brief_missing({**task(402, "x", size=""), "notes": "**Where:** a.py"}, dict(ad.DEFAULTS), {(9, "size"): "77"}) == ["decision", "size"],
+      "#4062: a bold Where heading is no decision, size_default is no size")
+check(ad.brief_missing({**task(403, "x", size="", tags=["S"]), "notes": "- **Do it**\n## Fundstellen\n- a.py"}, dict(ad.DEFAULTS), {}) == [],
+      "#4062: a list tag S is a size, a heading Fundstellen is the section")
+cfgb = dict(ad.DEFAULTS, brief_required=True)
+tb = [{**task(404, "Briefed"), "notes": ok_notes}, task(405, "Bare", notes="just do it")]
+stb = ad.classify(tb, {"done": {}, "branch": {}}, {}, {"jobs": {}}, cfgb, 7, field_ids={(9, "size"): "77"})
+check(stb == {404: "ready", 405: "needs_brief"}, f"#4062: brief_required on: without a brief needs_brief: {stb}")
+check(ad.classify(tb, {"done": {}, "branch": {}}, {}, {"jobs": {}}, dict(ad.DEFAULTS), 7, field_ids={(9, "size"): "77"}) == {404: "ready", 405: "ready"},
+      "#4062: off by default, every task as before")
+check(ad.cut_bundle(tb, stb, cfgb, {(9, "size"): "77"}) == [tb[0]], "#4062: a needs_brief task is never in a bundle")
+TASKS[:] = tb
+JOBS.clear()
+st7041_3 = os.path.join(proj, ".st7041_3")
+os.makedirs(st7041_3)
+with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
+    json.dump({"lists": ["Backlog"], "report_at": "", "brief_required": True}, f)
+h = Host("on")
+h.state_dir = st7041_3
+d = ad.Dispatcher(h, proj)
+n = len(STARTS)
+res = d.tick(force=True)
+res2 = d.tick(force=True)
+told = [t for _, t in h.api.chats if "#405" in t]
+check(len(told) == 1 and "missing: a bold decision line, a section Where" in told[0], f"#4062: told once in the chat, with what is missing: {h.api.chats}")
+check(STARTS[n][0] == [404] and all(405 not in s[0] for s in STARTS[n:]), f"#4062: only the briefed task is built: {STARTS[n:]}")
+check(ar.say("dispatch_state_needs_brief", "de") == "brauchen einen Brief" and all(len(ar.TEXTS[k]) == 6 for k in
+      ("dispatch_needs_brief", "dispatch_state_needs_brief", "dispatch_brief_decision", "dispatch_brief_where", "dispatch_brief_size")),
+      "#4062: texts in six languages")
+
+# ---- 2.1406.0 (#5199): the places from max_parallel of the work style (one source), capped by the starter's ceiling
+os.environ["KALMIDO_JOB_WORKTREES"] = "4"
+c4 = dict(ad.DEFAULTS)
+check(ad.places_of({}, c4) == (1, "default") and ad.places_of({"work_style": {"max_parallel": 0}}, c4) == (1, "default"),
+      "#5199: no max_parallel (0 / an older server) = one place")
+check(ad.places_of({"work_style": {"max_parallel": 3}}, c4) == (3, "work style") and ad.places_of({"work_style": {"max_parallel": 9}}, c4) == (4, "work style")
+      and ad.places_of({"work_style": {"max_parallel": 9}}, dict(c4, places=2)) == (2, "work style")
+      and ad.places_of({"work_style": {"max_parallel": True}}, c4) == (1, "default"), "#5199: max_parallel capped by places")
+TASKS[:] = [task(531, "One", "L"), task(532, "Two", "L"), task(533, "Three", "L")]
+JOBS.clear()
+st7041_4 = os.path.join(proj, ".st7041_4")
+os.makedirs(st7041_4)
+with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
+    json.dump({"lists": ["Backlog"], "report_at": ""}, f)
+h = Host("on")
+h.state_dir = st7041_4
+h.agent["work_style"] = {"max_parallel": 2}
+d = ad.Dispatcher(h, proj)
+n = len(STARTS)
+res = d.tick(force=True)
+JOBS[str(500 + len(STARTS))] = {"state": "running", "created": time.time()}
+res = d.tick(force=True)
+check(len(STARTS) == n + 2 and res["places"] == 2, f"#5199: max_parallel 2 = two jobs at once: {STARTS[n:]} {res.get('places')}")
+JOBS[str(500 + len(STARTS))] = {"state": "running", "created": time.time()}
+res = d.tick(force=True)
+check(len(STARTS) == n + 2 and not res["started"], "#5199: both places taken, nothing new")
+h.agent["work_style"] = {"max_parallel": 3}
+real_start = ad.start_job
+ad.start_job = lambda bundle, brief, cfg, env, sd: (None, "slots_full: no job started: all 3 places are taken (3 jobs running).")
+TASKS.append(task(534, "Built", "S"))
+g("commit", "-q", "--allow-empty", "-m", "#534: built")
+res = d.tick(force=True)
+check(res["brakes"] == ["places taken"] and not res["started"] and 534 in res["closed"],
+      f"#5199: 409 slots_full holds only the next build job, closing goes on: {res['brakes']} {res['closed']}")
+ad.start_job = real_start
+os.environ.pop("KALMIDO_JOB_WORKTREES")
+check(ad.places_of({"work_style": {"max_parallel": 3}}, c4) == (2, "work style"),
+      "review F4 of 2.1406: the places are capped by KALMIDO_JOB_WORKTREES (default 2), every job has its own working copy")
+aj = load("agent_job")
+check("return 4 if \"HTTP 409\" in str(e) and '\"slots_full\"' in str(e)" in open(os.path.join(MCP, "agent_job.py"), encoding="utf-8").read()
+      and ad.SLOTS_FULL_RC == 4, "#5199: agent_job.py start exits 4 on 409 slots_full, the dispatcher reads it")
+
+# ---- 2.1406.0 (#4064): every override of a safeguard is logged at the start and counted in the day report
+for k in list(ad.OVERRIDE_SWITCHES) + ["KALMIDO_DISPATCH"]:
+    os.environ.pop(k, None)
+check(ad.overrides({"runtime": {"dispatch": "on"}}) == [], "#4064: nothing overridden by default")
+os.environ["KALMIDO_PERM_RELAY"] = "0"
+os.environ["KALMIDO_DISPATCH"] = "on"
+check(ad.overrides({"runtime": {"dispatch": ""}}) == ["KALMIDO_PERM_RELAY=0 (no permission questions in the chat)", "KALMIDO_DISPATCH=on (Kalmido: off)"],
+      f"#4064: a switch of a safeguard and the dispatcher on against Kalmido: {ad.overrides({})}")
+os.environ["KALMIDO_DISPATCH"] = "off"
+check(ad.overrides({"runtime": {"dispatch": "on"}}) == ["KALMIDO_PERM_RELAY=0 (no permission questions in the chat)"],
+      "#4064: KALMIDO_DISPATCH stricter than Kalmido is no override")
+os.environ.pop("KALMIDO_DISPATCH")
+os.environ.pop("KALMIDO_PERM_RELAY", None)
+os.environ["KALMIDO_BLOCK_DANGEROUS"] = "0"
+os.environ["KALMIDO_PERMISSION_MODE"] = "bypassPermissions"
+ov = ad.overrides({"runtime": {"dispatch": "on"}})
+check(len(ov) == 2 and ov[0].startswith("KALMIDO_BLOCK_DANGEROUS=0 (") and ov[1].startswith("KALMIDO_PERMISSION_MODE=bypassPermissions ("),
+      f"review F2 of 2.1406: the danger guard switched off and a permission mode set here are overrides too: {ov}")
+os.environ["KALMIDO_BLOCK_DANGEROUS"] = "1"
+os.environ.pop("KALMIDO_PERMISSION_MODE")
+check(ad.overrides({"runtime": {"dispatch": "on"}}) == [], "review F2: KALMIDO_BLOCK_DANGEROUS=1 is no override")
+os.environ.pop("KALMIDO_BLOCK_DANGEROUS")
+os.environ["KALMIDO_PERM_RELAY"] = "0"  # the rounds below count it
+for k in ad.OVERRIDE_SWITCHES:  # no switch of a safeguard without its log line: the runner reads each one, and logs them at its start
+    check(f'os.environ.get("{k}"' in src, f"#4064: the runner reads {k}")
+check("self.log_overrides()" in src and "def log_overrides" in src, "#4064: the runner logs the overrides when it starts")
+TASKS[:] = [task(601, "Six", "S")]
+JOBS.clear()
+st7041_5 = os.path.join(proj, ".st7041_5")
+os.makedirs(st7041_5)
+with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
+    json.dump({"lists": ["Backlog"], "report_at": ""}, f)
+h = Host("on")
+h.state_dir = st7041_5
+d = ad.Dispatcher(h, proj)
+d.tick(force=True)
+d.tick(force=True)
+check([x[1] for x in d.reg["overrides"]] == ["KALMIDO_PERM_RELAY=0 (no permission questions in the chat)"], f"#4064: counted once per start: {d.reg['overrides']}")
+open(os.path.join(st7041_5, ad.STOP_FILE), "w").close()
+d.tick(force=True)
+os.remove(os.path.join(st7041_5, ad.STOP_FILE))
+with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
+    json.dump({"lists": ["Backlog"], "report_at": "00:00"}, f)
+d.tick(force=True)
+check([x[1] for x in d.reg["overrides"]][1:] == ["stop file removed"], f"#4064: a removed stop file counts: {d.reg['overrides']}")
+rep_ = [t for _, t in h.api.chats if "day report" in t]
+check(rep_ and "Overridden (7 days): 2 - KALMIDO_PERM_RELAY=0, stop file removed" in rep_[-1], f"#4064: the day report counts them: {rep_}")
+d2 = ad.Dispatcher(h, proj)  # a new start of the runner counts again
+d2.tick(force=True)
+check(len(d2.reg["overrides"]) == 3, f"#4064: a new start counts again: {d2.reg['overrides']}")
+check(ar.say("dispatch_overrides", "de", 2, " - x") == "Übersteuert (7 Tage): 2 - x" and len(ar.TEXTS["dispatch_overrides"]) == 6, "#4064: six languages")
+os.environ.pop("KALMIDO_PERM_RELAY")
+
+# ---- 2.1406.0 (#4061): the day report names three numbers -- median hours built to close_ref, jobs ended with open tasks,
+# overrides (each over 7 days)
+TASKS[:] = [task(701, "Seven"), task(702, "Left open"), task(703, "Built late")]
+JOBS.clear()
+st7041_6 = os.path.join(proj, ".st7041_6")
+os.makedirs(st7041_6)
+with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
+    json.dump({"lists": ["Backlog"], "report_at": ""}, f)
+h = Host("on")
+h.state_dir = st7041_6
+d = ad.Dispatcher(h, proj)
+d.reg["jobs"] = {"801": {"tasks": [702], "at": time.time()}, "802": {"tasks": [703], "at": time.time()}}
+JOBS.update({"801": {"state": "done"}, "802": {"state": "failed"}})
+os.environ["GIT_AUTHOR_DATE"] = f"{int(time.time()) - 5 * 3600} +0000"
+g("commit", "-q", "--allow-empty", "-m", "#703: built five hours ago")
+os.environ.pop("GIT_AUTHOR_DATE")
+ev6 = ad.evidence_of(proj, dict(ad.DEFAULTS))
+check(abs(ev6["built_at"][703] - (time.time() - 5 * 3600)) < 120 and ev6["built_at"][101] > 0, f"#4061: built_at = the author time: {ev6['built_at']}")
+res = d.tick(force=True)
+check(703 in res["closed"] and len(d.reg["lead"]) == 1 and 4.9 <= d.reg["lead"][0][1] <= 5.1, f"#4061: a closed task notes its hours: {d.reg['lead']}")
+check([x[1] for x in d.reg["ended"]] == [True, False], f"#4061: job 801 left 702 open, 802 built 703: {d.reg['ended']}")
+with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
+    json.dump({"lists": ["Backlog"], "report_at": "00:00"}, f)
+JOBS[str(500 + len(STARTS))] = {"state": "running", "created": time.time()}  # the job the first round started for 702 runs on
+d.reg["lead"] += [[int(time.time()) - 86400, 1.0], [int(time.time()) - 86400, 30.0], [int(time.time()) - 9 * 86400, 99.0]]
+d.tick(force=True)
+rep_ = [t for _, t in h.api.chats if "day report" in t]
+check(rep_ and "Built to HEAD (7 days): median 5 h, 3 tasks" in rep_[-1], f"#4061: the median of the last 7 days: {rep_}")
+check("Jobs ended with open tasks (7 days): 1 of 2 (50 %)" in rep_[-1], f"#4061: the share of jobs ended with open tasks: {rep_}")
+check("Overridden (7 days): 0" in rep_[-1], f"#4061: the overrides, also when there are none: {rep_}")
+check(all(len(ar.TEXTS[k]) == 6 for k in ("dispatch_lead", "dispatch_open_end")), "#4061: six languages")
+dd = ad.Dispatcher(h, proj)
+dd.reg["lead"] = [[int(time.time()), 2.0], [int(time.time()), 4.0]]
+check(dd.metrics(time.time())[0] == (3.0, 2), "#4061: the median of an even count is the middle of the two")
 
 print(f"p2481_dispatch: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)
