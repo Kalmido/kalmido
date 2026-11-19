@@ -126,7 +126,7 @@ def mg_olnk_move(c, kind, from_ids, to_id):
     def side(k, i):
         return int(to_id) if k == kind and int(i) in from_ids else int(i)
 
-    with system_ctx(c):
+    with system_ctx(c):  # the delete trigger reaches the links of every reader and workspace, so all of them move (#6288)
         rows = [dict(r) for r in c.execute(
             f"SELECT * FROM obj_links WHERE (src_kind=? AND src_id IN ({qs})) OR (dst_kind=? AND dst_id IN ({qs})) ORDER BY id",
             [kind, *from_ids, kind, *from_ids]).fetchall()]
