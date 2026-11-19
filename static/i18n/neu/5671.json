@@ -1,0 +1,52 @@
+{
+  "de": {
+    "File not filed: {0} ({1})": "Datei nicht abgelegt: {0} ({1})",
+    "the storage is full": "der Speicher ist voll",
+    "the virus scanner refused it": "der Virenscanner hat sie abgelehnt",
+    "the list is encrypted in the browser": "die Liste ist im Browser verschlüsselt",
+    "it was refused": "sie wurde abgelehnt",
+    "{0} file was not filed ({1}): {2}": ["{0} Datei wurde nicht abgelegt ({1}): {2}", "{0} Dateien wurden nicht abgelegt ({1}): {2}"],
+    "the file is too large": "die Datei ist zu groß",
+    "Requests by e-mail to project {0}: more than {3} e-mails wait for the hourly limit. {2} further e-mails were not taken in; they stay read in the mailbox.": "Anfragen per E-Mail an Projekt {0}: mehr als {3} E-Mails warten auf das Stundenlimit. {2} weitere E-Mails wurden nicht übernommen; sie bleiben gelesen im Postfach."
+  },
+  "es": {
+    "File not filed: {0} ({1})": "Archivo no guardado: {0} ({1})",
+    "the storage is full": "el almacenamiento está lleno",
+    "the virus scanner refused it": "el antivirus lo rechazó",
+    "the list is encrypted in the browser": "la lista está cifrada en el navegador",
+    "it was refused": "fue rechazado",
+    "{0} file was not filed ({1}): {2}": ["{0} archivo no se guardó ({1}): {2}", "{0} archivos no se guardaron ({1}): {2}"],
+    "the file is too large": "el archivo es demasiado grande",
+    "Requests by e-mail to project {0}: more than {3} e-mails wait for the hourly limit. {2} further e-mails were not taken in; they stay read in the mailbox.": "Solicitudes por correo al proyecto {0}: más de {3} correos esperan al límite por hora. {2} correos más no se han aceptado; quedan leídos en el buzón."
+  },
+  "fr": {
+    "File not filed: {0} ({1})": "Fichier non enregistré : {0} ({1})",
+    "the storage is full": "l’espace de stockage est plein",
+    "the virus scanner refused it": "l’antivirus l’a refusé",
+    "the list is encrypted in the browser": "la liste est chiffrée dans le navigateur",
+    "it was refused": "il a été refusé",
+    "{0} file was not filed ({1}): {2}": ["{0} fichier n’a pas été enregistré ({1}) : {2}", "{0} fichiers n’ont pas été enregistrés ({1}) : {2}"],
+    "the file is too large": "le fichier est trop volumineux",
+    "Requests by e-mail to project {0}: more than {3} e-mails wait for the hourly limit. {2} further e-mails were not taken in; they stay read in the mailbox.": "Demandes par e-mail au projet {0} : plus de {3} e-mails attendent la limite horaire. {2} autres e-mails n’ont pas été repris ; ils restent lus dans la boîte."
+  },
+  "it": {
+    "File not filed: {0} ({1})": "File non archiviato: {0} ({1})",
+    "the storage is full": "lo spazio di archiviazione è pieno",
+    "the virus scanner refused it": "l’antivirus l’ha rifiutato",
+    "the list is encrypted in the browser": "la lista è cifrata nel browser",
+    "it was refused": "è stato rifiutato",
+    "{0} file was not filed ({1}): {2}": ["{0} file non è stato archiviato ({1}): {2}", "{0} file non sono stati archiviati ({1}): {2}"],
+    "the file is too large": "il file è troppo grande",
+    "Requests by e-mail to project {0}: more than {3} e-mails wait for the hourly limit. {2} further e-mails were not taken in; they stay read in the mailbox.": "Richieste via e-mail al progetto {0}: più di {3} e-mail attendono il limite orario. Altre {2} e-mail non sono state accolte; restano lette nella casella."
+  },
+  "nl": {
+    "File not filed: {0} ({1})": "Bestand niet opgeslagen: {0} ({1})",
+    "the storage is full": "de opslag is vol",
+    "the virus scanner refused it": "de virusscanner heeft het geweigerd",
+    "the list is encrypted in the browser": "de lijst is versleuteld in de browser",
+    "it was refused": "het werd geweigerd",
+    "{0} file was not filed ({1}): {2}": ["{0} bestand is niet opgeslagen ({1}): {2}", "{0} bestanden zijn niet opgeslagen ({1}): {2}"],
+    "the file is too large": "het bestand is te groot",
+    "Requests by e-mail to project {0}: more than {3} e-mails wait for the hourly limit. {2} further e-mails were not taken in; they stay read in the mailbox.": "Aanvragen per e-mail aan project {0}: meer dan {3} e-mails wachten op de uurlimiet. {2} verdere e-mails zijn niet overgenomen; ze blijven gelezen in de mailbox."
+  }
+}
