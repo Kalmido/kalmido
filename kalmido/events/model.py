@@ -509,17 +509,45 @@ def ev_rule(r, near=None):
     try:
         st = datetime.fromisoformat(r["start"][:10]) if r["all_day"] else wall(r["start"]).replace(tzinfo=zone)
         if near is not None:
-            # wall-clock days (an aware datetime plus days keeps its local time), so summer time changes nothing
-            st = st + timedelta(days=rr_shift_days(dict(p.split("=", 1) for p in rule.split(";")), st.date(), near))
+            rule, st = _ev_move(rule, st, near)
         return rrulestr(_until_utc(rule, zone, bool(r["all_day"])), dtstart=st)
     except (ValueError, TypeError, OverflowError):
         return None
 
 
-# 2.1423.0 (#6727): dates a rule may pass before the wanted range (after the move of ev_rule). What cannot move (COUNT,
-# MONTHLY / YEARLY with an interval off the 400-year cycle) is walked with this stop; above it the rule shows no dates
-# there, only its extra dates (RDATE) and changed occurrences. 10 000 dates take some milliseconds; a COUNT rule has at
-# most 9999 (rr_problem), so only a rule nobody writes by hand (many dates a month for centuries) reaches the stop.
+def _ev_move(rule, st, near):
+    """2.1423.0 (#6727): (rule, start) with the start moved towards the local date near, the same dates from the new
+    start on; the new start stays at least a week before near. A COUNT rule stays (its dates count from the start).
+    DAILY / WEEKLY: whole periods (rr_shift_days, as the subscriptions). MONTHLY / YEARLY: to the first day of a period
+    (whole intervals of months / years later), after the dates dateutil would take from the start (BYMONTHDAY = its
+    day, YEARLY also BYMONTH = its month) are written into the rule -- every further date of such a rule depends only on
+    the period it lies in. Wall-clock days and months (an aware datetime keeps its local time), so summer time changes
+    nothing."""
+    parts = dict(p.split("=", 1) for p in rule.split(";"))
+    if "COUNT" in parts:
+        return rule, st
+    freq = parts.get("FREQ")
+    if freq in ("DAILY", "WEEKLY"):
+        return rule, st + timedelta(days=rr_shift_days(parts, st.date(), near))
+    if freq not in ("MONTHLY", "YEARLY"):
+        return rule, st
+    per = int(parts.get("INTERVAL", "1")) * (1 if freq == "MONTHLY" else 12)  # months per period
+    t = near - timedelta(days=7)
+    months = (t.year - st.year) * 12 + t.month - st.month
+    k = months // per * per
+    if k <= 0 or (t - st.date()).days <= 400:
+        return rule, st
+    if not any(x in parts for x in ("BYWEEKNO", "BYYEARDAY", "BYMONTHDAY", "BYDAY")):
+        parts["BYMONTHDAY"] = str(st.day)  # dateutil's own default (rrule.__init__), now written down
+        if freq == "YEARLY":
+            parts.setdefault("BYMONTH", str(st.month))
+    m = st.month - 1 + k
+    return ";".join(f"{a}={b}" for a, b in parts.items()), st.replace(year=st.year + m // 12, month=m % 12 + 1, day=1)
+
+
+# 2.1423.0 (#6727): dates a rule may pass before the wanted range (after the move of ev_rule). Only a COUNT rule cannot
+# move, and it has at most 9999 dates (rr_problem); the stop is the guard for whatever slips past the move. Above it the
+# rule shows no dates there, only its extra dates (RDATE) and changed occurrences. 10 000 dates take some milliseconds.
 EV_WALK_MAX = 10000
 
 
