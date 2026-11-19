@@ -32,6 +32,7 @@ from ..core.access import run_person  # 2.1287.0 (#6454, review)
 from ..core.pg import insert_id, system_ctx, ts_canon, write_lock  # 2.1095.0 (#5306): ts_canon
 from ..core.orgcrypt import oc_log_detail
 from ..accounts.session import me
+from ..accounts.orgroles import office_allowed
 from ..accounts.login import login_log_who  # 2.239.0 B (#2888)
 from ..core.conflict import take_version
 from ..core.errors import BadInput
@@ -1021,6 +1022,9 @@ def ofa_agent_patch(aid):
     role = office_role(c, uid, oid) if oid else None
     if not role:
         raise Denied(404)
+    no = office_allowed(c, uid, oid, write=True)  # #6607: the organisation role first (read-only / accounting / guest: never),
+    if no:  # as office_org does -- an office group's "manage" does not lift it (office_org itself would ask the workspace setting)
+        raise Denied(403, tr(no))
     if not ofr_admin_or(c, uid, oid, "settings", "manage"):  # 2.187.0 B (#2476): office groups: manage the settings
         raise Denied(403, tr("Only an admin of this workspace can do this"))
     b = body()
