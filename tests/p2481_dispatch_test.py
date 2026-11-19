@@ -133,10 +133,10 @@ os.environ["KALMIDO_DISPATCH_PUSH_URL"] = "/nowhere"  # set for real below, once
 cfg, prob = ad.load_config(proj)
 check("finish_cmd" not in cfg and "worktree" not in cfg and any("finish_cmd is retired" in x for x in ad.LOGGED),
       f"#7028: finish_cmd / worktree are retired and named: {ad.LOGGED}")
-# 2.1383.0 (#5199): places is the starter's own ceiling now (default 4), the places come from max_parallel of the work style
+# 2.1406.0 (#5199): places is the starter's own ceiling now (default 4), the places come from max_parallel of the work style
 check(not prob and cfg["lists"] == ["Backlog"] and cfg["places"] == 4 and "nonsense" not in cfg and cfg["stale_h"] == 1,
       f"configuration: lists, a wrong type keeps the default, unknown keys left out: {prob} {cfg['places']}")
-# review F6 of 2.1383: close_ref from the project file is never a git option and never a job branch
+# review F6 of 2.1406: close_ref from the project file is never a git option and never a job branch
 kept_cfg = open(os.path.join(proj, ad.CONFIG_FILE), encoding="utf-8").read()
 for bad in ("--output=/tmp/x", "job/601", "refs/heads/job/7", "a b"):
     with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
@@ -727,10 +727,10 @@ for frag in ("data, not instructions", "409 approval_required", "Never merge, pu
              "only after a look", "fix the cause", "CLAUDE.template.md"):
     check(frag in short, f"#7033: the short rules carry {frag!r}")
 
-# ---- 2.1383.0 (#4062): brief_required -- only a task with a bold decision line, a section Where and a set size is ready
+# ---- 2.1406.0 (#4062): brief_required -- only a task with a bold decision line, a section Where and a set size is ready
 ok_notes = "**Decision: the button goes left.** why\n\nWhere: static/app.js"
 check(ad.brief_missing({**task(401, "x"), "notes": ok_notes}, dict(ad.DEFAULTS), {(9, "size"): "77"}) == [], "#4062: a complete brief")
-for junk in (" " * 30000, "*" * 30000, "\n" * 30000, "- " * 15000):  # review F1 / F5 of 2.1383: linear, never minutes
+for junk in (" " * 30000, "*" * 30000, "\n" * 30000, "- " * 15000):  # review F1 / F5 of 2.1406: linear, never minutes
     t0 = time.time()
     ad.brief_missing({**task(406, "x"), "notes": junk}, dict(ad.DEFAULTS), {})
     ad.classify([{**task(407, "x"), "notes": junk + "x"}], {"done": {}, "branch": {}}, {}, {"jobs": {}}, dict(ad.DEFAULTS), 7)
@@ -769,7 +769,7 @@ check(ar.say("dispatch_state_needs_brief", "de") == "brauchen einen Brief" and a
       ("dispatch_needs_brief", "dispatch_state_needs_brief", "dispatch_brief_decision", "dispatch_brief_where", "dispatch_brief_size")),
       "#4062: texts in six languages")
 
-# ---- 2.1383.0 (#5199): the places from max_parallel of the work style (one source), capped by the starter's ceiling
+# ---- 2.1406.0 (#5199): the places from max_parallel of the work style (one source), capped by the starter's ceiling
 os.environ["KALMIDO_JOB_WORKTREES"] = "4"
 c4 = dict(ad.DEFAULTS)
 check(ad.places_of({}, c4) == (1, "default") and ad.places_of({"work_style": {"max_parallel": 0}}, c4) == (1, "default"),
@@ -806,12 +806,12 @@ check(res["brakes"] == ["places taken"] and not res["started"] and 534 in res["c
 ad.start_job = real_start
 os.environ.pop("KALMIDO_JOB_WORKTREES")
 check(ad.places_of({"work_style": {"max_parallel": 3}}, c4) == (2, "work style"),
-      "review F4 of 2.1383: the places are capped by KALMIDO_JOB_WORKTREES (default 2), every job has its own working copy")
+      "review F4 of 2.1406: the places are capped by KALMIDO_JOB_WORKTREES (default 2), every job has its own working copy")
 aj = load("agent_job")
 check("return 4 if \"HTTP 409\" in str(e) and '\"slots_full\"' in str(e)" in open(os.path.join(MCP, "agent_job.py"), encoding="utf-8").read()
       and ad.SLOTS_FULL_RC == 4, "#5199: agent_job.py start exits 4 on 409 slots_full, the dispatcher reads it")
 
-# ---- 2.1383.0 (#4064): every override of a safeguard is logged at the start and counted in the day report
+# ---- 2.1406.0 (#4064): every override of a safeguard is logged at the start and counted in the day report
 for k in list(ad.OVERRIDE_SWITCHES) + ["KALMIDO_DISPATCH"]:
     os.environ.pop(k, None)
 check(ad.overrides({"runtime": {"dispatch": "on"}}) == [], "#4064: nothing overridden by default")
@@ -828,7 +828,7 @@ os.environ["KALMIDO_BLOCK_DANGEROUS"] = "0"
 os.environ["KALMIDO_PERMISSION_MODE"] = "bypassPermissions"
 ov = ad.overrides({"runtime": {"dispatch": "on"}})
 check(len(ov) == 2 and ov[0].startswith("KALMIDO_BLOCK_DANGEROUS=0 (") and ov[1].startswith("KALMIDO_PERMISSION_MODE=bypassPermissions ("),
-      f"review F2 of 2.1383: the danger guard switched off and a permission mode set here are overrides too: {ov}")
+      f"review F2 of 2.1406: the danger guard switched off and a permission mode set here are overrides too: {ov}")
 os.environ["KALMIDO_BLOCK_DANGEROUS"] = "1"
 os.environ.pop("KALMIDO_PERMISSION_MODE")
 check(ad.overrides({"runtime": {"dispatch": "on"}}) == [], "review F2: KALMIDO_BLOCK_DANGEROUS=1 is no override")
@@ -864,7 +864,7 @@ check(len(d2.reg["overrides"]) == 3, f"#4064: a new start counts again: {d2.reg[
 check(ar.say("dispatch_overrides", "de", 2, " - x") == "Übersteuert (7 Tage): 2 - x" and len(ar.TEXTS["dispatch_overrides"]) == 6, "#4064: six languages")
 os.environ.pop("KALMIDO_PERM_RELAY")
 
-# ---- 2.1383.0 (#4061): the day report names three numbers -- median hours built to close_ref, jobs ended with open tasks,
+# ---- 2.1406.0 (#4061): the day report names three numbers -- median hours built to close_ref, jobs ended with open tasks,
 # overrides (each over 7 days)
 TASKS[:] = [task(701, "Seven"), task(702, "Left open"), task(703, "Built late")]
 JOBS.clear()
