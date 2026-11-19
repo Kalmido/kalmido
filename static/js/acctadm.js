@@ -396,7 +396,7 @@ const bkBody = md => $('#bk-on', md) ? {on: $('#bk-on', md).checked, time: $('#b
 /** @returns {Promise<void>} */
 function orgAskOpen() {
   if (S.settings.org_ask !== 'pending' || S.me?.kid || S.me?.kind === 'agent' || (S.me?.workspaces || []).length || $('.oaskdlg')) return Promise.resolve();
-  const finish = () => { S.settings.org_ask = 'done'; return api('PATCH', '/api/settings', {org_ask: 'done'}).catch(() => { /* offline: asked again next start */ }); };
+  const finish = () => { settingSet('org_ask', 'done'); return api('PATCH', '/api/settings', {org_ask: 'done'}).catch(() => { /* offline: asked again next start */ }); };
   let cur = 'private';
   const cards = () => `<div class="ptcards" role="radiogroup" aria-label="${esc(tr('Private or with an organisation?'))}">${[['private', 'home', tr('Just for me, privately'), tr('Everything stays in your private workspace.')],
     ['org', 'brief', tr('For my organisation'), tr('You become its admin and can invite people.')]].map(([k, i, n, d]) =>

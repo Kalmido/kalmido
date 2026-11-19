@@ -207,6 +207,9 @@ const modOn = m => m === 'tasks' || m === 'home' || m === 'msv' || m === 'notes'
 // no "+" button on views without tasks
 // views of the tasks module that are not a task list (no quick add, no selection, no open-count)
 const NOLIST_KEYS = ['done', 'trash', 'search', 'archived', 'projects', 'favorites', 'steps', 'help'];  // 2.1086.0 (#5820): + the page "Help"  // 2.773.0 (#5250): + the page "Recent steps"  // 2.417.0 A (#3559): + the start page of Projects
+// One setting of the person in the app state (S.settings is made here; other files write it through this setter).
+/** @param {string} k @param {*} v */
+function settingSet(k, v) { if (S.settings) S.settings[k] = v; }
 // 2.0.6 (#188): tablets in portrait (phone layout, but >= 600 x 600 px) get the docked composer of the desktop instead of
 // the "+" button wherever a view has one; phones keep the "+"
 // 2.19.0 (#669, a regression of 2.7.2): the tablet layout with the docked "Add task" bar (600-899 px wide, 600 px high) is
