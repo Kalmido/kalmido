@@ -11,7 +11,10 @@
    2.974.0 (#5668) / 2.992.0 (#5684): the section "Model" (the model per run: decisions, reviews, routine; the usage per kind of
    the last 7 days); the chat header's "runs with …" opens it as a dialog of its own (agm_open).
    2.1394.0 (#7031): "Jobs on its computer": model and effort for build jobs and review jobs (runtime model_job / effort_job /
-   model_audit / effort_audit), in the admin's and the owner's dialog, saved at once. */
+   model_audit / effort_audit), in the admin's and the owner's dialog, saved at once.
+   #7368: every model field is a real choice (agms_html: Agent default, Fable, Opus, Sonnet, Haiku, Other … with a free field),
+   ONE list for the section Model, the admin's Runtime (agentchat.js) and "Jobs on its computer"; next to every model field
+   of the section Model the effort of that kind of run (runtime effort / effort_decide / effort_review / effort_routine). */
 'use strict';
 
 const AGZ_SIZES = [['small', N_('Small'), '0.4 MB'], ['medium', N_('Medium'), '0.8 MB'], ['large', N_('Large'), '1.5 MB']];
@@ -28,21 +31,65 @@ function agz_html(a, own) {
     <div class="shint">${tr('Pause: 0 = never; it counts only from the small size on.')}</div>
     ${own ? `<div class="row agznr"><label>${tr('Daily summary')}</label>${timeIn('agz-nr', rt.nightly_reset || '', {label: tr('Daily summary'), empty: tr('Agent default')})}</div>` : '<div class="agznr-slot"></div>'}</div>${agg_html(a)}${agd_html(a)}${/*html-ok*/ agj_html(a)}${/*html-ok*/ own ? agm_html(a) : ''}`;  // 2.974.0 (#5668): agm_html escapes its values
 }
+// #7368: the one list of models of every model field (short name = the stored value, the server keeps it in lower case;
+// the names are product names, not translated); "Other …" opens a free field for any other model id
+const AG_MODEL_CHOICES = [['fable', 'Fable'], ['opus', 'Opus'], ['sonnet', 'Sonnet'], ['haiku', 'Haiku']];
+const AGMS_OTHER = '__other';
+// a model field: the choice (#<id>-sel) and the free field #<id> that holds the value (read by the dialogs and the autosave,
+// data-agzk = its runtime key); the free field shows only with "Other …" (also for a stored name not in the list)
+/** @param {string} id @param {string} v @param {string} [k] @param {string} [ph] @param {string} [label] */
+function agms_html(id, v, k, ph, label) {
+  v = String(v || '').trim();
+  const lv = v.toLowerCase(), known = !v || AG_MODEL_CHOICES.some(([m]) => m === lv), cur = !v ? '' : known ? lv : AGMS_OTHER;
+  const opts = [['', ph || tr('Agent default')], ...AG_MODEL_CHOICES, [AGMS_OTHER, tr('Other …')]]
+    .map(([val, txt]) => `<option value="${esc(val)}" ${cur === val ? 'selected' : ''}>${esc(txt)}</option>`).join('');
+  return `<span class="agms"><select id="${esc(id)}-sel" class="agms-sel"${label ? ` aria-label="${esc(label)}"` : ''}>${/*html-ok*/ opts}</select>`  // opts: options built with esc() above
+    + `<input id="${esc(id)}"${k ? ` data-agzk="${esc(k)}"` : ''} value="${esc(known ? lv : v)}" maxlength="100" placeholder="${esc(tr('Model name'))}" aria-label="${esc(tr('Model name'))}" autocomplete="off" autocapitalize="off" spellcheck="false" ${cur === AGMS_OTHER ? '' : 'hidden'}></span>`;
+}
+// the choice changes: a listed model (or the default) goes into the free field, which then saves like a typed value
+// (its own change event: the sections' autosave and the admin dialog's OK read the free field); "Other …" shows the free
+// field with the value so far, to type a new name
+/** @param {any} sel */
+function agms_pick(sel) {
+  const inp = sel.parentElement?.querySelector('input'); if (!inp) return;
+  if (sel.value === AGMS_OTHER) { inp.hidden = false; inp.focus(); inp.select?.(); return; }  // the value stays until a new one is typed
+  inp.hidden = true;
+  if (inp.value === sel.value) return;
+  inp.value = sel.value;
+  inp.dispatchEvent(new Event('change', {bubbles: true}));
+}
+// the choice follows the free field (after a save, a refused save, a typed short name)
+/** @param {any} inp */
+function agms_sync(inp) {
+  const sel = inp?.parentElement?.querySelector('select.agms-sel'); if (!sel) return;
+  const lv = String(inp.value || '').trim().toLowerCase(), known = !lv || AG_MODEL_CHOICES.some(([m]) => m === lv);
+  if (known) inp.value = lv;
+  sel.value = known ? lv : AGMS_OTHER;
+  inp.hidden = known;
+}
+document.addEventListener('change', e => { const t = /** @type {any} */ (e.target); if (t?.classList?.contains('agms-sel')) agms_pick(t); });
+// #7368: the effort next to a model field (the values of the jobs' effort, AGJ_EFFORTS); ph = the text of "empty"
+/** @param {string} id @param {string} k @param {any} rt @param {string} label @param {string} [ph] @param {boolean} [noKey] */
+function agme_html(id, k, rt, label, ph, noKey) {
+  const v = String((rt || {})[k] || '');
+  return `<span class="agme"><span class="muted" aria-hidden="true">${esc(tr('Effort'))}</span><select id="${esc(id)}"${noKey ? '' : ` data-agzk="${esc(k)}"`} aria-label="${esc(label)}">${AGJ_EFFORTS.map(([e, n]) =>
+    `<option value="${esc(e)}" ${v === e ? 'selected' : ''}>${esc(e ? tr(n) : ph || tr(n))}</option>`).join('')}</select></span>`;
+}
 // 2.974.0 (#5668): the model and the model per run in the owner's dialog of a personal agent (the admin dialog has them in
 // "Runtime", agentchat.js agSplitFields); saved at once like the fields above. 2.992.0 (#5684): a third model for reviews
 // (empty = the first) and the usage per kind of the last 7 days below them (agmu_load); the same section is the dialog the
 // chat header opens (agm_open)
 /** @param {any} a */
 function agm_html(a) {
-  const rt = a.runtime || {}, on = !!rt.model_split;
-  /** @param {string} id @param {string} k @param {string} [ph] */
-  const mi = (id, k, ph) => `<input id="${esc(id)}" data-agzk="${esc(k)}" list="agm-models" value="${esc(rt[k] || '')}" maxlength="100" placeholder="${esc(ph || tr('Agent default'))}" autocomplete="off" autocapitalize="off" spellcheck="false">`;
+  const rt = a.runtime || {}, on = !!rt.model_split, like = tr('Like messages and decisions');
+  /** #7368: the model choice and its effort in one row @param {string} id @param {string} k @param {string} ek @param {string} lbl @param {string} [ph] */
+  const mrow = (id, k, ek, lbl, ph) => `<div class="agmsw">${/*html-ok*/ agms_html(id, rt[k], k, ph, lbl)}${/*html-ok*/ agme_html(id + '-eff', ek, rt, tr('Effort') + ': ' + lbl, ph)}</div>`;
   return `<div class="agzsec agzmod" data-agz="${esc(String(a.id))}"><h4 id="agm-h">${tr('Model')}</h4>
-    <div class="row"><label for="agm-model">${tr('Model')}</label>${/*html-ok*/ mi('agm-model', 'model')}<datalist id="agm-models">${['opus', 'sonnet', 'haiku'].map(m => `<option value="${esc(m)}"></option>`).join('')}</datalist></div>
+    <div class="row"><label for="agm-model-sel">${tr('Model')}</label>${/*html-ok*/ mrow('agm-model', 'model', 'effort', tr('Model'))}</div>
     <label class="chkl swl"><span class="swc"><input type="checkbox" role="switch" id="agm-split" data-agzk="model_split" ${on ? 'checked' : ''}><span class="swt" aria-hidden="true"></span></span><span>${tr('Select the model per run')}</span></label>
-    <div class="row agm-r" ${on ? '' : 'hidden'}><label for="agm-dec">${tr('For your messages and decisions')}</label>${/*html-ok*/ mi('agm-dec', 'model_decide')}</div>
-    <div class="row agm-r" ${on ? '' : 'hidden'}><label for="agm-rev">${tr('For reviews')}</label>${/*html-ok*/ mi('agm-rev', 'model_review', tr('Like messages and decisions'))}</div>
-    <div class="row agm-r" ${on ? '' : 'hidden'}><label for="agm-rou">${tr('For routine')}</label>${/*html-ok*/ mi('agm-rou', 'model_routine')}</div>
+    <div class="row agm-r" ${on ? '' : 'hidden'}><label for="agm-dec-sel">${tr('For your messages and decisions')}</label>${/*html-ok*/ mrow('agm-dec', 'model_decide', 'effort_decide', tr('For your messages and decisions'))}</div>
+    <div class="row agm-r" ${on ? '' : 'hidden'}><label for="agm-rev-sel">${tr('For reviews')}</label>${/*html-ok*/ mrow('agm-rev', 'model_review', 'effort_review', tr('For reviews'), like)}</div>
+    <div class="row agm-r" ${on ? '' : 'hidden'}><label for="agm-rou-sel">${tr('For routine')}</label>${/*html-ok*/ mrow('agm-rou', 'model_routine', 'effort_routine', tr('For routine'))}</div>
     <div class="shint agm-r" ${on ? '' : 'hidden'}>${tr('Your messages, buttons, reactions and comments and every run that may need a decision use the first model; reviews (a review you ask it for, a planned job of the kind Review, a scheduled check of a project) the second, empty = the first; quiet wake-ups, new tasks, follow-ups and planned jobs without a warning sign the third. When in doubt the first.')}</div>
     <div class="agmu agm-r" aria-live="polite" ${on ? '' : 'hidden'}></div></div>`;
 }
@@ -75,15 +122,18 @@ function agm_wire(mod, a, base) {
     try {
       const r = await api('PATCH', base, {runtime: {[k]: v}});
       if (r?.runtime) a.runtime = r.runtime;
-      if (k !== 'model_split') el.value = v;
+      if (k !== 'model_split') { el.value = (r?.runtime || {})[k] ?? v; agms_sync(el); }  // #7368: "Fable" comes back as "fable"
       else agm_headSync(a.id, !!v);
-      savedTick(el);
+      savedTick(agms_tickEl(el));
     } catch {
-      if (k === 'model_split') { el.checked = !!rt[k]; show(!!rt[k]); } else el.value = rt[k] || '';
+      if (k === 'model_split') { el.checked = !!rt[k]; show(!!rt[k]); } else { el.value = rt[k] || ''; agms_sync(el); }
     }
   });
   agmu_load($('.agmu', mod), base);
 }
+// #7368: the tick of a saved model shows at its choice while the free field is hidden
+/** @param {any} el */
+function agms_tickEl(el) { return el?.hidden && el.parentElement?.querySelector('select.agms-sel') || el; }
 // the open chat of this agent follows the switch at once (the header's "runs with …")
 /** @param {number} id @param {boolean} on */
 function agm_headSync(id, on) {
@@ -136,16 +186,15 @@ const AGJ_EFFORTS = [['', N_('Agent default')], ['low', N_('Low')], ['medium', N
 /** @param {any} a */
 function agj_html(a) {
   const rt = a.runtime || {};
-  /** @param {string} id @param {string} k */
-  const mi = (id, k) => `<input id="${esc(id)}" data-agzk="${esc(k)}" list="agj-models" value="${esc(rt[k] || '')}" maxlength="100" placeholder="${esc(tr('Agent default'))}" autocomplete="off" autocapitalize="off" spellcheck="false">`;
+  /** #7368: the shared model choice @param {string} id @param {string} k @param {string} lbl */
+  const mi = (id, k, lbl) => agms_html(id, rt[k], k, '', lbl);
   /** @param {string} id @param {string} k */
   const ei = (id, k) => `<select id="${esc(id)}" data-agzk="${esc(k)}">${AGJ_EFFORTS.map(([v, n]) => `<option value="${esc(v)}" ${(rt[k] || '') === v ? 'selected' : ''}>${esc(tr(n))}</option>`).join('')}</select>`;
   return `<div class="agzsec agzjob" data-agz="${esc(String(a.id))}"><h4 id="agj-h">${tr('Jobs on its computer')}</h4>
     <div class="shint">${tr('Long work the agent starts as a job: a build or a read-only review. Empty = the agent’s default; the effort applies to Claude Code only.')}</div>
-    <datalist id="agj-models">${['opus', 'sonnet', 'haiku'].map(m => `<option value="${esc(m)}"></option>`).join('')}</datalist>
-    <div class="row"><label for="agj-model">${tr('Model for build jobs')}</label>${/*html-ok*/ mi('agj-model', 'model_job')}</div>
+    <div class="row"><label for="agj-model-sel">${tr('Model for build jobs')}</label>${/*html-ok*/ mi('agj-model', 'model_job', tr('Model for build jobs'))}</div>
     <div class="row"><label for="agj-effort">${tr('Effort for build jobs')}</label>${/*html-ok*/ ei('agj-effort', 'effort_job')}</div>
-    <div class="row"><label for="agj-amodel">${tr('Model for review jobs')}</label>${/*html-ok*/ mi('agj-amodel', 'model_audit')}</div>
+    <div class="row"><label for="agj-amodel-sel">${tr('Model for review jobs')}</label>${/*html-ok*/ mi('agj-amodel', 'model_audit', tr('Model for review jobs'))}</div>
     <div class="row"><label for="agj-aeffort">${tr('Effort for review jobs')}</label>${/*html-ok*/ ei('agj-aeffort', 'effort_audit')}</div></div>`;
 }
 /** @type {Record<string, number[]>} */
@@ -172,9 +221,10 @@ function agz_wire(md, a, base) {
     try {
       const r = await api('PATCH', base, {runtime: {[k]: v}});
       if (r?.runtime) a.runtime = r.runtime;
-      el.value = v;
-      savedTick(el);
-    } catch { el.value = (a.runtime || {})[k] || ''; /* api() said it */ }
+      el.value = (r?.runtime || {})[k] ?? v;
+      agms_sync(el);  // #7368: the choice follows (a model field; an effort select has none)
+      savedTick(agms_tickEl(el));
+    } catch { el.value = (a.runtime || {})[k] || ''; agms_sync(el); /* api() said it */ }
   });
   agm_wire($(`.agzmod[data-agz="${a.id}"]`, md), a, base);  // 2.974.0 (#5668), 2.992.0 (#5684): agm_wire
   const slot = $('.agznr-slot', sec), nr = slot && $('#ag-nr', md)?.closest('.row');

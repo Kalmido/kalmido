@@ -13,6 +13,9 @@
 // the last run>" only while the switch is on; a tap opens the section Model as a dialog of its own (its content: the three
 // fields and the usage), switching it off there removes the header's line at once. German: "läuft mit", "Für Prüfungen".
 // 2.1394.0 (#7031): the section "Jobs on its computer" (model and effort for build / review jobs) in the owner's dialog, saved at once.
+// #7368: every model field is a real choice (Agent default, Fable, Opus, Sonnet, Haiku, Other …): a listed model saves like a
+// typed one, "Other …" shows the free field (a new name saves at once, an invalid one comes back, "Fable" typed becomes the
+// choice fable), back to a listed model hides it; the effort beside each model (admin: with Save, owner: at once).
 const {execFileSync} = require('child_process');
 const path = require('path');
 const {boot, sleep, B, login} = require('./boot');
@@ -77,18 +80,25 @@ const lastModal = d => [...d.querySelectorAll('.modal')].pop();
   msw.checked = true; msw.dispatchEvent(new w.Event('change', {bubbles: true}));
   check(msr().every(x => !x.hidden) && /For your messages and decisions/.test(md.textContent) && /For routine/.test(md.textContent) && /When in doubt the first/.test(md.textContent),
     '#5668: on = both fields and the explanation show');
-  check(/For reviews/.test(md.textContent) && md.querySelector('#ag-mrev')?.placeholder === 'Like messages and decisions'
+  check(/For reviews/.test(md.textContent) && md.querySelector('#ag-mrev-sel')?.options[0].textContent === 'Like messages and decisions'
     && md.querySelector('#ag-mrev').closest('.row').previousElementSibling?.querySelector('#ag-mdec'), '#5684: the review model between the two, empty = like the first');
   check(await until(() => /Last 7 days/.test(md.querySelector('.agmu')?.textContent || '') && /No usage reported yet/.test(md.querySelector('.agmu').textContent)),
     '#5684: the usage per kind below the models (nothing reported yet)');
-  md.querySelector('#ag-mdec').value = 'opus'; md.querySelector('#ag-mrou').value = 'sonnet'; md.querySelector('#ag-mrev').value = 'fable';
+  // #7368: the choice (one list with Fable) and the effort beside each model, stored with Save like the models
+  change(w, md.querySelector('#ag-mdec-sel'), 'opus'); change(w, md.querySelector('#ag-mrou-sel'), 'sonnet'); change(w, md.querySelector('#ag-mrev-sel'), 'fable');
+  check(md.querySelector('#ag-mdec').value === 'opus' && md.querySelector('#ag-mdec').hidden && md.querySelector('#ag-mrev').value === 'fable', '#7368: a listed model goes into the field, no free field');
+  check([...md.querySelectorAll('#ag-mdec-eff option')].map(o => o.value).join() === ',low,medium,high,xhigh,max' && md.querySelector('#ag-mrev-eff').options[0].textContent === 'Like messages and decisions',
+    '#7368: the effort beside the models: default, low ... max; the review effort empty = like the first');
+  change(w, md.querySelector('#ag-meff'), 'high'); change(w, md.querySelector('#ag-mrou-eff'), 'low');
   click(w, md.querySelector('[data-m="ok"]'));
-  check(await until(async () => { const r = (await adm(ag.id)).runtime; return r.model_split === true && r.model_decide === 'opus' && r.model_routine === 'sonnet' && r.model_review === 'fable'; }),
-    '#5668 / #5684: Save stores the switch and the three models');
+  check(await until(async () => { const r = (await adm(ag.id)).runtime; return r.model_split === true && r.model_decide === 'opus' && r.model_routine === 'sonnet' && r.model_review === 'fable'
+    && r.effort === 'high' && r.effort_routine === 'low' && r.effort_decide === '' && r.effort_review === ''; }),
+    '#5668 / #5684 / #7368: Save stores the switch, the three models and the efforts');
   await until(() => !md.isConnected);
   w.eval(`agModal(${JSON.stringify(await adm(ag.id))}, null)`);
   md = await until(() => d.querySelector('#ag-model')?.closest('.modal'));
-  check(md.querySelector('#ag-msplit').checked && md.querySelector('#ag-mdec').value === 'opus' && md.querySelector('#ag-mrou').value === 'sonnet' && md.querySelector('#ag-mrev').value === 'fable'
+  check(md.querySelector('#ag-msplit').checked && md.querySelector('#ag-mdec-sel').value === 'opus' && md.querySelector('#ag-mrou').value === 'sonnet' && md.querySelector('#ag-mrev-sel').value === 'fable'
+    && md.querySelector('#ag-meff').value === 'high' && md.querySelector('#ag-mrou-eff').value === 'low'
     && [...md.querySelectorAll('.ag-msr')].every(x => !x.hidden), '#5668: the dialog opens again with the switch on and both models');
   click(w, md.querySelector('[data-m="close"]'));
   w.close();
@@ -134,15 +144,32 @@ const lastModal = d => [...d.querySelectorAll('.modal')].pop();
     && [...ms.querySelectorAll('.agm-r')].every(x => x.hidden), '#5668 freelancer: section Model with the field and the switch (off, fields hidden)');
   const fsw = ms.querySelector('#agm-split'); fsw.checked = true; fsw.dispatchEvent(new w.Event('change', {bubbles: true}));
   check(await until(async () => (await mine()).runtime.model_split === true) && [...ms.querySelectorAll('.agm-r')].every(x => !x.hidden), '#5668 freelancer: switch on, saved at once, fields show');
-  change(w, ms.querySelector('#agm-dec'), ' opus ');
+  change(w, ms.querySelector('#agm-dec-sel'), 'opus');
   check(await until(async () => (await mine()).runtime.model_decide === 'opus') && ms.querySelector('#agm-dec').value === 'opus', '#5668 freelancer: model for own messages saved');
-  change(w, ms.querySelector('#agm-rou'), 'sonnet');
+  change(w, ms.querySelector('#agm-rou-sel'), 'sonnet');
   check(await until(async () => (await mine()).runtime.model_routine === 'sonnet'), '#5668 freelancer: model for routine saved');
-  change(w, ms.querySelector('#agm-rou'), 'bad model'); await idle(w);
-  check(await until(() => ms.querySelector('#agm-rou').value === 'sonnet') && (await mine()).runtime.model_routine === 'sonnet', '#5668 freelancer: an invalid model is refused, the old value back');
+  // #7368: "Other …" shows the free field; a new name saves at once; an invalid one is refused and the old value comes back;
+  // a typed short name in any case becomes the choice again; back to a listed model hides the field
+  const rsel = ms.querySelector('#agm-rou-sel'), rin = ms.querySelector('#agm-rou');
+  check(rin.hidden && [...rsel.options].map(o => o.textContent).join('|') === 'Agent default|Fable|Opus|Sonnet|Haiku|Other …', '#7368 freelancer: the choice with Fable, no free field');
+  change(w, rsel, '__other');
+  check(!rin.hidden && rin.value === 'sonnet' && (await mine()).runtime.model_routine === 'sonnet', '#7368 freelancer: Other … shows the free field, nothing saved yet');
+  change(w, rin, 'claude-haiku-9');
+  check(await until(async () => (await mine()).runtime.model_routine === 'claude-haiku-9') && rsel.value === '__other' && !rin.hidden, '#7368 freelancer: a new model name saved at once, Other … stays');
+  change(w, rin, 'bad model'); await idle(w);
+  check(await until(() => rin.value === 'claude-haiku-9') && (await mine()).runtime.model_routine === 'claude-haiku-9', '#5668 freelancer: an invalid model is refused, the old value back');
+  change(w, rin, 'Fable');
+  check(await until(async () => (await mine()).runtime.model_routine === 'fable') && await until(() => rsel.value === 'fable' && rin.hidden), '#7368 freelancer: "Fable" typed = fable, the choice shows it');
+  change(w, rsel, 'sonnet');
+  check(await until(async () => (await mine()).runtime.model_routine === 'sonnet') && rin.hidden && rin.value === 'sonnet', '#7368 freelancer: back to a listed model, the free field hides');
+  // #7368: the effort beside each model saved at once
+  change(w, ms.querySelector('#agm-model-eff'), 'max');
+  check(await until(async () => (await mine()).runtime.effort === 'max'), '#7368 freelancer: the effort of the one model saved at once');
+  change(w, ms.querySelector('#agm-dec-eff'), 'xhigh');
+  check(await until(async () => (await mine()).runtime.effort_decide === 'xhigh'), '#7368 freelancer: the effort for own messages saved at once');
   // 2.992.0 (#5684): the review model, saved at once; the usage per kind below (nothing reported yet, no costs)
   check(ms.querySelector('#agm-rev') && !ms.querySelector('#agm-rev').closest('.row').hidden && /For reviews/.test(ms.textContent), '#5684 freelancer: the field For reviews shows');
-  change(w, ms.querySelector('#agm-rev'), 'fable');
+  change(w, ms.querySelector('#agm-rev-sel'), 'fable');
   check(await until(async () => (await mine()).runtime.model_review === 'fable'), '#5684 freelancer: the review model saved at once');
   check(await until(() => /Last 7 days/.test(ms.querySelector('.agmu')?.textContent || '') && /No usage reported yet/.test(ms.querySelector('.agmu').textContent)
     && /reports no costs/.test(ms.querySelector('.agmu').textContent)), '#5684 freelancer: the usage section, nothing yet, no costs');
@@ -152,10 +179,13 @@ const lastModal = d => [...d.querySelectorAll('.modal')].pop();
   check(js && /Jobs on its computer/.test(js.querySelector('h4')?.textContent || '') && js.querySelector('#agj-model') && js.querySelector('#agj-effort')
     && js.querySelector('#agj-amodel') && js.querySelector('#agj-aeffort') && js.querySelector('#agj-effort').value === ''
     && [...js.querySelector('#agj-effort').options].map(o => o.value).join(',') === ',low,medium,high,xhigh,max', '#7031 freelancer: the jobs section with model and effort per kind, default empty');
-  change(w, js.querySelector('#agj-model'), ' opus ');
+  check(js.querySelector('#agj-model').hidden && [...js.querySelector('#agj-model-sel').options].map(o => o.value).join() === ',fable,opus,sonnet,haiku,__other', '#7368: the jobs use the same choice');
+  change(w, js.querySelector('#agj-model-sel'), 'opus');
   check(await until(async () => (await mine()).runtime.model_job === 'opus') && js.querySelector('#agj-model').value === 'opus', '#7031 freelancer: model for build jobs saved at once');
   change(w, js.querySelector('#agj-aeffort'), 'high');
   check(await until(async () => (await mine()).runtime.effort_audit === 'high'), '#7031 freelancer: effort for review jobs saved at once');
+  change(w, js.querySelector('#agj-amodel-sel'), '__other');
+  check(!js.querySelector('#agj-amodel').hidden, '#7368: Other … shows the free field in the jobs section');
   change(w, js.querySelector('#agj-amodel'), 'bad model'); await idle(w);
   check(await until(() => js.querySelector('#agj-amodel').value === '') && (await mine()).runtime.model_audit === '', '#7031 freelancer: an invalid model is refused, the old value back');
   w.close();
@@ -165,7 +195,7 @@ const lastModal = d => [...d.querySelectorAll('.modal')].pop();
   const prow2 = await until(() => d.querySelector(`#s-myown [data-myag="${FB}"]`));
   click(w, prow2.querySelector('[data-myag-act="perm"]'));
   md = await until(() => lastModal(d)?.querySelector('.agzjob') && lastModal(d));
-  check(md && md.querySelector('#agj-model').value === 'opus' && md.querySelector('#agj-aeffort').value === 'high' && md.querySelector('#agj-effort').value === '',
+  check(md && md.querySelector('#agj-model').value === 'opus' && md.querySelector('#agj-model-sel').value === 'opus' && md.querySelector('#agj-aeffort').value === 'high' && md.querySelector('#agj-effort').value === '',
     '#7031 freelancer: the dialog opens again with the saved values');
   w.close();
 
@@ -181,7 +211,8 @@ const lastModal = d => [...d.querySelectorAll('.modal')].pop();
   click(w, chip);
   md = await until(() => [...d.querySelectorAll('.modal')].find(m => /Model of Fridabot/.test(m.querySelector('h3')?.textContent || '')));
   const hm = md && md.querySelector('.agzmod');
-  check(hm && hm.querySelector('#agm-split').checked && hm.querySelector('#agm-dec').value === 'opus' && hm.querySelector('#agm-rev').value === 'fable' && hm.querySelector('#agm-rou').value === 'sonnet',
+  check(hm && hm.querySelector('#agm-split').checked && hm.querySelector('#agm-dec-sel').value === 'opus' && hm.querySelector('#agm-rev-sel').value === 'fable' && hm.querySelector('#agm-rou').value === 'sonnet'
+    && hm.querySelector('#agm-dec-eff').value === 'xhigh' && hm.querySelector('#agm-model-eff').value === 'max',
     '#5684: the tap opens the section Model of this agent with its three models');
   const li = await until(() => hm.querySelectorAll('.agmul li').length === 3 && [...hm.querySelectorAll('.agmul li')]);
   check(li && /Messages and decisions/.test(li[0].textContent) && /Runs: 2/.test(li[0].textContent) && /4\.5k tokens/.test(li[0].textContent)
