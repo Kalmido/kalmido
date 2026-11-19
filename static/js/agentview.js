@@ -116,6 +116,28 @@ function av_logModal(a, done) {
     catch (x) { const er = $('#avl-err', md); er.textContent = x.message; er.hidden = false; } finally { b.disabled = false; }
   });
 }
+// (#6363): the Kalmido AI (agents on the Kalmido server) works in an organisation only after its admin switches it on
+// (PATCH /api/orgs/<id> {server_agents}, default off); the hint names what goes to the provider
+function oag_kiRow(o, adm) {
+  if (o.server_agents === undefined) return null;
+  const row = document.createElement('div'), lb = document.createElement('label'), cb = document.createElement('input');
+  row.className = 'row oag-ki'; lb.className = 'chkl';
+  cb.type = 'checkbox'; cb.id = `oag-ki${o.id}`; cb.checked = !!o.server_agents; cb.disabled = !adm;
+  lb.append(cb, ' ' + tr('Kalmido AI in this organisation')); row.append(lb);
+  const hint = document.createElement('div');
+  hint.className = 'shint keep';
+  hint.textContent = tr('Agents on the Kalmido server may then work in this organisation: the server sends what a run reads (tasks, comments, chats and files of the projects shared with the agent) to the AI provider Anthropic (USA), with the key stored for the agent. Off, no content of the organisation goes there.') + (adm ? '' : ' ' + tr('Only an admin of this organisation can change it.'));
+  if (adm) cb.addEventListener('change', async () => {
+    const on = cb.checked, put = v => async () => {
+      await api('PATCH', `/api/orgs/${o.id}`, {server_agents: v});
+      o.server_agents = v; if (cb.isConnected) cb.checked = v; return {};
+    };
+    try { await put(on)(); } catch { cb.checked = !on; return; }
+    const label = tr('Kalmido AI in {0}', qn(o.name));
+    offerUndo(label, histAdd({label, undo: put(!on), redo: put(on)}));
+  });
+  return [row, hint];
+}
 // Settings > Workspaces: whether the members of an organisation may keep their own agents in it (its admins decide, every
 // member sees it; only with the agent interface; box._j = GET /api/orgs)
 function oag_paneDraw(box) {
@@ -131,6 +153,7 @@ function oag_paneDraw(box) {
     hint.className = 'shint keep';
     hint.textContent = tr('Members can then connect their own AI agent (their own provider and computer) in this organisation and share its projects with it. Admins always may. Agents that are already in it stay.') + (adm ? '' : ' ' + tr('Only an admin of this organisation can change it.'));
     (det.querySelector('summary')).after(row); row.after(hint);
+    const ki = oag_kiRow(o, adm); if (ki) hint.after(...ki);  // (#6363)
     if (!adm) continue;
     const cb = $('#' + id, /** @type {any} */ (row));
     cb.addEventListener('change', async () => {

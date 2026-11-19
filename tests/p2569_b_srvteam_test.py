@@ -74,6 +74,7 @@ for s in S.values():
     s.patch(B + "/api/settings", json={"tour": "done", "lang": "en", "features": "comments,collab"})
 FID, Fr = freelancer(B, A)
 GID, Gi = freelancer(B, A, "gina")
+check(Bo.patch(B + f"/api/orgs/{ORG}", json={"server_agents": True}).ok, "setup: bob switches the Kalmido AI on")  # (#6363): the Kalmido AI is off in a new organisation
 
 # ---------------------------------------------------------------- the organisation's admin creates the team agent
 for s, who in ((Ca, "a member"), (Ol, "another organisation's admin"), (Fr, "a person without an organisation")):
