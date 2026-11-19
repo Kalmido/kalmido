@@ -74,8 +74,11 @@ opened for editing). Subscriptions are private: project members never see them. 
 recurring events (RRULE, RDATE, EXDATE, moved or cancelled occurrences, time zones, floating times in the server's
 `TZ`). ICS links are fetched with `If-None-Match` / `If-Modified-Since`, CalDAV calendars only when their `getctag` /
 `sync-token` changed (plus once a day, as the window moves). A download may be at most 10 MB, a calendar keeps at most
-5,000 occurrences (the ones closest to today), rules below daily (hourly, every minute) are not expanded, and nothing
-is ever written back to a calendar. Each calendar shows its last sync and error; after five failed syncs in a row the
+5,000 occurrences (the ones closest to today), rules below daily (hourly, every minute) are not expanded. Nothing
+is written back unless the owner turns on *Allow writing* for a CalDAV calendar on their own server (since 2.52.0, #1128:
+new events, changes of the whole series and deletions go to that server with `If-Match`); ICS links stay read-only, and Google calendars (google.com, googleusercontent.com, googleapis.com and their
+subdomains) are always read-only: the server refuses *Allow writing* there and every write to them (2.1444, #6550).
+Each calendar shows its last sync and error; after five failed syncs in a row the
 admins get an *Integration problems* alert (subscription id, user and error class only). A calendar that could not be
 fetched for more than a day is marked as out of date: a warning sign with "Not updated since …" at its events, in the
 event window, under *Calendars* and on the booking page settings, and its owner gets one notification (*Integrations*

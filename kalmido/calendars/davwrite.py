@@ -17,7 +17,7 @@ from ..core.access import Denied
 from ..core.ephem import eph_put, eph_take  # 2.622.0 (#3891)
 from ..calendars.icalfeed import ics_text, ics_utc
 from ..calendars.subscriptions import (DAV_NS, CalError, _CAL_RATE, _CAL_RATE_LOCK, _cal_clean, _cal_limited,
-                                       cal_allow, cal_err_text, cal_href_ok, cal_public, cal_sync, cal_unseal, dav_propfind,
+                                       cal_allow, cal_err_text, cal_href_ok, cal_is_google, cal_public, cal_sync, cal_unseal, dav_propfind,
                                        cal_http, need_cal, need_calsub)
 from ..events.ics import _dt_line, wrap
 from ..events.model import ev_zone, tz_ok, wall
@@ -70,7 +70,10 @@ def cdw_privs(url, auth, allow):
 
 
 def cdw_check(c, s, url, auth, allow):
-    """Called by cal_sync for a subscription with "Allow writing": the privilege check of every sync (1 / 0)."""
+    """Called by cal_sync for a subscription with "Allow writing": the privilege check of every sync (1 / 0).
+    A Google calendar is never writable (#6550), also one switched on before the rule."""
+    if cal_is_google(url):
+        return 0
     try:
         return 1 if cdw_privs(url, auth, allow) else 0
     except CalError as e:
@@ -132,6 +135,8 @@ def _cdw_sub(c, sid):
     r = need_calsub(c, sid)
     if r["kind"] != "caldav" or not r["dav_write"] or not r["dav_can_write"]:
         raise Denied(403, tr("Writing into this calendar is not allowed"))
+    if cal_is_google(cal_unseal(c, r["user_id"], r["url"])):  # 2.1444 (#6550): also a subscription switched on before
+        raise Denied(403, tr("Kalmido connects Google calendars read-only"))
     return r
 
 
@@ -344,6 +349,8 @@ def cdw_toggle(sid):
     if r["kind"] != "caldav":
         return err(tr("Only CalDAV calendars can be written to; calendar links stay read-only"), 409)
     can = r["dav_can_write"]
+    if on and cal_is_google(cal_unseal(c, r["user_id"], r["url"])):  # 2.1444 (#6550): Google calendars are only read
+        return jsonify(error=tr("Kalmido connects Google calendars read-only"), code="google_read_only"), 409
     if on:
         if not cdw_rate(me()):
             return _cal_limited()
