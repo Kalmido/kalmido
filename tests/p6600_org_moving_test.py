@@ -254,4 +254,5 @@ r = A.delete(B + M2)
 check(r.status_code == 409 and dbx("SELECT moving_at IS NOT NULL FROM orgs WHERE id=?", (ORG2,))[0][0]
       and len(dbx("SELECT 1 FROM org_list_log WHERE org_id=? AND action='move_off'", (ORG2,))) == n0,
       f"#7199 F7: the instance admin does not end a retired organisation's move, nothing written {r.status_code} {r.text[:160]}")
+check(not any(k in r.json() for k in ("by_name", "why", "since")), f"#7199 (reader F2): the answer names no person and no reason {r.text[:200]}")
 sys.exit(done("p6600_org_moving"))
