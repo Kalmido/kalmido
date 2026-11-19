@@ -2,7 +2,7 @@
 // docs/dev/kern.md "Resizing: the one grip"; mode dialog, keys pv-text / pv-pdf / pv-doc).
 // kalmido-suite: fresh
 // Own container (start.sh), Firefox 1600 x 900 (mouse, real pointer input), a person WITHOUT an organisation (freelancer-matrix:
-// files), invented content only (the files are blobs in the page, nothing uploaded). Usability:
+// files), nothing uploaded (the text file is a static file of the app, PDF / Word are blobs that fail to load: the window stays). Usability:
 // - the text viewer: a corner grip (separator, data-grip pv-text); the window is 56rem; dragged out it grows on both sides
 //   (centred) live, released it is kept (grip:pv-text) and the next text file opens as wide; it never gets narrower than
 //   56rem nor wider than the window; switching Formatted / Source keeps the width and the grip; a double click = 56rem
@@ -25,8 +25,8 @@ const M = (box, k) => `JSON.stringify((() => {
     gx: gr ? gr.left + gr.width / 2 : 0, gy: gr ? gr.top + gr.height / 2 : 0, ls: localStorage.getItem('tasks.grip:${k}'), W: innerWidth,
     rem: parseFloat(getComputedStyle(document.documentElement).fontSize)};
 })())`;
-const TEXT = `(() => { const u = URL.createObjectURL(new Blob(['# Drehplan\\n\\n| Tag | Ort | Szene |\\n|---|---|---|\\n| 1 | Studio | 4, 5 |\\n'], {type: 'text/markdown'}));
-  textView({name: 'drehplan.md', size: 64, url: u, ext: 'md', md: true}); return 1; })()`;
+// a text file the server has anyway (a blob: URL is not allowed by the page's connect-src)
+const TEXT = `(() => { textView({name: 'lizenz.md', size: 4400, url: '/static/fonts/OFL.txt', ext: 'md', md: true}); return 1; })()`;
 
 (async () => {
   await sleep(600);
@@ -46,6 +46,7 @@ const TEXT = `(() => { const u = URL.createObjectURL(new Blob(['# Drehplan\\n\\n
       await nav(B + '#inbox'); await idle();
     };
     const drag = async (x0, y0, dx, dy, look) => {
+      const vw = +(await ev('innerWidth')); dx = Math.max(1, Math.min(vw - 2, x0 + dx)) - x0;  // a far drag ends at the window's edge
       await cmd('input.performActions', {context: ctx, actions: [{type: 'pointer', id: 'm', parameters: {pointerType: 'mouse'}, actions: [
         {type: 'pointerMove', x: Math.round(x0), y: Math.round(y0)}, {type: 'pointerDown', button: 0},
         {type: 'pointerMove', x: Math.round(x0 + dx / 2), y: Math.round(y0 + dy / 2), duration: 100}, {type: 'pointerMove', x: Math.round(x0 + dx), y: Math.round(y0 + dy), duration: 100}]}]});
@@ -79,11 +80,11 @@ const TEXT = `(() => { const u = URL.createObjectURL(new Blob(['# Drehplan\\n\\n
     check(Math.abs(t3.w - 56 * t3.rem) <= 2, 'text: never narrower than 56rem ' + JSON.stringify(t3));
     await drag(t3.gx - 4, t3.gy - 4, 900, 0);
     const t4 = await get('.tvbox', 'pv-text');
-    check(t4.w <= t4.W && t4.w > 80 * t4.rem, 'text: at most the window ' + JSON.stringify(t4));
+    check(t4.w <= t4.W && t4.w > 66 * t4.rem, 'text: dragged to the window\'s edge it grows, at most the window ' + JSON.stringify(t4));
     await ev(`(document.querySelector('.lightbox [data-tv="x"]')?.click(), 1)`);
     await ev(`(localStorage.setItem('tasks.grip:pv-text', JSON.stringify({w: 70, h: 10})), 1)`);
     await ev(TEXT);
-    check(await ready('.tvbox'), 'text: opened again');
+    check(await ready('.tvbox', ` && !!document.querySelector('.lightbox .tvbody :is(.tvmd, .tvsrc)')`), 'text: opened again (the content is in: the corner stays where it is)');
     const t5 = await get('.tvbox', 'pv-text');
     check(Math.abs(t5.w - 70 * t5.rem) <= 2, 'text: the next file opens with the kept width (70rem) ' + JSON.stringify(t5));
     await cmd('input.performActions', {context: ctx, actions: [{type: 'pointer', id: 'm', parameters: {pointerType: 'mouse'}, actions: [
@@ -110,7 +111,7 @@ const TEXT = `(() => { const u = URL.createObjectURL(new Blob(['# Drehplan\\n\\n
     // ---- phone: full screen, no grip
     await open(390, false);
     await ev(TEXT);
-    check(await until(`!!document.querySelector('.lightbox .tvbox .tvmd')`, {timeout: 15000}), 'phone: the viewer');
+    check(await until(`!!document.querySelector('.lightbox .tvbox .tvbody :is(.tvmd, .tvsrc)')`, {timeout: 15000}), 'phone: the viewer (Source is kept from above)');
     await sleep(300);
     const m0 = await get('.tvbox', 'pv-text');
     check(!m0.grip && m0.w >= 388, 'phone: the full-screen window, no grip ' + JSON.stringify(m0));
