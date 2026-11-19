@@ -924,7 +924,7 @@ def openapi_spec():
     from ..office.issclients import isc_spec
     isc_spec(paths, op, ok, errs)  # 2.1384.0 (#6700): an invoice issuer's clients by external_ref
     from ..office.issdocs import isd_spec
-    isd_spec(paths, op, ok, errs)  # 2.1396.0 (#6701): an invoice issuer's drafts and documents
+    isd_spec(paths, op, ok, errs)  # (#6701): an invoice issuer's drafts and documents
     from ..office.leads import lead_spec
     lead_spec(paths, schemas, op, ok, errs, ref, pid, q)  # 2.94.0 A (#1930): leads for agents
     from ..office.agentdeals import dla_spec

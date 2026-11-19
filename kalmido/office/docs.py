@@ -557,9 +557,9 @@ def doc_public(c, oid, r, admin, items=True):
         d[k] = _j(d.get(k), dflt)
     d["recipient"] = dict(cdn_doc_recipient(c, oid, r, d["recipient"]))  # 2.97.0 B (#1951): a draft shows its client's address now
     d["recipient_missing"] = bool(d["recipient"].pop("missing", False))  # street, postcode or city missing at the client
-    for k in ("issuer_rev", "ref_sha256"):  # 2.1396.0 (#6701): internal fingerprints
+    for k in ("issuer_rev", "ref_sha256"):  # (#6701): internal fingerprints
         d.pop(k, None)
-    if d.get("issuer_id"):  # 2.1396.0 (#6701): "made by invoice issuer <name>" and its unconfirmed statements
+    if d.get("issuer_id"):  # (#6701): "made by invoice issuer <name>" and its unconfirmed statements
         from .issdocs import isd_office_view
         d.update(isd_office_view(c, oid, r))
     else:
@@ -903,7 +903,7 @@ def clean_doc(c, oid, b, cur, admin):
             if not cl:
                 raise Denied(404)
             pb_cl_live(c, oid, cl["id"], _cur_val(cur, "client_id"))  # 2.370.4 (#3089) N2
-            if _cur_val(cur, "issuer_id") and cl["id"] != _cur_val(cur, "client_id"):  # 2.1396.0 (#6701): its key would read another's client
+            if _cur_val(cur, "issuer_id") and cl["id"] != _cur_val(cur, "client_id"):  # (#6701): its key would read another's client
                 ci = c.execute(f"SELECT issuer_id FROM clients WHERE id=? AND {pb_cl_sql(c, oid)}", (cl["id"],)).fetchone()
                 if not ci or ci["issuer_id"] != _cur_val(cur, "issuer_id"):
                     raise Denied(409, tr("A draft of an invoice issuer can only go to another client of the same issuer"))
@@ -1671,7 +1671,7 @@ def odoc_list():
     if request.args.get("trial") in ("0", "1"):  # 2.144.10 A (#2576): only trial / only real documents
         sql += " AND trial=?"
         args.append(int(request.args["trial"]))
-    iq = str(request.args.get("issuer") or "")  # 2.1396.0 (#6701): made by an invoice issuer (any = by one of them)
+    iq = str(request.args.get("issuer") or "")  # (#6701): made by an invoice issuer (any = by one of them)
     if iq == "any":
         sql += " AND issuer_id IS NOT NULL"
     elif re.fullmatch(r"[0-9]{1,18}", iq):  # review F5: isdigit() takes "²" too
@@ -1680,7 +1680,7 @@ def odoc_list():
     rq = str(request.args.get("range") or "")  # 2.1365.0 (#6698): one number range (main = the main range)
     if rq == "main":
         sql += " AND range_id IS NULL"
-    elif re.fullmatch(r"[0-9]{1,18}", rq):  # 2.1396.0 (#6701, review F5): isdigit() takes "²" too
+    elif re.fullmatch(r"[0-9]{1,18}", rq):  # (#6701, review F5): isdigit() takes "²" too
         sql += " AND range_id=?"
         args.append(int(rq))
     # 2.199.0 B (#2742): the automatic groups of the folder panel (filter views): one client, project or year
@@ -1785,7 +1785,7 @@ def odoc_list():
 
 
 def odoc_sources(c, oid):
-    """2.1396.0 (#6701): the filters "number range" and "made by an invoice issuer" of the invoice list: {ranges: [{id, code}],
+    """(#6701): the filters "number range" and "made by an invoice issuer" of the invoice list: {ranges: [{id, code}],
     issuers: [{id, name}]} of area oid, each only when it has some (the list's ?range= / ?issuer=)."""
     rg = [{"id": r["id"], "code": r["code"]} for r in c.execute("SELECT id, code FROM office_num_ranges WHERE org_id=? ORDER BY code, id", (oid,)).fetchall()]
     iss = [{"id": r["id"], "name": r["name"] or f"#{r['id']}"} for r in c.execute(
@@ -2088,7 +2088,7 @@ DUP_SKIP = {"id", "number", "status", "created_at", "updated_at", "sent_at", "cr
             "reminder_fee_state", "reminder_fee_paid_at", "reminder_fee_paid_amount", "agent_id", "list_id", "dup_times_from",  # 2.355.0 A (#2839): inv_type -- a copy of a final invoice is a plain one
             "client_ref", "inv_type",
             "range_id",
-            "issuer_id", "issuer_wish", "issuer_rev", "ref_sha256"}  # 2.1396.0 (#6701): a copy a person makes is never the issuer's (a correction inherits it in invoices.inv_credit_of)  # 2.1365.0 (#6698): a copy starts in the main range (a correction takes its invoice's range in invoices.inv_credit_of)  # 2.269.0 D (#3046): the device's id of the request that made the original  # 2.126.0 A (#1979 F6): a fresh fee state, made by the person copying
+            "issuer_id", "issuer_wish", "issuer_rev", "ref_sha256"}  # (#6701): a copy a person makes is never the issuer's (a correction inherits it in invoices.inv_credit_of)  # (#6698): a copy starts in the main range (a correction takes its invoice's range in invoices.inv_credit_of)  # (#3046): the device's id of the request that made the original  # 2.126.0 A (#1979 F6): a fresh fee state, made by the person copying
 DUP_SKIP |= {"deleted_at", "deleted_by", "rev", "updated_by", "trash_refs"}  # 2.1005.0 (#5415): the core's trash columns stay the original's
 DUP_ITEM_SKIP = {"id", "tax_pct", "net", "tax_amount"}
 

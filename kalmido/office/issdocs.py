@@ -1,4 +1,4 @@
-"""2.1396.0 (#6701): the invoice drafts of an invoice issuer (office/issuers.py) -- the outside system sends what was bought, Kalmido
+"""(#6701): the invoice drafts of an invoice issuer (office/issuers.py) -- the outside system sends what was bought, Kalmido
 computes, a person in the office checks, finalises and sends (review mode, the only one).
 
     POST /api/v1/issuer/invoices                       {client_ref, client: {external_ref}, items, expect, service_from?, service_to?,
@@ -78,7 +78,7 @@ from .invoices import inv_missing, inv_paid_map, inv_state
 from .packs import office_pack_for
 from .pdfweb import _file_response, _render, epdf_name, epdf_out
 from .isshold import ihd_load
-from .issclients import ISC_REF_RE, isc_body, isc_gone, isc_row, isc_text_check
+from .issclients import ISC_REF_RE, isc_body, isc_gone, isc_limit_tell, isc_notice, isc_row, isc_text_check
 from .issuers import ISS_ROUTES, _iss_me, _iss_once, _iss_read_logged, _iss_refuse, iss_log, iss_tell
 from .model import UNITS, office_settings, pb_owner
 
@@ -517,13 +517,7 @@ def _no_doc(c, iss):
 
 
 def _limit(c, iss, what, text, retry=3600):
-    try:
-        if _iss_once(c, iss, f"limit:{what}"):
-            iss_tell(c, iss["org_id"], iss, "issuer_limit", text)
-        c.commit()
-    except Exception as e:  # noqa: BLE001 -- the refusal stands without its notice
-        c.rollback()
-        print("issuer limit notice failed:", type(e).__name__, flush=True)
+    isc_limit_tell(c, iss, what, text)
     return IsdErr(429, tr("The invoice issuer reached its limit of {0}", tr(text)), "limit_reached", {"Retry-After": str(retry)})
 
 
@@ -623,15 +617,12 @@ def _payee_ok(c, iss, pid, check):
         raise IsdErr(404, tr("Unknown bank account: only the accounts an admin allowed this issuer"), "payee_unknown")
     iban = re.sub(r"\s+", "", str((oc_dec_fields(c, iss["org_id"], "office_issuer_payees", p) or {}).get("iban") or "")).upper()
     if iban[-4:] != check:
-        try:
+        def tell(c):
             if _iss_once(c, iss, "payee_mismatch"):
                 iss_tell(c, iss["org_id"], iss, "issuer_payee_mismatch", security=True)
             iss_log(c, iss["org_id"], iss["id"], "issuer_refused", f"payee:{int(pid)}", {"status": 409, "code": "payee_mismatch",
                                                                                          "key": g.issuer_key["prefix"]}, name=iss["name"])
-            c.commit()
-        except Exception as e:  # noqa: BLE001 -- the refusal stands without its notice
-            c.rollback()
-            print("issuer payee notice failed:", type(e).__name__, flush=True)
+        isc_notice(c, "payee", tell)
         raise IsdErr(409, tr("The bank account does not match payee_check: nothing was made"), "payee_mismatch")
 
 

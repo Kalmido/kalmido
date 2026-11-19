@@ -418,7 +418,7 @@ def inv_missing(c, oid, r, s, pack, items):
             miss.append([N_("phone and e-mail of your company (office settings, company; XRechnung)")])
         if not (cget("email_invoice") or cget("email")):
             miss.append([N_("the client's invoice e-mail (XRechnung)")])
-    if _col(r, "issuer_wish"):  # 2.1396.0 (#6701): a due date an invoice issuer asked for, too close to the date, stops finalising
+    if _col(r, "issuer_wish"):  # (#6701): a due date an invoice issuer asked for, too close to the date, stops finalising
         from .issdocs import isd_due_missing, isd_wish_of
         m = isd_due_missing(r, isd_wish_of(c, oid, r))
         if m:
@@ -780,7 +780,7 @@ def inv_credit_of(c, oid, uid, inv_):
     row["source_doc_id"] = inv_["id"]
     if doc_range_id(inv_):  # 2.1365.0 (#6698): a correction always counts in the range of its invoice (clean_doc never changes it)
         row["range_id"] = doc_range_id(inv_)
-    if _col(inv_, "issuer_id"):  # 2.1396.0 (#6701): a person's correction of an issuer's invoice stays the issuer's (its changed_since)
+    if _col(inv_, "issuer_id"):  # (#6701): a person's correction of an issuer's invoice stays the issuer's (its changed_since)
         row["issuer_id"] = inv_["issuer_id"]
     did = _insert_doc(c, oid, uid, row)
     rows = []
