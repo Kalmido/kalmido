@@ -22,6 +22,8 @@ freelancer-matrix: n/a (no route new or changed in its answer; the preview route
    it once the budget frees up; a file marked anonymous (ts_mark_anon) comes with anon and is recognised with the shorter
    clock (OCR_ANON_S), a member's file with the full one; 30 pages of 50 s from an anonymous source end after 2 pages,
    truncated; a document from the mail / a file request gets the shorter clock, "Recognise again" (auto._full) the full one
+ - 2.1413.0 (#6951): anonymous sources use at most half of the hour (OCR_ANON_SHARE, ocr_anon_tired): then the files' queue leaves
+   their files waiting and still takes the members' files of the same workspace
 usage: p21283_ocrguard_test.py <datadir>   (P21283_NOSTART=1: the container runs already)"""
 import json
 import subprocess
@@ -291,6 +293,26 @@ with system_ctx(c):
 c.commit()
 out["queue_budget"] = {"seen": seen2, "steps": s1, "waiting": waiting}
 
+# 2.1413.0 (#6951): anonymous sources use at most half of the hour: then the stranger's file waits, the member's own goes on
+O._SPENT.clear()
+O.ocr_charge("u900031", O.OCR_WS_HOUR_S * O.OCR_ANON_SHARE, anon=True)
+O.ocr_charge("u900032", O.OCR_WS_HOUR_S * O.OCR_ANON_SHARE - 5, anon=True)
+O.ocr_charge("u900032", 100)  # a member's seconds never count on the anonymous share
+at = [O.ocr_anon_tired(), O.ocr_tired()]
+seen2.clear()
+c = connect()
+with system_ctx(c):
+    for ref, anon in ((900031, 1), (900032, 0)):
+        c.execute("INSERT INTO file_text(kind, ref_id, ws, state, anon, created_at, updated_at) VALUES('att', ?, 'u900031', 'wait', ?, ?, ?)",
+                  (ref, anon, TS._now(), TS._now()))
+c.commit()
+s3 = [TS.ts_run_once(), TS.ts_run_once()]
+with system_ctx(c):
+    waiting3 = c.execute("SELECT state FROM file_text WHERE kind='att' AND ref_id=900031").fetchone()[0]
+    c.execute("DELETE FROM file_text WHERE ref_id IN (900031, 900032) AND kind='att'")
+c.commit()
+out["anon_share"] = {"tired": at, "seen": list(seen2), "steps": s3, "waiting": waiting3}
+
 # the shorter clock of an anonymous file (files/textscan.py _process -> doc_text(doc_s=...)), the budget charged
 got = []
 TS._ref = lambda c, k, i: {"name": "x.pdf", "mime": "application/pdf", "size": 10, "org_id": None, "owner_id": 1, "ws": "u900021"}
@@ -380,6 +402,10 @@ q = u.get("queue_budget") or {}
 check(q.get("seen") == [["u900012", 1], ["u900011", 0]] and q.get("steps") == [1, 0, 1] and q.get("waiting") == "wait",
       f"#6651: the files' queue skips a used-up workspace (its file waits, not dropped) and takes it once the budget frees up; "
       f"a file marked anonymous comes with anon {q}")
+a = u.get("anon_share") or {}
+check(a.get("tired") == [["u900031"], []] and a.get("seen") == [["u900031", 0]] and a.get("steps") == [1, 0] and a.get("waiting") == "wait",
+      f"#6951: anonymous sources use at most half of a workspace's hour: then its anonymous file waits, the member's file is "
+      f"still recognised, a member's seconds never count on the anonymous share {a}")
 a = u.get("anon_files") or {}
 check(a.get("doc_s") == [a.get("anon_s"), None] and a.get("charged") is True,
       f"#6651: an anonymous file is recognised with the shorter clock, a member's with the full one; the time is charged {a}")

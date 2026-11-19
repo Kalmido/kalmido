@@ -25,6 +25,7 @@ with @bgj_fn(kind) that gets the payload's arguments; it runs in the same contex
 no request). Without the database (bgj_add fails) the work runs in a thread as before.
 """
 import base64
+import contextlib
 import json
 import os
 import signal
@@ -37,6 +38,7 @@ from ..core.db import connect, iso
 from ..core.env import env_int  # 2.370.3 (#2760)
 from ..core.db import db_log_err  # 2.239.0 B (#2888): no values of database errors in the log
 from ..core.pg import system_ctx
+from ..core.movelock import mv_strict, mv_strict_now  # 2.1413.0 (#6951): a row runs as strict as the request that added it
 from ..core.pgbus import bus_on, bus_send  # 2.622.0 (#3891)
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -157,6 +159,7 @@ def bgj_add(kind, *args, org_id=None, user_id=None, delay=0.0, once=False, lock=
     nothing runs. progress: the row's first progress (dict, bgj_state)."""
     if kind not in BGJ_FNS:
         raise KeyError(kind)
+    strict = mv_strict_now()  # 2.1413.0 (#6951): asked before the queue's own connection (system context) is open
     c = None
     refused = []
     try:
@@ -178,9 +181,9 @@ def bgj_add(kind, *args, org_id=None, user_id=None, delay=0.0, once=False, lock=
                 c.commit()
                 return None
             now = _now()
-            rid = c.execute("""INSERT INTO bg_jobs(kind, org_id, user_id, payload, state, attempts, run_after, created_at)
-                               VALUES(?,?,?,?,'wait',0,?,?) RETURNING id""",
-                            (kind, org_id, user_id, _seal(c, kind, args), iso(now + timedelta(seconds=delay)), iso(now))).fetchone()[0]
+            rid = c.execute("""INSERT INTO bg_jobs(kind, org_id, user_id, payload, state, attempts, run_after, created_at, strict)
+                               VALUES(?,?,?,?,'wait',0,?,?,?) RETURNING id""",
+                            (kind, org_id, user_id, _seal(c, kind, args), iso(now + timedelta(seconds=delay)), iso(now), strict)).fetchone()[0]
             if progress is not None:  # 2.370.3 (#2760)
                 c.execute("UPDATE bg_jobs SET progress=? WHERE id=?", (json.dumps(progress), rid))
         c.commit()
@@ -196,10 +199,11 @@ def bgj_add(kind, *args, org_id=None, user_id=None, delay=0.0, once=False, lock=
 
         def late():
             time.sleep(delay)
-            if kind in BGJ_NO_GATE:
-                return BGJ_FNS[kind](*args)
-            with GATE.work():  # 2.370.3 (#2760): the fallback goes through the maintenance gate like a row (gated_thread before)
-                return BGJ_FNS[kind](*args)
+            with mv_strict() if strict else _no_ctx():  # 2.1413.0 (#6951): as a row would run
+                if kind in BGJ_NO_GATE:
+                    return BGJ_FNS[kind](*args)
+                with GATE.work():  # 2.370.3 (#2760): the fallback goes through the maintenance gate like a row (gated_thread before)
+                    return BGJ_FNS[kind](*args)
         threading.Thread(target=late, daemon=True, name="bgjobs-direct").start()
         return None
     finally:
@@ -301,7 +305,7 @@ def bgj_claim(c, kinds=None):
                             WHERE id=(SELECT id FROM bg_jobs WHERE state='wait' AND run_after <= ?
                                       AND kind IN (""" + ",".join("?" * len(kinds)) + """) ORDER BY id LIMIT 1
                                       FOR UPDATE SKIP LOCKED)
-                            RETURNING id, kind, payload, attempts""", (now, now, _TOKEN, now, *kinds)).fetchone()
+                            RETURNING id, kind, payload, attempts, strict""", (now, now, _TOKEN, now, *kinds)).fetchone()
 
 
 def _finish(rid, state, error="", run=None):
@@ -341,12 +345,20 @@ def _row_ours(rid, run):
         c.close()
 
 
-def _run(rid, kind, args, run):
-    """One row in a thread of its own, through the maintenance gate (2.370.2, #2779): a restore never runs next to it."""
-    if kind in BGJ_NO_GATE:
-        return _run_row(rid, kind, args, run)
-    with GATE.work():
-        _run_row(rid, kind, args, run, True)
+@contextlib.contextmanager
+def _no_ctx():
+    yield None
+
+
+def _run(rid, kind, args, run, strict=False):
+    """One row in a thread of its own, through the maintenance gate (2.370.2, #2779): a restore never runs next to it.
+    2.1413.0 (#6951): strict = a writing request without mv_allow added it: the lock of a moving organisation holds for its work
+    (core/movelock.py mv_strict) as it held for the request - emptying a big trash never deletes a moving organisation's tasks."""
+    with mv_strict() if strict else _no_ctx():
+        if kind in BGJ_NO_GATE:
+            return _run_row(rid, kind, args, run)
+        with GATE.work():
+            _run_row(rid, kind, args, run, True)
 
 
 def _run_row(rid, kind, args, run, gated=False):
@@ -407,7 +419,7 @@ def bgj_run_once():
             with _LOCK:
                 _SLOTS[_slot_of(kind)] += 1
             try:
-                threading.Thread(target=_run, args=(rid, kind, args, r["attempts"]), daemon=True, name="bgjobs-run").start()
+                threading.Thread(target=_run, args=(rid, kind, args, r["attempts"], bool(r["strict"])), daemon=True, name="bgjobs-run").start()
             except Exception as e:  # noqa: BLE001 -- review 2.193.0: no thread = the slot is free again, the row waits
                 with _LOCK:
                     _SLOTS[_slot_of(kind)] -= 1
