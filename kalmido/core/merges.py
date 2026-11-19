@@ -11,7 +11,7 @@ The references are found from the database itself (mg_fk_refs: every foreign key
 version adds (e.g. 2.63.0 portal_tickets.client_id) moves along without a change here; references without a foreign key
 (lists.client_id, hub_bookings) are named by the caller.
 
-2.1426.0 (#6288): the core's links (obj_links, no foreign key: the trigger kalmido_olnk_gone deletes them with their row) move
+(#6288): the core's links (obj_links, no foreign key: the trigger kalmido_olnk_gone deletes them with their row) move
 in both directions in one place, mg_olnk_move; contacts and clients call it. MG_GONE names every delete trigger of that kind
 (rows without a foreign key that die with a merged record) and how the merge keeps their rows -- a test (tests/p6288_a_merge_links_test.py)
 holds that every *_gone trigger on clients / contacts is named there.
@@ -21,7 +21,7 @@ import json
 from datetime import timedelta
 
 from .db import insert_id, IntegrityError, iso, now_utc
-from .pg import qi, system_ctx, table_columns  # 2.149.0 G (#2517): pulled up from functions; 2.755.0 (#5296): qi
+from .pg import qi, system_ctx, table_columns  # (#2517): pulled up from functions; (#5296): qi
 
 MG_UNDO_DAYS = 30
 MG_MAX = 10  # records in one merge (target included)
@@ -101,7 +101,7 @@ def mg_repoint(c, table, col, from_ids, to_id, where="", args=()):
     return rec
 
 
-# 2.1426.0 (#6288): the delete triggers of rows without a foreign key that hang on a merged record -> the function of this
+# (#6288): the delete triggers of rows without a foreign key that hang on a merged record -> the function of this
 # module that moves them to the target first (a trigger missing here would delete them on the merge: tests/p6288_a_merge_links_test.py)
 MG_GONE = {"kalmido_olnk_gone": "mg_olnk_move"}
 
@@ -112,7 +112,7 @@ def _olnk_row(r):
 
 
 def mg_olnk_move(c, kind, from_ids, to_id):
-    """2.1426.0 (#6288): the links (obj_links) of the records from_ids of kind move to to_id -- both sides, the record as source
+    """(#6288): the links (obj_links) of the records from_ids of kind move to to_id -- both sides, the record as source
     and as target. A link that would then exist twice (the same key: one row per source, target and relation, any state) falls
     together: a live row wins over one in the trash, else the target's own row stays; a link between the merged records
     themselves (it would link the target to itself) goes. Every row read and moved as the system (the trigger would delete the
@@ -123,7 +123,9 @@ def mg_olnk_move(c, kind, from_ids, to_id):
     if not from_ids:
         return rec
     qs = ",".join("?" * len(from_ids))
-    side = lambda k, i: int(to_id) if k == kind and int(i) in from_ids else int(i)  # noqa: E731
+    def side(k, i):
+        return int(to_id) if k == kind and int(i) in from_ids else int(i)
+
     with system_ctx(c):
         rows = [dict(r) for r in c.execute(
             f"SELECT * FROM obj_links WHERE (src_kind=? AND src_id IN ({qs})) OR (dst_kind=? AND dst_id IN ({qs})) ORDER BY id",
@@ -206,7 +208,7 @@ def mg_undo_refs(c, recs, target_gone=False):
     A moved row goes back only while it still points at the target; target_gone: also when it lost it (SET NULL) --
     a reference someone took away on purpose since stays away (review)."""
     for rec in reversed(recs or []):
-        if rec.get("olnk"):  # 2.1426.0 (#6288): a record of mg_olnk_move
+        if rec.get("olnk"):  # (#6288): a record of mg_olnk_move
             _mg_olnk_undo(c, rec, target_gone)
             continue
         t, col = rec["t"], rec["col"]

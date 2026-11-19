@@ -526,7 +526,7 @@ def sga_log_write(c, gids, sup, e, now, op=None, wait="2s"):
                 try:
                     with c.savepoint():
                         pushes += sga_tell(c, row, "start", op)
-                except Exception as x:  # noqa: BLE001
+                except Exception as x:  # noqa: BLE001 - a failing bell (any error of a push channel) never drops the log entry (#6977 F3)
                     print("support access log: bell of the first use failed:", type(x).__name__, flush=True)
     return pushes
 
