@@ -23,14 +23,19 @@ merge queue gets the same checks here, as a CI step on the commits of the change
               every replayed commit (a job's own move commit met the queue's fragment as an add/add conflict).
   marks       an added line of the server or client code (app.py, kalmido/, static/js, static/*.js) carries no version mark
               "2.<n>[.<n>] (#<n>)" (#7143, rule 12c of audit #5501): the history is in git, a comment says what holds and
-              why; a pointer to a decided task stays as "(#<id>)" without the version. Only the lines the change adds
-              count, so the marks of today and those of packages merged meanwhile never make an entry red;
-              tools/check_rules.py keeps the total as a notice.
+              why; a pointer to a decided task stays as "(#<id>)" without the version.
+  suppress    the ratchets of #7143 per change: per marker kind of tools/check_suppress.py the change adds no more markers
+              than it removes, a marker it adds carries its reason in the same comment (net per kind), and it adds no
+              more os.environ reads outside kalmido/core/env.py than it removes (tools/check_rules.py, rule env).
+              marks and suppress count only the lines the change adds and removes, so the stock of today and what packages
+              merged meanwhile brought never make an entry red (the totals of check_suppress / check_rules in the lint job
+              are notices for that reason). Both read the two checks from the BASE commit, like this file itself; a base
+              without them is a notice.
   oneway      the one-way rules (destructive SQL, a schema version bump, a migration step that deletes, a sign-in route
               added / removed, the registration modes changed): a note (GitHub warning annotation), never red - a one-way
               step is a note while the switch "einbahn_braucht_ja" of the release tooling is off; --strict makes it red.
 
-  python3 tools/pr_lint.py --base BASE [--head HEAD] [--only subject,changelog,privacy,i18n,marks,oneway] [--strict] [--repo DIR]
+  python3 tools/pr_lint.py --base BASE [--head HEAD] [--only subject,changelog,privacy,i18n,marks,suppress,oneway] [--strict] [--repo DIR]
 Exit 0 clean (notes allowed), 1 a check failed (listed), 2 usage / git error. Python standard library only.
 """
 from __future__ import annotations
@@ -44,7 +49,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = [ROOT]  # --repo (the self test runs on a temporary repository)
-CHECKS = ("subject", "changelog", "privacy", "i18n", "marks", "oneway")
+CHECKS = ("subject", "changelog", "privacy", "i18n", "marks", "suppress", "oneway")
 
 # subjects the release tooling writes itself (kalmido-livezug.py): the version commit, the README / changelog fold, a job's
 # changelog fragment, a job number; a revert keeps the subject of the reverted commit in quotes
@@ -214,22 +219,106 @@ def check_i18n(base: str, head: str, files) -> list[str]:
     return hits
 
 
-# the same pattern as VERSION in tools/check_rules.py (the test compares them); this file runs alone from the base commit
-MARK = re.compile(r"\b2\.\d+(?:\.\d+)?(?:\s+[A-Z]\d?)?\s*\(#\d+\)")
 MARK_CODE = re.compile(r"^(?:app\.py|kalmido/.+\.py|static/js/.+\.js|static/[^/]+\.js)$")
+ENV_CODE = re.compile(r"^(?:app\.py|kalmido/.+\.py)$")
+_TOOLS: dict[str, object] = {}
 
 
-def check_marks(files) -> list[str]:
+def base_tool(base: str, name: str):
+    """tools/<name>.py of the BASE commit as a module (with the base's tools/lintmsg.py beside it), None when the base has
+    none. The change's own copy never runs here: the same rule as for this file (review F9)."""
+    if name in _TOOLS:
+        return _TOOLS[name]
+    import importlib.util
+    import tempfile
+    mod = None
+    try:
+        src, helper = git("show", f"{base}:tools/{name}.py"), git("show", f"{base}:tools/lintmsg.py")
+    except RuntimeError:
+        src = None
+    if src:
+        d = tempfile.mkdtemp(prefix="pr_lint-")
+        for fn, text in ((f"{name}.py", src), ("lintmsg.py", helper)):
+            with open(os.path.join(d, fn), "w", encoding="utf-8") as f:
+                f.write(text)
+        spec = importlib.util.spec_from_file_location(f"base_{name}", os.path.join(d, f"{name}.py"))
+        mod = importlib.util.module_from_spec(spec)
+        sys.path.insert(0, d)
+        try:
+            spec.loader.exec_module(mod)
+        finally:
+            sys.path.remove(d)
+    _TOOLS[name] = mod
+    return mod
+
+
+def check_marks(base: str, files, notes: list[str]) -> list[str]:
+    rules = base_tool(base, "check_rules")
+    if rules is None:
+        notes.append("marks: tools/check_rules.py is not in the base - not checked")
+        return []
     hits = []
     for path, side in sorted(files.items()):
         if not MARK_CODE.match(path):
             continue
-        n = sum(1 for text in side["+"] if MARK.search(text))
+        n = sum(1 for text in side["+"] if rules.VERSION.search(text))
         if n:
             hits.append(f"{path}: {n} added line(s) with a version mark '2.<n> (#<id>)' - Why: the history is in git, the marks "
                         f"are 5 to 10 % of the lines and a source of merge conflicts. Instead: the comment says what holds and "
                         f"why; a pointer to a decided task stays as '(#<id>)' without the version (the dispatcher finds the "
                         f"decisions at a place by it), the history goes into the commit subject. Do not suppress it.")
+    return hits
+
+
+def _sup_scope(sup, path: str) -> bool:
+    if path in ("tools/check_suppress.py", "tools/lintmsg.py") or not path.endswith((".py", ".js", ".mjs")):
+        return False
+    if any(part in sup.SKIP_DIRS for part in path.split("/")[:-1]):
+        return False
+    return path.startswith(tuple(t for t in sup.SCOPE if t.endswith("/"))) or path in sup.SCOPE or \
+        bool(re.fullmatch(r"static/[^/]+\.js", path))
+
+
+def check_suppress(base: str, files, notes: list[str]) -> list[str]:
+    sup, rules = base_tool(base, "check_suppress"), base_tool(base, "check_rules")
+    if sup is None:
+        notes.append("suppress: tools/check_suppress.py is not in the base - not checked")
+        return []
+    net: dict[str, list] = {}  # kind -> [net count, {path: net}]
+    for path, side in files.items():
+        if not _sup_scope(sup, path):
+            continue
+        own_check = path.startswith("tools/check_")
+        for sign, step in (("+", 1), ("-", -1)):
+            for text in side[sign]:
+                comments = sup.py_comments(text) if path.endswith(".py") else sup.js_comments(text)
+                for _ln, c in comments:
+                    for kind, ok in sup.found_in(c):
+                        if own_check and kind.startswith("mark:"):
+                            continue
+                        for k in (kind,) if ok else (kind, kind + " without reason"):
+                            e = net.setdefault(k, [0, {}])
+                            e[0] += step
+                            e[1][path] = e[1].get(path, 0) + step
+                if rules is not None and ENV_CODE.match(path) and path != "kalmido/core/env.py":
+                    n = len(rules.ENV.findall(text))
+                    if n:
+                        e = net.setdefault("env", [0, {}])
+                        e[0] += step * n
+                        e[1][path] = e[1].get(path, 0) + step * n
+    hits = []
+    for k, (n, per) in sorted(net.items()):
+        if n <= 0:
+            continue
+        where = ", ".join(f"{p} +{v}" for p, v in sorted(per.items()) if v > 0)
+        if k == "env":
+            _fn, _s, why, instead = rules.RULES["env"]
+            hits.append(f"{n} more os.environ read(s) outside kalmido/core/env.py ({where}) - Why: {why}. Instead: {instead}. "
+                        f"Do not build around it.")
+        elif sup.sharp(k):
+            what = (f"{n} new '{k[:-len(' without reason')]}' marker(s) without the reason in the same comment"
+                    if k.endswith(" without reason") else f"{n} more '{k}' marker(s) than the change removes")
+            hits.append(f"{what} ({where}) - Why: {sup.WHY}. Instead: {sup.INSTEAD}. Do not suppress it.")
     return hits
 
 
@@ -293,7 +382,9 @@ def main(argv=None) -> int:
                 print(f"pr_lint: {e}", file=sys.stderr)
                 return 2
         elif c == "marks":
-            hits = check_marks(files)
+            hits = check_marks(a.base, files, notes)
+        elif c == "suppress":
+            hits = check_suppress(a.base, files, notes)
         else:
             hits = check_oneway(files)
             for h in hits:

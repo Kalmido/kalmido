@@ -20,7 +20,7 @@ Read: the product code - app.py, kalmido/, mcp/, tools/, embed/, static/*.js, st
 test scaffolding has its own check, tools/check_nosham.py). Python by its comment tokens (and the SQL "--" comments inside
 its strings), JavaScript by its // and /* */ comments, so a docstring that names a marker is no marker.
 
-usage: python3 tools/check_suppress.py [-v] [--root DIR] [--update] [--list KIND]     exit 1 = red
+usage: python3 tools/check_suppress.py [-v] [--notice] [--root DIR] [--update] [--list KIND]     exit 1 = red
   --update   lowers the baseline to today's numbers (never raises one, never adds a kind)
   --list K   every place of kind K (e.g. --list "noqa:BLE001 without reason")
 Standard library only.
@@ -195,7 +195,9 @@ def main(argv):
         lintmsg.save(path, ABOUT, new)
         print(f"check_suppress: baseline {sum(v['total'] for v in base.values())} -> {sum(v['total'] for v in new.values())}")
         base = new
-    rose, fell = lintmsg.compare(now, base, sharp)
+    # --notice (the lint job): every rise is a notice - the total moves with every package merged meanwhile, so the ratchet
+    # per change is tools/pr_lint.py suppress (net per kind of the lines a change adds and removes)
+    rose, fell = lintmsg.compare(now, base, (lambda r: False) if "--notice" in argv else sharp)
     red = lintmsg.report("check_suppress", rose, fell, label, "python3 tools/check_suppress.py --update")
     if red:
         print("check_suppress: the places: python3 tools/check_suppress.py --list '<kind>' (e.g. 'noqa:BLE001 without reason')")
