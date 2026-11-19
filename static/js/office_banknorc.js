@@ -48,13 +48,14 @@ function bnr_html() {
     + (out ? bnv_html() : '');
 }
 // #7306: the column of the open receipts wider by the one grip (grip.js, docs/dev/kern.md "Resizing: the one grip"): --g-bank-norc
-// on .bnrcols, 14rem up to half of the columns, default 18rem. After each paint of the office (office.js ofcPaint): a morph took
+// on .bnrcols, 14rem up to all the room the bookings (18rem) leave, default 18rem. After each paint of the office (office.js ofcPaint): a morph took
 // the grip's marks and the variable off, they come back. Dragging a receipt onto a row stays as it is (the grip is no row).
 function bnr_grip(root) {
   const g = root && $('.bnrcols > .bnrgrip', root), box = g?.parentElement; if (!g || !box) return;
   if (g._grip && (g.classList.contains('grip') || document.body.classList.contains('gdrag'))) { g.classList.add('grip', 'grip-x'); g._grip.refresh(); return; }  // a redraw during a drag: the same handle
   const rem = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-  grip_col(g, {key: 'bank-norc', edge: 'start', min: 14, max: () => Math.max(14, Math.floor(box.clientWidth / rem() / 2)), def: 18});
+  // no fixed cap (product rule "Handles", #4829): the columns' room minus the gap (1rem) and the bookings' 18rem
+  grip_col(g, {key: 'bank-norc', edge: 'start', min: 14, max: () => Math.max(14, Math.floor(box.clientWidth / rem() - 1 - 18)), def: 18});
 }
 function bnr_row(t) {
   const out = +t.amount < 0, title = t.counterpart || t.purpose || tr('Booking');

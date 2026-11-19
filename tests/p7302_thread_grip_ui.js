@@ -4,7 +4,7 @@
 // - an open thread beside the conversation: a grip on the pane's left edge (separator, focusable, data-grip tc-thread); with
 //   nothing stored the pane has today's width (24rem)
 // - dragging it to the left makes the pane wider live (the conversation keeps the rest), released it is kept on the device
-//   (grip:tc-thread); dragged far, it stops at half of the area; a redraw of the view (a live update) keeps width and grip
+//   (grip:tc-thread); dragged far, it stops where the conversation keeps 16rem (no fixed cap); a redraw of the view (a live update) keeps width and grip
 // - a reload (the thread opened again): the same width; a double click: today's width again, nothing stored
 // - 820 px: the thread full size, no grip
 // freelancer-matrix: n/a (no route; the team chat's layout - the grip is a client building block, the same in every workspace)
@@ -23,7 +23,7 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
 const M = `JSON.stringify((() => {
   const w = s => Math.round(document.querySelector(s)?.getBoundingClientRect().width || 0);
   const g = document.querySelector('.tthpane > .tthgrip'), r = g?.getBoundingClientRect();
-  return {pane: w('.tthpane'), room: w('.tcview > .tcroom'), view: w('.tcview'), grip: !!g && g.classList.contains('grip'), role: g?.getAttribute('role'), key: g?.dataset.grip,
+  return {pane: w('.tthpane'), room: w('.tcview > .tcroom'), list: w('.tcview > .tclist'), view: w('.tcview'), grip: !!g && g.classList.contains('grip'), role: g?.getAttribute('role'), key: g?.dataset.grip,
     ti: g ? g.tabIndex : null, gx: r ? r.left + r.width / 2 : 0, gy: r ? r.top + r.height / 2 : 0, gw: r ? Math.round(r.width) : 0,
     v: getComputedStyle(document.querySelector('.tcview') || document.body).getPropertyValue('--g-tc-thread').trim(), root: document.documentElement.style.getPropertyValue('--g-tc-thread'),
     ls: localStorage.getItem('tasks.grip:tc-thread'), rem: parseFloat(getComputedStyle(document.documentElement).fontSize)};
@@ -88,20 +88,21 @@ const M = `JSON.stringify((() => {
     check(hit, 'the pointer reaches the grip (nothing lies over it)');
     // a drag to the left: wider live, stored on release
     const mid = await drag(g0.gx, g0.gy, -160, `JSON.stringify({pane: Math.round(document.querySelector('.tthpane').getBoundingClientRect().width), ls: localStorage.getItem('tasks.grip:tc-thread'), drag: document.body.classList.contains('pgdrag')})`);
-    const m = JSON.parse(mid || '{}'), want = Math.min(g0.pane + 160, Math.floor(g0.view / g0.rem / 2) * g0.rem);
+    const m = JSON.parse(mid || '{}'), want = Math.min(g0.pane + 160, Math.floor((g0.view - g0.list) / g0.rem - 16) * g0.rem);
     check(Math.abs(m.pane - want) <= 3 && m.ls == null && m.drag, 'during the drag the pane follows live, nothing stored yet ' + mid);
     const g1 = await get();
     check(Math.abs(g1.pane - want) <= 3 && g1.ls === String(want / g1.rem) && g1.v === g1.ls + 'rem' && !g1.root && g1.room > 200,
-      'released: the pane is 160 px wider (at most half), kept under grip:tc-thread on the area (not the root), the conversation keeps the rest ' + JSON.stringify(g1));
+      'released: the pane is 160 px wider (no cap below the room), kept under grip:tc-thread on the area (not the root), the conversation keeps the rest ' + JSON.stringify(g1));
     await shot('p7302-wide.png');
     // a redraw of the view (a live update morphs it): width and grip stay
     await ev(`(renderView(), 1)`); await idle();
     const g2 = await get();
     check(g2.grip && g2.role === 'separator' && Math.abs(g2.pane - g1.pane) <= 1, 'a redraw keeps the width and the grip ' + JSON.stringify(g2));
-    // dragged far: at most half of the area
+    // dragged far: no fixed cap (product rule "Handles", #4829) - it stops where the conversation keeps its 16rem
     await drag(g2.gx, g2.gy, -(g2.gx - 20));
     const g3 = await get();
-    check(g3.pane <= g3.view / 2 + 2 && g3.pane >= g3.view / 2 - g3.rem - 2 && g3.room > 100, 'dragged far: the pane stops at half of the area ' + JSON.stringify(g3));
+    const far = Math.floor((g3.view - g3.list) / g3.rem - 16) * g3.rem;
+    check(Math.abs(g3.pane - far) <= g3.rem + 2 && g3.pane > g3.view / 2 && g3.room > 100, 'dragged far: the pane goes past half and stops where the conversation keeps 16rem ' + JSON.stringify(g3));
     // the keyboard: arrow right = 1rem narrower (the pane lies after the grip)
     await ev(`(document.querySelector('.tthpane > .tthgrip').focus(), 1)`);
     await cmd('input.performActions', {context: ctx, actions: [{type: 'key', id: 'kb', actions: [{type: 'keyDown', value: ''}, {type: 'keyUp', value: ''}]}]});

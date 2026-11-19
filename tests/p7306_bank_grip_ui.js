@@ -6,7 +6,7 @@
 // - a booking and an open receipt: between the bookings and the receipts sits a grip (separator, focusable, data-grip
 //   bank-norc); the receipts' column is 18rem
 // - dragging it to the left makes the column wider live, released it is kept on the device (grip:bank-norc); dragged far it
-//   stops at half of the columns; a redraw of the office keeps width and grip
+//   stops where the bookings keep 18rem (no fixed cap); a redraw of the office keeps width and grip
 // - a reload: the same width; a double click: 18rem again, nothing stored
 // - the receipt dropped onto the booking (the drag of a receipt) still matches it
 // - phone width: no receipts' column, no grip
@@ -90,10 +90,11 @@ const M = `JSON.stringify((() => {
     await ev(`(ofcDraw(), 1)`); await idle();
     const g2 = await get();
     check(g2.grip && g2.role === 'separator' && Math.abs(g2.rc - g1.rc) <= 1, 'a redraw keeps the width and the grip ' + JSON.stringify(g2));
-    // dragged far: at most half of the columns
+    // dragged far: no fixed cap (product rule "Handles", #4829) - it stops where the bookings keep their 18rem
     await drag(g2.gx, g2.gy, -(g2.gx - 20));
     const g3 = await get();
-    check(g3.rc <= g3.cols / 2 + 2 && g3.rc >= g3.cols / 2 - g3.rem - 2, 'dragged far: the column stops at half ' + JSON.stringify(g3));
+    const far = Math.floor(g3.cols / g3.rem - 1 - 18) * g3.rem;
+    check(Math.abs(g3.rc - far) <= g3.rem + 2 && g3.rc > g3.cols / 2 && g3.list >= 18 * g3.rem - 2, 'dragged far: the column goes past half and stops where the bookings keep 18rem ' + JSON.stringify(g3));
     await ev(`(localStorage.setItem('tasks.grip:bank-norc', '24'), 1)`);
     // a reload: the same width
     await open(1280, false);
