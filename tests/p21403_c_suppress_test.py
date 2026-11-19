@@ -9,7 +9,8 @@
  4. tools/check_rules.py: os.environ outside core/env.py, a starter helper defined twice = red with
     the rule's Why / Instead; a writing api() call in static/js and the total of version marks = a notice only; inside core/env.py = no finding
  5. every red message carries Why / Instead / "Do not suppress it"; tools/lintmsg.red_hint prints nothing on green
- 6. every tools/check_*.py says Why / Instead (lintmsg); ci.yml runs both new checks; the repo's tree matches its baselines
+ 6. every tools/check_*.py says Why / Instead (lintmsg); ci.yml runs both new checks with --notice (a rise there is a notice:
+    the totals move with every package merged meanwhile; red per change is tools/pr_lint.py, suite p2593_l_prlint)
 usage: python3 tests/p21403_c_suppress_test.py"""
 import os
 import re
@@ -100,6 +101,9 @@ try:
     put(d, "static/js/y.js", "// eslint-disable-next-line no-new -- the instance registers itself\nnew Thing();\n")
     rc, out = run(SUP, d)
     check(rc == 1 and "'eslint-disable' markers: 1" in out and "new 'eslint-disable' without" not in out, f"with its reason still red: eslint-disable may not rise ({out[-300:]})")
+    rc, out = run(SUP, d, "--notice")
+    check(rc == 0 and "notice (not red yet): 'eslint-disable' markers: 1" in out,
+          f"--notice (the lint job): the same rise is a notice, red is the per-change check of pr_lint ({out[-300:]})")
     os.remove(os.path.join(d, "static/js/y.js"))
 
     # ---- 3. fewer: green with a notice, --update lowers, never raises
@@ -136,6 +140,8 @@ try:
     check("notice (not red yet): rule version-mark: 1" in out,
           f"a version mark: the total is a notice, red is an added line (pr_lint marks) ({out[-500:]})")
     check(NOT in out, "check_rules says not to suppress it")
+    rc, out = run(RUL, d, "--notice")
+    check(rc == 0 and "notice (not red yet): rule env: 1" in out, f"--notice: env is a notice, pr_lint holds it per change ({out[-300:]})")
     put(d, "kalmido/m.py", "x = 1  # the rule\n")
     put(d, "mcp/agent_run.py", "def run():\n    pass\n\n\ndef write_json(p, d):\n    pass\n")
     rc, out = run(RUL, d)
@@ -164,14 +170,14 @@ for f in tools:
         bare.append(f)
 check(len(tools) >= 35 and not bare, f"every tools/check_*.py prints Why / Instead through lintmsg: missing {bare}")
 ci = open(os.path.join(ROOT, ".github", "workflows", "ci.yml"), encoding="utf-8").read()
-check("run: python tools/check_suppress.py" in ci and "run: python tools/check_rules.py" in ci,
+check("run: python tools/check_suppress.py -v --notice" in ci and "run: python tools/check_rules.py -v --notice" in ci,
       "ci.yml runs check_suppress and check_rules in the lint job (the Mac lint and the train take the steps from there)")
 sem = open(os.path.join(ROOT, ".semgrep", "sql_ident.yml"), encoding="utf-8").read()
 check("Why:" in sem and "Instead:" in sem and NOT in sem, "the own semgrep rule's message says why, what instead and not to suppress")
-rc, out = run(SUP, ROOT)
-check(rc == 0, f"the repo's markers match tools/suppress_baseline.json: {out[-600:]}")
-rc, out = run(RUL, ROOT)
-check(rc == 0, f"the repo matches tools/rules_baseline.json: {out[-600:]}")
+rc, out = run(SUP, ROOT, "--notice")
+check(rc == 0, f"check_suppress --notice on the repo: green (a drift of main is a notice): {out[-600:]}")
+rc, out = run(RUL, ROOT, "--notice")
+check(rc == 0, f"check_rules --notice on the repo: green: {out[-600:]}")
 
 print(f"p21403_c_suppress: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)

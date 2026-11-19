@@ -68,9 +68,11 @@ a test for what you change; security fixes need a regression test in `tests/secu
   decisions against patching that can be seen in the code (`tools/rules_baseline.json`): no `os.environ` outside
   `kalmido/core/env.py`, no further copy of a starter helper or a fence per MCP tool, no further `SECRET_*` name pattern, no new generated
   file in git. No version marks like `2.123.0 (#4567)` in an added line of `app.py`, `kalmido/` and `static/` (the
-  history is in git; a pointer to a decided task stays as `(#4567)` without the version): `tools/pr_lint.py` checks the
-  lines a pull request / merge queue entry adds, the total in `check_rules.py` is only a notice (it moves with every
-  package merged meanwhile). Both baselines only fall: `--update` lowers them to today and never raises one; `--list KIND` shows the places.
+  history is in git; a pointer to a decided task stays as `(#4567)` without the version). Red is per change: a pull
+  request / merge queue entry adds no more markers per kind and no more `os.environ` reads than it removes, every marker
+  it adds has its reason, and no added line has a version mark (`tools/pr_lint.py` suppress and marks, which read both
+  checks from the base commit). The totals in the lint job (`--notice`) are notices, since they move with every package
+  merged meanwhile. Both baselines only fall: `--update` lowers them to today and never raises one; `--list KIND` shows the places.
 - **Calls get all required parameters** (2.1056.0, #5863): `python3 tools/check_call_arity.py` reads every module-level
   function of `kalmido/` and `app.py` with `ast` and checks its calls (same module, `from ... import`, module aliases,
   re-exports): a missing required or keyword-only parameter, too many positional arguments or an unknown keyword is red in

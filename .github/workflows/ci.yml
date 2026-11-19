@@ -345,13 +345,14 @@ jobs:
           ruff check --output-format json --exit-zero . > /tmp/ruff.json
           python tools/ruff_baseline.py /tmp/ruff.json
       # a suppression marker (noqa, nosemgrep, eslint-disable, the own checks' -ok markers) only with its reason in the same
-      # comment, and their number per kind only falls (tools/suppress_baseline.json, --update lowers it)
+      # comment, and their number per kind only falls: red per change in the pull request lint (tools/pr_lint.py suppress,
+      # the lines a change adds and removes); the totals here are notices, they move with every package merged meanwhile
       - name: Suppressions only with a reason, never more of them - tools/check_suppress.py (#7143)
-        run: python tools/check_suppress.py -v
+        run: python tools/check_suppress.py -v --notice
       # the decisions against patching that can be seen in the code text (audit #5501), each with its reason and the right
-      # way; places per rule only fall (tools/rules_baseline.json)
+      # way; places per rule only fall (tools/rules_baseline.json); env and version marks are red per change in tools/pr_lint.py
       - name: Decided rules - environment through core/env.py, no version marks, one starter copy ... - tools/check_rules.py (#7143)
-        run: python tools/check_rules.py -v
+        run: python tools/check_rules.py -v --notice
       - name: Every module and script has a line in docs/GLOSSAR.md (2.757.0, #5295)
         run: python tools/check_glossar.py -v
       - name: Translations complete
