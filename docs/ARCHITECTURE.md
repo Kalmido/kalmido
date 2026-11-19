@@ -777,6 +777,10 @@ desktop switch of the chat, the pop-up button, reaction rows, `patchKids`, the t
   2.1166.0 (#4742): the care job moved such rules of `app.css` into `life.css`, `office.css`, `settings.css`, `wiki.css`,
   `contacts.css` and `ablage.css`, and also left out every rule whose element carries another class (in the module's
   `class="…"`) that a later rule of `app.css` or a `start-*.css` with the same weight styles in the same property.
+  2.1420.0 (#4742): new stylesheets of one module each, with the rules moved the same way: `hubmail.css`, `hubmailbox.css`
+  (the mailbox dialog), `msvview.css`, `listmodal.css` (the project dialog), `formq.css`, `clientpage.css`, `propcards.css`,
+  `habitdlg.css`, `tagsview.css`, `folderprops.css`. A rule two modules draw stays in `app.css` (each stylesheet belongs to
+  one `LD_CSS` entry).
 - Idle preload: 5 s after the start, one per idle moment, Settings (with what it needs), then the areas this person has
   switched on (calendar, timeline, knowledge pages, documents, home & life); not office, contacts, statistics, PDF.
 
