@@ -135,9 +135,8 @@ def _sh_may(c, uid, r, write, share):
     r = shb_rights_row(c, r)  # 2.124.0 E (#2116): a further sheet has the rights of its table's first sheet
     if r is None:
         return False
-    if write and r["org_id"] and not sh_is_agent(c, uid):
-        if org_readonly(c, uid, r["org_id"]):
-            return False  # 2.143.0 A (#2151): read-only changes nothing of the organisation (also with a share)
+    if write and r["org_id"] and org_readonly(c, uid, r["org_id"]):
+        return False  # 2.143.0 A (#2151): read-only changes nothing of the organisation (also with a share); #6605: an agent too
     if share:  # 2.124.0 C (#2113): a share of this one table adds to the rights below (sheets/shshare.py)
         from .shshare import shs_may
         if shs_may(c, uid, r, write):

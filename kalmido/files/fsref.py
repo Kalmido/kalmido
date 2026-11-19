@@ -184,9 +184,8 @@ def fs_ref_node_role(c, uid, n, chain=None, pre=None, sp=None, hidden=None):
         return "edit"
     agent = acx_of(c, uid).role == "agent"
     r = _role_of(_shares_role(c, [x["id"] for x in chain], uid, agent, pre=pre))
-    if r and org and not agent:
-        if org_role_key(c, uid, org) == "readonly":
-            r = "view"
+    if r and org and org_role_key(c, uid, org) == "readonly":  # #6605: an agent too (its role is at most its person's)
+        r = "view"
     if r and reg["cap"]:  # 2.238.0 A (#2863): a folder share gives at most what the area allows the role
         top = _role_of(reg["cap"](c, uid, n["ref_id"]))
         r = r if ROLE_RANK[r] <= ROLE_RANK[top] else top

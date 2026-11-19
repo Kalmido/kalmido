@@ -32,19 +32,41 @@ ACC_MSG = N_("The accounting role can read and export the office and upload rece
 
 def org_roles_of(c, uid):
     """{org id: role} of uid (cached per request; core/access.py acx_drop() forgets it). Unknown values read as guest (the
-    most restricted role) and are logged once per request."""
+    most restricted role) and are logged once per request. Narrowed by org_roles_cap (#6605: a personal agent)."""
     if not uid:
         return {}
     cache = g.setdefault("org_roles", {}) if has_request_context() else {}
     if uid not in cache:
-        if instance_mode(c) == "shared":
-            cache[uid] = {}
-        else:
-            with system_ctx(c):  # membership structure (also asked for other people)
-                cache[uid] = {r[0]: role_known(r[1], r[0], uid)
-                              for r in c.execute("SELECT m.org_id, m.role FROM org_members m JOIN orgs o ON o.id=m.org_id "  # 2.223.2 A (#2859)
-                                                 "WHERE m.user_id=? AND o.retired_at IS NULL", (uid,))}
+        cache[uid] = {} if instance_mode(c) == "shared" else org_roles_cap(c, uid, org_roles_read(c, uid))
     return cache[uid]
+
+
+def org_roles_read(c, uid):
+    """{org id: role} of uid as stored (memberships of organisations not retired), uncached and without org_roles_cap: only
+    for org_roles_cap's callers (org_roles_of, accounts/orgs.py user_orgs / org_role)."""
+    with system_ctx(c):  # membership structure (also asked for other people)
+        return {r[0]: role_known(r[1], r[0], uid)
+                for r in c.execute("SELECT m.org_id, m.role FROM org_members m JOIN orgs o ON o.id=m.org_id "  # 2.223.2 A (#2859)
+                                   "WHERE m.user_id=? AND o.retired_at IS NULL", (uid,))}
+
+
+# #6605: the order of the roles for "at most": a personal agent never has more than its person (accounting and guest share the
+# lowest rungs: neither reads the organisation's shared content)
+ROLE_RANK = {"guest": 0, "accounting": 1, "readonly": 2, "member": 3, "admin": 4}
+
+
+def org_roles_cap(c, uid, roles):
+    """THE one place that narrows the stored roles of uid for the current request (never stored beyond it):
+    #6605 (decision 16.11.2026): a personal agent (agents.owner_id) has in each organisation at most the current role of its
+    person; an organisation its person is no longer in gives the agent no role there."""
+    if not roles:
+        return roles
+    with system_ctx(c):  # structure: whose agent uid is
+        a = c.execute("SELECT owner_id FROM agents WHERE user_id=?", (uid,)).fetchone()
+    if a is not None and a[0]:
+        own = org_roles_of(c, a[0])
+        roles = {o: r if ROLE_RANK.get(r, 0) <= ROLE_RANK.get(own[o], 0) else own[o] for o, r in roles.items() if o in own}
+    return roles
 
 
 def role_known(role, oid=None, uid=None):
