@@ -46,7 +46,7 @@ async function moSave(ids, secs) {  // 2.569.0 (#4395): secs = {task id: own sec
 // A place: {sid} an own section (null = without one), {lid} a project of "Grouped by project", tid / after = before / after that
 // task (tid in the selection = the selection at its place), none = on top of the section. Gone: moDrop, moDropMany, mseDrop,
 // mseDropMany, mseDropHead (they were three ways, audit #5731).
-const MO_NOPLACE = N_('Nothing changes here: drop onto a task of your own order or onto an own section.');
+const MO_NOPLACE = N_('Nothing changes here: drop onto a task of your own order or onto one of your own sections.');
 const MO_RECENT = N_('“Recently assigned” takes no tasks: drop them into another section.');
 const MO_KEYS_OFF = /^(pinned|kb:|mt:|tm:)/;  // groups of My tasks without an own place: Pinned, Unassigned in your projects, hidden projects
 function moWhere(tgt, ids = []) {
