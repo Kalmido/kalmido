@@ -143,10 +143,13 @@ const rowBox = el => { el.getBoundingClientRect = () => ({top: 100, bottom: 140,
   check(await until(() => [G[0], G[1], G[2], G[3]].every(i => gIn(/Someday/, i))), 'mixed selection onto the head of Someday: all four stand there');
   check(await until(() => gSecs(/Someday/, m1)) && await until(() => gOrder(m1)), 'the server keeps all four in Someday, in the selection\'s order ' + m1);
 
-  // (2) a mixed selection onto a row that belongs to the selection itself: at its place (Soon: G4 G5 G6 -> G4 [m2] G6)
+  // (2) a mixed selection onto a row that belongs to the selection itself: at its place (Soon: x G5 y -> x [m2] y)
+  const inSecOrd = async re => { const j = await gSt(), o = j.mine_order, s = j.mine_sections.tasks; return Object.keys(s).map(Number).filter(i => s[i] === gSid(re) && o[i] != null).sort((a, b) => o[a] - o[b]); };
+  const soon0 = await inSecOrd(/Soon/);
   const m2 = await gDrag([G[5], G[0], G[1]], rowBox(gRow(G[5])), {clientY: 105});
   check(await until(() => [G[5], G[0], G[1]].every(i => gIn(/Soon/, i))), 'onto a row of the selection: all three in Soon');
-  check(await until(() => gOrder([G[4], ...m2, G[6]])), 'at the place of that row, in the selection\'s order ' + m2);
+  const want2 = soon0.flatMap(i => i === G[5] ? m2 : [i]);
+  check(soon0.length === 3 && await until(() => gOrder(want2)), 'at the place of that row, in the selection\'s order ' + m2 + ' (Soon before: ' + soon0 + ')');
 
   // (3) the menu "Move to section…" with a mixed selection: two in Soon, two in Someday -> all in Someday
   v.eval(`closePop(); mseSecPicker(document.querySelector('#top h1'), [${G[4]}, ${G[2]}, ${G[6]}, ${G[3]}])`);
