@@ -1,0 +1,52 @@
+{
+  "de": {
+    "Other …": "Anderes …",
+    "Model name": "Modellname",
+    "Its repeat rule is not supported: imported as a single event": "Die Wiederholungsregel wird nicht unterstützt: als einzelner Termin importiert",
+    "It has a second repeat rule: only the first one is imported": "Der Termin hat eine zweite Wiederholungsregel: nur die erste wird importiert",
+    "Its extra dates (RDATE) are not supported: only the regular dates are imported": "Zusätzliche Termine der Serie (RDATE) werden nicht unterstützt: nur die regelmäßigen Termine werden importiert",
+    "The event could not be read and was not imported": "Der Termin konnte nicht gelesen werden und wurde nicht importiert",
+    "{0} of {1} events imported: at most {2} per import. Split the file to import the rest.": "{0} von {1} Terminen importiert: höchstens {2} je Import. Teile die Datei auf, um den Rest zu importieren.",
+    "{0} event was not imported as it is in the file:": ["{0} Termin wurde nicht so importiert, wie er in der Datei steht:", "{0} Termine wurden nicht so importiert, wie sie in der Datei stehen:"]
+  },
+  "es": {
+    "Other …": "Otro …",
+    "Model name": "Nombre del modelo",
+    "Its repeat rule is not supported: imported as a single event": "Su regla de repetición no es compatible: importado como evento único",
+    "It has a second repeat rule: only the first one is imported": "Tiene una segunda regla de repetición: solo se importa la primera",
+    "Its extra dates (RDATE) are not supported: only the regular dates are imported": "Sus fechas adicionales (RDATE) no son compatibles: solo se importan las fechas regulares",
+    "The event could not be read and was not imported": "No se pudo leer el evento y no se importó",
+    "{0} of {1} events imported: at most {2} per import. Split the file to import the rest.": "{0} de {1} eventos importados: como máximo {2} por importación. Divide el archivo para importar el resto.",
+    "{0} event was not imported as it is in the file:": ["{0} evento no se importó tal como está en el archivo:", "{0} eventos no se importaron tal como están en el archivo:"]
+  },
+  "fr": {
+    "Other …": "Autre …",
+    "Model name": "Nom du modèle",
+    "Its repeat rule is not supported: imported as a single event": "Sa règle de répétition n’est pas prise en charge : importé comme événement unique",
+    "It has a second repeat rule: only the first one is imported": "Il a une deuxième règle de répétition : seule la première est importée",
+    "Its extra dates (RDATE) are not supported: only the regular dates are imported": "Ses dates supplémentaires (RDATE) ne sont pas prises en charge : seules les dates régulières sont importées",
+    "The event could not be read and was not imported": "L’événement n’a pas pu être lu et n’a pas été importé",
+    "{0} of {1} events imported: at most {2} per import. Split the file to import the rest.": "{0} événements sur {1} importés : au plus {2} par importation. Divise le fichier pour importer le reste.",
+    "{0} event was not imported as it is in the file:": ["{0} événement n’a pas été importé tel qu’il est dans le fichier :", "{0} événements n’ont pas été importés tels qu’ils sont dans le fichier :"]
+  },
+  "it": {
+    "Other …": "Altro …",
+    "Model name": "Nome del modello",
+    "Its repeat rule is not supported: imported as a single event": "La sua regola di ripetizione non è supportata: importato come evento singolo",
+    "It has a second repeat rule: only the first one is imported": "Ha una seconda regola di ripetizione: viene importata solo la prima",
+    "Its extra dates (RDATE) are not supported: only the regular dates are imported": "Le sue date aggiuntive (RDATE) non sono supportate: vengono importate solo le date regolari",
+    "The event could not be read and was not imported": "Non è stato possibile leggere l’evento, che non è stato importato",
+    "{0} of {1} events imported: at most {2} per import. Split the file to import the rest.": "{0} di {1} eventi importati: al massimo {2} per importazione. Dividi il file per importare il resto.",
+    "{0} event was not imported as it is in the file:": ["{0} evento non è stato importato così come è nel file:", "{0} eventi non sono stati importati così come sono nel file:"]
+  },
+  "nl": {
+    "Other …": "Ander …",
+    "Model name": "Modelnaam",
+    "Its repeat rule is not supported: imported as a single event": "De herhaalregel wordt niet ondersteund: als losse afspraak geïmporteerd",
+    "It has a second repeat rule: only the first one is imported": "De afspraak heeft een tweede herhaalregel: alleen de eerste wordt geïmporteerd",
+    "Its extra dates (RDATE) are not supported: only the regular dates are imported": "Extra datums (RDATE) worden niet ondersteund: alleen de regelmatige datums worden geïmporteerd",
+    "The event could not be read and was not imported": "De afspraak kon niet worden gelezen en is niet geïmporteerd",
+    "{0} of {1} events imported: at most {2} per import. Split the file to import the rest.": "{0} van {1} afspraken geïmporteerd: hoogstens {2} per import. Splits het bestand om de rest te importeren.",
+    "{0} event was not imported as it is in the file:": ["{0} afspraak is niet geïmporteerd zoals die in het bestand staat:", "{0} afspraken zijn niet geïmporteerd zoals ze in het bestand staan:"]
+  }
+}
