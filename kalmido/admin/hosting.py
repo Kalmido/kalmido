@@ -16,7 +16,7 @@ from ..core.instance import LEGAL_ENV, PRIVACY_EMAIL_ENV, legal_url_ok  # 2.306.
 from ..accounts.session import me
 from ..api.common import v1_args, v1_err, v1_json, v1_view
 from ..api.scopes import need_scope  # 2.360.0 A (#2496)
-from ..core.env import env_bool
+from ..core.env import env_bool, SRV_AGENT_MARK, srv_recipient  # 2.1412.0 (#6510)
 from ..core.pg import system_ctx  # 2.149.0 G (#2517): pulled up from functions
 from ..core.ephem import eph_within  # 2.642.0 (#4975)
 from ..core.mailbudget import MAIL_DAY_RCPT, MAIL_DAY_SENDER, mail_budget, mail_day_limit, mail_rcpt_key  # noqa: F401  2.1297.0 (#6548): moved to core
@@ -590,7 +590,11 @@ def agent_joined_notice(c, lid, aid, actor):
         return
     people = {l["owner_id"]} | {r[0] for r in c.execute("""SELECT m.user_id FROM list_members m JOIN users u ON u.id=m.user_id
                                                           WHERE m.list_id=? AND u.kind!='agent' AND NOT u.disabled""", (lid,))}
+    prov, host = a["provider"][:80], {}
+    if a["provider"] == SRV_AGENT_MARK:  # 2.1412.0 (#6510): a server agent - the real receiver, not the mark 'kalmido-server'
+        prov, h = srv_recipient()
+        host = {"host": h}
     for uid in people:
         if uid and uid != actor:
             news_add(c, uid, "agentjoin", list_id=lid, data={"name": l["name"], "agent": a["display_name"] or a["username"],
-                                                             "agent_id": aid, "provider": a["provider"][:80]}, actor=actor, row="share")
+                                                             "agent_id": aid, "provider": prov, **host}, actor=actor, row="share")

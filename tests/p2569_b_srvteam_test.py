@@ -93,6 +93,11 @@ P = Bo.post(B + "/api/lists", json={"name": "Team project", "org_id": ORG}).json
 for u, role in (("carl", "edit"), ("dora", "edit"), ("rita", "view")):
     check(Bo.put(B + f"/api/lists/{P}/members", json={"user_id": uid[u], "role": role}).ok, f"setup: {u} in the project ({role})")
 check(Bo.put(B + f"/api/lists/{P}/members", json={"user_id": TK, "role": "edit"}).ok, "the team agent joins the project")
+# 2.1412.0 (#6510): the members learn where what the agent reads goes (provider and host of the model), not 'kalmido-server'
+aj = [x[0] if isinstance(x[0], dict) else json.loads(x[0] or "{}")
+      for x in dbx("SELECT data FROM notifications WHERE user_id=? AND kind='agentjoin' AND list_id=?", (uid["carl"], P))]
+check(bool(aj) and aj[-1].get("host") == "127.0.0.1" and aj[-1].get("provider") == "127.0.0.1" and "kalmido-server" not in json.dumps(aj),
+      f"#6510: the hint 'agent added' names the real receiver {aj}")
 T1 = Bo.post(B + "/api/tasks", json={"title": "Team pelican task", "list_id": P}).json()["id"]
 T2 = Bo.post(B + "/api/tasks", json={"title": "Team heron task", "list_id": P}).json()["id"]
 
