@@ -232,6 +232,10 @@ const V = B + 'api/v1';
     // #1028: the long command wraps inside the bubble, no sideways scrollbar, the line under it is not covered
     check(await ev(`(() => { const pre = [...document.querySelectorAll('#achat .cbub pre.mdpre')].pop(); if (!pre) return false; const cs = getComputedStyle(pre); const next = pre.closest('.mdcode').nextElementSibling; const pr = pre.getBoundingClientRect(), nr = next ? next.getBoundingClientRect() : null; return pre.scrollWidth <= pre.clientWidth + 1 && cs.whiteSpace === 'pre-wrap' && (!nr || nr.top >= pr.bottom - 0.5); })()`), `${tag}: #1028 the code block wraps, the text under it stays free`);
     await shot(`p2290-${th}-1440-chat-window.png`);
+    // #963: "+" under a message opens the emoji field ABOVE the chat window (it was behind the chat panel once)
+    await ev(`(() => { const b = [...document.querySelectorAll('#achat [data-act="rx-more"]')].pop(); b && b.click(); return !!b; })()`); await sleep(500);
+    check(await ev(`(() => { const p = document.querySelector('#pop'), i = document.querySelector('#pop #rx-in'); if (!i || p.classList.contains('hidden')) return false; const r = i.getBoundingClientRect(); const e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!e && p.contains(e); })()`), `${tag}: #963 "+" opens the emoji field on top`);
+    await ev(`(() => { closePop(); return 1; })()`);
     if (th === 'light') {  // #7289: the floating window takes a new size by its grip at the top left (mouse and keyboard), kept per device
       const box = `(() => { const p = document.querySelector('#achat.float'), g = p && p.querySelector('.chrsz.nw'); if (!g) return null; const a = g.getBoundingClientRect(), r = p.getBoundingClientRect(); return {x: a.left + a.width / 2, y: a.top + a.height / 2, w: Math.round(r.width), h: Math.round(r.height), right: Math.round(r.right), bottom: Math.round(r.bottom), ls: localStorage.getItem('tasks.chatSize'), lbl: g.getAttribute('aria-label') || '', tab: g.tabIndex}; })()`;
       const g0 = await ev(box);
@@ -257,10 +261,6 @@ const V = B + 'api/v1';
         check(g5 && g5.w === g0.w && g5.h === g0.h && !g5.ls, `${tag}: #7289 double-click: the default size, nothing stored ${JSON.stringify([g0, g5])}`);
       }
     }
-    // #963: "+" under a message opens the emoji field ABOVE the chat window (it was behind the chat panel once)
-    await ev(`(() => { const b = [...document.querySelectorAll('#achat [data-act="rx-more"]')].pop(); b && b.click(); return !!b; })()`); await sleep(500);
-    check(await ev(`(() => { const p = document.querySelector('#pop'), i = document.querySelector('#pop #rx-in'); if (!i || p.classList.contains('hidden')) return false; const r = i.getBoundingClientRect(); const e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!e && p.contains(e); })()`), `${tag}: #963 "+" opens the emoji field on top`);
-    await ev(`(() => { closePop(); return 1; })()`);
     await ev(`(() => { chatClose(); return 1; })()`);
     await ev(`(() => { folderPropsModal('Clients'); return 1; })()`); await sleep(900);
     await shot(`p2290-${th}-1440-folder-settings.png`);
