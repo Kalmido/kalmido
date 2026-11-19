@@ -461,8 +461,9 @@ def _trusted_ids(api):
 # as from outside (untrusted, origin) is judged; another account's object has its texts fenced and is marked untrusted.
 FENCE_OPEN = "<<<data from "
 FENCE_END = "\ndata>>>"
-FENCE_TEXTS = ("title", "notes", "text", "body", "name", "code", "path", "excerpt", "description", "content", "summary", "message")
-UNFENCE_TEXTS = tuple(f for f in FENCE_TEXTS if f not in ("code", "path"))
+FENCE_TEXTS = ("title", "notes", "text", "body", "name", "code", "path", "excerpt", "description", "content", "summary", "message",
+               "snippet")  # #7192: a search hit's text around the words (its marks then count from the fence's first line)
+UNFENCE_TEXTS = tuple(f for f in FENCE_TEXTS if f not in ("code", "path", "snippet"))
 FENCE_STICKY = ("attachments", "subtasks", "files")  # parts of an object: on another account's object they stay its data
 FENCE_UNKNOWN = {"attachments": "an unknown uploader", "subtasks": "an unknown author"}  # here no author = data, too
 FENCE_SKIP = ("author", "reactions")  # the author object is the fence's label, never fenced itself

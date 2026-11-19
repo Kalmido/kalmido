@@ -240,7 +240,7 @@ def search_messages(c, uid, q, arts=None, sender=None, room=None, agent=None, ta
             h["chat_name"] = names.get(o, "?")
         h["sender"] = {"id": h["sender_id"], "name": names.get(h["sender_id"], "?") if h["sender_id"] else "?",
                        "agent": h["sender_id"] in ags}
-        h.pop("sender_id")
+        h["author_id"] = h.pop("sender_id")  # #7192: who wrote the snippet (the agents' data fence; null: no account)
         out.append(h)
     return out
 
@@ -313,6 +313,7 @@ def msgsearch_spec(paths, schemas, op, ok, errs, ref, pid, nul, page, q):
         "agent_id": {"type": "integer"}, "user_id": {"type": "integer", "description": "agent chat: the person"},
         "chat_name": {"type": "string", "description": "Task title, list name, the other person or the agent"},
         "sender": {"type": "object", "properties": {"id": nul("integer"), "name": {"type": "string"}, "agent": {"type": "boolean"}}},
+        "author_id": {**nul("integer"), "description": "#7192: the same as sender.id (who wrote the text; null: no account)"},
         "created_at": {"type": "string", "format": "date-time"},
         "snippet": {"type": "string", "description": "Plain text around the hit (never HTML), cut ends marked with …"},
         "marks": {"type": "array", "items": {"type": "array", "items": {"type": "integer"}},

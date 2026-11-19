@@ -802,7 +802,8 @@ def occ_out(r, o, role, att_n=0, partstat=None):
     d = {"eid": r["id"], "occ": o["occ"], "cal": None if role == "attendee" else r["cal_id"], "title": ov.get("title") or r["title"],
          "location": ov.get("location", r["location"]), "description": (ov.get("description", r["description"]) or "")[:2000],
          "all_day": bool(o["all_day"]), "start": st, "end": en, "recurring": bool(r["rrule"]), "changed": bool(o["ov"]),
-         "status": ov.get("status") or r["status"], "role": role, "task_id": None if role == "attendee" else r["task_id"], "att": att_n}
+         "status": ov.get("status") or r["status"], "role": role, "task_id": None if role == "attendee" else r["task_id"], "att": att_n,
+         "created_by": r["created_by"]}  # #7192: whose event (the agents' data fence)
     if partstat:
         d["partstat"] = partstat
     return d
