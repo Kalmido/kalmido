@@ -351,7 +351,8 @@ r = py_c("from kalmido.integrations import mail as MM, reqmail as R\nimport emai
          "m = email.message.EmailMessage()\n"
          f"m['From'], m['To'], m['Subject'], m['Message-ID'] = 'Flora <flora@example.org>', {NEW!r}, 'Flood', '<p2553b-cap@example.org>'\n"
          "m.set_content('again')\nres = MM.mail_import(c, bytes(m))\nc.commit()\nprint(type(res).__name__, int(res or 0))")
-check(r == "int 0", f"#6874: over the waiting ones the mail is not taken (no ticket, not put back) {r!r}")
+check(r == "NoneType 0" and not task_of("<p2553b-cap@example.org>"),
+      f"#6874: over the waiting ones the mail is not taken (None: no ticket, not put back for later) {r!r}")
 nt = [json.loads(d).get("text", "") for (d,) in dbx("SELECT data FROM notifications WHERE kind='integfail' AND user_id=?", (BU,))]
 check(sum("were not taken in" in t and "1 further" in t for t in nt) == 1, f"#6874: the project's owner hears the number {nt}")
 
