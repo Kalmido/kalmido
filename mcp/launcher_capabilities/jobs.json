@@ -1,7 +1,7 @@
 {
   "id": "jobs",
   "since": "2.44.0",
-  "what": "Long work as a job (agent_job.py start/list/status/progress/stop): an own background run of the same command that survives a restart of the runner, reports to a Kalmido job (progress, steps), posts its result with its outbox files into the chat and wakes the chat agent (job_wake, 2.46.6); the brief is played in again after a compaction; a plan limit waits for the reset and resumes the same session (--resume, at most 3 times); Stop of the job stops the process; optional git worktree per job with a cap; --name gives the job its own name (2.58.0)",
+  "what": "Long work as a job (agent_job.py start/list/status/progress/stop): an own background run of the same command that survives a restart of the runner, reports to a Kalmido job (progress, steps), posts its result with its outbox files into the chat and wakes the chat agent (job_wake, 2.46.6); the brief is played in again after a compaction; a plan limit waits for the reset and resumes the same session (--resume, at most 3 times); Stop of the job stops the process; optional git worktree per job with a cap; --name gives the job its own name (2.58.0); 2.1406.0 (#4063): a reminder before the time limit (JOB-NOTES.md, commit, comment), never a follow-up job by itself",
   "core": [
     "def cmd_start",
     "--name",
@@ -9,6 +9,7 @@
     "compact_boundary",
     "--resume",
     "def stop_job",
-    "KALMIDO_JOB_WORKTREES"
+    "KALMIDO_JOB_WORKTREES",
+    "TIMEOUT_NOTE"
   ]
 }
