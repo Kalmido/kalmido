@@ -134,7 +134,7 @@ function accountHtml() {
     <div class="row"><label id="a-col-h">${tr('Colour')}</label><div class="pfcol" id="a-col" role="group" aria-labelledby="a-col-h">${ac_pickHtml((S.colors || {})[m.id] || '', 'me')}</div></div>
     ${dsc_rowHtml()}${''/* 2.49.0 (#1106): People: find, requests, findable by e-mail */}
     ${wsPaneOn() ? (lmOrgPaneOn() ? lmOrgLinkHtml() : wsPaneHtml(t => `<div class="shint">${t}</div>`)) : S.me?.kid ? '' : wsp_paneHtml() /* 2.138.2 C (#2389, P4): without an organisation the colour of Private is chosen here */}
-    ${/*html-ok*/ wsPaneOn() || S.me?.kid ? '' : orgAddPaneHtml() /* 2.1414.0 (#6519): and the first organisation is added here */}
+    ${/*html-ok*/ wsPaneOn() || S.me?.kid ? '' : orgAddPaneHtml() /* (#6519): and the first organisation is added here */}
     ${mvHas() ? `<h4 id="s-mview-h">${tr('View as member')}</h4><div class="row"><label class="chkl"><input type="checkbox" id="s-mview" ${mvOn() ? 'checked' : ''}> ${tr('Show Kalmido as a member sees it')}</label></div>
     <div class="shint">${tr('Kalmido looks like it does for a member: settings and administration of your organisations and of the server are hidden; your private area, your own agents and the daily office work stay. Only the display changes, your rights stay the same. The way back is at the bottom of the settings and in the account menu.')}</div>` : ''}${''/* 2.436.0 (#3620) */}
     ${typeof officeOn === 'function' && officeOn() ? `<h4 id="s-sig-h">${tr('Signature for letters')}</h4>
@@ -367,7 +367,7 @@ async function orgModal(o, done) {
     } catch { /* api() said it */ }
   });
 }
-// 2.1414.0 (#6519): without an organisation (no Workspaces pane) Settings > Account offers the first one (same dialog sbb_orgAdd)
+// (#6519): without an organisation (no Workspaces pane) Settings > Account offers the first one (same dialog sbb_orgAdd)
 const orgAddPaneHtml = () => S.instanceMode === 'workspaces' && S.me?.kind !== 'agent' ? `<h4 id="s-orgadd-h">${tr('Organisation')}</h4><div class="shint">${tr('Keeps your work apart from your private things. You become its admin and can invite people by e-mail.')}</div>
     <div class="row"><button type="button" class="btn sm" data-wsorgadd="1">${ic('plus', 's')} ${tr('Add an organisation')}</button></div>` : '';
 function wsPaneHtml(hint) {
@@ -430,7 +430,7 @@ function accountWire(md) {
   drawUsers();
   orgsDraw(md);
   if ($('#s-wsr', md)) { wsr_draw(md); wsr_wire(md); }  // 2.365.2 C (#2789)
-  if (wsPaneOn()) { wsPaneDraw(md); wsPaneWire(md); } else { wsp_paneWire(md); md.addEventListener('click', e => { if (/** @type {any} */ (e.target).closest?.('[data-wsorgadd]')) sbb_orgAdd(); }); }  // 2.1414.0 (#6519): + Add an organisation  // 2.28.0 (#935); 2.138.2 C (#2389): the colour of Private
+  if (wsPaneOn()) { wsPaneDraw(md); wsPaneWire(md); } else { wsp_paneWire(md); md.addEventListener('click', e => { if (/** @type {any} */ (e.target).closest?.('[data-wsorgadd]')) sbb_orgAdd(); }); }  // (#6519): + Add an organisation  // 2.28.0 (#935); 2.138.2 C (#2389): the colour of Private
   md.addEventListener('change', async e => {  // 2.22.0 (#752): whom people see
     if (e.target.id !== 'a-vis') return;
     try { await api('PUT', '/api/admin/orgs/visibility', {mode: e.target.value}); toast(tr('Saved')); await load(); } catch { /* api() said it */ }
