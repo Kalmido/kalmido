@@ -712,10 +712,10 @@ SKFP_FRESH_TABLES = frozenset((
 ))
 SKFP_FRESH_NOT = (
     ("settings", "key = 'oidc_client_secret' AND value <> ''"),
-    ("settings", "value LIKE 'kenc1:%'"),
-    ("user_settings", "value LIKE 'kenc1:%'"),
+    ("settings", "value ILIKE 'kenc1:%'"),
+    ("user_settings", "value ILIKE 'kenc1:%'"),
     ("lists", "NOT is_inbox"),
-    ("bg_jobs", "payload LIKE 'v2.%'"),
+    ("bg_jobs", "payload ILIKE 'v2.%'"),
 )
 
 
