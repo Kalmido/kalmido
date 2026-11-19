@@ -150,7 +150,7 @@ kt.proved()  # 2.1021.0 (#5775): an organisation admin invites by address only a
 assert Ca.put(B + f"/api/orgs/{CO}/members", json={"email": "cara@example.com"}).ok
 assert org_join(B, "cara", CO)
 assert Cc.patch(B + "/api/settings", json={"workspace": f"org:{CO}"}).ok  # her chosen workspace: the default of a new object
-# 2.1429.0 (#6527): a new member of a company of its own starts in the office group "Staff" (only her own entries): carl gives
+# (#6527): a new member of a company of its own starts in the office group "Staff" (only her own entries): carl gives
 # cara "Project management", so her own session writes quotations there (what the support session is compared with)
 assert Ca.patch(B + "/api/settings", json={"workspace": f"org:{CO}"}).ok
 r = Ca.put(B + f"/api/office/rights/people/{CID}", json={"groups": ["tpl:projects"]})

@@ -1456,7 +1456,7 @@ def org_mine_dict(c, r, uid):
                          **({"pending": True} if admin and m["signup"] == "pending" else {})} for m in mem],  # 2.464.0 (#3882)
             "lists": c.execute(f"SELECT COUNT(*) FROM lists WHERE org_id=? AND {otr_live('')}", (r["id"],)).fetchone()[0] if full else 0,
             "limited": not full or not org_writes(c, uid, r["id"]),  # 2.143.0 A (#2151): guest / read-only / accounting
-            "roles": roles_public(c, r["id"] if admin else None),  # 2.143.0 A (#2151): the roles an admin hands out, with their explanation; #6527: + the office sentence for its admins
+            "roles": roles_public(c, r["id"] if admin else None),  # the roles an admin hands out, with their explanation (#2151) and for its admins what each may in the office (#6527)
             "moving": mv_info(r)}  # 2.1337.0 (#6600): the move (read only) or None
 
 

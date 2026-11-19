@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # kalmido-suite: fresh
-"""2.1429.0 (#6527, audit "the first hour of a new customer"): a new member of a company a person created herself starts in the
+"""API test (#6527, audit "the first hour of a new customer"): a new member of a company a person created herself starts in the
 office with the group "Staff" (only their own receipts, travel, drives and times), not in the silent "Previous access" with
 quotations, invoices and the office settings. Invented names and companies only.
  - frida (no organisation) creates "Frida Studio" (POST /api/orgs): orgs.office_new_tpl = staff
