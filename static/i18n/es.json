@@ -19414,6 +19414,7 @@
   "A support session does not open the original e-mail file: the client does that": "Una sesión de soporte no abre el archivo original del correo: eso lo hace el cliente",
   "one of its clients": "uno de sus clientes",
   "{0}: letters, digits and + * . - only": "{0}: solo letras, cifras y + * . -",
+  "This organisation has an admin of its own: only that admin can end the move": "Esta organización tiene un administrador propio: solo él puede terminar la mudanza",
   "Extra high": "Muy alto",
   "Jobs on its computer": "Trabajos en su ordenador",
   "Long work the agent starts as a job: a build or a read-only review. Empty = the agent’s default; the effort applies to Claude Code only.": "El trabajo largo el agente lo inicia como trabajo: una construcción o una revisión de solo lectura. Vacío = el valor predeterminado del agente; el esfuerzo solo se aplica a Claude Code.",
