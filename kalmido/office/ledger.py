@@ -282,7 +282,7 @@ def ofx_company_print(fields, free, lang="de", pack=None):
     home = ((pack or {}).get("code") or "").upper()
     addr = [x for x in (f.get("street"), f.get("address_extra"), " ".join(y for y in (f.get("zip"), f.get("city")) if y)) if x]  # 2.99.0 D (#2188): + extra line
     if f.get("country") and f["country"] != home and addr:
-        addr.append(fk_country_label(f["country"], home) or f["country"])  # 2.296.0 B (#3168): the name in capitals, in the sender's language
+        addr.append(fk_country_label(f["country"], home, lg) or f["country"])  # (#3168) the name in capitals, (#7301) in the document's language
     # 2.357.0 B (#3180): one rule for every label: a colon after a word ("E-Mail:", "Steuernummer:"), none after an
     # abbreviation with its dot ("Tel.", "USt-IdNr.") and none after IBAN / BIC (was a colon only after the e-mail)
     def cl(w):
@@ -504,6 +504,9 @@ def ofx_finalize(c, oid, uid, did, manual=None, reason="", to_today=False, hold_
     from .docs import cdn_doc_recipient, bwb_accept_on
     if r["kind"] == "offer":  # 2.114.4 B (#2270): the order confirmation block frozen with the rest (a later setting never changes it)
         sender["accept_on"] = bwb_accept_on(r, s)
+        from .docauthor import oda_name
+        if oda_name(c, oid, r):  # (#7300): "Your contact" frozen with the rest (a later rename never changes the PDF)
+            sender["author_name"] = oda_name(c, oid, r)
     rec = cdn_doc_recipient(c, oid, r)  # 2.97.0 B (#1951): the client's address as it is now, frozen below
     if r["client_id"] and rec.get("lines") is not None:
         c.execute("UPDATE office_docs SET recipient=? WHERE id=? AND org_id=?",

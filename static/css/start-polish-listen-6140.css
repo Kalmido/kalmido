@@ -31,5 +31,5 @@
 @media (max-width:767px){ #mbar .mcount,.mselbar .mcount{font-size:var(--fs-m)} }
 body.msel #view{padding-bottom:calc(9rem + var(--tabs-bot,0px))}
 @media (min-width:768px){
-  body:has(#view) #mbar.mbfit.mbfit{left:var(--mb-l);right:auto;width:var(--mb-w);max-width:none;transform:none;justify-content:center;box-sizing:border-box}
+  body:has(#view) #mbar.mbfit.mbfit{left:var(--mb-l);right:auto;width:var(--mb-w);max-width:none;margin:0;justify-content:center;box-sizing:border-box}
 }

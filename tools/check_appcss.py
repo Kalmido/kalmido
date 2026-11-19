@@ -60,12 +60,27 @@ def inkless(text):
     return bad
 
 
+HALF_PX = re.compile(r"translateX\(\s*-50%\s*\)|translate\(\s*-50%\s*(?:\)|,(?!\s*-50%\s*\))[^)]*\))|(?<![-\w])translate\s*:\s*-50%")
+
+
+def halfpx(text):
+    """(#7342): horizontal centring by a shift of -50% of the own width is an error -- a box of odd width lands on a
+    half pixel and Chrome / Safari on the Mac raster its text soft. The one way: static/css/start-mitte-7342.css (left:0;
+    right:0;margin-inline:auto;width:fit-content). A point marker centred both ways (translate(-50%,-50%)) stays allowed."""
+    css = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+    return [m.group(1).strip()[:70] for m in re.finditer(r"\{([^{}]*)\}", css) if HALF_PX.search(m.group(1))]
+
+
 def errors(root=ROOT, verbose=False):
     err = []
     for p in sorted(glob.glob(os.path.join(root, "static", "css", "*.css")) + [os.path.join(root, "static", "app.css")]):
         with open(p, encoding="utf-8") as f:
-            for b in inkless(f.read()):
-                err.append(f"{os.path.relpath(p, root)}: --accent-ink text on --accent-soft ground (use var(--text) or var(--accent)): {b}")
+            text = f.read()
+        for b in inkless(text):
+            err.append(f"{os.path.relpath(p, root)}: --accent-ink text on --accent-soft ground (use var(--text) or var(--accent)): {b}")
+        for b in halfpx(text):
+            err.append(f"{os.path.relpath(p, root)}: centred with translateX(-50%) -- soft text on a half pixel (#7342); "
+                       f"add the element to static/css/start-mitte-7342.css instead: {b}")
     for p in sorted(glob.glob(os.path.join(root, "static", "js", "*.js"))):
         with open(p, encoding="utf-8") as f:
             for no, line in enumerate(f, 1):

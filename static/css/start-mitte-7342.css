@@ -1,0 +1,8 @@
+/* (#7342): ONE way to centre a floating bar, toast or hint horizontally - without transform. left:50% plus
+   translateX(-50%) put a box of odd width on a half pixel; Chrome and Safari on the Mac then raster the text of that layer
+   soft (undo toast, "New version", selection bars). Instead the box stretches between left:0 and right:0 and auto margins
+   centre it at its own width (fit-content): whole pixels, no own layer. :where() keeps the rule at zero weight, so every
+   element's own rule (fixed width, phone variant with left/right insets, a parent like #bars) still wins. A new floating
+   element joins this list; tools/check_appcss.py refuses a new left:50% + translateX(-50%) in the stylesheets. */
+:where(#toast,.qadd.sheet,#mbar,.mselbar,#fdhint,#bars,#stale,#newver,#codechg,#upbars,#savedok,.tdmove,.cele-quip,.dswpos,
+  .ctimp,.calst>.empty,.calst>.eload,#dahint),:where(.abview.abdrop[data-abdroptxt])::after{left:0;right:0;margin-inline:auto;width:fit-content}

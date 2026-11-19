@@ -622,6 +622,7 @@ Office & finance: quotations, invoices, bank, books, tax, DATEV, e-invoices, let
 - `kalmido/office/datevin.py` (`dv`) - The input side of the DATEV booking batch (office/datev.py)
 - `kalmido/office/datevzip.py` (`dz`) - The receipts go to the tax advisor together with the bookings, as with DATEV Unternehmen online
 - `kalmido/office/delivery.py` (`ls`) - Delivery notes / proofs of service (office_docs kind "delivery")
+- `kalmido/office/docauthor.py` - "Created by" of a quotation -- office_docs.author_id, a choice among the organisation's people
 - `kalmido/office/doclang.py` (`doc`) - Office & finance 2.40.0: switching the language (or the reminder level)
 - `kalmido/office/docpay.py` - the payment block of an invoice, chosen when a person finalises it and frozen with the sender snapshot (ledger.ofx_finalize, sender["pay"...
 - `kalmido/office/docproject.py` (`dpj`) - Quotations, invoices and credit notes bound to a project (office_docs.list_id)

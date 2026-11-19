@@ -333,6 +333,7 @@ r = kput(KEY, "acc:f4", {"city": "Köln", "expect_updated_at": cu.get("updated_a
 r2 = kget(KEY, f"/docs/{DF4}/pdf")
 check(r.ok and r2.status_code == 409 and code(r2) == "edited_by_human", f"review F4: the key's change afterwards does not clear it {r.status_code} {r2.status_code}")
 
+
 # ---------------------------------------------------------------- finalise, correct, changed_since
 D2 = kpost(KEY, body("fin:1", ext="acc:2")).json()["doc_id"]
 hold = A.get(B + D + f"/{D2}/number-preview").json().get("client_hold") or {}
@@ -357,6 +358,8 @@ while pages < 20:
 check(D2 in seen and seen[D2]["number"] and seen[D2]["status"] != "draft", f"changed_since: the finalised invoice with its number {seen.get(D2)}")
 check(CRD in seen and seen[CRD]["kind"] == "credit" and seen[CRD]["corrects_doc_id"] == D2 and seen[CRD]["client_ref"] is None and seen[CRD]["origin"] == "manual",
       f"changed_since: the person's correction, kind credit, corrects_doc_id, origin manual {seen.get(CRD)}")
+check(CRD in seen and "missing" not in seen[CRD] and "flags" not in seen[CRD],
+      f"(#7203, reader F2): the person's correction draft gives the key no missing / flags {sorted(seen.get(CRD) or {})}")
 check(CP not in seen and pages >= 2, f"no person's copy; the cursor pages {pages}")
 # (#6820): the delivery state of the mail - a person's "Delivery failed" on the mailed invoice shows as bounced with its
 # time, never the address or an error text (the mail itself went out in a test of its own: p6820_office_mail_state_test.py)
@@ -426,5 +429,29 @@ check(kget(FK, "/docs").ok and {x["doc_id"] for x in kget(FK, "/docs").json()["d
 src = open(os.path.join(N, "..", "kalmido", "office", "issuers.py"), encoding="utf-8").read()
 m = re.search(r"ISS_REUSED = \(([^)]*)\)", src)
 check(m and set(REUSED_HERE) <= set(re.findall(r'"([^"]+)"', m.group(1))), "ISS_REUSED names the drafts' functions this suite runs with the issuer")
+
+
+# (#7203, reader F1): a customer number a person set before the draft is not in the key's preview (the office's PDF has it)
+def pdf_hex(data):
+    import zlib
+    out = b""
+    for m in re.finditer(rb"stream\r?\n(.*?)\nendstream", data, re.S):
+        try:
+            out += zlib.decompress(m.group(1))
+        except zlib.error:
+            out += m.group(1)
+    return out.decode("latin-1")
+
+
+IIDF1, KEYF1 = issuer(A, RG, "F1 preview")  # a fresh key: the one above used its limits and its minute of previews
+assert kput(KEYF1, "acc:f1", {"name": "Kundin F1", **ADDR}).status_code == 201
+CF1 = sql("SELECT id FROM clients WHERE external_ref='acc:f1' AND issuer_id=?", (IIDF1,))[0][0]
+check(A.patch(B + f"/api/clients/{CF1}", json={"customer_no": "KN-90017"}).ok, "F1: a person sets the customer number first")
+DF1 = kpost(KEYF1, body("f1:1", ext="acc:f1")).json().get("doc_id")
+own = A.get(B + D + f"/{DF1}/pdf")
+r = kget(KEYF1, f"/docs/{DF1}/pdf")
+hx = "KN-90017".encode("cp1252").hex()
+check(own.ok and hx in pdf_hex(own.content), f"F1: the office's own preview prints the customer number {own.status_code}")
+check(r is not None and r.status_code == 200 and hx not in pdf_hex(r.content), f"#7203 F1: the key's preview leaves the person's customer number out {getattr(r, 'status_code', None)}")
 
 sys.exit(kt.done("p6701_office_issuer_invoices"))

@@ -892,6 +892,7 @@ def start_job(bundle, brief, cfg, env, state_dir):
 # reader F3 (2.1413): only the LAST non-empty line of the result counts, and it must be the verdict alone (a quoted diff line
 # "+VERDICT: green" or "VERDICT: green, but ..." is no verdict)
 VERDICT_RX = re.compile(r"(?i)^[*_`\s]*(?:verdict|urteil)\s*:\s*[*_`]*\s*(green|gr(?:ü|ue)n|ok|findings|open findings|funde|offene funde)[*_`.\s]*$")
+CARD_TRIES = 3  # (#7199, reader F6): rounds an approval card may fail to be written before the person is told without it
 READ_LINE = {"green": "green - no findings", "findings": "findings - read them before you merge",
              "none": "no verdict - read the pull request yourself"}
 
@@ -1451,11 +1452,19 @@ class Dispatcher:
             e["carded"] = True
             return
         api = self.host.api
+        limited = len(getattr(w, "done", ())) >= getattr(w, "limit", float("inf"))  # the round's write limit: no failure of the card
         if not w(f"approval card for {url} on #{tids[0]}", lambda: api.req("POST", f"/tasks/{int(tids[0])}/comments", {
                 "body": f"Ready to merge: {url}\n\n{summary}",
                 "suggestion": {"kind": "merge_request", "pr_url": url, "summary": summary}})):
-            if verdict:  # reader F5 (2.1413): not written (the round's write limit, an API error) -- again next round
+            if not limited:
+                e["card_fail"] = int(e.get("card_fail") or 0) + 1
+            if verdict and int(e.get("card_fail") or 0) < CARD_TRIES:  # reader F5 (2.1413): not written -- again next round
                 return
+            # (#7199, reader F6): a comment that keeps failing (the task closed or gone, no right) is not tried every
+            # round for ever: after CARD_TRIES rounds the person learns of the pull request without the card
+            e["carded"] = True
+            self.finding(res, f"pr:{jid}", self.say("dispatch_pr_nocard", f"#{jid}", url, " ".join(f"#{t}" for t in tids)))
+            return
         e["carded"] = True
         self.finding(res, f"pr:{jid}", self.say("dispatch_pr", f"#{jid}", url, " ".join(f"#{t}" for t in tids)))
 
