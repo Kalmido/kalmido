@@ -513,6 +513,9 @@ BACK_LIMITS = (("2.149.0", "going back below 2.149 is not supported: those versi
 # and in a restore (admin/backup.py bk_scan_dump); it goes through a version from MIN_FROM up to the one before this first.
 # A new, empty database is not affected. docs/UPGRADING.md names the limit.
 MIN_FROM = "2.1000.0"
+# #7086: the first release at or above MIN_FROM that was published (there was never a 2.1000.x); messages and docs name it as
+# the stop on the way through, MIN_FROM stays the limit of the check.
+FIRST_STOP = "2.1001.0"
 
 
 def appver_too_old(stored):
@@ -527,8 +530,8 @@ def minver_guard(stored):
     if not appver_too_old(stored):
         return
     was = f"last ran Kalmido {stored}" if appver_parse(stored) else "is from a Kalmido version before 2.149 (it has no version stamp)"
-    print(f"FATAL: this database {was}; this image ({APP_VERSION}) only updates from Kalmido {MIN_FROM} or newer. Update to a "
-          f"version {MIN_FROM[:-2]}.x (or newer, but older than this one) first, start it once, then start this image. Nothing "
+    print(f"FATAL: this database {was}; this image ({APP_VERSION}) only updates from Kalmido {MIN_FROM} or newer. Update to "
+          f"Kalmido {FIRST_STOP} (or newer, but older than this one) first, start it once, then start this image. Nothing "
           "was changed (see docs/UPGRADING.md).", flush=True)
     raise DataDirError(3)
 

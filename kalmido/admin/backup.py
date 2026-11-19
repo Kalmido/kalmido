@@ -28,7 +28,7 @@ from ..core.db import body, connect, db, err, gset, gsetting, init_db, iso, loca
 from ..core.mailframe import mail_html
 from ..core.pg import system_ctx
 from ..core.db import db_log_err  # 2.239.0 B (#2888): no values of database errors in the log
-from ..core.db import MIN_FROM, appver_newer_minor, appver_parse, appver_too_old, skfp_kek, skfp_of, skfp_row_opens, SKFP_KEY
+from ..core.db import FIRST_STOP, MIN_FROM, appver_newer_minor, appver_parse, appver_too_old, skfp_kek, skfp_of, skfp_row_opens, SKFP_KEY
 from ..core.serializers import unlink_files
 from ..core.env import env_bool
 from ..core.retention import ret_on as bk_ret_on  # 2.186.0 C (#2602)
@@ -165,7 +165,7 @@ BK_ERR = {"busy": N_("Another backup or restore is running, please try again in 
           # 2.149.0 D (#2509): the manifest's app_version is a newer minor than this server's
           "newer": N_("The backup was made with Kalmido {0}, a newer version than this server ({1}). Update Kalmido first, then restore it."),
           # 2.1380.0 (#6826): older than core/db.py MIN_FROM
-          "too_old": N_("The backup was made with Kalmido {0}; this server only takes data from Kalmido {1} or newer. Restore it on Kalmido {2}.x first (or a newer version older than this one), then make a new backup there."),
+          "too_old": N_("The backup was made with Kalmido {0}; this server only takes data from Kalmido {1} or newer. Restore it on Kalmido {2} first (or a newer version older than this one), then make a new backup there."),
           "objects": N_("The database in the backup contains unexpected objects or statements and was refused."),
           "legacy": N_("This backup is from a version before 2.37 (SQLite). Restore it with Kalmido 2.36, then update to 2.37: the data is moved over during the update."),
           "tools": N_("The database tools (pg_dump / pg_restore) are missing on this server."),
@@ -1531,7 +1531,7 @@ def bk_scan_dump(dump):
     if int(sv) > SCHEMA_VERSION:
         raise BackupError("schema", int(sv))
     if appver_too_old(meta.get("app_version")):  # 2.1380.0 (#6826): the start would refuse it (core/db.py MIN_FROM)
-        raise BackupError("too_old", meta.get("app_version") or "< 2.149", MIN_FROM, MIN_FROM[:-2])
+        raise BackupError("too_old", meta.get("app_version") or "< 2.149", MIN_FROM, FIRST_STOP)  # #7086: 2.1000.x never existed
     return {"schema_version": int(sv), "rows": rows, "users": rows.get("users", 0), "key_rows": key_rows, "key_opens": key_opens,
             "secret_fp": meta.get(SKFP_KEY, "")}
 

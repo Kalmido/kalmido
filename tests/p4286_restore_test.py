@@ -368,7 +368,8 @@ with open(FIX_OLD + ".json", encoding="utf-8") as f:
 up_old = upload(R, old_backup(FIX_OLD, V_OLD, ("1/a783ff7397d8-briefing.txt", OLD_FILE[1])))
 v = verify(R, up_old)
 check(v.status_code == 400 and v.json().get("code") == "too_old" and "Kalmido < 2.149" in v.json().get("error", "")  # its dump has no stamp
-      and "2.1000.0 or newer" in v.json().get("error", ""), f"2: a backup of {V_OLD} is refused by the check (too_old) {v.status_code} {v.text[:300]}")
+      and "2.1000.0 or newer" in v.json().get("error", "")
+      and "Restore it on Kalmido 2.1001.0 first" in v.json().get("error", ""), f"2: a backup of {V_OLD} is refused by the check (too_old) {v.status_code} {v.text[:300]}")
 n_users = kt.dbx("SELECT COUNT(*) FROM users")[0][0]
 r = restore(R, upload=up_old)
 check(r.status_code == 400 and r.json().get("code") == "too_old", f"2: a backup of {V_OLD} is refused by the restore (too_old) {r.status_code} {r.text[:300]}")
