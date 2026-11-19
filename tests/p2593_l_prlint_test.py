@@ -128,6 +128,25 @@ def main():
         rc, out = lint(repo, b11, "--only", "i18n")
         ok("i18n: a new key in the big file is red with the hint", rc == 1 and "'C'" in out and "static/i18n/neu/<KID>.json" in out, out)
 
+        # #7143: marks - an ADDED line of the app code with a version mark is red; marks already there (also those a package
+        # merged meanwhile brought) never count, a tool outside the app code and a moved line without its mark pass
+        commit(repo, {"kalmido/m.py": "x = 1  # 2.1300.0 (#100): the old way\n"}, "#100: stock with a mark")
+        b12 = sh(repo, "rev-parse", "HEAD")
+        commit(repo, {"kalmido/m.py": "x = 1  # 2.1300.0 (#100): the old way\ny = 2  # what holds and why\n",
+                      "tools/t.py": "z = 3  # 2.1403.0 (#7143): a tool\n"}, "#7143: clean addition")
+        rc, out = lint(repo, b12, "--only", "marks")
+        ok("marks: the stock and a tool outside the app code pass", rc == 0 and "pr_lint marks: ok" in out, out)
+        commit(repo, {"static/js/z.js": "// 2.1403.0 (#7143): new\nlet a = 1;\n", "app.py": "b = 1  # 2.1403 (#7143)\n"}, "#7143: marks")
+        rc, out = lint(repo, b12, "--only", "marks")
+        ok("marks: an added mark in static/js and app.py is red with why / instead",
+           rc == 1 and "static/js/z.js: 1 added line" in out and "app.py: 1 added line" in out and "the history is in git" in out
+           and "Do not suppress it" in out, out)
+        sys.path.insert(0, os.path.join(os.path.dirname(HERE), "tools"))
+        import check_rules  # noqa: E402 -- tools/ is not a package
+        import pr_lint  # noqa: E402 -- tools/ is not a package
+        ok("marks: pr_lint and check_rules use the same pattern", pr_lint.MARK.pattern == check_rules.VERSION.pattern,
+           f"{pr_lint.MARK.pattern} != {check_rules.VERSION.pattern}")
+
         # tests/stages.py: a merge queue entry runs the push stage against the queue's base commit
         import stages  # noqa: E402
         old = {k: os.environ.get(k) for k in ("GITHUB_EVENT_NAME", "CI_BASE_SHA", "CI_MESSAGE")}

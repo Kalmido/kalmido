@@ -6,8 +6,8 @@
  2. a reason is two words beside the marker - a version mark alone is none; a docstring that names a marker is no marker;
     JavaScript // eslint-disable and /* sprung-ok */ count
  3. fewer = green with a notice; --update lowers the baseline and never raises it (a rise stays red after --update)
- 4. tools/check_rules.py: os.environ outside core/env.py, a version mark in a comment, a starter helper defined twice = red with
-    the rule's Why / Instead; a writing api() call in static/js = a notice only; inside core/env.py = no finding
+ 4. tools/check_rules.py: os.environ outside core/env.py, a starter helper defined twice = red with
+    the rule's Why / Instead; a writing api() call in static/js and the total of version marks = a notice only; inside core/env.py = no finding
  5. every red message carries Why / Instead / "Do not suppress it"; tools/lintmsg.red_hint prints nothing on green
  6. every tools/check_*.py says Why / Instead (lintmsg); ci.yml runs both new checks; the repo's tree matches its baselines
 usage: python3 tests/p21403_c_suppress_test.py"""
@@ -133,7 +133,8 @@ try:
     rc, out = run(RUL, d)
     check(rc == 1 and "rule env: 1, the baseline allows 0" in out and "env_int / env_bool" in out,
           f"os.environ outside core/env.py: red with the helper named ({out[-500:]})")
-    check("rule version-mark: 1" in out and "the history is in git" in out, f"a version mark in a comment: red ({out[-500:]})")
+    check("notice (not red yet): rule version-mark: 1" in out,
+          f"a version mark: the total is a notice, red is an added line (pr_lint marks) ({out[-500:]})")
     check(NOT in out, "check_rules says not to suppress it")
     put(d, "kalmido/m.py", "x = 1  # the rule\n")
     put(d, "mcp/agent_run.py", "def run():\n    pass\n\n\ndef write_json(p, d):\n    pass\n")
