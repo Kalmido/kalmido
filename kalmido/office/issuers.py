@@ -113,7 +113,7 @@ ISS_ROUTES = {("GET", "/api/v1/issuer")}
 # tests/p6700_office_issuer_clients_test.py
 ISS_REUSED = ("office.ledger.ofx_company", "office.model.office_settings", "team.clients.clean_client", "office.owrite.ow_write",
               "office.owrite.ow_created",
-              # 2.1396.0 #6701: the drafts of office/issdocs.py, tested in tests/p6701_office_issuer_invoices_test.py
+              # #6701: the drafts of office/issdocs.py, tested in tests/p6701_office_issuer_invoices_test.py
               "office.docs.doc_create", "office.docs._put_items", "office.docs.recalc", "office.invoices.inv_missing",
               "office.docs.odoc_trash", "office.pdfweb._render")
 ISS_OFF = N_("Invoice issuers are not available for this office")

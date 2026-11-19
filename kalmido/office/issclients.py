@@ -455,7 +455,7 @@ def isc_put(ref):
         seen["held"] = held
 
     from .issdocs import isd_client_fp
-    fp_before = isd_client_fp(c, r["id"])  # review F4 (2.1396.0): only drafts still as the key delivered them follow its change
+    fp_before = isd_client_fp(c, r["id"])  # review F4 (#6701): only drafts still as the key delivered them follow its change
     try:
         new, changed = ow_write(c, None, "client", r["id"], b, clean, where=f"id=? AND issuer_id=? AND {_area_sql(c, oid)}",
                                 args=(r["id"], int(iss["id"])), lock=f"clients-{int(r['id'])}", public=lambda c, cur: isc_public(cur),

@@ -166,7 +166,7 @@ ROUTES = {
     "PATCH /api/v1/repos/{}": "change", "DELETE /api/v1/repos/{}": "one_way",
     # 2.1384.0 (#6700): the invoice issuer key's client route (an issuer key only, ISS_ROUTES; no agent token reaches it)
     "PUT /api/v1/issuer/clients/by-ref/{}": "change",
-    # 2.1396.0 (#6701): an issuer's draft and its withdrawal into the office's trash (a person restores it)
+    # 2.1417.0 (#6701): an issuer's draft and its withdrawal into the office's trash (a person restores it)
     "POST /api/v1/issuer/invoices": "change", "POST /api/v1/issuer/docs/{}/withdraw": "change",
 }
 

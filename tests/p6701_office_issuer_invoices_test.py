@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # kalmido-suite: fresh
-"""2.1396.0 API tests (#6701): the invoice drafts of an invoice issuer (office/issdocs.py), their read routes, the preview and
+"""2.1417.0 API tests (#6701): the invoice drafts of an invoice issuer (office/issdocs.py), their read routes, the preview and
 the withdrawal. Own container (start.sh, mode workspaces, KALMIDO_ISSUER_KEYS on, a watchdog that does not tick by itself).
 Invented companies, people and figures only. tenant-matrix: office  freelancer-matrix: office
 In an organisation's office (Alice its admin) and in the personal office of a person without an organisation (Frida):
@@ -22,7 +22,7 @@ In an organisation's office (Alice its admin) and in the personal office of a pe
  - the office: the draft names its issuer and the unconfirmed wish; it cannot become a series template (409), its client
    cannot become a person's client (409); a copy is no issuer draft; the list filter issuer=any
  - parallel: five equal requests at once = one draft
- - review of 2.1396 (Fable reader): F1 the key cannot withdraw a person's correction draft (409 not_own_draft); F2 a person's
+ - review of job/5472 (Fable reader): F1 the key cannot withdraw a person's correction draft (409 not_own_draft); F2 a person's
    change of the date or a switch alone ends the preview; F3 an IBAN split by dashes, dots, no-break or zero-width spaces and
    a direction mark: 400; round 2: F3 more ways to write an IBAN (a valid one is found by its check digits), F4 the key's own
    change of a client a person changed does not clear the preview's 409
@@ -216,7 +216,7 @@ r = kpost(KEY3, body("bad:1", items=[{"text": "Erstattung", "qty": -1, "rate": "
 check(r.status_code == 400 and "qty" in (field(r) or ""), f"a negative quantity: 400 {r.status_code} {r.text[:160]}")
 r = kpost(KEY3, body("bad:1", items=[{"text": "Zahlung an DE89 3704 0044 0532 0130 00", "qty": 1, "rate": "150.00"}]))
 check(r.status_code == 400 and "text" in (field(r) or ""), f"an IBAN in a position: 400 {r.status_code} {r.text[:160]}")
-# review F3 (2.1396.0): an IBAN split by dashes, dots, a no-break space, or a zero-width space / a direction mark in the text: 400
+# review F3 (2.1417.0): an IBAN split by dashes, dots, a no-break space, or a zero-width space / a direction mark in the text: 400
 for txt in ("Zahlung an DE89-3704-0044-0532-0130-00", "Zahlung an DE89.3704.0044.0532.0130.00", "Zahlung an DE89\u00a03704\u00a00044\u00a00532\u00a00130\u00a000",
             "Zahlung an DE89\u200b3704004405320130 00", "Tarif \u202eoidutS",
             # review F3 round 2: a space after the country code, several separators, colons, commas, a line break, a thin space,
@@ -308,7 +308,7 @@ r = kget(KEY, f"/docs/{DOCP}/pdf") if False else kget(KEY2, f"/docs/{DOCP}/pdf")
 check(r.status_code == 200 and r.content[:4] == b"%PDF", f"the preview of a draft as delivered: a PDF {r.status_code} {r.text[:160] if r.status_code != 200 else ''}")
 r = kget(KEY, f"/docs/{DOC1}/pdf")
 check(r.status_code == 409 and code(r) == "edited_by_human", f"after a person's change: 409 edited_by_human {r.status_code} {r.text[:160]}")
-# review F2 (2.1396.0): a person's change of a field outside the head's usual ones (the date, a position's switch) ends it too
+# review F2 (2.1417.0): a person's change of a field outside the head's usual ones (the date, a position's switch) ends it too
 for i, chg in enumerate(({"date": (TODAY - __import__("datetime").timedelta(days=1)).isoformat()}, {"subtotals": True})):
     di = kpost(KEY, body(f"fp:{i}", ext="acc:2")).json().get("doc_id")
     check(kget(KEY, f"/docs/{di}/pdf").status_code == 200, f"review F2: the fresh draft's preview {chg}")
@@ -317,7 +317,7 @@ for i, chg in enumerate(({"date": (TODAY - __import__("datetime").timedelta(days
     r = kget(KEY, f"/docs/{di}/pdf")
     check(rr.ok and r.status_code == 409 and code(r) == "edited_by_human", f"review F2: a person changed {list(chg)}: 409 edited_by_human {rr.status_code} {r.status_code}")
 
-# review F4 (2.1396.0): a person changed the client (customer number): the key's own later change of the client does not clear the 409
+# review F4 (2.1417.0): a person changed the client (customer number): the key's own later change of the client does not clear the 409
 assert kput(KEY, "acc:f4", {"name": "Kundin F4", **ADDR}).status_code == 201
 DF4 = kpost(KEY, body("f4:1", ext="acc:f4")).json().get("doc_id")
 CF4 = sql("SELECT id FROM clients WHERE external_ref='acc:f4' AND issuer_id=?", (IID,))[0][0]
