@@ -47,9 +47,16 @@ import kalmido.notify.push as P
 import kalmido.notify.channels as CH
 c = connect()
 GOT = []
-P.webpush_user = lambda uid, payload, *a, **k: GOT.append(("webpush", uid)) or 1
-P.ntfy = lambda *a, **k: GOT.append(("ntfy", a[0])) or True
-CH.chn_push = lambda uid, *a, **k: GOT.append(("channel", uid)) or False
+def _wp(uid, payload, *a, **k):
+    GOT.append(("webpush", uid))
+    return 1  # one device took it
+def _nt(*a, **k):
+    GOT.append(("ntfy", a[0]))
+    return 1  # the ntfy server took it
+def _ch(uid, *a, **k):
+    GOT.append(("channel", uid))
+    return 0  # nothing queued on a channel
+P.webpush_user, P.ntfy, CH.chn_push = _wp, _nt, _ch
 DU = {DU}
 now = datetime.now(timezone.utc)
 
@@ -125,7 +132,7 @@ care(); out["care_off"] = mine(); GOT.clear()
 remind({T_REM2}); out["rem_off"] = mine(); GOT.clear()
 disable(False)
 """)
-check(out["on"] is True and out["on_got"] >= 1, f"(1) an account that is on gets the push {out}")
+check(bool(out["on"]) and out["on_got"] >= 1, f"(1) an account that is on gets the push {out}")
 check(out["off"] is False and out["off_s_none"] is False and out["off_got"] == [],
       f"(1) a disabled account: notify() gives False, nothing goes out (also with the settings passed in) {out}")
 for k, what in (("rot", "the weekly rotation"), ("care", "the contact care push"), ("rem", "the fixed-time reminder")):
