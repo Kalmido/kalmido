@@ -891,8 +891,8 @@ chat messages of one person that arrive together: one run). It does what a hoste
   `Rest:` task), and comments
   of others reach the job only as data. 2.1426.0: with `"brief_required": true` it builds only tasks with a brief (a bold
   decision line, a section *Where* and a size); the rest waits as *needs a brief*. How many jobs run at once is *Max
-  parallel* of the agent's work style (capped by `places` in the file, default 4). Every switch on the computer that
-  suspends a safeguard (`KALMIDO_PERM_RELAY=0`, `KALMIDO_APPROVAL_CHECK=0`, `KALMIDO_SESSION_RESUME=0`, `KALMIDO_DISPATCH` on
+  parallel* of the agent's work style (capped by `places` in the file, default 4, and by `KALMIDO_JOB_WORKTREES`, default 2). Every switch on the computer that
+  suspends a safeguard (`KALMIDO_PERM_RELAY=0`, `KALMIDO_APPROVAL_CHECK=0`, `KALMIDO_SESSION_RESUME=0`, `KALMIDO_BLOCK_DANGEROUS=0`, `KALMIDO_PERMISSION_MODE`, `KALMIDO_DISPATCH` on
   against the app, a removed stop file) is logged at the start and counted in the day report; the report also names the
   median hours from built to landed and the share of jobs that ended with open tasks (7 days). Start with *Dry run*: it only
   reports what it would do. Details and every key: [AGENTS.md](AGENTS.md#working-a-list-off-24810).
