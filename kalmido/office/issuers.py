@@ -106,13 +106,16 @@ ISS_PAUSE_WHY = {"admin": N_("paused by an admin"), "refused": N_("it paused its
                  "noadmin": N_("the office has no admin any more"), "restore": N_("a backup was restored"),
                  "operator": N_("the server operator switched the invoice issuers of this office off")}
 # the only routes a key reaches (method, rule); stage 1b: its own view. 2.1384.0 (#6700): its clients (office/issclients.py
-# adds them); the drafts follow (#6701)
+# adds them); (#6701): its drafts and documents (office/issdocs.py adds them)
 ISS_ROUTES = {("GET", "/api/v1/issuer")}
 # 2.1381.0 (#6699): every office function an issuer route calls with the issuer's context (no person): each has a test in
 # tests/p21381_office_issuer_key_test.py (the suite holds this list against its own); 2.1384.0 (#6700): the clients' ones in
 # tests/p6700_office_issuer_clients_test.py
 ISS_REUSED = ("office.ledger.ofx_company", "office.model.office_settings", "team.clients.clean_client", "office.owrite.ow_write",
-              "office.owrite.ow_created")
+              "office.owrite.ow_created",
+              # #6701: the drafts of office/issdocs.py, tested in tests/p6701_office_issuer_invoices_test.py
+              "office.docs.doc_create", "office.docs._put_items", "office.docs.recalc", "office.invoices.inv_missing",
+              "office.docs.odoc_trash", "office.pdfweb._render")
 ISS_OFF = N_("Invoice issuers are not available for this office")
 ISS_ADMIN_ONLY = N_("Only an admin of the organisation can manage invoice issuers")
 ISS_SEC_FOOT = N_("Security notices of invoice issuers always come by e-mail as well.")
@@ -212,13 +215,13 @@ def _iss_once(c, iss, key, day=None):
 
 
 # ---------------------------------------------------------------- the office log of an issuer
-def iss_log(c, oid, iss_id, action, target="issuer", detail=None, uid=None, name=None):
+def iss_log(c, oid, iss_id, action, target="issuer", detail=None, uid=None, name=None, doc_id=None):
     """One line of the office log for issuer iss_id: by a person uid (an admin's change), or by the issuer itself (uid None:
-    the name kept is the issuer's)."""
+    the name kept is the issuer's). (#6701): doc_id = the document it concerns (its draft, a withdrawal)."""
     who = ofx_log_name(c, oid, uid) if uid else (oc_enc(c, oid, "office_doc_log.user_name", name or "") or "")
     with system_ctx(c):  # the area's log (the key's own request has no person)
         c.execute("INSERT INTO office_doc_log(org_id, doc_id, user_id, at, action, target, detail, user_name, issuer_id) VALUES(?,?,?,?,?,?,?,?,?)",
-                  (oid, None, uid, iso(now_utc()), action, str(target)[:200], oc_log_detail(c, oid, _cap(detail)), who, iss_id))
+                  (oid, doc_id, uid, iso(now_utc()), action, str(target)[:200], oc_log_detail(c, oid, _cap(detail)), who, iss_id))
 
 
 def _iss_read_logged(c, iss, target):
@@ -835,7 +838,8 @@ ISS_TICK = {"at": 0.0}
 
 def iss_tick(c, force=False):
     """Daily in the watchdog (notify/push.py): the admins hear of a key running out ISS_WARN_DAYS days before (once each);
-    an issuer whose area has no admin any more pauses ("noadmin"). -> notices sent."""
+    an issuer whose area has no admin any more pauses ("noadmin"); (#6701): drafts waiting longer than review_wait_h
+    (office/issdocs.py isd_wait_check, once a day). -> notices sent."""
     import time
     if not force and time.time() - ISS_TICK["at"] < 6 * 3600:
         return 0
@@ -880,6 +884,9 @@ def iss_tick(c, force=False):
                     # who set it up is no admin of the area any more: it keeps running (it belongs to the area), the admins hear it once
                     iss_tell(c, r["org_id"], r, "issuer_left", who=_who(c, r["created_by"]))
                     n += 1
+                if admins:
+                    from .issdocs import isd_wait_check
+                    n += isd_wait_check(c, r)  # (#6701): drafts waiting longer than review_wait_h
         except Exception as e:  # noqa: BLE001
             print("issuer admin check failed:", type(e).__name__, flush=True)
     c.commit()

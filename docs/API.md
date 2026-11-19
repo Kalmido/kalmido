@@ -2016,6 +2016,47 @@ another issuer's or another office's client with the same id), `409 client_trash
 clients within 24 hours, or 200 changes of its clients within 24 hours - a fixed limit, not set by the admin; `Retry-After`). A client with the same name or VAT ID as one of the office is never taken over or
 merged; merging stays a person's work, and only among the clients of one issuer.
 
+*Since 2.1427.0:* the key's invoice drafts. A person in the office checks, finalises and sends each of them with the usual
+buttons; the key never finalises, numbers, sends or books.
+
+- `POST /api/v1/issuer/invoices` `{client_ref, client: {external_ref}, items: [{text, detail?, qty?, unit?, rate, tax?}], expect: {net,
+  tax, gross}, service_from?, service_to?, order_ref?, vat_note?, vat_check?, business_check?, wish?}` -> `201` the draft, `200` the same
+  request again. A fixed list of fields: no date (Kalmido dates the invoice when a person finalises it), no number, range,
+  currency, IBAN, BIC or link (`400 unknown_field`). At most 50 positions; `qty` > 0, `rate` = the net unit price >= 0 with up
+  to 4 places, `unit` one of `day hour piece minute flat`, `tax` one of `standard reduced exempt`. Kalmido computes: each line
+  quantity x unit price rounded half up to the cent, summed, the tax per rate on that sum; `expect` must match, else `409
+  totals_mismatch` with Kalmido's `totals` and nothing is made. Texts with an IBAN, a web or an e-mail address: `400
+  invalid_field` + `field`. `vat_note` (`reverse`, `abroad`, `small`, `eu_goods`, `export`) is a proposal; Kalmido's checks of
+  finalising decide (`missing`). `vat_check` / `business_check` are stored as your statements, never printed, never proof;
+  reverse charge always waits for a person.
+- `client_ref` (`[A-Za-z0-9._:-]{1,64}`, your id of the purchase, unique per issuer, for good): the same `client_ref` with the
+  same content answers `200` with the draft as it is now (also after a person corrected it, also at a day's limit); with another
+  content `409 ref_conflict`; withdrawn, deleted or purged in the office `410 withdrawn`, never a new draft. The content is
+  compared without `vat_check` and `business_check`.
+- `wish` (unconfirmed, shown to the person, applied when a person finalises from #6819 on): `send` (bool), `paid` `{amount, date,
+  method: transfer|card|direct_debit|paypal|online|cash|other, provider?, online_ref?}`, `payee` (the id of a bank account an
+  admin allowed this issuer) with `payee_check` (the last four characters of its IBAN: another = `409 payee_mismatch`, nothing
+  made, an alarm; an unknown id `404 payee_unknown`), `reference` (`[A-Z0-9-]{1,35}`), `due_days` or `due_date` (both: `400`; a
+  due date less than 7 days after the invoice's date stops finalising).
+- The answer, and every read: `{doc_id, client_ref, origin: issuer|manual, kind: invoice|credit, status
+  (draft|issued|sent|partial|overdue|paid|cancelled|withdrawn), range, number, date, service_from, service_to, due_date, totals
+  {net, tax, gross, currency}, corrects_doc_id, payments [{date, amount, method}], updated_at}`, for a draft also `missing` and
+  `flags`: `over_limit` (over `max_gross` or `day_gross`: made anyway, an alarm), `client_new`, `client_changed` (the client's
+  data from the key are not checked yet), `vat_territory` (the client's postcode lies in a territory with VAT rules of its own
+  that has no country code: ES 35 / 38 Canary Islands, 51 Ceuta, 52 Melilla; IT 23041 Livigno, 22061 Campione d'Italia; GR
+  63086 / 63087 Mount Athos; FI 22 Aland; FR 971-976 overseas; DE 78266 Buesingen, DE 27498 Heligoland; Kalmido derives no VAT
+  case from it, a person decides).
+- `GET /api/v1/issuer/docs?changed_since=<ISO time>&cursor=&limit=` -> `{docs: [... + changed_at], next_cursor}`: the source of
+  truth of the reconciliation, oldest change first: its drafts, the corrections a person made of its invoices (`origin: manual`,
+  no `client_ref`) and the documents a person numbered in its range (`origin: manual`).
+- `GET /api/v1/issuer/docs/{id}`, `GET /api/v1/issuer/docs/by-ref/{client_ref}` (`410 withdrawn`); every id that is not its own
+  answers `404` (counts towards a pause; by ref does not).
+- `GET /api/v1/issuer/docs/{id}/pdf`: the preview of a draft (watermark), 10 a minute; `409 edited_by_human` once a person changed
+  the draft or its client.
+- `POST /api/v1/issuer/docs/{id}/withdraw`: a draft into the office's trash (a person can restore it; its `client_ref` answers
+  `410` from then on); `409 not_draft`, `429 limit_reached` (`day_withdraw`).
+- Limits (`429 limit_reached`, `Retry-After`, an alarm, no pause): `day_docs` drafts within 24 hours, `open_drafts` waiting drafts.
+
 ## Arrangements of views for agents
 
 *Since 2.55.0.*

@@ -77,7 +77,7 @@ FIELDS = {
     "office_company": ("tax_number", "vat_id", "iban", "bic", "bank_name"),
     "office_contracts": ("rates",),
     "office_signoffs": ("signer_name", "signer_email", "reason", "ip", "user_agent"),  # 2.50.0 (#1200): who signed, from where
-    "office_docs": ("sender",),
+    "office_docs": ("sender", "issuer_wish"),  # (#6701): + what an invoice issuer asked for along with its draft (office/issdocs.py)
     "office_doc_log": ("detail", "user_name"),  # 2.1287.0 (#6470): + the name of the person (kept when the account is deleted)
     "office_roles": ("costs",),  # 2.47.0 (#1649): the purchase of a role
     "office_purchases": ("amount",),  # 2.47.0 (#1649): the purchase of an accepted quotation
