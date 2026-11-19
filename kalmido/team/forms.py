@@ -30,7 +30,8 @@ from ..accounts.orgroles import user_orgs_full  # 2.369.5 (#2517): pulled up fro
 from ..tasks.dependencies import newtask_events  # 2.369.5 (#2517): pulled up from functions
 from ..collab.liste2eguard import LE2B_OFF_MSG, le2b_list_locked  # 2.369.5 (#2517): pulled up from functions
 from ..tasks.attachments import safe_name, unexec_name  # 2.369.5 (#2517): pulled up from functions
-from ..core.pages import att_skip_task, save_attachment_bytes  # 2.369.5 (#2517): pulled up from functions
+from ..core.pages import save_attachment_bytes  # 2.369.5 (#2517): pulled up from functions
+from ..collab.attskip import att_skip_task  # #6531
 from ..lists.public import PUB_ACTOR  # 2.369.5 (#2517): pulled up from functions
 
 
