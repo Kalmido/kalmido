@@ -247,7 +247,7 @@ Try again later, or name a version: KALMIDO_VERSION=v1.2.3 (the unreleased devel
     [0-9]*.[0-9]*.[0-9]*) VERSION="v$VERSION" ;;   # 1.0.0 -> v1.0.0
   esac
   case "$VERSION" in
-    ""|-*|*[!A-Za-z0-9._/-]*) die "KALMIDO_VERSION must be a tag or branch name." ;;
+    ""|-*|*[!A-Za-z0-9._/-]*|*..*|/*|*/) die "KALMIDO_VERSION must be a tag or branch name." ;;  # 2.1431.0 (#6609 F1): no ../
   esac
 }
 
@@ -790,7 +790,14 @@ restore_locate() {
   [ "$(dd if="$RESTORE_FILE" bs=5 count=1 2>/dev/null)" = PGDMP ] \
     || die "$RESTORE is no database copy of update.sh (pg_dump -Fc). An in-app backup is restored in the app (Settings > Server > Backup). Nothing was changed."
   if [ -z "${KALMIDO_VERSION:-}" ]; then
-    KALMIDO_VERSION=$(head -n 1 "$RESTORE_FILE.version" 2>/dev/null || true)
+    KALMIDO_VERSION=$(head -n 1 "$RESTORE_FILE.version" 2>/dev/null | tr -d '\r' || true)
+    # (#6609, reader F1) data/backups/ is writable by the app: the note picks the code that runs on the host, so only a release
+    # or live tag of the form update.sh writes counts; anything else (a branch, ../ to another repository) stops here
+    if [ -n "$KALMIDO_VERSION" ] && ! printf '%s' "$KALMIDO_VERSION" | grep -Eq '^(v|latest-ok/)[0-9]+\.[0-9]+\.[0-9]+$'; then
+      die "The version noted beside $RESTORE ($(printf '%s' "$KALMIDO_VERSION" | head -c 80)) is no release (vX.Y.Z). Name the version yourself:
+  KALMIDO_VERSION=vX.Y.Z \"$DIR/update.sh\" --restore \"$RESTORE\"
+Nothing was changed."
+    fi
     [ -n "$KALMIDO_VERSION" ] || die "Which version made $RESTORE is not noted beside it (copies before 2.1431.0). Name it:
   KALMIDO_VERSION=vX.Y.Z \"$DIR/update.sh\" --restore \"$RESTORE\"
 (the version before the last update: $(head -n 1 "$DIR/.kalmido-version.prev" 2>/dev/null || echo 'not noted')). Nothing was changed."
