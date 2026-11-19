@@ -92,7 +92,7 @@ const txt = el => (el?.textContent || '').replace(/\s+/g, ' ').trim();
   // makes each file its own request; between them a version from elsewhere) - Undo leaves the file and names it like a conflict
   const mb0 = w.eval('S.maxFileMb');
   w.eval('S.maxFileMb = 0.00002');
-  w.eval(`(() => { const r0 = window.rawFetch; window.__r0 = r0; let n = 0; window.rawFetch = async (m, u, b) => { const r = await r0(m, u, b); if (/files\/upload/.test(String(u)) && ++n === 1) { const fd = new FormData(); fd.append('file', new Blob(['Luecke fremd']), 'luecke.txt'); fd.append('space', 'private'); await r0('POST', '/api/files/upload', fd); } return r; }; return 1; })()`);
+  w.eval(`(() => { const r0 = window.rawFetch; window.__r0 = r0; let n = 0; window.rawFetch = async (m, u, b) => { const r = await r0(m, u, b); if (/files\\/upload/.test(String(u)) && ++n === 1) { const fd = new FormData(); fd.append('file', new Blob(['Luecke fremd']), 'luecke.txt'); fd.append('space', 'private'); await r0('POST', '/api/files/upload', fd); } return r; }; return 1; })()`);
   w.__toasts.length = 0;
   await w.eval(`ab_upload([new File(['Luecke 1'], 'luecke.txt', {type: 'text/plain'}), new File(['Luecke 2'], 'luecke.txt', {type: 'text/plain'})], null)`);
   w.eval('window.rawFetch = window.__r0');
@@ -103,7 +103,7 @@ const txt = el => (el?.textContent || '').replace(/\s+/g, ' ').trim();
   check(await content(FK, LU) === 'Luecke 2' && (await items(FK, 'space=private')).some(x => x.id === LU), 'N2: the file stays as it is (not back over the other version, not in the trash)');
 
   // 2.1412.0 (#6227 N3): the session ends in the middle of an upload: the rest "Signed out" in the list, the end as usual
-  w.eval(`(() => { const r0 = window.__r0; let n = 0; window.rawFetch = (m, u, b) => /files\/upload/.test(String(u)) && ++n === 2 ? Promise.reject(new Error('auth')) : r0(m, u, b); return 1; })()`);
+  w.eval(`(() => { const r0 = window.__r0; let n = 0; window.rawFetch = (m, u, b) => /files\\/upload/.test(String(u)) && ++n === 2 ? Promise.reject(new Error('auth')) : r0(m, u, b); return 1; })()`);
   await w.eval(`ab_upload([new File(['Teil 1'], 'abm-1.txt', {type: 'text/plain'}), new File(['Teil 2'], 'abm-2.txt', {type: 'text/plain'})], null)`);
   w.eval('window.rawFetch = window.__r0');
   w.eval(`S.maxFileMb = ${JSON.stringify(mb0)}`);
