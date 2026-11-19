@@ -24,6 +24,62 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1412.0] - 2026-11-19
+
+Package 2.1394 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Starter-Parität: Dispatcher-Reste II (#5200 #5201 , Starter-Parität: Karten, Job-Chat).
+
+### Changed
+- Derived starter files are no longer checked in (#6887): `mcp/starter_sha256.txt` is generated at the image build (the server computes the sums itself when the file is missing), the agent chat reads the agent rules from `GET /api/agent-rules` instead of a copied `AG_RULES` constant, and `mcp/launcher_capabilities.json` became a folder `mcp/launcher_capabilities/<id>.json`. Two packages that change a starter, an agent rule or a capability no longer collide.
+- Support access (#6862): through an operator's support grant, a client's agent can only be switched on or off; delete, reset, avatar, test event, removing a device and writing work style, rules, control, data lock or work list answer 403. Reading stays allowed.
+- Reference starter, thin launcher (#4068): `agent_launcher.sh` and `.ps1` only load the env file, find Python and start `agent_run.py --launch`; the runtime logic lives once in `agent_run.py`.
+- Reference starter dispatcher: holds a task while its dependency field names an open task that is not built yet (#5200); a task closed and reopened without a new commit stays held (#5201); optional `same_file` switch bundles ready tasks naming the same source file (#6176).
+- Runtime settings: model and effort per job kind (build / review job), section "Jobs on their computer" in the agent dialogs (#7031).
+
+### Added
+- Reference starter: a yes / no in words decides the matching approval card, job cards are listed under open approvals, unposted job results are retried with backoff (#4951, #2347); a new job's brief is posted once as `kind=brief` into the job chat (#5237); a missing agent command is reported in the agent's language (#3820).
+
+### Fixed
+- Calendar (#6720): an organisation's event opened through a link (`#ev/<id>`) now shows the organisation's stripe, origin and tone; due tasks of an organisation's project carry the same stripe as events in month and week view.
+
+Package 2.1398 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Sicherheit Agenten: Kreis-Regel deckt POST /agent/, Fehler main: p6668_ext_team_agent).
+
+### Changed
+- Under "All workspaces" every module (Knowledge, Files, Reading, Tables, Workload / Absences / Disposition, clients, contacts, calendar, time tracking) shows only the workspaces it is switched on in for you, as the office does; one workspace left opens directly and wears its colour. Nothing is deleted - the search and the trash still find everything. (#6722)
+- Team agents: a job for a person (POST /agent/jobs with user_id, its title / log) is held by the circle rule like a chat message; a job without a task shows its words only to people who read every place of the agent; rules, playbook and layout proposals are writes into their project (#6863)
+
+### Fixed
+- A project that moves to another workspace and back keeps the invoice reference of its billed time: entries billed on a finalised document of the office it left are on that invoice again when the project returns (until then "billed in an earlier organisation", never billable twice). New nullable columns time_entries.billed_moved_doc_id / billed_moved_item_id (migration 6883). (#6883)
+- Agent starter: the ps environment guard checks every word again (VAR=x, then/do, timeout / sudo -u / nice -n, -N, ps o e) (#7132)
+- Agent starter: a woken or continued job of a team agent gets a request token only when the server's job belongs to that person (#7132)
+- Test p6668_ext_team_agent: the dispatcher stand-in names its check_cmd (#7138)
+- Agents: a team agent's job or layout proposal with an unreadable user_id (7.0, true, "+7") no longer slips past the circle rule; it asks with a card (#6863)
+- Agents: progress steps (/agent/progress) and /tasks/{id}/working lines into a job for a person pass the circle rule like a chat message (#6863)
+- Agents: a job without a task no longer shows its title in "Waiting for me" or on the chat's job cards to people outside the agent's circle (#6863)
+- Starter: the ps guard reads the word before ps only from the same command and no longer stops at a closing brace (#7132)
+- Starter: a job's wake run is no longer lost when the server could not be reached; it waits for the next look (#7132)
+- Setup guide: states exactly what the job-file check binds (#7132)
+- A team agent's job waiting for approval no longer sends its title as News / push to the task's assignee when that person would not see the job's words in the job list (#6863)
+- The agent starter's ps guard refuses in doubt: any letters-only ps argument with an "e" (also an option value such as etime) or a dash block with "E"; use `ps -o pid,etime=` or pgrep (#7132)
+- A team agent's job continued after a restart, or woken by a card answer, is tried again on the next look when the server could not be reached yet, instead of being lost; an unknown agent mode no longer counts as checked (#7132)
+
+Package 2.1401 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Handy-Favoritenreihe: Verlauf am rechten (und link).
+
+### Fixed
+- #6935 Long lists (e.g. a "Done" list with hundreds of version sections) scroll smoothly again: the windowed list finds each section's spacers once instead of every frame, measures only sections with drawn rows and reads the scrolling box once per pass (Firefox: vl_sync 42 ms -> about 1.5 ms per frame).
+
+### Changed
+- #6127 Navigation: one "Switch to" menu for the head bar, the drawer's mark, the phone button and the project badge (organisations, Private, All, then "Add organisation" / "Organisation settings"); personal settings only in the account menu (the update dot sits on the account picture); "organisation" instead of "company" and "sidebar" instead of "panel" in the navigation; the phone's "More" sheet shows only overflowing tabs, Search, Settings and "Customise tab bar", not the drawer's areas again; favourite tiles show their (shortened) name on the phone row and in the head bar while there is room.
+- #6983 Phone favourites row over the tab bar: a soft fade at the right edge while more favourites follow, at the left edge once scrolled; no fade at the start / end; without transition with "reduce motion". The computer's head bar is unchanged.
+- #6234 Start page under "All workspaces": the Projects and Notes cards mark each row with its workspace (colour dot + name) through the shared organisation-colour building block (wso_origin); hpWsMark uses it too.
+
+Package 2.1405 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Fixed
+- Document view: the receipt fields (project, category, VAT rate, reverse charge) send only the changed field with the version the view read; a change made on another device meanwhile is refused (409) and the field shows the current state instead of being overwritten. Undo and redo go back per field and say "Changed elsewhere, not undone" over a newer change (#6998).
+
+### Changed
+- AGENTS.md: a copy of a task onto this server carries no origin mark; a task moved to another server is created there with the person's own token and counts as their hand there. Tests prove the empty origin for the copy here and for the 'Rest:' task (#7112).
+
 ## [2.1405.0] - 2026-11-19
 
 Package 2.1397 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
@@ -62,5 +118,6 @@ Package 2.1401.0 (Bündel: Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher
 - #7037 Number ranges: a closed range opens again only with a scheme the office accepts; the import cleans a refused scheme; a new range and the import also check the correction scheme; the settings refuse the scheme of a range; moving the personal office refuses a range scheme the organisation already uses.
 - #6952 MCP: a test checks that the items of a completed task's subtask copy (`sub_snapshot`, an object) are fenced as data (the fence came with #6906).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1405.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1412.0...HEAD
+[2.1412.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1412.0
 [2.1405.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1405.0
