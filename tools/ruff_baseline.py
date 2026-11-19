@@ -4,7 +4,7 @@ tools/ruff_baseline.json; this script compares the JSON output of ruff against i
 
   ruff check --output-format json --exit-zero . > ruff.json
   python3 tools/ruff_baseline.py ruff.json [--baseline tools/ruff_baseline.json] [--strict]
-  python3 tools/ruff_baseline.py ruff.json --update      # write the baseline anew from this output (after a reviewed clean-up)
+  python3 tools/ruff_baseline.py ruff.json --update      # lower the baseline to this output (after a clean-up)
 
 A finding is known when the baseline holds the same rule in the same file for the same code line (whitespace collapsed,
 kept as a short hash) - the line NUMBER does not count, so moving code or an edit above it does not make it new; changing
@@ -12,7 +12,10 @@ the line itself does (touched code gets cleaned). Counted, not a set: a second, 
 Exit 1 and one `::error` annotation per NEW finding; exit 0 when every finding is known. Entries without a finding any more
 (fixed) are a notice only (--strict: red). A scan with no finding at all while the baseline is big is red (ruff broken).
 The baseline is compact ({file: {rule: [hash, ...]}}): the existing code has ~2 100 findings (E501 is not in the gate).
-The ruff version is pinned in the CI step (pip install ruff==0.17.4); a ruff update that finds more needs --update.
+The ruff version is pinned in the CI step (pip install ruff==0.17.4).
+2.1432.0 (#7169): --update only lowers (like tools/check_suppress.py since #7143): it drops the entries without a finding and
+never adds one - a new finding stays red after it (fix the line; a ruff update that finds more gets its findings fixed too).
+A scan that lost most known findings at once (ruff broken) does not lower anything.
 Python standard library only."""
 import argparse
 import collections
@@ -77,14 +80,15 @@ def load_baseline(path):
     return out
 
 
-def save_baseline(path, found):
+def save_baseline(path, keys):
+    """keys: Counter of (file, rule, hash)."""
     files = {}
-    for fn, rule, h in sorted(key(x) for x in found):
+    for fn, rule, h in sorted(keys.elements()):
         files.setdefault(fn, {}).setdefault(rule, []).append(h)
     with open(path, "w", encoding="utf-8") as f:
         json.dump({"_doc": "#5294: ruff findings of the existing code (ruff.toml: E, F, BLE). Matching: file + rule + hash of "
                            "the code line (whitespace collapsed), not the line number. tools/ruff_baseline.py compares; "
-                           "regenerate with --update.", "files": files}, f, indent=0, sort_keys=True, separators=(",", ":"))
+                           "--update only lowers it (#7169).", "files": files}, f, indent=0, sort_keys=True, separators=(",", ":"))
         f.write("\n")
 
 
@@ -107,7 +111,7 @@ def main(argv=None):
     ap.add_argument("results", help="the JSON output of ruff check --output-format json")
     ap.add_argument("--baseline", default=BASELINE)
     ap.add_argument("--root", default=ROOT, help="the tree the paths of the results are relative to")
-    ap.add_argument("--update", action="store_true", help="write the baseline anew from these results")
+    ap.add_argument("--update", action="store_true", help="lower the baseline to these results (never raises, #7169)")
     ap.add_argument("--strict", action="store_true", help="entries without a finding are red too")
     a = ap.parse_args(argv)
     with open(a.results, encoding="utf-8") as f:
@@ -116,12 +120,14 @@ def main(argv=None):
         print("::error title=ruff baseline::the ruff output is not a JSON list - lint broken, not green")
         return 1
     found = findings(results, a.root)
-    if a.update:
-        save_baseline(a.baseline, found)
-        print(f"ruff_baseline: {len(found)} findings written to {os.path.relpath(a.baseline, a.root)}")
-        return 0
     base = load_baseline(a.baseline)
     new, stale, nknown = compare(found, base)
+    if a.update and not (sum(base.values()) >= 100 and stale * 2 > sum(base.values())):  # a broken scan lowers nothing
+        low = base & collections.Counter(key(x) for x in found)  # 2.1432.0 (#7169): only the known entries still found
+        save_baseline(a.baseline, low)
+        print(f"ruff_baseline: baseline {sum(base.values())} -> {sum(low.values())} entries (--update only lowers)")
+        base = low
+        new, stale, nknown = compare(found, base)
     for x in new:
         print(f"::error file={x['file']},line={x['line']},title=ruff {x['rule']}::{x['message']} (only new code is checked; "
               f"known findings: tools/ruff_baseline.json)")
