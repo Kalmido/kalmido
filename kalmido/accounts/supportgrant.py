@@ -31,6 +31,7 @@ who grants gets a security mail; a support sign-in is no known device of the cli
   DELETE /api/support-access/<id>     ends a grant early -> {ok}
 """
 import json
+import logging
 import re
 from datetime import timedelta
 
@@ -526,8 +527,8 @@ def sga_log_write(c, gids, sup, e, now, op=None, wait="2s"):
                 try:
                     with c.savepoint():
                         pushes += sga_tell(c, row, "start", op)
-                except Exception as x:  # noqa: BLE001 - a failing bell (any error of a push channel) never drops the log entry (#6977 F3)
-                    print("support access log: bell of the first use failed:", type(x).__name__, flush=True)
+                except Exception:  # a failing bell (any error of a push channel) never drops the log entry (#6977 F3)
+                    logging.exception("support access log: bell of the first use failed")
     return pushes
 
 
