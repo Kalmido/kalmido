@@ -273,6 +273,7 @@ VARS = (
     _v("KALMIDO_AGENT_WAITERS", "threads - 8 (at least `6` but at most half of the threads; `16` with the default 24 threads)", "Agent connections waiting for events on the whole server at the same time. Each one holds a web thread, so the default follows `KALMIDO_THREADS`; beyond it the answer is `busy: true` with a `Retry-After` of 3-8 s.", "agents"),
     _v("KALMIDO_AGENT_EVENTS_STALE_H", "48", "Hours after which unread agent events count as stale.", "agents"),
     _v("KALMIDO_AGENT_CONTROL_NEW", "approve_all", "Control level a new agent starts with: approve_all, routine, free, or legacy (no level, works as before 2.235.0; the test containers use it).", "agents"),  # 2.235.0 A (#2891)
+    _v("KALMIDO_REQ_MAIN_FROM", "2027-01-01", "Day (YYYY-MM-DD, UTC) from which the own long-lived token of every team agent reaches only its channel (events, status, jobs, sending messages), also when it never asked for a request token; content and GET /agent/chats then need the request token of the event. Before it, only a team agent that once asked works that way.", "agents"),  # 2.1432 (#6808)
     _v("KALMIDO_AGENT_PUSH_DAY", "500", "Push notifications per agent and day.", "agents"),
     _v("KALMIDO_USAGE_DAYS", "400", "Days the agent usage records are kept.", "agents"),
     _v("KALMIDO_AUDIT_DAYS", "90", "Days the agent audit log is kept (0 = no log at all; the assistant log keeps only today's rows).", "agents"),

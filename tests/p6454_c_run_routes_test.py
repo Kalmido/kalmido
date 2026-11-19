@@ -62,7 +62,7 @@ for k in opened:
           f"F1: {k} ({table[k][0]}) is open to the long-lived token only as its own data or its /agent channel")
 for k in ("GET /search", "GET /news", "GET /time/entries", "PATCH /time/entries/{}", "GET /time/gaps", "GET /office/docs",
           "POST /office/invoices", "GET /briefing", "GET /me/waiting", "GET /layouts/blocks", "GET /chat-attachments/{}",
-          "POST /agent/proposals", "GET /agent/rules"):
+          "POST /agent/proposals", "GET /agent/rules", "GET /agent/chats"):  # 2.1432 (#6808): GET /agent/chats reads what people wrote
     check(k in table and k not in opened, f"F1: {k} needs the request token (closed to the long-lived token)")
 print(f"p6454_c_run_routes: {len(table)} routes; {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)

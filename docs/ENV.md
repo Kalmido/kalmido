@@ -311,6 +311,7 @@ an empty value counts as unset. See [SELF-HOSTING.md](SELF-HOSTING.md) for the c
 | `KALMIDO_RELATED_MIX` | `nsum` | Order of the related tasks (how meaning and title similarity are mixed). |
 | `KALMIDO_RELATED_NORM` | `0.84` | Normalisation point of the similarity for that order. |
 | `KALMIDO_RELATED_SEARCH` | `0.82` | Lowest similarity of a meaning search hit. |
+| `KALMIDO_REQ_MAIN_FROM` | `2027-01-01` | Day (YYYY-MM-DD, UTC) from which the own long-lived token of every team agent reaches only its channel (events, status, jobs, sending messages), also when it never asked for a request token; content and GET /agent/chats then need the request token of the event. Before it, only a team agent that once asked works that way. |
 | `KALMIDO_SRVAGENT_ANTHROPIC_URL` | `https://api.anthropic.com` | Base address of the Anthropic API for server agents (the tests point it at a local stand-in). |
 | `KALMIDO_SRVAGENT_CALL_S` | `120` | Seconds one model call of a server agent may take at most. |
 | `KALMIDO_SRVAGENT_MAX_TOKENS` | `4096` | Answer tokens of one model call of a server agent. |
