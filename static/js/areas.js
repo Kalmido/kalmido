@@ -828,7 +828,7 @@ async function sbb_orgAdd() {
   }
   await load().catch(() => {});
   if (typeof wsSet === 'function') wsSet('org:' + o.id); else render();
-  await loadModule('settings').catch(() => {});  // 2.1414.0 (#6519): the closing step with "Enter the details" / "Invite people" (acctadm.js)
+  await loadModule('settings').catch(() => {});  // (#6519): the closing step with "Enter the details" / "Invite people" (acctadm.js)
   if (typeof orgAddDone === 'function') orgAddDone(o); else toast(tr('The organisation “{0}” is set up', o.name));
 }
 // the panel's head: the area's name, "Fold all" / "Unfold all" (only a panel with groups that fold: Tasks, or a panel whose

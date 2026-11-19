@@ -390,7 +390,7 @@ async function bkoDraw(md, j) {
   if (j.running && !box._poll) box._poll = setTimeout(async () => { box._poll = null; if (md.isConnected) await bkoDraw(md); }, 2000);
 }
 const bkBody = md => $('#bk-on', md) ? {on: $('#bk-on', md).checked, time: $('#bk-time', md).value || '03:30', keep_daily: Math.max(1, +$('#bk-daily', md).value || 14), keep_weekly: Math.max(0, +$('#bk-weekly', md).value || 0), encrypt: $('#bk-enc', md).disabled ? undefined : $('#bk-enc', md).checked} : null;  // 2.152.0 B (#2172): required by the server = not sent
-// 2.1414.0 (#6519): the first start of a self-registered account (org_ask pending, accounts/signup.py) asks once, before the
+// (#6519): the first start of a self-registered account (org_ask pending, accounts/signup.py) asks once, before the
 // tour: "Private or with an organisation?" -- skippable; "For my organisation" with its name creates it (POST /api/orgs)
 // and ends in the same closing step as "Add an organisation" (orgAddDone). Resolves when the person is done.
 /** @returns {Promise<void>} */
@@ -433,7 +433,7 @@ function orgAskOpen() {
     });
   });
 }
-// 2.1414.0 (#6519): after an organisation was added (the question above, the workspace menu, Settings > Organisation): a
+// (#6519): after an organisation was added (the question above, the workspace menu, Settings > Organisation): a
 // small closing step with the two next steps instead of only a message. onboarding: a step taken lets the welcome tour
 // wait for the next start (it would close the step's dialog).
 /** @returns {Promise<void>} */

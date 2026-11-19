@@ -222,7 +222,7 @@ def auth_signup():
     fs = [x for x in (gsetting(c, "default_features") or USER_DEFAULTS["features"]).split(",") if x]
     uset(c, uid, "features", ",".join(fs + ([] if "agents" in fs else ["agents"])))
     uset(c, uid, "lang", ulang)
-    if not oid and instance_mode(c) == "workspaces":  # 2.1414.0 (#6519): the first start asks "Private or an organisation?" (skippable)
+    if not oid and instance_mode(c) == "workspaces":  # (#6519): the first start asks "Private or an organisation?" (skippable)
         uset(c, uid, "org_ask", "pending")
     ensure_inbox(c, uid)
     if mail:
