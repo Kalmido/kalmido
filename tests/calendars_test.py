@@ -131,6 +131,12 @@ r = py_in_app("print(json.dumps([app.cal_norm_url(x) for x in ['webcal://ex.com/
               "'file:///etc/passwd','http://u:p@ex.com/','javascript:alert(1)','https://ex.com:99999/','http:///nohost','https://ex.com/a b']]))")
 check(r == json.dumps(["https://ex.com/a.ics", "https://ex.com/b", "https://ex.com/c", None, None, None, None, None, None, None]),
       "cal_norm_url: webcal -> https, other schemes / userinfo / bad ports refused: " + r)
+# 2.1444 (#6550): Google hosts (calendar is only read there): dot boundary, case, port, trailing dot, webcal
+r = py_in_app("from kalmido.calendars.subscriptions import cal_is_google as g\n"
+              "print(json.dumps([g(x) for x in ['https://calendar.google.com/x','https://apidata.googleusercontent.com:443/caldav/v2/x',"
+              "'WWW.GoogleAPIs.com.','google.com:8443','webcal://calendar.google.com/ical/x.ics','https://evilgoogle.com/x',"
+              "'https://google.com.evil.example/x','https://notgoogleapis.com','https://example.com/google.com','', None]]))")
+check(r == json.dumps([True] * 5 + [False] * 6), "cal_is_google: Google hosts and subdomains only (no evilgoogle.com): " + r)
 r = py_in_app("print(json.dumps(app.cal_allow_parse('nextcloud.lan, 10.0.0.20:5232;[fd00::5]:8443 http://x bad_host:0 radicale')))")
 check(r == json.dumps([[["nextcloud.lan", None], ["10.0.0.20", 5232], ["fd00::5", 8443], ["radicale", None]], ["http://x", "bad_host:0"]]),
       "allow-list parser: host, host:port, [v6]:port; URLs / port 0 refused: " + r)

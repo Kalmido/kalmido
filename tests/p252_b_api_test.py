@@ -10,6 +10,8 @@ calendar server inside (stub_calendar.py: /dav/calendars/alice/rw/ writable, /da
  - a repeating series moves as a whole ("only this date" refused), EXDATE-free daily rule shifted by the same amount
  - isolation: another account cannot write into (or switch) someone's subscription (404); a stored href outside the
    subscription's collection (other path, '..', other host) is refused before any request
+ - 2.1444 (#6550): Google calendars stay read-only: "Allow writing" refused on a Google host (also Upper.Case + port),
+   a subscription switched on before the rule cannot write and loses can_write at the next sync; evilgoogle.com is not Google
 usage: p252_b_api_test.py <datadir>"""
 import json
 import os
@@ -76,7 +78,8 @@ subprocess.run(["docker", "rm", "-f", CT], capture_output=True)
 subprocess.run(["rm", "-rf", DATA])
 os.makedirs(DATA, exist_ok=True)
 subprocess.run(["cp", os.path.join(N, "stub_calendar.py"), DATA])
-env = dict(os.environ, KEEP="1", EXTRA="-e KALMIDO_CALENDAR_ALLOW_HOSTS=127.0.0.1:8095 -e KALMIDO_CALENDAR_REFRESH_GAP=0 -e KALMIDO_CALENDAR_RATE=200")
+env = dict(os.environ, KEEP="1", EXTRA="--add-host calendar.google.com:127.0.0.1 --add-host evilgoogle.com:127.0.0.1 "
+           "-e KALMIDO_CALENDAR_ALLOW_HOSTS=127.0.0.1:8095,calendar.google.com:8095,evilgoogle.com:8095 -e KALMIDO_CALENDAR_REFRESH_GAP=0 -e KALMIDO_CALENDAR_RATE=200")
 r = subprocess.run(["bash", os.path.join(N, "start.sh"), DATA], env=env, capture_output=True, text=True)
 assert r.returncode == 0, r.stdout + r.stderr
 subprocess.run(["docker", "exec", "-d", CT, "python", "/data/stub_calendar.py"])
@@ -258,6 +261,40 @@ r = A.patch(B + f"/api/calendars/{RW}/events", json={"uid": "rw-1@stub", "title"
 check(r.status_code == 403, f"off: changing refused ({r.status_code})")
 # the credentials never leave the server
 check("secret-pw" not in json.dumps(A.get(B + "/api/calendars").json()), "the password is never returned")
+
+# ---- 2.1444 (#6550): Google calendars only read (the fake server under a Google name via --add-host)
+GURL = "http://Calendar.Google.COM:8095/dav/calendars/alice/rw/"
+r = A.post(B + "/api/calendars", json={"kind": "caldav", "url": "http://calendar.google.com:8095/dav/", "username": "alice",
+                                       "password": "secret-pw", "calendars": [{"url": GURL, "name": "Google"}]})
+assert r.ok, r.text
+G = r.json()["created"][0]
+n0 = len(stub_log())
+r = A.post(B + f"/api/calendars/{G}/write", json={"on": True})
+check(r.status_code == 409 and r.json().get("code") == "google_read_only", f"Google host: 'Allow writing' refused ({r.status_code} {r.text[:120]})")
+check(not [x for x in stub_log()[n0:] if x["method"] == "PROPFIND"], "Google host: refused before the server is asked")
+check(q("SELECT dav_write, dav_can_write FROM cal_subs WHERE id=?", (G,))[0] == (0, 0), "Google host: stays off")
+check(A.post(B + f"/api/calendars/{G}/write", json={"on": False}).ok, "Google host: switching off stays possible")
+# a subscription switched on before the rule (the stored state): no write, and the sync takes can_write back
+q("UPDATE cal_subs SET dav_write=1, dav_can_write=1 WHERE id=?", (G,))
+n0 = len(stub_log())
+for m, p, b in (("post", f"/api/calendars/{G}/events", {"title": "x", "all_day": True, "start": ymd(5), "end": ymd(6)}),
+                ("patch", f"/api/calendars/{G}/events", {"uid": "rw-1@stub", "title": "x"}),
+                ("delete", f"/api/calendars/{G}/events?uid=rw-1@stub", None),
+                ("post", f"/api/calendars/{G}/events/restore", {"undo": "x"})):
+    r = getattr(A, m)(B + p, json=b) if b is not None else getattr(A, m)(B + p)
+    check(r.status_code == 403 and "Google" in r.json().get("error", ""), f"Google, switched on before: {m} refused ({r.status_code} {r.text[:120]})")
+check(not [x for x in stub_log()[n0:] if x["method"] in ("PUT", "DELETE")], "Google: nothing written to the server")
+check(A.post(B + f"/api/calendars/{G}/refresh").ok, "Google: refresh")
+check(q("SELECT dav_can_write FROM cal_subs WHERE id=?", (G,))[0][0] == 0, "Google: the sync takes can_write back")
+check(events(A)["subs"][str(G)]["w"] is False, "Google: the subscription is not marked writable")
+# not Google: a name that only ends in "google.com" without the dot boundary
+r = A.post(B + "/api/calendars", json={"kind": "caldav", "url": "http://evilgoogle.com:8095/dav/", "username": "alice",
+                                       "password": "secret-pw", "calendars": [{"url": "http://evilgoogle.com:8095/dav/calendars/alice/rw/", "name": "Evil"}]})
+assert r.ok, r.text
+EV = r.json()["created"][0]
+r = A.post(B + f"/api/calendars/{EV}/write", json={"on": True})
+check(r.ok and r.json()["write"] is True, f"evilgoogle.com is not Google: switch allowed ({r.status_code} {r.text[:120]})")
+check(A.post(B + f"/api/calendars/{EV}/write", json={"on": False}).ok, "evilgoogle.com: off again")
 
 print(f"p252_b_api: {OKS[0]} ok, {len(FAILS)} failed", flush=True)
 sys.exit(1 if FAILS else 0)

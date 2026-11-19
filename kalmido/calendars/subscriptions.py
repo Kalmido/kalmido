@@ -470,6 +470,26 @@ def cal_url_hint(u):
     return f"{p.scheme}://{'[' + host + ']' if ':' in host else host}{port}/…"
 
 
+# 2.1444 (#6550): Google calendars are only ever read (product rule); "Allow writing" is refused on these hosts
+CAL_GOOGLE = ("google.com", "googleusercontent.com", "googleapis.com")
+
+
+def cal_is_google(url_or_host):
+    """True when a calendar URL (or a bare host, with or without port) lies on a Google host or one of its subdomains:
+    the host is compared case-blind, without port and trailing dot, at a dot boundary (evilgoogle.com is not Google)."""
+    s = str(url_or_host or "").strip()
+    if "/" in s:
+        try:
+            host = urllib.parse.urlsplit(s).hostname or ""
+        except ValueError:
+            return False
+    else:
+        host = s.rsplit("@", 1)[-1]
+        host = host[1:].split("]", 1)[0] if host.startswith("[") else host.split(":", 1)[0]
+    host = host.lower().rstrip(".")
+    return any(host == d or host.endswith("." + d) for d in CAL_GOOGLE)
+
+
 CAL_UA = f"{APP_NAME}/{APP_VERSION} (calendar subscription)"
 
 
