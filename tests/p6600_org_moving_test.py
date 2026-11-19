@@ -68,7 +68,7 @@ def made(sid):
     return dbx("SELECT id, number FROM office_docs WHERE series_id=? ORDER BY id", (sid,))
 
 
-fresh({"KALMIDO_INSTANCE_MODE": "workspaces", "TASKS_WATCHDOG_INTERVAL": "3600"})
+fresh({"KALMIDO_INSTANCE_MODE": "workspaces", "TASKS_WATCHDOG_INTERVAL": "3600", "KALMIDO_PURGE_TRASH": "1"})  # 2.1413.0 (#6951): the trash purge on (else it only counts)
 A = setup()
 A.patch(B + "/api/admin/settings", json={"public_links": True})
 ALICE = A.get(B + "/api/state").json()["me"]["id"]
