@@ -19659,6 +19659,7 @@
   "Select the workspace for the new client.": "Wähle den Arbeitsbereich für den neuen Kunden.",
   "Clients are switched off for you in {0}. Select the workspace for the new client: {1}.": "Kunden sind für dich in {0} ausgeschaltet. Wähle den Arbeitsbereich für den neuen Kunden: {1}.",
   "Clients are switched off for you in every workspace you may add clients to.": "Kunden sind für dich in jedem Arbeitsbereich ausgeschaltet, in dem du Kunden anlegen darfst.",
+  "Width of the cell details": "Breite der Zell-Details",
   "Your contact|pdf": "Ihr Ansprechpartner",
   "Former member": "Ehemaliges Mitglied",
   "printed on the quotation as the contact person": "steht auf dem Angebot als Ansprechpartner",
