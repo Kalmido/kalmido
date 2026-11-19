@@ -38,7 +38,7 @@ from flask import g, jsonify, request
 
 from ..core.config import app, ATT_DIR, MAX_FILE_MB, PUBLIC_URL
 from ..core.config import USERNAME_RE  # 2.278.0 B (#3094)
-from ..wiki.pages import WIKI_TASK_RE  # 2.1444 (#6584): the one link form of a task in a knowledge page
+from ..wiki.pages import WIKI_TASK_RE  # (#6584): the one link form of a task in a knowledge page
 from ..accounts.orgs import visible_people as umz_visible  # 2.278.0 B (#3094)
 from ..core.serializers import unlink_files  # 2.464.0 (#3865)
 from ..api.common import hit_limit, import_upload_rate  # 2.585.0 (#4350, review 2); 2.1282.0 (#6426)
@@ -1361,7 +1361,7 @@ def umz_mentions(text, names, who):
     return UMZ_MENTION_RE.sub(sub, text)
 
 
-# 2.1444 (#6584): task references in the texts of an account / organisation import -- the one rewriter of every text field.
+# (#6584): task references in the texts of an account / organisation import -- the one rewriter of every text field.
 # Only the forms that are a link get a new number: in tasks, comments and project notes a bare #123 (static/js/chat.js
 # mdTaskRefs: not after a letter, digit, & / or #, not "job #12", not inside code or a link); in knowledge pages only [[#123]]
 # / [[#123|label]] (wiki/pages.py WIKI_TASK_RE, #4947: a bare #123 there is text and stays as it is). A number of a task that
@@ -1963,7 +1963,7 @@ def umz_write(c, run, uid, man, zf, files, data, people):
             continue
         c.execute("UPDATE tasks SET parent_id=? WHERE id=?", (p, tid))
         run.count("subtasks")
-    for t, tid, lid in rows:  # 2.1444 (#6584): #123 in a description -> the new number (every task of the file is in now)
+    for t, tid, lid in rows:  # (#6584): #123 in a description -> the new number (every task of the file is in now)
         old = _txt(t.get("content"), CONTENT_MAX)
         new = umz_task_refs(old, lambda o: run.m("tasks", o))
         if new != old:
@@ -2018,7 +2018,7 @@ def umz_write(c, run, uid, man, zf, files, data, people):
         if not lid or lid == inbox or r.get("deleted_at") or run.there("notes", r.get("id")):
             continue
         d = umz_row(c, "notes", r, {"list_id": lid, "created_by": uid, "updated_by": uid}, ts)
-        if d and d.get("body"):  # 2.1444 (#6584)
+        if d and d.get("body"):  # (#6584)
             d["body"] = umz_task_refs(d["body"], lambda o: run.m("tasks", o))
         nid = umz_insert(c, "notes", d) if d else None
         if nid:
@@ -2050,7 +2050,7 @@ def umz_write(c, run, uid, man, zf, files, data, people):
         # 2.972.0 (#5272): into the core's table (kind task); the file keeps the old columns (portal, rule_name -> extra)
         d = umz_row(c, "obj_comments", r, {"kind": "task", "ref_id": tid, "user_id": au, "ext_name": ext,
                                             "parent_id": run.m("comments", r.get("reply_to")), "extra": umz_cmt_extra(r)}, ts)
-        if d and d.get("body"):  # 2.362.4 (#3100); 2.1444 (#6584): + the task references
+        if d and d.get("body"):  # (#3100); (#6584): + the task references
             d["body"] = umz_task_refs(umz_mentions(d["body"], names, who), lambda o: run.m("tasks", o))
         nid = umz_insert(c, "obj_comments", d) if d else None
         if nid:

@@ -181,7 +181,7 @@ function dgAfter(put, j) {
 // 2.559.0 (#4659): shown at once (dgItemsPut), the request behind it; an error puts the tasks back (no reload)
 // 2.1271.0 (#6436): a subtask an item makes standalone (parent_id: null) takes its parent's date / priority into its empty fields
 // (dnd.js detachPatch), in the same item; one toast for all of them with "Don't adopt"
-// 2.1444 (#7344): o.quiet = no toast (the caller's gesture says it once, with what it did besides); -> {j, dt} (dt: dtToast's got)
+// (#7344): o.quiet = no toast (the caller's gesture says it once, with what it did besides); -> {j, dt} (dt: dtToast's got)
 async function dgApply(items, lab, notes = [], o = {}) {
   const ids = Object.keys(items).map(Number);
   if (!ids.length) { if (!o.quiet) toast(notes.filter(Boolean).join(' · ') || tr('Nothing to move')); return null; }
@@ -246,7 +246,7 @@ function dgSubPick(ids) {
     pick: x => dgMakeSubs(ids, x.id)});
 }
 // a block before / after a row: the same parent, list and section as the row, sorted between it and its neighbour
-// 2.1444 (#7344): plain = only the place (My tasks: beside a subtask under its parent; no priority block, no sort switch)
+// (#7344): plain = only the place (My tasks: beside a subtask under its parent; no priority block, no sort switch)
 async function dgBlock(ids, row, after, plain = false) {
   const target = S.tasks.get(+row.dataset.id); if (!target) return;
   const set = new Set(ids), kcol = row.closest('.kcol');
@@ -318,7 +318,7 @@ async function dgToList(ids, lid) {
     [ro.length ? trn('{0} task skipped (read-only)', '{0} tasks skipped (read-only)', ro.length) : '']);
 }
 
-// ---- 2.1444 (#7344): the drop core, step 1 (audit #5731). One resolver reads where a drop lands - mouse or finger, one task or
+// ---- (#7344): the drop core, step 1 (audit #5731). One resolver reads where a drop lands - mouse or finger, one task or
 // a selection (one task = a selection of one): a row (before / after it), the head of a group, a "New ..." button. What a
 // place means belongs to the adapter of the container that is shown (DROP_ADAPTERS; step 1: "My tasks" = own order / own
 // sections, mineorder.js). An adapter answers where(tgt) -> null (not mine: the old ways of dnd.js / dgDrop go on), {no: text}
@@ -368,7 +368,7 @@ function dgOver(e, id) {
   const row = e.target.closest?.('#view .trow');
   if (!row || row.closest('#detail')) return false;
   const tid = +row.dataset.id, ids = DG.ids || [id];
-  const own = ids.includes(tid);  // 2.1444 (#7344): onto a row of the selection = the selection at its place, where the core takes it
+  const own = ids.includes(tid);  // (#7344): onto a row of the selection = the selection at its place, where the core takes it
   if (own && (!DG.ids || e.altKey || !dropFor(row, e.clientY, ids) || dropNo(row, e.clientY, ids))) return false;
   if (e.altKey) {
     $$('.dropbefore,.dropafter,.drop').forEach(x => x.classList.remove('dropbefore', 'dropafter', 'drop'));
@@ -383,7 +383,7 @@ function dgOver(e, id) {
   $$('.dropbefore,.dropafter,.drop').forEach(x => x.classList.remove('dropbefore', 'dropafter', 'drop'));
   let zn = dgZone(row, e.clientY);
   if (own && zn === 'onto') zn = dropAfter(row, e.clientY) ? 'after' : 'before';
-  if (zn !== 'onto' && dropNo(row, e.clientY, ids)) { dgLast = null; return true; }  // 2.1444 (#7344): no highlight; the drop says why
+  if (zn !== 'onto' && dropNo(row, e.clientY, ids)) { dgLast = null; return true; }  // (#7344): no highlight; the drop says why
   if (zn === 'onto') dgMark(row, 'dgonto', trn('{0} task becomes its subtask', '{0} tasks become its subtasks', dgRoots(ids).length));
   else row.classList.add(zn === 'after' ? 'dropafter' : 'dropbefore');
   dgLast = {row, zn, cls: zn === 'onto' ? 'dgonto' : zn === 'after' ? 'dropafter' : 'dropbefore'};
@@ -416,7 +416,7 @@ function dgDrop(e, id) {
   if (el.closest?.('#detail')) return true;
   const side = el.closest?.('.srow[data-drop]'), kcol = el.closest?.('.kcol'), quad = el.closest?.('.quad'), cell = el.closest?.('.cal .cell');
   const wcol = el.closest?.('.wcol'), wad = el.closest?.('.wad, .wh'), sec = !row && el.closest?.('#view .ghead[data-section], #view .sdrop');
-  // 2.1444 (#7344): the drop core first (My tasks: own order, own sections, "New section"); the middle of a row stays "subtasks"
+  // (#7344): the drop core first (My tasks: own order, own sections, "New section"); the middle of a row stays "subtasks"
   { const zn = row && dgZone(row, y); if (zn !== 'onto' || ids.includes(+row.dataset.id)) { if (dropRun(ids, el, y, row ? (zn === 'onto' ? dropAfter(row, y) : zn === 'after') : undefined)) return true; } }
   const may = ids.filter(i => canEdit(S.tasks.get(i)));
   if (!may.length) { roToast(); return true; }
@@ -444,7 +444,7 @@ function dgDrop(e, id) {
     else dgBlock(ids, row, zn === 'after');
     return true;
   }
-  // 2.1389.0 (#6959): the board of My tasks (#2072) takes the whole selection too, in its order (step 2 of the drop core: #7344 F6);
+  // (#6959): the board of My tasks (#2072) takes the whole selection too, in its order (step 2 of the drop core: #7344 F6);
   // the own sections of My tasks: the drop core above
   if (kcol && kcol.dataset.mbcol != null) { if (typeof mb_dropMany === 'function') mb_dropMany(ids, el); return true; }
   if (kcol) { const sid = kcol.dataset.kcol ? +kcol.dataset.kcol : null, lid = S.tasks.get(ids[0])?.list_id; if (lid) dgToSection(ids, lid, sid); return true; }

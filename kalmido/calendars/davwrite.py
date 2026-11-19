@@ -135,7 +135,7 @@ def _cdw_sub(c, sid):
     r = need_calsub(c, sid)
     if r["kind"] != "caldav" or not r["dav_write"] or not r["dav_can_write"]:
         raise Denied(403, tr("Writing into this calendar is not allowed"))
-    if cal_is_google(cal_unseal(c, r["user_id"], r["url"])):  # 2.1444 (#6550): also a subscription switched on before
+    if cal_is_google(cal_unseal(c, r["user_id"], r["url"])):  # (#6550): also a subscription switched on before
         raise Denied(403, tr("Kalmido connects Google calendars read-only"))
     return r
 
@@ -349,7 +349,7 @@ def cdw_toggle(sid):
     if r["kind"] != "caldav":
         return err(tr("Only CalDAV calendars can be written to; calendar links stay read-only"), 409)
     can = r["dav_can_write"]
-    if on and cal_is_google(cal_unseal(c, r["user_id"], r["url"])):  # 2.1444 (#6550): Google calendars are only read
+    if on and cal_is_google(cal_unseal(c, r["user_id"], r["url"])):  # (#6550): Google calendars are only read
         return jsonify(error=tr("Kalmido connects Google calendars read-only"), code="google_read_only"), 409
     if on:
         if not cdw_rate(me()):

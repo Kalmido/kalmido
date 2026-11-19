@@ -12,7 +12,7 @@ document.addEventListener('dragstart', e => {
   requestAnimationFrame(() => r.classList.add('dragging'));
 });
 document.addEventListener('dragend', () => { dragId = null; DSE.v = 0; kph_clear(); document.body.classList.remove('tdrag'); $$('.dragging,.dropbefore,.dropafter,.drop').forEach(x => x.classList.remove('dragging', 'dropbefore', 'dropafter', 'drop')); });
-const DROP_SEL = '.trow, .kcol, .quad, .cal .cell, .srow[data-drop], .wcol, .wad, .wh, #view .ghead[data-section], #view .sdrop, #view .sprh[data-sprdrop], #view .ghead[data-key^="ms:"], #view [data-dropnew]';  // 2.60.0 (#343): + the sprint header; 2.569.0 (#4395): + the own sections of My tasks; 2.1444 (#7344): + "New section" of My tasks
+const DROP_SEL = '.trow, .kcol, .quad, .cal .cell, .srow[data-drop], .wcol, .wad, .wh, #view .ghead[data-section], #view .sdrop, #view .sprh[data-sprdrop], #view .ghead[data-key^="ms:"], #view [data-dropnew]';  // (#343): + the sprint header; (#4395): + the own sections of My tasks; (#7344): + "New section" of My tasks
 // lower half of a row = drop after it (so the end of a block / list is reachable)
 const dropAfter = (row, y) => { const r = row.getBoundingClientRect(); return y != null && r.height > 0 && y > r.top + r.height / 2; };
 // 2.87.9 (#1965): the highlight changes only when the target or its half changes (dragover fires on every mouse move; the
@@ -22,7 +22,7 @@ function markDrop(el, id, y) {
   const tgt = el && el.closest(DROP_SEL), row = tgt && tgt.classList.contains('trow');
   const ok = !!tgt && !tgt.closest('#detail') && !(row && +tgt.dataset.id === id);
   if (ok && mdLast?.no === tgt) return true;
-  if (ok && dropNo(tgt, y, [id])) { mdLast = {no: tgt}; $$('.dropbefore,.dropafter,.drop').forEach(x => x.classList.remove('dropbefore', 'dropafter', 'drop')); return true; }  // 2.1444 (#7344): the core takes nothing there (the drop says why)
+  if (ok && dropNo(tgt, y, [id])) { mdLast = {no: tgt}; $$('.dropbefore,.dropafter,.drop').forEach(x => x.classList.remove('dropbefore', 'dropafter', 'drop')); return true; }  // (#7344): the core takes nothing there (the drop says why)
   const cls = !ok ? null : row ? (dropAfter(tgt, y) ? 'dropafter' : 'dropbefore') : 'drop', col = row ? tgt.closest('.kcol,.quad') : null;
   if (cls && mdLast && mdLast.tgt === tgt && mdLast.cls === cls && tgt.classList.contains(cls) && (!col || col.classList.contains('drop'))) return true;
   mdLast = null;
@@ -154,12 +154,12 @@ async function dropTask0(id, el, clientY) {
   $$('.dragging,.dropbefore,.dropafter,.drop').forEach(x => x.classList.remove('dragging', 'dropbefore', 'dropafter', 'drop'));
   document.body.classList.remove('tdrag');
   if (el.closest('#detail')) return;
-  if (canEdit(t) && await mbDropHook(t, el)) return;  // 2.156.0 C (#2072): the board of My tasks (its column = date / priority / list)
-  // 2.1444 (#7344): the drop core (dragmulti.js dropRun; one task = a selection of one): My tasks' own order and own sections,
+  if (canEdit(t) && await mbDropHook(t, el)) return;  // (#2072): the board of My tasks (its column = date / priority / list)
+  // (#7344): the drop core (dragmulti.js dropRun; one task = a selection of one): My tasks' own order and own sections,
   // read-only tasks too (the own order is the person's); the structure it changes is checked there. Awaited: the same step.
   const core = dropRun([id], el, clientY);
   if (core) { await core; return; }
-  if (!canEdit(t) && !ml_in(t, ml_viewList())) { roToast(); return; }  // 2.71.0 B (#1459): a further list's writer moves the link
+  if (!canEdit(t) && !ml_in(t, ml_viewList())) { roToast(); return; }  // (#1459): a further list's writer moves the link
   // 2.559.0 (#4659): dropped into a section still on its way (a kanban column, a row under its header): its real id first,
   // into the element the drop reads it from (taskToSection waits by itself)
   { const gh = !kcol && row?.closest('.group')?.querySelector('.ghead[data-section]'), at = kcol ? [kcol, 'kcol'] : gh ? [gh, 'section'] : null;

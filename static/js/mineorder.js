@@ -41,7 +41,7 @@ async function moSave(ids, secs) {  // 2.569.0 (#4395): secs = {task id: own sec
     if (r?.order_kept) { toast(tr(MO_KEPT)); await load(); render(); }
   } catch { if (S.mineBase === send) S.mineBase = seen; /* api() showed it; the server never confirmed this order; offline it waits in the outbox */ }
 }
-// ---- 2.1444 (#7344): the adapter of "My tasks" for the drop core (dragmulti.js DROP_ADAPTERS): one way for a drag of one task
+// ---- (#7344): the adapter of "My tasks" for the drop core (dragmulti.js DROP_ADAPTERS): one way for a drag of one task
 // and of a selection (dnd.js, dragmulti.js), the menu "Move to section…" and "New section" (mseMoveTo, mseMoveToNew).
 // A place: {sid} an own section (null = without one), {lid} a project of "Grouped by project", tid / after = before / after that
 // task (tid in the selection = the selection at its place), none = on top of the section. Gone: moDrop, moDropMany, mseDrop,
@@ -101,7 +101,7 @@ async function moPut(ids, w) {
   const lid = w.lid ?? null, l = lid != null ? listById(lid) : null;
   const away = l ? ids.filter(i => S.tasks.get(i).list_id !== lid) : [];
   if (away.length && !canEditList(lid)) { roToast(); return; }
-  if (away.length && !await mv_ask(away, l)) return;  // 2.455.0 (#3848)
+  if (away.length && !await mv_ask(away, l)) return;  // (#3848)
   return histGroup(async () => {
     if (LS.get('sort2.' + S.route.key, null)) LS.del('sort2.' + S.route.key);  // a column's sort hid the own order: a drop shows it again (as a project's manual drop)
     const mine = new Set(moAll().map(x => x.id)), items = {}, put = [], ro = [], out = [];
@@ -138,7 +138,7 @@ async function moPut(ids, w) {
     const msg = [lab, mes ? tr('Assigned to me') : '', subs ? trn('{0} subtask is now standalone', '{0} subtasks are now standalone', subs) : '',
       fail ? trn('{0} task not changed', '{0} tasks not changed', fail) : '', ro.length ? trn('{0} task skipped (read-only)', '{0} tasks skipped (read-only)', ro.length) : '',
       out.length ? tr(MO_NOPLACE) : ''].filter(Boolean).join(' · ');
-    if (!dtToast(msg, dt)) offerUndo(msg, e);  // 2.1271.0 (#6436): "Don't adopt"; the Undo of the whole step stays in the history
+    if (!dtToast(msg, dt)) offerUndo(msg, e);  // (#6436): "Don't adopt"; the Undo of the whole step stays in the history
   });
 }
 if (typeof DROP_ADAPTERS !== 'undefined') DROP_ADAPTERS.push({name: 'mine', on: moActive, where: moWhere, put: (ids, w) => w.fresh ? mseMoveToNew(ids) : moPut(ids, w)});
@@ -286,8 +286,8 @@ function mseGroups(arr) {
 // render.js: the "…" of an own section in its head; the button "New section" under the last one
 const mseHeadHtml = g => g.mosec && g.mosec.kind !== 'recent' ? `<button data-rowmenu="mosec" type="button" class="iconbtn gact" data-mse-menu="${g.mosec.id}" title="${esc(tr('More') + ': ' + g.name)}" aria-label="${esc(tr('More') + ': ' + g.name)}">${ic('dots', 's')}</button>` : '';
 const mseAddHtml = () => mseOn() ? `<button type="button" class="linkbtn msenew" data-mse-add="1" data-dropnew="1">${ic('plus', 's')}<span>${esc(tr('New section'))}</span></button>` : '';
-// 2.1365.0 (#6962): tasks (ids, in this order) into own section sid - before / after targetId, else on top of it (where its first
-// task stands; an empty one = at the end). "Move to section…" of the task menu and of the multi panel; 2.1444 (#7344): the
+// (#6962): tasks (ids, in this order) into own section sid - before / after targetId, else on top of it (where its first
+// task stands; an empty one = at the end). "Move to section…" of the task menu and of the multi panel; (#7344): the
 // drop core's way (moPut: a subtask comes out, a task nobody has is assigned to me, one step of the history)
 async function mseMoveTo(ids, sid, targetId = null, after = false) {
   const s = mseList().find(x => x.id === sid);
@@ -301,7 +301,7 @@ async function mseMoveTo(ids, sid, targetId = null, after = false) {
 function mseMenuHere(anchor, ts) {
   if (!mseOn() || anchor?.closest?.('#detail') || !ts.length) return false;
   const mine = new Set(moAll().map(y => y.id));
-  return ts.every(t => mine.has(t.id) || moCanTake(t));  // 2.1444 (#7344): also subtasks and "Unassigned in your projects" (they come along)
+  return ts.every(t => mine.has(t.id) || moCanTake(t));  // (#7344): also subtasks and "Unassigned in your projects" (they come along)
 }
 function mseSecPicker(anchor, ids, done = () => {}) {  // done: before the move (the multi panel marks its field changed)
   const x = mseCtx(), ts = ids.map(id => S.tasks.get(id)).filter(Boolean), cur = new Set(ts.map(t => mseOf(t, x)));

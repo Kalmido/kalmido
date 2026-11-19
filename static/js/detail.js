@@ -704,7 +704,7 @@ function renderDetail0(D = $('#detail')) {
   // fold after ~8 lines. 2.31.0 (#1054): no "Details | Comments" tabs on phones any more, a small jump to the comments instead
   const mdLong = mdMode && mdIsLong(t.content), mdClamp = mdLong && !LS.get('mdOpen', false);  // 2.101.0 (#2157): one device setting for all tasks
   // 2.31.0 (#1054): the assignee once, as the chip under the title (people, agents, groups, "Take it"; no select below)
-  const whoOn = !ck && asgOn([t]);  // 2.412.0 (#3552); 2.1444.0 (#7347): the one condition (core.js asgOn), no longer only shared / assigned
+  const whoOn = !ck && asgOn([t]);  // (#3552); (#7347): the one condition (core.js asgOn), no longer only shared / assigned
   const jump = cm === 'full' && !split ? `<button type="button" class="linkbtn djump" data-act="d-jump-cm" aria-controls="d-tl">${ic('down', 's')}<span>${tr('To the comments')}</span><span class="c" id="d-jump-count">${ncm || ''}</span></button>` : '';
   // 2.18.0 (#430): a milestone (no subtasks; its own section with progress, burndown, release notes) / the milestone a task
   // of a list with milestones belongs to (open ones + the current one)
