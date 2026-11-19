@@ -15,14 +15,14 @@ function oxStateHtml(j) {
 }
 // 2.1419.0 (#6578): what an import with the standard limits refuses (the whole file) or skips (single files); same as move.js
 // umzFitHtml, its own copy because this file loads without move.js (Office > Settings)
-const oxFitHtml = j => (j.import_warnings || []).length ? `<div class="shint keep ${j.import_ok === false ? 'warn ' : ''}oxfit">${ic('alert', 's')} <span>${esc(j.import_ok === false ? tr('Another Kalmido server with standard settings cannot import this file:') : tr('Note for the import:'))} ${j.import_warnings.map(esc).join(' ')}</span></div>` : '';
+const oxFitHtml = j => (j.import_warnings || []).length ? `<div class="shint keep ${j.import_ok === false ? 'warn ' : ''}oxfit">${ic('alert', 's')} <span>${esc(j.import_ok === false ? tr('Another Kalmido server with standard settings cannot import this file:') : tr('Note for the import:'))} ${esc(j.import_warnings.join(' '))}</span></div>` : '';
 function oxActsHtml(j) {
   const start = lbl => `<button type="button" class="btn sm" data-ox="start">${ic('download', 's')} ${lbl}</button>`;
   // 2.278.0 A (#3093): another admin's archive (filtered by their rights): only the hint, a new one only when they left
   if (j.foreign) return `<div class="shint keep">${ic('lock', 's')} ${esc(j.hint || '')}</div>` + (j.may_replace && j.state === 'done' ? `<div class="row">${start(tr('Create export'))}</div>` : '');
   if (j.state === 'running') return botBusy(`<div class="row"><span class="muted">${tr('The export is being created…')}</span></div>`);  // 2.161.2 (#2611)
   if (j.state === 'done') return `<div class="row oxdone"><span class="n">${esc(j.file)} <span class="muted">(${esc(fmtSize(j.bytes || 0))}) · ${esc(tr('available until {0}', fmtWhen(j.expires_at)))}</span></span></div>
-    <div class="row"><a class="btn sm" href="/api/orgs/${j.oid}/export/file" download data-ox="dl" data-sudl>${ic('download', 's')} ${tr('Download')}</a><button type="button" class="btn sm" data-ox="del">${ic('trash', 's')} ${tr('Delete now')}</button>${start(tr('Create again'))}</div>${j.missing ? `<div class="shint keep">${ic('alert', 's')} ${esc(trn('{0} file could not be read, the manifest in the archive names it', '{0} files could not be read, the manifest in the archive names them', j.missing))}</div>` : ''}${oxFitHtml(j)}`;
+    <div class="row"><a class="btn sm" href="/api/orgs/${j.oid}/export/file" download data-ox="dl" data-sudl>${ic('download', 's')} ${tr('Download')}</a><button type="button" class="btn sm" data-ox="del">${ic('trash', 's')} ${tr('Delete now')}</button>${start(tr('Create again'))}</div>${j.missing ? `<div class="shint keep">${ic('alert', 's')} ${esc(trn('{0} file could not be read, the manifest in the archive names it', '{0} files could not be read, the manifest in the archive names them', j.missing))}</div>` : ''}${/*html-ok*/ oxFitHtml(j) /* escaped inside (esc), 2.1419.0 (#6578) */}`;
   return (j.state === 'failed' ? `<div class="shint keep">${ic('alert', 's')} ${esc(j.error || '')}</div>` : '') + `<div class="row">${start(tr('Create export'))}</div>`;
 }
 async function oxLoad(box) {
