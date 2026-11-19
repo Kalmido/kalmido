@@ -23,8 +23,9 @@ merge queue gets the same checks here, as a CI step on the commits of the change
               every replayed commit (a job's own move commit met the queue's fragment as an add/add conflict).
   marks       an added line of the server or client code (app.py, kalmido/, static/js, static/*.js) carries no version mark
               "2.<n>[.<n>] (#<n>)" (#7143, rule 12c of audit #5501): the history is in git, a comment says what holds and
-              why. Only the lines the change adds count, so the marks of today and those of packages merged meanwhile never
-              make an entry red; tools/check_rules.py keeps the total as a notice.
+              why; a pointer to a decided task stays as "(#<id>)" without the version. Only the lines the change adds
+              count, so the marks of today and those of packages merged meanwhile never make an entry red;
+              tools/check_rules.py keeps the total as a notice.
   oneway      the one-way rules (destructive SQL, a schema version bump, a migration step that deletes, a sign-in route
               added / removed, the registration modes changed): a note (GitHub warning annotation), never red - a one-way
               step is a note while the switch "einbahn_braucht_ja" of the release tooling is off; --strict makes it red.
@@ -227,7 +228,8 @@ def check_marks(files) -> list[str]:
         if n:
             hits.append(f"{path}: {n} added line(s) with a version mark '2.<n> (#<id>)' - Why: the history is in git, the marks "
                         f"are 5 to 10 % of the lines and a source of merge conflicts. Instead: the comment says what holds and "
-                        f"why, the task stands in the commit subject; a moved line loses its old mark. Do not suppress it.")
+                        f"why; a pointer to a decided task stays as '(#<id>)' without the version (the dispatcher finds the "
+                        f"decisions at a place by it), the history goes into the commit subject. Do not suppress it.")
     return hits
 
 
