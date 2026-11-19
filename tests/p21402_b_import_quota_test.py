@@ -9,6 +9,7 @@ Invented names only (example.com). Hosting with 1 MB per person, pool "org" (mem
  - with bob ticked (invited to "Ziel": he joins its pool once he accepts, 2 MB) the run starts; a quota cut while the run
    writes rolls everything back (state failed, no project, no file on disk, no import record, no invitation)
  - with room: every file comes (no file left out, state done, no "stopped")
+ - review F1: two keys of the file sent with one account's user name count as ONE invited seat
  - a person without an organisation (P4): her account import against her own storage, before the preview
 Starts its OWN container (kt.fresh) with a short wait per imported file (KALMIDO_TEST_UMZ_FILE_DELAY, tests only).
 usage: p21402_b_import_quota_test.py <datadir>"""
@@ -154,6 +155,20 @@ res = j.get("result") or {}
 n = kt.dbx("SELECT COUNT(*) FROM attachments a JOIN tasks t ON t.id=a.task_id JOIN lists l ON l.id=t.list_id WHERE l.org_id=? AND a.deleted_at IS NULL", (ZIEL,))[0][0]
 check(j.get("state") == "done" and not res.get("stopped") and n == 2, f"#6579 every file came {j.get('state')} {n} {res.get('warnings')}")
 check(kt.dbx("SELECT 1 FROM org_joins WHERE org_id=? AND user_id=?", (ZIEL, ids["bob"])), "#6579 bob invited to Ziel (joins its pool on accepting)")
+
+# ------------------------------------------------------------ review F1 (job/5521): invitations counted per account, not per key
+# alice now carries the 1.2 MB of the run above; Ziel with one invitation = 2 MB: 1.2 + 1.2 do not fit, with two would (3 MB).
+# carol's address changes, so her key of the file finds nobody; the client sends it with bob's user name: still ONE seat.
+check(A.patch(B + f"/api/users/{ids['carol']}", json={"email": "carol.neu@example.com"}).ok, "setup: carol's key finds nobody any more")
+iid, pv = opened(A, OX, RK)
+keys = {x.get("name"): x["key"] for x in pv.get("people") or []}
+check("Bob Mitglied" in keys and "Carol Mitglied" in keys, f"bob and carol in the preview {list(keys)}")
+r = go(A, iid, ZIEL, {keys["Bob Mitglied"]: {"share": True, "role": "member"},
+                      keys["Carol Mitglied"]: {"share": True, "login": "bob", "role": "member"}})
+e = r.json() if r.content else {}
+check(r.status_code == 409 and e.get("code") == "quota_exceeded",
+      f"review F1: two keys with one account are one seat in the pool, the start is refused {r.status_code} {e}")
+check(A.patch(B + f"/api/users/{ids['carol']}", json={"email": "carol@example.com"}).ok, "carol's address back")
 
 # ------------------------------------------------------------ P4: a person without an organisation, her own storage
 check(A.patch(B + "/api/admin/settings", json={"storage_pool": "user"}).ok, "pool per person again")
