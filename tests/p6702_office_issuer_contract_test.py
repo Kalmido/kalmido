@@ -12,7 +12,8 @@ The code, read as text (no import of the app):
  - docs/API.md names every route and every error name, the file and the rule of changes (90 days)
 The running server (an organisation's office and the personal office of a person without an organisation):
  - every answer has exactly the contract's fields (the key's view, a client, a draft, a finalised invoice, a page of changes,
-   a withdrawn draft); every value of a list is one of the contract's
+   a withdrawn draft: by its ref status withdrawn while in the office's trash, 410 withdrawn once purged); every value of a
+   list is one of the contract's
  - every error answer: the status and the class of its name as in the contract, the name allowed for its route, the body's
    fields (code, message and the named extras), Retry-After where the contract names it
  - the refused fields of an invoice (date, number, finalize ...) each 400 unknown_field
@@ -367,7 +368,7 @@ r = call(KEY, "GET", f"/issuer/docs/{DID}", "GET /issuer/docs/{id}")
 doc_ok("GET /issuer/docs/{id}", r.json() if r.ok else None, draft=True)
 r = call(KEY, "GET", "/issuer/docs/by-ref/kauf:1", "GET /issuer/docs/by-ref/{ref}")
 doc_ok("GET /issuer/docs/by-ref/{ref}", r.json() if r.ok else None, draft=True)
-r = call(KEY, "GET", "/issuer/docs?changed_since=2000-01-01T00:00:00Z&limit=2", "GET /issuer/docs")
+r = call(KEY4, "GET", "/issuer/docs?changed_since=2000-01-01T00:00:00Z&limit=2", "GET /issuer/docs")  # KEY4: 5 drafts
 pg = r.json() if r.ok else {}
 fields("GET /issuer/docs", pg, OBJ["docs_page"])
 for d in pg.get("docs") or []:
@@ -408,9 +409,19 @@ r = call(KEY, "POST", f"/issuer/docs/{W}/withdraw", "POST /issuer/docs/{id}/with
 doc_ok("a withdrawn draft", r.json() if r.ok else None, draft=False)
 check(r.ok and r.json().get("status") == "withdrawn", f"withdrawn {r.status_code} {r.text[:160]}")
 r = call(KEY, "GET", "/issuer/docs/by-ref/kauf:w", "GET /issuer/docs/by-ref/{ref}")
-check(r.status_code == 410 and code(r) == "withdrawn", f"its ref: 410 withdrawn {r.status_code}")
+check(r.status_code == 200 and r.json().get("status") == "withdrawn", f"its ref while in the office's trash: 200 status withdrawn {r.status_code}")
+doc_ok("a withdrawn draft by its ref", r.json() if r.ok else None, draft=False)
 r = call(KEY, "POST", "/issuer/invoices", "POST /issuer/invoices", json=body("kauf:w"))
 check(r.status_code == 410 and code(r) == "withdrawn", f"the ref again: 410 withdrawn, never a new draft {r.status_code}")
+dbxm_c = dbxm.connect(os.path.join(DATA, "tasks.db"), timeout=10)
+try:  # as the purge of the trash does
+    dbxm_c.execute("DELETE FROM office_doc_items WHERE doc_id=?", (W,))
+    dbxm_c.execute("DELETE FROM office_docs WHERE id=?", (W,))
+    dbxm_c.commit()
+finally:
+    dbxm_c.close()
+r = call(KEY, "GET", "/issuer/docs/by-ref/kauf:w", "GET /issuer/docs/by-ref/{ref}")
+check(r.status_code == 410 and code(r) == "withdrawn", f"its ref once the trash is purged: 410 withdrawn {r.status_code}")
 
 # ---------------------------------------------------------------- pause (another issuer, it would stop the others)
 assert A.post(B + f"/api/office/issuers/{IID3}/pause").ok

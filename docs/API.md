@@ -2054,7 +2054,8 @@ buttons; the key never finalises, numbers, sends or books.
 - `GET /api/v1/issuer/docs?changed_since=<ISO time>&cursor=&limit=` -> `{docs: [... + changed_at], next_cursor}`: the source of
   truth of the reconciliation, oldest change first: its drafts, the corrections a person made of its invoices (`origin: manual`,
   no `client_ref`) and the documents a person numbered in its range (`origin: manual`).
-- `GET /api/v1/issuer/docs/{id}`, `GET /api/v1/issuer/docs/by-ref/{client_ref}` (`410 withdrawn`); every id that is not its own
+- `GET /api/v1/issuer/docs/{id}`, `GET /api/v1/issuer/docs/by-ref/{client_ref}` (a withdrawn draft reads with `status: "withdrawn"`
+  while it is in the office's trash, `410 withdrawn` once it is deleted or purged there); every id that is not its own
   answers `404` (counts towards a pause; by ref does not).
 - `GET /api/v1/issuer/docs/{id}/pdf`: the preview of a draft (watermark), 10 a minute; `409 edited_by_human` once a person changed
   the draft or its client.
