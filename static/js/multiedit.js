@@ -20,7 +20,7 @@ const DL_TXT = [N_('Off|deadline'), N_('Deadline'), N_('Deadline, also on Today'
 // the fields of the multi panel: label, icon, value per task (compared as JSON), its text, who may change it, the editor
 function meFields(ts) {
   const lid = meOneList(ts), anyDue = ts.some(t => t.due);
-  // 2.1444.0 (#7347): "Assignee" whenever the one condition holds (core.js asgOn: also unshared / organisation projects, "me"),
+  // (#7347): "Assignee" whenever the one condition holds (core.js asgOn: also unshared / organisation projects, "me"),
   // the people + groups in all the projects (asgPeople / asgGroups, the detail's source); none in all = shown, locked, a hint
   const who = asgOn(ts), ps = who ? asgPeople(ts) : [], gs = who ? asgGroups(ts) : [];
   if (who && asgNeedOrgs(ts) && !o3a_orgsP) o3a_orgsLoad().then(() => meRender());
@@ -183,7 +183,7 @@ function meWaitDialog() {
 // ---- the panel
 function meRow(f, ts) {
   const vals = ts.map(f.get), same = new Set(vals.map(v => JSON.stringify(v ?? null))).size === 1;
-  const lock = f.none ? ts.length : ts.filter(t => !f.perm(t)).length, chg = ME.chg.has(f.k), lab = f.raw ? f.lab : tr(f.lab);  // 2.1444.0 (#7347): none = nothing fits all, locked with its hint
+  const lock = f.none ? ts.length : ts.filter(t => !f.perm(t)).length, chg = ME.chg.has(f.k), lab = f.raw ? f.lab : tr(f.lab);  // (#7347): none = nothing fits all, locked with its hint
   const txt = same ? f.text(vals[0]) : tr('Mixed');
   const shift = f.k === 'date' && !lock ? `<span class="meshift" role="group" aria-label="${esc(tr('Shift each date'))}">${[-1, 1, 7].map(n => `<button type="button" class="btn sm" data-act="me-shift" data-n="${n}" ${ts.some(t => t.due) ? '' : 'disabled'} title="${esc(tr('Shift each date by {0}', meShiftLab(n)))}" aria-label="${esc(tr('Shift each date by {0}', meShiftLab(n)))}">${esc(meShiftLab(n))}</button>`).join('')}</span>` : '';
   return `<div class="mef ${chg ? 'chg' : ''} ${lock ? 'lock' : ''}" data-k="${esc(f.k)}"><span class="mel">${ic(f.icon, 's')}<span>${esc(lab)}</span></span>

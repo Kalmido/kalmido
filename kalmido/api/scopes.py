@@ -39,7 +39,7 @@ from ..collab.news import news_add, news_list, news_read, news_read_job
 from ..personal.habits import habit_create, habit_delete, habit_update, need_habit
 from ..personal.timetrack import time_delete, time_running, time_start, time_stop, time_update
 from ..core.errors import BadInput, reject_unknown, UnknownFields
-from ..accounts.settings import ej_response  # 2.1444 (#6586): was export_json (now behind the step-up)
+from ..accounts.settings import ej_response  # (#6586): was export_json (now behind the step-up)
 from ..lists.templates import list_duplicate, task_duplicate, template_apply, template_create, template_delete, template_update, templates_list
 from ..lists.seckind import SEC_KINDS
 from ..tasks.dependencies import dep_add, dep_remove, deps_get
@@ -1398,7 +1398,7 @@ def v1_export():
         raise Denied(403, tr("A token limited to selected projects cannot export everything"))
     if not is_agent(g.user):  # 2.148.1 C (#2494): a person's whole account (budget, journal ...) also needs "account"
         need_scope("account")
-    return ej_response(db())  # 2.1444 (#6586): the token's scopes are its check, no step-up (that is the web app's)
+    return ej_response(db())  # (#6586): the token's scopes are its check, no step-up (that is the web app's)
 
 
 def api479_spec(paths, schemas, op, ok, errs, ref, pid, nul, page, q):

@@ -1191,7 +1191,7 @@ def umz_export_clean(table, row):
     return row
 
 
-EJ_MAX_BYTES = 64 * 1024 * 1024  # 2.1444 (#6586): the largest export.json; above it the account export (ZIP, streamed)
+EJ_MAX_BYTES = 64 * 1024 * 1024  # (#6586): the largest export.json; above it the account export (ZIP, streamed)
 
 
 class EjTooBig(Exception):
@@ -1199,7 +1199,7 @@ class EjTooBig(Exception):
 
 
 def ej_dump(parts, maxb=None):
-    """2.1444 (#6586): {key: rows-iterable | value} -> the JSON text of export.json, written row by row; EjTooBig as soon
+    """(#6586): {key: rows-iterable | value} -> the JSON text of export.json, written row by row; EjTooBig as soon
     as it would pass maxb characters (the memory of the web thread stays bounded, the rest is not read)."""
     maxb = EJ_MAX_BYTES if maxb is None else maxb
     out, n = [], 0
@@ -1225,20 +1225,20 @@ def ej_dump(parts, maxb=None):
 
 
 def ej_text(c, uid):
-    """2.1444 (#6586): the text of export.json (EjTooBig above EJ_MAX_BYTES)."""
+    """(#6586): the text of export.json (EjTooBig above EJ_MAX_BYTES)."""
     from ..admin.acctexport import umz_clean
     from ..life.model import jr_open
     from ..life.budget import bud_export
-    q = umz_export_queries(uid)  # 2.73.0 B (#1473): shared with the account export (admin/acctexport.py)
+    q = umz_export_queries(uid)  # (#1473): shared with the account export (admin/acctexport.py)
 
     def rows(t, sql, args):
         for r in c.execute(sql, args).fetchall():  # whole table first: jr_open reads keys on the same connection
             d = umz_clean(t, r)
             if d is not None:
-                yield jr_open(c, uid, d) if t == "journal" else d  # 2.306.0 A (#2885): my journal in plain
+                yield jr_open(c, uid, d) if t == "journal" else d  # (#2885): my journal in plain
 
     parts = [(t, rows(t, sql, args)) for t, (sql, args) in q.items() if t != "budget"]
-    parts.append(("budget", bud_export(c, uid)))  # 2.72.0 (#1333): my budgets, decrypted (receipt files stay in data/attachments/)
+    parts.append(("budget", bud_export(c, uid)))  # (#1333): my budgets, decrypted (receipt files stay in data/attachments/)
     parts.append(("user", user_public(g.user)))
     return ej_dump(parts)
 
@@ -1250,7 +1250,7 @@ def ej_too_big(c):
 
 
 def ej_response(c):
-    """2.1444 (#6586): the file of export.json after the caller's check (the step-up of the web app, the token's scopes of
+    """(#6586): the file of export.json after the caller's check (the step-up of the web app, the token's scopes of
     GET /api/v1/export)."""
     try:
         text = ej_text(c, me())

@@ -357,7 +357,7 @@ const canAssign = t => !!t && collab() && canEditList(t.list_id);
 const isOwner = l => !l || !l.role || l.role === 'owner';
 const hasSharing = () => collab() && S.lists.some(l => l.shared);
 const listPeople = l => !l ? [] : [{user_id: l.owner_id, name: l.owner_name || S.me?.display_name || '', role: 'owner'}, ...(l.members || [])];
-// 2.1444.0 (#7347): who can be assigned - ONE source and ONE condition for the task menu, the detail chip and the multi panel.
+// (#7347): who can be assigned - ONE source and ONE condition for the task menu, the detail chip and the multi panel.
 // The people: the project's (owner + members) + the organisation's who may edit it without joining (orgvis.js o3a, loaded on
 // demand); an agent only where the project opens it (or it is the assignee already); several tasks = the people in ALL their
 // projects. The groups likewise. Rights stay canAssign; the server (check_assignee) stays the truth.

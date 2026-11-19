@@ -470,7 +470,7 @@ def cal_url_hint(u):
     return f"{p.scheme}://{'[' + host + ']' if ':' in host else host}{port}/…"
 
 
-# 2.1444 (#6550): Google calendars are only ever read (product rule); "Allow writing" is refused on these hosts
+# (#6550): Google calendars are only ever read (product rule); "Allow writing" is refused on these hosts
 CAL_GOOGLE = ("google.com", "googleusercontent.com", "googleapis.com")
 
 
