@@ -339,7 +339,9 @@ Run the commands as a user with sudo unless a step says *as the agent user* (`su
    A team agent also asks before it writes in the chat to a person who does not read everything it reads, and only a
    person who reads all its places can say Yes to such a card.
    An agent made before 2.235.0 has no level and works without
-   this check until one is picked. The rules in step 6 already tell the agent to keep to its level.
+   the level's checks until one is picked; without a chosen control level the circle rule counts it as "free"
+   (2.1433.0): every step as before, but writing into a wider or public circle and a message to a person outside it
+   need a card. The rules in step 6 already tell the agent to keep to its level.
 
 ### 2. A Linux user without sudo
 

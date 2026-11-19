@@ -156,7 +156,11 @@ check([x["id"] for x in j.get("data", [])] == [SID], f"the agent reads its open 
 
 # the agent cannot set anything itself
 r = PAGS.patch(V + f"/documents/{D1}", json={"project_id": P1})
-check(r.status_code in (400, 403), f"v1 PATCH knows no project ({r.status_code})")
+# 2.1433.0 (#7142): the agent has no control level and counts as "free" for the circle rule: the document is read by more
+# people than the agent's other places -- the circle's card first, alice (reads every place of it) says Yes, the step runs
+# from the card and meets the route, which knows no project (any other answer comes back unchanged)
+r = kt.circle_yes(r, dict(PAGS.headers), PAG, A, V, 1, base=B)
+check(r.status_code in (400, 403), f"v1 PATCH knows no project ({r.status_code} {r.text[:150]})")
 for m, path, body in (("PUT", f"/api/docs/{D1}/receipt", {"project_id": P1}), ("POST", f"/api/receipt-suggestions/{SID}/accept", {}),
                       ("GET", f"/api/docs/{D1}/receipt", None)):
     r = PAGS.request(m, B + path, json=body)

@@ -406,7 +406,8 @@ Task lists are called projects; the API still says list (`list_id`, `/api/v1/lis
   `routine` and `free` too. Ask with the card as always; Kalmido marks it "visible to more people" / "publicly visible"
   for the person. Your progress line (`set_working`, a job's log) shows no words in such a project: the mark says only
   that you work (`text_shown: false` in the answer), and other people see such a job without its title, name and log.
-  Never carry content there another way.
+  Never carry content there another way. Without a chosen control level the circle rule counts you as `free`
+  (2.1433.0): every step as before, but this card all the same.
 - What counts as writing there (2.1284.0): a subtask lives in its parent's project, so `parent_id` (create, change, move)
   is a write into the parent's project, whatever `list_id` says. A place whose readers Kalmido cannot name (office,
   documents, polls, a table without a project ...) needs the card as soon as you read more than one place.
