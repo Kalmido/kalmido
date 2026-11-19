@@ -77,8 +77,8 @@ from ..core.schema import MAX_DEPTH  # 2.149.0 G (#2517): pulled up from functio
 from ..office.model import pb_personal  # 2.1316.0 (#6577): umz_office_space
 from ..life.model import JOURNAL_MAX, jr_open, jr_seal  # 2.306.0 A (#2885); 2.531.0 (#4317): + JOURNAL_MAX, jr_open
 from ..accounts.orginvite import ojn_drop_later, ojn_invite, ojn_later  # 2.278.0 A (#3095)
-from ..accounts.orginvite import OINV_DAY, oinv_by_import, oinv_count, oinv_left, oinv_on, oinv_pending  # 2.1424.0 (#6580)
-from ..accounts.users import user_purge  # 2.1424.0 (#6580)
+from ..accounts.orginvite import OINV_DAY, oinv_by_import, oinv_count, oinv_left, oinv_on, oinv_pending  # (#6580)
+from ..accounts.users import user_purge  # (#6580)
 from ..collab.e2e import _pub, e2e_has_keys, e2e_import_keys, e2e_same_keys  # 2.278.0 C (#3091)
 from .oilock import oil_preview, OIL_NODES, OIL_LOCKS, OIL_KEYS  # #4300: locked folders of the file store
 from ..hub.absence import ABS_HALF, ABS_KINDS, ABS_NOTE_MAX, ABS_SPAN_MAX, DATE_RE  # 2.765.0 (#3965)
@@ -876,7 +876,7 @@ def umz_preview(c, uid, man, data, can_invite, files=None):
                                                   "filters", "templates", "time_entries", "event_calendars", "events", "address_books",
                                                   "contacts", "journal", "notes")},  # 2.362.0 (#3090): + project notes
         "lists": lists[:500], "people": people[:500], "can_invite": bool(can_invite),
-        # 2.1424.0 (#6580): the organisations among the targets whose admin invites the missing people (umz_may_invite)
+        # (#6580): the organisations among the targets whose admin invites the missing people (umz_may_invite)
         "invite_orgs": [t["id"] for t in targets if t["id"] != "private"] if oinv_on(c) else [],
         "people_salt": umz_salt(man) or "",  # 2.239.0 A (#2882): the client checks a typed address against the keyed hash
         "server_links": [_txt(x.get("name"), 100) or _txt(x.get("base_url"), 200) for x in data.get("server_links", [])][:20],
@@ -2460,7 +2460,7 @@ def umz_fix_people(c, run, uid, names):
 def umz_invite(c, run, uid, email, name, role="member"):
     """A new account for a missing person (instance admin) and the invitation link by e-mail (#697). 2.360.2 M (#2561): into an
     organisation only by accepting an invitation (org_joins, in the admins' list of open invitations), in the confirmed role.
-    2.1424.0 (#6580): into an organisation its admin invites (not only an instance admin), the normal way of Settings >
+    (#6580): into an organisation its admin invites (not only an instance admin), the normal way of Settings >
     Organisation > Invite by e-mail (orginvite.oinv_by_import: the day's limit, the mail budget, an address with an account
     the admin may not see stays silent, #3570) -> the account the invitation lies on (None: nobody invited)."""
     if run.org:
@@ -2479,7 +2479,7 @@ def umz_invite(c, run, uid, email, name, role="member"):
     while c.execute("SELECT 1 FROM users WHERE username=?", (login,)).fetchone():
         i += 1
         login = f"{base}{i}"[:32]
-    nid = create_user(c, login, name or login, None, None, False, onboard=True, ask_purpose=0)  # 2.364.0 A (#3032)
+    nid = create_user(c, login, name or login, None, None, False, onboard=True, ask_purpose=0)  # (#3032)
     c.execute("UPDATE users SET email=? WHERE id=?", (email, nid))
     uset(c, nid, "lang", usettings(c, uid).get("lang") or "en")
     try:
@@ -2490,7 +2490,7 @@ def umz_invite(c, run, uid, email, name, role="member"):
 
 
 def umz_undo_made(c, made):
-    """2.1424.0 (#6580, reader F4): the accounts the import made for its invitations into an organisation, at its undo (their
+    """(#6580, reader F4): the accounts the import made for its invitations into an organisation, at its undo (their
     invitations are gone already): one never used (oinv_pending) with no membership, other invitation (also a silent one,
     #3570) or project is deleted like Withdraw deletes it; otherwise its unused invitation link ends unless another
     invitation is still open. -> the files to remove after the commit."""
@@ -3180,7 +3180,7 @@ def umz_undo(c, uid, r):
             uset(c, uid, k, v.get("old") if v.get("old") is not None else "")
     for oid, who in cr.get("org_joins") or []:  # 2.360.2 M (#2561): an invitation not accepted yet goes with the import
         c.execute("DELETE FROM org_joins WHERE org_id=? AND user_id=? AND created_by=?", (int(oid), int(who), uid))
-        c.execute("DELETE FROM org_invites WHERE org_id=? AND user_id=? AND created_by=?", (int(oid), int(who), uid))  # 2.1424.0 (#6580): like Withdraw
+        c.execute("DELETE FROM org_invites WHERE org_id=? AND user_id=? AND created_by=?", (int(oid), int(who), uid))  # (#6580): like Withdraw
         ojn_drop_later(c, int(oid), int(who), uid)
     gone = umz_undo_made(c, cr.get("org_made") or [])
     c.execute("UPDATE imports SET undone_at=? WHERE id=?", (iso(now_utc()), r["id"]))
@@ -3188,7 +3188,7 @@ def umz_undo(c, uid, r):
     c.commit()
     oi_undo_files(cr)  # 2.272.0 C (#3027): the files of the tasks stay with them in the trash (the trash run deletes them)
     unlink_files(tpl_paths)  # 2.464.0 (#3865)
-    unlink_files(gone)  # 2.1424.0 (#6580)
+    unlink_files(gone)  # (#6580)
     print("account import undo", r["id"], "user", uid, "tasks", out["tasks"], "kept", out["kept_tasks"], "area rows", n_oi,
           "kept rows", out["kept_rows"], "into the trash", out["trash_rows"], flush=True)
     return out
@@ -3388,7 +3388,7 @@ def umz_invites(c, uid, st, org, picks, can_invite, mails_out=None):
     Review F1 (job/5521): counted like umz_share acts and like quota_info's pool counts -- distinct accounts (many keys
     with one user name are one seat), never an agent or an account with a quota of its own (it never joins the pool), an
     invitation only for an address whose hash is the key's (else umz_share invites nobody), distinct addresses.
-    2.1424.0 (#6580): mails_out (a set) gets the addresses invited by e-mail (the day's limit of the invitations)."""
+    (#6580): mails_out (a set) gets the addresses invited by e-mail (the day's limit of the invitations)."""
     if org is None:
         return 0
     org_kind = (st.get("preview") or {}).get("kind") == "org"  # reader F3: an account export invites by e-mail into an organisation too
@@ -3420,7 +3420,7 @@ def umz_invites(c, uid, st, org, picks, can_invite, mails_out=None):
 
 
 def umz_may_invite(c, org):
-    """2.1424.0 (#6580, decided 16.11.2026): who may invite the missing people of the file -- into an organisation its admin
+    """(#6580, decided 16.11.2026): who may invite the missing people of the file -- into an organisation its admin
     (the caller checked it) while inviting by e-mail is on (Settings > Users, org_invites), always an instance admin; into
     the private space only an instance admin (a new account of the server)."""
     return bool(g.user["is_admin"]) or (org is not None and oinv_on(c))
@@ -3474,7 +3474,7 @@ def umz_go(iid):
         c.rollback()
         e = umz_room_err(short)
         return jsonify(error=tr_stored([e.text, *e.args_]), code="quota_exceeded", **short), 409
-    # 2.1424.0 (#6580, reader F1/F2): every typed address counts on the day counter of Settings > Organisation > People before
+    # (#6580, reader F1/F2): every typed address counts on the day counter of Settings > Organisation > People before
     # anything is looked up (an address with an account counts like a new one; undo or withdrawal give nothing back); over
     # the limit nothing starts. A server admin invites without this limit, as before.
     if org is not None and mails and not g.user["is_admin"] and not oinv_count(uid, len(mails)):
