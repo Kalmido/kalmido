@@ -19424,19 +19424,5 @@
   "Effort for review jobs": "Impegno dei job di revisione",
   "Organisation settings": "Impostazioni dell’organizzazione",
   "An organisation is set up by the admin of this server. An organisation’s admin can then invite you by e-mail.": "Un’organizzazione viene creata dall’amministratore di questo server. Poi gli amministratori dell’organizzazione possono invitarti per e-mail.",
-  "The organisation “{0}” is set up": "L’organizzazione «{0}» è stata creata",
-  "Still missing before finalising:": "Prima di bloccare manca ancora:",
-  "Note before finalising:": "Nota prima di bloccare:",
-  "To the settings": "Alle impostazioni",
-  "To the field": "Al campo",
-  "Check again": "Controlla di nuovo",
-  "Set up your office": "Configura il tuo ufficio",
-  "What your quotations and invoices need as sender. Each field saves itself.": "Ciò che i tuoi preventivi e le tue fatture richiedono come mittente. Ogni campo si salva da solo.",
-  "Name and address of the sender": "Nome e indirizzo del mittente",
-  "Tax and small business": "Imposte e regime forfettario",
-  "Tax number or VAT ID": "Codice fiscale o partita IVA",
-  "The IBAN printed on your invoices": "L’IBAN stampato sulle tue fatture",
-  "Coming from another program? Then enter the next number here": "Arrivi da un altro programma? Inserisci qui il numero successivo",
-  "Logo / letterhead": "Logo / carta intestata",
-  "Your logo on every document (optional)": "Il tuo logo su ogni documento (facoltativo)"
+  "The organisation “{0}” is set up": "L’organizzazione «{0}» è stata creata"
 }
