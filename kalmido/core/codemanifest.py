@@ -26,9 +26,9 @@ try:
     from .i18nkeys import module_keys, split_lang
     from .i18nfrag import fragment_paths, lang_bytes, load_lang, read_fragments
 except ImportError:  # tools/web_manifest.py loads this folder by its path, without the app
-    from strip import strip_asset, start_css_files, with_start_css  # type: ignore
-    from i18nkeys import module_keys, split_lang  # type: ignore
-    from i18nfrag import fragment_paths, lang_bytes, load_lang, read_fragments  # type: ignore
+    from strip import strip_asset, start_css_files, with_start_css
+    from i18nkeys import module_keys, split_lang
+    from i18nfrag import fragment_paths, lang_bytes, load_lang, read_fragments
 
 CM_V = 1  # the format of the manifest
 CM_ASSET_RE = re.compile(r'(<(?:script|link)\b[^>]*?\b(?:src|href)="/static/)([\w./-]+\.(?:js|css))"')

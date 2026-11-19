@@ -88,13 +88,13 @@ def git(*args: str) -> str:
 def commits(base: str, head: str) -> list[tuple[str, str, str, str]]:
     """[(sha, subject, author e-mail, committer e-mail)] of BASE..HEAD without merges, oldest first."""
     out = git("log", "--no-merges", "--reverse", "--format=%H%x1f%s%x1f%ae%x1f%ce", f"{base}..{head}")
-    return [tuple(ln.split("\x1f")) for ln in out.splitlines() if ln]  # type: ignore[misc]
+    return [tuple(ln.split("\x1f")) for ln in out.splitlines() if ln]
 
 
 def idents(base: str, head: str) -> list[tuple[str, str, str]]:
     """review F8: the identities of EVERY commit of BASE..HEAD, merges included -> [(sha, author, committer)]."""
     out = git("log", "--format=%H%x1f%ae%x1f%ce", f"{base}..{head}")
-    return [tuple(ln.split("\x1f")) for ln in out.splitlines() if ln]  # type: ignore[misc]
+    return [tuple(ln.split("\x1f")) for ln in out.splitlines() if ln]
 
 
 def names(base: str, head: str) -> list[str]:

@@ -19,7 +19,7 @@ from decimal import Decimal, ROUND_HALF_UP
 try:
     from .calc import dec, money
 except ImportError:  # loaded on its own (tests)
-    from calc import dec, money  # type: ignore
+    from calc import dec, money
 
 ORP_MODES = ("pct", "net", "gross", "margin")
 ORP_ROUND = {"cent": Decimal("0.01"), "euro": Decimal(1), "five": Decimal(5)}
