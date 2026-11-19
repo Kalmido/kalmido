@@ -108,7 +108,7 @@ UMZ_IMPORT_MAX_MB = _env_mb("KALMIDO_ACCOUNT_IMPORT_MAX_MB", 4096)
 UMZ_CHUNK = max(UMZ_BLOCK, min(8 * UMZ_BLOCK, ((app.config.get("MAX_CONTENT_LENGTH") or 8 * UMZ_BLOCK) - 65536) // UMZ_BLOCK * UMZ_BLOCK))
 UMZ_MAX_ENTRIES = 200_000
 # review M2: the parsed rows take 5-10 times the text in memory -- a real export of 50 000 tasks stays far below these
-# 2.1419.0 (#6578): both settable (docs/ENV.md); the export checks its archive against them (umz_fit)
+# (#6578): both settable (docs/ENV.md); the export checks its archive against them (umz_fit)
 UMZ_JSON_MAX = _env_mb("KALMIDO_IMPORT_JSON_PART_MAX_MB", 32) * 1024 * 1024  # one data/<table>.json
 UMZ_JSON_TOTAL = _env_mb("KALMIDO_IMPORT_JSON_MAX_MB", 96) * 1024 * 1024  # all data/*.json together (they are held in memory during the check and the run)
 # 2.1282.0 (#6426): the bytes alone do not hold the memory (measured: 24 times the text for a part of tiny values), so the
@@ -128,7 +128,7 @@ UMZ_EID_RE = re.compile(r"[0-9a-f]{8,64}")
 # 2.278.0 C (#3091): the AAD a browser ciphertext of the old server carries (collab/e2e.py, notelock.js, e2e.js)
 UMZ_AAD_RE = re.compile(r"kalmido-(locknote|note|file):v1:[0-9]{1,19}:[0-9]{1,19}|kalmido-e2e:v1:[0-9]{1,19}")
 
-# 2.1419.0 (#6578, audit #4808 T3): the limits of an import with the standard settings; an export checks its archive against
+# (#6578, audit #4808 T3): the limits of an import with the standard settings; an export checks its archive against
 # them (umz_fit) and against this server's limits where those are lower, so it names what a target would refuse
 UMZ_STD = {"archive_mb": 4096, "json_part_mb": 32, "json_mb": 96, "entries": 200_000, "rows": 500_000, "file_mb": 50}
 
@@ -141,7 +141,7 @@ def umz_fit_limits():
 
 
 def umz_fit(sizes, rows=None, archive=None):
-    """2.1419.0 (#6578): whether an export archive can be imported with the standard limits. sizes = [(path, bytes)] of its
+    """(#6578): whether an export archive can be imported with the standard limits. sizes = [(path, bytes)] of its
     entries, rows = {table: rows}, archive = the bytes of the finished file (None: the entries' sum stands for it).
     -> {"ok", "problems": [{"what", "value", "limit", "path"?}], "big_files": [path] (larger than one upload: the import skips
     them and names them, the rest comes), "limits"}. ok False = the import refuses the whole file."""
@@ -168,7 +168,7 @@ def umz_fit(sizes, rows=None, archive=None):
 
 
 def umz_fit_lines(fit, lg=None):
-    """2.1419.0 (#6578): the reasons of umz_fit as readable lines (export page, state of an export)."""
+    """(#6578): the reasons of umz_fit as readable lines (export page, state of an export)."""
     if not isinstance(fit, dict):
         return []
     mb = 1024 * 1024
@@ -595,13 +595,13 @@ def umz_open(path, key, size, full=True):
                     raise UmzBad(N_("The file contains a part that is too large: {0}"), p)
                 data[p[5:-5]] = rows
             elif zi.file_size > UMZ_FILE_MAX:
-                too_large.append(p)  # 2.1419.0 (#6578): skipped and named by the run (was: the whole file refused)
+                too_large.append(p)  # (#6578): skipped and named by the run (was: the whole file refused)
                 if full:
                     _sum_entry(zf, zi, sha)
             elif full:
                 _read_entry(zf, zi, UMZ_FILE_MAX, sha)
         man["_unread"] = unread  # 2.531.0 (#4317) F5: {part: rows of the manifest} for umz_left
-        man["_too_large"] = too_large  # 2.1419.0 (#6578): the preview names them
+        man["_too_large"] = too_large  # (#6578): the preview names them
         return zf, man, files, data
     except UmzBad:
         zf.close()
@@ -674,7 +674,7 @@ def umz_org_open(zf, names, man, mraw, full, nodes=None):
             else:
                 data.setdefault("oi", {})[p] = rows
         elif not p.endswith(".json") and zi.file_size > UMZ_FILE_MAX:
-            too_large.append(p)  # 2.1419.0 (#6578): skipped and named by the run (was: the whole file refused)
+            too_large.append(p)  # (#6578): skipped and named by the run (was: the whole file refused)
             if full:
                 _sum_entry(zf, zi, f["sha256"])
         elif full or p.endswith(".json"):
@@ -953,7 +953,7 @@ def umz_preview(c, uid, man, data, can_invite, files=None):
         "encrypted": {"attachments": len(ce.get("attachments") or []) if isinstance(ce.get("attachments"), list) else 0,
                       "locked_notes": ce.get("locked_notes") if isinstance(ce.get("locked_notes"), int) else 0,
                       **umz_enc_preview(c, uid, data, org_kind)},  # 2.278.0 C (#3091)
-        "too_large": [p.rsplit("/", 1)[-1][:120] for p in (man.get("_too_large") or [])][:200],  # 2.1419.0 (#6578)
+        "too_large": [p.rsplit("/", 1)[-1][:120] for p in (man.get("_too_large") or [])][:200],  # (#6578)
         "too_large_mb": UMZ_FILE_MAX // (1024 * 1024),
         "not_taken": skipped, "taken_areas": oi_counts(data) if org_kind else [], "again": bool(earlier), "earlier": earlier, "office_copy": bool(not org_kind and office),
         "auto_paused": bool(org_kind and oi_auto_preview(data)),  # 2.1289.0 (#6576): invoice series and office reminders arrive paused
@@ -1585,7 +1585,7 @@ def _file_bytes(zf, files, path):
     if not isinstance(path, str) or path not in files:
         return None
     zi, sha = files[path]
-    if zi.file_size > UMZ_FILE_MAX:  # 2.1419.0 (#6578): never read; the caller names it as too large and goes on
+    if zi.file_size > UMZ_FILE_MAX:  # (#6578): never read; the caller names it as too large and goes on
         return b""
     return _read_entry(zf, zi, UMZ_FILE_MAX, sha)
 
