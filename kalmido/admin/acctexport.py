@@ -805,6 +805,8 @@ def umz_build(c, uid, stream, export_id):
             "missing": out.missing,  # 2.363.2 (#3106): files that are gone or cannot be decrypted [{file, reason}]
             **({"private_documents": docs} if docs else {}),  # 2.1334.0 (#6585)
             "not_imported": umz_not_imported(out.tables, docs, lang(c, uid)),  # 2.1334.0 (#6585)
+            # (#6578): whether an import with the standard limits takes this file (the entries' sum stands for the archive)
+            "import_fit": umz_fit_done(out.files, out.tables, None),
         }
         mb = json.dumps(manifest, ensure_ascii=False, indent=1, default=_jdef).encode()
         zi = zipfile.ZipInfo("manifest.json", date_time=time.localtime()[:6])
@@ -923,7 +925,8 @@ def umz_run(uid, export_id):
                                      "expires_at": iso(done + timedelta(hours=UMZ_KEEP_H)), "file": name, "bytes": w.size,
                                      "sealed": bool(key), "export_id": export_id, "rows": sum(man["tables"].values()),
                                      "files": sum(1 for x in man["files"] if x["path"].startswith("files/")), "missing": len(man["missing"]),
-                                     "locked": len(man.get("locked_files") or [])})  # 2.533.0 (#4318) F18: the export page says it
+                                     "locked": len(man.get("locked_files") or []),  # (#4318) F18: the export page says it
+                                     "fit": umz_fit_done(man["files"], man["tables"], w.size)})  # (#6578)
         c.rollback()
         print(f"account export of user {uid}: {w.size} bytes", flush=True)
     except Exception as e:  # noqa: BLE001 -- the state says it failed; never content in the message
@@ -961,7 +964,22 @@ def umz_status(uid):
     if st.get("state") == "failed":
         out["error"] = tr("The export was interrupted. Please start it again.") if st.get("error") == "interrupted" else \
             tr("The export failed. Please try again later or ask the server admin (server log).")
+    if st.get("state") == "done" and isinstance(st.get("fit"), dict):
+        out.update(umz_fit_view(st["fit"]))
     return out
+
+
+def umz_fit_done(files, tables, size):
+    """(#6578): the import check of an account export; size = the file as it is downloaded (None: the entries' sum)."""
+    from .acctimport import umz_fit
+    return umz_fit([(f["path"], f["size"]) for f in files], tables, archive=size)
+
+
+def umz_fit_view(fit):
+    """(#6578): import_ok (False = an import with the standard limits refuses the whole file) and the reasons as
+    readable lines for the export page (also the files an import skips)."""
+    from .acctimport import umz_fit_lines
+    return {"import_ok": bool(fit.get("ok")), "import_warnings": umz_fit_lines(fit)}
 
 
 UMZ_CLEAN = {"at": 0.0}

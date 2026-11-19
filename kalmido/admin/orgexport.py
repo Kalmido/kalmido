@@ -1169,6 +1169,7 @@ def ox_build(c, oid, out, by=None):
             "locked_files": man.locked,  # 2.209.0 D (#1856)
             "missing": man.missing,  # 2.363.2 (#3106)
             "not_imported": ox_not_imported(man.files, ox_lang(c, by)),  # 2.1334.0 (#6585)
+            "import_fit": ox_fit(man),  # (#6578): whether an import with the standard limits takes this file
         }
         _put_bytes(zf, man, "manifest.json", json.dumps(manifest, ensure_ascii=False, indent=1, default=_jdef).encode())
     return manifest
@@ -1338,9 +1339,20 @@ def ox_build_personal(c, oid, out, org, have, by=None):
             "not_included": ox_not_included(c, by, [OX_PB_LEFT, *OX_NOT_INCLUDED[1:2]]),  # 2.449.0 (#3768)
             "locked_files": man.locked,  # 2.209.0 D (#1856)
             "missing": man.missing,  # 2.363.2 (#3106)
+            "import_fit": ox_fit(man),  # (#6578)
         }
         _put_bytes(zf, man, "manifest.json", json.dumps(manifest, ensure_ascii=False, indent=1, default=_jdef).encode())
     return manifest
+
+
+def ox_fit(man, size=None):
+    """(#6578): the import check (acctimport.umz_fit) of the archive's entries; man = the _Man of a build or its manifest,
+    size = the finished file. Rows count only for the parts an import reads."""
+    from .acctimport import UMZ_ORG_MAP, umz_fit
+    from .orgimport import oi_covers
+    files, counts = (man.files, man.counts) if isinstance(man, _Man) else (man.get("files") or {}, man.get("counts") or {})
+    rows = {p: n for p, n in counts.items() if p in UMZ_ORG_MAP or (p.endswith(".json") and oi_covers(p))}
+    return umz_fit([(p, (f or {}).get("bytes") or 0) for p, f in files.items()], rows, archive=size, org=True)
 
 
 # ---------------------------------------------------------------- state, thread, clean-up
@@ -1500,7 +1512,7 @@ def ox_run(oid, uid):
             _state_set(oid, {"state": "done", "by": uid, "started_at": _state(oid).get("started_at") if _state(oid) else iso(when),
                              "done_at": iso(done), "expires_at": iso(done + timedelta(hours=OX_KEEP_H)), "file": name, "bytes": size, "plain": plain,
                              "files": sum(1 for k in man["files"] if k.startswith("files/")), "rows": sum(man["counts"].values()),
-                             "missing": len(man["missing"])})
+                             "missing": len(man["missing"]), "fit": ox_fit(man, size)})  # (#6578)
             c.execute("INSERT INTO office_doc_log(org_id, doc_id, user_id, at, action, target, detail, user_name) VALUES(?,?,?,?,?,?,?,?)",
                       (oid, None, uid, iso(done), "export", "org", json.dumps({"bytes": size, "file": name}), ofx_log_name(c, oid, uid)))  # 2.1287.0 (#6470)
             c.commit()
@@ -1540,6 +1552,9 @@ def ox_status(oid):
         out["error"] = tr("The export was interrupted. Please start it again.") if st.get("error") == "interrupted" else \
             tr("There is not enough space on the server for the export. Please ask the server admin.") if st.get("error") == "nospace" else \
             tr("The export failed. Please try again later or ask the server admin (server log).")  # #6581: nospace
+    if st.get("state") == "done" and isinstance(st.get("fit"), dict):  # (#6578)
+        from .acctexport import umz_fit_view
+        out.update(umz_fit_view(st["fit"]))
     return out
 
 

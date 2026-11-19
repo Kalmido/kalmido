@@ -234,6 +234,8 @@ an empty value counts as unset. See [SELF-HOSTING.md](SELF-HOSTING.md) for the c
 | `KALMIDO_BACKUP_PG_TIMEOUT` | `21600` | Seconds one pg_dump / pg_restore run may take. |
 | `KALMIDO_BACKUP_SHARED_MIN` | `65536` | Bytes from which a file is kept once in the shared store of the backups (backups/.store) instead of in every backup (2.432). |
 | `KALMIDO_BACKUP_TICK` | `60` | Seconds between two looks at the backup schedule. |
+| `KALMIDO_IMPORT_JSON_MAX_MB` | `96` | Size in MB of all data parts of a move file together that can be imported (they are held in memory while it is checked and imported); an export warns above the standard value. |
+| `KALMIDO_IMPORT_JSON_PART_MAX_MB` | `32` | Size in MB of one data part (data/<table>.json) of an account or organisation move file that can be imported; an export warns above the standard value. |
 | `KALMIDO_OFFSITE_RETRY_S` | `300` | Seconds before a failed off-site copy is tried again. |
 | `KALMIDO_OFFSITE_TIMEOUT` | `120` | Seconds per network step of the off-site copy. |
 

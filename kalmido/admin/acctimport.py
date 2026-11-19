@@ -111,8 +111,9 @@ UMZ_IMPORT_MAX_MB = _env_mb("KALMIDO_ACCOUNT_IMPORT_MAX_MB", 4096)
 UMZ_CHUNK = max(UMZ_BLOCK, min(8 * UMZ_BLOCK, ((app.config.get("MAX_CONTENT_LENGTH") or 8 * UMZ_BLOCK) - 65536) // UMZ_BLOCK * UMZ_BLOCK))
 UMZ_MAX_ENTRIES = 200_000
 # review M2: the parsed rows take 5-10 times the text in memory -- a real export of 50 000 tasks stays far below these
-UMZ_JSON_MAX = 32 * 1024 * 1024  # one data/<table>.json
-UMZ_JSON_TOTAL = 96 * 1024 * 1024  # all data/*.json together (they are held in memory during the check and the run)
+# (#6578): both settable (docs/ENV.md); an export checks its archive against them (umz_fit)
+UMZ_JSON_MAX = _env_mb("KALMIDO_IMPORT_JSON_PART_MAX_MB", 32) * 1024 * 1024  # one data/<table>.json
+UMZ_JSON_TOTAL = _env_mb("KALMIDO_IMPORT_JSON_MAX_MB", 96) * 1024 * 1024  # all data/*.json together (they are held in memory during the check and the run)
 # 2.1282.0 (#6426): the bytes alone do not hold the memory (measured: 24 times the text for a part of tiny values), so the
 # values and containers are counted before parsing (core/zipread.py json_guard). A real export of 50 000 tasks with 40
 # columns has 2 million nodes in its largest part.
@@ -122,12 +123,89 @@ UMZ_JSON_NODES = 3_000_000  # one JSON part
 UMZ_JSON_NODES_TOTAL = 6_000_000  # all JSON parts of one file together
 UMZ_MAX_ROWS = _env_mb("KALMIDO_ACCOUNT_IMPORT_MAX_ROWS", 500_000)  # rows of one table after parsing
 UMZ_MANIFEST_MAX = 32 * 1024 * 1024
+# one file entry that is read at all (office files may be larger than an upload); a larger one is skipped and named (#6578)
+UMZ_FILE_MAX = MAX_FILE_MB * 1024 * 1024 * 4
 UMZ_RATIO = 200  # uncompressed / compressed of one entry above 1 MB
 UMZ_TEXT_MAX = 1_000_000  # characters of one text value
 UMZ_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._\-/]{0,250}")
 UMZ_EID_RE = re.compile(r"[0-9a-f]{8,64}")
 # 2.278.0 C (#3091): the AAD a browser ciphertext of the old server carries (collab/e2e.py, notelock.js, e2e.js)
 UMZ_AAD_RE = re.compile(r"kalmido-(locknote|note|file):v1:[0-9]{1,19}:[0-9]{1,19}|kalmido-e2e:v1:[0-9]{1,19}")
+
+# (#6578, audit #4808 T3): the limits of an import with the standard settings; an export checks its archive against
+# them (umz_fit) and against this server's limits where those are lower, so it names what a target would refuse
+UMZ_STD = {"archive_mb": 4096, "json_part_mb": 32, "json_mb": 96, "entries": 200_000, "rows": 500_000, "file_mb": 50}
+
+
+def umz_org_data(path):
+    """(#6578): a data part of an organisation archive (read with the JSON limits); a stored file (files/..., also below a
+    prefix) is never one, even when its name ends in .json."""
+    return path.endswith(".json") and "/files/" not in "/" + path
+
+
+def umz_fit_limits():
+    mb = 1024 * 1024
+    return {"archive_mb": min(UMZ_STD["archive_mb"], UMZ_IMPORT_MAX_MB), "json_part_mb": min(UMZ_STD["json_part_mb"], UMZ_JSON_MAX // mb),
+            "json_mb": min(UMZ_STD["json_mb"], UMZ_JSON_TOTAL // mb), "entries": min(UMZ_STD["entries"], UMZ_MAX_ENTRIES),
+            "rows": min(UMZ_STD["rows"], UMZ_MAX_ROWS), "file_mb": min(UMZ_STD["file_mb"], MAX_FILE_MB)}
+
+
+def umz_fit(sizes, rows=None, archive=None, org=False):
+    """(#6578): whether an export archive can be imported with the standard limits (as umz_open / umz_org_open check it).
+    sizes = [(path, bytes)] of its entries, rows = {part: rows} of the parts an import reads, archive = the bytes of the
+    finished file (None: the entries' sum stands for it), org = an organisation archive.
+    -> {"ok", "problems": [{"what", "value", "limit", "path"?}], "big_files": [path] (larger than one upload: the import skips
+    them and names them, the rest comes), "big_count", "limits"}. ok False = the import refuses the whole file."""
+    lim, mb = umz_fit_limits(), 1024 * 1024
+    sizes = [(p, int(n or 0)) for p, n in sizes if p not in ("manifest.json", "checksum.sha256")]
+    if org:
+        is_data = umz_org_data
+    else:
+        def is_data(p):
+            return p.startswith("data/") and p.endswith(".json") and p[5:-5] not in UMZ_LEFT_PARTS
+    probs = []
+    total = sum(n for _p, n in sizes)
+    whole = archive if archive is not None else total
+    if whole > lim["archive_mb"] * mb or total > 2 * lim["archive_mb"] * mb:
+        probs.append({"what": "archive", "value": int(whole), "limit": lim["archive_mb"] * mb})
+    js = [(p, n) for p, n in sizes if is_data(p)]
+    if sum(n for _p, n in js) > lim["json_mb"] * mb:
+        probs.append({"what": "json", "value": sum(n for _p, n in js), "limit": lim["json_mb"] * mb})
+    for p, n in sorted(js, key=lambda x: -x[1]):
+        if n <= lim["json_part_mb"] * mb:
+            break
+        probs.append({"what": "json_part", "path": p, "value": n, "limit": lim["json_part_mb"] * mb})
+    if len(sizes) + 2 > lim["entries"]:  # + manifest and checksums
+        probs.append({"what": "entries", "value": len(sizes) + 2, "limit": lim["entries"]})
+    for t, n in sorted((rows or {}).items()):
+        if isinstance(n, int) and not isinstance(n, bool) and n > lim["rows"]:
+            probs.append({"what": "rows", "path": t, "value": n, "limit": lim["rows"]})
+    big = sorted(p for p, n in sizes if not is_data(p) and n > lim["file_mb"] * mb)
+    return {"ok": not probs, "problems": probs[:50], "big_files": big[:200], "big_count": len(big), "limits": lim}
+
+
+def umz_fit_lines(fit, lg=None):
+    """(#6578): the reasons of umz_fit as readable lines (export page, state of an export)."""
+    if not isinstance(fit, dict):
+        return []
+    mb = 1024 * 1024
+    out = []
+    for x in fit.get("problems") or []:
+        w, v, lm = x.get("what"), int(x.get("value") or 0), int(x.get("limit") or 0)
+        if w == "archive":
+            out.append(tr(N_("The archive is {0} MB, an import takes at most {1} MB."), -(-v // mb), lm // mb, lg=lg))
+        elif w == "json":
+            out.append(tr(N_("The data parts are {0} MB together, an import takes at most {1} MB."), -(-v // mb), lm // mb, lg=lg))
+        elif w == "json_part":
+            out.append(tr(N_("The data part {0} is {1} MB, an import takes at most {2} MB per part."), x.get("path") or "", -(-v // mb), lm // mb, lg=lg))
+        elif w == "entries":
+            out.append(tr(N_("The archive has {0} parts, an import takes at most {1}."), v, lm, lg=lg))
+        elif w == "rows":
+            out.append(tr(N_("The table {0} has {1} rows, an import takes at most {2}."), x.get("path") or "", v, lm, lg=lg))
+    if fit.get("big_count"):
+        out.append(tr(N_("Files larger than {0} MB: {1}. An import may skip them and names them, the rest comes."),
+                      (fit.get("limits") or {}).get("file_mb") or MAX_FILE_MB, fit["big_count"], lg=lg))
+    return out
 
 
 def umz_legacy_aad(prefix, old, *ids):
@@ -502,7 +580,7 @@ def umz_open(path, key, size, full=True):
             if zi.file_size != f["size"] or sums.get(p) not in (None, f["sha256"]):
                 raise UmzBad(N_("Checksum wrong: {0}. The file is damaged or was changed."), p[:120])
             files[p] = (zi, f["sha256"])
-        data, unread = {}, {}
+        data, unread, too_large = {}, {}, []
 
         def left(p):  # 2.531.0 (#4317) F5: a part of UMZ_LEFT, never read
             return p.startswith("data/") and p.endswith(".json") and p[5:-5] in UMZ_LEFT_PARTS
@@ -532,9 +610,14 @@ def umz_open(path, key, size, full=True):
                 if len(rows) > UMZ_MAX_ROWS:
                     raise UmzBad(N_("The file contains a part that is too large: {0}"), p)
                 data[p[5:-5]] = rows
+            elif zi.file_size > UMZ_FILE_MAX:
+                too_large.append(p)  # (#6578): skipped and named by the run (was: the whole file refused)
+                if full:
+                    _sum_entry(zf, zi, sha)
             elif full:
-                _read_entry(zf, zi, MAX_FILE_MB * 1024 * 1024 * 4, sha)
+                _read_entry(zf, zi, UMZ_FILE_MAX, sha)
         man["_unread"] = unread  # 2.531.0 (#4317) F5: {part: rows of the manifest} for umz_left
+        man["_too_large"] = too_large  # (#6578): the preview names them
         return zf, man, files, data
     except UmzBad:
         zf.close()
@@ -586,8 +669,9 @@ def umz_org_open(zf, names, man, mraw, full, nodes=None):
     listed = set(fl) - {"manifest.json"}
     if set(names) - {"manifest.json"} != listed:
         raise UmzBad(N_("A part of the file is missing: {0}"), ", ".join(sorted(listed ^ (set(names) - {"manifest.json"})))[:120])
-    files, data, skipped = {}, {}, {}
-    total = sum(names[p].file_size for p in listed if p.endswith(".json"))
+    files, data, skipped, too_large = {}, {}, {}, []
+    # (#6578): a stored file named *.json (files/...) is a file, not a data part (was: read with the JSON limits)
+    total = sum(names[p].file_size for p in listed if umz_org_data(p))
     if total > UMZ_JSON_TOTAL:
         raise UmzBad(N_("The file contains a part that is too large: {0}"), "*.json")
     for p in sorted(listed):
@@ -606,10 +690,14 @@ def umz_org_open(zf, names, man, mraw, full, nodes=None):
                 data[UMZ_ORG_MAP[p]] = rows
             else:
                 data.setdefault("oi", {})[p] = rows
-        elif full or p.endswith(".json"):
-            raw = _read_entry(zf, zi, UMZ_JSON_MAX if p.endswith(".json") else MAX_FILE_MB * 1024 * 1024 * 4, f["sha256"])
+        elif not umz_org_data(p) and zi.file_size > UMZ_FILE_MAX:
+            too_large.append(p)  # (#6578): skipped and named by the run (was: the whole file refused)
+            if full:
+                _sum_entry(zf, zi, f["sha256"])
+        elif full or umz_org_data(p):
+            raw = _read_entry(zf, zi, UMZ_JSON_MAX if umz_org_data(p) else UMZ_FILE_MAX, f["sha256"])
             what = next((w for pre, w in UMZ_ORG_SKIP if p.startswith(pre)), None)
-            if p.endswith(".json"):
+            if umz_org_data(p):
                 try:
                     json_guard(raw, UMZ_JSON_NODES)  # 2.1282.0 (#6426): a part that is only counted, never kept (ZipOver is a ValueError: 0)
                     x = json.loads(raw.decode("utf-8"))
@@ -641,7 +729,7 @@ def umz_org_open(zf, names, man, mraw, full, nodes=None):
     m2 = {"format": "kalmido-org-export", "kind": "org", "v": 1, "kalmido_version": _txt(man.get("kalmido_version"), 40),
           "created_at": _txt(man.get("created_at"), 40), "source": {"url": "", "hosted": False},
           "user": {"id": None, "name": _txt(org.get("name"), 100), "email": ""}, "export_id": hashlib.sha256(mraw).hexdigest()[:32],
-          "client_encrypted": {}, "org_skipped": skipped}
+          "client_encrypted": {}, "org_skipped": skipped, "_too_large": too_large}
     for p in data["people"]:
         p["role"] = umz_role(roles.get(p["user_id"]))
     return m2, files, data
@@ -884,6 +972,8 @@ def umz_preview(c, uid, man, data, can_invite, files=None):
         "encrypted": {"attachments": len(ce.get("attachments") or []) if isinstance(ce.get("attachments"), list) else 0,
                       "locked_notes": ce.get("locked_notes") if isinstance(ce.get("locked_notes"), int) else 0,
                       **umz_enc_preview(c, uid, data, org_kind)},  # 2.278.0 C (#3091)
+        "too_large": [p.rsplit("/", 1)[-1][:120] for p in (man.get("_too_large") or [])][:200],  # (#6578)
+        "too_large_mb": UMZ_FILE_MAX // (1024 * 1024),
         "not_taken": skipped, "taken_areas": oi_counts(data) if org_kind else [], "again": bool(earlier), "earlier": earlier, "office_copy": bool(not org_kind and office),
         "auto_paused": bool(org_kind and oi_auto_preview(data)),  # 2.1289.0 (#6576): invoice series and office reminders arrive paused
         "export_id": eid, "src": skey, "kind": "org" if org_kind else "account",
@@ -1514,7 +1604,9 @@ def _file_bytes(zf, files, path):
     if not isinstance(path, str) or path not in files:
         return None
     zi, sha = files[path]
-    return _read_entry(zf, zi, MAX_FILE_MB * 1024 * 1024 * 4, sha)
+    if zi.file_size > UMZ_FILE_MAX:  # (#6578): never read; the caller names it as empty or too large and goes on
+        return b""
+    return _read_entry(zf, zi, UMZ_FILE_MAX, sha)
 
 
 def umz_part(run, lid, table, key):
