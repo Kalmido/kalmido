@@ -24,6 +24,102 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1447.0] - 2026-11-19
+
+Package 2.1438 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Added
+- Quotations: new field "Created by" in the head of the quotation editor (a choice of the organisation's active members, default the person making it, changeable while a draft); its name is printed in the PDF's key data as "Your contact" / "Ihr Ansprechpartner" in the document's language; the number token {initials} follows it; a duplicate and the invoice made from the quotation keep it (the invoice does not print it); the quotation list gets the filter "Created by" next to client / project / year; not shown in a personal office (#7300)
+
+### Changed
+- Floating bars, toasts and hints (undo toast, "New version", "Code changed", selection bars, upload and save hints, drop hints, the celebration line) are centred without transform, by one shared rule (static/css/start-mitte-7342.css); tools/check_appcss.py refuses a new translateX(-50%) centring (#7342)
+
+### Fixed
+- Text of the undo toast, "New version available" and the other centred bars was soft on the Mac (Chrome / Safari on a half pixel) (#7342)
+- An English (or French, ...) quotation or invoice printed the recipient's country in German ("ÖSTERREICH"): the country line follows the document's language, also after switching the language of a draft and for a draft's own address fields; finalised documents stay as printed (#7301)
+- Dispatcher (reference starter): an approval card whose comment keeps failing is given up after 3 rounds and the person is told of the pull request instead (reader F6, #7199)
+- Moving an organisation: the instance admin no longer ends the move of a retired organisation (no series pause and no history line written into kept data) (reader F7, #7199)
+- Invoice issuer keys: the key's PDF preview leaves out the customer number and contact person a person set in the office (F1); missing fields and flags go only to drafts the key made itself, not to a person's correction draft (F2); the agents' document list marks an issuer's draft as untrusted like the detail (F3) (#7203)
+
+Package 2.1442 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Added
+- #6611 `kalmido/admin/bkstore.py decrypt BACKUP.zip.enc OUT.zip --passphrase-file FILE|-` decrypts an encrypted backup without a running app; docs/SELF-HOSTING.md has a new section "Emergency: restoring a backup on a fresh server" with numbered steps, and the manual way names decrypt, stopping Kalmido and packs/industry.
+- #6578 Account and organisation export say whether another Kalmido server with default settings can import the archive (archive size, data parts in total and per part, entries, rows per table, files above the upload limit): manifest field `import_fit`, export state `import_ok` / `import_warnings`, and a warning with the reason on the export page (Settings > Data > Move and export everything; Organisation > Export).
+- #6578 The import limits of the data parts can be set: `KALMIDO_IMPORT_JSON_PART_MAX_MB` (32) and `KALMIDO_IMPORT_JSON_MAX_MB` (96), see docs/ENV.md.
+
+### Changed
+- #6611 A fresh install (the database holds nothing encrypted with the server key yet) takes another server key at start without a stop and stores the new fingerprint; as soon as anything is encrypted the stop stays as before (FATAL, exit 3), and the message names the tables that hold data. The restore refusal for a foreign key names the whole way (old key in place, restart, restore as admin, then sign in with the old credentials); the note about leftover folders after a hard-stopped restore says what to do.
+- #7338 Approval page of a quotation: no own "Download terms" button any more, because the quotation PDF already holds the terms pages; below "Accept" a sentence says which terms apply (date) and on which PDF page they start. Letters and contracts from templates keep the button; the confirmation page and the old /s/q/<token>/terms links stay.
+- #7350 Agent chat header menu: the line "Model" opens the agent's Model section (with the switch "choose the model per run") for owners and admins, also while that switch is off; for everybody else it stays an info line.
+
+### Fixed
+- #6611 README: SQLite backups from before 2.37 are refused by a restore, not taken over (the README said otherwise).
+- #7336 Office sidebar: the arrow next to Quotations (and Invoices, Documents, Correspondence, Receipts) opens the tree again, also under "All workspaces": there one node per office (private, each organisation) with its folders, the 20 newest documents and "More…"; the tree cache is kept per office and a failed load is retried.
+- #6578 Account and organisation import: a single file above four times the upload limit no longer makes the whole archive invalid; the preview names it, the run skips it with its name and the rest arrives. A stored file named `*.json` in an organisation archive no longer counts as a data part.
+
+Package 2.1443 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Added
+- Client page menu "Duplicate" and "Add location": one step copies name, address, rate, icon, colour and note (contact persons optional), opens the new client for editing, one undo step (#7295); `POST /api/v1/clients/{id}/copy`, MCP tool `copy_client`.
+- The account and organisation import keeps its result and every warning as a downloadable report; a News item and push (event "Imports of a Kalmido export", can be switched off) tell the end of the run (#6583).
+- "Moving with the company" in SELF-HOSTING.md and in the help (all languages): the steps to move a company to or from app.kalmido.com, what to set up again, renaming and merging; the export dialog names its two files (account, organisation) (#6582).
+
+### Fixed
+- A display name with markup no longer turns into a link in News ("handed your project over"); News and history texts escape every value, and display names refuse < and > (#6432).
+- Imports and DAV queries no longer hold the server on hostile files: dates and names are cut before any pattern, the CSV cell limit is raised only while a task import reads, contacts CSV at most 200 columns, CardDAV/CalDAV queries at most 20 filters / 50 text matches (#6433).
+- An interrupted import goes back to its preview instead of asking for a new upload, the upload retries a failed piece and continues where it stopped, and an error after the data was written no longer says "Nothing was imported" (#6583).
+- "Move to another workspace…" is back in the client page menu (#7292).
+
+Package 2.1446 (Bündel: Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Büro: Aussteller-Schlüssel - Vertragstest in den h, Bündel: Sammelpaket: Aufg).
+
+### Added
+- #6702: The invoice issuer API has a frozen contract, `docs/api/issuer-contract.json` (routes, statuses, the fields of every answer and request, the values of every list, every error name with its status and class, the fixed limits). The hard suite `p6702_office_issuer_contract` holds the code and the running server against it, so a release cannot change the contract unnoticed.
+- #6702: docs/API.md, invoice issuer keys: routes and errors at a glance, the error classes (stop on 401, later on 429 / 503 / pause, probing 403 / 404 on ids counts towards the self-pause, no blind repeat on 409, 410 for good), the line rounding, the territories with VAT rules of their own, the full list of refused fields, ids with a fixed environment prefix, and the rule for changes of the contract (notice of 90 days).
+- #6702: `tools/issuer_flows.py` sets up the test organisation "Vertragstest" (range VT-{yyyy}-{seq}, one issuer in the review mode, the key only in a 0600 file) on a test server and plays the flows of an outside system through it (Germany 19 %, EU reverse charge, third country, repeat, conflict, hold mark, finalised, mailed, archived PDF / XML, optional KoSIT). Before it writes anything it needs `--test-host` = the host of `--url` (never the hosted service), https (http only to a local address), no redirects, and the server saying environment "test". Suites `p6702_b_office_issuer_flows` and `p6702_c_office_issuer_flows_live` run it in the test container and against a live-key server.
+
+### Changed
+- #6702: docs/API.md: a withdrawn draft reads by its `client_ref` with status `withdrawn` while it is in the office's trash and answers `410 withdrawn` once it is purged (the documentation said 410 for both).
+
+Package 2.1444 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Changed
+- #7344: My tasks has one drop core for a single task and a selection: "New section" takes a drop and asks for the name, tasks from "Unassigned in your projects" are assigned to you when dropped into your own sections, every drag can be undone, and a drop switches a column sort back to your own order.
+- #7347: Task menu, task panel and multi-edit panel decide who can be assigned in one place: the same people (including organisation members who may edit the project) and groups everywhere; when nobody is in all selected projects the multi-edit panel keeps "Assignee" visible but locked with a hint.
+- #6586: "Download JSON" in Settings > Data now asks for your password (or second factor) first, like the full account export; very large data points to the account export. The token route /api/v1/export keeps its scopes.
+
+### Fixed
+- #7344: My tasks - a selection dragged into an own section always arrives whole, also when part of it is already there or the target row belongs to it; subtasks can be dragged out of their parent task again; a place that takes nothing says why instead of doing nothing.
+- #7347: The multi-edit panel shows "Assignee" for tasks in unshared and organisation projects too, not only in shared projects or when someone is already assigned.
+- #6550: Google calendars can no longer be switched to "Allow writing" (also subscriptions switched on earlier stop writing) - Kalmido reads Google calendars only; docs/CALENDAR.md corrected.
+- #6584: Account and organisation imports point task references (#123) in descriptions, comments, project notes and chat messages at the imported tasks; references to tasks outside the file stay as text without a link, and plain "#12" in knowledge pages is left alone.
+
+Package 2.1445 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Added
+- #7368: Agent settings: the model fields are a real choice (Agent default, Fable, Opus, Sonnet, Haiku, Other …) in all three places (personal agent's Model section, admin dialog, Jobs on their computer); only "Other …" shows the free text field. Next to every model field an "Effort" choice (new runtime fields effort, effort_decide, effort_review, effort_routine: low … max); the reference starter passes `--effort` of the kind of run. Short model names are stored in lower case.
+- #6588: Calendar import (ICS) says what it lost: "5000 of 7312 events imported" when the 5000 cap cuts, and a warning list with the title of every event whose repeat rule or RDATE is not supported or that could not be read; the API answer has total, limit and warnings.
+
+### Changed
+- #7366: Merge queue gate: only the fixed must list (checks, pr-lint, plan, semgrep, einvoice, zap) has to have run; a skipped job outside it (e.g. a nightly job) is no longer red. Red or unfinished hard jobs stay red.
+
+### Fixed
+- #6430: A sort value NaN, Infinity or beyond ±1e15 on a field, org field, link, filter, section, project, quotation part, pipeline stage or appointment type is refused with 400; JSON answers never write NaN/Infinity (null instead), so the app always loads.
+- #6607: Read-only members can no longer change data on seven ways without a role check: client bulk changes, delete completed tasks (purge-done), folder routes (public links, people, groups, delete, playbook, notify template, reset), joining a project, office agent switches, moving an org client to private (now only admin or approved request, logged) and handing over an org project. New guard test calls 162 write routes as read-only.
+
+Package 2.1447 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Büro: Aussteller-Schlüssel - V).
+
+### Added
+- #6547: Returned e-mails (delivery reports) are matched to the invoice, letter, hub mail or invitation they report on: marked "not delivered" with the reason, the sender gets a News item; automatic mails carry Auto-Submitted, and out-of-office replies no longer become comments, documents or signatures.
+- #7302: Team chat: the thread pane beside a conversation can be widened by dragging its edge (shared grip; double-click = default width).
+- #7306: Bank bookings without a receipt: the column of open receipts can be widened by dragging (shared grip).
+
+### Changed
+- #7315: Document view: the grips of the strip and the fields use the shared grip (keyboard, finger, tap menu); widths kept before are taken over. Home / End now go to the narrowest / widest size, Enter or a double click to the default.
+
+### Fixed
+- #6546: A workspace mailbox whose sending fails is counted like a failed fetch (send_fails, failing since), also a send-only mailbox; its admins hear it after 3 failed sends in a row, and invoice, letter and call sheet mails name the reason instead of "server refused". A series invoice sent from the server's address because the mailbox is off says so.
+
 ## [2.1441.0] - 2026-11-19
 
 Package 2.1435 (Bündel: Bündel: Büro: Aussteller-Schlüssel - Kunden per externer K, Büro: Zustell-Zustand der Rechnungs-Mail am Beleg , CI: Merge-Queue-Lauf).
@@ -441,7 +537,8 @@ Package 2.1401.0 (Bündel: Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher
 - #7037 Number ranges: a closed range opens again only with a scheme the office accepts; the import cleans a refused scheme; a new range and the import also check the correction scheme; the settings refuse the scheme of a range; moving the personal office refuses a range scheme the organisation already uses.
 - #6952 MCP: a test checks that the items of a completed task's subtask copy (`sub_snapshot`, an object) are fenced as data (the fence came with #6906).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1441.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1447.0...HEAD
+[2.1447.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1447.0
 [2.1441.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1441.0
 [2.1434.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1434.0
 [2.1432.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1432.0

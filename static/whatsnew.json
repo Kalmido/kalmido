@@ -1,6 +1,80 @@
 {
  "versions": [
   {
+   "version": "2.1447.0",
+   "date": "2026-11-19",
+   "items": [
+    {
+     "de": "Angebote haben jetzt das Feld „Erstellt von“; der Name steht auf dem PDF als „Ihr Ansprechpartner“.",
+     "en": "Quotations now have a \"Created by\" field; the name is printed on the PDF as \"Your contact\"."
+    },
+    {
+     "de": "Bei einem englischen Angebot steht das Land in der Adresse jetzt auch auf Englisch.",
+     "en": "In an English quotation the country in the address is now in English too."
+    },
+    {
+     "de": "Rückgängig-Meldung, „Neue Version“ und andere schwebende Leisten sind auf dem Mac wieder scharf.",
+     "en": "The undo message, \"New version\" and other floating bars are sharp again on the Mac."
+    },
+    {
+     "de": "Der Export sagt dir, ob ein anderer Kalmido-Server die Datei importieren kann, und nennt den Grund.",
+     "en": "The export tells you whether another Kalmido server can import the file, and why not."
+    },
+    {
+     "de": "Eine zu große Einzeldatei bricht den Import nicht mehr ab: sie wird übersprungen und genannt, der Rest kommt an.",
+     "en": "One file that is too large no longer stops the import: it is skipped and named, the rest arrives."
+    },
+    {
+     "de": "Büro-Leiste: der Pfeil bei Angebote, Rechnungen und Belegen klappt den Ordner-Baum auch unter „Alle Arbeitsbereiche“ auf.",
+     "en": "Office sidebar: the arrow at quotations, invoices and receipts opens the folder tree also under \"All workspaces\"."
+    },
+    {
+     "de": "Kunden lassen sich im Menü der Kundenseite duplizieren oder als neuer Standort anlegen.",
+     "en": "Clients can be duplicated or added as a new location from the client page menu."
+    },
+    {
+     "de": "Ein Import aus einem Kalmido-Export behält seinen Bericht mit allen Warnungen und meldet sich, wenn er fertig ist.",
+     "en": "An import from a Kalmido export keeps its report with every warning and tells you when it is done."
+    },
+    {
+     "de": "Die Hilfe erklärt, wie eine Firma zwischen app.kalmido.com und einem eigenen Server umzieht.",
+     "en": "The help explains how a company moves between app.kalmido.com and its own server."
+    },
+    {
+     "de": "Meine Aufgaben: Ziehen einer Auswahl in eigene Abschnitte klappt immer ganz, auch auf „Neuer Abschnitt“ und mit Rückgängig",
+     "en": "My tasks: dragging a selection into your own sections always moves all of it, also onto \"New section\", and can be undone"
+    },
+    {
+     "de": "Mehrere Aufgaben lassen sich gemeinsam zuweisen, auch in eigenen und Organisations-Projekten",
+     "en": "Several tasks can be assigned together, also in your own and organisation projects"
+    },
+    {
+     "de": "„Download JSON“ fragt jetzt nach dem Passwort; Google-Kalender bleiben nur lesend",
+     "en": "\"Download JSON\" now asks for your password; Google calendars stay read-only"
+    },
+    {
+     "de": "Modell und Aufwand des Agenten wählst du jetzt aus einer Liste (mit Fable)",
+     "en": "Choose your agent's model and effort from a list (with Fable)"
+    },
+    {
+     "de": "Der Kalender-Import sagt, wenn Termine gekürzt oder Serien nicht übernommen wurden",
+     "en": "Calendar import tells you when events were cut or series not taken over"
+    },
+    {
+     "de": "Kommt eine Rechnung, ein Brief oder eine Hub-Mail unzustellbar zurück, zeigt Kalmido „nicht zugestellt“ mit Grund und sagt es dir",
+     "en": "When an invoice, letter or hub mail comes back undelivered, Kalmido shows \"not delivered\" with the reason and tells you"
+    },
+    {
+     "de": "Scheitert der Versand über das eigene Postfach, nennt Kalmido den Grund und meldet es den Verwaltern nach 3 Fehlschlägen",
+     "en": "When sending through the workspace's own mailbox fails, Kalmido names the reason and tells its admins after 3 failures"
+    },
+    {
+     "de": "Thread-Spalte im Team-Chat und Belegspalte im Bank-Abgleich lassen sich per Ziehen verbreitern",
+     "en": "The thread pane in the team chat and the receipts column in bank matching can be widened by dragging"
+    }
+   ]
+  },
+  {
    "version": "2.1441.0",
    "date": "2026-11-19",
    "items": [
@@ -1323,16 +1397,6 @@
     {
      "de": "Das Zitat des Tages steht nur noch einmal da, in deiner Sprache, darunter der Autor.",
      "en": "The quote of the day now appears once, in your language, with its author below."
-    }
-   ]
-  },
-  {
-   "version": "2.1020.0",
-   "date": "2026-11-12",
-   "items": [
-    {
-     "de": "Änderungen an Budget-Kategorien und wiederkehrenden Vorlagen lassen sich jetzt unter „Letzte Schritte“ von jedem Gerät rückgängig machen.",
-     "en": "Changes to budget categories and recurring templates can now be undone from any device in \"Recent steps\"."
     }
    ]
   }
