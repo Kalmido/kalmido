@@ -24,6 +24,68 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1441.0] - 2026-11-19
+
+Package 2.1435 (Bündel: Bündel: Büro: Aussteller-Schlüssel - Kunden per externer K, Büro: Zustell-Zustand der Rechnungs-Mail am Beleg , CI: Merge-Queue-Lauf).
+
+### Added
+- #6819: Invoices can be issued as paid in the finalise dialog: paid date and method instead of bank details, QR code and due date; the payment is booked with it, the e-invoice carries the matching payment means.
+- #6819: An invoice issuer's bank account (holder, IBAN, BIC) and its required payment reference appear on the PDF, in the GiroCode and in the e-invoice (BT-83/84/85); an RF reference with a wrong check digit is refused.
+- #6820: Documents remember the delivery state of their e-mail (sent / refused by the mail server / marked "Delivery failed" by hand): tag in the list, note on the document, filter "Delivery failed", history entry; the issuer read routes return `mail {state, at}`.
+- #7296: Contacts: "Add a colleague at the same company" in a contact's menu opens a new contact with the company, department, business address, website, landline and address book filled in.
+- #7292: Clients with locations: a client can belong to a main client ("Belongs to"); the list shows locations under their main client, the main client's card sums hours, amounts and budget of all locations, pickers show "Main client · Location"; parent_id in API v1 and MCP.
+
+### Changed
+- #7291: Quotations: the producing / project management line counts like a position; the subtotal appears only before a surcharge, included raw data or the discount and includes it. Quotations already sent keep their lines.
+
+Package 2.1440 (Bündel: Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Sammelpaket: Aufgaben ).
+
+### Developer
+- #5195 CI red p2139_b_api: the channel mention reaches the team agent through a project that opens it to the sender (rule of #6454).
+- #5719 CI red p2351_f_review: the accounting role gets 403 on the Documents tree (rule of #6613).
+- #7213 #5037 CI red p2125_d_demo: the demo shim answers GET /api/agent-rules.
+
+Package 2.1437 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Added
+- One shared grip to resize columns, dividers and window corners (static/js/grip.js, loaded on demand): mouse, touch and keyboard, double-click for the default size, sizes kept per device or through hooks, old stored sizes taken over; no existing grip moved yet (#7293)
+
+### Changed
+- The logo always leads to Start; the workspace is switched only with the chip in the header, which is now always shown, also under "All workspaces" (#7299)
+- Office without a chosen workspace: "Which workspace? The office always belongs to a workspace." with a button per workspace that has an office (#7297)
+- Idempotency keys keep the whole answer only for tasks, habits, time, notes and chat; other routes keep a short answer (ok, ids, updated_at), routes that hand out a secret keep none (#6558)
+
+### Fixed
+- The office in a chosen workspace opens with its full menu: every office request names its area, the menu cache is per office area, a workspace switch that could not be saved is taken back with a note, never a silent jump to "All workspaces"; also in the split view (#7297)
+- Self-hosting start messages: a wrong number in .env gives a warning with the variable's name instead of a traceback, wrong PORT/TZ a FATAL line, unknown KALMIDO_* variables, too old PostgreSQL and missing extensions are named; an alert when the virus scanner stays unreachable; SMTP without sender, test mail errors, a full disk on upload (507) and a skewed 2FA clock are told in words (#6615)
+- Tests: p2661_b_ui knows time.js in the workspace guard (red since 807012f595, #6722)
+
+Package 2.1436 (Bündel: Bündel: Büro: Aussteller-Schlüssel - fertige PDF und XML f, Sammelpaket: Aufgaben ohne Paket (Dispatcher), Produkt- und UI-Regeln al).
+
+### Added
+- #6818 Invoice issuer keys fetch the archived PDF or e-invoice XML of their own finalised documents, byte for byte with its SHA-256 in the header `X-Content-SHA256` (`GET /api/v1/issuer/docs/{id}/file?kind=pdf|xml`; ZUGFeRD = the embedded XML, XRechnung = the original XML; a draft or a missing archive file 409 `not_final`, never rendered anew; own rate 10 per minute and issuer, 429; one log line `issuer_read` per fetch; corrections inheriting the issuer included).
+- #6385 Admins are alerted when the e-mail server keeps failing: every mail over the instance's SMTP counts in one place, the admin alarms get the branches `smtp` and `mail` (sending and the e-mail import).
+- #7262 The product and UI rules every package keeps stand in docs/dev/produkt-regeln.md; `tools/check_rules.py` checks the ones seen in the code text (rules `window-open`, `wording`, `emoji`).
+
+### Changed
+- #6344 Ctrl+Z and the undo arrow take back only this window's steps and steps from other devices of the last 2 minutes; otherwise "Recent steps" opens with that step marked and its button focused. Steps over an API key are skipped (`GET /api/undo?skip_api=1`), the message names the device, the arrow's tooltip names exactly the step its click takes back.
+- #6385 Organisation admins see a general notice while sending e-mails is disturbed (the same for every address); the instance admin sees "e-mail not sent" per invitation in the people list.
+
+### Fixed
+- #6531 A file of a mail, a reply by mail, a request mail, a documents mail or a public form that is not filed (storage full, virus, too large, locked list) is no longer dropped silently: the mail stays in the mailbox, the task (or reply) names the file and why, and the owner gets a News item (also for a documents mail without a task). A mailbox rule keeps a mail as soon as any of its files was refused (state `skipped`).
+- #6385 Queued e-mails (invitations, bookings, password resets, security mails, forms, portal, tickets, appointment invitations, polls) are tried again after a passing server failure instead of being lost, without sending a list twice; an invitation counts as sent only once its e-mail went out; a finally failed booking confirmation or invitation tells who triggered it in the News.
+- `tools/check_globals.py` says Why / Instead through lintmsg like every other check.
+
+Package 2.1441 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Fixed
+- #7298 Clients: a client added under "All workspaces" no longer vanishes from the list. "New client" takes the area the
+  office shows, else the only workspace where Clients is on for you; with several the dialog asks for the workspace (required).
+  The toast names the workspace. The server never puts a client without `org_id` silently into a workspace where Clients is
+  off for the person (area / module switch, the organisation's switched-off areas, the card's cap): the only such workspace,
+  else `400` with `code: ws_choose` and the workspaces (also `POST /api/v1/clients`). The contacts editor under "All" offers
+  no address book of a workspace where Contacts is off.
+
 ## [2.1434.0] - 2026-11-19
 
 Package 2.1433.0 (Bündel: Gegenlesen-Hinweise job/5148: 2 offene Hinweise be, Sammelpaket: Aufgaben ohne Paket (Dispatcher), Bündel: Sammelpaket: Aufgaben ohn).
@@ -379,7 +441,8 @@ Package 2.1401.0 (Bündel: Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher
 - #7037 Number ranges: a closed range opens again only with a scheme the office accepts; the import cleans a refused scheme; a new range and the import also check the correction scheme; the settings refuse the scheme of a range; moving the personal office refuses a range scheme the organisation already uses.
 - #6952 MCP: a test checks that the items of a completed task's subtask copy (`sub_snapshot`, an object) are fenced as data (the fence came with #6906).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1434.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1441.0...HEAD
+[2.1441.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1441.0
 [2.1434.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1434.0
 [2.1432.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1432.0
 [2.1426.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1426.0

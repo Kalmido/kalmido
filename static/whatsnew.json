@@ -1,6 +1,48 @@
 {
  "versions": [
   {
+   "version": "2.1441.0",
+   "date": "2026-11-19",
+   "items": [
+    {
+     "de": "Rechnungen lassen sich beim Festschreiben als bezahlt ausstellen",
+     "en": "Invoices can be issued as paid when you finalise them"
+    },
+    {
+     "de": "Belege zeigen, ob ihre Mail zugestellt wurde; Projektmanagement steht im Angebot wie eine normale Position",
+     "en": "Documents show whether their e-mail was delivered; project management is a normal line in quotations"
+    },
+    {
+     "de": "Kunden können Standorte haben, Kontakte bekommen „Kollege derselben Firma anlegen“",
+     "en": "Clients can have locations, contacts get \"Add a colleague at the same company\""
+    },
+    {
+     "de": "Das Büro im gewählten Arbeitsbereich öffnet zuverlässig mit vollem Menü.",
+     "en": "The office opens reliably with its full menu in the chosen workspace."
+    },
+    {
+     "de": "Ein Tipp aufs Logo führt immer zum Start, den Arbeitsbereich wählst du über den Chip oben.",
+     "en": "Tapping the logo always leads to Start; you choose the workspace with the chip at the top."
+    },
+    {
+     "de": "Selbst-Hosting: Tippfehler in der .env, zu altes PostgreSQL und ein nicht laufender Virenscanner werden beim Start klar gemeldet.",
+     "en": "Self-hosting: typos in .env, an old PostgreSQL and a virus scanner that is not running are reported clearly at the start."
+    },
+    {
+     "de": "Strg+Z nimmt nur noch Schritte dieses Fensters oder der letzten 2 Minuten zurück; sonst öffnet sich „Letzte Schritte“ mit dem Schritt markiert.",
+     "en": "Ctrl+Z only takes back steps of this window or of the last 2 minutes; otherwise \"Recent steps\" opens with the step marked."
+    },
+    {
+     "de": "Passt ein Mail-Anhang nicht mehr in den Speicher, steht das an der Aufgabe und in den Neuigkeiten, und die Mail bleibt im Postfach.",
+     "en": "When a mail attachment no longer fits into the storage, the task and the News say so, and the mail stays in the mailbox."
+    },
+    {
+     "de": "Ein unter „Alle Arbeitsbereiche“ angelegter Kunde landet dort, wo Kunden für dich an sind, und bleibt in der Liste; bei mehreren fragt der Dialog nach dem Arbeitsbereich.",
+     "en": "A client added under \"All workspaces\" goes where Clients is on for you and stays in the list; with several the dialog asks for the workspace."
+    }
+   ]
+  },
+  {
    "version": "2.1434.0",
    "date": "2026-11-19",
    "items": [
@@ -1291,16 +1333,6 @@
     {
      "de": "Änderungen an Budget-Kategorien und wiederkehrenden Vorlagen lassen sich jetzt unter „Letzte Schritte“ von jedem Gerät rückgängig machen.",
      "en": "Changes to budget categories and recurring templates can now be undone from any device in \"Recent steps\"."
-    }
-   ]
-  },
-  {
-   "version": "2.1009.0",
-   "date": "2026-11-12",
-   "items": [
-    {
-     "de": "Am Handy haben die Büro-Listen nur noch eine Navigationszeile: Pfeil zurück, Reiter und Belegarten in einer Reihe.",
-     "en": "On a phone, office lists have a single navigation line: back arrow, tabs and document kinds in one row."
     }
    ]
   }
