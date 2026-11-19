@@ -104,8 +104,11 @@ rs = rows()
 check(len(rs) == 1 and rs[0][1] == "done" and rs[0][2] == 1 and rs[0][3] == "", f"one row of the queue, done after one run, payload emptied {rs}")
 h = health(A)
 q = h.get("queue") or {}
-check(set(q) == {"wait", "run", "done", "failed"} and all(isinstance(v, int) for v in q.values()) and q["done"] >= 1,
-      f"health: the queue's rows per state, numbers only {q}")
+# 2.1408.0 (#6388): + failed_1h, failed_kinds (kind names), oldest_wait_s
+check(set(q) == {"wait", "run", "done", "failed", "failed_1h", "failed_kinds", "oldest_wait_s"}
+      and all(isinstance(q[k], int) for k in ("wait", "run", "done", "failed", "failed_1h", "oldest_wait_s"))
+      and all(isinstance(x, str) for x in q["failed_kinds"]) and q["done"] >= 1,
+      f"health: the queue's rows per state, numbers and kind names only {q}")
 check((h.get("loops") or {}).get("bgjobs") == "running", f"health: the loop bgjobs runs in this process {h.get('loops')}")
 check(not sql("SELECT 1 FROM bg_jobs WHERE payload<>'' AND state='done'"), "no payload is kept after a run")
 
@@ -221,11 +224,13 @@ check(wait_for(lambda: len(backups(A)["items"]) == n0 + 1, 30), "the worker's ba
 
 # review 2.193.0: a lost mail is not sent twice (failed, not again); a kind of another version is not taken (it waits)
 sql("INSERT INTO bg_jobs(kind, payload, state, attempts, run_after, created_at, started_at, beat_at) VALUES('mail:pwreset', '', 'run', 1, '2000-01-01T00:00:00+00:00', '2000-01-01T00:00:00+00:00', '2000-01-01T00:00:00+00:00', '2000-01-01T00:00:00+00:00')")
-sql("INSERT INTO bg_jobs(kind, payload, state, attempts, run_after, created_at) VALUES('zz:other-version', 'v1.x', 'wait', 0, '2000-01-01T00:00:00+00:00', '2000-01-01T00:00:00+00:00')")
+# 2.1408.0 (#6388): made now - a row of a kind no process knows fails 'unknown kind' after 24 h (p21408_6388_bgjobs)
+sql("INSERT INTO bg_jobs(kind, payload, state, attempts, run_after, created_at) VALUES('zz:other-version', 'v1.x', 'wait', 0, '2000-01-01T00:00:00+00:00', ?)",
+    (time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime()),))
 lost = wait_for(lambda: [x for x in rows("mail:pwreset") if x[1] != "run"], 90)
 check(lost and lost[-1][1] == "failed" and lost[-1][2] == 1 and lost[-1][4] == "lost", f"a lost mail run fails instead of a second send {rows('mail:pwreset')}")
 time.sleep(5)
 other = rows("zz:other-version")
-check(other and other[-1][1] == "wait" and other[-1][2] == 0 and other[-1][3] == "v1.x", f"a kind this version does not know waits untouched {other}")
+check(other and other[-1][1] == "wait" and other[-1][2] == 0 and other[-1][3] == "v1.x", f"a kind this version does not know waits untouched (within 24 h) {other}")
 
 sys.exit(kt.done("p2193_d_api_test"))

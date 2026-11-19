@@ -334,6 +334,7 @@ an empty value counts as unset. See [SELF-HOSTING.md](SELF-HOSTING.md) for the c
 | Variable | Default | Meaning |
 |---|---|---|
 | `KALMIDO_ACCOUNT_IMPORT_PARALLEL` | `2` | At most this many account checks / imports run at once on the whole server (2.148.1); knowledge imports count too, each a waiting or running queue row (2.370.3). |
+| `KALMIDO_BG_ALARM_FAILED` | `10` | More background queue jobs failed within an hour than this sends the admins an alert (2.1408.0). |
 | `KALMIDO_BG_LONG_SLOTS` | `4` | Exports and imports the queue runs at once per process, next to the short work (mails, pushes) (2.370.3). |
 | `KALMIDO_BG_STOP_WAIT_S` | `8` | On a stop (SIGTERM) the server waits up to this many seconds for running queue jobs before it puts the rest back and ends (2.370.3). |
 | `KALMIDO_LOOP_LOCKS` | `1` | Each background loop runs in one process of the instance; 0 = every process runs its loops. |
