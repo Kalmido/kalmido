@@ -1045,7 +1045,8 @@ def contact_brief(r):
     em, ph = _jl(r["emails"]), _jl(r["phones"])
     return {"id": r["id"], "book_id": r["book_id"], "fn": r["fn"], "org": r["org"], "kind": r["kind"],
             "email": em[0].get("value", "") if em else "", "phone": ph[0].get("value", "") if ph else "",
-            "photo": bool(r["photo"]), "bday": r["bday"], "groups": _jl(r["groups"])}
+            "photo": bool(r["photo"]), "bday": r["bday"], "groups": _jl(r["groups"]),
+            **({"created_by": r["created_by"]} if "created_by" in r.keys() else {})}  # #7192: whose contact (the agents' data fence)
 
 
 def contacts_query(c, uid, q="", book=None, group=None, limit=500, offset=0, trash=False, folder=None):
@@ -1088,7 +1089,7 @@ def contacts_query(c, uid, q="", book=None, group=None, limit=500, offset=0, tra
     n = c.execute(f"SELECT COUNT(*) FROM contacts WHERE {where}", args).fetchone()[0]
     # 2.281.0 E (#3117): only the columns contact_brief reads -- the photo (up to 512 KB each) as a flag, not its data;
     # 2.272.0 E1 (#3038): the trash also needs deleted_at (newest first)
-    cols = "id, book_id, fn, org, kind, emails, phones, photo!='' AS photo, bday, groups, deleted_at"
+    cols = "id, book_id, fn, org, kind, emails, phones, photo!='' AS photo, bday, groups, deleted_at, created_by"  # #7192: + created_by
     order = "deleted_at DESC, id" if trash else "lower(CASE WHEN family!='' THEN family ELSE fn END), lower(fn), id"
     rows = c.execute(f"SELECT {cols} FROM contacts WHERE {where} ORDER BY {order} LIMIT ? OFFSET ?", [*args, limit, offset]).fetchall()
     return rows, n

@@ -128,7 +128,7 @@ def wkv_need(c, uid, pid, write=False):
 def _page(c, r, role, path, names, full=False):
     d = {"id": r["id"], "path": path, "name": path.rsplit("/", 1)[-1], "space": wiki_space_key(r["org_id"]), "role": role,
          "created_at": r["created_at"], "updated_at": r["updated_at"], "updated_by_name": names.get(r["updated_by"], ""),
-         "url": f"/api/v1/wiki/pages/{r['id']}"}
+         "url": f"/api/v1/wiki/pages/{r['id']}", "created_by": r["created_by"]}  # #7192: whose page (the agents' data fence)
     if full and _reads():
         try:
             d["attrs"] = json.loads(r["attrs"] or "{}")
@@ -450,7 +450,7 @@ def _file_need(c, uid, fid):
 def _file(f, marks=None):
     d = {"id": f["id"], "page_id": f["page_id"], "name": f["name"], "mime": f["mime"], "size": f["size"],
          "created_at": f["created_at"], "image": f["mime"].startswith("image/") and f["mime"] != SVG,  # 2.674.0 (#4028, review F14)
-         "url": f"/api/v1/wiki/files/{f['id']}"}
+         "url": f"/api/v1/wiki/files/{f['id']}", "by": f["created_by"]}  # #7192: who uploaded it (the agents' data fence)
     if marks and f["id"] in marks:
         d["up"] = marks[f["id"]]  # the virus scan's mark, like the other file lists
     return d
@@ -527,6 +527,7 @@ def wkv_spec(paths, schemas, op, ok, errs, ref, pid, q):
         "name": {"type": "string"}, "space": {"type": "string", "description": "private or org:<id>"},
         "role": {"type": "string", "enum": ["view", "edit"]}, "created_at": {"type": "string"}, "updated_at": {"type": "string"},
         "updated_by_name": {"type": "string"}, "url": {"type": "string"},
+        "created_by": {"type": ["integer", "null"], "description": "The account that created the page (#7192); null: not known (an import, a sync)"},
         "body": {"type": "string", "description": "Markdown ([[Page]] links a page of the same space, #123 a task); not in lists"},
         "attrs": {"type": "object", "description": "The frontmatter (a leading --- block of key: value lines); not in lists"}}}
     T = "Knowledge"
@@ -572,7 +573,8 @@ def wkv_spec(paths, schemas, op, ok, errs, ref, pid, q):
         "id": {"type": "integer"}, "page_id": {"type": "integer"}, "name": {"type": "string"}, "mime": {"type": "string"},
         "size": {"type": "integer"}, "created_at": {"type": "string"}, "image": {"type": "boolean", "description": "A picture (an SVG drawing: false)"},
         "url": {"type": "string", "description": "GET it for the bytes (/text: the text of a PDF)"},
-        "up": {"type": "string", "description": "Only when the virus scan marked it (unchecked / infected)"}}}
+        "up": {"type": "string", "description": "Only when the virus scan marked it (unchecked / infected)"},
+        "by": {"type": ["integer", "null"], "description": "The account that uploaded it (#7192); null: not known (an import, a sync)"}}}
     fid = pid("id", "File id (from GET /wiki/pages/{id}/files)")
     fshared = "The same rights as the page (GET /wiki/pages/{id}): a page not shared with you, its file in the trash or a page of an " \
               "end-to-end encrypted space answers 404; a file the virus scan locked 403."
