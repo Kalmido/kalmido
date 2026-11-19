@@ -171,6 +171,18 @@ g = r.json().get("groups", {}) if r.ok else {}
 check(r.status_code == 200 and CT1 in ids(g.get("contacts")) and "office" not in g, f"API kind=all: contacts in, never office {str(g)[:200]}")
 r = requests.get(V + "/search", headers=AT, params={"q": "quittengelee", "kind": "wiki"})
 check(r.status_code == 200 and W1 in ids(r.json().get("data")), f"API kind=wiki finds the page by its text {r.status_code} {r.text[:200]}")
+# #7192: the hits and lists name their author (created_by / author_id), so the agents' data fence (mcp/kalmido_mcp.py) can judge them
+AID = A.get(B + "/api/state").json()["me"]["id"]
+hit = next((h for h in g.get("contacts") or [] if h["id"] == CT1), {})
+check(hit.get("created_by") == AID, f"#7192: a contact hit of kind=all names its author {hit}")
+hit = next((h for h in r.json().get("data") or [] if h["id"] == W1), {})
+check(hit.get("created_by") == AID, f"#7192: a knowledge page hit names its author {hit}")
+rr = requests.get(V + "/events", headers=AT, params={"from": D, "to": D})
+hit = next((h for h in (rr.json().get("data") or []) if h.get("eid") == EV1), {}) if rr.ok else {}
+check(hit.get("created_by") == AID, f"#7192: the events list names the author of each occurrence {rr.status_code} {hit}")
+rr = requests.get(V + "/search", headers=AT, params={"q": "stachelbeere", "kind": "messages"})
+hit = next((h for h in (rr.json().get("data") or []) if h["id"] == C1), {}) if rr.ok else {}
+check(hit.get("author_id") == AID and (hit.get("sender") or {}).get("id") == AID, f"#7192: a message hit names who wrote it {hit}")
 r = requests.get(V + "/search", headers=AT, params={"q": "holunderbl", "kind": "files"})
 check(r.status_code == 200 and DOC in ids(r.json().get("data")), f"API kind=files (was /files/search) {r.status_code} {r.text[:200]}")
 r = requests.get(V + "/files/search", headers=AT, params={"q": "holunderbl"})
