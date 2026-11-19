@@ -24,6 +24,56 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1426.0] - 2026-11-19
+
+Package 2.1422 (Bündel: Versionsdaten beim Abbild-Bau ableiten statt Versi, Sammelpaket: Aufgaben ohne Paket (Dispatcher), Bündel: Wissen-Bildfreigabe am Au).
+
+### Added
+- Kalmido AI per organisation (#6363): new switch "Kalmido AI in this organisation" (organisation settings, admins only, not through a support session), off by default. While it is off, no server agent or team AI works with the organisation's content: creating a team AI, its server settings, model list and starter pack answer 403 `org_server_agents_off` (deleting the key still works), a running agent run ends before the next provider call and events from the organisation's projects are left out. Server admins get a security alert on every change (per organisation and value; at most 6 changes an hour per organisation and person, then 429). One-time step at the update: organisations where a team AI with a key or an admin's server agent with a key already worked are switched on, all others start off.
+- Release stamping (#6893): `tools/stamp_release.py` derives VERSION, the service-worker cache number (from the version, always rising), the CHANGELOG section and the whatsnew entries from the tag and the changelog.d fragments when the release image is built (release.yml, weekly-release.yml); without effect while VERSION already equals the tag. The CI gate accepts a green "Merge queue gate" of a merge_group run on the tagged commit.
+
+### Changed
+- Privacy template, SELF-HOSTING outgoing connections, AGENTS.md and AGENT-SETUP.md (#6363): name the Kalmido AI (server agent, Anthropic, USA), VIES, FinTS, Paperless and Linear; the Git and e-mail rows list all fields; the paragraph saying agents only run at the person's provider is corrected. The update check text says "every 6 hours".
+- Admin alerts (#6363): the hourly cap counts per alert kind, so an alert a customer can trigger never silences login rate-limit, new admin or 2FA-off alerts.
+
+### Fixed
+- Agent starter (#7141): a bare yes / no without a quote no longer answers a permission question when a newer card of the same person came after it.
+- Agent starter and job views (#7162): the wake loop waits while the agent's mode is unknown; the waiting list, chat job cards and job names hide the words of a task job the viewer may not see, like the job detail.
+- Issuer text check (#7144, part): an IBAN written with Cyrillic / Greek look-alike letters or O / I / L for digits is found.
+
+Package 2.1425 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Added
+- Organisation export: the person who started it gets one News item (and a push) when it is ready or has failed, also for the export of the own office; a new row "Exports" in Settings > Notifications switches both off (#6581)
+
+### Changed
+- Organisation export: checks the free disk space before it starts and refuses with a plain message when the files would not fit (as the account export already did); a disk that runs full during the run is named as the reason (#6581)
+- Organisation export: one organisation export at a time on a server; a second one answers "Another organisation's export is running on this server" - the export of a person's own office is never held up by it (#6581)
+
+### Fixed
+- MCP: a text field made of two fences glued together is no longer half unfenced when an agent writes it back; the cache of trusted accounts keys on the token's hash and drops expired entries; `docs/AGENTS.md` names the limit of the fence for notes and wiki pages (#7197)
+
+Package 2.1424 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Changed
+- Organisation import (Settings > Data > Import from a Kalmido export): the admin of the target organisation can invite the people of the file that are missing (before: only a server admin). It takes the normal invitation way of Settings > Organisation > People: a new address gets an account with an invitation link by e-mail, the person joins only by accepting with the role confirmed in the preview, the ticked projects are shared then; every typed address counts on the same day limit of invitations (20) before it is looked up, for the whole run before it starts - a run that does not fit counts nothing and names how many are left today (a server admin is not limited, as before), and the e-mail budget applies; an address with an account the admin may not see gets the same answer and a silent invitation, as from the member settings. Into the private space only a server admin invites, as before. Undoing the import ends these invitations and deletes an account it made that was never used, like Withdraw (#6580)
+- Import preview: the people of the file with "found: …" / "not found here" and how many were found; with people missing a warning to invite them first and let them accept, then import (assignments, comment authors and times only go to people found here). The steps of "Move to your own server" and SELF-HOSTING.md name the same order (#6580)
+
+Package 2.1426 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Starter-Parität: Dispatcher-Reste I (#4061 #4062 #).
+
+### Added
+- Reference starter dispatcher: optional `brief_required` - a task is only built when it carries a bold decision, a "Where" section and a size, otherwise it is marked `needs_brief` (#4062, #7041).
+- Reference starter dispatcher: build places come from the work style's `max_parallel`, capped by `places` (default 4, still one place without `max_parallel`) and `KALMIDO_JOB_WORKTREES`; a 409 `slots_full` holds only the next build job (#5199, #7041).
+- Reference starter jobs: a hand-over reminder before the time limit (the job writes its hand-over note); no follow-up job starts by itself (#4063, #7041).
+- Reference starter: every override of a safeguard at the start (danger guard, a set permission mode) is logged (`override_log` capability) and counted (#4064, #7041).
+- Reference starter dispatcher: the day report names the median hours from built to `close_ref`, jobs that ended with open tasks, and overrides (#4061, #7041).
+
+### Fixed
+- Security, roles: a personal agent's organisation role is at most its person's current role, checked on every request in one place (`org_roles_cap`); an agent whose person left has no role there. Changing a member to guest or accounting takes their personal agents out of the organisation like leaving does; with read only they stay and only read. The agent exceptions of the read-only checks in wiki, sheets and files are gone (#6605).
+- Security, support session: the app's role checks (`org_roles_of`, `user_orgs`, `org_role`) are narrowed to the organisations the support grant covers, per request; a failing notification no longer drops the first log entry of a support grant (#6977).
+- Merging clients or contacts moves their links (obj_links) in both directions from the merged record to the kept one through one core function (`mg_olnk_move` in core/merges.py); before, links pointing at the merged record were deleted by its delete trigger and undo did not bring them back. Undo now restores them, including duplicates that fell together. The client merge overview counts links (#6288).
+- Reference starter dispatcher: `close_ref` is a plain ref name, never a git option, job branch or bare commit id; waiting line and brief are read in linear time (#7041).
+
 ## [2.1420.0] - 2026-11-19
 
 Package 2.1411.0 (Bündel: Starter (mcp): ein gemeinsames Modul für doppelte , Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
@@ -245,7 +295,8 @@ Package 2.1401.0 (Bündel: Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher
 - #7037 Number ranges: a closed range opens again only with a scheme the office accepts; the import cleans a refused scheme; a new range and the import also check the correction scheme; the settings refuse the scheme of a range; moving the personal office refuses a range scheme the organisation already uses.
 - #6952 MCP: a test checks that the items of a completed task's subtask copy (`sub_snapshot`, an object) are fenced as data (the fence came with #6906).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1420.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1426.0...HEAD
+[2.1426.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1426.0
 [2.1420.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1420.0
 [2.1415.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1415.0
 [2.1412.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1412.0
