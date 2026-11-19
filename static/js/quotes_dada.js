@@ -7,7 +7,8 @@
    i18n keys; the original's wording stays as it is. 2.1017.0 (#5784, replaces the original + translation of #5239): the quote
    shows ONCE, in the interface language (qd_text): the original when it is in that language, else the German text for a
    German interface and the English one for every other (French reads the French original or the English translation);
-   then only the author, in the same line right behind the quote's last word (#7228, app.css .qd). 2.1030.0 (#5785): Spanish, Italian, Dutch and French have their own texts, each in a file of its
+   then only the author, in the same line right behind the quote's last word (#7228, app.css .qd).
+   Spanish, Italian, Dutch and French have their own texts (#5785), each in a file of its
    own loaded on demand (quotes_dada_<code>.js, lazyload.js LD_MODS quotes_<code>, account.js qd_slot), which fills QD_TR;
    English stays the fallback while that file is missing. Sound poems are never translated. No text ends on a comma, semicolon or colon. Work / year only as the tooltip of the author's name (none for Vaché and Pansaers).
    The line changes once a day (the local date), the same on the sign-in page and on Today; redrawing keeps it. */
