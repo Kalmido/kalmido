@@ -18,7 +18,7 @@ from ..core import config as skfp_cfg  # 2.190.0 B (#2592): the server key for s
 from ..core.env import env_bool, env_int
 from ..core.pg import (  # noqa: F401  (re-exported: the app imports the database API from here)
     Conn, DatabaseError, DataError, Error as DbError, IntegrityError, OperationalError, Row, UniqueViolation, connect_direct,
-    connect_pooled, insert_id, like_escape, table_columns, table_exists, wait_ready, write_lock,
+    connect_pooled, insert_id, like_escape, qi, table_columns, table_exists, table_names, wait_ready, write_lock,
 )
 from ..core.schema import (
     GLOBAL_DEFAULTS, INDEXES, LIST_E2E_TRIGGER, PURGED_TRIGGER, QUICKNOTE_TRIGGER, REVOKED_TRIGGER, TICKET_NO_TRIGGER, WIKI_E2E_TRIGGER, MIGRATIONS, SCHEMA, SCHEMA_VERSION, TIME_TITLE_TRIGGER, USER_DEFAULTS,
@@ -697,6 +697,60 @@ def _skfp_eq(a, b):
     return hmac.compare_digest(a, b)
 
 
+# #6611: a fresh install (installer + set-up with a first account) takes another server key without a stop, so a backup of
+# the old server can come in after putting its key in place. "Fresh" is a list of what may have rows, not a list of what
+# seals: the server key seals in dozens of places (organisation / account keys, tokens, webhook secrets, documents of a
+# personal space, the job queue, keyed fingerprints of bank bookings ...) and every new one would have to be added. So any
+# table with a row that is not named here keeps the stop. Named are the tables the installer's first start and the set-up
+# fill (measured: tests/p6611_freshkey_test.py), none of them holds a value sealed with the server key; admin_login_ips,
+# sev_known, rate_known, rate_hits and eph_state hold keyed hashes of sign-in places and counters (a new key only forgets
+# them: at most one "new sign-in place" notice). SKFP_FRESH_NOT: rows in those tables that still mean "not fresh" (a sealed
+# value, a list beyond the inbox of the set-up, a queued job sealed with the key).
+SKFP_FRESH_TABLES = frozenset((
+    "kalmido_meta", "kalmido_migrations", "settings", "users", "user_settings", "sessions", "orgs", "org_members", "lists",
+    "dl_changes", "login_ips", "admin_login_ips", "sev_known", "rate_known", "rate_hits", "eph_state", "bg_jobs",
+))
+SKFP_FRESH_NOT = (
+    ("settings", "key = 'oidc_client_secret' AND value <> ''"),
+    ("settings", "value LIKE 'kenc1:%'"),
+    ("user_settings", "value LIKE 'kenc1:%'"),
+    ("lists", "NOT is_inbox"),
+    ("bg_jobs", "payload LIKE 'v2.%'"),
+)
+
+
+def skfp_fresh_blockers(c, limit=5):
+    """#6611: why this database is not fresh for another server key: up to limit table names (a table with rows outside
+    SKFP_FRESH_TABLES, or a row of SKFP_FRESH_NOT); [] = nothing in it is sealed with the server key. In doubt (a
+    query fails) the answer is ["(unknown)"], never []."""
+    out = []
+    c.execute("SAVEPOINT skfp_fresh")
+    try:
+        with pg_system_ctx(c):
+            have = table_names(c)
+            for t in ["org_keys", "user_keys"] + sorted(have):  # the plain case first: sealed organisation / account keys
+                if len(out) >= limit:
+                    break
+                if t in out or t in SKFP_FRESH_TABLES or t not in have:
+                    continue
+                try:
+                    if c.execute(f"SELECT 1 FROM {qi(t, have)} LIMIT 1").fetchone():
+                        out.append(t)
+                except ValueError:  # a name that needs quoting is not one of ours: counted as not fresh
+                    out.append(t)
+            for t, where in SKFP_FRESH_NOT:  # (fixed tables and conditions of this module)
+                if len(out) < limit and t not in out and t in have \
+                        and c.execute(f"SELECT 1 FROM {qi(t, SKFP_FRESH_TABLES)} WHERE {where} LIMIT 1").fetchone():
+                    out.append(t)
+    except Exception as e:  # noqa: BLE001 -- cannot tell: never take another key on data that may be sealed
+        c.execute("ROLLBACK TO SAVEPOINT skfp_fresh")
+        c.execute("RELEASE SAVEPOINT skfp_fresh")
+        print("skfp: the check for a fresh database failed:", type(e).__name__, flush=True)
+        return ["(unknown)"]
+    c.execute("RELEASE SAVEPOINT skfp_fresh")
+    return out[:limit]
+
+
 def skfp_warn_changed():
     """2.190.0 R (#2592): the switch left on turns the check off for the next key, so every server start names it (app.py;
     not in skfp_check, which every process importing the app runs)."""
@@ -726,8 +780,16 @@ def skfp_check(c, restore=False):
     changed = env_bool("KALMIDO_SECRET_KEY_CHANGED", False)
     where = f"the key file {config.SECRET_FILE}" if config.SECRET_KEY_SRC == "file" else "KALMIDO_SECRET_KEY"
     if stored and not changed:
-        print(f"FATAL: the server key ({where}) is not the one this database was used with (its fingerprint differs). "
-              "Put the earlier key back and start again; nothing was changed or deleted. Changed on purpose? Start once with "
+        why = skfp_fresh_blockers(c)
+        if not why:  # #6611: a fresh install, nothing sealed yet: the key of the old server before its restore
+            print(f"note: the server key ({where}) is another one than at the first start; this database holds nothing "
+                  "sealed with a server key yet (a fresh install), so the new key is taken and its fingerprint stored. "
+                  "Restoring a backup of another server: sign in as admin and restore it now.", flush=True)
+            c.execute("UPDATE kalmido_meta SET value=? WHERE key=?", (fp, SKFP_KEY))
+            return
+        print(f"FATAL: the server key ({where}) is not the one this database was used with (its fingerprint differs) and "
+              f"the database holds data that may be sealed with the earlier key (in: {', '.join(why)}). Put the earlier key "
+              "back and start again; nothing was changed or deleted. Changed on purpose? Start once with "
               "KALMIDO_SECRET_KEY_CHANGED=1, then rewrap (SELF-HOSTING.md) and remove the variable again.", flush=True)
         raise DataDirError(3)
     if not stored and not changed and skfp_keys_match(c, key) is False:
