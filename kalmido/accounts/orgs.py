@@ -27,6 +27,7 @@ from ..core.i18n import trn  # 2.369.5 (#2517): pulled up from functions
 from ..core.serializers import unlink_files  # 2.369.5 (#2517): pulled up from functions
 from ..core.retention import ret_need_unheld  # 2.545.0 (#4595)
 from ..core.movelock import mv_allow, mv_info  # 2.1337.0 (#6600)
+from ..api.common import hit_limit  # 2.1409.0 (#6363, reader F1 of job/5551): the brake of the Kalmido AI switch
 
 
 # ---------------------------------------------------------------- 2.22.0 (#752): organisations
@@ -1451,6 +1452,7 @@ def orgs_mine():
 
 # 2.1409.0 (#6363): a module of a higher layer watches a switch of org_mine_update: {key: fn(c, oid, name, value)}, called after
 # the switch changed (agents/srvagent.py: the security alert of the Kalmido AI) - no upward import here
+ORG_SWITCH_HOUR = 6  # 2.1409.0 (#6363, reader F1 of job/5551): changes of the Kalmido AI switch per organisation and per person in an hour, more = 429
 ORG_SWITCH_WATCH = {}
 
 
@@ -1491,6 +1493,8 @@ def org_mine_update(oid):
             raise Denied(403, tr("Only an admin of this organisation can change it."))
         r = c.execute("SELECT srv_agents, name FROM orgs WHERE id=?", (oid,)).fetchone()
         if bool(r["srv_agents"]) != b["server_agents"]:
+            if hit_limit(f"orgswitch:{oid}", ORG_SWITCH_HOUR, 3600) or hit_limit(f"orgswitch-by:{me()}", ORG_SWITCH_HOUR, 3600):
+                return err(tr("Too many attempts, please wait a few minutes"), 429)  # reader F1 of job/5551: a brake per organisation and person
             c.execute("UPDATE orgs SET srv_agents=? WHERE id=?", (int(b["server_agents"]), oid))
             if ORG_SWITCH_WATCH.get("server_agents"):  # the security alert (agents/srvagent.py)
                 ORG_SWITCH_WATCH["server_agents"](c, oid, r["name"], b["server_agents"])
