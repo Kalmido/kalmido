@@ -133,8 +133,12 @@ CX = Bo.post(B + "/api/clients", json={"name": "Moving Client", "org_id": ORG, "
 DX = doc(Bo, CX)
 check([x["name"] for x in Bo.get(B + f"/api/office/docs/{DX}").json().get("client_contacts", [])] == ["Petra Example"],
       "setup: the draft shows its client's contact person")
+# #6607: the creator alone no longer takes it out of the organisation (org_out_ok): an admin releases the request first
+r = Bo.post(B + f"/api/orgs/{ORG}/out-requests", json={"kind": "clients", "id": CX})
+check(r.ok and Er.post(B + f"/api/orgs/{ORG}/out-requests/{r.json().get('id')}", json={"decision": "approve"}).ok,
+      "setup: the creator asks, an admin releases (#6607) " + r.text[:200])
 r = Bo.patch(B + f"/api/clients/{CX}", json={"org_id": None})
-check(r.ok, "the creator moves the client without finalised documents to private " + r.text[:200])
+check(r.ok, "the creator moves the released client without finalised documents to private " + r.text[:200])
 check(Bo.get(B + f"/api/office/docs/{DX}").json().get("client_contacts") == [], "the organisation's draft no longer lists the contact persons")
 # freelancer-matrix: contacts -- the own private client
 FC = Fr.post(B + "/api/clients", json={"name": "Freelance Client", "org_id": None}).json()["id"]
@@ -180,7 +184,7 @@ r = Er.patch(B + f"/api/lists/{LE}", json={"org_id": None})
 check(r.ok and sql("SELECT org_id FROM lists WHERE id=?", (LE,))[0][0] is None, "an organisation admin moves a list out " + r.text[:200])
 check(any(x.get("to") == "private" for x in moveouts("list")), "the move is in the organisation's list log")
 check(any(x.get("name") == "Admin notes" for x in news(ALICE, "moveout")), "the other admin gets a News entry")
-check(not news(uid["erin"], "moveout"), "the admin who moved it gets none")
+check(not any(x.get("name") == "Admin notes" for x in news(uid["erin"], "moveout")), "the admin who moved it gets none")  # #6607: the released client move above told her
 check(Bo.put(B + f"/api/lists/{LB}/members", json={"user_id": uid["gina"], "role": "edit"}).ok, "setup: the list shared with a guest")
 r = Gi.post(B + f"/api/lists/{LB}/duplicate", json={})
 check(r.status_code == 403, "a guest's copy would leave the organisation: 403 " + r.text[:200])

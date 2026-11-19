@@ -21,6 +21,7 @@ from ..accounts.modcards import mod_ws_on  # (#7298)
 from ..accounts.orgroles import user_orgs_full, is_write_request  # 2.369.5 (#2517): pulled up from functions
 from ..personal.timetrack import time_report  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.supportgrant import sga_org_foreign
+from ..accounts.orgout import org_out
 from ..api.common import agent_time_hidden  # 2.582.0 (#4380)
 from ..office.owrite import ow_history_answer, ow_write  # 2.567.0 (#4711): the office's write layer (the clients save through it)
 
@@ -652,6 +653,9 @@ def client_update(cid):
             if cl_locked_docs(c, cid):  # 2.126.0 A (#1979 F7): its finalised documents keep it; 2.148.1 B (#2484): also a personal office's
                 raise Denied(409, tr("Finalised documents of this organisation refer to this client, so it stays here. “Move to another workspace…” in the office takes a copy along.")
                              if old["org_id"] else tr(CL_LOCKED_PRIVATE))
+            if old["org_id"]:  # #6607: out of an organisation only through org_out (its admin, or the maker's released request),
+                # logged and told to the other admins -- as lists and files
+                org_out(c, old["org_id"], f["org_id"] or None, "clients", old["name"], obj=cid)
         seen["f"] = f
         return f
 
