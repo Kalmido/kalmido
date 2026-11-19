@@ -1,0 +1,15 @@
+/* Kalmido web client: the styles of the module "propcards" (2.1420.0, #4742), loaded with it (static/js/lazyload.js LD_CSS).
+   Moved unchanged from app.css (same order); later than app.css in the cascade. */
+/* 2.3.0 (#260-#263): agent proposals: the request dialog and the review dialog (tick, edit, apply) */
+.pphead b{color:var(--text)}
+/* 2.68.0 A (#1839): the import card of an agent (importprop.js) -- the rows as in the spreadsheet import (.fcirow) */
+.ppm .aim-l{max-height:50vh}
+.aim-to{display:flex;align-items:center;gap:.5rem;min-height:2.75rem;padding:.375rem .625rem;margin:.5rem 0;border-radius:var(--radius);background:var(--bg2);border:1px solid var(--line2);font-weight:600}
+.aim-note{white-space:pre-wrap}
+/* 2.70.0 C (#1359) contracts: an agent's reminder of a notice deadline (proposal card, contractprop.js) */
+.ctr-head{font-size:var(--fs-m);margin:.125rem 0 .5rem;color:var(--muted)}
+.ctr-head b{color:var(--text)}
+.ctr-by{color:var(--accent)}
+.ctr-text{margin:0 0 .75rem;padding:.625rem .75rem;border-left:.1875rem solid var(--accent);background:var(--accent-soft);border-radius:.375rem;overflow-wrap:anywhere}
+.ctr-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));gap:.5rem;margin-bottom:.5rem}
+.ctr-f{display:flex;flex-direction:column;gap:.125rem;font-size:var(--fs-b);min-width:0}

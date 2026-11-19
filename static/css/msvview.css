@@ -1,0 +1,31 @@
+/* Kalmido web client: the styles of the module "msvview" (2.1420.0, #4742), loaded with it (static/js/lazyload.js LD_CSS).
+   Moved unchanged from app.css (same order); later than app.css in the cascade. */
+/* 2.73.0 C (#661) several servers in one app: the server badge, the sidebar group, foreign rows, details, quick add target */
+.msvvoff{display:inline-flex;margin-left:.25rem;color:var(--muted)}
+.msvverr{display:flex;align-items:center;gap:.375rem;padding:.375rem .5rem;margin:.25rem 0;color:var(--muted);font-size:var(--fs-xs);line-height:var(--lh-tight)}
+.msvverr svg{flex:0 0 auto}
+.msvvhead{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem;padding:.25rem 0 .5rem;color:var(--muted)}
+.msvvqa{margin:0 0 .5rem}
+.msvvqa input{flex:1 1 auto;min-width:0;min-height:2.75rem}
+.msvvdh{display:flex;align-items:center;gap:.5rem}
+.msvvdsrv{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.msvvdf{display:flex;flex-direction:column;gap:.625rem}
+.msvvdt{font-size:var(--fs-l);font-weight:600;min-height:2.75rem}
+.msvvdrow{display:flex;flex-wrap:wrap;gap:.75rem}
+.msvvdrow label{display:flex;align-items:center;gap:.375rem;color:var(--muted)}
+.msvvdrow input,.msvvdrow select{min-height:2.5rem}
+.msvvdf textarea{width:100%;box-sizing:border-box;resize:vertical;min-height:6rem}
+.msvvdf h4{margin:.25rem 0 0}
+.msvvsubs{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.25rem}
+.msvvsubs li{display:flex;align-items:center;gap:.375rem}
+.msvvcnt{margin:0;font-size:var(--fs-xs)}
+.msvvfoot{flex-wrap:wrap;gap:.5rem;justify-content:flex-start}
+.msvvmv{display:flex;flex-direction:column;gap:.375rem}
+.msvvmv select{min-height:2.75rem}
+.msvvqs{display:flex;flex-wrap:wrap;gap:.375rem;padding:.25rem .5rem 0}
+.msvvsec{margin-top:1rem}
+.msvvgh{display:flex;align-items:center;gap:.375rem;cursor:default}
+.msvvwait{padding:.375rem .5rem;font-size:var(--fs-xs)}
+.msvvni{display:flex;align-items:center;gap:.5rem;width:100%;text-align:left;min-height:2.75rem;padding:.375rem .5rem;background:none;border:0;border-radius:var(--radius);color:inherit;font:inherit;cursor:pointer}
+.msvvnt{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.msvvcal{display:flex;flex-direction:column;gap:.125rem;margin-top:.5rem}

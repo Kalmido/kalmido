@@ -1,0 +1,13 @@
+/* Kalmido web client: the styles of the module "clientpage" (2.1420.0, #4742), loaded with it (static/js/lazyload.js LD_CSS).
+   Moved unchanged from app.css (same order); later than app.css in the cascade. */
+.mscav{border-radius:var(--radius);background:color-mix(in srgb,var(--cc,var(--accent)) 16%,var(--bg3));color:var(--cc,var(--accent));font-size:var(--fs-l)}
+.mstag{display:inline-flex;align-items:center;gap:.25rem;padding:0 .5rem;border-radius:99rem;border:1px solid var(--line2);color:var(--text2);font-size:var(--fs-s);line-height:1.5rem}
+.mstag-cl{border-color:color-mix(in srgb,var(--accent) 40%,var(--line2));color:var(--accent)}
+/* 2.272.0 D (#3029): the period under the clients' trash */
+.msclempty{max-width:28rem;margin:1rem auto}
+/* 2.154.0 C (#2192): data protection sheets in the client card, the filter of the client list */
+.dsb-st{border:1px solid currentColor;border-radius:.375rem}
+.dsb-rev{border-style:dashed}
+.dsbflt{max-width:12rem}
+.dsb-reply{flex-basis:100%;font-size:var(--fs-m);margin:0 0 .5rem 1.5rem}
+.dsb-reply blockquote{margin:.25rem 0 0;padding-left:.5rem;border-left:.125rem solid var(--line2);white-space:pre-line;max-height:7.5rem;overflow:auto;overflow-wrap:anywhere}

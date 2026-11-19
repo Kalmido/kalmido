@@ -1,0 +1,10 @@
+/* Kalmido web client: the styles of the module "folderprops" (2.1420.0, #4742), loaded with it (static/js/lazyload.js LD_CSS).
+   Moved unchanged from app.css (same order); later than app.css in the cascade. */
+/* 2.29.0 (#1030 / #929): folder settings dialog, "from the folder" in the list dialog */
+.fsapply{border:1px solid var(--line);border-radius:var(--r-s);padding:.375rem .75rem .5rem;margin:.5rem 0;display:flex;flex-direction:column;gap:.25rem}
+.fsapply legend{font-size:var(--fs-s);color:var(--text2);padding:0 .25rem}
+/* 2.37.0 (#1158): the dry run is a warning (not saved yet), never a success look; the hint of a folder without own lists */
+.fsnone{margin:0 0 .5rem}
+/* 2.39.0 (#1168): the Playbook of a list / folder (playbook.js): preview with the inherited folder parts, editor, versions, diff */
+.fsprev+h4[id^="pb-h"]{margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--line2)}
+.fsw{display:flex;align-items:center;flex-wrap:wrap;gap:.25rem .75rem;margin:.375rem 0}
