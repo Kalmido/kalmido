@@ -126,6 +126,8 @@ Task lists are called projects; the API still says list (`list_id`, `/api/v1/lis
   mail, form, git ...: `<<<data from outside Kalmido: mail`). Since 2.1391.0 a file name and a subtask by their own
   author, too (`list_subtasks`, `list_attachments` the same). Since 2.1411.0 every tool's result is fenced the same way
   (also `list_tasks`, search, chat, notes, wiki): a text of another account, by its author or its last writer.
+  Since 2.1430.0 the hits of `search` (also `kind: all`: contacts, events, knowledge pages, messages with their `snippet`)
+  and the lists of contacts, events and knowledge files name their author, so they are fenced the same way.
 - Answer task events **only on the task** (a comment there). No copy or summary of that answer in your agent chat: the
   channels stay apart.
 - **Edited messages (2.39.0).** The event `message_edited` means a person changed a chat message, comment or team chat

@@ -1170,6 +1170,12 @@
     "kalmido/docs/batch.py": 1,
     "kalmido/files/bulk.py": 1
    }
+  },
+  "nosec": {
+   "total": 1,
+   "files": {
+    "kalmido/core/db.py": 1
+   }
   }
  }
 }

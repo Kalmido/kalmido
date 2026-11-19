@@ -29,12 +29,12 @@ import hashlib
 import hmac
 import re
 
-from ..core.config import APP_NAME, EMAIL_RE, MAX_FILE_MB
+from ..core.config import APP_NAME, EMAIL_RE
 from ..core.db import bump, iso, now_utc
 from ..core.i18n import lang, tr
 from ..core.objcomments import OCM_MENTION_RE as MENTION_RE, ocm_add, ocm_say_refusal  # 2.972.0 (#5272)
 from ..core.access import task_visible
-from ..core.pages import save_attachment_bytes
+from ..collab.attskip import att_skip_note, mail_files_save  # #6531
 from ..accounts.login import auth_key
 from ..admin.hosting import mail_budget
 from ..core.mailbudget import mail_own_budget  # 2.1312.0 (#6540)
@@ -185,18 +185,10 @@ def tmr_comment(c, msg, mid, tid, sender, uid):
     lg = lang(c, t["l_owner"] or t["created_by"]) if (t["l_owner"] or t["created_by"]) else "en"
     name = email.utils.parseaddr(str(msg.get("From", "")))[0].strip()[:120]
     body = (text + "\n\n" if text else "") + "— " + tr("By e-mail from {0}", sender, lg=lg)
-    cid = ocm_add(c, "task", tid, uid, body[:10000], ext_name=None if uid else (name or sender)[:120])  # 2.972.0 (#5272)
-    top = c.execute("SELECT COALESCE(MAX(id),0) FROM attachments WHERE task_id=?", (tid,)).fetchone()[0]
-    whole = len(files) <= TMR_FILES
-    for fname, mime, data in files[:TMR_FILES]:
-        if 0 < len(data) <= MAX_FILE_MB * 1024 * 1024:
-            try:
-                save_attachment_bytes(c, tid, fname, mime, data, anon=True)  # 2.1337.0 (#6651): from a mail
-            except OSError:
-                whole = False
-                break
-        elif data:
-            whole = False
+    whole, skipped, top = mail_files_save(c, tid, files, TMR_FILES)  # #6531: a file left out keeps the mail and is noted
+    note = att_skip_note(c, tid, skipped, lg=lg)
+    cid = ocm_add(c, "task", tid, uid, (body[:max(0, 10000 - len(note) - 2)] + "\n\n" + note) if note else body[:10000],
+                  ext_name=None if uid else (name or sender)[:120])  # (#5272)
     c.execute("UPDATE attachments SET comment_id=? WHERE task_id=? AND id>?", (cid, tid, top))
     tmr_keep(c, tid, mid, sender, "in")
     rcpt = {t["l_owner"], t["created_by"], t["assignee_id"]} | {r[0] for r in c.execute(

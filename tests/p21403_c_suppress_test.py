@@ -106,6 +106,24 @@ try:
           f"--notice (the lint job): the same rise is a notice, red is the per-change check of pr_lint ({out[-300:]})")
     os.remove(os.path.join(d, "static/js/y.js"))
 
+    # #7176: the file-wide and the other tools' markers count too, and a block comment over several lines is read
+    for rel, text, kind in (("kalmido/c.py", "# ruff: noqa\nx = 1\n", "noqa:file"),
+                            ("kalmido/c.py", "# flake8: noqa: E501\nx = 1\n", "noqa:file"),
+                            ("kalmido/c.py", "from calc import dec  # type: ignore[misc]\n", "type-ignore"),
+                            ("kalmido/c.py", "exec(code)  # nosec\n", "nosec"),
+                            ("static/js/z.js", "// @ts-nocheck\nlet a = 1;\n", "ts-ignore"),
+                            ("static/js/z.js", "const t = 'image/*';\n/*\n eslint-disable no-new\n*/\nnew Thing();\n",
+                             "eslint-disable")):
+        put(d, rel, text)
+        rc, out = run(SUP, d)
+        check(rc == 1 and f"'{kind}' markers: 1, the baseline allows 0" in out and f"new '{kind}' without" in out,
+              f"#7176: {text.strip()[:40]!r} counts as '{kind}' without a reason: red ({out[-300:]})")
+        os.remove(os.path.join(d, rel))
+    put(d, "static/js/z.js", "const t = 'image/*';\nlet a = 1;  // the accept list\n")
+    rc, out = run(SUP, d)
+    check(rc == 0, f"#7176: a '/*' inside a string opens no block comment: green ({out[-300:]})")
+    os.remove(os.path.join(d, "static/js/z.js"))
+
     # ---- 3. fewer: green with a notice, --update lowers, never raises
     put(d, "kalmido/a.py", "x = 1\nimport os  # noqa: E402 -- the path is set above\n")
     rc, out = run(SUP, d)
@@ -150,6 +168,22 @@ try:
     put(d, "static/js/z.js", "api('POST', '/api/x', {});\napi('DELETE', '/api/x/1');\n")
     rc, out = run(RUL, d)
     check(rc == 0 and "notice (not red yet): rule client-write: 2" in out, f"a further write in the client: a notice ({out[-300:]})")
+    # #7262: the product rules seen in the code text (docs/dev/produkt-regeln.md)
+    os.makedirs(os.path.join(d, "static", "i18n"), exist_ok=True)
+    put(d, "static/js/miniwin.js", "function mw_open(id) { return window.open('/?mini=1'); }\n")
+    put(d, "static/i18n/de.json", '{"Like it 👍": "Gefällt 👍", "Save": "Speichern"}\n')
+    rc, out = run(RUL, d)
+    check(rc == 0 and "window-open" not in out and "rule emoji" not in out,
+          f"#7262: window.open inside miniwin.js and the thumbs in a text are no finding ({out[-300:]})")
+    put(d, "static/js/y.js", "function show(u) { window.open(u, '_blank'); }\n")
+    rc, out = run(RUL, d)
+    check(rc == 1 and "rule window-open: 1, the baseline allows 0" in out and "mw_desk()" in out,
+          f"#7262: a new window.open in the client: red, the way behind mw_desk() named ({out[-400:]})")
+    os.remove(os.path.join(d, "static/js/y.js"))
+    put(d, "static/i18n/de.json", '{"Show as chip": "Als Chip zeigen", "Done 🎉": "Fertig 🎉", "Files": "Meine Ablage"}\n')
+    rc, out = run(RUL, d)
+    check(rc == 1 and "rule wording: 2, the baseline allows 0" in out and "rule emoji: 1, the baseline allows 0" in out
+          and "Privat" in out, f"#7262: 'chip', an old name of Private and an emoji in the texts: red ({out[-500:]})")
 finally:
     shutil.rmtree(d, ignore_errors=True)
 

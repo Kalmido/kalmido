@@ -213,7 +213,7 @@ def contacts_spec(paths, schemas, op, ok, errs, ref, pid, nul, page, q):
     schemas["ContactBrief"] = {"type": "object", "properties": {
         "id": {"type": "integer"}, "book_id": {"type": "integer"}, "fn": {"type": "string"}, "org": {"type": "string"}, "kind": {"type": "string"},
         "email": {"type": "string"}, "phone": {"type": "string"}, "photo": {"type": "boolean"}, "bday": {"type": "string"},
-        "groups": {"type": "array", "items": {"type": "string"}}}}
+        "groups": {"type": "array", "items": {"type": "string"}}, "created_by": {"type": ["integer", "null"], "description": "The account that created the contact (#7192); null: not known (an import, a sync)"}}}
     schemas["ContactPage"] = {**page("ContactBrief"), "properties": {**page("ContactBrief")["properties"], "total": {"type": "integer"},
                                                                      "groups": {"type": "array", "items": {"type": "string"}}}}
     bid_p, cid_p, uid_p = pid("id", "Address book id"), pid("id", "Contact id"), pid("user_id", "User id")

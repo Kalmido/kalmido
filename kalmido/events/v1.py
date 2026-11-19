@@ -235,7 +235,7 @@ def events_spec(paths, schemas, op, ok, errs, ref, pid, nul, page, q):
         "all_day": {"type": "boolean"}, "start": {"type": "string", "description": "All day: date; else UTC date-time"},
         "end": {"type": "string"}, "recurring": {"type": "boolean"}, "changed": {"type": "boolean"}, "status": {"type": "string"},
         "role": {"type": "string"}, "task_id": nul("integer"), "att": {"type": "integer", "description": "Number of attendees"},
-        "partstat": {"type": "string"}}}
+        "partstat": {"type": "string"}, "created_by": {"type": ["integer", "null"], "description": "The account that created the event (#7192); null: not known (an import, a sync)"}}}
     schemas["OccurrencePage"] = page("Occurrence")
     ev_in = {"type": "object", "properties": {
         "cal_id": {"type": "integer", "description": "Default: the first own calendar (created when missing)"},
