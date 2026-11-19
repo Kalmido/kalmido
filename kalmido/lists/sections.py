@@ -226,6 +226,8 @@ def folder_delete():
         return err(tr("Name missing"))
     c = db()
     uid = me()
+    from ..lists.folders import need_folder_write
+    need_folder_write(c, uid, name)  # #6607: dissolving takes the folder's shares (of an organisation's projects too)
     write_lock(c, f"usettings-{int(uid)}")  # 2.269.0 B (#3014)
     parent = name.rsplit(FOLDER_SEP, 1)[0] if FOLDER_SEP in name else ""
 

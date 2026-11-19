@@ -642,6 +642,8 @@ def folder_group_set(gid):
     f = clean_folder(str(b.get("folder") or ""), False)
     if not f:
         return err(tr("Name missing"))
+    from .folders import need_folder_write
+    need_folder_write(c, me(), f)  # #6607
     role = grp_role(b)
     from ..collab.liste2e import le2a_folder_problem
     p = le2a_folder_problem(c, me(), f, role)  # 2.64.1 (#1817): no participants in lists with the lock
@@ -676,6 +678,8 @@ def folder_group_del(gid):
     before = grp_list_ids(c, owner=me())
     if gid not in _fgroups(c, me(), f):  # 2.958.0 (#5245): the folder nodes' shares (group_shares is gone)
         return err(tr("unknown"), 404)
+    from .folders import need_folder_write
+    need_folder_write(c, me(), f)  # #6607
     from .lffolder import lf_folder_share
     lf_folder_share(c, me(), f, gid, None, group=True)
     grp_sync(c, before)

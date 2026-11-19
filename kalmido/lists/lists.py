@@ -1274,6 +1274,8 @@ def folder_people_put():
     role = b.get("role", "edit")
     if not f or role not in ROLES:  # 2.29.0 (#929): admin too (list admins of every list in the folder)
         return err(tr("Invalid value: {0}", "folder" if not f else "role"))
+    from ..lists.folders import need_folder_write
+    need_folder_write(c, me(), f)  # #6607: never for an address either (checked before anything is told)
     try:
         uid = int(b.get("user_id") or 0)
     except (TypeError, ValueError):
@@ -1364,6 +1366,8 @@ def folder_people_delete():
         uid = int(b.get("user_id") or 0)
     except (TypeError, ValueError):
         uid = 0
+    from ..lists.folders import need_folder_write
+    need_folder_write(c, me(), f)  # #6607
     from ..lists.lffolder import lf_folder_share
     lf_folder_share(c, me(), f, uid, None)  # 2.352.0 A (#2748): the folder's share goes -- and with it the roles it gave
     n = 0
