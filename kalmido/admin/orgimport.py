@@ -29,7 +29,7 @@ from ..core.i18n import N_
 from ..office.ledger import ofx_release  # 2.542.0 (#4598)
 from ..lists.listhead import HEAD_DIR, HEAD_MAX_MB, o3c_head_process, o3c_head_rel
 from .acctimport import _BAD, _coerce, _file_bytes, _oid, _read_entry, _txt, tr, umz_cols, umz_insert, umz_money_misfit, umz_row
-from .acctimport import umz_take  # 2.1402.0 (#6579)
+from .acctimport import umz_counts, umz_take  # 2.1402.0 (#6579)
 from .acctimport import UMZ_ORG_SKIP  # 2.278.0 B (#3094)
 from ..core.orgcrypt import oc_enc_fields, oc_list_org, oc_list_space, oc_user_space, oc_write_file  # 2.149.0 G (#2517): pulled up from functions
 from ..core.db import iso, now_utc  # 2.149.0 G (#2517): pulled up from functions
@@ -212,7 +212,7 @@ def oi_file(ctx, path, sub, name, space=None, base=ATT_DIR, check=True, mime="",
     if not raw or len(raw) > MAX_FILE_MB * 1024 * 1024 * 4:
         run.warning(N_("A file is empty or too large and was skipped: {0}"), name)
         return None
-    if not path.startswith("files/office/"):  # 2.1402.0 (#6579): all or nothing (was: a full storage left the rest out, #3100); office files count for nobody (#6537)
+    if umz_counts(path):  # 2.1402.0 (#6579): all or nothing (was: a full storage left the rest out, #3100); office files count for nobody (#6537) but receipts / contracts (review F2)
         umz_take(c, run, len(raw))
     if check:
         try:
