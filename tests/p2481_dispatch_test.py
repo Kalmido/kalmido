@@ -780,6 +780,17 @@ c = cards(h, 321)
 check(len(c) == 1 and "findings - read them before you merge" in c[0]["suggestion"]["summary"], f"#7032: findings stand in the card {c}")
 d.tick(force=True)
 check(len(cards(h, 321)) == 1, "#7032: one card only")
+# reader F5 (2.1413): a card the round could not write (an API error) comes the next round, the verdict kept
+READ_RESULT[0] = "VERDICT: findings"
+d, h = read_round(623, 323)
+real_req = h.api.req
+h.api.req = lambda m, p_, b=None, **k: (_ for _ in ()).throw(RuntimeError("down")) if p_ == "/tasks/323/comments" else real_req(m, p_, b, **k)
+d.tick(force=True)
+check(not cards(h, 323) and not d.reg["jobs"]["623"].get("carded"), "#7032 (reader F5): a card not written is not marked as sent")
+h.api.req = real_req
+d.tick(force=True)
+c = cards(h, 323)
+check(len(c) == 1 and "findings - read them" in c[0]["suggestion"]["summary"], f"#7032 (reader F5): ... and comes the next round with its verdict {c}")
 READ_RESULT[0] = None  # the review area is full: not started
 d, h = read_round(622, 322)
 n = len(READS)

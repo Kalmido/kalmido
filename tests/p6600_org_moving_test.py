@@ -182,16 +182,18 @@ check(r.ok and dbx("SELECT 1 FROM office_agreements WHERE id=?", (AGR,)),
 # 2.1413.0 (#6951): a queue row runs as strict as the request that added it (a writing request: strict; reading / mv_allow: free)
 out = in_ct("import app\nfrom kalmido.core.config import app as fl\nfrom kalmido.core.db import connect\n"
             "from kalmido.core.movelock import mv_allow, mv_strict_now\nfrom kalmido.accounts.bgjobs import bgj_add\nids = []\n"
-            "for m, allow in (('DELETE', False), ('GET', False), ('POST', True)):\n"
+            "for m, allow, k, a in (('DELETE', False, 'office:series_moved', (0, [])), ('GET', False, 'office:series_moved', (0, [])),\n"
+            "                       ('POST', True, 'office:series_moved', (0, [])), ('DELETE', False, 'sga:log', ([], 0, {}, 0))):\n"
             "    with fl.test_request_context('/x', method=m):\n"
             "        if allow:\n            mv_allow()\n"
-            "        ids.append((mv_strict_now(), bgj_add('office:series_moved', 0, [], delay=3600)))\n"
+            "        ids.append((mv_strict_now(), bgj_add(k, *a, delay=3600)))\n"
             "from kalmido.core.pg import system_ctx\nc = connect()\nwith system_ctx(c):\n"
             "    rows = [bool(c.execute('SELECT strict FROM bg_jobs WHERE id=?', (i,)).fetchone()[0]) for _s, i in ids]\n"
             "    c.execute('DELETE FROM bg_jobs WHERE id IN (%s)' % ','.join(str(i) for _s, i in ids))\nc.commit()\n"
             "print('STRICT', [s_ for s_, _i in ids], rows)\n")
-check("STRICT [True, False, False] [True, False, False]" in out,
-      f"#6951: a writing request's queue row is strict (it runs inside the lock), a reading one's or one after mv_allow not {out[-300:]}")
+check("STRICT [True, False, False, True] [True, False, False, False]" in out,
+      f"#6951: a writing request's queue row is strict (it runs inside the lock), a reading one's or one after mv_allow not; "
+      f"reader F4: the support access log (sga:log) never {out[-300:]}")
 
 # ================================================================== (3) the export runs, the series rests, the history
 r = A.post(B + f"/api/orgs/{ORG}/export")
