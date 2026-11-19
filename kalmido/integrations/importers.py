@@ -18,7 +18,7 @@ from ..core.config import app, TZ
 from ..core.pg import insert_id, qi, write_lock
 from ..tasks.repo import task_insert  # 2.1358.0 (#6825): the one way into tasks
 from ..core.schema import MAX_DEPTH, USER_DEFAULTS
-from ..core.i18n import lang, N_, tr
+from ..core.i18n import lang, LANGS, N_, tr
 from ..core.mdedit import MD_LINE_MAX, md_head_line  # 2.1280.0 (#6423)
 from ..core.db import bump, db, err, iso, iso_ms, local_now, now_utc, parse_iso, usettings
 from ..accounts.session import me
@@ -1282,6 +1282,17 @@ IMP_CANCEL = {"cancelled", "canceled", "won't do", "wont do", "won't fix", "abge
               "duplicate", "storniert"}
 
 
+def imp_tr_all(key):
+    """#6587: a text of the app in every language of the app (lower case, single blanks): the column heads and values of the own
+    exports (lists/listexport.py), so a file of the app comes back in any language, also in one added later."""
+    return tuple(dict.fromkeys(re.sub(r"\s+", " ", tr(key, lg=c).strip().lower()) for c in LANGS))
+
+
+# #6587: the states the list CSV writes ("Completed", "Won't do", "Open"), in every language of the app
+IMP_DONE |= set(imp_tr_all("Completed"))
+IMP_CANCEL |= set(imp_tr_all("Won’t do"))
+
+
 def imp_done(v):
     """A status / checkbox value -> 2 (done), -1 (cancelled, won't do) or 0."""
     v = re.sub(r"\s+", " ", str(v or "").strip().lower())
@@ -1302,7 +1313,11 @@ def imp_prio_any(v):
                      (("low", "lowest", "niedrig", "gering", "minor", "trivial", "p3", "p4", "!"), 1)):
         if v in words:
             return p
-    return None
+    return IMP_PRIO_OWN.get(v)
+
+
+# #6587: the priority words of the own list CSV (lists/listexport.py LEX_PRIO) in every language of the app
+IMP_PRIO_OWN = {w: p for p, k in ((1, "Low"), (3, "Medium"), (5, "High"), (7, "Urgent")) for w in imp_tr_all(k)}
 
 
 def imp_who(t, src, v):
@@ -1314,6 +1329,7 @@ def imp_who(t, src, v):
 
 IMP_OPEN = {"", "no", "n", "nein", "false", "falsch", "0", "open", "offen", "todo", "to do", "to-do", "not started", "nicht begonnen",
             "new", "neu"}
+IMP_OPEN |= set(imp_tr_all("Open|report"))  # #6587: the list CSV's "Open" in every language
 
 
 def _imp_status_note(t, st, v, label):
@@ -1351,13 +1367,27 @@ IMP_COLS = {
     "assignee": ("assignee", "assignees", "assigned to", "zuständig", "verantwortlich", "owner", "responsible", "person", "bearbeiter"),
     "url": ("url", "link", "website", "webseite"),
 }
+# #6587: the column heads of the own list CSV (lists/listexport.py lex_csv, field -> its i18n key). Every language of the app
+# stands in IMP_COLS (after the names above: other files read as before); a file that carries "Status" and "Completed" of one
+# language is the own export: imp_colmap takes these heads first, "Status" is the state, the date column "Completed" /
+# "Erledigt" the completion date, "Parent task" / "Hauptaufgabe" the parent.
+IMP_OWN_HEADS = {"title": "Title", "done": "Status", "due": "Due", "priority": "Priority", "tags": "Tags", "assignee": "Assignee",
+                 "section": "Section", "parent": "Parent task", "notes": "Description", "done_at": "Completed", "created": "Created",
+                 "start": "Start date"}
+for _f, _k in IMP_OWN_HEADS.items():
+    IMP_COLS[_f] += tuple(x for x in imp_tr_all(_k) if x not in IMP_COLS[_f])
+IMP_OWN_LANGS = [{f: tr(k, lg=c).strip().lower() for f, k in IMP_OWN_HEADS.items()} for c in LANGS]
 
 
 def imp_colmap(keys, title_fallback=True):
-    """CSV header (lower case) -> {field: column}; the title falls back to the first column."""
-    col = {}
+    """CSV header (lower case) -> {field: column}; the title falls back to the first column. #6587: the own list CSV (the heads
+    "Status" and "Completed" of one language) maps its own heads first."""
+    have = set(keys)
+    own = next((h for h in IMP_OWN_LANGS if h["done"] in have and h["done_at"] in have), {})
+    col = {f: h for f, h in own.items() if h in have}
     for f, names in IMP_COLS.items():
-        col[f] = next((k for k in names if k in keys and k not in col.values()), None)
+        if not col.get(f):
+            col[f] = next((k for k in names if k in keys and k not in col.values()), None)
     if not col["title"] and title_fallback:  # the first column that is no other field (a column read as notes is taken back)
         taken = {v for f, v in col.items() if v and f != "notes"}
         col["title"] = next((k for k in keys if k and k not in taken), None)
@@ -1459,10 +1489,38 @@ _MD_DATE = re.compile(r"(?:(📅|⏳|🛫|✅|due:?|fällig:?|start:?|@due\(|@st
 _MD_TAG = re.compile(r"(?:^|\s)#([^\W\d_][\w/-]{0,99})", re.U)
 
 
+# #6587: the tail the own Markdown export writes (integrations/exporters.py ex_markdown): " (due <date or every ...>, high priority,
+# repeats <rule>)" after the title, then " #tag"s; each part optional, in this order
+_MD_OWN = re.compile(r"\s\((?=[dulmhr])(?:due (?P<due>[^()]+?))?(?:(?:(?<=\()|, )(?P<prio>urgent|high|medium|low) priority)?"
+                     r"(?:(?:(?<=\()|, )repeats (?P<rep>[^()\s]+))?\)(?P<tags>(?:[ \t]+#\S+)*)[ \t]*$")
+_MD_OWN_PRIO = {"urgent": 7, "high": 5, "medium": 3, "low": 1}
+
+
+def _md_own(text, out):
+    """#6587: the tail of the own export -> the title before it plus its tags ('' / None: not that form). Fills out."""
+    m = _MD_OWN.search(text)
+    if not m or not (m.group("due") or m.group("prio") or m.group("rep")):
+        return None
+    if m.group("due"):
+        r = imp_nl_date(m.group("due"))
+        if not r:
+            return None  # not a date the export writes: the line is read the usual way
+        out.update(due=r["due"], due_time=r["time"], repeat=r["repeat"], repeat_from=r["repeat_from"])
+    if m.group("rep"):
+        out["repeat"] = m.group("rep")  # a rule without wording (its RRULE body), checked by imp_clean (rr_norm)
+    out["priority"] = _MD_OWN_PRIO.get(m.group("prio") or "", 0)
+    return text[:m.start()] + m.group("tags")
+
+
 def _md_title(text):
-    """Title of a Markdown task -> (title, {due, due_time, start, done_at, priority, tags}). Only clear dates (2025-01-15,
-    15.01.2025, with a due / start marker or the Obsidian Tasks symbols); priorities ⏫ 🔼 🔽, #tags."""
-    out = {"due": None, "due_time": None, "start": None, "done_at": None, "priority": 0, "tags": []}
+    """Title of a Markdown task -> (title, {due, due_time, start, done_at, priority, tags, repeat, repeat_from}). Only clear dates
+    (2025-01-15, 15.01.2025, with a due / start marker or the Obsidian Tasks symbols); priorities ⏫ 🔼 🔽, #tags. #6587: the
+    tail of the own export (_MD_OWN) is read first; then the title keeps its own dates and brackets."""
+    out = {"due": None, "due_time": None, "start": None, "done_at": None, "priority": 0, "tags": [], "repeat": "", "repeat_from": "due"}
+    own = _md_own(text, out)
+    if own is not None:
+        out["tags"] = list(dict.fromkeys(imp_line(m.group(1), 100) for m in _MD_TAG.finditer(own)))[:50]
+        return imp_line(_MD_TAG.sub(" ", own)), out
 
     def dt(m):
         mark = (m.group(1) or "").lower().rstrip(":(")
@@ -1552,7 +1610,7 @@ def _md_parse(text, plan, name, ext0, heads_as_lists=True, src="markdown"):
             seen[k] = seen.get(k, 0) + 1
             t = imp_task(L, imp_hash(ext0, L["name"], section, chain, title, seen[k]), title or tr("(untitled)"), section=section,
                          parent=parent["ext"] if parent else None, due=ex["due"], due_time=ex["due_time"], start=ex["start"],
-                         priority=ex["priority"], tags=ex["tags"])
+                         priority=ex["priority"], tags=ex["tags"], repeat=ex["repeat"], repeat_from=ex["repeat_from"])
             t["_md"] = []
             if mark in "xX":
                 t.update(status=2, completed_at=imp_ts(ex["done_at"]) or iso(now_utc()))
