@@ -25,6 +25,8 @@ check(lint.status === 0, 'check_dataattr.py is green on the tree: ' + (lint.stdo
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'p2525a-'));
 fs.mkdirSync(path.join(tmp, 'tools')); fs.mkdirSync(path.join(tmp, 'static', 'js'), {recursive: true});
 fs.copyFileSync(path.join(ROOT, 'tools', 'check_dataattr.py'), path.join(tmp, 'tools', 'check_dataattr.py'));
+// #7143: the lint prints its Why / Instead through its sibling tools/lintmsg.py - the copy needs it next to it
+fs.copyFileSync(path.join(ROOT, 'tools', 'lintmsg.py'), path.join(tmp, 'tools', 'lintmsg.py'));
 fs.writeFileSync(path.join(tmp, 'static', 'js', 'a.js'), "document.addEventListener('click', e => {\n  const b = e.target.closest('[data-zz]'); if (!b) return;\n  go(b.dataset.zz);\n});\n");
 fs.writeFileSync(path.join(tmp, 'static', 'js', 'b.js'), "const h = k => `<button data-zz=\"${k}\">x</button>`;\n");
 let r = spawnSync('python3', [path.join(tmp, 'tools', 'check_dataattr.py')], {encoding: 'utf8'});

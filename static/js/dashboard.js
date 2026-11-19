@@ -651,7 +651,7 @@ function mailHtml(j) {
     <div class="row"><label></label>${mchk('s-mailtrimeml', j.trim_eml, tr('Keep the original e-mail as an attachment'))}</div>
     <div class="shint">${tr('A forwarded e-mail becomes the title (without Fwd:) and one line “From … , date” above the message; signatures, legal notices and older quoted replies are cut. Your own words above the forwarding stay.')}</div>
     ${S.me?.is_admin ? `<div class="row"><label>${tr('Mailbox')}</label><button type="button" class="btn sm" data-mail="poll" id="s-mailpoll">${ic('sync', 's')} ${tr('Fetch e-mails now')}</button><span class="muted" id="s-mailpoll-r" role="status" aria-live="polite"></span></div>` : ''}`
-    : `<div class="shint">${tr('Not set up on this server yet. The operator of this server can set it up.')}</div>${S.me?.is_admin ? `<details class="acadv"><summary>${tr('For advanced users')}</summary><div class="shint">${tr('Not set up on this server: an admin sets KALMIDO_MAIL_ADDRESS and KALMIDO_IMAP_* (see the README).')}</div></details>` : ''}`;  // 2.25.0 (UX-20): server details only for admins; 2.1391.0 (#6130): and folded under "For advanced users"
+    : `<div class="shint">${tr('Not set up on this server yet. The operator of this server can set it up.')}</div>${S.me?.is_admin ? `<details class="acadv"><summary>${tr('For server admins')}</summary><div class="shint">${tr('Not set up on this server: an admin sets KALMIDO_MAIL_ADDRESS and KALMIDO_IMAP_* (see the README).')}</div></details>` : ''}`;  // (UX-20): server details only for admins; (#6130): folded; (#7230) under "For server admins", "For advanced users" stands once per tab (#6129)
 }
 function mailDigestHtml(j) {
   if (!j) return '';

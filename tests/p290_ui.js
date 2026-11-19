@@ -37,7 +37,10 @@ const SMALL = sel => `(() => [...document.querySelectorAll('${sel}')].filter(e =
   await sleep(300);
   const acc = d.querySelector('[data-pane="account"]');
   check(acc && !acc.classList.contains('hidden') && acc.querySelector('#s-apw-h'), 'focus "apppw" opens Account at App passwords');
-  check(!acc.querySelector('#s-apw-h').closest('details'), 'App passwords are visible (not under the developer details)');
+  // 2.1353.0 (#6827): every section is a folded head row (details.sfold, the heading sits in its summary); the jump opens it.
+  // So: not under any other fold (the developer details "For advanced users"), and its own section open after the jump (#6665)
+  const apwH = acc.querySelector('#s-apw-h'), apwF = apwH.closest('details');
+  check(!apwH.closest('details:not(.sfold)') && (!apwF || apwF.open), 'App passwords are visible (not under the developer details) ' + (apwF ? apwF.className + ' open=' + apwF.open : 'no fold'));
   check(await until(() => /No app passwords yet/.test(d.querySelector('#s-apws')?.textContent || '')), 'empty list: "No app passwords yet."');
   click(w, acc.querySelector('[data-apw="new"]'));
   await sleep(150);

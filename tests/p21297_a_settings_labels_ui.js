@@ -68,10 +68,14 @@ const shown = el => !!el && !el.closest('.hidden, [hidden]');
   // Integrations: "For advanced users" (the link to Access) at most once
   click(w, md.querySelector('.snav [data-sec="integr"]'));
   const ip = md.querySelector('[data-pane="integr"]');
-  check([...ip.querySelectorAll('summary')].filter(s => txt(s) === 'Für Fortgeschrittene').length <= 1 && ip.querySelectorAll('[data-m="go-access"]').length <= 1, 'Integrations: "Für Fortgeschrittene" and the link to Access at most once');
+  // (#7230): the server admin's details (e-mail not set up) fold under "Für Server-Admins", not a second "Für Fortgeschrittene"
+  const adv = p => [...p.querySelectorAll('summary')].filter(s => txt(s) === 'Für Fortgeschrittene');
+  const where = l => l.map(s => s.parentElement.className + '@' + (s.closest('[data-intr], [data-sf]')?.dataset.sf || s.closest('[data-intr]')?.dataset.intr || '-')).join(', ');
+  check(adv(ip).length <= 1 && ip.querySelectorAll('[data-m="go-access"]').length <= 1, 'Integrations: "Für Fortgeschrittene" and the link to Access at most once: ' + where(adv(ip)) + ' / go-access ' + ip.querySelectorAll('[data-m="go-access"]').length);
   // Account: no row labelled just "Server" (that name is the tab Server)
   const ap = md.querySelector('[data-pane="account"]');
   check(![...ap.querySelectorAll('label')].some(l => txt(l) === 'Server'), 'Account: no row called Server');
+  check(adv(ap).length <= 1, 'Account: "Für Fortgeschrittene" at most once (#6129): ' + where(adv(ap)));
   md.remove();
   // the jump settingsModal('tabbar') (search, palette) lands on the bottom bar under Navigation
   w.eval(`settingsModal('tabbar')`);

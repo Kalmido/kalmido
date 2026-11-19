@@ -79,7 +79,8 @@ const OPEN_ALL = `(() => { document.querySelectorAll('.smodal details.sfold:not(
     const pk = JSON.parse(await ev(`JSON.stringify((() => { const b = document.querySelector('.smodal #s-2fa'); const vis = [...b.querySelectorAll('.shint')].filter(x => !x.closest('details.acadv')).map(x => x.textContent).join(' ');
       return {vis, fold: b.querySelector('details.acadv')?.textContent || '', sum: b.querySelector('details.acadv > summary')?.textContent || ''}; })())`));
     check(/Passkeys cannot be used on this address or in this browser\./.test(pk.vis) && !/HTTPS|IP address/.test(pk.vis), '#6130: the passkey hint in everyday words: ' + pk.vis.slice(0, 160));
-    check(pk.sum === 'For advanced users' && /HTTPS/.test(pk.fold), '#6130: the HTTPS / IP details folded for the server admin');
+    // (#7230): the server admin's fold is called "For server admins" - "For advanced users" stands once per tab (#6129)
+    check(pk.sum === 'For server admins' && /HTTPS/.test(pk.fold), '#6130: the HTTPS / IP details folded for the server admin: ' + pk.sum);
     await shot('p21391b-account-desktop.png');
 
     // ---- phone: the password fields one under the other, the placeholder whole

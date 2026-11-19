@@ -99,10 +99,13 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
     const settled = `wsCur() === 'private' && location.hash === '#projects' && S.route.key === 'projects'`;
     check(await toProject(), '#3863: drawer open: on the project page');
     await open(ev);
+    // (#7235): who closes the drawer - every closeSide() call with its caller and the hold (SBM.keep) at that moment, for the log
+    await ev(`(() => { window.__cs = []; const o = window.closeSide; window.closeSide = function (...a) { window.__cs.push((typeof SBM === 'object' && SBM.keep ? 'keep ' : '') + location.hash + ' ' + (new Error().stack || '').split('\\n').slice(1, 6).map(x => x.replace(/@.*\\//, '@').trim()).join(' < ')); return o.apply(this, a); }; return 1; })()`);
     await tap('#side .wsbar'); await pick('Private');
     await ready(ev, settled, 20); await sleep(900);
     d = await ev(drawer);
-    check(await ev(settled) && d.open, '#3863: open drawer, tapped: Private on Projects, it stays ' + JSON.stringify(d));
+    const cs = await ev(`JSON.stringify(window.__cs || [])`);
+    check(await ev(settled) && d.open, '#3863: open drawer, tapped: Private on Projects, it stays ' + JSON.stringify(d) + (d.open ? '' : ' closeSide: ' + cs));
     check(await toProject(), '#3863: drawer closed: on the project page');
     await ev(`(() => { closeSide(); return 1; })()`);
     await ev(`(() => { render(); return 1; })()`);
