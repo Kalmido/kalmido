@@ -214,6 +214,9 @@ check(r.ok and (j.get("partial") or {}).get("applied") is True and j["partial"].
 check(dbq("SELECT partial_until FROM tasks WHERE id=?", (T[6],)) == [("2.14",)] and fval(T[6], FP) == "2.14", "the command acted")
 R6 = j["partial"]["rest_id"]
 check(dbq("SELECT title FROM tasks WHERE id=?", (R6,)) == [("Rest: Task 6",)], "the rest of the command")
+# 2.1405.0 (#7112, reader F2 of job/5407): the 'Rest:' task a person's command makes is the release's text, no origin mark
+# (gitbuild.py gb_partial task_no_origin) -- her agent dispatcher never builds it as her order
+check(dbq("SELECT origin FROM tasks WHERE id=?", (R6,)) == [(None,)], "#7112: the rest of the command has no origin 'person'")
 c7 = T[7]
 r = Ve.post(B + f"/api/tasks/{c7}/comments", json={"body": "partly: rest in 2.15"})
 check(r.ok and r.json()["partial"]["applied"] is False and r.json()["partial"].get("reason"), f"view only: a comment and a hint {r.text[:200]}")

@@ -3290,8 +3290,10 @@ the person is not built. `updated_by` is kept on the task (a purge of the histor
 description each on its own; a text written without a person (a webhook, a public link, CalDAV, a list rule, a support
 session, the git sync, a merge with other people's text) makes it `null`. 2.1389.0: `by_creator` counts only the person's
 own hand -- their sign-in session, the proxy's sign-in or their own token, never a list rule, the document fetcher, a support
-session in their account or a new way added later -- and a copy of a task (to another project or server), a chat message
-saved as a task, the `Rest:` task of a release and an event's preparation task under the event's title never carry it;
+session in their account or a new way added later -- and a copy of a task onto this server (from another project or
+server), a chat message saved as a task, the `Rest:` task of a release and an event's preparation task under the event's
+title never carry it (2.1405.0: a task moved to *another* server is created there with the person's own token, so that
+server counts it as their hand -- move somebody else's text onto a dispatched list over there only when you mean it);
 unlocking a note of somebody else's task makes its description the unlocker's. Still give write access to a dispatched list
 only to people you trust with it.
 
