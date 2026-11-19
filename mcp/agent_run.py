@@ -1667,6 +1667,43 @@ def with_model(args, model):
     return out + (["--model", model] if model else [])
 
 
+# #7368: the effort (Claude Code's --effort) per kind of run, next to the model: runtime effort with the one model,
+# effort_decide / effort_review / effort_routine with the model per run on -- the same fallback as the model fields
+# (decide / routine: empty = effort, review: empty = the decide effort); "" = no --effort (the command's own)
+RUN_EFFORTS = ("low", "medium", "high", "xhigh", "max")
+
+
+def run_effort(rt, cls=None):
+    """#7368: the --effort of a run of this kind (cls decide / review / routine, None = not told: decide); "" = none. With the
+    model per run off only runtime effort counts. An effort Claude Code does not know is left out."""
+    rt = rt or {}
+
+    def val(k):
+        return str(rt.get(k) or "").strip().lower()
+    e = val("effort")
+    if model_pair(rt):
+        dec = val("effort_decide") or e
+        e = {"review": val("effort_review") or dec, "routine": val("effort_routine") or e}.get(cls or "decide", dec)
+    return e if e in RUN_EFFORTS else ""
+
+
+def with_effort(args, effort):
+    """#7368: args with --effort EFFORT instead of any --effort the command put in ("" = the command's own stays)."""
+    if not effort:
+        return list(args)
+    out, skip = [], False
+    for a in args:
+        if skip:
+            skip = False
+            continue
+        if a == "--effort":
+            skip = True
+            continue
+        if not a.startswith("--effort="):
+            out.append(a)
+    return out + ["--effort", effort]
+
+
 def team_hint(x):
     """2.46.1 (#1639): a message in a list's team chat channel: an @mention (or an answer to the agent's message), or -- where
     the agent listens in on the list -- any message of a person. The final text of this run is posted nowhere."""
@@ -4005,9 +4042,12 @@ class Runner:
         if model is not None:
             args = with_model(args, model)
         self.run_model_used = model
+        effort = run_effort((self.agent or {}).get("runtime"), self.run_cls) if self.is_claude() else ""  # #7368
+        args = with_effort(args, effort)
         log(f"run: {'+'.join(str(e.get('event')) for e in evs)} ({'chat ' + str(uid) if uid else 'task event'}), prompt {len(prompt)} chars"
             + (", resumed" if key and key in self.state.data["sessions"] else "")
-            + (f", model {model or 'default'} ({mwhy})" if model is not None else ""))
+            + (f", model {model or 'default'} ({mwhy})" if model is not None else "")
+            + (f", effort {effort}" if effort else ""))
         st, rc, why = self.attempt_runs(args, prompt, uid, what, tid, key)
         if st is not None and st.aborted:  # kalmido-capability: abort (2.144.0, #2412)
             self.session_done(key, st)

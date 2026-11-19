@@ -145,6 +145,21 @@ check(Bo.patch(B + f"/api/admin/agents/{CL}", json={"runtime": {"model_job": "op
 r = A.patch(B + f"/api/admin/agents/{CL}", json={"runtime": {"effort_audit": None, "model_job": None}})
 rt = requests.get(V + "/agent", headers=CLH).json()["runtime"]
 check(r.ok and rt["effort_audit"] == "" and rt["model_job"] == "" and rt["model_audit"] == "claude-fable-5-2", f"#7031: null = empty: {rt}")
+# #7368: the effort next to every model field (effort, effort_decide, effort_review, effort_routine) with the same values;
+# a short model name in any case is stored in lower case, every other name as typed
+rt = requests.get(V + "/agent", headers=CLH).json()["runtime"]
+check(all(rt[k] == "" for k in ("effort", "effort_decide", "effort_review", "effort_routine")), f"#7368: empty by default: {rt}")
+r = A.patch(B + f"/api/admin/agents/{CL}", json={"runtime": {"effort": "Max", "effort_decide": "low", "effort_review": None, "effort_routine": "xhigh",
+                                                             "model": "Fable", "model_decide": "OPUS", "model_routine": "Claude-Haiku-4-5", "model_review": " Sonnet "}})
+rt = requests.get(V + "/agent", headers=CLH).json()["runtime"]
+check(r.ok and (rt["effort"], rt["effort_decide"], rt["effort_review"], rt["effort_routine"]) == ("max", "low", "", "xhigh"), f"#7368: the admin sets the efforts: {r.status_code} {rt}")
+check((rt["model"], rt["model_decide"], rt["model_routine"], rt["model_review"]) == ("fable", "opus", "Claude-Haiku-4-5", "sonnet"),
+      f"#7368: short names in lower case, other names as typed: {rt}")
+for bad in ({"effort": "turbo"}, {"effort_decide": 1}, {"effort_routine": True}, {"effort_review": "very high"}):
+    check(A.patch(B + f"/api/admin/agents/{CL}", json={"runtime": bad}).status_code == 400, f"#7368: 400: {bad}")
+check(Bo.patch(B + f"/api/admin/agents/{CL}", json={"runtime": {"effort": "low"}}).status_code == 403, "#7368: a member: 403")
+r = A.patch(B + f"/api/admin/agents/{CL}", json={"runtime": {"effort": "", "effort_decide": None, "effort_routine": "", "model": "", "model_decide": "", "model_routine": "", "model_review": ""}})
+check(r.ok and all(r.json()["runtime"][k] == "" for k in ("effort", "effort_decide", "effort_routine", "model", "model_review")), f"#7368: back to empty: {r.text[:200]}")
 check("function agj_html" in open(os.path.join(ST, "js", "agentrotate.js"), encoding="utf-8").read(), "#7031: the runtime section has the jobs block")
 r = A.post(B + "/api/admin/agents", json={"scopes": ["read"], "username": "robo", "runtime": {"rotate_idle_min": 90}})
 check(r.ok and rot(r.json()["runtime"])["rotate_idle_min"] == 90, "created with an interim-summary value " + r.text[:120])
@@ -171,6 +186,11 @@ r = F.patch(B + f"/api/my/agents/{FB}", json={"runtime": {"model_split": True, "
 rt = requests.get(V + "/agent", headers=FBH).json()["runtime"]
 check(r.ok and rt["model_split"] is True and rt["model_decide"] == "opus" and rt["model_routine"] == "sonnet", f"#5668: the freelancer sets it: {rt}")
 check(F.patch(B + f"/api/my/agents/{FB}", json={"runtime": {"model_split": "on"}}).status_code == 400, "#5668: owner: wrong type 400")
+# #7368: a person without an organisation sets the effort per kind of the own agent
+r = F.patch(B + f"/api/my/agents/{FB}", json={"runtime": {"effort": "high", "effort_review": "max", "model_review": "FABLE"}})
+rt = requests.get(V + "/agent", headers=FBH).json()["runtime"]
+check(r.ok and rt["effort"] == "high" and rt["effort_review"] == "max" and rt["model_review"] == "fable", f"#7368: the freelancer sets them: {rt}")
+check(F.patch(B + f"/api/my/agents/{FB}", json={"runtime": {"effort_routine": "turbo"}}).status_code == 400, "#7368: owner: unknown effort 400")
 # 2.1394.0 (#7031): a person without an organisation sets model and effort of the own agent's jobs
 r = F.patch(B + f"/api/my/agents/{FB}", json={"runtime": {"model_job": "sonnet", "effort_job": "medium", "effort_audit": "max"}})
 rt = requests.get(V + "/agent", headers=FBH).json()["runtime"]
