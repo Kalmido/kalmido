@@ -19476,5 +19476,6 @@
   "The IBAN printed on your invoices": "L’IBAN stampato sulle tue fatture",
   "Coming from another program? Then enter the next number here": "Arrivi da un altro programma? Inserisci qui il numero successivo",
   "Logo / letterhead": "Logo / carta intestata",
-  "Your logo on every document (optional)": "Il tuo logo su ogni documento (facoltativo)"
+  "Your logo on every document (optional)": "Il tuo logo su ogni documento (facoltativo)",
+  "For server admins": "Per gli amministratori del server"
 }

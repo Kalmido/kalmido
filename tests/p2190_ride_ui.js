@@ -155,13 +155,22 @@ const key = (w, el, k) => el.dispatchEvent(new w.KeyboardEvent('keydown', {key: 
     check(await until(() => ev(`!!document.querySelector('${MSG} .rxrow [data-act="rx-more"]')`), 40), `${tag}: the smiley opens the reactions with "+"`);
     // 2.142.2: CI red twice (one viewport each run) - the tap landed while the chat was still scrolling / laying out after
     // scrollIntoView; measure until the "+" stands still (two equal readings) before the real tap
-    const PB = `(() => { const e = document.querySelector('${MSG} .rxrow [data-act="rx-more"]'); if (!e) return {w: 0, h: 0}; const r = e.getBoundingClientRect(); return {x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height}; })()`;
+    // 2.1428.0 (#7232): CI red once at 360x780, the first suite on a fresh runner: also wait until the point of the tap really
+    // lies on "+" (nothing over it, e.g. a toast), and keep a trace of the tap (targets of pointer / click, #pop) for the log
+    const PB = `(() => { const e = document.querySelector('${MSG} .rxrow [data-act="rx-more"]'); if (!e) return {w: 0, h: 0}; const r = e.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+      const t = document.elementFromPoint(x, y), d = n => n ? n.tagName.toLowerCase() + (n.id ? '#' + n.id : '') + (n.className && typeof n.className === 'string' ? '.' + n.className.trim().split(/\\s+/).join('.') : '') : null;
+      return {x, y, w: r.width, h: r.height, hit: !!t && (t === e || e.contains(t)), top: d(t)}; })()`;
     await ev(`(() => { document.querySelector('${MSG} .rxrow [data-act="rx-more"]')?.scrollIntoView({block: 'center'}); return 1; })()`);
     let pb = await ev(PB);
-    for (let i = 0; i < 20; i++) { await sleep(150); const p2 = await ev(PB); if (p2.x === pb.x && p2.y === pb.y) break; pb = p2; }
+    for (let i = 0; i < 40; i++) { await sleep(150); const p2 = await ev(PB); if (p2.x === pb.x && p2.y === pb.y && p2.hit) { pb = p2; break; } pb = p2; }
     check(pb.w >= 43.5 && pb.h >= 43.5, `${tag}: "+" is a 44 px target ` + JSON.stringify(pb));
+    await ev(`(() => { const L = window.__rxlog = [], t0 = performance.now(), d = n => n && n.tagName ? n.tagName.toLowerCase() + (n.dataset?.act ? '[' + n.dataset.act + ']' : '') + (n.id ? '#' + n.id : '') : String(n);
+      for (const k of ['pointerdown', 'pointerup', 'touchend', 'click']) document.addEventListener(k, e => L.push([Math.round(performance.now() - t0), k, d(e.target)]), true);
+      const pop = document.querySelector('#pop'); if (pop) new MutationObserver(() => L.push([Math.round(performance.now() - t0), 'pop', pop.className, !!pop.querySelector('.rxgrid')])).observe(pop, {attributes: true, childList: true});
+      return 1; })()`);
     await tap(pb.x, pb.y);
-    check(await until(() => ev(`!!document.querySelector('#pop:not(.hidden) .rxgrid')`), 30), `${tag}: one tap opens the emoji grid`);
+    const grid = await until(() => ev(`!!document.querySelector('#pop:not(.hidden) .rxgrid')`), 30);
+    check(grid, `${tag}: one tap opens the emoji grid ` + (grid ? '' : JSON.stringify({pb, trace: await ev(`JSON.stringify(window.__rxlog || [])`).catch(e => e.message), hash: await ev(`location.hash`).catch(() => '')})));
     check(await ev(`document.documentElement.scrollWidth - innerWidth`) <= 0, `${tag}: nothing sideways`);
     await shot(`p2190r-${vw}x${vh}-${th}-rxmore.png`);
     await ev(`(() => { closePop(); return 1; })()`);

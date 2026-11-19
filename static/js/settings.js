@@ -303,6 +303,7 @@ function sf_wrap(p, pane, cx = {n: 0, made: 0}) {
   let cur = null;
   for (const n of [...p.children]) {
     if (n.matches('details.introw, details.modgrp, details.sfold, [data-sfown]')) { cur = null; continue; }  // a fold already / drawn later and folded by its drawer (sf_wrap)
+    if (n.matches('[data-sfout]')) { cur = null; continue; }  // (#7061): a row set apart that stays outside every fold (Sign out at the very end of Account, UX-21)
     const one = n.id && SF_ONE[n.id];
     if (isH(n) || one) { cur = sf_make(n, pane, cx, one); continue; }
     if ([...n.children].some(isH) && !n.matches('details')) { sf_wrap(n, pane, cx); cur = null; continue; }

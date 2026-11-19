@@ -93,6 +93,17 @@ def check(cond, what):
     return bool(cond)
 
 
+def lang(code):
+    """(#7239) A language as the app serves it: static/i18n/<code>.json + the fragments static/i18n/neu/<KID>.json the merge
+    queue moves a package's new texts into until the train folds them in (kalmido/core/i18nfrag.py, the one reader). A test
+    that read the big file alone was red on main in that window (p7115_dev_profile, night run 19.11.2026)."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("i18nfrag", os.path.join(N, "..", "kalmido", "core", "i18nfrag.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.load_lang(os.path.join(N, "..", "static", "i18n"), code)
+
+
 def done(name):
     """Print the summary line run_all.sh greps for; -> the exit code."""
     print(f"{name}: {OKS[0]} ok, {len(FAILS)} failed", flush=True)

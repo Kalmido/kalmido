@@ -238,7 +238,7 @@ function wsMenu(anchor) {
   const cur = wsOn() ? wsCur() : 'private', all = wsOn() ? wsOptions() : ['private'];
   const opts = [...all.filter(w => w.startsWith('org:')), ...all.filter(w => !w.startsWith('org:'))];  // the organisations first
   const set = cur.startsWith('org:') && typeof lmOrgPaneOn === 'function' && lmOrgPaneOn(), add = !S.me?.kid && S.me?.kind !== 'agent' && !(typeof lmOrgPaneOn === 'function' && lmOrgPaneOn());  // 2.1397.0 (#6885): only without an organisation; its lasting place is Settings > Organisation > Workspaces
-  const p = menu(anchor, [{head: tr('Switch to')}, ...opts.map(ws => ({label: wsName(ws), icon: ws === 'private' ? 'home' : ws === 'all' ? 'grid' : 'brief', on: ws === cur, cls: 'kbwsi', title: wsName(ws), fn: () => { if (isMobile()) closeSide(); if (ws !== wsCur()) wsSet(ws); }})),
+  const p = menu(anchor, [{head: tr('Switch to')}, ...opts.map(ws => ({label: wsName(ws), icon: ws === 'private' ? 'home' : ws === 'all' ? 'grid' : 'brief', on: ws === cur, cls: 'kbwsi', title: wsName(ws), fn: () => { if (ws !== wsCur()) wsSet(ws); else if (isMobile()) closeSide(); }})),  // (#7235): a switch keeps the phone's open drawer (#3847: wsSet holds it, route() too); the shown one closes it like any entry
     ...(add || set ? ['-'] : []),
     ...(add ? [{label: tr('Add an organisation'), icon: 'plus', cls: 'kbws-add', fn: () => { if (isMobile()) closeSide(); sbb_orgAdd(); }}] : []),
     ...(set ? [{label: tr('Organisation settings'), icon: 'building', cls: 'kbws-set', fn: () => { closeSide(); settingsModal('org'); }}] : [])]);

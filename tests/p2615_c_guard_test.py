@@ -21,8 +21,13 @@ import subprocess
 import sys
 import tempfile
 import time
+import types
 
 from kt import check, done  # noqa: E402
+
+# 2.1400 (reader F4): Runner.hook_settings pins the runner's guard into its state folder (guard_pin(self.state_dir)), so the
+# method needs a runner with a state folder -- a throwaway one, outside the folders guard_pinned reads (no effect on the checks)
+RUNNER = types.SimpleNamespace(state_dir=tempfile.mkdtemp(prefix="kalmido-p2615-runner-"))
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 RUN = os.path.join(HERE, "..", "mcp", "agent_run.py")
@@ -307,7 +312,7 @@ check(list(jhs1.get("hooks")) == ["PreToolUse"] and "--secret-only" in json.dump
 os.environ.pop("KALMIDO_USAGE_HOOK", None)
 os.environ.pop("KALMIDO_BLOCK_DANGEROUS", None)
 check(ar.hook_settings(True, usage=False)["hooks"].keys() >= {"PermissionRequest", "PreToolUse"}
-      and ar.Runner.hook_settings(None)["hooks"].get("PreToolUse") == ar.hook_settings(False)["hooks"]["PreToolUse"],
+      and ar.Runner.hook_settings(RUNNER)["hooks"].get("PreToolUse") == ar.hook_settings(False)["hooks"]["PreToolUse"],
       "hook_settings is a free function; the chat runs use the same one")
 
 
@@ -354,7 +359,7 @@ check(args is not None and "--secret-only" in json.dumps(hs.get("hooks") or {}),
 for relay in (True, False):
     os.environ.pop("KALMIDO_BLOCK_DANGEROUS", None)
     ar.PERM_RELAY = relay
-    hs = ar.Runner.hook_settings(None)
+    hs = ar.Runner.hook_settings(RUNNER)
     pre = hs["hooks"].get("PreToolUse") or []
     check(len(pre) == 1 and pre[0].get("matcher") == "Bash" and "--guard-hook" in pre[0]["hooks"][0]["command"]
           and "--secret-only" not in pre[0]["hooks"][0]["command"]
@@ -362,9 +367,9 @@ for relay in (True, False):
 for off in ("0", " 0 "):
     os.environ["KALMIDO_BLOCK_DANGEROUS"] = off
     # 2.1386.0 (#6668 with #6457): the guard hook stays for the env file only (--secret-only)
-    check("--secret-only" in json.dumps(ar.Runner.hook_settings(None)["hooks"].get("PreToolUse")), f"KALMIDO_BLOCK_DANGEROUS={off!r}: no guard")
+    check("--secret-only" in json.dumps(ar.Runner.hook_settings(RUNNER)["hooks"].get("PreToolUse")), f"KALMIDO_BLOCK_DANGEROUS={off!r}: no guard")
 os.environ["KALMIDO_BLOCK_DANGEROUS"] = "1"
-check("PreToolUse" in ar.Runner.hook_settings(None)["hooks"], "KALMIDO_BLOCK_DANGEROUS=1: guard on")
+check("PreToolUse" in ar.Runner.hook_settings(RUNNER)["hooks"], "KALMIDO_BLOCK_DANGEROUS=1: guard on")
 os.environ.pop("KALMIDO_BLOCK_DANGEROUS", None)
 
 
