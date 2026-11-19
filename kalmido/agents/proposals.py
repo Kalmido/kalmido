@@ -36,7 +36,7 @@ from ..tasks.dayplan import dayplan_day, dayplan_events, dayplan_input, dayplan_
 from ..agents.core import (
     agent_active, agent_emit, agent_online, agent_public, agent_row, AGENT_ROW_SQL, agent_shares, AGENT_TYPING_S,
     agent_typing_to, agents_for, is_agent, need_person, job_dict, JOB_TITLE_MAX, list_sections, need_agent, need_chat_agent,
-    tidy_agent_of,
+    tidy_agent_of, job_words_muted,
 )
 from ..collab.reactions import clean_suggestion, tidy_apply
 from ..agents.chat import (
@@ -1326,18 +1326,23 @@ def proposal_redo(jid):
     return jsonify(redone=n, skipped=skipped, none=n == 0, list_id=rec.get("list"))
 
 
-def prop_ready_notify(c, j):
-    """The proposal is there: News (kind proposal) + push "Proposal ready" to the person who asked, per their settings."""
+def prop_ready_notify(c, j, asked=False):
+    """The proposal is there: News (kind proposal) + push "Proposal ready" to the person who asked, per their settings.
+    #7159 (reader F8): the one way every proposal to a person goes out, so the circle is asked here, not per route: a
+    proposal the agent sends on its own (asked=False) reaches a person who does not read every source of a team agent
+    without its title (job_words_muted, gated=False) -- News and push say only that a proposal of the agent is there.
+    asked=True: the person asked for it (job_request, its title is the one of their request)."""
     uid = j["user_id"]
     s = collab_user(c, uid, None) if uid else None
     if not s:
         return
-    news_add(c, uid, "proposal", data={"job": j["id"], "title": (j["title"] or "")[:200], "kind": j["kind"]}, actor=j["agent_id"], s=s)
+    title = "" if not asked and job_words_muted(c, j, uid, gated=False) else (j["title"] or "")
+    news_add(c, uid, "proposal", data={"job": j["id"], "title": title[:200], "kind": j["kind"]}, actor=j["agent_id"], s=s)
     if not notif_ok(c, uid, s, "proposal", "push") or not push_reachable(c, uid, s):
         return
     lg = lang_of(s)
     name = user_names(c, [j["agent_id"]]).get(j["agent_id"], "?")
-    g.pushes.append((uid, tr("Proposal ready", lg=lg), f"{name}: {j['title']}", f"{PUBLIC_URL}/#prop/{j['id']}", push_prio(s)))
+    g.pushes.append((uid, tr("Proposal ready", lg=lg), f"{name}: {title}" if title else name, f"{PUBLIC_URL}/#prop/{j['id']}", push_prio(s)))
 
 
 @app.get("/api/v1/agent/jobs/<int:jid>")
@@ -1408,7 +1413,7 @@ def v1_agent_job_proposal(jid):
               (json.dumps(p, ensure_ascii=False), ts, jid))
     j2 = c.execute("SELECT * FROM agent_jobs WHERE id=?", (jid,)).fetchone()
     if first:
-        prop_ready_notify(c, j2)
+        prop_ready_notify(c, j2, asked=True)  # #7159: the person's own request
     bump(c)
     c.commit()
     return jsonify({**job_dict(c, j2), "proposal": p}), 201

@@ -19424,6 +19424,7 @@
   "Organisation settings": "Réglages de l’organisation",
   "An organisation is set up by the admin of this server. An organisation’s admin can then invite you by e-mail.": "Une organisation est créée par l’administrateur de ce serveur. Ses administrateurs peuvent ensuite t’inviter par e-mail.",
   "The organisation “{0}” is set up": "L’organisation « {0} » est créée",
+  "{0} has a proposal for you": "{0} a une proposition pour toi",
   "Rights profile": "Profil de droits",
   "Deny rules only": "Règles de blocage seulement",
   "Hardened (Kalmido tools only)": "Renforcé (outils Kalmido seulement)",

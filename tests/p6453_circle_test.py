@@ -30,7 +30,8 @@ Fable review of 16.11.2026 (each case red without its fix):
  - G13: the Yes of a person who does not read the sources does not count (approver_rights)
 2.1398.0 (#6863): a team agent's job for a person (POST /agent/jobs user_id, PATCH of its log) = a message to them; a job
 without a task hides its words from who does not read everything; rules / playbook / layout proposals are writes into the
-project; reader F7: a waiting job with a task but no person sends News / push without its title where job_dict hides it
+project; reader F7: a waiting job with a task but no person sends News / push without its title where job_dict hides it;
+#7159: a proposal the agent sends to a person on its own reaches one outside the circle without its title
  - also: a chat room without a project, a new page in a folder of a shared space
 usage: p6453_circle_test.py <datadir>"""
 import json
@@ -641,6 +642,29 @@ JW3 = r.json().get("id") if r.ok else None
 check(appr_title(ALICE, JW3) == "Alice's own plan", f"F7: a task in the project only alice reads: her News keeps the title {appr_title(ALICE, JW3)!r}")
 for x in (JW, JW2, JW3):
     kt.dbx("UPDATE agent_jobs SET state='done' WHERE id=?", (x,))
+# #7159 (reader F8): a proposal a team agent sends to a person on its own (time, import, object, sheet tasks, other topic,
+# shoot) passed no gate for that person -- News "proposal" and push carried its title to bob, who does not read all it reads.
+# The one output point (proposals.prop_ready_notify) asks the circle: bob's News has no title, alice's keeps it.
+TA_SC = SCOPES + ["structure", "layouts"]
+r = A.patch(B + f"/api/admin/agents/{TA}", json={"scopes": TA_SC + ["time"]})  # one agent per project: the team agent itself
+assert r.ok, r.text
+
+
+def prop_title(uid, jid):
+    r = kt.dbx("SELECT data->>'title' FROM notifications WHERE user_id=? AND kind='proposal' AND data->>'job' = ?", (uid, str(jid)))
+    return r[0][0] if r else None
+
+
+DAY = str((now() - timedelta(days=1)).date())
+for who, want in ((BOB, ""), (ALICE, "Alice's private hours")):
+    r = requests.post(V + "/agent/proposals/time", headers=HT, json={"user_id": who, "title": "Alice's private hours",
+                      "items": [{"date": DAY, "start": "09:00", "end": "10:00", "task_id": K_ALL}]})
+    check(r.status_code == 201, f"#7159 setup: a time proposal to {who} ({r.status_code} {r.text[:200]})")
+    jp = r.json().get("id") if r.ok else None
+    check(prop_title(who, jp) == want, f"#7159: the News 'proposal' of {'bob (outside the circle) has no' if who == BOB else 'alice keeps its'} title {prop_title(who, jp)!r}")
+    if jp:
+        kt.dbx("UPDATE agent_jobs SET state='done', prop_state='discarded' WHERE id=?", (jp,))
+assert A.patch(B + f"/api/admin/agents/{TA}", json={"scopes": TA_SC}).ok
 for path, body in ((f"/lists/{L_OWN}/rules/proposals", {"name": "x"}), (f"/lists/{L_OWN}/playbook/proposals", {"text": "x"})):
     r = requests.post(V + path, headers=HT, json=body)
     check(not (r.status_code == 409 and err(r).get("code") == "approval_required"),
