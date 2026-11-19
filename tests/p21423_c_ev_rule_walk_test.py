@@ -26,7 +26,7 @@ import kt  # noqa: E402
 from kt import CT, check  # noqa: E402
 
 PROBE = r'''
-import json, time
+import json, time, traceback
 from datetime import date, datetime, timedelta
 from kalmido.core.config import app
 from kalmido.events import model as m
@@ -43,6 +43,8 @@ def row(start, end, rule, all_day=0, tz="Europe/Berlin", exdates="", extra=""):
 def ref(r):
     """occurrence keys of the unmoved rule inside [LO, HI] (local days) -- the walk the code made before 2.1423.0"""
     rule = m.ev_rule(r)
+    if rule is None:
+        raise ValueError(f"no rule: {r['rrule']} problem={m.rr_problem(r['rrule'])!r}")
     a = datetime(LO.year, LO.month, LO.day) - timedelta(days=3)
     if not r["all_day"]:
         a = a.replace(tzinfo=m.ev_zone(r["tz"]))
@@ -60,16 +62,19 @@ def ref(r):
 
 def run(key, r, n=1, compare=True):
     """[same dates as the reference (or the keys), seconds for n expansions]"""
-    t0 = time.monotonic()
-    for _ in range(n):
-        got = [o["occ"] for o in m.ev_expand(r, LO, HI)]
-    secs = round(time.monotonic() - t0, 3)
-    out[key] = [(got == ref(r)) if compare else got, secs, len(got)]
+    try:
+        t0 = time.monotonic()
+        for _ in range(n):
+            got = [o["occ"] for o in m.ev_expand(r, LO, HI)]
+        secs = round(time.monotonic() - t0, 3)
+        out[key] = [(got == ref(r)) if compare else got, secs, len(got)]
+    except Exception:  # noqa: BLE001  (shown as a red case, the other cases still run)
+        out[key] = [traceback.format_exc()[-800:], 0, 0]
 
 with app.test_request_context("/", headers={"Accept-Language": "en"}):
     run("daily_1900", row("1900-01-01T09:00", "1900-01-01T10:00", "FREQ=DAILY"), n=20)
     run("weekly2_1900", row("1900-01-01", "1900-01-02", "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,TH", all_day=1))
-    run("until_1900", row("1900-01-01T18:30", "1900-01-01T19:00", "FREQ=DAILY;UNTIL=20261028T235959Z"))
+    run("until_1900", row("1900-01-01T18:30", "1900-01-01T19:00", "FREQ=DAILY;UNTIL=20261028"))
     run("exdate_1900", row("1900-01-01", "1900-01-02", "FREQ=DAILY", all_day=1, exdates="2026-10-30,2026-11-02"))
     run("yearly_1900", row("1900-10-25", "1900-10-26", "FREQ=YEARLY", all_day=1))
     run("monthly_1mo", row("1900-01-01T08:00", "1900-01-01T09:00", "FREQ=MONTHLY;BYDAY=1MO"))
