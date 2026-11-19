@@ -37,6 +37,8 @@ How it works
   - 2.619.0 (#2792): --audit = a review job in its own small area: at most KALMIDO_AUDIT_MAX (default 3) open audit jobs,
     never counted against the working copies of build jobs, not with --worktree / --parent; a read-only note goes in front
     of its brief (no commit, merge, push, deploy, nothing changed in Kalmido but comments and its result); list marks it.
+    2.1413.0 (#7032): its result (the last 6000 characters) stays in its job file as "result": the dispatcher reads the
+    verdict of a pull request's reading there (agent_dispatch.py after_read).
   - a time limit (KALMIDO_JOB_TIMEOUT_H, default 6) ends the job; it says so in its result.
   - 2.1394.0 (#7031): model and effort per kind of job from Kalmido's runtime settings (GET /api/v1/agent runtime): model_job /
     effort_job for a build job, model_audit / effort_audit for a review job (--audit); empty = the command's own model and no
@@ -1603,6 +1605,8 @@ def cmd_run(argv):
                                                       "append_log": f"{time.strftime('%H:%M')} {'done' if ok and not timed_out else 'ended'}"})
     j = load(j["id"]) or j
     j.update(state="done" if ok and not timed_out else "failed", ended=time.time())
+    if j.get("audit") and ok:  # 2.1413.0 (#7032): a review job's result stays in its file (its end): the dispatcher reads the verdict there
+        j["result"] = text[-6000:]
     save(j)
     late = inbox_take(j["id"])  # 2.615.0 (#3658 / M6): a message between the last take and the end goes to the wake run
     if not posted and j.get("chat_user"):  # 2.1394.0 (#4951): tried again with a gap; the wake run says "in the chat" only then
