@@ -7,6 +7,7 @@ from ..core.i18n import tr
 from ..core.db import body, bump, db, err, iso, now_utc
 from ..accounts.session import me
 from ..accounts.login import login_log_who  # 2.239.0 B (#2888)
+from ..accounts.orgroles import is_write_request, need_org_write  # #6607
 from ..core.access import collab_all, Denied, list_role, my_max_sort, need_collab, qn_private, list_archived_sql
 from ..lists.groups import grp_sync
 from ..core.db import usettings  # 2.369.5 (#2517): pulled up from functions
@@ -57,6 +58,9 @@ def owner_rights(c, lid):
         raise Denied(404)
     need_person(403, tr("Agents cannot transfer projects"))
     if lr["owner_id"] == me():
+        if is_write_request() and list_role(c, lid) != "owner":  # #6607: the owner by role (read-only in its organisation: view)
+            need_org_write(c, me(), lr["org_id"])
+            raise Denied(403, tr("Only the owner can transfer this project"))
         return lr, "owner"
     if g.user["is_admin"] and owner_orphaned(c, lr["owner_id"]) and not op_takeover_apart(c, lr):
         return lr, "takeover"
