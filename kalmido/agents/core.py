@@ -1467,12 +1467,17 @@ def job_words_hidden(c, j, viewer):
                 and any(fn(c, j["agent_id"], viewer) for fn in JOB_MUTE))
 
 
-def job_words_muted(c, j, viewer):
+def job_words_muted(c, j, viewer, gated=True):
     """Reader F7 (#6863): does job_dict hide the job's title, name and log from viewer? The same answer for every other way
     the words reach a person: a job with a task in a wider / public place of the agent (WK_MUTE), a job without a task
-    (job_words_hidden). The agent itself and the person the job is for read them (the gate asked for that one)."""
-    if not viewer or viewer in (j["agent_id"], j["user_id"]):
+    (job_words_hidden). The agent itself and the person the job is for read them (the gate asked for that one).
+    #7159 (reader F8): gated=False -- a proposal the agent sends to a person on its own (time, import, object, sheet tasks,
+    other topic, shoot ...): no gate asked for that person, so the output point asks: a person who does not read every
+    source of the agent (JOB_MUTE, as for a message) gets News and push without the agent's words."""
+    if not viewer or viewer == j["agent_id"]:
         return False
+    if viewer == j["user_id"]:
+        return not gated and any(fn(c, j["agent_id"], viewer) for fn in JOB_MUTE)
     if j["task_id"]:
         return any(j["task_id"] in fn(c, {j["task_id"]: j["agent_id"]}) for fn in WK_MUTE)
     return job_words_hidden(c, j, viewer)

@@ -19419,6 +19419,7 @@
   "Organisation settings": "Impostazioni dell’organizzazione",
   "An organisation is set up by the admin of this server. An organisation’s admin can then invite you by e-mail.": "Un’organizzazione viene creata dall’amministratore di questo server. Poi gli amministratori dell’organizzazione possono invitarti per e-mail.",
   "The organisation “{0}” is set up": "L’organizzazione «{0}» è stata creata",
+  "{0} has a proposal for you": "{0} ha una proposta per te",
   "Rights profile": "Profilo di permessi",
   "Deny rules only": "Solo regole di blocco",
   "Hardened (Kalmido tools only)": "Rinforzato (solo strumenti Kalmido)",

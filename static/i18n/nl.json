@@ -19418,6 +19418,7 @@
   "Organisation settings": "Organisatie-instellingen",
   "An organisation is set up by the admin of this server. An organisation’s admin can then invite you by e-mail.": "Een organisatie wordt aangemaakt door de beheerder van deze server. De beheerders van de organisatie kunnen je daarna per e-mail uitnodigen.",
   "The organisation “{0}” is set up": "De organisatie „{0}” is aangemaakt",
+  "{0} has a proposal for you": "{0} heeft een voorstel voor je",
   "Rights profile": "Rechtenprofiel",
   "Deny rules only": "Alleen blokkeerregels",
   "Hardened (Kalmido tools only)": "Gehard (alleen Kalmido-tools)",

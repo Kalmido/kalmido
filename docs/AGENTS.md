@@ -3796,6 +3796,11 @@ read every place). The same for the other ways words reach that person: a progre
 `chat_user_id`, or `job_id` of a job for a person) and a progress line (`text`) of `POST` / `PATCH /tasks/{id}/working`
 into a job for a person. A `user_id` that is there but no id (`7.0`, `true`, `"+7"`) is never "nobody": the gate asks
 with the card, the route answers 400.
+*#7159:* every other proposal a team agent sends to a person on its own (time entries, shoot days, an import, an object
+change, sheet tasks, a proposal to another topic, an inquiry / setup, a notice reminder) passes no card for that person:
+it is created, but its News and push *Proposal ready* carry its title only for a person who reads every place the agent
+reads -- anyone else is told only that the agent has a proposal for them (the words are in the proposal itself, which
+they open). A proposal the person asked for (`job_request`) keeps the title of their request.
 
 **An agent made before 2.235.0** has no level (`control.level`
 null, `chosen: false`): it works as before, without any of these checks, until its owner picks one.
