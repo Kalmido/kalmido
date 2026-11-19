@@ -544,6 +544,7 @@ def iss_list():
 def iss_create():
     """Org admin + sign-in confirmation. {name, range_id, allowed_ips?, any_address?, limits?, valid_days? (365)} -> 201
     {issuer, key} (the key is shown this once)."""
+    g.idem_no_body = True  # 2.1437.0 (#6558): the issuer key is shown once, never kept with an idempotency key
     c, uid, oid = _iss_ctx()
     b = body()
     b = b if isinstance(b, dict) else {}
@@ -659,6 +660,7 @@ def iss_revoke_rows(c, oid, ids, uid=None, why="admin"):
 def iss_key_new(iid):
     """Org admin + sign-in confirmation. {valid_days? (365), overlap_days? (7, at most 14)} -> 201 {key, issuer}: a new key;
     the valid one before it runs out after overlap_days (0 = at once). At most ISS_KEYS_MAX valid keys: end one first (409)."""
+    g.idem_no_body = True  # 2.1437.0 (#6558): the issuer key is shown once, never kept with an idempotency key
     c, uid, oid = _iss_ctx()
     b = body()
     b = b if isinstance(b, dict) else {}

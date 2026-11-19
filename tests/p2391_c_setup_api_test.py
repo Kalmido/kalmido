@@ -172,6 +172,12 @@ for k, path, body, word in (("p2391c-tok", "/me/tokens", {"name": "idem", "scope
     check(r2.headers.get("Idempotent-Replayed") == "true" and word not in r2.text, f"B1: {path} sent again: no secret ({r2.text[:80]})")
     if path == "/me/tokens":
         S1.delete(f"/me/tokens/{r.json()['id']}")
+# 2.1437.0 (#6558): a route of the app that hands out a secret once (here the drop address token) keeps no text either
+r = A.post(B + "/api/me/drop-token", headers={"Idempotency-Key": "p21437-drop"})
+row = kt.dbx("SELECT status, body FROM idem_keys WHERE k=?", ("p21437-drop",))
+check(r.ok and r.json().get("drop_token") and row and row[0][1] is None, f"#6558: the drop token with a key: no text stored ({r.status_code} {row})")
+r2 = A.post(B + "/api/me/drop-token", headers={"Idempotency-Key": "p21437-drop"})
+check(r2.headers.get("Idempotent-Replayed") == "true" and "drop_token" not in r2.json(), f"#6558: sent again: no token ({r2.text[:80]})")
 r = S1.post(f"/me/webhooks/{WH}/test")
 check(r.ok and r.json()["ok"] is True, f"the ping reaches the stub {r.text[:160]}")
 r = until(lambda: [x for x in S1.get(f"/me/webhooks/{WH}/log").json()["items"] if x["event"] == "ping"], 15)

@@ -1799,6 +1799,7 @@ def oc_route_recovery(oid):
     org_keys.recovery_shown_at, the other admins get a News item -- never the value. 409 without a server key / while a
     rotation runs. oid 0 = the own personal office."""
     from flask import g
+    g.idem_no_body = True  # 2.1437.0 (#6558): the recovery key is shown once, never kept with an idempotency key
     c, b = db(), body()
     oid = _org_admin(c, oid)
     if not SECRET_KEY:

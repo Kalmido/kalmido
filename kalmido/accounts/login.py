@@ -805,6 +805,7 @@ def auth_2fa_pk():
 # ---- login: enrolment forced by the admin policy (ticket kind "enrol")
 @app.post("/api/auth/enrol/totp")
 def auth_enrol_totp():
+    g.idem_no_body = True  # 2.1437.0 (#6558): the authenticator secret is shown once, never kept with an idempotency key
     p, u, e = _ticket(("enrol",))
     if e:
         return e
@@ -814,6 +815,7 @@ def auth_enrol_totp():
 
 @app.post("/api/auth/enrol/totp/confirm")
 def auth_enrol_totp_confirm():
+    g.idem_no_body = True  # 2.1437.0 (#6558): the recovery codes are shown once, never kept with an idempotency key
     p, u, e = _ticket(("enrol",))
     if e:
         return e
@@ -840,6 +842,7 @@ def auth_enrol_pk_options():
 
 @app.post("/api/auth/enrol/passkey")
 def auth_enrol_pk():
+    g.idem_no_body = True  # 2.1437.0 (#6558): the recovery codes are shown once, never kept with an idempotency key
     p, u, e = _ticket(("enrol",))
     if e:
         return e
@@ -960,6 +963,7 @@ def me_2fa():
 
 @app.post("/api/me/2fa/totp")
 def me_totp_begin():
+    g.idem_no_body = True  # 2.1437.0 (#6558): the authenticator secret is shown once, never kept with an idempotency key
     u, b = g.user, body()
     e = _reauth(u, b)
     if e:
@@ -973,6 +977,7 @@ def me_totp_begin():
 
 @app.post("/api/me/2fa/totp/confirm")
 def me_totp_confirm():
+    g.idem_no_body = True  # 2.1437.0 (#6558): the recovery codes are shown once, never kept with an idempotency key
     from ..notify.alerts import aa_count
     u, c = g.user, db()
     keys = _rate_keys(u["username"])
@@ -1033,6 +1038,7 @@ def me_totp_disable():
 
 @app.post("/api/me/2fa/recovery")
 def me_recovery_new():
+    g.idem_no_body = True  # 2.1437.0 (#6558): the recovery codes are shown once, never kept with an idempotency key
     u, c, b = g.user, db(), body()
     e = _reauth(u, b)
     if e:
@@ -1059,6 +1065,7 @@ def me_pk_options():
 
 @app.post("/api/me/passkeys")
 def me_pk_add():
+    g.idem_no_body = True  # 2.1437.0 (#6558): the recovery codes are shown once, never kept with an idempotency key
     from ..notify.alerts import aa_count
     u, c, b = g.user, db(), body()
     p = pend_take(f"wareg:{u['id']}")
