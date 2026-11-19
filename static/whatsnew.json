@@ -1,6 +1,40 @@
 {
  "versions": [
   {
+   "version": "2.1405.0",
+   "date": "2026-11-19",
+   "items": [
+    {
+     "de": "Abmelden fragt nach, wenn noch nicht gespeicherte eigene Texte auf dem Gerät liegen, und lädt sie als Datei herunter.",
+     "en": "Signing out asks first when your own unsaved texts are still on the device and downloads them as a file."
+    },
+    {
+     "de": "„Organisation hinzufügen“ findest du jetzt in den Einstellungen unter Organisation.",
+     "en": "\"Add organisation\" now lives in Settings under Organisation."
+    },
+    {
+     "de": "Organisationen ohne eigenes Symbol zeigen überall ihren Anfangsbuchstaben.",
+     "en": "Organisations without an own symbol show their first letter everywhere."
+    },
+    {
+     "de": "Einstellungen Konto und Benachrichtigungen sprechen Alltagssprache; Sitzungen von Skripten heißen „Programm / Skript“.",
+     "en": "Settings Account and Notifications speak everyday words; sessions of scripts read \"Program / script\"."
+    },
+    {
+     "de": "Aussteller anlegen: die Passwort-Abfrage liegt jetzt sichtbar über dem Dialog.",
+     "en": "Adding an invoice issuer: the password question now shows above the dialog."
+    },
+    {
+     "de": "In der Glocke stehen die Köpfe „Für dich“ und „Verlauf“ beim Scrollen sauber oben, ohne dass Zeilen durchscheinen.",
+     "en": "In the bell, the \"For you\" and \"History\" heads stay cleanly at the top while scrolling, with no rows showing through."
+    },
+    {
+     "de": "Ein Bild in einer geteilten Wissensseite erscheint nur über die Freigabe, unter der es eingebettet oder freigegeben wurde.",
+     "en": "A picture in a shared knowledge page only shows through the share it was embedded or shared under."
+    }
+   ]
+  },
+  {
    "version": "2.1399.0",
    "date": "2026-11-18",
    "items": [
@@ -1247,16 +1281,6 @@
     {
      "de": "Persönliche Tags unterscheiden nicht mehr zwischen Groß- und Kleinschreibung, doppelte werden zusammengeführt.",
      "en": "Personal tags no longer depend on upper or lower case; duplicates are merged."
-    }
-   ]
-  },
-  {
-   "version": "2.941.0",
-   "date": "2026-11-11",
-   "items": [
-    {
-     "de": "Die linke Leiste von Dateien hat jetzt dasselbe ruhige Zeilenraster wie Projekte.",
-     "en": "The left panel of Files now has the same calm row grid as Projects."
     }
    ]
   }
