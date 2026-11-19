@@ -2111,7 +2111,8 @@ async function biz_mailDraw(md) {
   const what = !x.set ? tr('No mailbox yet') : [x.receive ? tr('receives') : '', x.send ? tr('sends') : ''].filter(Boolean).join(' · ') + (x.active ? '' : ' · ' + tr('paused'));
   box.innerHTML = sf_html('biz/bizmail', 'mail', `<h3 id="s-bizmail-h" class="sbizg">${tr('E-mail')}</h3>`, `${''/* 2.555.0 (#4664): a group of Company & office (h3); 2.1353.0 (#6827): a head row */}<p class="shint">${tr('A workspace can fetch its own mailbox: its e-mails are filed here like forwarded ones, and replies go out from its address.')}</p>
     <div class="row"><span class="muted">${x.address ? esc(x.address) + ' · ' : ''}${esc(what)}</span>${x.manage ? `<button type="button" class="btn sm" data-hmba="edit" data-ws="${esc(x.ws)}">${ic('gear', 's')}<span>${tr(x.set ? 'Change' : 'Set up')}</span></button>` : ''}</div>
-    ${x.error_text ? `<p class="hmberr" role="status">${ic('info', 's')} ${esc(x.error_text)}</p>` : ''}`, x.address || '');
+    ${x.error_text ? `<p class="hmberr" role="status">${ic('info', 's')} ${esc(x.error_text)}</p>` : ''}
+    ${x.send_error_text ? `<p class="hmberr hmbsenderr" role="status">${ic('info', 's')} ${esc(tr('Sending: {0}', x.send_error_text))}${x.send_error_at ? ' · ' + esc(tr('failing since {0}', fmtWhen(x.send_error_at))) : ''}</p>` : ''}`, x.address || '');
 }
 async function biz_draw(md) {
   const box = $('#s-biz', md); if (!box) return;

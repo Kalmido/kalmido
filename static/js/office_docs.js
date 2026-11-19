@@ -357,6 +357,7 @@ function oms_note(d) {
   if (!oms_bad(d)) return '';
   const when = d.mail.at ? fmtStamp(new Date(d.mail.at)) : '';
   const txt = d.mail.state === 'failed' ? tr('The e-mail server refused the e-mail ({0}). The document has not been sent.', when)
+    : d.mail.why ? tr('The e-mail came back undelivered ({0}): {1}. Check the e-mail address and send it again.', when, d.mail.why)  // (#6547): read from the returned mail
     : tr('Marked as not delivered ({0}): check the e-mail address and send it again.', when);
   return `<div class="ofdlnote oms-note" role="status">${ic('alert', 's')}<span>${esc(txt)}</span></div>`;
 }

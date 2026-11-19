@@ -116,6 +116,10 @@ class Smtp(socketserver.StreamRequestHandler):
                 self.w("235 ok\r\n" if pw == b"secret" else "535 no\r\n")
             elif u.startswith("MAIL FROM"):
                 frm = s.split(":", 1)[1].strip(" <>")
+                if frm.lower().startswith("refuse@"):  # (#6546): a sender address the account may not use
+                    self.w("553 sender not allowed\r\n")
+                    frm = ""
+                    continue
                 self.w("250 OK\r\n")
             elif u.startswith("RCPT TO"):
                 rc = s.split(":", 1)[1].strip(" <>")

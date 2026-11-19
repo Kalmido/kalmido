@@ -4,7 +4,9 @@
   sent     the mail server took the mail (invoices.inv_send_mail, the one place: also through a person's own mailbox)
   failed   the mail server refused it or could not be reached (the same place; the document stays unsent)
   bounced  a person of the office marked it "Delivery failed" (a bounce lies in the mailbox; POST .../mail-bounced, office
-           write right) -- reading bounces automatically is a task of its own
+           write right), or (#6547) Kalmido read the delivery report of the mail (integrations/mail.py mail_bounce_take): matched
+           by office_docs.mail_msg_id (the Message-ID of the last mail, oms_sent_id), the status code in mail_why, the person
+           who sent it hears it (News + push, mail_bounce_tell)
 
 Every change is an entry of the core's history (obj_history, kind office_doc: before / after of mail_state; actor the person,
 or the system for sent / failed: user None, via 'system') and, for failed / bounced, a line of the document's office log (its
@@ -14,21 +16,31 @@ filters on it through its status select (?status=mail_failed: failed or bounced)
 {state, at} without address and error text (issdocs.isd_public). No table of its own."""
 from ..core.config import app
 from ..core.db import DbError, iso_ms, now_utc
+from ..core.i18n import N_, tr
 from ..core.writes import obj_history_add
+from ..collab.mailback import mail_bounce_tell, mail_bounce_why, mail_mid  # (#6547)
 from .ledger import ofx_log
 
 OMS_STATES = ("none", "sent", "failed", "bounced")
 OMS_BAD = ("failed", "bounced")  # the list's filter "Delivery failed"
 OMS_FILTER = "mail_failed"       # its value in the status select (?status=)
+OMS_LABEL = {"offer": N_("Quotation"), "invoice": N_("Invoice"), "credit": N_("Credit note"), "reminder": N_("Reminder"),
+             "delivery": N_("Delivery note")}  # (#6547): what the News item of a returned mail names (like docref.OFD_LABEL: a cycle)
 OMS_KIND = "office_doc"          # the tracked kind of office_docs (office/undo.py ow_kind)
 
 
-def oms_public(r):
-    """{state, at} of document row r (at: ISO text or None)."""
+def oms_public(r, why=False):
+    """{state, at} of document row r (at: ISO text or None). why (#6547, the office's own routes, not the issuer's): + why = the
+    reason of a mail Kalmido saw come back, in words (only then)."""
     k = r.keys() if hasattr(r, "keys") else ()
     st = (r["mail_state"] if "mail_state" in k else None) or "none"
     at = r["mail_at"] if "mail_at" in k else None
-    return {"state": st if st in OMS_STATES else "none", "at": at.isoformat() if hasattr(at, "isoformat") else (at or None)}
+    out = {"state": st if st in OMS_STATES else "none", "at": at.isoformat() if hasattr(at, "isoformat") else (at or None)}
+    if why:
+        code = (r["mail_why"] if "mail_why" in k else "") or ""
+        if out["state"] == "bounced" and code:  # (only then: a mail never returned keeps the answer {state, at})
+            out["why"] = mail_bounce_why(code)
+    return out
 
 
 def oms_set(c, oid, did, state, uid=None, log=True):
@@ -43,6 +55,8 @@ def oms_set(c, oid, did, state, uid=None, log=True):
     before = r["mail_state"] or "none"
     ts = now_utc()
     c.execute("UPDATE office_docs SET mail_state=?, mail_at=?, updated_at=? WHERE id=? AND org_id=?", (state, iso_ms(ts), iso_ms(ts), int(did), int(oid)))
+    if state != "bounced" or uid:  # (#6547): the reason of a returned mail goes with any other change of the state
+        c.execute("UPDATE office_docs SET mail_why='' WHERE id=? AND org_id=? AND mail_why<>''", (int(did), int(oid)))
     if before == state:
         return
     obj_history_add(c, uid, OMS_KIND, did, {"mail_state": before}, {"mail_state": state}, action="mail", org_id=oid,
@@ -68,3 +82,31 @@ def oms_was_mailed(c, oid, r):
     if st != "none":
         return st in ("sent", "bounced")
     return c.execute("SELECT 1 FROM office_doc_log WHERE org_id=? AND doc_id=? AND action='send' LIMIT 1", (oid, r["id"])).fetchone() is not None
+
+
+def oms_sent_id(c, oid, did, sent):
+    """(#6547): the Message-ID of the mail of document did that just went out (sent = the message, integrations/mail.py
+    mail_send), so its delivery report finds it. The caller commits."""
+    mid = mail_mid(sent)
+    if mid:
+        c.execute("UPDATE office_docs SET mail_msg_id=? WHERE id=? AND org_id=?", (mid, int(did), int(oid)))
+
+
+def oms_bounce(c, mid, code, scope):
+    """(#6547, integrations/mail.py mail_bounce_hooks): the documents whose last mail had Message-ID mid came back: state
+    bounced (by Kalmido, the reason's code in mail_why) and the person who sent it hears it. Any mailbox (scope): the Message-ID
+    is known only to the sender and the recipient. True when one was found."""
+    rows = c.execute("SELECT id, org_id, kind, number, mail_state FROM office_docs WHERE mail_msg_id=?", (mid,)).fetchall()
+    for r in rows:
+        oid, did = r["org_id"], r["id"]
+        oms_set(c, oid, did, "bounced")
+        c.execute("UPDATE office_docs SET mail_why=? WHERE id=? AND org_id=?", (code or "?", did, oid))
+        who = c.execute("SELECT user_id FROM office_doc_log WHERE org_id=? AND doc_id=? AND action='send' AND user_id IS NOT NULL "
+                        "ORDER BY id DESC LIMIT 1", (oid, did)).fetchone()
+        if who and r["mail_state"] != "bounced":
+            tab = "offers" if r["kind"] == "offer" else "invoices"
+            label = OMS_LABEL.get(r["kind"]) or "Document"
+            mail_bounce_tell(c, [who[0]], "mail_bounced_doc", lambda lg, n=r["number"] or "", x=label: (tr(x, lg=lg) + " " + n).strip(),
+                             code, click=f"office/{tab}/{int(did)}", go=f"office/{tab}/{int(did)}")
+    return bool(rows)
+

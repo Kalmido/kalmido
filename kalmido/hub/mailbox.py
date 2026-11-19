@@ -43,6 +43,7 @@ from ..core.pg import insert_id, qi, system_ctx
 from ..core.pgbus import bus_on, bus_send  # 2.622.0 (#3891)
 from ..core.i18n import N_, lang, tr
 from ..core.db import body, bump, db, err, iso, now_utc, connect, parse_iso
+from ..core.db import DbError  # (#6546)
 from ..core.access import Denied, WRITE_ROLES, acx_of, list_role, need_list
 from ..collab.integfail import INTEG_FAILS, integ_backoff_s, integ_org_admins, integ_tell
 from ..notify.alerts import _env_int
@@ -59,6 +60,7 @@ from ..accounts.session import GATE  # 2.369.5 (#2517): pulled up from functions
 from ..files.store import fs_folder, fs_put  # 2.369.5 (#2517): pulled up from functions
 from ..files.upsafe import UploadRefused  # 2.369.5 (#2517): pulled up from functions
 from ..core.mailguard import mail_parse  # 2.1281.0 (#6425)
+from ..core.mailbudget import SMTP_OWN_DONE  # (#6546)
 
 MBX_TLS = ("starttls", "ssl", "none")
 # review: a larger mail of a workspace's own server is not fetched (marked seen); 2.1333.0 (#6545): counted at the mailbox
@@ -116,7 +118,14 @@ MBX_ERR = {  # error code -> the text people see (never the server's own words: 
     "login": N_("Sending needs the user name and the password of the SMTP server"),
     "port": N_("Sending only through port 465 or 587 (port 25 only for a server an admin allowed)"),
     "norecipient": N_("Nobody can receive the e-mails: the organisation has no admin, so the mailbox is not fetched"),  # 2.1333.0 (#6545)
+    # (#6546): the answers of an SMTP server when sending (the classes of its answer, never its own words)
+    "sender": N_("The server refused the sender address: it must belong to the SMTP account (or be allowed for it)"),
+    "recipient": N_("The server refused the recipient address"),
+    "refused": N_("The server refused the e-mail (its content or size)"),
 }
+MBX_SEND_FAILS = 3  # (#6546): failed sends in a row through a mailbox's SMTP before its owners hear it (fetching: INTEG_FAILS)
+# (#6546): where the mailbox is repaired, after the reason of a refused send
+MBX_SEND_HINT = N_("Not sent through the mailbox of the workspace: {0}. Check its access data in Settings > Company & office > E-mail.")
 MBX_WAKE = threading.Event()
 _DUE = set()  # workspaces whose mailbox is fetched in the next round (Fetch now)
 MBX_AFTER_POLL = []  # 2.581.0 (#4804): f(M, box) on the open connection after the filing (hub/mailrules.py mbr_run: documents)
@@ -169,7 +178,9 @@ def mbx_err_text(code, lg=None):
 
 
 def _err_code(e):
-    """auth | login | port | folder | network (2.1312.0, #6540: everything else that is no refused login reads as one)."""
+    """auth | login | port | folder | network (2.1312.0, #6540: everything else that is no refused login reads as one).
+    (#6546): sending: sender (MAIL FROM refused), recipient (every RCPT TO refused), refused (another lasting 5xx answer,
+    e.g. to DATA); a passing 4xx answer reads as network (the server cannot take it now)."""
     import smtplib
     if isinstance(e, (_AuthFailed, smtplib.SMTPAuthenticationError, smtplib.SMTPNotSupportedError)):
         return "auth"
@@ -179,7 +190,18 @@ def _err_code(e):
         return "port"
     if isinstance(e, imaplib.IMAP4.error) and "select" in str(e).lower():
         return "folder"  # after the login: no probe of a stranger's server
+    if isinstance(e, smtplib.SMTPSenderRefused):
+        return "sender"
+    if isinstance(e, smtplib.SMTPRecipientsRefused):
+        return "recipient"
+    if isinstance(e, smtplib.SMTPResponseException) and 500 <= int(e.smtp_code or 0) < 600:
+        return "refused"
     return "network"
+
+
+def mbx_send_code(e):
+    """(#6546): the code of a failed send through a mailbox's SMTP (MBX_ERR; mbx_err_text gives its words)."""
+    return _err_code(e)
 
 
 def _mutf7(name):
@@ -295,8 +317,11 @@ def mbx_smtp(c, r, secret=None):
     if not r or not r["smtp_host"] or not r["from_addr"]:
         return None
     secret = mbx_secret(c, r) if secret is None else secret
+    # (#6546): box = the row's id: integrations/mail.py mail_deliver reports every send through it (mbx_send_result); a row
+    # not stored (no id: values being tried) reports nothing
     return {"host": r["smtp_host"], "port": int(r["smtp_port"] or 0), "tls": r["smtp_tls"] or "starttls", "user": r["smtp_user"],
-            "password": secret.get("smtp") or "", "from": r["from_addr"], "allow": _allow(c, r["ws"])}
+            "password": secret.get("smtp") or "", "from": r["from_addr"], "allow": _allow(c, r["ws"]),
+            "box": int(r["id"]) if "id" in r.keys() and r["id"] else None}
 
 
 def mbx_check(c, r, secret=None):
@@ -390,7 +415,16 @@ def _public(c, ws, org, r=None, check=None):
                   "from_addr": r["from_addr"], "from_name": r["from_name"], "polled_at": r["polled_at"], "error": r["error"],
                   "error_text": mbx_err_text(r["error"], lg), "error_at": r["error_at"]}
     out["box"].update(_mbx_state(c, r, lg))
+    out["box"].update(_mbx_send_state(r, lg))
     return out
+
+
+def _mbx_send_state(r, lg):
+    """(#6546): what the settings show about sending through the mailbox: the code of the last failed send and its words,
+    failing since (send_error_at), failed sends in a row; all empty once a send worked."""
+    code = r["send_error"] or ""
+    return {"send_error": code, "send_error_text": mbx_err_text(code, lg), "send_error_at": r["send_error_at"] if code else None,
+            "send_fails": int(r["send_fails"] or 0)}
 
 
 def _mbx_state(c, r, lg):
@@ -438,6 +472,7 @@ def mbx_list():
         if manage and r:
             d.update(error=r["error"], error_text=mbx_err_text(r["error"], lg), polled_at=r["polled_at"], error_at=r["error_at"],
                      ok_at=r["ok_at"], halted=mbx_halted(r), skipped=int(r["skipped"] or 0))  # 2.1333.0 (#6545)
+            d.update(_mbx_send_state(r, lg))  # (#6546)
         out.append(d)
     from ..integrations.mail import MAIL_OUT_ON
     return jsonify(spaces=out, server_send=MAIL_OUT_ON)
@@ -575,6 +610,11 @@ def mbx_put():
                   (*[v[k] for k in cols], sealed, ts, r["id"]))
         if fresh:
             c.execute("UPDATE hub_mailboxes SET error='', error_at=NULL, fails=0, told_at=NULL WHERE id=?", (r["id"],))
+        # (#6546): the same for sending: new access data for sending (a server field, the user, the sender address, a new
+        # password) starts its count anew -- its error stays shown until a send works (only a send proves it)
+        if any(v[k] != (int(r[k] or 0) if k == "smtp_port" else r[k]) for k in ("smtp_host", "smtp_port", "smtp_tls", "smtp_user", "from_addr")) \
+                or bool(d.get("smtp_password")):
+            c.execute("UPDATE hub_mailboxes SET send_fails=0, send_told_at=NULL WHERE id=?", (r["id"],))
         # review F2 / N1: "last successful fetch" belongs to the mailbox it was fetched from: another server, port, user or
         # folder is another mailbox (a new password or switching it on again is not). mailed_at stays (review F1).
         if any(v[k] != (int(r[k] or 0) if k in ("imap_port", "imap_ssl") else r[k]) for k in ("imap_host", "imap_port", "imap_ssl", "imap_user", "imap_folder")):
@@ -712,12 +752,16 @@ def _took_part(c, m, frm):
 def mbx_import(c, box, raw):
     """One mail of workspace mailbox box -> the e-mail filing of box's workspace (never another one). Returns the mail id,
     0 when it was not filed (a double, nobody to receive)."""
-    from ..integrations.mail import MAIL_TOKEN_RE, mail_text
+    from ..integrations.mail import MAIL_TOKEN_RE, mail_bounce_take, mail_text
     msg = mail_parse(raw)  # 2.1281.0 (#6425): counted before it is taken apart (MailRefused: mail_fetch skips it)
     org, ws = box["org_id"] or None, box["ws"]
     with system_ctx(c):  # the background round: the rights are checked here (holder, workspace), like hbm_mail_import
         holder = mbx_holder(c, box)
         if not holder:
+            return 0
+        # (#6547): a delivery report of a mail Kalmido sent marks it and is not filed; an automatic answer is never filed (both
+        # stay in the mailbox, marked seen); the report of a mail sent from a mail program is filed as before
+        if mail_bounce_take(c, msg, (org, ws)) or H.hbm_auto_drop(msg, reports=False):
             return 0
 
         def fits(kind, uid, oid, cid, lid):
@@ -837,6 +881,57 @@ def _mbx_trouble(c, box):
             integ_tell(c, _mbx_owners(c, box), "mailbox_auth" if r["error"] == "auth" else "mailbox",
                        box["imap_user"] or box["imap_host"], str(r["error_at"] or "")[:10], click="mailhub", mail=mail,
                        mail_name=_mbx_space_name(c, box) if mail else None, ws=box["ws"])
+
+
+def mbx_send_result(box_id, code):
+    """(#6546): one send through the SMTP of mailbox box_id ended: code '' = it went out, else the code of its failure
+    (mbx_send_code). Counted like a failed fetch, in fields of its own (send_fails / send_error / send_error_at): a successful
+    fetch never sets them back, only a send that went out. A refused recipient is no failure of the mailbox (the server
+    works; an address anyone can type must not tell the admins) and changes nothing. From MBX_SEND_FAILS failures in a row its
+    owners hear it (News, push and mail, like a fetch outage, #6385 / #6545: integ_tell), again every MBX_TELL_AGAIN_S while it
+    lasts. Also a mailbox that only sends (no IMAP: never fetched). A connection of its own, committed at once: the caller's
+    transaction is usually rolled back after a failure. Never fails the caller."""
+    from datetime import timedelta
+    if code == "recipient":
+        return
+    c = None
+    try:
+        c = connect()
+        with system_ctx(c):  # a state of the mailbox, whoever sent through it
+            if not code:
+                c.execute("UPDATE hub_mailboxes SET send_fails=0, send_error='', send_error_at=NULL, send_told_at=NULL "
+                          "WHERE id=? AND (send_fails<>0 OR send_error<>'')", (box_id,))
+                c.commit()
+                return
+            box = c.execute("""UPDATE hub_mailboxes SET send_error=?, send_error_at=CASE WHEN send_fails>0 AND send_error_at IS NOT NULL
+                               THEN send_error_at ELSE ? END, send_fails=send_fails+1 WHERE id=? RETURNING *""",
+                            (code, _now(), box_id)).fetchone()
+            if box and box["send_fails"] >= MBX_SEND_FAILS:
+                told = c.execute("UPDATE hub_mailboxes SET send_told_at=? WHERE id=? AND (send_told_at IS NULL OR send_told_at<?) RETURNING id",
+                                 (_now(), box_id, iso(now_utc() - timedelta(seconds=MBX_TELL_AGAIN_S)))).fetchone()
+                if told:
+                    # the mail shares the clock of the fetch outage (mailed_at, #6545 review F1): one mail per mailbox in 3 days
+                    mail = bool(c.execute("UPDATE hub_mailboxes SET mailed_at=? WHERE id=? AND (mailed_at IS NULL OR mailed_at<?) RETURNING id",
+                                          (_now(), box_id, iso(now_utc() - timedelta(seconds=MBX_TELL_AGAIN_S)))).fetchone())
+                    integ_tell(c, _mbx_owners(c, box), "mailbox_send", box["from_addr"] or box["smtp_user"] or box["smtp_host"],
+                               MBX_ERR.get(code) or MBX_ERR["network"], click="mailhub", more=(str(box["send_error_at"] or "")[:10],),
+                               mail=mail, mail_name=_mbx_space_name(c, box) if mail else None, ws=box["ws"])
+        c.commit()
+    except DbError as e:  # the note of a send never changes what the sender answers
+        print("mailbox: send result not noted:", type(e).__name__, flush=True)
+    finally:
+        if c is not None:
+            c.close()
+
+
+def _mbx_sent(smtp, e):
+    """(#6546): integrations/mail.py mail_deliver after every send through a mailbox's SMTP access (mbx_smtp: its box id);
+    e = None when it went out."""
+    if smtp.get("box"):
+        mbx_send_result(int(smtp["box"]), "" if e is None else mbx_send_code(e))
+
+
+SMTP_OWN_DONE.append(_mbx_sent)
 
 
 def mbx_poll_one(box, hold=None):
@@ -1193,7 +1288,8 @@ def mbx_send():
         c.commit()
     from ..integrations.mail import mail_deliver, mail_message
     try:
-        msg = mail_message(", ".join(to), subj, text, from_name=name or None, cc=", ".join(cc) or None, reply_to=reply_to, smtp=smtp)
+        msg = mail_message(", ".join(to), subj, text, from_name=name or None, cc=", ".join(cc) or None, reply_to=reply_to, smtp=smtp,
+                           auto=False)  # (#6547): a person writes it
     except (ValueError, TypeError):
         return err(tr("Invalid data"))
     if m0 is not None and m0["message_id"].startswith("<"):
@@ -1216,7 +1312,9 @@ def mbx_send():
         bump(c)
         c.commit()
         row = c.execute("SELECT * FROM hub_mails WHERE id=?", (mid,)).fetchone()
-        return jsonify(error=tr("Sending failed: {0}", mbx_err_text(code, lg)), code=code, mail=H.hbm_public(c, row)), 502
+        # (#6546): through the workspace's mailbox: the reason and where to repair it (a refused recipient is the address's)
+        why = tr(MBX_SEND_HINT, mbx_err_text(code, lg), lg=lg) if smtp and code != "recipient" else tr("Sending failed: {0}", mbx_err_text(code, lg))
+        return jsonify(error=why, code=code, mail=H.hbm_public(c, row)), 502
     c.execute("UPDATE hub_mails SET send_state='' WHERE id=?", (mid,))
     bump(c)
     c.commit()

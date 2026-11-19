@@ -139,7 +139,7 @@ function viewTeam() {
     : `<div class="empty tcempty">${botFig('ruhig')}<b>${tr('No conversations yet')}</b><span>${S.tc.people.length || (S.tc.rooms || []).length ? tr('Write to someone you work with, or share a project: every shared project gets its own chat.') : tr('Share a project with someone: every shared project gets its own chat.')}</span>${S.tc.people.length || (S.tc.rooms || []).length ? `<button type="button" class="btn sm pri" data-act="tc-new">${ic('plus', 's')}${tr('Start a conversation')}</button>` : ''}</div>`}
   </nav>`;
   const thp = rid && S.tc.th && tth_wide();  // 2.139.0 A (#2127): the open thread right of the conversation
-  return `<div class="tcwrap"><div class="tcview ${rid ? 'inroom' : ''}${thp ? ' inthread' : ''}${off ? (rid ? ' nolist' : ' listpage') : ''}">${list}${rid ? `<section class="tcroom" aria-label="${esc(roomName(S.tc.room ? {...S.tc.room, name: (rooms.find(x => x.id === rid) || {}).name} : rooms.find(x => x.id === rid)))}">${tcRoomHtml()}</section>` : (isMobile() || off ? '' : `<section class="tcroom tcnone"><div class="empty">${ic('comment')}<span>${tr('Select a conversation.')}</span></div></section>`)}${thp ? `<aside class="tthpane" aria-label="${esc(tr('Thread'))}">${tth_html()}</aside>` : ''}</div></div>`;
+  return `<div class="tcwrap"><div class="tcview ${rid ? 'inroom' : ''}${thp ? ' inthread' : ''}${off ? (rid ? ' nolist' : ' listpage') : ''}">${list}${rid ? `<section class="tcroom" aria-label="${esc(roomName(S.tc.room ? {...S.tc.room, name: (rooms.find(x => x.id === rid) || {}).name} : rooms.find(x => x.id === rid)))}">${tcRoomHtml()}</section>` : (isMobile() || off ? '' : `<section class="tcroom tcnone"><div class="empty">${ic('comment')}<span>${tr('Select a conversation.')}</span></div></section>`)}${thp ? `<aside class="tthpane" aria-label="${esc(tr('Thread'))}"><div class="tthgrip" data-k="tthgrip"></div>${tth_html()}</aside>` : ''}</div></div>`;
 }
 // 2.83.0 (#1774): "Open in split window" in the head of a team room (a phone has no long press / right click); not inside the panel itself
 function o3b_splitBtn(room, rid) {
@@ -475,6 +475,15 @@ document.addEventListener('click', e => {
 // composer's tools behind the plus, round Send - app.css .tccomp), the thread pane beside the conversation only from 900 px
 const tc_mid = () => td_rc('tcmid', () => matchMedia('(max-width:899px)').matches);
 const tth_wide = () => !tc_mid() && !(typeof cw_ren !== 'undefined' && cw_ren) && !S.cw?.lt;
+// #7302: the thread pane's width by the one grip (grip.js, docs/dev/kern.md "Resizing: the one grip"): --g-tc-thread on .tcview,
+// 16rem up to half of the area; nothing stored = today's minmax (app.css .tcview.inthread). Called after each draw of the team
+// view (render.js): a morph took the grip's marks and the variable off, they come back
+function tth_grip() {
+  const g = $('#view .tthpane > .tthgrip'), v = g?.closest('.tcview'); if (!g || !v) return;
+  if (g._grip && (g.classList.contains('grip') || document.body.classList.contains('gdrag'))) { g.classList.add('grip', 'grip-x'); g._grip.refresh(); return; }  // a redraw during a drag: the same handle
+  const rem = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+  grip_col(g, {key: 'tc-thread', edge: 'start', panel: () => g.parentElement, scope: v, min: 16, max: () => Math.max(16, Math.floor(v.clientWidth / rem() / 2))});
+}
 const tth_all = () => S.tc.th ? [S.tc.th.root, ...S.tc.th.msgs].filter(Boolean) : [];
 // 2.1213.0 (#6166): "edited" opens the earlier versions (as in an agent's chat, agentchat.js chatEditsShow). The server keeps
 // them in the core's history exactly as the message was stored: an encrypted one as its ciphertext, opened here with the key

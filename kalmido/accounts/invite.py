@@ -18,7 +18,7 @@ from ..accounts.login import finish_login, pend_cookie, pend_new
 from ..core.access import Denied
 from ..core.mailframe import MAIL_ACC, MAIL_BG, MAIL_MUTED, Safe, mail_html
 from ..core.pg import system_ctx
-from ..integrations.mail import MAIL_OUT_ON, mail_send
+from ..integrations.mail import MAIL_OUT_ON, mail_mid, mail_send
 from .orgs import op_apart_deny, op_foreign_account, op_support_only  # 2.399.0 (#2687), 2.485.0 (#3939)
 from ..accounts.orgs import org_names  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.login import twofa_methods  # 2.369.5 (#2517): pulled up from functions
@@ -108,8 +108,9 @@ def invite_new(c, uid, by, send=True, kind=None, days=None, bg=False):
                 # 2.37.0 (#1150): the link is stored before the mail goes out (it stayed on a mail error before, too), so no
                 # transaction is open while the mail server is asked; every caller committed right after this anyway
                 c.commit()
-                mail_send(u["email"], subject, text, body_html, images=logo, from_name=APP_NAME)
-                c.execute("UPDATE user_invites SET sent_at=? WHERE user_id=?", (iso(now_utc()), uid))
+                sent = mail_send(u["email"], subject, text, body_html, images=logo, from_name=APP_NAME)
+                c.execute("UPDATE user_invites SET sent_at=?, msg_id=? WHERE user_id=?",  # (#6547): + the Message-ID (a returned mail)
+                          (iso(now_utc()), mail_mid(sent), uid))
                 out["sent"] = True
         except Exception as e:  # noqa: BLE001  (the link still works: the admin can copy it)
             c.heal()

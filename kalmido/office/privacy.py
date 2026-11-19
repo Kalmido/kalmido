@@ -38,6 +38,7 @@ from .doclang import doc_lg
 from .doctpl_samples import DMA_SAMPLES, sample_text
 from .model import pb_cl_live, pb_owner
 from .ledger import ofx_log, ofx_company  # 2.369.5 (#2517): pulled up from functions
+from ..collab.mailback import mail_auto  # (#6547): the one check for automatic mails
 from .contacts_cl import fk_contact  # 2.369.5 (#2517): pulled up from functions
 from ..lists.public import public_links_on  # 2.369.5 (#2517): pulled up from functions
 from .invoices import _mail, h6c_send_budget, inv_clean_subject  # 2.369.5 (#2517): pulled up from functions
@@ -595,7 +596,8 @@ def dsb_mail_once(c, r, msg, raw):
 def dsb_mail_import(c, msg, raw):
     """integrations/mail.py mail_import, first: a reply with the code of a mailed sheet that wants a signature (subject
     "[DS-<code>]" or the plus address "+ds-<code>@") -> its first PDF / picture is filed into that sheet's office area,
-    status "signed (by mail, please check)". None = no such code (the other importers go on); else the node id or 0."""
+    status "signed (by mail, please check)". None = no such code (the other importers go on); else the node id or 0.
+    (#6547): an automatic mail (integrations/mail.py mail_auto) is taken as 0: no signature, no note."""
     from ..integrations.mail import mail_text
     from ..admin.hosting import QuotaExceeded
     subj = str(msg.get("Subject", "")).replace("\n", " ")
@@ -603,6 +605,8 @@ def dsb_mail_import(c, msg, raw):
     codes = [x.upper() for x in DSB_SUBJ_RE.findall(subj) + DSB_PLUS_RE.findall(hdrs)]
     if not codes:
         return None
+    if mail_auto(msg):  # (#6547): an out-of-office note sends the original with its PDF back - never "signed (by mail)"
+        return 0
     with system_ctx(c):  # a secret code like a public link; the sheet's area and its creator's membership checked below
         r = next((x for x in (c.execute("SELECT * FROM office_privacy_sheets WHERE code_hash=?", (dsb_code_hash(k),)).fetchone()
                               for k in dict.fromkeys(codes)) if x), None)

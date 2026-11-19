@@ -74,8 +74,6 @@ RQ_IN_HOUR = 60           # new tickets per list and hour (by mail)
 RQ_IN_SENDER_HOUR = 10    # new tickets per list, sender and hour
 RQ_WINDOW = test_seconds("KALMIDO_TEST_RQ_WINDOW_S", 3600)  # 2.1322.0 (#6560 3): the hour of both (a test container may shorten it)
 RQ_TITLE_MAX = 300
-_AUTO_PREC = ("bulk", "junk", "list", "auto_reply")
-_AUTO_LOCAL = ("mailer-daemon", "postmaster")
 
 
 # ---- the reference of a ticket and the request address of a list
@@ -112,17 +110,9 @@ def rq_own(sender):
 
 
 def rq_auto(msg, sender):
-    """An automatic mail (RFC 3834 Auto-Submitted, Precedence, out-of-office headers, a delivery report)."""
-    a = str(msg.get("Auto-Submitted", "") or "").strip().lower()
-    if a and a != "no":
-        return True
-    if str(msg.get("Precedence", "") or "").strip().lower() in _AUTO_PREC:
-        return True
-    if msg.get("X-Autoreply") or msg.get("X-Autorespond"):
-        return True
-    if msg.get_content_type() == "multipart/report":
-        return True
-    return sender.partition("@")[0] in _AUTO_LOCAL
+    """An automatic mail (RFC 3834 Auto-Submitted, Precedence, out-of-office headers, a delivery report): (#6547) the one
+    check of all mail inputs, integrations/mail.py mail_auto."""
+    return bool(M.mail_auto(msg, sender))
 
 
 def _list_ok(c, lid):
@@ -277,7 +267,7 @@ def rq_take(c, r, msg, raw):
         if auto:
             return 0  # an out-of-office answer to an answer never becomes a comment
         return rq_comment(c, msg, mid, p, l, verified)
-    if msg.get_content_type() == "multipart/report" or sender.partition("@")[0] in _AUTO_LOCAL:
+    if M.mail_auto(msg, sender) == "report":
         return 0  # review N5: a delivery report / mailer daemon (a bounce of our own confirmation) is never a ticket
     # 2.1322.0 (#6560 3): over a limit the mail is no longer dropped: it waits in the mailbox (unseen) and is taken in a later
     # round; the project's managers hear it once an hour. The sender's limit first (a refused call counts nothing), then the
@@ -306,14 +296,15 @@ def rq_limit_tell(c, lst):
 def rq_mail_bg(to, subject, text, html_body, unsub, reply_to, msg_id, refs, auto):
     """The background part: one mail of a mail ticket (confirmation / answer) with its thread headers."""
     try:
-        m = M.mail_message(to, subject, text, html_body or None, from_name=APP_NAME, reply_to=reply_to or None, unsub=unsub or None)
+        m = M.mail_message(to, subject, text, html_body or None, from_name=APP_NAME, reply_to=reply_to or None, unsub=unsub or None,
+                           auto=bool(auto))  # (#6547): a person's answer carries no automatic mark
         if msg_id:
             m.replace_header("Message-ID", msg_id)
         if refs:
             m["In-Reply-To"] = refs[-1]
             m["References"] = " ".join(refs[-10:])
-        if auto:
-            m["Auto-Submitted"] = "auto-replied"  # RFC 3834: an answering machine on the other side stays quiet
+        if auto:  # RFC 3834: an answering machine on the other side stays quiet (mail_message set auto-generated: replaced)
+            m.replace_header("Auto-Submitted", "auto-replied")
         M.mail_deliver(m)
     except Exception as ex:  # noqa: BLE001  (nobody waits for this; the status page has everything)
         mail_bg_failed("request", ex)  # (#6385): a passing failure of the mail server is tried again; no addresses in the log

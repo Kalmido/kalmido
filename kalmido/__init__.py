@@ -142,6 +142,7 @@ ORDER = (
     "collab.news",
     "collab.attskip",  # #6531: a mail's / a form's file left out: the note on the task and the News item
     "collab.integfail",  # 2.367.3 (#2971): an integration stopped working: News + push to who can repair it
+    "collab.mailback",  # (#6547): the one check for automatic mails, the words of a returned mail
     "personal.habits",
     "personal.timetrack",
     "personal.timewipe",  # 2.43.0 (#1434)

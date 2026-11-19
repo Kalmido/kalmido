@@ -41,6 +41,8 @@ INTEG_TEXT = {
     "reqmail": N_("Requests by e-mail to project {0} reached the hourly limit: further e-mails wait in the mailbox and are taken in later."),  # 2.1322.0 (#6560 3)
     "errhook": N_("Error reports of project {0} are paused: {1}"),  # 2.1322.0 (#6560 4)
     "mailbox": N_("Mailbox {0} cannot fetch e-mail, failing since {1}."),
+    # (#6546): MBX_SEND_FAILS sends in a row through the mailbox's SMTP failed ({1} = the reason, {2} = since when)
+    "mailbox_send": N_("Mailbox {0} cannot send e-mail: {1} (failing since {2}). E-mails of the workspace are not going out; check its access data."),
     "git": N_("Git connection {0} cannot fetch, failing since {1}."),
     "gitowner": N_("Git connection {0} is paused: the person whose access token it uses has no access to the project any more."),  # 2.1306.0 (#6554)
     "gitcap": N_("Git connection {0} reached its daily limit of new issues or comments ({1}); the rest goes out tomorrow."),  # 2.1306.0 (#6554)
@@ -58,6 +60,12 @@ INTEG_TEXT = {
     # (#6385): a queued mail failed for good ({2} = the error class): the inviting instance admin / the booking page's person
     "mail_invite": N_("The invitation e-mail to {0} could not be sent ({2}). Send the invitation again later."),
     "mail_booking": N_("The booking e-mail to {0} could not be sent ({2})."),
+    # (#6547): a mail came back undelivered (integrations/mail.py mail_bounce_tell): {0} = what it carried, {1} = the reason,
+    # {2} = its status code in brackets or nothing
+    "mail_bounced_doc": N_("The e-mail with {0} came back undelivered: {1}{2}. Check the address and send it again."),
+    "mail_bounced_letter": N_("The e-mail with the letter of {0} came back undelivered: {1}{2}. Check the address and send it again."),
+    "mail_bounced_hub": N_("An e-mail you sent from the e-mail filing came back undelivered: {1}{2}."),
+    "mail_bounced_invite": N_("The invitation e-mail to {0} came back undelivered: {1}{2}. Check the address and send the invitation again."),
     "backup": N_("Backup failed: {0}"),
     "payonline": N_("An online payment on invoice {0} could not be booked: {1}"),  # 2.469.0 (#3459)
 }

@@ -585,7 +585,7 @@ def doc_public(c, oid, r, admin, items=True):
         d["author_choices"] = [] if ofx_locked(r) else oda_choices(c, oid)
     for k in ("issuer_rev", "ref_sha256"):  # (#6701): internal fingerprints
         d.pop(k, None)
-    d["mail"] = oms_public(r)  # (#6820): {state, at} instead of the two columns
+    d["mail"] = oms_public(r, why=True)  # (#6820): {state, at} instead of the two columns
     d.pop("mail_state", None)
     d.pop("mail_at", None)
     if d.get("issuer_id"):  # (#6701): "made by invoice issuer <name>" and its unconfirmed statements
@@ -723,7 +723,7 @@ def doc_brief(r, pm=None, lg=None, today=None):
          "locked": ofx_locked(r), "due_date": r["due_date"] if "due_date" in r.keys() else None, "cancels_id": r["cancels_id"] if "cancels_id" in r.keys() else None,
          "inv_type": r["inv_type"] if "inv_type" in r.keys() else "",  # 2.120.0 A (#2087)
          "trial": bool(r["trial"]) if "trial" in r.keys() else False,  # (#2576)
-         "mail": oms_public(r)}  # (#6820): the delivery state of its e-mail
+         "mail": oms_public(r, why=True)}  # (#6820): the delivery state of its e-mail
     if r["kind"] in ("invoice", "credit"):
         d["range_id"] = doc_range_id(r)  # 2.1365.0 (#6698): the number range (None = the main range)
     if r["kind"] == "offer":  # 2.1064.0 (#5818): sent, no answer and past "valid until" = the mark "expired" in the list

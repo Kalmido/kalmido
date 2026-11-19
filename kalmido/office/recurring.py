@@ -48,6 +48,9 @@ RIN_MONTHS = {"de": ("Januar", "Februar", "März", "April", "Mai", "Juni", "Juli
 RIN_TASK_DRAFT = N_("Check and send the invoice draft of series {0}")
 RIN_TASK_FAIL = N_("Invoice of series {0} not sent")
 RIN_TASK_PAUSED = N_("Invoice series {0} paused")
+# (#6546): the workspace's mailbox could send but is switched off: the series' mail left from the server's address instead
+RIN_TASK_VIA_SERVER = N_("Invoice of series {0} sent from the server's address")
+RIN_VIA_SERVER = N_("The e-mail left from the server's address: the mailbox of the workspace is switched off. Switch it on again in Settings > Company & office > E-mail.")
 # 2.1265.0 (#6387): a series whose watchdog run fails RIN_FAIL_MAX times in a row (fail_count, migrations.d/6387.py) or that has
 # nobody to act for it is paused with the task RIN_TASK_PAUSED and one of these reasons (was: the log only, every run again)
 RIN_FAIL_MAX = 3
@@ -490,6 +493,8 @@ def rin_step(c, oid, uid, s, period, people, missed=()):
             ok, why2 = rin_mail(c, oid, uid, m)
             if not ok:
                 _tell(c, people, RIN_TASK_FAIL, name, lambda lg: tr("Period {0}. The invoice is finalised, the e-mail did not go out: {1}", pt(lg), tr_stored(why2, lg), lg=lg) + gone(lg), did)
+            elif m.get("fallback"):  # (#6546): sent, but not from the mailbox the series would use
+                _tell(c, people, RIN_TASK_VIA_SERVER, name, lambda lg: tr("Period {0} was sent.", pt(lg), lg=lg) + "\n" + tr(RIN_VIA_SERVER, lg=lg) + gone(lg), did)
             elif missed:
                 _tell(c, people, RIN_TASK_DRAFT, name, lambda lg: tr("Period {0} was sent.", pt(lg), lg=lg) + gone(lg), did)
             # 2.1265.0 (#6387): sent or told: nothing left for the next run (only this invoice's mark, a newer one stays)
@@ -572,6 +577,8 @@ def _rin_catchup(c, oid, uid, s, did, people):
     bump(c)
     c.commit()  # the try is used before anything goes out (with the day's counters of inv_send)
     ok, why = rin_mail(c, oid, uid, m)
+    if ok and m.get("fallback"):  # (#6546)
+        _tell(c, people, RIN_TASK_VIA_SERVER, name, lambda lg: tr(RIN_VIA_SERVER, lg=lg), did)
     end(None if ok else why)
     if ok and datev:
         rin_datev(c, oid, did)
@@ -929,7 +936,7 @@ def rin_restore(sid):
 @app.post("/api/office/series/<int:sid>/run")
 def rin_run(sid):
     """"Make now": the invoice of the next period at once (also before its day); next_date moves on. One period per call.
-    -> {series, doc_id, sent, error?}; 409 after the end, without a template or when the period has its invoice already."""
+    -> {series, doc_id, sent, error?, note?}; (#6546) note = sent from the server's address (the mailbox is switched off); 409 after the end, without a template or when the period has its invoice already."""
     c, uid, oid = _ctx()
     if rin_row(c, oid, sid)["mail_doc"]:  # 2.1289.0 (#6629): first the mail the last run left (its mark is not overwritten)
         rin_catchup(c, oid, uid, sid, rin_people(c, oid, rin_row(c, oid, sid)))
@@ -952,6 +959,8 @@ def rin_run(sid):
     if post:  # 2.269.0 D (#3046): number committed, now the mail
         sent, why = post()
         error = None if sent else tr("The invoice is finalised, the e-mail did not go out: {0}", tr_stored(why))
+    # (#6546): sent from the server's address because the workspace's mailbox is switched off: the result says so
+    note = tr(RIN_VIA_SERVER) if sent and ofm_sender(c, oid, uid, {})["fallback"] else None
     if sent and datev:
         rin_datev(c, oid, nid)
-    return jsonify(series=rin_public(c, oid, rin_row(c, oid, sid)), doc_id=nid, sent=bool(sent), prev_next_date=prev, error=error)
+    return jsonify(series=rin_public(c, oid, rin_row(c, oid, sid)), doc_id=nid, sent=bool(sent), prev_next_date=prev, error=error, note=note)

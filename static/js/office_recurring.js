@@ -179,7 +179,7 @@ async function rinClick(e) {
     OFD.list = null;
     rinReload();
     if (j.error) toast(j.error);
-    if (j.sent) { toast(tr('Invoice sent')); return; }  // a mail cannot be taken back: no undo step
+    if (j.sent) { toast(j.note ? tr('Invoice sent') + ' · ' + j.note : tr('Invoice sent')); return; }  // a mail cannot be taken back: no undo step; (#6546) note: from the server's address
     const prev = j.prev_next_date;
     offerUndo(tr('Invoice draft created'), histAdd({label: tr('Invoice draft created'),
       undo: async () => { try { await rawFetch('DELETE', `/api/office/docs/${j.doc_id}`); } catch (x) { ofcErr(x); } OFD.list = null; await rinPatch(s.id, {next_date: prev}); },

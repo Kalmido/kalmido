@@ -414,6 +414,10 @@ def _aa_build(c, kind, key, b):
         return ("rls:" + ",".join(sorted(items))[:150], Nn_("{0} request was refused by the database's row-level security within {1} min ({2}; users: {3})",
                                                           "{0} requests were refused by the database's row-level security within {1} min ({2}; users: {3})"),
                 [mins, _aa_list(items), _aa_list(b["extra"].get("user", {}))], b["n"])
+    if kind == "integration" and key == "bounce":  # (#6547): delivery reports no sent mail of Kalmido matched (integrations/mail.py)
+        return ("bounce:" + ",".join(sorted(items))[:150], Nn_("{0} returned e-mail (delivery report) could not be matched to an e-mail Kalmido sent ({1})",
+                                                              "{0} returned e-mails (delivery reports) could not be matched to an e-mail Kalmido sent ({1})"),
+                [_aa_list(items)], b["n"])
     if kind == "storage" and key == "attachments":
         return ("attachments:" + ",".join(sorted(items))[:150], Nn_("Attachment folder: {0} write error ({1})",
                                                                    "Attachment folder: {0} write errors ({1})"), [_aa_list(items)], b["n"])

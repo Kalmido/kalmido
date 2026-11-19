@@ -155,12 +155,15 @@ def tmr_who(c, tid, sender, tu=0):
 
 def tmr_take(c, msg, mid, uid, how_to=None):
     """mail_import's step before a new task (mail.py MAIL_TASK_HOOK): ('comment', task id) when the mail became a comment,
-    ('note', text) for the new task when it answers a task but may not comment, (None, '') otherwise. uid = the person the
+    ('note', text) for the new task when it answers a task but may not comment, ('drop', None) for an automatic answer to a task
+    (#6547, mail.py mail_auto: neither a comment nor a new task), (None, '') otherwise. uid = the person the
     import would give the mail to (None = no address the import takes), how_to = how it found them (mail_target: "token" / "from")."""
     sender = _addr(msg.get("From"))
     tid, signed, tu = tmr_find(c, msg, sender)
     if not tid:
         return None, ""
+    if M.mail_auto(msg, sender):  # (#6547): an out-of-office note or a delivery report to a task's mail is dropped, never a comment
+        return "drop", None
     ok, who = tmr_who(c, tid, sender, tu)
     if who:  # 2.539.0 (#4381, audit #2483 M5): in a person's name only when the receiving server confirmed the sender's domain
         # (KALMIDO_MAIL_AUTHSERV_ID); else "By e-mail from <address>", no account
@@ -260,7 +263,8 @@ def tmr_send(c, tid, uid, cid):
             return "limit"
     title = M.MAIL_PREFIX_RE.sub("", re.sub(r"\s+", " ", t["title"] or "")).strip() or APP_NAME
     text = tmr_plain(c, k["body"])
-    m = M.mail_message(rep, "Re: " + title[:250], text, from_name=name or APP_NAME, reply_to=tmr_reply_to(c, tid, rep) or None, smtp=smtp)
+    m = M.mail_message(rep, "Re: " + title[:250], text, from_name=name or APP_NAME, reply_to=tmr_reply_to(c, tid, rep) or None, smtp=smtp,
+                       auto=False)  # (#6547): a person's comment
     ids = tmr_ids(c, tid)
     if ids:
         m["In-Reply-To"] = ids[-1]

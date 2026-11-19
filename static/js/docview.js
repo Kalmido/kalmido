@@ -9,20 +9,21 @@
    fields"; no Save button - every change saves at once with an undo, docs.js dc_patch), and the large preview: every page
    of a PDF one below the other, drawn sharp at the size shown (again after a zoom or a new width, a page only when it comes
    near, a limit per page's canvas), the page counter, zoom, Width, Whole page, Full screen; an image in its original. Grips
-   between the columns set their widths (kept per device, a double click / Home = the standard). Phones: one column, the
+   between the columns set their widths (#7315: the one grip, grip.js; kept per device, a double click / Enter = the standard). Phones: one column, the
    preview on top, the fields below, a swipe sideways leafs (2.882.0, #5557: anywhere in the view, swipenav.js via docs.js dc_swArea), two fingers zoom.
    Replaces the pane beside the list (2.430.0, #3582), the phone's sheet and the reading view (2.521.0, #4476: its preview
    of every page, its grips and its full screen live on here). The file is part of the module docs (lazyload.js), docs.js
    asks it through typeof checks. Classic script sharing the global scope with the others. */
 'use strict';
 
-const DVW = {back: null, tab: 'details', pdf: null, ro: null, drag: null, he: null, node: null, more: false, notext: null, closed: null, gone: new Set(), sz: null, th: null};  // notext: 2.742.0 (#4861); closed: #3506 the id of a view just closed; gone: #5478; sz / th: 2.882.0 (#5557) the sizes seen (dcv_phSize)
+const DVW = {back: null, tab: 'details', pdf: null, ro: null, he: null, node: null, more: false, notext: null, closed: null, gone: new Set(), sz: null, th: null};  // notext: (#4861); closed: #3506 the id of a view just closed; gone: #5478; sz / th: (#5557) the sizes seen (dcv_phSize)
 // the tabs of the fields; History and Shares come from the file store's node (GET /api/files/nodes/<id>, its rights)
 const DCV_TABS = [['details', N_('Details')], ['text', N_('Content')], ['hist', N_('History')], ['share', N_('Shares')]];
 const DCV_ZMIN = 0.1, DCV_ZMAX = 8, DCV_CVMAX = 12e6;  // the zoom's limits; the most pixels one page's canvas gets
-// the grips: their device key, the CSS variable on .dv-view, the smallest width (rem). 2.583.0 (#4829): every grip
-// goes up to the edge; the neighbours keep only their small rest (DCV_KEEP rem of the preview, the other column its smallest)
-const DCV_GRIPS = {strip: {k: 'dv.stripW', v: '--dv-sw', min: 4}, mask: {k: 'dv.maskW', v: '--dv-mw', min: 12}};
+// the grips: the key of the one grip (#7315, grip.js: --g-<key> on .dv-view, docview.css maps it to --dv-sw / --dv-mw; kept per
+// device under grip:<key>), the old key of the device (px, taken over once), the smallest width (rem). (#4829): every
+// grip goes up to the edge; the neighbours keep only their small rest (DCV_KEEP rem of the preview, the other column its smallest)
+const DCV_GRIPS = {strip: {key: 'dv-sw', old: 'dv.stripW', min: 4}, mask: {key: 'dv-mw', old: 'dv.maskW', min: 12}};
 const DCV_KEEP = 6;
 const dcv_rem = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
 const dcv_stripOff = () => !!LS.get('dv.stripOff', false);
@@ -31,8 +32,17 @@ const dcv_in = el => !!el?.closest?.('input, textarea, select, [contenteditable=
 
 // ---- the frame (viewDocs draws it for #docs/<id>; its content is drawn here and kept through redraws: data-fl-fill)
 function dcv_colStyle() {
-  // 2.547.0 (#4492, from the reading view): while a grip is dragged, a redraw (a live update, the preview loaded) keeps the dragged width
-  const st = Object.entries(DCV_GRIPS).map(([w, g]) => { const px = DVW.drag?.which === w && DVW.drag.px != null ? DVW.drag.px : +LS.get(g.k, 0); return px > 0 ? `${g.v}:${Math.round(px)}px` : ''; }).filter(Boolean).join(';');
+  // (#4492, from the reading view): while a grip is dragged, a redraw (a live update, the preview loaded) keeps the dragged
+  // width - #7315: the grip sets --g-<key> on .dv-view (also during a drag), a redraw takes it from there; before the grip is
+  // hung: the kept width (rem), an old one (px) until the grip takes it over
+  const v = $('.dv-view');
+  const st = Object.values(DCV_GRIPS).map(g => {
+    const vn = '--g-' + g.key, live = v?.style.getPropertyValue(vn).trim();
+    if (live) return `${vn}:${live}`;
+    if (v?._dvg) return '';  // the grip is hung: no value = the standard
+    const r = +LS.get('grip:' + g.key, 0), px = +LS.get(g.old, 0);
+    return r > 0 ? `${vn}:${r}rem` : px > 0 ? `${vn}:${Math.round(px)}px` : '';
+  }).filter(Boolean).join(';');
   return st ? ` style="${st}"` : '';
 }
 function dcv_html(id) {
@@ -116,6 +126,7 @@ function dcv_draw(md) {
   fl_set(md, `${dcv_headHtml(d, w)}
     ${dcv_bodyHtml(d, null)}`);
   body = $('.dc-body', md); if (body) body._dcv = {d, set: DC.set};  // 2.736.0 (#5212): what it shows (it may become a neighbour)
+  dcv_grips(md);  // #7315
   if (DVW.tab === 'hist' || DVW.tab === 'share') dcv_tabLoad(md, d);
   dcv_pvDraw(md, d);
   if (typeof dfl_runs === 'function' && !d.file) dfl_runs(md, d);  // 2.581.0 (#4803): the runs of flows with Undo (docflows.js)
@@ -825,55 +836,23 @@ for (const k of ['ArrowLeft', 'ArrowRight']) kb_on('view:docs', k, e => {
   dc_step(dir);
 });
 
-// ---- the grips (drag, arrow keys, double click / Home = the standard width), kept per device
-function dcv_gripMax(g, which, v) {  // the room of the columns minus the other column, the grips and the preview's rest
+// ---- the grips: #7315 the one grip (grip.js grip_col; drag, finger, arrow keys, Home / End = narrowest / widest, double click /
+// Enter = the standard width, a tap = a small menu), kept per device under grip:dv-sw / grip:dv-mw, the old px keys taken over
+// once. Hung after each draw (dcv_draw): a morph took the grip's marks off (the variable stays: dcv_colStyle)
+function dcv_gripMax(which, v) {  // the room of the columns minus the other column, the grips and the preview's rest (rem)
   const rem = dcv_rem(), cols = $('.dv-cols', v), other = $(which === 'strip' ? '.dv-mask' : '.dv-strip', v);
-  const grips = $$('.dv-grip', v).reduce((a, x) => a + x.getBoundingClientRect().width, 0);
-  return Math.max(g.min * rem, (cols?.clientWidth || 0) - (other?.getBoundingClientRect().width || 0) - grips - DCV_KEEP * rem);
+  const grips = $$('.dv-cols > .dv-grip', v).reduce((a, x) => a + x.getBoundingClientRect().width, 0);
+  return Math.max(DCV_GRIPS[which].min, ((cols?.clientWidth || 0) - (other?.getBoundingClientRect().width || 0) - grips) / rem - DCV_KEEP);
 }
-function dcv_gripSet(which, px, save) {
-  const g = DCV_GRIPS[which], v = $('.dv-view'); if (!g || !v) return;
-  if (px == null) { v.style.removeProperty(g.v); LS.del(g.k); }
-  else {
-    px = Math.round(Math.max(g.min * dcv_rem(), Math.min(dcv_gripMax(g, which, v), px)));
-    v.style.setProperty(g.v, px + 'px');
-    if (save) LS.set(g.k, px); else if (DVW.drag?.which === which) DVW.drag.px = px;  // 2.547.0 (#4492): see dcv_colStyle
+function dcv_grips(md) {
+  for (const el of $$('.dc-body > .dv-grip[data-dvgrip]', md)) {
+    const which = el.dataset.dvgrip, g = DCV_GRIPS[which]; if (!g) continue;
+    if (el._grip && (el.classList.contains('grip') || document.body.classList.contains('gdrag'))) { el.classList.add('grip', 'grip-x'); el._grip.refresh(); continue; }  // a redraw during a drag: the same handle
+    grip_col(el, {key: g.key, scope: md, min: g.min, max: () => dcv_gripMax(which, md), label: el.getAttribute('aria-label') || undefined,
+      legacy: {key: g.old, map: px => +px > 0 ? Math.round(+px / dcv_rem() * 4) / 4 : null}});
   }
+  md._dvg = true;
 }
-// 2.547.0 (#4492, from the reading view): the width the grip set last when it set one - Firefox applies a changed width only
-// with the next frame, measured before (a drag or an arrow key right after the one before) the old width came back
-function dcv_gripNow(which) {
-  const set = parseFloat($('.dv-view')?.style.getPropertyValue(DCV_GRIPS[which]?.v || '') || '');
-  if (set > 0) return set;
-  return $(which === 'strip' ? '.dv-view .dv-strip' : '.dv-view .dv-mask')?.getBoundingClientRect().width || 0;
-}
-document.addEventListener('pointerdown', e => {
-  const gr = /** @type {any} */ (e.target).closest?.('[data-dvgrip]'); if (!gr || e.button !== 0) return;
-  e.preventDefault();
-  const which = gr.dataset.dvgrip;
-  DVW.drag = {which, x0: e.clientX, w0: dcv_gripNow(which), px: null};
-  try { gr.setPointerCapture(e.pointerId); } catch { /* a synthetic event */ }
-  document.documentElement.classList.add('dv-resizing');
-});
-document.addEventListener('pointermove', e => {
-  const d = DVW.drag; if (!d) return;
-  d.px = d.w0 + e.clientX - d.x0;  // both columns grow to the right
-  dcv_gripSet(d.which, d.px, false);
-});
-function dcv_dragEnd() {
-  const d = DVW.drag; if (!d) return;
-  DVW.drag = null; document.documentElement.classList.remove('dv-resizing');
-  if (d.px != null) dcv_gripSet(d.which, d.px, true);
-}
-document.addEventListener('pointerup', dcv_dragEnd);
-document.addEventListener('pointercancel', dcv_dragEnd);
-document.addEventListener('dblclick', e => { const gr = /** @type {any} */ (e.target).closest?.('[data-dvgrip]'); if (gr) { e.preventDefault(); dcv_gripSet(gr.dataset.dvgrip, null); } });
-document.addEventListener('keydown', e => {
-  const gr = /** @type {any} */ (e.target).closest?.('[data-dvgrip]'); if (!gr) return;
-  const which = gr.dataset.dvgrip, step = (e.shiftKey ? 4 : 1) * dcv_rem();
-  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); dcv_gripSet(which, dcv_gripNow(which) + (e.key === 'ArrowRight' ? step : -step), true); }
-  else if (e.key === 'Home' || e.key === 'Delete') { e.preventDefault(); dcv_gripSet(which, null); }
-});
 
 // ---- Full screen: the document in the viewer of pdfview.js; the arrow keys left / right and two buttons leaf through the
 // list as shown (the view follows), without closing it (2.521.0, #4476)

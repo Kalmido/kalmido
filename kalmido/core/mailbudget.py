@@ -10,6 +10,10 @@ from email.utils import getaddresses
 from .config import mail_norm
 from .db import gsetting, now_utc
 
+# (#6546): f(smtp access, error or None) after every send through a workspace's own SMTP (integrations/mail.py mail_deliver
+# calls them; hub/mailbox.py counts the mailbox's failed sends and tells its admins) - here, below both
+SMTP_OWN_DONE = []
+
 MAIL_DAY_SENDER = 30   # per account and day (admin setting mail_day_limit)
 MAIL_DAY_RCPT = 5      # per receiving address and day
 MAIL_DAY_MAX = 10_000_000  # the admin setting's upper bound (was the storage quota bound of admin/hosting.py _mb)

@@ -553,7 +553,7 @@ async function newsOpen(i, opts) {
   if (it.kind === 'approval' && !it.task_id && feat('agents') && agentsOn()) { go('agents'); return; }
   if (it.kind === 'upscan' && it.data?.where === 'fs') { go('ablage/' + it.data.ref); return; }  // 2.61.0 (#1818): the locked file
   if (it.kind === 'filereq' && it.data?.node) { go('ablage/' + it.data.node); return; }  // 2.122.0 A (#2097): the folder the files went into
-  if (it.kind === 'integfail') { const d = it.data || {}; if (d.list && listById(d.list)) go('l/' + d.list); else if (d.ws) loadModule('hubmailbox').then(hmb_load).then(() => hmb_dialog(d.ws)); else settingsModal(d.focus); return; }  // 2.367.3 (#2971): where to repair it
+  if (it.kind === 'integfail') { const d = it.data || {}; if (d.list && listById(d.list)) go('l/' + d.list); else if (d.ws) loadModule('hubmailbox').then(hmb_load).then(() => hmb_dialog(d.ws)); else if (d.go) go(String(d.go)) /* (#6547): the document / letter / filing whose mail came back */; else settingsModal(d.focus); return; }  // (#2971): where to repair it
   if (it.kind === 'oxdone') { if (it.data?.own) go('office/settings'); else settingsModal('org'); return; }  // #6581: where the export is downloaded
   if (it.kind === 'umzdone') { settingsModal('data'); return; }  // #6583: the import's result and its report
   if (it.kind === 'fetcherr') { settingsModal('fetcher'); return; }  // 2.425.0 C (#3453): the receipt fetcher's portals
