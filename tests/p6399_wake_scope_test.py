@@ -5,8 +5,8 @@ Invented people and texts only.
  - GET /api/version vs (#2507) after a write in office (a client), files (a folder), contacts (an address book + a contact)
    and an agent's status: the members of the writer's organisation see it (vs = the new version), a member of another
    organisation and a person without one skip it (vs unchanged below v)
- - the person without an organisation: her own writes wake only her own devices; a folder she shares with a member of
-   another organisation wakes that person too (both sides of a share), nobody else
+ - the person without an organisation: her own writes wake only her own devices; once she is in a list with a member of
+   another organisation, writes of either wake the other too (the lists they share), nobody else
  - an agent's status reaches the people of the lists it is in (and their organisation), not the rest
  - instance-wide paths (admin) still wake everyone
 usage: p6399_wake_scope_test.py <datadir>"""
@@ -92,12 +92,15 @@ moved("dave makes a folder of his organisation", lambda: ok(Da.post(B + "/api/fi
 FF = made(Fr.post(B + "/api/files/folders", json={"name": "Frida teilt", "space": "private"}), "frida's folder")["id"]
 moved("frida makes a folder in her own space", lambda: ok(Fr.post(B + "/api/files/folders", json={"name": "Entwurf", "parent_id": FF})),
       ["frida"], ["bob", "dave", "carl"])
-# a share is an instance-wide path (the person who loses a share is in no circle any more): everyone
-moved("frida shares her folder with carl", lambda: ok(Fr.post(B + f"/api/files/nodes/{FF}/shares", json={"user_id": uid["carl"], "role": "edit"})),
+# a membership is an instance-wide path (the person who loses one is in no circle any more): everyone. A file share stays
+# inside its workspace; across organisations people meet in a list (carl's private project with frida)
+CL = made(Ca.post(B + "/api/lists", json={"name": "Carl und Frida"}), "carl's private list")["id"]
+kt.dbx("UPDATE users SET email_proved=lower(COALESCE(email, '')) WHERE email_proved=''")  # (#5669) a share by address needs a proved one
+moved("carl adds frida to his private list", lambda: ok(Ca.put(B + f"/api/lists/{CL}/members", json={"email": "frida@example.com", "role": "edit"})),
       list(P), [])
-moved("frida makes a folder in the shared one", lambda: ok(Fr.post(B + "/api/files/folders", json={"name": "Für Carl", "parent_id": FF})),
+moved("frida makes a folder in her own space", lambda: ok(Fr.post(B + "/api/files/folders", json={"name": "Für Carl", "parent_id": FF})),
       ["frida", "carl"], ["bob", "dave"])
-moved("carl makes a folder in frida's shared one", lambda: ok(Ca.post(B + "/api/files/folders", json={"name": "Von Carl", "parent_id": FF})),
+moved("carl makes a folder of his organisation", lambda: ok(Ca.post(B + "/api/files/folders", json={"name": "Beta Ablage", "space": f"org:{ORG['Beta']}"})),
       ["carl", "frida"], ["bob", "dave"])
 
 # ---------------------------------------------------------------- contacts (an address book + a contact)
