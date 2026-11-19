@@ -192,6 +192,18 @@ const lastModal = d => [...d.querySelectorAll('.modal')].pop();
   check(await until(() => !d.querySelector('.chath .chrunm')), '#5684: off = the header line is gone at once');
   click(w, md.querySelector('[data-m="close"]'));
   check(await until(() => !md.isConnected), '#5684: Close closes the dialog');
+  // #7350: with the switch off the header's menu line "Model: …" opens the same section (the switch is found there)
+  const mrow = async () => { click(w, d.querySelector('[data-act="chat-head-menu"]'));
+    return until(() => [...d.querySelectorAll('#pop:not(.hidden) [role="menuitem"]')].find(b => /Model: claude-opus-5-5/.test(b.textContent))); };
+  let mi = await mrow();
+  check(mi && !mi.disabled && mi.classList.contains('chmi-model') && mi.getAttribute('aria-haspopup') === 'menu', '#7350: switch off - the menu line "Model: …" can be tapped ' + (mi ? mi.outerHTML.slice(0, 200) : ''));
+  if (mi) click(w, mi);
+  md = await until(() => [...d.querySelectorAll('.modal')].find(m => /Model of Fridabot/.test(m.querySelector('h3')?.textContent || '')));
+  check(md && md.querySelector('#agm-split') && !md.querySelector('#agm-split').checked, '#7350: the tap opens the section Model with the switch "model per run" (off)');
+  if (md) click(w, md.querySelector('[data-m="close"]'));
+  check(await until(() => !md?.isConnected && !!d.querySelector('[data-act="chat-head-menu"]')), '#7350: closed, back in the chat');
+  mi = await mrow();
+  check(!!mi, '#7350: the menu opens again with the line');
   w.close();
   await call('PATCH', `/api/my/agents/${FB}`, {runtime: {model_split: true}}, CF);
   await call('PATCH', '/api/settings', {lang: 'de'}, CF);
