@@ -265,7 +265,9 @@ only over `https://` or from the Kalmido itself. The script, served by your own 
    (`--ip-rule current|off|ADDRESSES` / `-IpRule ...` answers without asking; Enter or no terminal = no rule). The redeem
    then sends `allowed_ips` (`"current"` = the address Kalmido sees, IPv6 as its /64, or IPs / networks); Kalmido sets the
    key's address rule (`api_tokens.allowed_ips`, the same rule as for every token) when it is within the agent's own one
-   and answers `allowed_ips` / `allowed_ips_applied`; a wrong address is `400` before the code is used. For Claude Code it
+   and answers `allowed_ips` / `allowed_ips_applied`; a wrong address is `400` before the code is used. *#7051:*
+   `PATCH /api/my/agents/<id>` (admin: `/api/admin/agents/<id>`) `{"machine_ip_reset": <computer id>}` gives that one key the
+   agent's own rule again (`404` for a key of another agent or a request token; logged). For Claude Code it
    writes the deny rules of the hardened profile into the project folder's `.claude/settings.local.json` (`WebFetch`,
    `WebSearch`, `Read` of the env files in `~/.kalmido` (`*.env`) and of the env file, `Edit` of the env file; entries already there stay, nothing twice),
 4. starts the agent in event mode (`agent_launcher.sh` / `.ps1 --events -- claude --mcp-config <instance>/mcp.json`)
@@ -1851,7 +1853,7 @@ Some changes by an agent never happen at once, whatever its permissions:
 - 2.530.0: deleting a habit (`DELETE /habits/{id}`, `delete_habit`); the habit goes into the trash with its history, the person
   restores it in the app until the trash period ends
 
-With a [control level](#control-level) the request first answers `409 approval_required` (the card of the level, Yes by a person, the same request again with the header); after that Yes the same request answers `202` as described here and waits for this second approval, as far as read in the code. An agent without a level, or on `free` for a change that is not a deletion, gets the `202` at once. The API answers `202` with `{approval_required: true, job, message}`: the request is stored as a **waiting job** with
+With a [control level](#control-level) the request first answers `409 approval_required` (the card of the level, Yes by a person, the same request again with the header); after that Yes the same request answers `202` as described here and waits for this second approval, as far as read in the code. An agent without a level, or on `free` for a change that is not a deletion, gets the `202` at once - unless the target is a wider or public circle (then the circle's card comes first, 2.1418.0). The API answers `202` with `{approval_required: true, job, message}`: the request is stored as a **waiting job** with
 a readable title ("Delete the project “Old” for good"). The same request again returns the same job (do not repeat it).
 The approver is the agent's owner (personal agents) or the owner of the project it concerns. Instance admins only where they reach the agent: a project open to them that they share with a team agent; never another person's personal agent. A request without a project (emptying the trash, renaming or removing a folder) has a named approver only for a personal agent; for a team agent nobody is named.
 2.126.0: project owners and project admins approve only when they may address the agent; the assignee of the task alone cannot. They see
@@ -3765,7 +3767,11 @@ into a job for a person. A `user_id` that is there but no id (`7.0`, `true`, `"+
 with the card, the route answers 400.
 
 **An agent made before 2.235.0** has no level (`control.level`
-null, `chosen: false`): it works as before, without any of these checks, until its owner picks one.
+null, `chosen: false`): it works as before, without the checks of a level, until its owner picks one. *(2.1418.0, #7142)*
+Without a chosen control level the circle rule counts the agent as `free`: every step goes as before without a card (a
+deletion too), but a write into a wider or public circle, a chat message, job or progress step to a person outside its
+circle answers `409 approval_required` with `circle`, and its status text, progress line and job words are empty for people
+who do not read every place it reads.
 
 A write the level does not allow answers `409`:
 

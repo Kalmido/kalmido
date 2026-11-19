@@ -154,6 +154,11 @@ ev = [e for e in events(CXH, "cx") if e["event"] == "mention"]
 check(not ev, "agent->agent: 2.40.0 (#1373) agent_peers is ignored (fixed off), still no event " + str(ev[:1])[:160])
 
 # ================================================================== #949 integrate / deploy
+# 2.1418.0 (#7142): the agent has no control level and counts as "free" for the circle rule: the lists of the parts above
+# (F1, F2, Legacy, share-all) are read by alice alone, bob reads Team -- every comment into Team would need the circle's card.
+# #949 is about the agent in Team: it leaves the other lists first (one circle again)
+for (x,) in dbx("SELECT list_id FROM list_members WHERE user_id=? AND list_id<>?", (CL, L)):
+    check(A.delete(B + f"/api/lists/{x}/members/{CL}").ok, f"setup #949: Claude leaves list {x}")
 events(CLH, "cl")
 r = requests.post(V + f"/tasks/{t['id']}/comments", headers=CLH, json={"body": "Ready", "suggestion": {
     "kind": "integrate", "source": "feat/x", "target": "main", "summary": "New login", "evidence": "build ok, 42 tests green"}})

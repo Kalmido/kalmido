@@ -20,7 +20,7 @@ from ..api.v1 import BadInput, UnknownFields
 from ..api.common import v1_args, v1_json, v1_view
 from ..core.srchreg import srch_register  # 2.1026.0 (#5280)
 from ..docs.dsearch import dsr_ids
-from .store import (fs_chain, fs_log_add, fs_mail_rows, fs_new_version, fs_put, fs_read, fs_visible_ids, need_node, safe_fs_name,
+from .store import (fs_chain, fs_children_visible, fs_log_add, fs_mail_rows, fs_new_version, fs_put, fs_read, fs_visible_ids, need_node, safe_fs_name,
                     _now, _place)
 from .fsroots import fs_area_folder_name, fs_area_of  # 2.200.0 A (#2747, review 6)
 from .fsref import fs_ref_content  # 2.199.0 A (#2742)
@@ -90,7 +90,7 @@ def v1_files_list():
         if n["kind"] != "folder":
             raise Denied(409, tr("Not a folder"))
         _area_scope(c, pid)  # 2.200.0 F (#1781)
-        rows = fs_mail_rows(c, me(), c.execute(f"SELECT * FROM fs_nodes n WHERE parent_id=? AND deleted_at IS NULL{tq} ORDER BY id", (pid, *tp)).fetchall())  # 2.148.1 D (#2488)
+        rows = fs_children_visible(c, me(), n, c.execute(f"SELECT * FROM fs_nodes n WHERE parent_id=? AND deleted_at IS NULL{tq} ORDER BY id", (pid, *tp)).fetchall())  # #2488 #6953: the web listing's rule
         fs_log_add(c, pid, "list")
         c.commit()
         items = _items(c, rows, n["role"])
@@ -126,7 +126,7 @@ def v1_file_get(nid):
     _area_scope(c, nid)  # 2.200.0 F (#1781)
     out = _v1_node(c, n)
     if n["kind"] == "folder":
-        rows = fs_mail_rows(c, me(), c.execute("SELECT * FROM fs_nodes WHERE parent_id=? AND deleted_at IS NULL ORDER BY id", (nid,)).fetchall())  # 2.148.1 D (#2488)
+        rows = fs_children_visible(c, me(), n, c.execute("SELECT * FROM fs_nodes WHERE parent_id=? AND deleted_at IS NULL ORDER BY id", (nid,)).fetchall())  # #2488 #6953: the web listing's rule
         out["children"] = _items(c, rows, n["role"])
     elif n["kind"] == "file":
         out["versions"] = _versions(c, nid)

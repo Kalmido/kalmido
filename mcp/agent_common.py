@@ -49,7 +49,8 @@ def redact(text):
     (API keys, GitHub / GitLab / AWS / Slack tokens, JWTs, PEM keys, user:password@ in URLs, name=value pairs) -> [redacted]."""
     if not text:
         return "" if text is None else text
-    vals = [os.environ.get("KALMIDO_TOKEN", "")]
+    # #7051 (Fable reader N2): a job started from a run has no KALMIDO_TOKEN in its environment; the value comes from the env file
+    vals = [env_credentials()[1]]
     vals += [v for k, v in os.environ.items() if re.search(r"TOKEN|SECRET|PASSWORD|API_KEY", k)]
     for v in sorted({v for v in vals if len(v) >= 8}, key=len, reverse=True):
         text = text.replace(v, REDACTED)
