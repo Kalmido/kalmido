@@ -4,6 +4,7 @@
 // sideways, buttons of one bar do not overlap. Bars of tabs may scroll themselves (their own scrollWidth), the page not.
 // Places: time (+ running timer), calendar, wiki and notes bar, project overview, receipts list, pipeline, selection bar #mbar,
 // document title (ellipsis), account servers row, meal dialog. In German: the audit's texts were the long ones.
+// #7211: Today's task block: its "…" does not lie over "Columns" of the strip of shown fields, which opens its menu.
 const path = require('path');
 const {execFileSync} = require('child_process');
 const {sleep, B, login} = require('./boot');
@@ -40,6 +41,9 @@ const DIAG = ev => ev(`JSON.stringify({h: location.hash, k: S?.route?.key, n: S?
   const L1 = (await call(CA, 'POST', '/api/lists', {name: 'Work', org_id: ORG})).id;
   const T = [];
   for (const n of ['Plan the week', 'Write the offer', 'Call the printer']) T.push((await call(CA, 'POST', '/api/tasks', {title: n, list_id: L1})).id);
+  // #7211: two tasks due today, so Today's task block has rows (and on the phone its strip of shown fields with "Columns")
+  const tday = new Date(), iso = `${tday.getFullYear()}-${String(tday.getMonth() + 1).padStart(2, '0')}-${String(tday.getDate()).padStart(2, '0')}`;
+  for (const n of ['Send the invoice today', 'Book the studio today']) await call(CA, 'POST', '/api/tasks', {title: n, list_id: L1, due: iso});
 
   const ready = async (ev, expr, n = 40) => { for (let i = 0; i < n; i++) { if (await ev(expr).catch(() => false)) return true; await sleep(250); } return false; };
   const place = async (o, name, hash, waitExpr, root, bars) => {
@@ -95,6 +99,16 @@ const DIAG = ev => ev(`JSON.stringify({h: location.hash, k: S?.route?.key, n: S?
     check((await call(CA, 'POST', '/api/pomo/start', {kind: 'focus', minutes: 25, task_id: T[0]})).http < 300, 'pomo started');
     await reload(o);
     await place(o, 'time-focus', '#time', `!!document.querySelector('#view .tvpomo .tvr-acts')`);
+
+    // #7211: Today's task block: its "…" (absolute at the block's top right) does not lie over "Columns" at the end of the strip
+    // of shown fields, and that one is a working button (it opens its menu)
+    await place(o, 'today', '#today', `!!document.querySelector('[data-ly="today"] .lyb[data-lyk="tasks"] .lcbar .lcbf') && !!document.querySelector('[data-ly="today"] .lyb[data-lyk="tasks"] > .lymore')`);
+    const tl = await ev(`(() => { const k = document.querySelector('[data-ly="today"] .lyb[data-lyk="tasks"]'), m = k.querySelector(':scope > .lymore').getBoundingClientRect(), c = k.querySelector('.lcbar .lcbf').getBoundingClientRect();
+      return {lap: m.left < c.right - 1 && c.left < m.right - 1 && m.top < c.bottom - 1 && c.top < m.bottom - 1, m: [Math.round(m.left), Math.round(m.top), Math.round(m.right), Math.round(m.bottom)], c: [Math.round(c.left), Math.round(c.top), Math.round(c.right), Math.round(c.bottom)], vw: innerWidth}; })()`);
+    check(tl && !tl.lap && tl.c[2] <= tl.vw, '#7211 Today: the block\'s "…" does not overlap "Columns" ' + JSON.stringify(tl));
+    await ev(`(document.querySelector('[data-ly="today"] .lyb[data-lyk="tasks"] .lcbar .lcbf').click(), 1)`);
+    check(await ready(ev, `!!document.querySelector('.menu, [role="menu"]')`), '#7211 Today: "Columns" opens its menu');
+    await ev(`(document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true})), 1)`);
 
     // the selection bar: "1 selected" does not lie over Move, the X is inside the screen
     await ev(`localStorage.setItem('tasks.pov', '[]')`);
