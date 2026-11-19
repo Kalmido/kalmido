@@ -12,7 +12,9 @@ tenant-matrix: office  freelancer-matrix: office
    reaches a header
  - a letter by e-mail carries the same
  - a mailbox with SMTP: the mail leaves through it with its address; in an organisation the person's own private one only
-   when chosen; a failing mailbox 409 and nothing marked sent
+   when chosen; a failing mailbox 409 and nothing marked sent; (#6546) the 409 names the reason and Settings > Company &
+   office > E-mail, the mailbox counts the failure; the mailbox switched off: a series sends from the server's address and
+   its result says so
  - a member's own signature counts for the day's limit of own texts, an admin's does not
  - a person without an organisation (personal office) does all of it the same way
 usage: p2439_a_mailsig_test.py <datadir>"""
@@ -301,12 +303,35 @@ check(m is not None and "office@nordlicht.example" in str(m["From"]) and m["Repl
 check(m is not None and "Privat Alice" not in parts(m)[0] and "Studio Nordlicht GmbH" in parts(m)[0], "a series: the prefilled signature")
 A.put(B + O + "/mail-profile", json={"via": "", "reply_to": "", "signature": None})
 
+# ---- (#6546): the workspace's mailbox switched off: the series' mail leaves from the server's address, and its result says so
+check(A.put(B + "/api/hubmail/mailbox", json={"ws": f"org:{ORG}", "active": False}).ok, "setup: Alpha's mailbox switched off")
+n = len(sent())
+r = A.post(B + O + f"/series/{s_.json()['id']}/run")
+m = sent()[n] if len(sent()) > n else None
+check(r.ok and r.json().get("sent") and m is not None and "kalmido@example.test" in str(m["From"]), f"#6546: the series sent from the server's address {r.text[:200]}")
+check("server's address" in (r.json().get("note") or ""), f"#6546: and its result says so ({r.json().get('note')})")
+check(A.put(B + "/api/hubmail/mailbox", json={"ws": f"org:{ORG}", "active": True}).ok, "setup: Alpha's mailbox on again")
+n = len(sent("mail2"))
+r = A.post(B + O + f"/series/{s_.json()['id']}/run")
+check(r.ok and r.json().get("sent") and not r.json().get("note") and len(sent("mail2")) == n + 1, f"#6546: through the mailbox again: no note ({r.text[:200]})")
+
 # ---- a failing mailbox: 409, nothing sent, nothing marked
 r = A.put(B + "/api/hubmail/mailbox", json={**BOX, "ws": f"org:{ORG}", "smtp_port": 1027})
 did = invoice(A, CLA)
 r = A.post(B + f"{D}/{did}/send", json={"to": "kunde@example.com", "datev": False})
 d = A.get(B + f"{D}/{did}").json()
 check(r.status_code == 409 and d.get("status") != "sent" and not d.get("sent_at"), f"a mailbox that does not answer: 409, not marked sent ({r.status_code} {d.get('status')})")
+e = r.json().get("error", "")
+check("cannot be reached" in e and "Settings > Company & office > E-mail" in e, f"#6546: the 409 names the reason and where to repair it ({e})")
+r = A.put(B + "/api/hubmail/mailbox", json={**BOX, "ws": f"org:{ORG}", "smtp_password": "wrong"})
+did = invoice(A, CLA)
+r = A.post(B + f"{D}/{did}/send", json={"to": "kunde@example.com", "datev": False})
+e = r.json().get("error", "")
+check(r.status_code == 409 and "user name or the password" in e, f"#6546: a refused sign-in in plain words ({r.status_code} {e})")
+c = dbxm.connect(os.path.join(DATA, "tasks.db"), timeout=10)
+sf = c.execute("SELECT send_fails, send_error FROM hub_mailboxes WHERE ws=?", (f"o{ORG}",)).fetchone()
+c.close()
+check(sf is not None and sf[0] >= 1 and sf[1] == "auth", f"#6546: the office's send counts at the mailbox ({sf})")
 A.put(B + O + "/mail-profile", json={"via": "server"})
 
 # ---- a member's own signature counts as an own text (2.39.1 N7), an admin's does not

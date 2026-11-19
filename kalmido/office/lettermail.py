@@ -11,6 +11,7 @@ address the answer goes to the company e-mail (like invoices) and is assigned by
 import hashlib
 import hmac
 import re
+from datetime import date
 
 from flask import g, jsonify, request
 
@@ -19,8 +20,9 @@ from ..accounts.login import auth_key  # 2.312.0 C (#3265)
 from ..accounts.mailtok import mtk_plain  # 2.674.0 (#4382 finding 5)
 from ..core.pg import insert_id, system_ctx, write_lock
 from ..core.orgcrypt import OrgCryptError, oc_dec_fields, oc_enc_fields, oc_is_enc
-from ..core.i18n import N_, tr
-from ..core.db import body, bump
+from ..core.i18n import N_, short_day, tr
+from ..core.db import body, bump, iso, now_utc
+from ..collab.mailback import mail_bounce_tell, mail_bounce_why  # (#6547)
 from .owrite import ow_history_answer, ow_write  # 2.567.0 (#4711): the office's write layer
 from ..core.access import Denied
 from ..personal.timetrack import BadInput
@@ -248,7 +250,7 @@ def ltm_send_post(lid):
         raise
     mid = str(sent["Message-ID"] or "") if sent is not None else ""  # mail_send returns the message since 2.141.0
     if mid:
-        c.execute("UPDATE office_letters SET msg_id=? WHERE id=? AND org_id=?", (mid[:250], d["id"], oid))
+        c.execute("UPDATE office_letters SET msg_id=?, mail_state='', mail_why='' WHERE id=? AND org_id=?", (mid[:250], d["id"], oid))  # (#6547)
         d = {**d, "msg_id": mid[:250]}
     ofx_log(c, oid, "send", target="letter", detail={"letter": d["id"], "to": to, "cc": cc})
     c.commit()
@@ -257,6 +259,38 @@ def ltm_send_post(lid):
 
 
 # ---------------------------------------------------------------- the answer comes back
+def ltm_bounce(c, mid, code, scope):
+    """(#6547, integrations/mail.py mail_bounce_hooks): the letters mailed with Message-ID mid came back: mail_state 'bounced'
+    with the reason's code and the time, a line in the office log, and the person who sent it hears it (News + push). Any
+    mailbox (scope): the Message-ID is known only to the sender and the recipient. True when one was found."""
+    rows = c.execute("SELECT id, org_id, letter_date, mail_state, created_by FROM office_letters WHERE msg_id=?", (mid,)).fetchall()
+    for r in rows:
+        c.execute("UPDATE office_letters SET mail_state='bounced', mail_why=?, mail_at=? WHERE id=?", (code or "?", iso(now_utc()), r["id"]))
+        if r["mail_state"] == "bounced":
+            continue
+        ofx_log(c, r["org_id"], "mail_bounced", target="letter", detail={"letter": r["id"], "code": code or ""})
+        who = c.execute("SELECT user_id FROM office_doc_log WHERE org_id=? AND action='send' AND target='letter' AND user_id IS NOT NULL "
+                        "AND detail LIKE ? ORDER BY id DESC LIMIT 1", (r["org_id"], f'%"letter": {int(r["id"])},%')).fetchone()  # pg-ok: own JSON
+        who = who[0] if who else r["created_by"]  # (an organisation with encrypted log details: who drafted it)
+        try:
+            day = date.fromisoformat(str(r["letter_date"] or "")[:10])
+        except ValueError:
+            day = None
+        if who:
+            mail_bounce_tell(c, [who], "mail_bounced_letter", lambda lg, d=day, n=r["id"]: short_day(d, lg, year=True) if d else f"#{n}",
+                             code, click="office/letters", go="office/letters")
+    return bool(rows)
+
+
+def ltm_bounce_public(d):
+    """(#6547): {state, at, why} of a letter's returned mail for lt_public ('' state: not returned)."""
+    st = d.get("mail_state") or ""
+    at = d.get("mail_at")
+    code = d.get("mail_why") or ""
+    return {"state": st, "at": at.isoformat() if hasattr(at, "isoformat") else (at or None),
+            "why": mail_bounce_why(code) if st == "bounced" else ""}
+
+
 def ltm_msg_ids(msg):
     """The Message-IDs an incoming mail answers (In-Reply-To, then References), at most 20."""
     out = []

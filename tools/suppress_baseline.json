@@ -656,7 +656,7 @@
    }
   },
   "noqa:BLE001 without reason": {
-   "total": 126,
+   "total": 125,
    "files": {
     "kalmido/accounts/discover.py": 1,
     "kalmido/accounts/login.py": 1,
@@ -703,7 +703,7 @@
     "kalmido/lists/folders.py": 1,
     "kalmido/newsletter/sync.py": 1,
     "kalmido/notify/alerts.py": 1,
-    "kalmido/notify/channels.py": 5,
+    "kalmido/notify/channels.py": 4,
     "kalmido/notify/push.py": 15,
     "kalmido/notify/sev.py": 2,
     "kalmido/office/bpread.py": 2,

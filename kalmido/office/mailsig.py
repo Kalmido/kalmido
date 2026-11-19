@@ -107,7 +107,16 @@ def ofm_sender(c, oid, uid, p=None):
         who, org = ltm_space(c, oid, uid)
         r = mbx_row(c, _ws(org, who) if via == "workspace" else _ws(None, uid))
         smtp, name = mbx_smtp(c, r), r["from_name"] or ""
-    return {"via": via, "smtp": smtp, "addr": ways.get(via, ""), "name": (p.get("mail_from_name") or name or lt_user_name(c, uid) or None)}
+    return {"via": via, "smtp": smtp, "addr": ways.get(via, ""), "name": (p.get("mail_from_name") or name or lt_user_name(c, uid) or None),
+            "fallback": via == "server" and ofm_box_paused(c, oid, uid)}
+
+
+def ofm_box_paused(c, oid, uid):
+    """(#6546): the office's workspace has a mailbox that could send (SMTP + sender address) but is switched off: its mails
+    leave from the server's address instead (ofm_ways) - a series says so in its result."""
+    who, org = ltm_space(c, oid, uid)
+    r = mbx_row(c, _ws(org, who))
+    return bool(r and not r["active"] and r["smtp_host"] and r["from_addr"])
 
 
 def ofm_reply(c, oid, p, b=None):
@@ -146,7 +155,7 @@ def ofm_mail(c, oid, uid, text, b=None, auto=False):
         if logo:
             kw["images"] = {OFM_CID: (logo, "png")}
         text = f"{text.rstrip()}\n\n-- \n{sig}"
-    return {"text": text, "kw": kw, "name": snd["name"], "profile": p, "via": snd["via"],
+    return {"text": text, "kw": kw, "name": snd["name"], "profile": p, "via": snd["via"], "fallback": snd["fallback"],  # (#6546)
             "custom": bool(sig) and sig != ofm_default_sig(c, oid, uid)}
 
 

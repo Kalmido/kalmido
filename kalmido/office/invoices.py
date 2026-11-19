@@ -24,6 +24,7 @@ from ..core.i18n import N_, stored_join, tr
 from ..core.db import body, bump, db, err, iso, local_now, now_utc
 from ..core.access import Denied, live_sql
 from ..core.errors import BadInput, BadKey, DeniedKey
+from ..hub.mailbox import MBX_ERR, MBX_SEND_HINT, mbx_send_code  # (#6546): the reason of a send refused through the workspace's mailbox
 from .calc import INV_VAT_NOTES, TAX_KEYS, calc_cur, calc_home_rate, dec, dstr, inv_sur_fields, fmt_money, inv_open, money, pack_tax
 from .homecur import hc_code, hc_home, hc_office_rate, hc_rate_missing  # 2.189.0 (#2475); 2.355.0 C (#2844): hc_rate_missing
 from .packs import office_pack_for
@@ -76,7 +77,7 @@ def _col(r, k, default=None):
     return r[k] if r is not None and k in r.keys() and r[k] is not None else default
 
 
-from .mailstate import oms_failed_after, oms_set  # noqa: E402 -- imported after the module constants like the line below (#6820)
+from .mailstate import oms_failed_after, oms_sent_id, oms_set  # noqa: E402 -- imported after the module constants like the line below (#6820)
 from .model import office_ctx as _ctx  # noqa: E402  2.149.0 G (#2517): was an own copy
 
 
@@ -1417,12 +1418,17 @@ def inv_clean_subject(v, limit=200):
 
 
 def _mail(to, subject, text, **kw):
-    """mail_send with a readable 409 when the mail server refuses; the details only go to the server log."""
+    """mail_send with a readable 409 when the mail server refuses; the details only go to the server log. (#6546): through a
+    workspace's mailbox the 409 names the reason (MBX_ERR: sign-in, sender, recipient, not reachable) and Settings > Company &
+    office > E-mail; the mailbox itself counts the failure (hub/mailbox.py mbx_send_result)."""
     from ..integrations.mail import mail_send
     try:
-        return mail_send(to, subject, text, **kw)  # 2.153.0 (#2029): the message sent (a letter keeps its Message-ID)
+        return mail_send(to, subject, text, auto=False, **kw)  # (#6547): a person sends it; (#2029): the message sent (a letter keeps its Message-ID)
     except (Exception if kw.get("smtp") else (smtplib.SMTPException, OSError)) as e:  # 2.439.0 (#3617): a mailbox's own server fails in more ways (check of its address)
         app.logger.warning("office mail failed: %s", type(e).__name__)  # 2.39.0 (#1209 audit N6): no addresses in the log
+        if kw.get("smtp"):  # (#6546): the workspace's mailbox: the reason in plain words and where to repair it (kept: a series' task)
+            code = mbx_send_code(e)
+            raise DeniedKey(409, MBX_SEND_HINT, [MBX_ERR.get(code) or MBX_ERR["network"]]) from None
         raise Denied(409, tr("E-mail server refused the message"))
 
 
@@ -1509,7 +1515,8 @@ def inv_send(c, oid, uid, r, b, later=False, auto=False):
          "detail": {"to": to, "cc": cc, "files": [f[0] for f in mail_files], **({"own_text": 1} if own else {}),
                     **({"terms": terms} if terms else {})},  # 2.113.2 (#2253)
          "base": _inv_base(r),  # 2.269.0 review: the state the checks saw
-         "hold_ok": None if auto else ihd_ok(b)}  # 2.1384.0 (#6700): asked again right before the mail (inv_send_mail)
+         "hold_ok": None if auto else ihd_ok(b),  # (#6700): asked again right before the mail (inv_send_mail)
+         "fallback": mail["fallback"]}  # (#6546): the workspace's mailbox is switched off: the mail leaves from the server's address
     if later:
         m["budget"] = budget  # 2.370.2 (#3088): committed before the mail, handed back when it is refused
         m["send"] = inv_send_mail  # 2.269.0 D (#3046): for the series (office/recurring.py), no import of its own
@@ -1548,7 +1555,7 @@ def inv_send_mail(c, oid, uid, m, r=None):
     oub_barrier(c, uid, oid, OUB_SENT, oub_doc_name(r))  # 2.747.0 (#5252): a refused mail rolls it back with the marks
     oms_set(c, oid, r["id"], "sent")  # (#6820): the mail server takes it (a refusal rolls it back with the marks)
     try:
-        _mail(m["to"], m["subject"], m["text"], attachments=m["files"], cc=m["cc"], from_name=m["from_name"], reply_to=m["reply_to"], **m["kw"])
+        sent = _mail(m["to"], m["subject"], m["text"], attachments=m["files"], cc=m["cc"], from_name=m["from_name"], reply_to=m["reply_to"], **m["kw"])
     except Exception:
         if m.get("budget"):
             c.rollback()  # the marks above go, the day's count of the log with them
@@ -1556,6 +1563,7 @@ def inv_send_mail(c, oid, uid, m, r=None):
             c.commit()
             oms_failed_after(c, oid, r["id"])  # (#6820): failed, committed on its own (every caller sends with later=True)
         raise
+    oms_sent_id(c, oid, r["id"], sent)  # (#6547): a returned mail finds its document by the Message-ID
     from ..integrations.webhooks import who_note
     who_note("invoice.sent", "invoice", r["id"])  # 2.115.0 A (#2061): mailed
 

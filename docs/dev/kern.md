@@ -1690,10 +1690,14 @@ The rules are the same for all three:
   The old keys of today's grips: `pw.side` / `pw.det` / `pw.chat`, `bellSize`, `dv.stripW` / `dv.maskW`, `shzSize`,
   `kalmido.dlgsize.*`.
 
-Who uses it: nobody yet; the grips of today move onto it in their own tasks (#7312 panels, #7314 bell, #7315 document view,
-#7316 split view, #7318 table frame, #7320 dialogs, #7323 chat divider, #7324 comment split), new places build on it (#7289,
-#7290, #7302 - #7311). They stay on their own: the dashboard's blocks (`.lygrip`, snaps to the grid), the columns of a table
-(`.shvrsz`, the table's data with an undo step) and the columns of a list (`.lchead .lcg`, per list in the account).
+Who uses it: the thread pane of the team chat (#7302, `tc-thread`, chat.js `tth_grip`), the open receipts beside the bank
+bookings (#7306, `bank-norc`, office_banknorc.js `bnr_grip`) and the two columns of the document view (#7315, `dv-sw` /
+`dv-mw`, docview.css maps them to `--dv-sw` / `--dv-mw`; docview.js `dcv_grips`). A grip in a view that is morphed on a
+redraw is hung again after each draw (the morph takes its marks off; during a drag the same handle stays). The other grips of
+today move onto it in their own tasks (#7312 panels, #7314 bell, #7316 split view, #7318 table frame, #7320 dialogs, #7323
+chat divider, #7324 comment split), new places build on it (#7289, #7290, #7302 - #7311). They stay on their own: the
+dashboard's blocks (`.lygrip`, snaps to the grid), the columns of a table (`.shvrsz`, the table's data with an undo step) and
+the columns of a list (`.lchead .lcg`, per list in the account).
 Test: `tests/p21437_a_grip_ui.js` (a test page with one grip of each form).
 - server twin (2.1441.0, #7298): `kalmido/accounts/modcards.py` -- `mod_ws_on(c, uid, oid, area, feat)` answers the same
   question for one workspace (`oid` None = Private). For whatever lands somewhere without the person naming the workspace:

@@ -683,6 +683,8 @@ def lt_public(c, oid, d, names=None, brief=False):
         names = lt_names(c, oid, [d])
     out.update(archived=int(d.get("archived") or 0), client_name=names.get(d.get("client_id"), ""), warnings=[] if brief else lt_addr_warn(d),
                channel_label=tr(dict(LT_CHANNELS).get(d.get("channel"), "Post")), status_label=tr(dict(LT_STATUS).get(d.get("status"), "Draft")))
+    from .lettermail import ltm_bounce_public  # (#6547): the e-mail came back undelivered
+    out["mail"] = ltm_bounce_public(d)
     return out
 
 

@@ -170,6 +170,7 @@ function ofcPaint(el, force) {
   }
   clearTimeout(OFCP.t); OFCP.t = 0; OFCP.stale = false;
   const top = el.scrollTop, btop = $('.ofbody', el)?.scrollTop || 0; setHtml(el, html); OFCP.key = key;
+  if (typeof bnr_grip === 'function') bnr_grip(el);  // #7306: the grip of the receipts beside the bank bookings
   if (same && el.scrollTop !== top) el.scrollTop = top;
   const ob = $('.ofbody', el); if (same && ob && btop && ob.scrollTop !== btop) ob.scrollTop = btop;  // 2.144.1 A (#2445): touch tablets scroll the page in .ofbody
   const r = OFCP.replay; OFCP.replay = null;

@@ -3994,16 +3994,17 @@ body.lcmoving{cursor:grabbing!important;user-select:none!important}  /* 2.331.0 
 .tcxdlg .abadge{font-family:inherit}
 @media (pointer:coarse){ .tcxmem .tcxrm{min-width:2.75rem;min-height:2.75rem;justify-content:center} }
 /* 2.139.0 A (#2127): threads: the pane right of the conversation (desktop), the line under a first message, the thread view */
-.tcview.inthread{grid-template-columns:minmax(var(--w-leiste-min),var(--w-leiste)) minmax(0,1fr) minmax(18rem,24rem)}  /* 2.602.0 (#4817): --w-leiste (was 13-17rem) */
+.tcview.inthread{grid-template-columns:minmax(var(--w-leiste-min),var(--w-leiste)) minmax(0,1fr) var(--g-tc-thread,minmax(18rem,24rem))}  /* 2.602.0 (#4817): --w-leiste (was 13-17rem) */
 /* 2.479.0 (#2814): the area "Chat" on a computer: its conversations are the panel, the page only the open one (and its thread) */
 .tcview.nolist{grid-template-columns:minmax(0,1fr)}
-.tcview.nolist.inthread{grid-template-columns:minmax(0,1fr) minmax(18rem,24rem)}
+.tcview.nolist.inthread{grid-template-columns:minmax(0,1fr) var(--g-tc-thread,minmax(18rem,24rem))}  /* #7302: the thread's width by its grip (chat.js tth_grip) */
 .tcview.nolist .tcback{display:none}
 .tcview.listpage{grid-template-columns:minmax(0,1fr);max-width:var(--w-seite);margin-inline:auto}  /* 2.580.0 (#4815): the channel list = --w-seite */
 .tcview.listpage .tclist{border-right:0}
 #side .tcpanel .tcsec{padding:.625rem .5rem .125rem;font-size:var(--fs-xs)}
 #side .tcpanel .tcmute{display:inline-flex;color:var(--muted);flex:none}
-.tthpane{display:flex;flex-direction:column;min-width:0;min-height:0;border-left:1px solid var(--line);background:var(--bg)}
+.tthpane{position:relative;display:flex;flex-direction:column;min-width:0;min-height:0;border-left:1px solid var(--line);background:var(--bg)}
+.tthgrip{position:absolute;left:-.3125rem;top:0;bottom:0;z-index:2}  /* #7302: the grip on the pane's left edge (grip.css .grip-x) */
 .tthview{display:flex;flex-direction:column;flex:1;min-width:0;min-height:0}
 .tthmsgs{flex:1;min-height:0}
 .tthsep{display:flex;align-items:center;gap:.5rem;margin:.25rem 0;font-size:var(--fs-xs);color:var(--muted)}
@@ -4191,7 +4192,7 @@ a.tref:hover{background:var(--accent-soft)}
   .tcback{display:inline-flex}
 }
 @container (max-width:60rem){  /* 2.139.0 A (#2127): a thread pane leaves no room for the list of conversations */
-  .tcview.inthread{grid-template-columns:minmax(0,1fr) minmax(16rem,22rem)}
+  .tcview.inthread{grid-template-columns:minmax(0,1fr) var(--g-tc-thread,minmax(16rem,22rem))}
   .tcview.inthread .tclist{display:none}
 }
 @container (max-width:40rem){

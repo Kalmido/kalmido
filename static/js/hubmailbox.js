@@ -26,6 +26,7 @@ function hmb_hubSection() {
     const what = !x.set ? tr('No mailbox yet') : [x.receive ? tr('receives') : '', x.send ? tr('sends') : ''].filter(Boolean).join(' · ') + (x.active ? '' : ' · ' + tr('paused'));
     return `<li class="hbmsp hmbsp" data-hmbws="${esc(x.ws)}"><span class="hbmspn"><b>${esc(x.name)}</b><small class="muted">${x.address ? esc(x.address) + ' · ' : ''}${esc(what)}</small>
         ${x.error_text ? `<small class="hmberr" role="status">${ic('info', 's')} ${esc(x.error_text)}${x.error_at ? ' · ' + esc(tr('failing since {0}', fmtWhen(x.error_at))) : ''}${x.halted ? ' · ' + esc(tr('fetching stopped')) : ''}</small>` : ''}
+        ${x.send_error_text ? `<small class="hmberr hmbsenderr" role="status">${ic('info', 's')} ${esc(tr('Sending: {0}', x.send_error_text))}${x.send_error_at ? ' · ' + esc(tr('failing since {0}', fmtWhen(x.send_error_at))) : ''}</small>` : ''}
         ${x.skipped ? `<small class="muted hmbskip">${esc(trn('{0} e-mail left in the mailbox as too large', '{0} e-mails left in the mailbox as too large', x.skipped))}</small>` : ''}</span>
       ${x.manage ? `<button type="button" class="btn sm" data-hmba="edit" data-ws="${esc(x.ws)}">${ic('gear', 's')}<span>${tr(x.set ? 'Change' : 'Set up')}</span></button>` : ''}</li>`;
   }).join('');
@@ -56,6 +57,7 @@ function hmb_formHtml(b) {
     <div class="row"><label for="hmb-sw">${tr('Password')}</label><input id="hmb-sw" type="password" autocomplete="new-password" placeholder="${pw(x.smtp_password_set)}" ${/*html-ok*/ req}></div>
     ${inp('hmb-fa', tr('Sender address'), x.from_addr, 'type="email" placeholder="office@example.com" spellcheck="false"')}
     ${inp('hmb-fn', tr('Sender name'), x.from_name, 'maxlength="120"')}
+    <p class="muted hmbspf">${tr('The sender address must belong to this SMTP account (its own address or one the provider allows for it): servers check it against the domain\'s SPF and DKIM, other addresses are refused or land in spam.')}</p>
     <div class="row hmbonrow" ${b ? '' : 'hidden'}><label for="hmb-on">${tr('Fetch e-mails')}</label><select id="hmb-on"><option value="1" ${!b || x.active ? 'selected' : ''}>${tr('On')}</option><option value="0" ${!b || x.active ? '' : 'selected'}>${tr('Paused')}</option></select></div>`;
 }
 function hmb_checkHtml(j) {
@@ -68,6 +70,8 @@ function hmb_checkHtml(j) {
   const st = !ch && b ? [
     b.halted ? li('hmbbad hmbhalt', 'x', b.halted_text) : '',
     b.error_text ? li('hmbbad', 'info', b.error_text + (b.error_at ? ' · ' + tr('failing since {0}', fmtWhen(b.error_at)) : '')) : '',
+    // (#6546): sending through the mailbox fails (its own fields: a successful fetch does not end it, only a send that went out)
+    b.send_error_text ? li('hmbbad hmbsenderr', 'info', tr('Sending: {0}', b.send_error_text) + (b.send_error_at ? ' · ' + tr('failing since {0}', fmtWhen(b.send_error_at)) : '')) : '',
     b.ok_at ? li('muted', 'check', tr('Last successful fetch {0}', fmtWhen(b.ok_at))) : b.polled_at && !b.error_text ? li('muted', 'check', tr('Last fetched {0}', fmtWhen(b.polled_at))) : '',
     b.skipped ? li('hmbbad hmbskip', 'info', trn('{0} e-mail left in the mailbox as too large', '{0} e-mails left in the mailbox as too large', b.skipped) + (b.skipped_at ? ' · ' + tr('last {0}', fmtWhen(b.skipped_at)) : '')) : '',
   ].join('') : '';

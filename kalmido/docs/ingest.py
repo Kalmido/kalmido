@@ -17,6 +17,7 @@ from ..core.env import env_int  # (#6615): a wrong value = one warning with its 
 from ..core.config import app
 from ..core.db import connect, iso, now_utc
 from ..collab.attskip import att_skip_news  # #6531: the News item of a file the storage refused
+from ..collab.mailback import mail_auto  # (#6547): the one check for automatic mails
 from ..files.upsafe import UploadRefused  # #6531
 from ..accounts.session import GATE, bg_here
 from ..accounts.mailtok import mtk_where  # 2.674.0 (#4382 finding 5)
@@ -530,6 +531,8 @@ def docs_mail_import(c, msg, raw, pre=None):
             if not hit:
                 return None
             uid, org, letter = hit
+            if mail_auto(msg):  # (#6547): an out-of-office note / a delivery report to a letter's answer address is dropped
+                return 0
         u = c.execute("SELECT disabled FROM users WHERE id=?", (uid,)).fetchone()
         if not u or u["disabled"]:
             return 0
@@ -627,7 +630,8 @@ def _docs_mail_into(c, msg, raw, uid, org, sort=None, letter=None, budget=None, 
             eml_done = bool(put(ml_mail_name(msg), raw, "message/rfc822", f"mail:{mid}:eml", meta))
     if take_mail and not eml_done:  # 2.581.0 (#4804): a mailbox rule keeps the mail itself too (the same ext_id: never twice)
         put(ml_mail_name(msg), raw, "message/rfc822", f"mail:{mid}:eml", {"text": _text[:200_000] or ml_mail_name(msg)})
-    if made:  # 2.153.0 (#2029): the answer to a letter sent by e-mail (In-Reply-To / References) -> linked to it
+    if made and not mail_auto(msg):  # (#2029): the answer to a letter sent by e-mail (In-Reply-To / References) -> linked to
+        # it; (#6547) an automatic mail never (it stays a document of the documents address: a supplier's generated invoice is one)
         try:
             from ..office.lettermail import ltm_link_replies
             with c.savepoint():

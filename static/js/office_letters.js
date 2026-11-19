@@ -19,7 +19,7 @@ const LT_FIELDS = ['rcpt_name', 'rcpt_address', 'rcpt_email', 'letter_date', 're
 function ltReload() { LT.data = null; LT.cur = null; ofcDraw(); }
 const ltCurrent = () => LT.cur;
 const ltHooks = (k, d) => LT_HOOKS[k].map(f => { try { return f(d) || ''; } catch (x) { console.error(x); return ''; } }).join('');
-const ltStTag = d => `<span class="rotag dtp-st dtp-st-${esc(d.status)}">${esc(tr(LT_ST[d.status] || d.status))}</span>`;
+const ltStTag = d => `<span class="rotag dtp-st dtp-st-${esc(d.status)}">${esc(tr(LT_ST[d.status] || d.status))}</span>` + (d.mail?.state === 'bounced' ? `<small class="rotag oms-tag">${esc(tr('Delivery failed'))}</small>` : '');  // (#6547): its e-mail came back
 const ltIn = (col, v, o = {}) => `<input id="lt-${col}" name="${col}" value="${esc(v ?? '')}" maxlength="${o.max || 300}" ${o.type ? `type="${o.type}"` : ''} ${o.num ? 'inputmode="numeric"' : ''} ${o.ph ? `placeholder="${esc(o.ph)}"` : ''} ${o.ro ? 'readonly' : ''} autocomplete="off">`;
 const ltRow = (col, label, field, hint) => ofcRowF('lt-' + col, label, field, hint);
 const ltPdfUrl = (d, dl) => `/api/office/letters/${d.id}/pdf${dl ? '?dl=1' : ''}`;
@@ -124,7 +124,8 @@ function ltEditHtml(d) {
 function ltViewHtml(d) {
   const facts = [[tr('Date'), fmtDateLoc(d.letter_date) || d.letter_date], [tr('Sent by'), tr(LT_CH[d.channel] || d.channel)], d.tracking_no ? [tr('Tracking number'), d.tracking_no] : null,
     [tr('Sent'), fmtWhen(d.sent_at)], d.delivered_at ? [tr('Delivered'), fmtWhen(d.delivered_at)] : null, d.followup_due ? [tr('Follow-up'), fmtDateLoc(d.followup_due) || d.followup_due] : null].filter(Boolean);
-  return ltHead(d) + `<div class="lt-facts">${facts.map(([a, b]) => `<div><span class="muted">${esc(a)}</span><b>${esc(b)}</b></div>`).join('')}</div>
+  const back = d.mail?.state === 'bounced' ? `<div class="ofdlnote oms-note" role="status">${ic('alert', 's')}<span>${esc(tr('The e-mail came back undelivered ({0}): {1}. Check the e-mail address and send it again.', d.mail.at ? fmtStamp(new Date(d.mail.at)) : '', d.mail.why || ''))}</span></div>` : '';  // (#6547)
+  return ltHead(d) + back + `<div class="lt-facts">${facts.map(([a, b]) => `<div><span class="muted">${esc(a)}</span><b>${esc(b)}</b></div>`).join('')}</div>
     <div class="dtp-doc dtp-final lt-paper"><address class="lt-to">${esc([d.rcpt_name, d.rcpt_address].filter(Boolean).join('\n'))}</address>
       ${d.ref_line ? `<p class="muted lt-ref">${esc(d.ref_line)}</p>` : ''}<p><b>${esc(d.subject || '')}</b></p><div class="lt-text">${esc(d.body || '')}</div>
       <p class="lt-text">${esc([d.greeting, d.sign_name].filter(Boolean).join('\n\n'))}</p></div>

@@ -226,6 +226,7 @@ News, comments, the team chat and the browser encryption ("e2e") of lists and ch
 - `kalmido/collab/liste2echan.py` (`le2c`) - The list channel (team chat room kind 'list')
 - `kalmido/collab/liste2efile.py` (`le2f`) - Files of lists with the lock, encrypted in the browser with the list key
 - `kalmido/collab/liste2eguard.py` (`le2b`) - The lock per list -- the other ways out of the server (findings H2, M4, M5, M7, L6)
+- `kalmido/collab/mailback.py` - what comes back from a mail - the one check for automatic mails and the words of a returned one
 - `kalmido/collab/msgsearch.py` (`msg`) - Search in conversations -- task comments, team chat (channels + direct messages)
 - `kalmido/collab/news.py` (`news`) - The News feed and the notification settings (matrix + list bells)
 - `kalmido/collab/notelock.py` (`ln`) - Lock the note of a task with one

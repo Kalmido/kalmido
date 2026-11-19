@@ -22,8 +22,8 @@
 .dv-hacts .btn{min-height:2.5rem}
 .dv-hacts .dc-adel{margin-left:0;color:var(--danger);border-color:color-mix(in srgb,var(--danger) 55%,var(--line))}
 /* the three columns */
-.dv-cols{flex:1;min-height:0;display:grid;grid-template-columns:var(--dv-sw,7rem) .75rem var(--dv-mw,clamp(20rem,30%,28rem)) .75rem minmax(0,1fr);align-items:stretch}
-.dv-cols.dv-nostrip{grid-template-columns:2.75rem var(--dv-mw,clamp(20rem,30%,28rem)) .75rem minmax(0,1fr);column-gap:.75rem}
+.dv-cols{--dv-sw:var(--g-dv-sw,7rem);--dv-mw:var(--g-dv-mw,clamp(20rem,30%,28rem));flex:1;min-height:0;display:grid;grid-template-columns:var(--dv-sw) .75rem var(--dv-mw) .75rem minmax(0,1fr);align-items:stretch}  /* #7315: the widths by the one grip (grip.js: --g-dv-sw / --g-dv-mw on .dv-view, docview.js dcv_grips) */
+.dv-cols.dv-nostrip{grid-template-columns:2.75rem var(--dv-mw) .75rem minmax(0,1fr);column-gap:.75rem}
 .dv-cols.dv-nostrip>.dv-grip{margin-left:-.75rem}
 .dv-strip{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:.375rem;border-radius:var(--radius);background:var(--bg2);scrollbar-width:thin}
 .dv-sthd{display:flex;align-items:center;justify-content:space-between;gap:.25rem;margin-bottom:.375rem;color:var(--muted);font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.02em}
@@ -65,11 +65,8 @@
   .dv-mask .dc-f:has(>.dc-auto,>.dc-tsug)>:nth-child(2){grid-row:1 / span 2}
   .dv-mask .dc-f>.dc-auto,.dv-mask .dc-f>.dc-tsug{grid-column:1;grid-row:2;justify-self:start}
 }
-/* the grips between the columns */
-.dv-grip{position:relative;width:.75rem;padding:0;border:0;background:none;cursor:col-resize;touch-action:none;z-index:1}
-.dv-grip::after{content:'';position:absolute;top:0;bottom:0;left:50%;width:2px;margin-left:-1px;border-radius:1px;background:transparent}
-.dv-grip:hover::after,.dv-grip:focus-visible::after,.dv-resizing .dv-grip::after{background:var(--accent)}
-.dv-resizing,.dv-resizing *{cursor:col-resize!important;user-select:none}
+/* the grips between the columns: #7315 the one grip (grip.css .grip-x draws the line, the cursor and the cover of a drag) */
+.dv-cols>.dv-grip{position:relative;width:.75rem;padding:0;border:0;background:none;cursor:col-resize;touch-action:none;z-index:1}
 /* the preview: every page one below the other on its own ground (#4829: as large as its column).
    2.1063.0 (#5879): ground and bar follow the theme instead of fixed greys (the mid grey fell out of the dark theme): dark = a
    step darker than the card, light = a light grey; the white sheet stands out by its rim and shadow. The bar is a toolbar like
@@ -136,7 +133,7 @@
 @media (min-width:768px){
   @container dvview (max-width:47.99rem){
     .dv-cols,.dv-cols.dv-nostrip{display:flex;flex-direction:column;gap:.75rem;overflow-y:auto;overscroll-behavior:contain}
-    .dv-strip,.dv-grip{display:none}
+    .dv-strip,.dv-cols>.dv-grip{display:none}
     .dv-pv{order:-1;flex:none;height:62dvh}
     .dv-pages{touch-action:pan-y}
     .dv-pages.dc-zoomed{touch-action:none}

@@ -42,8 +42,9 @@ from flask import g, jsonify, request
 from ..core.config import app
 from ..core.pg import insert_id, system_ctx
 from ..core.i18n import N_, lang, tr
+from ..collab.mailback import mail_auto, mail_bounce_tell, mail_bounce_why  # (#6547)
 from ..core.db import body, bump, db, err, iso, now_utc
-from ..core.access import Denied, MANAGE_ROLES, WRITE_ROLES, acx_of, list_role, list_roles, need_list, reading_sql, vis_sql, list_state_sql
+from ..core.access import Denied, MANAGE_ROLES, WRITE_ROLES, acx_of, list_role, list_roles, need_list, reading_sql, vis_sql, list_state_sql, live_sql
 from ..core.orgcrypt import FIELDS, OrgCryptError, PREFIX, oc_active_for, oc_dec_fields, oc_enc_fields, oc_is_enc, oc_plain_safe
 from ..accounts.session import me
 from ..accounts.orgroles import need_org_write  # 2.674.0 (#4382 finding 3)
@@ -808,10 +809,40 @@ def hbm_mail_import(c, msg, raw):
             return None
         if r["kind"] == "ticket":  # 2.553.0 B (#3460): a list's request address -> a portal ticket (integrations/reqmail.py)
             out = HBM_TICKET_HOOK["take"](c, r, msg, raw) if HBM_TICKET_HOOK else 0
+        elif hbm_auto_drop(msg):  # (#6547)
+            out = 0
         else:
             out = _import(c, r, msg, raw, mail_text)
     c.commit()
     return out
+
+
+def hbm_auto_drop(msg, reports=True):
+    """(#6547): a mail the e-mail filing drops: an automatic answer (integrations/mail.py mail_auto 'reply'), with reports also a
+    delivery report ('report': a hub address; a workspace's own mailbox files the reports of its people's own mails). A mail
+    generated otherwise (a supplier's notice, a newsletter) is filed."""
+    return mail_auto(msg) in (("reply", "report") if reports else ("reply",))
+
+
+def hbm_bounce(c, mid, code, scope):
+    """(#6547, integrations/mail.py mail_bounce_hooks): a mail sent from the e-mail filing came back: send_state 'bounced', the
+    reason as its note (the sender's language), and the person who sent it hears it. scope = (org, ws) of a workspace's own
+    mailbox: only that workspace's mails; None (the instance mailbox): any. True when one was found."""
+    q, a = f"SELECT id, owner_id, note, send_state, ws FROM hub_mails WHERE message_id=? AND direction='out' AND {live_sql()}", [mid]
+    if scope is not None:
+        q, a = q + " AND ws=?", a + [scope[1]]
+    rows = c.execute(q, a).fetchall()
+    for r in rows:
+        if r["send_state"] == "bounced":
+            continue
+        lg = lang(c, r["owner_id"]) if r["owner_id"] else "en"
+        line = tr("Not delivered: {0}", mail_bounce_why(code, lg), lg=lg)
+        c.execute("UPDATE hub_mails SET send_state='bounced', note=? WHERE id=?", (((r["note"] + "\n") if r["note"] else "") + line, r["id"]))
+        if r["owner_id"]:
+            mail_bounce_tell(c, [r["owner_id"]], "mail_bounced_hub", "", code, click="mailhub", go="mailhub")
+    if rows:
+        bump(c)
+    return bool(rows)
 
 
 HBM_TICKET_HOOK = {}  # 2.553.0 B (#3460): integrations/reqmail.py (take = a mail to a list's request address)

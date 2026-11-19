@@ -533,7 +533,8 @@ ul.ofdpick .chkl{display:flex;align-items:flex-start;gap:.5rem;min-height:2.75re
 .bkarow .ofcn{flex:1 1 12rem}.bkaold{margin-top:.5rem}
 /* 2.299.0 C (#3192): bookings without a receipt; computer: open receipts beside the list (drag onto a row) */
 .bnrbar select{min-height:2.75rem}
-.bnrcols{display:grid;grid-template-columns:minmax(0,1fr) minmax(14rem,18rem);gap:1rem;align-items:start}
+.bnrcols{display:grid;grid-template-columns:minmax(0,1fr) 1rem var(--g-bank-norc,minmax(14rem,18rem));align-items:start}
+.bnrcols>.bnrgrip{justify-self:center;align-self:stretch}  /* #7306: the grip in the gap (grip.css .grip-x; bnr_grip), --g-bank-norc its width */
 .bnrrc{position:sticky;top:.5rem;max-height:80vh;overflow:auto}
 /* 2.425.0 B (#3451): missing invoices of recurring providers, the providers' list */
 .bnvmiss{margin:.25rem 0 .75rem}

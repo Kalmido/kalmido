@@ -34,6 +34,7 @@ from ..collab.attskip import att_skip_task, mail_files_save  # #6531: the one lo
 from ..tasks.validation import as_int, log_act
 from ..collab.news import news_unread
 from ..collab.integfail import integ_backoff_s, integ_tell  # 2.1269 (#6386), 2.1333.0 (#6545)
+from ..collab.mailback import MAIL_BOUNCE_WHY, mail_auto, mail_bounce_kind, mail_bounce_tell, mail_bounce_why, mail_mid  # noqa: F401  (#6547): re-exported
 from ..accounts.users import need_admin
 from ..notify.alerts import aa_count, aa_err, aa_fail, aa_ok
 from ..agents.core import agent_added_events, agent_comment_events, need_person  # 2.553.0 B (#3460): the events also for integrations/reqmail.py
@@ -50,6 +51,7 @@ from .mailtrim import md_trim_forward  # 2.369.5 (#2517): pulled up from functio
 from ..calendars.subscriptions import _cal_connector  # 2.369.5 (#2517): pulled up from functions
 from ..calendars.subscriptions import _cal_watch, cal_left, cal_until  # 2.1312.0 (#6540)
 from ..core.mailbudget import SMTP_OWN_S, smtp_own_refused, smtp_port  # 2.1312.0 (#6540): the rules of a workspace's own SMTP
+from ..core.mailbudget import SMTP_OWN_DONE  # (#6546): the mailbox counts every send through its SMTP
 from ..core.mailguard import MailRefused, mail_parse, mail_precheck  # 2.1281.0 (#6425)
 
 
@@ -307,6 +309,114 @@ def mail_target(c, msg):
     return None, None, None
 
 
+# ---- (#6547): the one check for automatic mails (collab/mailback.py mail_auto, re-exported) and the delivery reports (bounces)
+# of the mails Kalmido sent. mail_auto is asked by every input that takes a mail as a reply (a task's comment, a letter's answer, the hub, the portal,
+# a data protection sheet): an out-of-office answer or a delivery report is never a comment, a document or a signature.
+# A delivery report comes back to the envelope sender (the instance address, or a workspace's own mailbox): mail_bounce_take
+# finds the Message-ID of the mail it reports on and hands it to the areas that keep one (mail_bounce_hooks); a report no
+# area knows is counted for the instance admins' alert (kind "integration", key "bounce"); the areas: mail_bounce_hooks.
+_DSN_MID_RE = re.compile(r"^\s*Message-ID:\s*(<[^<>\s]{1,290}>)", re.I | re.M)
+_DSN_CODE_RE = re.compile(r"\b([245])\.(\d{1,3})\.(\d{1,3})\b")
+
+
+def _dsn_fields(part):
+    """The field blocks of a message/delivery-status part (the per-message one, then one per recipient) as messages."""
+    p = part.get_payload()
+    if isinstance(p, list):
+        return [x for x in p if hasattr(x, "get")]
+    try:
+        text = part.get_payload(decode=True) or b""
+        text = text.decode("utf-8", "replace") if isinstance(text, bytes) else str(text)
+    except (ValueError, LookupError, TypeError, AttributeError):  # an unreadable report counts as one without fields
+        return []
+    return [email.parser.HeaderParser().parsestr(b.strip() + "\n") for b in re.split(r"\r?\n\s*\r?\n", text) if b.strip()]
+
+
+def mail_bounce(msg):
+    """A delivery report -> {mid, code, failed}, else None. mid = the Message-ID of the mail it reports on (from the returned
+    message or its headers, else the report's own In-Reply-To), code = the status of the first failed recipient ('5.1.1',
+    '' unknown), failed = a recipient failed for good (Action failed); a report only of a delay or a delivery is not.
+    A mailer-daemon's plain text report (no delivery-status part) counts as failed with the Message-ID found in its text."""
+    if mail_auto(msg) != "report":
+        return None
+    if msg.get_content_type() == "multipart/report" and str(msg.get_param("report-type") or "").lower() not in (
+            "delivery-status", "global-delivery-status"):
+        return {"mid": "", "code": "", "failed": False}  # a read receipt (disposition-notification) or another report: no bounce
+    mid, code, failed, dsn = "", "", False, False
+    for part in msg.walk():
+        ct = part.get_content_type()
+        if ct in ("message/delivery-status", "message/global-delivery-status"):
+            dsn = True
+            for f in _dsn_fields(part)[1:] or _dsn_fields(part):
+                act = str(f.get("Action", "") or "").strip().lower()
+                if act == "failed" or (not act and str(f.get("Status", "")).strip().startswith("5")):
+                    failed = True
+                    m = _DSN_CODE_RE.search(str(f.get("Status", "") or "")) or _DSN_CODE_RE.search(str(f.get("Diagnostic-Code", "") or ""))
+                    code = code or (".".join(m.groups()) if m else "")
+        elif ct in ("message/rfc822", "message/global") and not mid:
+            inner = part.get_payload()
+            inner = inner[0] if isinstance(inner, list) and inner else inner
+            if hasattr(inner, "get"):
+                mid = str(inner.get("Message-ID", "") or "").strip()
+        elif ct in ("text/rfc822-headers", "message/global-headers") and not mid:
+            try:
+                head = part.get_content()
+            except (ValueError, LookupError, TypeError, AttributeError, KeyError):  # unreadable headers: the Message-ID is looked for elsewhere
+                head = ""
+            m = _DSN_MID_RE.search(head if isinstance(head, str) else "")
+            mid = m.group(1) if m else ""
+    if not mid:
+        mid = str(msg.get("In-Reply-To", "") or "").strip()
+    if not dsn:  # a mailer-daemon's text: failed; the Message-ID and the status from the text
+        failed = True
+        text, _files = mail_text(msg, 200_000)
+        if not mid:
+            m = _DSN_MID_RE.search(text)
+            mid = m.group(1) if m else ""
+        m = _DSN_CODE_RE.search(text)
+        code = ".".join(m.groups()) if m and m.group(1) == "5" else ""
+    mid = mid if re.fullmatch(r"<[^<>\s]{1,290}>", mid or "") else ""
+    return {"mid": mid, "code": code, "failed": failed}
+
+
+def mail_bounce_hooks():
+    """The areas that keep the Message-ID of the mails they send: fn(c, message id, status code, scope) -> True when it marked
+    one of its mails as returned (and told the person who sent it). Imported here, not registered: none is left out by the
+    order in which the modules load."""
+    from ..office.mailstate import oms_bounce  # invoices, quotations, reminders (#6820 state 'bounced')
+    from ..office.lettermail import ltm_bounce  # letters by e-mail
+    from ..hub.hubmail import hbm_bounce  # the e-mail filing's sent mails
+    return (oms_bounce, ltm_bounce, hbm_bounce, _inv_bounce)
+
+
+def mail_bounce_take(c, msg, scope=None):
+    """None = msg is no delivery report (the importers go on). scope None = the instance mailbox (any mail sent through the
+    instance's server): a report is always handled (True): its mail marked by the area that keeps its Message-ID, or counted for
+    the instance admins when none does; a report of a delay only or a read receipt is dropped. scope (org id or None, ws) = a
+    workspace's own mailbox: True when it marked a mail Kalmido sent (the report is not filed), else False (the report of a mail
+    the people sent from their own mail program: filed as before, never counted for the instance). Commits what it marked."""
+    b = mail_bounce(msg)
+    if b is None:
+        return None
+    hit = False
+    if b["failed"] and b["mid"]:
+        for fn in mail_bounce_hooks():
+            try:
+                with c.savepoint(), system_ctx(c):  # the mail's area is found by its Message-ID (any organisation of the instance)
+                    hit = bool(fn(c, b["mid"], b["code"][:20], scope)) or hit
+            except DbError as e:
+                print("mail: bounce not noted:", type(e).__name__, flush=True)
+    if scope is not None:
+        if hit:
+            c.commit()
+        return hit
+    if b["failed"] and not hit:
+        print("mail: a bounce without its sent mail", flush=True)  # no address, no subject
+        aa_count("integration", "bounce", "instance")
+    c.commit()
+    return True
+
+
 MAIL_PROOF = {}  # 2.1299.0 (#6352): integrations/mailproof.py: ok(u) = a proved address (the one check), hint(c, uid) = the proof mail once per address
 MAIL_TASK_HOOK = {}  # 2.393.2 B (#3375): integrations/taskmail.py (take = a reply becomes a comment, keep = store a Message-ID)
 
@@ -374,6 +484,8 @@ def _mail_import(c, raw, pre=None):
     from ..docs.ingest import DocsMailKept, docs_mail_import, docs_mail_prefetch  # 2.48.0 (#1111): a document address -> its attachments become documents
     if c is None:
         return docs_mail_prefetch(msg)
+    if mail_bounce_take(c, msg) is not None:  # (#6547): a delivery report marks the mail it reports on (or is counted), then goes
+        return MAIL_DROP
     from ..office.privacy import dsb_mail_import  # 2.154.0 C (#2192): a reply with the code of a mailed data protection sheet
     p = dsb_mail_import(c, msg, raw)
     if p is not None:
@@ -396,6 +508,8 @@ def _mail_import(c, raw, pre=None):
         if c.execute("SELECT 1 FROM task_mail WHERE msg_id=? AND kind IN ('src','in')", (mid,)).fetchone():
             return MAIL_DROP
         how, val = MAIL_TASK_HOOK["take"](c, msg, mid, uid, how_to)
+        if how == "drop":  # (#6547): an automatic answer to a task
+            return MAIL_DROP
         if how == "comment":
             c.commit()
             return val
@@ -880,9 +994,12 @@ def smtp_open(smtp=None, timeout=30):
     return S_
 
 
-def mail_message(to, subject, text, html_body=None, images=None, from_name=None, attachments=None, cc=None, reply_to=None, smtp=None, unsub=None):
+def mail_message(to, subject, text, html_body=None, images=None, from_name=None, attachments=None, cc=None, reply_to=None, smtp=None, unsub=None,
+                 auto=True):
     """2.141.0 A (#2141): the message mail_send sends (built first so the e-mail filing can keep it before it goes out).
-    2.367.5 (#2975): unsub = the one-click link of a notification mail (RFC 8058), never on a security mail or an invoice."""
+    (#2975): unsub = the one-click link of a notification mail (RFC 8058), never on a security mail or an invoice.
+    (#6547): auto = a mail Kalmido writes by itself: "Auto-Submitted: auto-generated" (RFC 3834: an answering machine stays
+    quiet); False for a mail a person wrote and sent (an invoice, a letter, a hub mail, an answer to a reporter)."""
     subject, text = le2b_net(subject), le2b_net(text)  # 2.64.1 B (#1817): never a ciphertext of a list with the lock in a mail
     html_body = le2b_net(html_body) if html_body else html_body
     frm = (smtp or SMTP)["from"]
@@ -896,6 +1013,8 @@ def mail_message(to, subject, text, html_body=None, images=None, from_name=None,
         m["List-Unsubscribe"], m["List-Unsubscribe-Post"] = f"<{unsub}>", "List-Unsubscribe=One-Click"
     m["Date"] = email.utils.formatdate(localtime=True)
     m["Message-ID"] = email.utils.make_msgid(domain=(frm.rpartition("@")[2] or "kalmido.local"))
+    if auto:
+        m["Auto-Submitted"] = "auto-generated"
     m.set_content(text)
     if html_body:
         m.add_alternative(html_body, subtype="html")
@@ -911,7 +1030,8 @@ def mail_deliver(m, smtp=None):
     """2.141.0 A (#2141): sends a built message (mail_message) through KALMIDO_SMTP_* or the access smtp; raises on failure.
     (#6540): through a workspace's SMTP at most SMTP_OWN_S seconds in all (a server answering drop by drop).
     (#6385): every mail through the instance's SMTP counts for the admin alert (aa_ok / aa_fail "smtp", AA_FAIL_ROW in a row):
-    a failure of the server, not a refused recipient. A workspace's own SMTP is its people's business (not counted)."""
+    a failure of the server, not a refused recipient. A workspace's own SMTP is its people's business (not counted here;
+    #6546: its mailbox counts it, SMTP_OWN_DONE)."""
     if smtp is None:
         try:
             _deliver(m, None, 30)
@@ -922,8 +1042,21 @@ def mail_deliver(m, smtp=None):
         aa_ok("smtp")
         return None
     until = time.monotonic() + SMTP_OWN_S
-    with cal_until(until):
-        _deliver(m, smtp, cal_left(until, 30))
+    try:
+        with cal_until(until):
+            _deliver(m, smtp, cal_left(until, 30))
+    except Exception as e:
+        _own_done(smtp, e)
+        raise
+    _own_done(smtp, None)
+
+
+def _own_done(smtp, e):
+    for f in SMTP_OWN_DONE:
+        try:
+            f(smtp, e)
+        except (DbError, LookupError, TypeError, ValueError) as x:  # a note of the send never changes its outcome (a sent invoice stays sent)
+            print("mail: send result not noted:", type(x).__name__, flush=True)
 
 
 def _deliver(m, smtp, timeout):
@@ -937,12 +1070,14 @@ def _deliver(m, smtp, timeout):
             pass
 
 
-def mail_send(to, subject, text, html_body=None, images=None, from_name=None, attachments=None, cc=None, reply_to=None, smtp=None, unsub=None):
+def mail_send(to, subject, text, html_body=None, images=None, from_name=None, attachments=None, cc=None, reply_to=None, smtp=None, unsub=None,
+              auto=True):
     """Sends one mail with KALMIDO_SMTP_*; raises on failure. images: {cid: (bytes, subtype)} shown in the HTML part
     (2.22.0: the logo of the invitation); from_name: a display name for the sender. 2.38.0 (#1021): attachments =
     [(file name, bytes, mime type)] (invoice PDF / XML), cc = a second address, reply_to = the sender's own address.
-    2.141.0 A (#2141): smtp = a workspace's own SMTP access instead (hub/mailbox.py mbx_smtp); returns the message sent."""
-    m = mail_message(to, subject, text, html_body, images, from_name, attachments, cc, reply_to, smtp=smtp, unsub=unsub)
+    (#2141): smtp = a workspace's own SMTP access instead (hub/mailbox.py mbx_smtp); returns the message sent.
+    (#6547): auto see mail_message."""
+    m = mail_message(to, subject, text, html_body, images, from_name, attachments, cc, reply_to, smtp=smtp, unsub=unsub, auto=auto)
     mail_deliver(m, smtp)
     return m
 
@@ -953,7 +1088,7 @@ def _sec_mail_send(to, subject, text, html_body, images=None, inv=None):
     (#6385): inv = [account id, link hash, inviting account] of an invitation: its sent_at is set only once the mail went
     (and only while it is still that link); a mail that failed for good is told to an inviting instance admin."""
     try:
-        mail_send(to, subject, text, html_body, images=images or None, from_name=APP_NAME)
+        sent = mail_send(to, subject, text, html_body, images=images or None, from_name=APP_NAME)
     except Exception as e:  # noqa: BLE001  (nobody waits for it)
         mail_bg_failed("security", e, (lambda x=e: _inv_failed(inv, to, x)) if inv else None)
         return
@@ -962,7 +1097,8 @@ def _sec_mail_send(to, subject, text, html_body, images=None, inv=None):
             c = connect()
             try:
                 with system_ctx(c):  # the invitation of a new account, outside a request
-                    c.execute("UPDATE user_invites SET sent_at=? WHERE user_id=? AND token_hash=? AND used_at IS NULL", (iso(now_utc()), inv[0], inv[1]))
+                    c.execute("UPDATE user_invites SET sent_at=?, msg_id=? WHERE user_id=? AND token_hash=? AND used_at IS NULL",
+                              (iso(now_utc()), mail_mid(sent), inv[0], inv[1]))  # (#6547): + its Message-ID
                 c.commit()
             finally:
                 c.close()
@@ -984,6 +1120,22 @@ def _inv_failed(inv, to, e):
         c.commit()
     finally:
         c.close()
+
+
+def _inv_bounce(c, mid, code, scope):
+    """(#6547, mail_bounce_hooks): an invitation mail came back. Its link counts as not sent again (sent_at empty: the instance
+    admin's list of people says "e-mail not sent", accounts/invite.py invite_unsent) and the inviting person hears it when an
+    instance admin; an organisation admin does not (#3570 / #6385: it would tell an address with an account apart). Invitations
+    go only through the instance's server (scope None)."""
+    if scope is not None:
+        return False
+    rows = c.execute("UPDATE user_invites SET sent_at=NULL WHERE msg_id=? AND used_at IS NULL RETURNING user_id, created_by", (mid,)).fetchall()
+    for r in rows:
+        by = c.execute("SELECT is_admin FROM users WHERE id=?", (r["created_by"],)).fetchone() if r["created_by"] else None
+        to = c.execute("SELECT email FROM users WHERE id=?", (r["user_id"],)).fetchone()
+        if by and by["is_admin"] and to:
+            mail_bounce_tell(c, [r["created_by"]], "mail_bounced_invite", to["email"] or "", code, click="settings/users", focus="users")
+    return bool(rows)
 
 
 if MAIL_OUT_ON:  # registered only with outgoing mail: accounts/secmail.py queues nothing without it

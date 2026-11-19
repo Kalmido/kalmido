@@ -43,9 +43,18 @@ function bnr_html() {
     : emptyState({icon: 'check', title: out ? tr('Every payment has its receipt.') : tr('Every income has its invoice.')});  // 2.1076.0 (#5450)
   const rc = out && !isMobile() && items.length ? bnr_rcHtml(d.receipts || []) : '';
   const miss = out ? bnv_missHtml(d.missing || []) : '';  // 2.425.0 B (#3451)
-  return bar + miss + (rc ? `<div class="bnrcols"><div>${list}</div>${rc}</div>` : list)
+  return bar + miss + (rc ? `<div class="bnrcols"><div>${list}</div><div class="bnrgrip" data-k="bnrgrip"></div>${rc}</div>` : list)  // #7306: + the grip of the receipts' column (bnr_grip)
     + `<p class="muted ofchint">${out ? tr('Drop a file or a receipt from the right onto a booking to match it. Bank fees or tax payments need no receipt.') : tr('Money received that no invoice matched yet.')}</p>`
     + (out ? bnv_html() : '');
+}
+// #7306: the column of the open receipts wider by the one grip (grip.js, docs/dev/kern.md "Resizing: the one grip"): --g-bank-norc
+// on .bnrcols, 14rem up to half of the columns, default 18rem. After each paint of the office (office.js ofcPaint): a morph took
+// the grip's marks and the variable off, they come back. Dragging a receipt onto a row stays as it is (the grip is no row).
+function bnr_grip(root) {
+  const g = root && $('.bnrcols > .bnrgrip', root), box = g?.parentElement; if (!g || !box) return;
+  if (g._grip && (g.classList.contains('grip') || document.body.classList.contains('gdrag'))) { g.classList.add('grip', 'grip-x'); g._grip.refresh(); return; }  // a redraw during a drag: the same handle
+  const rem = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+  grip_col(g, {key: 'bank-norc', edge: 'start', min: 14, max: () => Math.max(14, Math.floor(box.clientWidth / rem() / 2)), def: 18});
 }
 function bnr_row(t) {
   const out = +t.amount < 0, title = t.counterpart || t.purpose || tr('Booking');
