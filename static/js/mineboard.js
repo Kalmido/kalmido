@@ -36,13 +36,13 @@ function mb_view() {
   const head = c => `<div class="khead">${c.lic ? licMark(c.lic, 'lsm') : ''}<span class="mbname">${esc(c.name)}</span> <span class="muted mbn">${c.tasks.length}</span>${c.lock && by === 'list' ? `<span class="mblk" title="${esc(tr('Read-only'))}" aria-label="${esc(tr('Read-only'))}">${ic('lock', 's')}</span>` : ''}</div>`;
   const empty = tasks.length ? '' : emptyState({icon: 'kanban', title: tr('Nothing here'), size: 'sec', cls: 'kempty'});  // 2.891.0 (#5440): the shared block
   return `${moSegHtml()}${empty}<div class="kanban mboard" data-mbby="${by}">${cols.map(c => `
-    <div class="kcol mbcol${c.lock ? ' mblock' : ''}" data-mbcol="${esc(c.key)}" role="group" aria-label="${esc(c.name)}">
+    <div class="kcol mbcol${c.lock ? ' mblock' : ''}" data-mbcol="${esc(c.key)}" data-dropcol="${esc(c.key)}" role="group" aria-label="${esc(c.name)}">
       ${head(c)}
       <div class="kcards">${c.tasks.map(card).join('')}</div>
     </div>`).join('')}</div>`;
 }
 
-// dnd.js dropTask0 (through mineorder.js mbDropHook): true = handled here (also when nothing changes)
+// the drop core's adapter of the board (mineorder.js, #7354): one task; true = handled here (also when nothing changes)
 async function mb_drop(t, el) {
   const col = el.closest?.('#view .mboard .mbcol'); if (!col) return false;  // elsewhere (the sidebar's lists, Today ...): as before
   const key = col.dataset.mbcol || '', by = moBoardBy();

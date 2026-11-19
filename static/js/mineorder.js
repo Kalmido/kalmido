@@ -50,7 +50,7 @@ const MO_NOPLACE = N_('Nothing changes here: drop onto a task of your own order 
 const MO_RECENT = N_('“Recently assigned” takes no tasks: drop them into another section.');
 const MO_KEYS_OFF = /^(pinned|kb:|mt:|tm:)/;  // groups of My tasks without an own place: Pinned, Unassigned in your projects, hidden projects
 function moWhere(tgt, ids = []) {
-  if (moBoard() && tgt.kind !== 'row') return null;  // the board's columns: mineboard.js (step 2 of the core, #7344 F6)
+  if (moBoard()) return null;  // the board: its own adapter below (#7354)
   if (tgt.kind === 'new') return mseOn() ? {fresh: true} : null;
   const lists = moView() === 'lists';
   if (tgt.kind === 'head') {
@@ -142,6 +142,12 @@ async function moPut(ids, w) {
   });
 }
 if (typeof DROP_ADAPTERS !== 'undefined') DROP_ADAPTERS.push({name: 'mine', on: moActive, where: moWhere, put: (ids, w) => w.fresh ? mseMoveToNew(ids) : moPut(ids, w)});
+// (#7354, step 2 of the drop core): the board of My tasks as an adapter - a column, and a card (before / after it; its middle stays
+// "make subtasks", before the core) mean what the column means (date / priority / list) for one task and for a selection alike
+// (mineboard.js mb_drop / mb_dropMany: one step with Undo). Was: a selection onto a card was put into the project's order
+const mbWhere = tgt => { const col = (tgt.kind === 'row' ? tgt.row : tgt.kind === 'col' ? tgt.el : null)?.closest?.('#view .mboard .mbcol'); return col ? {col} : null; };
+if (typeof DROP_ADAPTERS !== 'undefined') DROP_ADAPTERS.unshift({name: 'mineboard', on: () => moActive() && moBoard(), where: mbWhere,
+  put: async (ids, w) => { await loadModule('mineboard'); const t = ids.length === 1 && S.tasks.get(ids[0]); return t ? canEdit(t) ? mb_drop(t, w.col) : roToast() : mb_dropMany(ids, w.col); }});
 // the grey subtitle "List › Section" (render.js taskRow, own order only)
 function moSubHtml(t) {
   const l = listById(t.list_id); if (!l) return '';
@@ -221,7 +227,7 @@ function moSegHtml() {
   return h + '</div>';
 }
 // dnd.js dropTask0: a drop inside the board -> true when handled there (mineboard.js mb_drop)
-const mbDropHook = (t, el) => moActive() && moBoard() && typeof mb_drop === 'function' ? mb_drop(t, el) : false;
+// (#7354): gone - the board is an adapter of the drop core (dnd.js reaches it through dropRun)
 document.addEventListener('click', e => {
   const b = e.target.closest?.('#view .mobar [data-act="mo-view"], #view .mobar [data-act="mo-by"]'); if (!b) return;
   e.preventDefault(); e.stopPropagation();

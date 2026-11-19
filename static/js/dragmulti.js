@@ -326,28 +326,38 @@ async function dgToList(ids, lid) {
 // gesture as one step of the history. The middle of a row (= make subtasks, dgMakeSubs) stays the same everywhere and comes
 // before the core. The project list follows in step 3 (#7351).
 const DROP_ADAPTERS = [];
+// (#7354): + kind 'col' = a column of a board (data-dropcol; the cards are rows: before / after a card = its column)
+const dropRowTgt = (row, after) => ({kind: 'row', row, tid: +row.dataset.id, after, gkey: row.closest('.group')?.querySelector(':scope > .ghead')?.dataset.key || ''});
 function dropAt(el, y, after) {
   if (!el?.closest || el.closest('#detail')) return null;
   const row = el.closest('#view .trow');
-  if (row) return {kind: 'row', row, tid: +row.dataset.id, after: after ?? dropAfter(row, y), gkey: row.closest('.group')?.querySelector(':scope > .ghead')?.dataset.key || ''};
+  if (row) return dropRowTgt(row, after ?? dropAfter(row, y));
   const nw = el.closest('#view [data-dropnew]');
   if (nw) return {kind: 'new', el: nw};
   const head = el.closest('#view .ghead[data-key]');
-  return head ? {kind: 'head', el: head, key: head.dataset.key} : null;
+  if (head) return {kind: 'head', el: head, key: head.dataset.key};
+  const col = el.closest('#view [data-dropcol]');
+  return col ? {kind: 'col', el: col, key: col.dataset.dropcol} : null;
 }
-// -> {a: adapter, tgt, w: its place} or null (no adapter takes this target); after = the selection's zone (dgZone)
-function dropFor(el, y, ids, after) {
-  const tgt = dropAt(el, y, after); if (!tgt) return null;
+// -> {a: adapter, tgt, w: its place} or null (no adapter takes this target)
+function dropForTgt(tgt, ids) {
+  if (!tgt) return null;
   for (const a of DROP_ADAPTERS) { if (!a.on()) continue; const w = a.where(tgt, ids); if (w) return {a, tgt, w}; }
   return null;
 }
+// after = the selection's zone (dgZone)
+const dropFor = (el, y, ids, after) => dropForTgt(dropAt(el, y, after), ids);
 // the drop itself: false = not the core's; true = it takes nothing there (said); else the promise of the put (a caller inside
 // a histGroup awaits it, so the gesture stays one step)
-function dropRun(ids, el, y, after) {
-  const d = dropFor(el, y, ids, after); if (!d) return false;
+function dropDo(d, ids) {
+  if (!d) return false;
   if (d.w.no) { if (d.w.no !== true) toast(d.w.no); return true; }
   return Promise.resolve(d.a.put(ids, d.w)).then(() => true);
 }
+const dropRun = (ids, el, y, after) => dropDo(dropFor(el, y, ids, after), ids);
+// (#7354): a place without a pointer - the keyboard (Alt+arrow) and the menu's Move up / down: the same adapters, the target
+// built from a row (before / after it); false = no adapter takes it (the caller's own way)
+const dropTo = (ids, tgt) => dropDo(dropForTgt(tgt, ids), ids);
 // dragover: a target the core refuses gets no highlight (the drop still comes, to say why)
 const dropNo = (el, y, ids) => !!dropFor(el, y, ids)?.w.no;
 
@@ -444,9 +454,7 @@ function dgDrop(e, id) {
     else dgBlock(ids, row, zn === 'after');
     return true;
   }
-  // (#6959): the board of My tasks (#2072) takes the whole selection too, in its order (step 2 of the drop core: #7344 F6);
-  // the own sections of My tasks: the drop core above
-  if (kcol && kcol.dataset.mbcol != null) { if (typeof mb_dropMany === 'function') mb_dropMany(ids, el); return true; }
+  // (#7354): the board of My tasks is an adapter of the drop core above (mineorder.js, its columns and its cards)
   if (kcol) { const sid = kcol.dataset.kcol ? +kcol.dataset.kcol : null, lid = S.tasks.get(ids[0])?.list_id; if (lid) dgToSection(ids, lid, sid); return true; }
   if (cell) { batch('patch', {due: cell.dataset.day}, false, may); return true; }
   if (wad) { batch('patch', {due: wad.dataset.day, due_time: null}, false, may); return true; }
