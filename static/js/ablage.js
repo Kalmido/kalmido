@@ -467,7 +467,8 @@ function ab_upParts(files, n) {
 }
 // the files of the portions not sent after an error / Cancel: in the list with the reason
 // (review: errText - offline reads as the app's sentence, not as the stored word); j = only this one portion
-const ab_upRest = (parts, i, x, j = parts.length) => parts.slice(i, j).flat().map(f => ({name: f.name || tr('File'), why: x?.cancelled ? tr('Upload cancelled') : errText(x) || tr('Not uploaded')}));
+// 2.1412.0 (#6227 N3): the session ended mid-upload (api 'auth'): the rest with the reason "Signed out", the upload ends as usual
+const ab_upRest = (parts, i, x, j = parts.length) => parts.slice(i, j).flat().map(f => ({name: f.name || tr('File'), why: x?.cancelled ? tr('Upload cancelled') : x?.message === 'auth' ? tr('Signed out') : errText(x) || tr('Not uploaded')}));
 // a refused portion (400: one bad file, the server rolled back this request only) is listed and the next portion still goes up;
 // Cancel, offline, rights, a full store stop the upload
 const ab_upGoOn = x => x?.status === 400 && !x?.cancelled;
@@ -507,35 +508,45 @@ async function ab_upload(files, target) {
     for (const f of parts[i]) fd.append('file', f, f.name);
     if (target) fd.append('parent_id', String(target)); else fd.append('space', ab_curSpace());
     // 2.1216.0 (#6109): rawFetch - a refused portion is said once, in the list (ab_upOut), no toast beside it
-    let j; try { j = await rawFetch('POST', '/api/files/upload', fd); } catch (x) { if (x?.message === 'auth') return;  /* 2.1247.0 (#6173): logged out - the login says it, not the list */ if (ab_upGoOn(x)) { out.push(...ab_upRest(parts, i, x, i + 1)); continue; } out.push(...ab_upRest(parts, i, x)); break; }
+    let j; try { j = await rawFetch('POST', '/api/files/upload', fd); } catch (x) { /* 2.1412.0 (#6227 N3): logged out = the rest "Signed out" in the list, reload + message as usual (was: return, nothing more) */ if (ab_upGoOn(x)) { out.push(...ab_upRest(parts, i, x, i + 1)); continue; } out.push(...ab_upRest(parts, i, x)); break; }
     items.push(...(j.items || []));
   }
   // review: two files of one upload with the same name are one node with two new versions - once in the message and in Undo,
   // which goes back to the version before the upload (a node that did not exist before goes to the trash)
-  const seen = new Map(); for (const x of items) { const e = seen.get(x.id); seen.set(x.id, {...x, n: (e?.n || 0) + 1}); }
+  // 2.1412.0 (#6227 N2): lo / version = its lowest and highest new version; not one after the other (someone else's version in
+  // between) = Undo leaves the file out and names it like a conflict (going back would take the other version too)
+  const seen = new Map(); for (const x of items) { const e = seen.get(x.id); seen.set(x.id, {...x, version: Math.max(x.version, e?.version || 0), lo: Math.min(x.version, e?.lo ?? x.version), n: (e?.n || 0) + 1}); }
   items.length = 0; items.push(...seen.values());
   ab_reload(); ab_upOut(out, box);
   if (!items.length) return;
-  const created = items.filter(x => !old.has(x.id) && x.version - x.n < 1), vers = items.filter(x => !created.includes(x) && x.version > 1);
-  const msg = ab_upMsg(vers.length ? tr('{0} uploaded, {1} as a new version', items.length, vers.length) : trn('{0} file uploaded', '{0} files uploaded', created.length), out);
+  const gap = items.filter(x => x.version - x.lo + 1 !== x.n);
+  const created = items.filter(x => !gap.includes(x) && !old.has(x.id) && x.version - x.n < 1), vers = items.filter(x => !gap.includes(x) && !created.includes(x) && x.version > 1);
+  const msg = ab_upMsg(vers.length ? tr('{0} uploaded, {1} as a new version', items.length, vers.length) : trn('{0} file uploaded', '{0} files uploaded', items.length), out);  // 2.1412.0 (#6227): items (a file left out of Undo, N2, counts too)
   // one step back for all: the new files into the trash, a new version back to the one before (as Restore version does)
   // 2.1247.0 (#6173): a new version goes back only while it is still the newest (expect_version); a file someone else gave a
   // newer version meanwhile stays as it is, is named and leaves this step (also for Redo)
   const cur = new Map(vers.map(x => [x.id, x.version]));
+  // 2.1412.0 (#6227 N1): a version step that failed (offline, no rights, a locked month, a folder that switches, a server error;
+  // ab_upVerStep said why) keeps the whole step in the history instead of counting it as done; left = the files that run did
+  // not reach, the next run of the same direction does only them (the new files went already)
+  let left = null, gapNote = gap.map(x => x.name);
   const verSteps = async back => {
-    const kept = [], failed = []; let done = 0;
-    for (const x of vers) {
+    const kept = gapNote, failed = []; gapNote = []; let done = 0;
+    for (const x of left || vers) {
       if (!cur.has(x.id)) continue;
       const r = await ab_upVerStep(x, back ? x.version - x.n : x.version, cur.get(x.id));
-      if (r === null) { cur.delete(x.id); kept.push(x.name); } else if (r === undefined) failed.push(x.name); else { done++; if (r?.version) cur.set(x.id, r.version); }
+      if (r === null) { cur.delete(x.id); kept.push(x.name); } else if (r === undefined) failed.push(x); else { done++; if (r?.version) cur.set(x.id, r.version); }
     }
-    // Fable review: a file whose step failed otherwise (said by ab_upVerStep) is named as not done; nothing done at all = the step stays
-    const none = !created.length && !done;
-    if (!kept.length && !failed.length) return {};
-    return {skipped: failed, note: kept.length ? tr('Meanwhile someone else uploaded a newer version, it stays as it is: {0}', kept.slice(0, 4).join(', ') + (kept.length > 4 ? ' …' : '')) : '', none};
+    left = failed.length ? failed : null;
+    if (left) { ab_reload(); throw Object.assign(new Error('upload step'), {keep: true, shown: true}); }  // undo.js histStep: stays
+    // nothing done at all (every file changed meanwhile, no new file) = out of the history (Fable review)
+    return kept.length ? {skipped: [], note: tr('Meanwhile someone else uploaded a newer version, it stays as it is: {0}', kept.slice(0, 4).join(', ') + (kept.length > 4 ? ' …' : '')), none: !created.length && !done} : {};
   };
-  offerUndo(msg, histAdd({label: tr('Upload'), undo: async () => { for (const x of created) await ab_req('DELETE', `/api/files/nodes/${x.id}`); return verSteps(true); },
-    redo: async () => { for (const x of created) await ab_req('POST', `/api/files/nodes/${x.id}/restore`); return verSteps(false); }}));
+  const step = async back => {
+    if (!left) for (const x of created) await ab_req(back ? 'DELETE' : 'POST', `/api/files/nodes/${x.id}${back ? '' : '/restore'}`);
+    return verSteps(back);
+  };
+  offerUndo(msg, histAdd({label: tr('Upload'), undo: () => step(true), redo: () => step(false)}));
 }
 async function ab_rename(n) {
   if (n.locked && n.lock_id !== n.id) return typeof fsl_rename === 'function' ? fsl_rename(n) : ab_noFsl();  // 2.353.0 A (#2758); F (review N8): never plain
