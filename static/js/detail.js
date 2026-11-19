@@ -159,7 +159,8 @@ window.addEventListener('resize', () => { clearTimeout(fitT); fitT = setTimeout(
 // for the keyboard and screen readers: ← → change the width by 1 rem (Shift: 4 rem), Home / End = narrowest / widest,
 // Enter = the standard width. The list never gets narrower than LIST_MIN_PX; phones keep the full-screen panels.
 // 2.26.0 (#932): the sidebar too (grip on its right edge; ← → reversed there: → = wider). Only next to the list: the drawer
-// (side-rail) and phones keep their fixed widths.
+// (side-rail) and phones keep their fixed widths. #7307: the open drawer (side-rail) has the same grip and width (--sideW, one
+// key pw.side for both states, at most 80 % of the window: app.css); phones keep their fixed drawer.
 // 2.350.0 D (#2750): chat and sidebar have no upper limit any more (1000 rem = never reached); the list keeps LIST_FLOOR_PX
 // 2.406.0 A (#3504): usable minimums: the sidebar at least 14 rem, the list at least 18 rem (288 px); stored narrower widths
 // are lifted on load (panelRem), a window too narrow for both folds the sidebar into the drawer (lay2209)
@@ -193,6 +194,8 @@ function panelMax(k) {  // the widest the panel may get now, in rem (the list ke
   const side = (k === 'side' || app.classList.contains('side-rail') || isMobile() ? 0 : panelRem('side') * rem) + (app.classList.contains('sb-b') ? srW() * rem : 0);  // 2.152.2 (#2622): the bar of sidebar B comes on top of the panel
   const chatW = document.body.classList.contains('chat-open') && !document.body.classList.contains('chat-yield') && innerWidth >= 1000 ? panelEff('chat') * rem : 0;
   const detW = app.classList.contains('detail-open') ? panelEff('det') * rem : 0;
+  // #7307: the drawer floats over list and task: its room is the window's 80 % (app.css) minus where it starts (the bar)
+  if (k === 'side' && app.classList.contains('side-rail')) return Math.max(PW.side[1], Math.min(PW.side[2], (innerWidth * .8 - Math.max(0, $('#side')?.getBoundingClientRect().left || 0)) / rem));
   const other = k === 'det' ? chatW : k === 'side' ? detW + chatW : detW;
   const room = (innerWidth - side - other - (k === 'det' ? (PWE.sq ? LIST_SQUEEZE_PX : LIST_MIN_PX) : LIST_FLOOR_PX)) / rem;  // 2.350.0 D (#2750): chat + sidebar down to LIST_FLOOR_PX
   return Math.max(PW[k][1], Math.min(PW[k][2], room));
@@ -218,7 +221,7 @@ function placeGrips() {
   if (typeof gripWatch === 'function') gripWatch();
   const want = {det: !isMobile() && $('#app')?.classList.contains('detail-open') && !$('#detail').classList.contains('hidden'),
     chat: !isMobile() && innerWidth >= 1000 && document.body.classList.contains('chat-open') && !document.body.classList.contains('chat-yield') && !!$('#achat:not(.hidden)'),
-    side: !isMobile() && !!$('#app') && !$('#app').classList.contains('side-rail') && !$('#app').classList.contains('sbb-nopan') && !document.body.classList.contains('kidmode') && !!$('#side')};  // 2.26.0 (#932); 2.224.0 A (#2817): sbb-nopan
+    side: !isMobile() && !!$('#app') && (!$('#app').classList.contains('side-rail') || !!$('#side.open')) && !$('#app').classList.contains('sbb-nopan') && !document.body.classList.contains('kidmode') && !!$('#side')};  // 2.26.0 (#932); 2.224.0 A (#2817): sbb-nopan; #7307: + the open drawer
   const GRIP_LAB = {det: N_('Width of the task panel'), chat: N_('Width of the chat'), side: N_('Width of the sidebar')};
   for (const k of ['det', 'chat', 'side']) {
     let g = $('#pgrip-' + k);
@@ -294,7 +297,15 @@ function gripWire(g) {
 let gripRO = null;
 try { gripRO = new ResizeObserver(() => placeGrips()); gripRO.observe(document.documentElement); } catch { /* old engine */ }
 // 2.16.2: the panels change size without the page doing so (the chat opens next to the task): watch them too
-const gripWatch = () => { if (!gripRO) return; for (const id of ['detail', 'achat', 'side']) { const el = document.getElementById(id); if (el && !el.dataset.gripRo) { el.dataset.gripRo = '1'; gripRO.observe(el); } } };
+const gripWatch = () => {
+  if (!gripRO) return;
+  for (const id of ['detail', 'achat', 'side']) {
+    const el = document.getElementById(id); if (!el || el.dataset.gripRo) continue;
+    el.dataset.gripRo = '1'; gripRO.observe(el);
+    // #7307: the drawer opens and closes by its class (without a transition under reduced motion): its grip follows
+    if (id === 'side') { try { new MutationObserver(() => requestAnimationFrame(placeGrips)).observe(el, {attributes: true, attributeFilter: ['class']}); } catch { /* old engine */ } }
+  }
+};
 ['transitionend'].forEach(t => document.addEventListener(t, e => { if (e.target?.id === 'detail' || e.target?.id === 'achat' || e.target?.id === 'side') placeGrips(); }));
 function sideFold(on) { LS.set('sideFold', !!on); fitLayout(); closeSide(); render(); }
 // 2.13.2 (#478 N3): the same within the phone layout: the docked "Add task" box of a tablet / an unfolded Fold in portrait
