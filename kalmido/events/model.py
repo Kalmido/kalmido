@@ -549,6 +549,8 @@ def _ev_move(rule, st, near):
 # move, and it has at most 9999 dates (rr_problem); the stop is the guard for whatever slips past the move. Above it the
 # rule shows no dates there, only its extra dates (RDATE) and changed occurrences. 10 000 dates take some milliseconds.
 EV_WALK_MAX = 10000
+# Task repetitions (rr_rule in tasks/batch.py, tasks/lifecycle.py, family/family.py) walk the same way from their due date;
+# their shift + stop is task #7222 (reader F2 of job/5629), outside this package.
 
 
 def ev_dates_from(rule, a):

@@ -1331,7 +1331,9 @@ def prop_ready_notify(c, j, asked=False):
     #7159 (reader F8): the one way every proposal to a person goes out, so the circle is asked here, not per route: a
     proposal the agent sends on its own (asked=False) reaches a person who does not read every source of a team agent
     without its title (job_words_muted, gated=False) -- News and push say only that a proposal of the agent is there.
-    asked=True: the person asked for it (job_request, its title is the one of their request)."""
+    asked=True: the person asked for it (job_request, its title is the one of their request).
+    Scope: News and push only (the output point of #7159). Reading the proposal itself (/api/proposals/<id>, job_dict for
+    the person) is task #7219 (reader F1 of job/5629), built on its own."""
     uid = j["user_id"]
     s = collab_user(c, uid, None) if uid else None
     if not s:
