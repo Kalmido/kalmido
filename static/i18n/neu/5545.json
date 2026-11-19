@@ -1,0 +1,52 @@
+{
+  "de": {
+    "The backup was made with Kalmido {0}; this server only takes data from Kalmido {1} or newer. Restore it on Kalmido {2} first (or a newer version older than this one), then make a new backup there.": "Die Sicherung wurde mit Kalmido {0} erstellt; dieser Server übernimmt nur Daten ab Kalmido {1}. Spiele sie zuerst unter Kalmido {2} ein (oder einer neueren Version, die älter als diese ist) und erstelle dort eine neue Sicherung.",
+    "{0} – your PO {1}|mail subject": "{0} – Ihre Bestellnummer {1}",
+    "Your order number|pdf": "Ihre Bestellnummer",
+    "Your reference": "Ihre Referenz",
+    "Differs from the project's PO number {0}": "Weicht von der PO-Nummer des Projekts ab: {0}",
+    "PO number": "PO-Nummer",
+    "the client's order number": "Bestellnummer des Kunden",
+    "New quotations and invoices of the project take it as their order number": "Neue Angebote und Rechnungen des Projekts übernehmen sie als Bestellnummer"
+  },
+  "es": {
+    "The backup was made with Kalmido {0}; this server only takes data from Kalmido {1} or newer. Restore it on Kalmido {2} first (or a newer version older than this one), then make a new backup there.": "La copia de seguridad se hizo con Kalmido {0}; este servidor solo acepta datos a partir de Kalmido {1}. Restáurala primero en Kalmido {2} (o en una versión más reciente, pero anterior a esta) y crea allí una nueva copia.",
+    "{0} – your PO {1}|mail subject": "{0} – su n.º de pedido {1}",
+    "Your order number|pdf": "Su n.º de pedido",
+    "Your reference": "Su referencia",
+    "Differs from the project's PO number {0}": "Difiere del n.º de pedido del proyecto: {0}",
+    "PO number": "N.º de pedido",
+    "the client's order number": "n.º de pedido del cliente",
+    "New quotations and invoices of the project take it as their order number": "Los nuevos presupuestos y facturas del proyecto lo toman como n.º de pedido"
+  },
+  "fr": {
+    "The backup was made with Kalmido {0}; this server only takes data from Kalmido {1} or newer. Restore it on Kalmido {2} first (or a newer version older than this one), then make a new backup there.": "La sauvegarde a été créée avec Kalmido {0} ; ce serveur n'accepte que des données à partir de Kalmido {1}. Restaure-la d'abord sous Kalmido {2} (ou une version plus récente mais antérieure à celle-ci), puis crée une nouvelle sauvegarde là-bas.",
+    "{0} – your PO {1}|mail subject": "{0} – votre n° de commande {1}",
+    "Your order number|pdf": "Votre n° de commande",
+    "Your reference": "Votre référence",
+    "Differs from the project's PO number {0}": "Diffère du n° de commande du projet : {0}",
+    "PO number": "N° de commande",
+    "the client's order number": "n° de commande du client",
+    "New quotations and invoices of the project take it as their order number": "Les nouveaux devis et factures du projet le reprennent comme n° de commande"
+  },
+  "it": {
+    "The backup was made with Kalmido {0}; this server only takes data from Kalmido {1} or newer. Restore it on Kalmido {2} first (or a newer version older than this one), then make a new backup there.": "Il backup è stato creato con Kalmido {0}; questo server accetta solo dati a partire da Kalmido {1}. Ripristinalo prima su Kalmido {2} (o una versione più recente ma precedente a questa), poi crea lì un nuovo backup.",
+    "{0} – your PO {1}|mail subject": "{0} – vostro n. ordine {1}",
+    "Your order number|pdf": "Vostro n. ordine",
+    "Your reference": "Vostro riferimento",
+    "Differs from the project's PO number {0}": "Diverso dal n. ordine del progetto: {0}",
+    "PO number": "N. ordine",
+    "the client's order number": "n. ordine del cliente",
+    "New quotations and invoices of the project take it as their order number": "I nuovi preventivi e fatture del progetto lo riprendono come n. ordine"
+  },
+  "nl": {
+    "The backup was made with Kalmido {0}; this server only takes data from Kalmido {1} or newer. Restore it on Kalmido {2} first (or a newer version older than this one), then make a new backup there.": "De back-up is gemaakt met Kalmido {0}; deze server neemt alleen gegevens over vanaf Kalmido {1}. Zet hem eerst terug op Kalmido {2} (of een nieuwere versie die ouder is dan deze) en maak daar een nieuwe back-up.",
+    "{0} – your PO {1}|mail subject": "{0} – uw bestelnummer {1}",
+    "Your order number|pdf": "Uw bestelnummer",
+    "Your reference": "Uw referentie",
+    "Differs from the project's PO number {0}": "Wijkt af van het bestelnummer van het project: {0}",
+    "PO number": "Bestelnummer",
+    "the client's order number": "bestelnummer van de klant",
+    "New quotations and invoices of the project take it as their order number": "Nieuwe offertes en facturen van het project nemen het over als bestelnummer"
+  }
+}
