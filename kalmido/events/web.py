@@ -382,7 +382,7 @@ def evcals_edit(cid):
 def evcals_delete(cid):
     need_feat("events")
     op_cal_delete(db(), me(), cid)
-    return jsonify(ok=True)
+    return jsonify(_with_held({"ok": True}))  # 2.1412.0 (#6355, review F3)
 
 
 @app.get("/api/evcals/trash")
