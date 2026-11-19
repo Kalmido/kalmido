@@ -36,7 +36,8 @@ def read(*p):
 SH, PS = read("static", "agent", "setup.sh"), read("static", "agent", "setup.ps1")
 for name, src in (("setup.sh", SH), ("setup.ps1", PS)):
     check("operator_id" in src and "KALMIDO_PERM_USER=" in src, f"{name}: writes KALMIDO_PERM_USER from operator_id")
-    check("KALMIDO_(PERM_USER|OWNER_IDS)=" in src or ('"KALMIDO_PERM_USER=", "KALMIDO_OWNER_IDS="' in src),
+    check("KALMIDO_(PERM_USER|OWNER_IDS" in src or  # 2.1400 (#7116): setup.ps1 keeps KALMIDO_BLOCK_* too
+          ('"KALMIDO_PERM_USER=", "KALMIDO_OWNER_IDS="' in src),
           f"{name}: keeps an earlier KALMIDO_PERM_USER / KALMIDO_OWNER_IDS")
     check("kalmido-setup-step: claude_md" in src and "CLAUDE.template.md" in src and "kalmido-agent-rules:start" in src,
           f"{name}: CLAUDE.md from the template")

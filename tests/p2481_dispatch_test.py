@@ -29,6 +29,10 @@ fake Kalmido API and a real temporary git repository.
  - 2.1394.0 (#7031): agent_job.py takes model and effort of the job's kind (build / review) from the runtime settings
  - 2.1394.0 (#6176): same_file: tasks naming the same file (paths only) join the first task's bundle (same priority class,
    bundle_points / bundle_max stay, a collect file connects nothing); a task also waits for a job branch on its file
+ - 2.1400.0 (#7057): a stop (SystemExit) during a write ends the round; the check runs on a fresh copy of the branch's commit
+   (a file not committed in the job's working copy counts for nothing) and exactly that commit is pushed; push_url is
+   required (runner env) and must equal git remote get-url --push; a repository config with sshCommand / credential.helper /
+   pushurl / insteadOf / filter keys refuses the landing (nothing checked out, nothing pushed); git never sees KALMIDO_*
 Pure Python, no container."""
 import importlib.util
 import json
@@ -63,7 +67,7 @@ check("def dispatch_watch" in src and "self.dispatch_watch()" in src, "the runne
 cap = json.load(open(os.path.join(MCP, "launcher_capabilities", "dispatcher.json"), encoding="utf-8"))  # #6887: one file per capability
 check(cap.get("id") == "dispatcher" and cap.get("since") == "2.481.0", "capability dispatcher")
 check("agent_dispatch.py" in open(os.path.join(MCP, "starter_files.txt"), encoding="utf-8").read(), "agent_dispatch.py is a starter file")
-for k in ("dispatch_closed", "dispatch_report", "dispatch_stuck", "dispatch_needs_yes", "dispatch_state_ready", "dispatch_state_foreign", "dispatch_skipped"):
+for k in ("dispatch_closed", "dispatch_land_refused", "dispatch_report", "dispatch_stuck", "dispatch_needs_yes", "dispatch_state_ready", "dispatch_state_foreign", "dispatch_skipped"):
     check(k in ar.TEXTS and len(ar.TEXTS[k]) == 6, f"text {k} in six languages")
 check(ar.say("dispatch_closed", "de", "abc1234", "main") == "Gebaut in Commit abc1234 (main) - vom Dispatcher abgehakt.", "German close comment")
 
@@ -123,6 +127,9 @@ check(prob and "check_cmd, pr_cmd, push_remote in " + ad.CONFIG_FILE + " is not 
 with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
     json.dump({"lists": ["Backlog"], "first_tags": ["Urgent"], "report_at": "00:00", "places": "two", "nonsense": 1, "stale_h": 1,
                "finish_cmd": "git push origin HEAD:main", "worktree": False}, f)
+cfg, prob = ad.load_config(proj)
+check(prob and "push_url" in prob and "KALMIDO_DISPATCH_PUSH_URL" in prob, f"2.1400.0 (#7057): without the push address the dispatcher stays idle: {prob}")
+os.environ["KALMIDO_DISPATCH_PUSH_URL"] = "/nowhere"  # set for real below, once the project has its remote
 cfg, prob = ad.load_config(proj)
 check("finish_cmd" not in cfg and "worktree" not in cfg and any("finish_cmd is retired" in x for x in ad.LOGGED),
       f"#7028: finish_cmd / worktree are retired and named: {ad.LOGGED}")
@@ -475,6 +482,7 @@ check("job_model_args(ar, profile, base" in open(os.path.join(MCP, "agent_job.py
 bare = tempfile.mkdtemp(prefix="kalmido-origin-")
 subprocess.run(["git", "init", "-q", "--bare", bare], check=True, capture_output=True)
 g("remote", "add", "origin", bare)
+os.environ["KALMIDO_DISPATCH_PUSH_URL"] = bare  # 2.1400.0 (#7057): the push address of origin, from the runner's env file
 side = tempfile.mkdtemp(prefix="kalmido-side-")
 fakepr, prlog = os.path.join(side, "fakepr.py"), os.path.join(side, "pr.log")
 with open(fakepr, "w") as f:
@@ -491,9 +499,10 @@ def gw(path, *a):
 def job_branch(jid, tid, red=False):
     wt = os.path.join(tempfile.mkdtemp(prefix="kalmido-wt-"), "wt")
     g("worktree", "add", "-q", "-b", f"job/{jid}", wt, "main")
-    gw(wt, "commit", "-q", "--allow-empty", "-m", f"#{tid}: built")
-    if red:
+    if red:  # 2.1400.0 (#7057): committed -- the check runs on the branch's commit, an uncommitted file counts for nothing
         open(os.path.join(wt, "RED"), "w").close()
+        gw(wt, "add", "RED")
+    gw(wt, "commit", "-q", "--allow-empty", "-m", f"#{tid}: built")
     return {"path": wt, "branch": f"job/{jid}", "repo": proj}
 
 
@@ -582,8 +591,86 @@ JOBS[str(500 + len(STARTS))] = {"id": 500 + len(STARTS), "state": "running", "cr
 d2 = ad.Dispatcher(h, proj)  # the next round (also after a restart of the runner) reads the saved state
 res = d2.tick(force=True)
 check(len(STARTS) == n + 1 and res["states"][401] == "building", f"#5198: the next round starts nothing again: {STARTS[n:]} {res['states']}")
-d2.report = lambda *a, **k: (_ for _ in ()).throw(SystemExit(1))
-check(d2.tick(force=True) is not None, "#5198: not even a SystemExit of a later write ends the round")
+# 2.1400.0 (#7057): a stop of the runner (its signal handler raises SystemExit) during a write ends the round -- it is no
+# refused write; before, the round swallowed it and went on writing
+d2.report = lambda *a, **k: (_ for _ in ()).throw(SystemExit(0))
+try:
+    d2.tick(force=True)
+    stopped = False
+except SystemExit:
+    stopped = True
+check(stopped, "#7057: a stop (SystemExit) during the report ends the round")
+w = ad.Writer(False, 10)
+try:
+    w("a write", lambda: (_ for _ in ()).throw(SystemExit(0)))
+    stopped = False
+except SystemExit:
+    stopped = True
+check(stopped and w("a refused write", refused) is False, "#7057: a stop during a write ends it, a refused write (409) does not")
+
+# ---- 2.1400.0 (#7057, review 2.1368 F8 / F9): the check on the commit, the fixed push address, the repository's config
+state7 = os.path.join(proj, ".state7")
+os.makedirs(state7)
+
+
+def landing(jid, tid, prep=None):
+    """A fresh dispatcher lands the ended job jid (task tid) once; prep(working copy) runs before. (entry, pushed branches)."""
+    TASKS[:] = [task(tid, f"Feature {tid}", "S")]
+    JOBS.clear()
+    JOBS[str(jid)] = {"id": jid, "state": "done", "worktree": job_branch(jid, tid)}
+    if prep:
+        prep(JOBS[str(jid)]["worktree"]["path"])
+    h = Host("on")
+    h.state_dir = tempfile.mkdtemp(dir=state7)
+    d = ad.Dispatcher(h, proj)
+    d.reg["jobs"] = {str(jid): {"tasks": [tid], "at": time.time(), "titles": {str(tid): f"Feature {tid}"}}}
+    d.tick(force=True)
+    out = subprocess.run(["git", "--git-dir", bare, "branch", "--list"], capture_output=True, text=True).stdout.split()
+    return d.reg["jobs"][str(jid)], out, h
+
+
+# F9: an uncommitted file in the job's working copy does not reach the check (before: the check ran there and was red / green
+# for a state nobody pushes)
+e, pushed, h = landing(611, 311, lambda wt: open(os.path.join(wt, "RED"), "w").close())
+check(e.get("land") == "pr" and "job/611" in pushed, f"#7057 F9: the check runs on the branch's commit, not the working copy: {e}")
+sha = subprocess.run(["git", "-C", proj, "rev-parse", "job/611"], capture_output=True, text=True).stdout.strip()
+got = subprocess.run(["git", "--git-dir", bare, "rev-parse", "job/611"], capture_output=True, text=True).stdout.strip()
+check(sha and got == sha, f"#7057 F9: exactly the checked commit is pushed {sha} {got}")
+# F8: a push address other than the runner's -> nothing pushed
+os.environ["KALMIDO_DISPATCH_PUSH_URL"] = bare + "-other"
+e, pushed, h = landing(612, 312)
+check(e.get("land") == "no_pr" and "job/612" not in pushed, f"#7057 F8: the push address differs from KALMIDO_DISPATCH_PUSH_URL: {e} {pushed}")
+os.environ["KALMIDO_DISPATCH_PUSH_URL"] = bare
+# F8: a key of the repository's config that runs a command -> nothing checked out, nothing pushed, the person is told
+for key, val in (("core.sshCommand", "touch " + os.path.join(side, "ssh-ran")), ("credential.helper", "!touch x"),
+                 ("remote.origin.pushurl", bare), ("url./elsewhere/.insteadOf", bare), ("filter.x.smudge", "touch y"),
+                 ("http.proxy", "http://127.0.0.1:9"), ("push.pushOption", "ci.skip"), ("submodule.recurse", "true"),
+                 ("gc.recentObjectsHook", "touch z")):  # reader F3: an allow list; round 3 F1: gc hooks
+    g("config", key, val)
+    e, pushed, h = landing(613, 313)
+    told = "\n".join(t for _, t in h.api.chats)
+    # reader F7 of 2.1400: the round checks the config before any git (fetch, log, landing) -- nothing lands, the person is told
+    check(e.get("land") in (None, "no_pr") and "job/613" not in pushed and key.lower() in told.lower(),
+          f"#7057 F8: {key} in the repository's config refuses the landing and is named: {e} {told[:200]}")
+    g("config", "--unset", key)
+    g("worktree", "remove", "--force", JOBS["613"]["worktree"]["path"])
+    g("branch", "-D", "job/613")
+check(not os.path.exists(os.path.join(side, "ssh-ran")), "#7057 F8: the repository's sshCommand never ran")
+# reader F7: a git hook of the repository never runs for the round's own git either (log, fetch)
+refmark = os.path.join(side, "reftx-ran")
+with open(os.path.join(proj, ".git", "hooks", "reference-transaction"), "w") as f:
+    f.write(f"#!/bin/sh\ntouch '{refmark}'\n")
+os.chmod(os.path.join(proj, ".git", "hooks", "reference-transaction"), 0o755)
+ad.git(proj, "update-ref", "refs/heads/probe-f7", "HEAD")
+check(not os.path.exists(refmark), "F7: no hook of the repository runs for the dispatcher's git")
+check(ad.pr_env({"push_url": "git@github.com:owner/repo.git"}).get("GH_REPO") == "owner/repo"
+      and ad.pr_env({"push_url": "https://github.com/owner/repo"}).get("GH_REPO") == "owner/repo"
+      and "GH_REPO" not in ad.pr_env({"push_url": bare}) or os.environ.get("GH_REPO"),
+      "round 3 F2: gh opens the pull request in the repository of push_url, not one the remotes name")
+os.remove(os.path.join(proj, ".git", "hooks", "reference-transaction"))
+ad.git(proj, "update-ref", "-d", "refs/heads/probe-f7")
+check(not any(k.startswith("KALMIDO_") for k in ad.git_env()) and "KALMIDO_DISPATCH_PUSH_URL" in os.environ,
+      "#7057 F8: git of the dispatcher never sees the runner's KALMIDO_* variables")
 
 os.environ["KALMIDO_DISPATCH_CHECK_CMD"] = "exit 0"
 # ---- 2.1368.0 (#4060): the jam brake -- more built-but-not-landed tasks than stau_max hold new starts, closing goes on
@@ -612,6 +699,10 @@ with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
 res = d.tick(force=True)
 check(res["brakes"] == [] and STARTS[-1][0] == [520], f"#4060: at stau_max it builds again: {res['brakes']} {STARTS[-1]}")
 check(ad.DEFAULTS["stau_max"] == 10, "#4060: default 10")
+# reader F6 of 2.1400 (#7117): a configuration only in the project folder (an installation from before) is told once to move
+moved = [t for _, t in h.api.chats if "lies only in the project folder" in t and t.startswith("Dispatcher:")]
+check(len(moved) == 1 and os.path.join(state6, ad.CONFIG_FILE) in moved[0], f"F6: the person is told once where the configuration goes: {moved}")
+check(any("lies only in the project folder" in t for _, t in h.api.chats if "day report" in t), "F6: the day report names it too")
 
 # ---- 2.1368.0 (#7033): the short rules for coding agents -- a starter file, small, with the building rules
 short = open(os.path.join(MCP, "CLAUDE.coding.md"), encoding="utf-8").read()

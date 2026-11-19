@@ -89,8 +89,9 @@ def _f1():
     import sys
     import tempfile
     os.environ.update(KALMIDO_URL="http://127.0.0.1:9", KALMIDO_TOKEN="abk_" + "m" * 30, KALMIDO_ENV_FILE=STARTER_ENV)
-    # 2.1368.0 (#7028): the dispatcher needs the project's check before anything else; set, so the round reaches the token
-    os.environ["KALMIDO_DISPATCH_CHECK_CMD"] = "exit 0"
+    # 2.1400.0 (#7057): a configured dispatcher -- check_cmd (2.1368.0) and push_url are required, else the round stops at
+    # the configuration before the token question this part is about (red since 2.1368.0)
+    os.environ.update(KALMIDO_DISPATCH_CHECK_CMD="exit 0", KALMIDO_DISPATCH_PUSH_URL="/nowhere")
     sys.path.insert(0, os.path.join(ROOT, "mcp"))
     for nm in ("agent_run", "agent_dispatch", "kalmido_mcp", "agent_job"):
         spec = importlib.util.spec_from_file_location(nm, os.path.join(ROOT, "mcp", nm + ".py"))

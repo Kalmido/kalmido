@@ -1,0 +1,12 @@
+{
+  "id": "project_block",
+  "since": "2.1400.0",
+  "what": "Claude Code: the project's own block list of the guard (#7116): KALMIDO_BLOCK_EXTRA in the runner's env file (never a file in the project folder) names hosts (host:NAME -- ssh / scp / rsync / sftp / mosh targets, user@host, host:path, host.domain), commands (cmd:WORDS -- the program and these words in order) and paths (path:PATH); the guard refuses them with the same parsing as its fixed list, the runner hands the list to the hook on its command line (--block-extra, hex: the model's process cannot change it), the paths also become Read / Edit deny rules of every run and job; it holds also with KALMIDO_BLOCK_DANGEROUS=0 (only the fixed list is off then). A name check, not a wall",
+  "core": [
+    "def block_extra_parse",
+    "def block_path",
+    "def block_path_rules",
+    "KALMIDO_BLOCK_EXTRA",
+    "--block-extra"
+  ]
+}

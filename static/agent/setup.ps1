@@ -27,6 +27,11 @@ per project folder. Needs: Windows PowerShell 5.1 or PowerShell 7, Python 3.9+, 
   -IpRule       2.1367.0 (#6457): an address rule for this computer's key: current (the address it reaches Kalmido from),
                 off, or IPs / networks separated by commas; without it the setup asks once (Enter = no rule; not
                 interactive = no rule)
+  -RightsProfile 2.1400 (#7115): a rights profile for Claude Code (mcp/agent_profiles.json, the same as setup.sh --profile)
+                in the project folder's .claude\settings.local.json: hardened, standard or dev (a programming agent: the
+                project folder, git without force-push / tags / pushing main, the usual build and test commands; secrets,
+                ssh, curl, sudo, the agent's control files denied; KALMIDO_BLOCK_EXTRA with the secret paths into the env
+                file when it has none). Without it only the deny rules. ($Profile is taken by PowerShell, hence the name)
   (2.360.0: without -Code the code comes from the environment variable KALMIDO_SETUP_CODE)
   -Uninstall    stop and remove the autostart, revoke this computer's token in Kalmido, delete the instance folder
 Files: %LOCALAPPDATA%\Kalmido\agents\<folder name>-<hash>\ (starter files, kalmido-agent.env, mcp.json, agent.log);
@@ -34,7 +39,7 @@ Files: %LOCALAPPDATA%\Kalmido\agents\<folder name>-<hash>\ (starter files, kalmi
 #>
 param([string]$Url = '', [string]$Code = '', [string]$Dir = '', [string]$Cmd = '', [string]$From = '',
       [switch]$NoAutostart, [switch]$DryRun, [switch]$Uninstall, [string]$Lang = 'en', [switch]$AllowHttp, [string]$Tool = '',
-      [string]$IpRule = '', [string]$Template = 'general')
+      [string]$IpRule = '', [string]$Template = 'general', [string]$RightsProfile = '')
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'  # Invoke-WebRequest is slow with the progress bar in 5.1
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch { }
@@ -92,6 +97,11 @@ $MsgEn = @{
   harden = '  Deny rules for Claude Code written: {0} (no WebFetch / WebSearch, no reading of the key file)'
   dry_harden = '  (dry run) write deny rules for Claude Code into: {0}'
   harden_fail = '  The deny rules could not be written ({0} is not valid JSON); add them by hand, see the guide'
+  badprof = 'unknown rights profile {0} (-RightsProfile hardened, standard or dev)'
+  prof_ok = '  Rights profile {0} written: {1}'
+  dry_prof = '  (dry run) write rights profile {0} into: {1}'
+  prof_nofile = '  Rights profile {0} not found (agent_profiles.json missing from the starter files); nothing written'
+  prof_codex = '  Rights profile {0} is for Claude Code only; not written for Codex CLI'
   badip = '-IpRule: current, off or addresses / networks separated by commas (e.g. 203.0.113.7,2001:db8::/64)'
   s_starter = 'Fetching the starter files'
   dry_files = '  (dry run) the files of {0}/starter_files.txt into {1}'
@@ -167,6 +177,11 @@ $MsgDe = @{
   harden = '  Sperrregeln für Claude Code eingetragen: {0} (kein WebFetch / WebSearch, kein Lesen der Schlüssel-Datei)'
   dry_harden = '  (Probelauf) Sperrregeln für Claude Code eintragen in: {0}'
   harden_fail = '  Sperrregeln konnten nicht eingetragen werden ({0} ist kein gültiges JSON); trag sie von Hand ein, siehe Anleitung'
+  badprof = 'unbekanntes Rechte-Profil {0} (-RightsProfile hardened, standard oder dev)'
+  prof_ok = '  Rechte-Profil {0} eingetragen: {1}'
+  dry_prof = '  (Probelauf) Rechte-Profil {0} eintragen in: {1}'
+  prof_nofile = '  Rechte-Profil {0} nicht gefunden (agent_profiles.json fehlt in den Starter-Dateien); nichts eingetragen'
+  prof_codex = '  Rechte-Profil {0} gilt nur für Claude Code; für Codex CLI nicht eingetragen'
   badip = '-IpRule: current, off oder Adressen/Netze mit Komma (z. B. 203.0.113.7,2001:db8::/64)'
   s_starter = 'Lade die Starter-Dateien'
   dry_files = '  (Probelauf) die Dateien aus {0}/starter_files.txt nach {1}'
@@ -242,6 +257,11 @@ $MsgEs = @{
   harden = '  Reglas de bloqueo para Claude Code escritas: {0} (sin WebFetch / WebSearch, sin leer el archivo de la clave)'
   dry_harden = '  (simulacro) escribir reglas de bloqueo para Claude Code en: {0}'
   harden_fail = '  No se pudieron escribir las reglas de bloqueo ({0} no es JSON válido); añádelas a mano, ver la guía'
+  badprof = 'perfil de permisos desconocido {0} (-RightsProfile hardened, standard o dev)'
+  prof_ok = '  Perfil de permisos {0} escrito: {1}'
+  dry_prof = '  (simulacro) escribir el perfil de permisos {0} en: {1}'
+  prof_nofile = '  Perfil de permisos {0} no encontrado (falta agent_profiles.json en los archivos del iniciador); no se escribió nada'
+  prof_codex = '  El perfil de permisos {0} es solo para Claude Code; no se escribió para Codex CLI'
   badip = '-IpRule: current, off o direcciones / redes separadas por comas (p. ej. 203.0.113.7,2001:db8::/64)'
   s_starter = 'Descargando los archivos de inicio'
   dry_files = '  (simulacro) los archivos de {0}/starter_files.txt en {1}'
@@ -317,6 +337,11 @@ $MsgFr = @{
   harden = '  Règles de blocage pour Claude Code écrites : {0} (pas de WebFetch / WebSearch, pas de lecture du fichier de la clé)'
   dry_harden = '  (essai à blanc) écrire les règles de blocage pour Claude Code dans : {0}'
   harden_fail = '  Les règles de blocage n''ont pas pu être écrites ({0} n''est pas du JSON valide) ; ajoute-les à la main, voir le guide'
+  badprof = 'profil de droits inconnu {0} (-RightsProfile hardened, standard ou dev)'
+  prof_ok = '  Profil de droits {0} écrit : {1}'
+  dry_prof = '  (essai à blanc) écrire le profil de droits {0} dans : {1}'
+  prof_nofile = '  Profil de droits {0} introuvable (agent_profiles.json manque dans les fichiers du démarreur) ; rien n''a été écrit'
+  prof_codex = '  Le profil de droits {0} ne vaut que pour Claude Code ; non écrit pour Codex CLI'
   badip = '-IpRule : current, off ou des adresses / réseaux séparés par des virgules (p. ex. 203.0.113.7,2001:db8::/64)'
   s_starter = 'Téléchargement des fichiers de démarrage'
   dry_files = '  (essai à blanc) les fichiers de {0}/starter_files.txt dans {1}'
@@ -392,6 +417,11 @@ $MsgIt = @{
   harden = '  Regole di blocco per Claude Code scritte: {0} (niente WebFetch / WebSearch, niente lettura del file della chiave)'
   dry_harden = '  (prova) scrivere le regole di blocco per Claude Code in: {0}'
   harden_fail = '  Impossibile scrivere le regole di blocco ({0} non è JSON valido); aggiungile a mano, vedi la guida'
+  badprof = 'profilo di permessi sconosciuto {0} (-RightsProfile hardened, standard o dev)'
+  prof_ok = '  Profilo di permessi {0} scritto: {1}'
+  dry_prof = '  (prova) scrivere il profilo di permessi {0} in: {1}'
+  prof_nofile = '  Profilo di permessi {0} non trovato (agent_profiles.json manca nei file dello starter); nulla scritto'
+  prof_codex = '  Il profilo di permessi {0} vale solo per Claude Code; non scritto per Codex CLI'
   badip = '-IpRule: current, off o indirizzi / reti separati da virgole (es. 203.0.113.7,2001:db8::/64)'
   s_starter = 'Scaricamento dei file di avvio'
   dry_files = '  (prova) i file di {0}/starter_files.txt in {1}'
@@ -467,6 +497,11 @@ $MsgNl = @{
   harden = '  Blokkeerregels voor Claude Code geschreven: {0} (geen WebFetch / WebSearch, geen lezen van het sleutelbestand)'
   dry_harden = '  (proefrun) blokkeerregels voor Claude Code schrijven in: {0}'
   harden_fail = '  De blokkeerregels konden niet worden geschreven ({0} is geen geldige JSON); voeg ze met de hand toe, zie de handleiding'
+  badprof = 'onbekend rechtenprofiel {0} (-RightsProfile hardened, standard of dev)'
+  prof_ok = '  Rechtenprofiel {0} geschreven: {1}'
+  dry_prof = '  (proefrun) rechtenprofiel {0} schrijven in: {1}'
+  prof_nofile = '  Rechtenprofiel {0} niet gevonden (agent_profiles.json ontbreekt in de starterbestanden); niets geschreven'
+  prof_codex = '  Rechtenprofiel {0} geldt alleen voor Claude Code; niet geschreven voor Codex CLI'
   badip = '-IpRule: current, off of adressen / netwerken gescheiden door komma''s (bijv. 203.0.113.7,2001:db8::/64)'
   s_starter = 'De startbestanden ophalen'
   dry_files = '  (proefrun) de bestanden uit {0}/starter_files.txt naar {1}'
@@ -537,6 +572,8 @@ if (-not $IpRule -and -not $DryRun -and -not $Uninstall -and [Environment]::User
   if ("$(Ask (M 'ask_ip'))".Trim() -match '^[jJyYsSoO]') { $IpRule = 'current' }
 }
 if ($Template -notin @('general', 'software')) { Die (M 'badtpl' @($Template)) }
+if ($RightsProfile -notin @('', 'hardened', 'standard', 'dev')) { Die (M 'badprof' @($RightsProfile)) }  # 2.1400 (#7115)
+$RightsProfile = $RightsProfile.ToLowerInvariant()
 $Template = $Template.ToLowerInvariant()
 if ($IpRule -in @('off', 'none')) { $IpRule = '' }
 if ($IpRule -and $IpRule -ne 'current' -and $IpRule -notmatch '^[0-9A-Fa-f.:/, ]+$') { Die (M 'badip') }
@@ -679,7 +716,7 @@ else {
   # 2.306.0 E (#2927): who answers permission questions -- kept from an earlier setup of this folder, else (team agent) the
   # person who made the code (operator_id), as KALMIDO_PERM_USER; KALMIDO_OWNER_IDS would also narrow who gives orders
   $keep = @()
-  if (Test-Path -LiteralPath $EnvF) { $keep = @(Get-Content -LiteralPath $EnvF | Where-Object { $_ -match '^KALMIDO_(PERM_USER|OWNER_IDS)=' }) }
+  if (Test-Path -LiteralPath $EnvF) { $keep = @(Get-Content -LiteralPath $EnvF | Where-Object { $_ -match '^KALMIDO_(PERM_USER|OWNER_IDS|BLOCK_EXTRA|BLOCK_DANGEROUS)=' }) }
   $op = $r.operator_id
   if ($keep.Count) { $perm = 'kept' }
   elseif ($null -ne $op -and "$op" -match '^\d+$') { $perm = "$op"; $keep = @("KALMIDO_PERM_USER=$op") }
@@ -846,13 +883,33 @@ if ($Template -eq 'software') {
 # in the repository): no WebFetch / WebSearch, no Read of ~/.kalmido and of the env file, no Edit of the env file. Entries
 # already there stay, a second setup adds nothing twice; the person may take the web rules out again (every run's settings
 # keep the file rules, mcp/agent_run.py secret_deny_rules). Claude Code matches Windows paths as //c/Users/...
+# 2.1400 (#7115): -RightsProfile adds the rules of a rights profile (mcp/agent_profiles.json: allow, deny, defaultMode) and the
+# dev profile's KALMIDO_BLOCK_EXTRA to the env file when it has none, as setup.sh --profile
 if ($Tool -ne 'codex') {
   $HSet = Join-Path (Join-Path $Dir '.claude') 'settings.local.json'
-  if ($DryRun) { Say (M 'dry_harden' @($HSet)) }
+  if ($DryRun) { Say (M 'dry_harden' @($HSet)); if ($RightsProfile) { Say (M 'dry_prof' @($RightsProfile, $HSet)) } }
   else {
-    $ep = ([IO.Path]::GetFullPath($EnvF)) -replace '\\', '/'
-    if ($ep -match '^([A-Za-z]):/') { $ep = '/' + $Matches[1].ToLower() + $ep.Substring(2) }
+    function RulePath([string]$x) {
+      $x = ([IO.Path]::GetFullPath($x)) -replace '\\', '/'
+      if ($x -match '^([A-Za-z]):/') { $x = '/' + $Matches[1].ToLower() + $x.Substring(2) }
+      return $x
+    }
+    $ep = RulePath $EnvF
     $rules = @('WebFetch', 'WebSearch', 'Read(~/.kalmido/*.env)', 'Read(~/.kalmido/**/*.env)', "Read(/$ep)", "Edit(/$ep)")
+    $allow = @(); $mode = ''; $extra = ''; $profOk = $true
+    if ($RightsProfile) {
+      try {
+        $pf = [IO.File]::ReadAllText((Join-Path $Inst 'agent_profiles.json')) | ConvertFrom-Json
+        $pp = $pf.profiles.$RightsProfile
+        if ($null -eq $pp) { throw 'no such profile' }
+        $ip = RulePath $Inst
+        $job = @("Bash(`"$Py`" `"$Inst\agent_job.py`":*)", "Bash(`"$Py`" `"$(($Inst -replace '\\', '/'))/agent_job.py`":*)")
+        foreach ($x in @($pp.allow)) { if ($x -eq '{job}') { $allow += $job } elseif ($x) { $allow += $x.Replace('{inst}', "/$ip") } }
+        foreach ($x in @($pp.deny)) { if ($x -and ($rules -notcontains $x.Replace('{inst}', "/$ip"))) { $rules += $x.Replace('{inst}', "/$ip") } }
+        if ($pp.defaultMode) { $mode = [string]$pp.defaultMode }
+        if ($pp.block_extra) { $extra = [string]$pp.block_extra }
+      } catch { $profOk = $false; $allow = @(); $mode = ''; $extra = '' }
+    }
     try {
       $d = if (Test-Path -LiteralPath $HSet) { [IO.File]::ReadAllText($HSet) | ConvertFrom-Json } else { New-Object PSObject }
       if ($null -eq $d) { $d = New-Object PSObject }
@@ -864,13 +921,31 @@ if ($Tool -ne 'codex') {
       $deny = @($d.permissions.deny | Where-Object { $null -ne $_ })
       foreach ($x in $rules) { if ($deny -notcontains $x) { $deny += $x } }
       $d.permissions.deny = $deny
+      if ($allow.Count) {
+        if (-not $d.permissions.PSObject.Properties['allow']) { $d.permissions | Add-Member -NotePropertyName allow -NotePropertyValue @() }
+        if ($null -ne $d.permissions.allow -and -not ($d.permissions.allow -is [array])) { throw 'allow is not a list' }
+        $al = @($d.permissions.allow | Where-Object { $null -ne $_ })
+        foreach ($x in $allow) { if ($al -notcontains $x -and $deny -notcontains $x) { $al += $x } }
+        $d.permissions.allow = $al
+      }
+      if ($mode) {
+        if ($d.permissions.PSObject.Properties['defaultMode']) { $d.permissions.defaultMode = $mode }
+        else { $d.permissions | Add-Member -NotePropertyName defaultMode -NotePropertyValue $mode }
+      }
       New-Item -ItemType Directory -Force -Path (Split-Path -Parent $HSet) | Out-Null
       [IO.File]::WriteAllText("$HSet.new", ($d | ConvertTo-Json -Depth 20) + "`n")
       Move-Item -LiteralPath "$HSet.new" -Destination $HSet -Force
       Say (M 'harden' @($HSet))
+      if ($RightsProfile -and $profOk) { Say (M 'prof_ok' @($RightsProfile, $HSet)) }
+      elseif ($RightsProfile) { Say (M 'prof_nofile' @($RightsProfile)) }
+      # the person's own list (KALMIDO_BLOCK_EXTRA) is never replaced
+      if ($extra -and (Test-Path -LiteralPath $EnvF) -and -not (Get-Content -LiteralPath $EnvF | Where-Object { $_ -match '^KALMIDO_BLOCK_EXTRA=' })) {
+        Add-Content -LiteralPath $EnvF -Value @('# 2.1400 (#7115): the project''s own block list of the guard; add live hosts (host:NAME) and deploy commands (cmd:WORDS)',
+                                               "KALMIDO_BLOCK_EXTRA=`"$extra`"")
+      }
     } catch { Say (M 'harden_fail' @($HSet)) }
   }
-}
+} elseif ($RightsProfile) { Say (M 'prof_codex' @($RightsProfile)) }
 
 # kalmido-setup-step: autostart
 Step (M 's_auto')
