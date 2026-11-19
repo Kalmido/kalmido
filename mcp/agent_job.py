@@ -39,7 +39,9 @@ How it works
     of its brief (no commit, merge, push, deploy, nothing changed in Kalmido but comments and its result); list marks it.
     2.1413.0 (#7032): its result (the last 6000 characters) stays in its job file as "result": the dispatcher reads the
     verdict of a pull request's reading there (agent_dispatch.py after_read).
-  - a time limit (KALMIDO_JOB_TIMEOUT_H, default 6) ends the job; it says so in its result.
+  - a time limit (KALMIDO_JOB_TIMEOUT_H, default 6) ends the job; it says so in its result. #4063: ten minutes
+    before it a reminder goes into the run (TIMEOUT_NOTE: notes file, commit the branch, the rest as a task comment), and
+    the starter never starts a follow-up job by itself -- with the dispatcher on, it bundles the open tasks again (a try).
   - 2.1394.0 (#7031): model and effort per kind of job from Kalmido's runtime settings (GET /api/v1/agent runtime): model_job /
     effort_job for a build job, model_audit / effort_audit for a review job (--audit); empty = the command's own model and no
     --effort. Claude Code only (--model / --effort, read at every start, revive and wake of the job).
@@ -79,6 +81,12 @@ from agent_common import Api as ApiBase, ApiError, chunks, defuse_fence, env_cre
 OPEN_STATES = ("starting", "running", "paused")
 MAX_RESUMES = 3
 STEP_GAP_S = 5.0
+# #4063: a hand-over note instead of a chain of follow-up jobs -- this long before the time limit the run is reminded
+TIMEOUT_WARN_S = 600
+TIMEOUT_NOTE = ("(Launcher: {0} minutes left until this job's time limit, then it is ended. Now: write the state into "
+                "JOB-NOTES.md in the working folder (what is done, what is left, what you found), commit your branch, and leave "
+                "what is left as a comment on its task (add_comment). Do not start a follow-up job: no job is continued by "
+                "itself; the open tasks are taken up again later (with the dispatcher on, in its next round).)")
 LIMIT_WORDS = ("usage limit", "rate limit", "hit your limit", "limit reached", "5-hour limit", "rate_limit", "429")
 # 2.619.0 (#2196): the weekly limit, told apart from the 5-hour window
 WEEK_WORDS = ("weekly limit", "week limit", "seven_day", "7-day limit", "weekly usage")
@@ -1387,6 +1395,7 @@ def cmd_run(argv):
         except OSError:
             pass
         t0 = time.time()
+        warn_s, warned = min(TIMEOUT_WARN_S, j["timeout_s"] // 4), False  # #4063: a short limit: at three quarters
         while p.poll() is None:
             time.sleep(1)
             cur = load(j["id"])
@@ -1422,6 +1431,18 @@ def cmd_run(argv):
                     p.stdin.close()
                 except OSError:
                     pass
+            if not warned and not result and time.time() - t0 > j["timeout_s"] - warn_s:
+                warned = True  # #4063: once per run, as a user message (read after the next tool step)
+                sent = False
+                if streaming and p.stdin and not state["sent_result"]:
+                    try:
+                        p.stdin.write(compose_stream_input(TIMEOUT_NOTE.format(max(1, round(warn_s / 60)))))
+                        p.stdin.flush()
+                        sent = True
+                    except OSError:
+                        pass
+                api.soft("PATCH", f"/agent/jobs/{int(j['id'])}", {"append_log": f"{time.strftime('%H:%M')} time limit in {max(1, round(warn_s / 60))} minutes"
+                                                                  + (": hand-over note sent" if sent else "")})
             if time.time() - t0 > j["timeout_s"]:
                 timed_out = True
                 kill_tree(p.pid)
@@ -1485,7 +1506,9 @@ def cmd_run(argv):
     text = str((final or {}).get("result") or "").strip() if not (final or {}).get("is_error") else ""
     ok = bool(text)
     if timed_out:
-        text = (text + "\n\n" if text else "") + f"(The job reached its time limit of {j['timeout_s'] / 3600:g} h and was ended.)"
+        text = (text + "\n\n" if text else "") + (f"(The job reached its time limit of {j['timeout_s'] / 3600:g} h and was ended. "
+                                                    "No follow-up job starts by itself: its notes are in JOB-NOTES.md and on its "
+                                                    "task; the open tasks are taken up again later.)")  # #4063
         if j.get("worktree"):
             text += f"\nThe work so far is on branch {j['worktree']['branch']}."
     elif not ok:
@@ -1520,8 +1543,12 @@ def cmd_run(argv):
         queue_result(j, {"text": text, "files": files, "kind": kind, "appr": appr, "sugg": sugg, "sent": sent,
                          "state": j["state"], "late": [{k: it.get(k) for k in ("t", "kind", "uid", "text")} for it in late]})
         return 0
+    hint = "" if posted else "Its result could not be posted into the chat."
+    if timed_out:  # #4063: the wake run hands over, it never continues the job by itself
+        hint = (hint + " " if hint else "") + ("It reached its time limit. Do not start a follow-up job by yourself: say what "
+                                               "is left and offer a new start; the dispatcher (when on) takes the open tasks up again.")
     add_wake(j, "done" if ok and not timed_out else "failed", text,  # 2.46.6 (#1445): a wake run instead of a note
-             "" if posted else "Its result could not be posted into the chat.", posted=posted, late=late)
+             hint, posted=posted, late=late)
     return 0
 
 
