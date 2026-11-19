@@ -33,6 +33,9 @@ fake Kalmido API and a real temporary git repository.
    (a file not committed in the job's working copy counts for nothing) and exactly that commit is pushed; push_url is
    required (runner env) and must equal git remote get-url --push; a repository config with sshCommand / credential.helper /
    pushurl / insteadOf / filter keys refuses the landing (nothing checked out, nothing pushed); git never sees KALMIDO_*
+ - 2.1413.0 (#7032): before the approval card a review job (--audit) reads the pull request; the card goes out once it ended
+   and names its verdict (green / findings, German lines too, the last one counts); not started = again next round, after
+   read_wait_h the card without a verdict says why; read_pr only from the state folder's file; a review job keeps its result
 Pure Python, no container."""
 import importlib.util
 import json
@@ -207,6 +210,22 @@ STARTS, JOBS = [], {}
 ad.start_job = lambda bundle, brief, cfg, env, sd: (STARTS.append(([t["id"] for t in bundle], brief, env.get("KALMIDO_CHAT_USER"), env.get("KALMIDO_OUTBOX")))
                                                     or (500 + len(STARTS), "Job started"))
 ad.host_jobs = lambda sd: dict(JOBS)
+# 2.1413.0 (#7032): the reading of a pull request -- a review job (agent_job.py start --audit); here it is done at once with
+# READ_RESULT[0] as its result (a test sets None: not started)
+READS, READ_RESULT = [], ["Nothing that should hold it.\nVERDICT: green"]
+
+
+def fake_read(title, task, brief, cfg, env, sd):
+    if READ_RESULT[0] is None:
+        READS.append((None, title, brief))
+        return None, "3 audit jobs are open already"
+    aid = 900 + len(READS)
+    READS.append((aid, title, brief))
+    JOBS[str(aid)] = {"id": aid, "state": "done", "audit": True, "result": READ_RESULT[0]}
+    return aid, f"Job #{aid} started"
+
+
+ad.start_read = fake_read
 
 # off: nothing at all
 h = Host("")
@@ -543,7 +562,17 @@ check(prs and "sys.exit" not in prs[0]["body"] and "#399" not in prs[0]["body"] 
 check(not os.path.exists(hookmark), "F2: no git hook of the job's repository runs for the dispatcher")
 pushed = subprocess.run(["git", "--git-dir", bare, "branch", "--list"], capture_output=True, text=True).stdout.split()
 check(pushed == ["job/601"], f"#7028: only the green job branch is pushed, never main, never the red one: {pushed}")
+# 2.1413.0 (#7032): the reading first -- no card in the round that opened the pull request
+check(not [b for m, p_, b in h.api.bodies if m == "POST" and p_ == "/tasks/301/comments"] and READS and d.reg["jobs"]["601"]["read"]["job"] == READS[-1][0],
+      f"#7032: the pull request is read first (a review job), no card yet {d.reg['jobs']['601'].get('read')}")
+rb = READS[-1][2] if READS else ""
+check("https://git.example.com/o/r/pull/7" in rb and "job/601" in rb and "VERDICT: green" in rb and "#301" in rb
+      and "no commit, no push, no merge" in rb, f"#7032: the reading's brief names the pull request, the branch, the tasks and the verdict line {rb[:400]}")
+JOBS[str(500 + len(STARTS))] = {"id": 500 + len(STARTS), "state": "running", "created": time.time()}  # the red task's new job runs
+res = d.tick(force=True)  # the reading ended: the card
 card = [b for m, p_, b in h.api.bodies if m == "POST" and p_ == "/tasks/301/comments"]
+check(card and f"Reading (job #{READS[-1][0]}): green - no findings." in card[0]["suggestion"]["summary"] and "Reading (job" in card[0]["body"],
+      f"#7032: the card names the reading's verdict {card[:1]}")
 check(len(card) == 1 and card[0]["suggestion"] == {"kind": "merge_request", "pr_url": "https://git.example.com/o/r/pull/7", "summary": card[0]["suggestion"]["summary"]}
       and card[0]["body"].startswith("Ready to merge: https://git.example.com/o/r/pull/7"), f"#7028: the approval card on the first task: {card}")
 check(not any(p_.endswith("/complete") for _, p_ in h.api.calls), "#7028: nothing is closed before the merge")
@@ -708,6 +737,60 @@ check(ad.DEFAULTS["stau_max"] == 10, "#4060: default 10")
 moved = [t for _, t in h.api.chats if "lies only in the project folder" in t and t.startswith("Dispatcher:")]
 check(len(moved) == 1 and os.path.join(state6, ad.CONFIG_FILE) in moved[0], f"F6: the person is told once where the configuration goes: {moved}")
 check(any("lies only in the project folder" in t for _, t in h.api.chats if "day report" in t), "F6: the day report names it too")
+
+# ---- 2.1413.0 (#7032): the reading of a pull request before its approval card -- verdicts, not started, time limit
+check([ad.verdict_of(x) for x in ("a\nVERDICT: green", "**URTEIL: Funde**", "Verdict: findings\n- x", "nothing", "VERDICT: green\nVERDICT: findings")]
+      == ["green", "findings", "findings", "none", "findings"], "#7032: the verdict line (the last one counts), German too; none without")
+state8 = os.path.join(proj, ".state8")
+os.makedirs(state8)
+with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
+    json.dump({"lists": ["Backlog"], "report_at": "", "read_pr": False}, f)
+cfg8, _p = ad.load_config(proj, state8)
+check(cfg8["read_pr"] is True, "#7032: the project folder's file cannot switch the reading off (only the state folder's)")
+with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
+    json.dump({"lists": ["Backlog"], "report_at": ""}, f)
+
+
+def read_round(jid, tid):
+    TASKS[:] = [task(tid, f"Feature {tid}", "S")]
+    JOBS.clear()
+    JOBS[str(jid)] = {"id": jid, "state": "done", "worktree": job_branch(jid, tid)}
+    h = Host("on")
+    h.state_dir = tempfile.mkdtemp(dir=state8)
+    d = ad.Dispatcher(h, proj)
+    d.reg["jobs"] = {str(jid): {"tasks": [tid], "at": time.time(), "titles": {str(tid): f"Feature {tid}"}}}
+    d.tick(force=True)
+    return d, h
+
+
+def cards(h, tid):
+    return [b for m, p_, b in h.api.bodies if m == "POST" and p_ == f"/tasks/{tid}/comments" and b.get("suggestion")]
+
+
+READ_RESULT[0] = "F1 mcp/x.py:3 - the error path is missing\nVERDICT: findings"
+d, h = read_round(621, 321)
+JOBS[str(READS[-1][0])]["state"] = "running"
+d.tick(force=True)
+check(not cards(h, 321), "#7032: no card while the reading runs")
+JOBS[str(READS[-1][0])]["state"] = "done"
+d.tick(force=True)
+c = cards(h, 321)
+check(len(c) == 1 and "findings - read them before you merge" in c[0]["suggestion"]["summary"], f"#7032: findings stand in the card {c}")
+d.tick(force=True)
+check(len(cards(h, 321)) == 1, "#7032: one card only")
+READ_RESULT[0] = None  # the review area is full: not started
+d, h = read_round(622, 322)
+n = len(READS)
+d.tick(force=True)
+check(len(READS) == n + 1 and not cards(h, 322), "#7032: a reading not started is tried again next round, no card yet")
+d.reg["jobs"]["622"]["read"]["at"] -= 7 * 3600  # read_wait_h went by
+d.tick(force=True)
+c = cards(h, 322)
+check(len(c) == 1 and "not started: 3 audit jobs are open already" in c[0]["suggestion"]["summary"] and "no verdict" in c[0]["suggestion"]["summary"],
+      f"#7032: after read_wait_h the card goes out without a verdict and says why {c}")
+READ_RESULT[0] = "VERDICT: green"
+jsrc = open(os.path.join(MCP, "agent_job.py"), encoding="utf-8").read()
+check('if j.get("audit") and ok:' in jsrc and 'j["result"] = text[-6000:]' in jsrc, "#7032: a review job keeps its result in its job file")
 
 # ---- 2.1368.0 (#7033): the short rules for coding agents -- a starter file, small, with the building rules
 short = open(os.path.join(MCP, "CLAUDE.coding.md"), encoding="utf-8").read()
