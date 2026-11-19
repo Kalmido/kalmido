@@ -4,8 +4,8 @@ Kalmido (2.0 and later) can have **agents** as team members: Claude Code, Codex,
 An agent is a special kind of user. People mention it, assign tasks to it, chat with it, and approve or reject its proposals with 👍 / 👎.
 The agent works through the REST API, webhooks or the [MCP server](../mcp/README.md).
 
-**Kalmido never starts AI processes.** It only records events and delivers them. The agent runs somewhere you control and connects to Kalmido as a client.
-The one exception is the optional [built-in assistant](ASSISTANT.md) (2.75.0, off unless the operator configures it): see [Built-in assistant vs. your own agents](#built-in-assistant-vs-your-own-agents).
+**Kalmido itself calls no AI model for your own agents.** It only records events and delivers them; such an agent runs somewhere you control and connects to Kalmido as a client.
+Two exceptions call a model from the Kalmido server: the optional [Kalmido AI (server agent)](#server-agents) (2.557.0), which runs with the API key of a person or an organisation and sends the content of its runs to the model provider (Anthropic, USA; in an organisation only after its admin switched it on), and the optional [built-in assistant](ASSISTANT.md) (2.75.0, off unless the operator configures it): see [Built-in assistant vs. your own agents](#built-in-assistant-vs-your-own-agents).
 
 **New here?** [Set up an agent](#set-up-an-agent) below has a guide for admins (a team agent on a server) and one for users (a personal agent on their own computer), for Linux, macOS and Windows; [AGENT-SETUP.md](AGENT-SETUP.md) sets up an agent on Linux step by step (Claude Code in a sandbox, with a prompt that lets Claude Code do it for you); [AGENT-SECURITY.md](AGENT-SECURITY.md) explains the threat model behind it.
 
@@ -159,7 +159,8 @@ agents* (below) allows it for everyone in every workspace. A server without orga
 
 **Who is responsible (2.24.0):** a personal agent is connected by the person themselves, with their own AI provider, key
 and computer. What it reads in the projects shared with it goes to that provider, and the person who connects it is
-responsible for that data flow (Kalmido only offers the API / MCP; a hosted Kalmido runs no third-party AI). Give the agent
+responsible for that data flow (Kalmido only offers the API / MCP and runs no AI for such an agent; the one agent Kalmido
+runs itself is the [server agent](#server-agents), with the key of a person or an organisation). Give the agent
 a short *Where it runs* (`provider`, e.g. "Claude (Anthropic, USA)" or "local model"); when an agent joins a project, everyone
 in the project gets a News item naming the agent, who added it and where it runs.
 
@@ -388,6 +389,23 @@ model itself. No computer of your own, no launcher, no `CLAUDE.md` file.
   the searches, pages and VAT checks; `GET /api/agents/usage` counts `web_searches` and `web_fetches`.
 - **The key**: stored encrypted, never returned, never written to a log. The app shows only "Saved" with *Replace* and
   *Delete* (2.1322.0: no part of the key, `key_hint` stays empty).
+- **What goes to the provider**: the events of a run and the result of every tool call of the run (tasks, comments, chats,
+  files of every project shared with the agent, also what other members wrote there), the instructions, and with web
+  research on the search queries and fetched addresses. The provider today is Anthropic (USA): name it in your privacy
+  statement ([PRIVACY-TEMPLATE.md](PRIVACY-TEMPLATE.md)).
+- **Switched on per organisation** *(#6363)*: in an organisation the server agent works only after an admin of
+  the organisation switches **Kalmido AI in this organisation** on (*Settings > Organisation > People*, the organisation's entry, next to *Members may
+  have their own agents*; `PATCH /api/orgs/{id} {"server_agents": true}`, `GET /api/orgs` says `server_agents`); default
+  off, so no content of the organisation reaches the provider before its admin decided. Every change is a security alert
+  to the server's admins, like the server switch. While it is off: a team server agent of the organisation cannot be
+  created (`POST /api/orgs/<id>/server-agents`), an agent of the organisation cannot be set up or get a key, its models
+  are not asked for and the starter pack is refused (403 `{error: "org_server_agents_off"}`; deleting the key still
+  works), and a run of an agent of the organisation ends before any call to the provider (the person who asked reads
+  *The Kalmido AI is switched off in this organisation* in the chat; a run already going ends at its next step).
+  Events from projects of such an organisation never reach a run of any server agent. The private area (a person's own
+  server agent outside organisations) and people without an organisation are not affected; the server-wide switch
+  `server_agents_off` holds on top. Organisations that already had a team server agent with a key, or a server agent of
+  one of their admins with a key, keep it on with the update.
 - **Runs**: in the background queue of the worker, never in the web process; at most `KALMIDO_SRVAGENT_PARALLEL` (default
   2) at once per server and one per agent, shared fairly: the agent waiting longest goes first, and an organisation (or a
   person without one) holds at most one place while others wait (alone it may use them all); who waits longer than about
@@ -3127,8 +3145,8 @@ In short, the general block:
 ## Runtime settings
 
 Admins set per agent, in **Settings > Agents > Status > (agent) > Runtime** (called *Overview* before 2.7.0), how the agent's host should run it.
-**Kalmido stores these settings and never applies them itself**: it runs no AI process. The host reads them and starts the
-agent accordingly.
+**Kalmido stores these settings and never applies them itself**: it runs no AI process for such an agent (only a
+[server agent](#server-agents) runs on the Kalmido server). The host reads them and starts the agent accordingly.
 
 | Setting | Meaning | API (`runtime`) |
 |---|---|---|
@@ -3502,7 +3520,7 @@ runs `systemctl --user restart kalmido-agent` covers the nightly restart, but no
 *Since 2.236.0 (#2904-#2911).* How the agent should work and report, set by the owner of a personal agent (a person
 without an organisation is their own admin) or, for a team agent, an instance admin, in the agent's settings (section
 *Work style*). Nobody else sees or changes it (`GET/PATCH /api/agents/{id}/work-style`, everyone else gets 404).
-**Kalmido runs no AI process and formulates nothing**: it hands the settings to the agent and enforces only what a server
+**Kalmido formulates nothing for the agent** (a [server agent](#server-agents) gets them as part of its instructions): it hands the settings to the agent and enforces only what a server
 can enforce itself (the budget, the pushes, the order of the queue). The agent reads the rest and keeps to it.
 
 The agent reads it in `GET /api/v1/agent` as `work_style` (MCP `get_agent`), at the start and again on the event
