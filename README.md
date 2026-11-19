@@ -315,8 +315,9 @@ project). You type `RESTORE` to confirm. Kalmido then:
    until nothing else runs;
 3. makes a **safety backup** of the current state (listed as "before a restore");
 4. swaps the attachments folder and replaces the database with `pg_restore` (one transaction), runs the migrations;
-   if anything fails, the previous database and attachments are put back. Backups from before 2.37 (`tasks.db`) are
-   moved over into PostgreSQL the same way as on the first start of 2.37;
+   if anything fails, the previous database and attachments are put back. Backups from before 2.37 (SQLite, a
+   `tasks.db` in the zip) are listed and checked but refused before anything changes: restore such a backup with 2.36
+   and update from there (docs/UPGRADING.md);
 5. ends every session except yours (you get a fresh one; with single sign-on nothing changes). The backup settings
    (`bk_` keys) stay as they are.
 
