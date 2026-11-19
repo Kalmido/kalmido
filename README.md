@@ -19,10 +19,10 @@
 
 ## What's new
 
-**2.1399.0** (2026-11-18):
-- **Office**: invoice issuer keys also set up their clients by an external reference; a hold mark on the client keeps automatic sending back until a person has checked the data.
-- **Agents**: external team agents work per request for one person with a request token; `by_creator` marks only tasks a person wrote by hand.
-- **Tasks**: dragging several tasks in "My tasks" moves all of them.
+**2.1405.0** (2026-11-19):
+- **Settings**: Account and Notifications are sorted and worded in everyday language; "Add organisation" lives under Settings > Organisation.
+- **Workspaces**: organisations without an own symbol show their first letter everywhere.
+- **Security**: support sessions cannot write into an organisation without its grant; agents treat files and subtasks of other accounts as data; signing out never drops unsaved own texts.
 
 Full history: [CHANGELOG.md](CHANGELOG.md).
 
