@@ -1874,9 +1874,15 @@ document.addEventListener('visibilitychange', async () => {
 let imeOn = false;
 document.addEventListener('compositionstart', () => { imeOn = true; }, true);
 document.addEventListener('compositionend', () => { imeOn = false; }, true);
+// 2.1432.0 (#6639): a <select> is no typing (a choice made left the focus there and live changes waited, for hours); a field
+// left without input for EDIT_IDLE_MS lets them through too - the redraw morphs and leaves the focused field as it is
+// (renderView keepFocus, the panel lpDetail), so the text and the keyboard stay
+const EDIT_IDLE_MS = 60000;
+let editAt = 0;
+for (const k of ['keydown', 'input', 'focusin', 'compositionupdate']) document.addEventListener(k, () => { editAt = Date.now(); }, true);
 const editing = () => {
   if (imeOn || (S.povEdit && $('#pov-desc-in'))) return true;
-  const a = document.activeElement; if (!a || !editFocused()) return false;
+  const a = document.activeElement; if (!a || !editFocused() || a.tagName === 'SELECT' || Date.now() - editAt >= EDIT_IDLE_MS) return false;
   return !!a.closest('#detail,.qadd,.modal,#pop') || a.id !== 'qinput' || !!a.value || isTouch();  // an empty composer of the list survives a re-render (renderView)
 };
 // a re-render of the view a live update asked for while someone types in it: done once the field is left (the poll)
