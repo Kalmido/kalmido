@@ -41,7 +41,7 @@ from ..core.pg import insert_id, system_ctx
 from ..core.access import act_for, run_person, Denied, joined_lists_sql, list_role, task_visible, WRITE_ROLES, otr_live
 from ..core.errors import BadInput, UnknownFields
 from ..api.common import hit_limit, v1_args, v1_call, v1_err, v1_json, v1_view, V1Error
-from ..api.runfor import req_main_on, req_main_step, run_class_refuse  # 2.1386.0 (#6668, second review F1); #6978 F5: run_class_refuse; 2.1432 (#6808): req_main_on
+from ..api.runfor import req_main_on, req_main_step, run_class_refuse  # (#6668, second review F1); #6978 F5: run_class_refuse; (#6808): req_main_on
 from ..accounts.session import me
 from ..accounts.layoutsets import LYV_LIST_RE  # 2.1398.0 (#6863, reader F1): the layout key as the route reads it
 from ..tasks.lifecycle import apply_update, task_reopen, trash_task
@@ -466,7 +466,7 @@ def ctl_gate():
         web = srvweb_state(c, a["user_id"])
     if a is not None and not a["owner_id"] and req_unasked():  # 2.1386.0 (#6668): a request of a team agent without a person:
         d = {**(d or CTL_DEFAULTS), "level": "approve_all", "projects": {}}  # it reads, every change is a card
-    if (req_main_on(a) and request.environ.get(CTL_RUN_ENV)  # 2.1432 (#6808): also a team agent that never asked
+    if (req_main_on(a) and request.environ.get(CTL_RUN_ENV)  # (#6808): also a team agent that never asked
             and req_main_token()):  # 2.1386.0 (#6668, review F3): the step of an answered card with the long-lived token of a
         d = {**(d or CTL_DEFAULTS), "level": "approve_all", "projects": {}}  # team agent per request: always the card's check
         g.ctl_force_for = True  # (ctl_claim) and the rights of the person who said Yes -- also with no control level chosen
