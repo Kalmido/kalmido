@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# kalmido-suite: after=office_einvoice nodata
 """2.1407 (#7155): one EN 16931 value model for CII and UBL -- the XML stays the same byte for byte.
 The cases below (all tax categories, mixed rates with exempt and zero rated lines, a position's own discount and a fixed
 discount line (#5815), a surcharge, a sub-cent foreign currency price with its rounding charge, USD with BT-111, credit
