@@ -15,3 +15,4 @@ agent_job.py
 agent_rules.md
 agent_dispatch.py
 kalmido_cli.py
+agent_profiles.json

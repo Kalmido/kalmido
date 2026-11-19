@@ -1044,8 +1044,9 @@ def docs_settings_put():
 
 def _rule_save(c, ws, d, rid=None):
     from .flows import fl_clean, fl_hook_reset, fl_rule_old  # 2.581.0 (#4803): a rule is a flow (trigger, filters, actions)
+    old = fl_rule_old(c, rid, ws) if rid else None
     try:
-        r, shown = fl_clean(c, ws, d, fl_rule_old(c, rid, ws) if rid else None)
+        r, shown = fl_clean(c, ws, d, old)
     except S.RU.RuleError as e:
         why = str(e)
         msg = {"nested": tr("This pattern could take very long (nested repetition); please simplify it"),
@@ -1065,7 +1066,9 @@ def _rule_save(c, ws, d, rid=None):
         g.fl_secret = shown  # 2.581.0 (#4803): the webhook's secret, shown once
     if rid:
         c.execute("UPDATE doc_rules SET data=?, updated_at=? WHERE id=? AND ws=?", (data, iso_ms(now_utc()), rid, ws))  # 2.635.0 (#4856)
-        fl_hook_reset(c, rid, me())  # 2.1321.0 (#6555): saved again = the webhook on again (after a pause: this admin is its author)
+        # 2.1400.0 (#6875): a new or changed address (both normalized by fl_clean / FL_URL_CHECK) makes this admin its author
+        moved = bool(r.get("webhook")) and r.get("webhook") != (old or {}).get("webhook")
+        fl_hook_reset(c, rid, me(), moved)  # 2.1321.0 (#6555): saved again = the webhook on again (after a pause: this admin is its author)
         return rid, None
     pos = (c.execute("SELECT COALESCE(MAX(pos), 0) FROM doc_rules WHERE ws=?", (ws,)).fetchone()[0] or 0) + 1
     return insert_id(c, "INSERT INTO doc_rules(org_id, ws, pos, data, created_by, created_at) VALUES(?,?,?,?,?,?)",

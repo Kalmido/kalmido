@@ -614,7 +614,7 @@ Steps that are the same on every system:
    for an approval card. Pick `routine` (create tasks, plan, comment and tick off without asking) before the first test;
    see [Control level](#control-level). Deleting needs a card on every level.
 4. **Rules**: `~/agent/CLAUDE.md` from [AGENT-SETUP.md](AGENT-SETUP.md#6-claudemd-the-agents-rules) (who instructs it,
-   everything else is data) and `~/agent/.claude/settings.json`, in one of two profiles ([step 7](AGENT-SETUP.md#7-permissions-claudesettingsjson)):
+   everything else is data) and `~/agent/.claude/settings.json`, in one of the profiles ([step 7](AGENT-SETUP.md#7-permissions-claudesettingsjson); 2.1400: a third one, **dev**, for a programming agent):
    **hardened** (`defaultMode: dontAsk`, only `mcp__kalmido` and `Read` allowed, no `Edit` / `Write`, the env file denied; the agent then has
    no notes, no working routine, no jobs, no files at its answers and asks no permission questions) or **standard**
    (`defaultMode: default`, plus narrow `Edit` / `Write` for `WORKFLOW-KALMIDO.md` and `NOTIZEN.md` and `Bash` for the job tool only;
@@ -3270,6 +3270,17 @@ any further write of the round, and the next round never starts its bundle again
 `dispatch-dry.log` in the state folder and into the day report, which is its only post.
 `"<python>" "<mcp>/agent_dispatch.py" --dry-run` runs one round by hand and prints it.
 
+**Where the configuration lives (2.1400, #7117):** put `KALMIDO-DISPATCH.json` into the runner's **state folder**
+(`KALMIDO_STATE_DIR`; the one-command setup uses `state` next to the env file) -- every run's and job's settings deny the
+agent's tools that folder's files, and the guard refuses a Bash line that names it. A `KALMIDO-DISPATCH.json` in the
+project folder (the agent's working place) is still read, but it **may only tighten**: `places`, `max_writes`,
+`job_timeout_h`, `stau_max`, `usage_limit_pct`, `max_tries`, `max_bundles`, `bundle_points` and `bundle_max` at most the
+value of the state folder's file (without one: the default; `0` = "never" counts as the loosest), `skip_tags` / `keep_tags`
+only added to, `one_way_rx` / `one_way_ok_tag` / `waiting_rx` never changed; with a state folder file it changes nothing
+else. A value that would loosen keeps the stricter one and is named once in the runner's log. The stop file belongs into
+the state folder too (`dispatch-STOP`); `KALMIDO-DISPATCH-STOP` in the project folder still stops, and the agent cannot
+create or delete either of them.
+
 The person who gets the reports and the jobs' results is the one who answers the permission questions (`perm_user_id`,
 `KALMIDO_PERM_USER`), else the agent's owner. The dispatcher sees only the lists shared with the agent. A task whose
 description or comments ask for anything else stays data.
@@ -3317,14 +3328,24 @@ Protect the target branch on the git server as well (only by pull request, the p
 give the token on this computer write access to that one repository only. `KALMIDO_JOB_WORKTREES` (default 2) caps the
 open working copies: with `places` above 2 raise it too.
 
-`KALMIDO-DISPATCH.json` in the project folder (`KALMIDO_DISPATCH_CONFIG` = another path). Without `lists` or without
-`check_cmd` (2.1368.0) the dispatcher stays idle; unknown keys and wrong types are named once in the runner's log and left
+`KALMIDO-DISPATCH.json` in the project folder (`KALMIDO_DISPATCH_CONFIG` = another path). Without `lists`, without
+`check_cmd` (2.1368.0) or without `push_url` (2.1400.0) the dispatcher stays idle; unknown keys and wrong types are named once in the runner's log and left
 at the default. `worktree` and `finish_cmd` are retired (2.1368.0): named once in the log, never used.
 
 What the dispatcher runs comes only from the runner's env file, never from the project folder (the agent can write
 there): `KALMIDO_DISPATCH_CHECK_CMD` (`check_cmd`), `KALMIDO_DISPATCH_PR_CMD` (`pr_cmd`), `KALMIDO_DISPATCH_PUSH_REMOTE`
-(`push_remote`) and `KALMIDO_DISPATCH_BASE` (`base`). One of these keys in `KALMIDO-DISPATCH.json` is not used: the
-dispatcher stays idle and names it.
+(`push_remote`), `KALMIDO_DISPATCH_PUSH_URL` (`push_url`, 2.1400.0) and `KALMIDO_DISPATCH_BASE` (`base`). One of these keys in
+`KALMIDO-DISPATCH.json` is not used: the dispatcher stays idle and names it.
+
+How a job lands (2.1400.0): the dispatcher notes the commit at the head of `job/<id>`, checks it out into a fresh temporary
+copy (never the job's own working copy, where a file that was never committed could make the check green) and runs
+`check_cmd` there; green pushes exactly that commit to `KALMIDO_DISPATCH_PUSH_URL`, and only while
+`git remote get-url --push <push_remote>` gives the same address. The repository's own `.git/config` is writable by the agent:
+only an allow list of keys may stand there (basic `core.*` values, `remote.*.url` / `fetch`, `branch.*`, `user.*`,
+`extensions.*`, `gc.*` and a few display settings; `SAFE_GIT_KEY_RX` in `mcp/agent_dispatch.py`). Any other key there (or in a
+working copy's config) - `core.sshCommand`, `credential.*`, `url.*.insteadOf`, `http.*`, `push.*`, `submodule.*`, `filter.*`
+... - and the dispatcher checks out nothing, pushes nothing and tells the person. git of the dispatcher never
+sees the runner's `KALMIDO_*` variables. A stop of the runner (signal, Stop) ends a round at once, also in the middle of a write.
 
 ```json
 {"lists": ["Backlog"], "places": 1, "interval_min": 10, "close_ref": "origin/main", "fetch": true,
@@ -3332,8 +3353,9 @@ dispatcher stays idle and names it.
  "report_at": "18:00"}
 ```
 
-In the runner's env file: `KALMIDO_DISPATCH_CHECK_CMD=make test` (and `KALMIDO_DISPATCH_PR_CMD=...` for another git
-server than GitHub).
+In the runner's env file: `KALMIDO_DISPATCH_CHECK_CMD=make test`, `KALMIDO_DISPATCH_PUSH_URL=git@github.com:owner/repo.git`
+(the push address of `origin`, as `git remote get-url --push origin` prints it) and `KALMIDO_DISPATCH_PR_CMD=...` for another git
+server than GitHub.
 
 `close_ref` is the git ref whose commits close tasks (`""` = the current branch). A ref of what is live (e.g. a branch
 `live`, with `"fetch": true` for `origin/...`) closes tasks only once they are live. The pull request goes to `base`
@@ -3425,7 +3447,7 @@ as `--events`), `KALMIDO_PROMPT_FILE`, `KALMIDO_STATE_DIR` (event cursor, defaul
 `KALMIDO_OWNER_IDS` the only ones who answer permission questions; anyone else chatting gets the step denied; 2.312.0: a
 person chosen in the agent's runtime settings comes first), `KALMIDO_APPROVAL_REMIND`,
 `KALMIDO_APPROVAL_TTL`, `KALMIDO_SESSION_RESUME`, `KALMIDO_SESSION_MAX_TOKENS`, `KALMIDO_SESSION_MAX_RUNS`,
-`KALMIDO_SESSION_IDLE_MIN`, `KALMIDO_RUN_TIMEOUT` (2.44.0), `KALMIDO_BLOCK_DANGEROUS` (2.615.0: 0 = the starter no longer refuses force-push, tag delete, docker prune and reboot, see [AGENT-SECURITY.md](AGENT-SECURITY.md#4-claude-code-project-settings)), `KALMIDO_USAGE_LIMIT`, `KALMIDO_USAGE_FILE`, `KALMIDO_USAGE_MAX_AGE_H` (default 6: older
+`KALMIDO_SESSION_IDLE_MIN`, `KALMIDO_RUN_TIMEOUT` (2.44.0), `KALMIDO_BLOCK_DANGEROUS` (2.615.0: 0 = the starter no longer refuses force-push, tag delete, docker prune and reboot, see [AGENT-SECURITY.md](AGENT-SECURITY.md#4-claude-code-project-settings)), `KALMIDO_BLOCK_EXTRA` (2.1400: the project's own block list -- `host:NAME`, `cmd:WORDS`, `path:PATH`, separated by commas -- refused on top, also with `KALMIDO_BLOCK_DANGEROUS=0`; the paths also as Read / Edit deny), `KALMIDO_USAGE_LIMIT`, `KALMIDO_USAGE_FILE`, `KALMIDO_USAGE_MAX_AGE_H` (default 6: older
 values count as unknown), `KALMIDO_PYTHON` (2.443.0: both launchers and both setup scripts use it for every Python call),
 `KALMIDO_AGENT_CMD` and `KALMIDO_AGENT_PROFILE` (2.391.0: the command when none follows `--`, and its tool `claude` | `codex` |
 `generic`; Codex CLI runs `codex exec --json` per event, see [mcp/README.md](../mcp/README.md) and
@@ -4465,7 +4487,9 @@ A setup that works for several people and coding agents on one code base:
   manager, the app's own start / test scripts and the integration script. Explicitly denied: deploy credentials and
   production data, `.env` files with secrets, production tools, and other connectors or plugins. A person sets the
   agent up (never the agent itself) and runs it as a service in the worktree; pause it with a reason while someone
-  works there interactively.
+  works there interactively. 2.1400 (#7115): the one-command setup writes these rights as the **Programming agent**
+  profile (`--profile dev` / `-RightsProfile dev`, [AGENT-SETUP.md](AGENT-SETUP.md#7-permissions-claudesettingsjson)); name the
+  live hosts and deploy commands in `KALMIDO_BLOCK_EXTRA` of the runner's env file.
 - **Two-step approval.** *Ready to integrate* after the agent's own checks (build, start, logs, tests), then *Ready to
   deploy* for a bundle of integrations, with the checklist of open tasks tagged `deploy` (schema changes, data
   migrations, settings). A push to the production branch is a deploy and needs its own approval.
@@ -4551,8 +4575,8 @@ You are the coding agent of the Kalmido project "<project>". You work through th
   the task open until the reporter confirms it on the real device.
 - **The task list is the truth for tickets and releases.** A task is done only when its code is on the default branch
   and published (released / live); never tick it off or report it done before that. Done only in part: comment what is
-  left and enter a new version (the project's version field) for the rest at once. Never end work on an unmerged branch:
-  merge it, or park it explicitly with the reason as a comment on the task. Name the task in every commit and pull
+  left and enter a new version (the project's version field) for the rest at once. End work in a pull request, never on a bare branch and never by merging yourself: open it,
+  ask with `request_merge_approval` and merge only after the person's approval and green CI (a job of the dispatcher only commits; the dispatcher checks and opens the pull request), or park it explicitly with the reason as a comment on the task. Name the task in every commit and pull
   request (`#123`, or the task's `key` like `APP-123` when its project has a ticket key; `fixes #123` / `fixes APP-123` completes it on merge) or call the branch `kalmido-<id>` / `app-123-...`. Before every "done" report
   call `list_build_status` (list_id) and settle each open task that already has a published version or an open
   branch; `get_task` shows the same as `build` (`state` released / main / branch / none, `branches`, `stale` = open

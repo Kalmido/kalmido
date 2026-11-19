@@ -346,8 +346,8 @@ Task lists are called projects; the API still says list (`list_id`, `/api/v1/lis
   details, if at all, only after the rollout.
 - **The task list is the truth for tickets and releases.** A task is done only when its code is on the default branch
   and published (released / live); never tick it off or report it done before that. Done only in part: comment what is
-  left and enter a new version (the project's version field) for the rest at once. Never end work on an unmerged branch:
-  merge it, or park it explicitly with the reason as a comment on the task. Name the task in every commit and pull
+  left and enter a new version (the project's version field) for the rest at once. End work in a pull request, never on a bare branch and never by merging yourself: open it,
+  ask with `request_merge_approval` and merge only after the person's approval and green CI (a job of the dispatcher only commits; the dispatcher checks and opens the pull request), or park it explicitly with the reason as a comment on the task. Name the task in every commit and pull
   request (`#123`, or the task's `key` like `APP-123` when its project has a ticket key; `fixes #123` / `fixes APP-123` completes it on merge) or call the branch `kalmido-<id>` / `app-123-...`. **Git author (2.396.0):** commit
   as the task's `repo.git_author` (the project's choice), else `git_author` of your runtime (`get_agent`); never a private
   address of your own. Add a `Co-Authored-By:` line only when `git_coauthor` is true. Before every "done" report
@@ -463,9 +463,10 @@ Task lists are called projects; the API still says list (`list_id`, `/api/v1/lis
   `offer_accepted` or webhook for it). Draft a trial quotation (`trial: true`) only when the person asks to try something out.
 
 ### Usage
-- Report your model usage with the hook `mcp/claude_usage_hook.py`, registered as **Stop and SubagentStop** hook in
-  `.claude/settings.json` (numbers only, never text). Every run that uses the model needs it, also background jobs you
-  start (2.619.0): a job without the hook leaves its usage out.
+- Report your model usage with the hook `mcp/claude_usage_hook.py` as **Stop and SubagentStop** hook (numbers only, never
+  text). The reference starter adds it to every run and every job itself; never edit `.claude/settings*.json` for it
+  (2.1400.0: the starter's guard refuses changes to its control files). Another host registers it there. Every run that
+  uses the model needs it, also background jobs (2.619.0): a job without the hook leaves its usage out.
 - **Two plan limits (2.619.0)**: the 5-hour window resets within hours, the weekly limit (`seven_day`) only at its own
   reset. At the weekly limit pause until that reset (plus a few minutes) instead of trying again and failing; take the
   reset time from the usage data (`resets_at`), never guess it. Something that resumes paused work acts once per reset

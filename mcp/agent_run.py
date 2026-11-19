@@ -61,6 +61,9 @@ usage: agent_run.py [--state DIR] [--once-event FILE] [--dry-run] -- COMMAND [AR
                                 fixed by this computer: the switch in the chat header (runtime permission_mode) is not applied
   KALMIDO_APPROVAL_CHECK        0 = no approval check of chat answers (default 1)
   KALMIDO_BLOCK_DANGEROUS       0 = no guard against force-push / tag delete / docker prune / reboot (default 1, #3758)
+  KALMIDO_BLOCK_EXTRA           the project's own block list (hosts, commands, paths), refused on top (2.1400, #7116)
+                                2.1400 (#7117): the agent's tools never change the state folder, the starter files,
+                                KALMIDO-DISPATCH.json / -STOP or .claude/settings*.json (deny rules + guard)
   KALMIDO_AGENT_PROFILE         claude | codex | generic (default: from the command's name; other names = as Claude Code)
   KALMIDO_RUN_LOG               the runner's own log file (default on Windows: agent_run.log next to agent_run.py; "0" = none;
                                 one old generation .1 after 1 MiB) -- stderr of Start-Process never reaches agent.log there
@@ -1092,6 +1095,9 @@ TEXTS = {
     "dispatch_rebundled": {"en": "Not finished in {0} jobs - back in the list, it goes into the next bundle (dispatcher).", "de": "In {0} Jobs nicht fertig geworden - zurück in der Liste, kommt ins nächste Bündel (Dispatcher).", "fr": "Pas terminée en {0} tâches - de retour dans la liste, elle entre dans le prochain lot (répartiteur).", "es": "No terminada en {0} trabajos - vuelve a la lista y entra en el próximo lote (despachador).", "it": "Non finita in {0} job - torna nella lista ed entra nel prossimo lotto (dispatcher).", "nl": "Niet af in {0} jobs - terug in de lijst, gaat mee in de volgende bundel (dispatcher)."},
     "dispatch_pr": {"en": "Job {0}: pull request {1} for {2} waits for your approval (check green, the card is on the first task)", "de": "Job {0}: Pull Request {1} für {2} wartet auf deine Freigabe (Prüfung grün, die Karte steht an der ersten Aufgabe)", "fr": "Tâche {0} : la pull request {1} pour {2} attend ton accord (vérification verte, la carte est sur la première tâche)", "es": "Trabajo {0}: la pull request {1} para {2} espera tu aprobación (comprobación en verde, la tarjeta está en la primera tarea)", "it": "Job {0}: la pull request {1} per {2} attende la tua approvazione (verifica verde, la scheda è sulla prima attività)", "nl": "Job {0}: pull request {1} voor {2} wacht op je goedkeuring (controle groen, de kaart staat bij de eerste taak)"},
     "dispatch_check_red": {"en": "Job {0}: the check failed on branch {1} ({2}): no pull request, its tasks go back to the list", "de": "Job {0}: die Prüfung ist auf Zweig {1} rot ({2}): kein Pull Request, die Aufgaben gehen zurück in die Liste", "fr": "Tâche {0} : la vérification a échoué sur la branche {1} ({2}) : pas de pull request, ses tâches retournent dans la liste", "es": "Trabajo {0}: la comprobación falló en la rama {1} ({2}): sin pull request, sus tareas vuelven a la lista", "it": "Job {0}: la verifica è fallita sul ramo {1} ({2}): nessuna pull request, le attività tornano nella lista", "nl": "Job {0}: de controle faalde op branch {1} ({2}): geen pull request, de taken gaan terug naar de lijst"},
+    "dispatch_config_move": {"en": "{0} lies only in the project folder, where the agent can change it: please move it to {1}", "de": "{0} liegt nur im Projektordner, wo der Agent sie ändern kann: bitte nach {1} verschieben", "fr": "{0} se trouve seulement dans le dossier du projet, où l'agent peut le modifier : merci de le déplacer vers {1}", "es": "{0} está solo en la carpeta del proyecto, donde el agente puede cambiarlo: muévelo a {1}", "it": "{0} si trova solo nella cartella del progetto, dove l'agente può modificarlo: spostalo in {1}", "nl": "{0} staat alleen in de projectmap, waar de agent het kan wijzigen: verplaats het naar {1}"},  # 2.1400.0 (reader F6)
+    "dispatch_git_refused": {"en": "The dispatcher holds: the repository's own config sets {0} (the agent can write it) - remove it, then it goes on", "de": "Der Dispatcher hält an: die eigene Config des Repositorys setzt {0} (der Agent kann sie schreiben) - entfernen, dann geht es weiter", "fr": "Le dispatcher s'arrête : la config du dépôt définit {0} (l'agent peut l'écrire) - supprime-la, puis il reprend", "es": "El dispatcher se detiene: la config propia del repositorio define {0} (el agente puede escribirla) - quítala y seguirá", "it": "Il dispatcher si ferma: la config del repository imposta {0} (l'agente può scriverla) - rimuovila, poi riprende", "nl": "De dispatcher stopt: de eigen config van de repository zet {0} (de agent kan die schrijven) - verwijder het, dan gaat het verder"},  # 2.1400.0 (reader F7)
+    "dispatch_land_refused": {"en": "Job {0}: branch {1} was neither checked nor pushed: {2}", "de": "Job {0}: Zweig {1} wurde weder geprüft noch gepusht: {2}", "fr": "Tâche {0} : la branche {1} n'a été ni vérifiée ni poussée : {2}", "es": "Trabajo {0}: la rama {1} no se comprobó ni se subió: {2}", "it": "Job {0}: il ramo {1} non è stato né verificato né inviato: {2}", "nl": "Job {0}: branch {1} is niet gecontroleerd en niet gepusht: {2}"},  # 2.1400.0 (#7057)
     "dispatch_pr_failed": {"en": "Job {0}: the check is green, but the pull request could not be opened ({2}); the work is on branch {1}", "de": "Job {0}: die Prüfung ist grün, aber der Pull Request ließ sich nicht öffnen ({2}); die Arbeit liegt auf Zweig {1}", "fr": "Tâche {0} : la vérification est verte, mais la pull request n'a pas pu être ouverte ({2}) ; le travail est sur la branche {1}", "es": "Trabajo {0}: la comprobación está en verde, pero no se pudo abrir la pull request ({2}); el trabajo está en la rama {1}", "it": "Job {0}: la verifica è verde, ma non è stato possibile aprire la pull request ({2}); il lavoro è sul ramo {1}", "nl": "Job {0}: de controle is groen, maar de pull request kon niet worden geopend ({2}); het werk staat op branch {1}"},
     "status_plan_limit": {"en": "Plan limit reached", "de": "Tarifgrenze erreicht", "fr": "Limite de l'abonnement atteinte",
                           "es": "Límite del plan alcanzado", "it": "Limite del piano raggiunto", "nl": "Limiet van het abonnement bereikt"},
@@ -2333,13 +2339,70 @@ GUARD_TAIL = (" This holds whatever the allow list or the permission mode say (K
 
 
 def guard_on():
-    """2.615.0 C (#3758): the guard is on unless KALMIDO_BLOCK_DANGEROUS=0 (read when a run's settings are written)."""
-    return os.environ.get("KALMIDO_BLOCK_DANGEROUS", "1").strip() != "0"
+    """2.615.0 C (#3758): the guard is on unless KALMIDO_BLOCK_DANGEROUS=0 (read when a run's settings are written).
+    2.1400 (reader F4): a runner that pinned it on (guard_pinned) keeps it on for the jobs its agent starts."""
+    return os.environ.get("KALMIDO_BLOCK_DANGEROUS", "1").strip() != "0" or guard_pinned()[1]
+
+
+GUARD_PIN_FILE = "guard.json"
+
+
+def guard_pin(state_dir):
+    """2.1400 (reader F4): the runner writes its guard switches (KALMIDO_BLOCK_EXTRA, KALMIDO_BLOCK_DANGEROUS of its env file)
+    into its state folder, so a job the agent starts itself never gets less than the runner's runs, whatever the model's
+    process left in the environment (unset, another value). The state folder is a control folder (#7117)."""
+    try:
+        os.makedirs(state_dir, exist_ok=True)
+        f = os.path.join(state_dir, GUARD_PIN_FILE)
+        with open(f + ".tmp", "w", encoding="utf-8") as fh:
+            json.dump({"block_extra": os.environ.get("KALMIDO_BLOCK_EXTRA", "").strip(),
+                       "block_dangerous": os.environ.get("KALMIDO_BLOCK_DANGEROUS", "1").strip() != "0",
+                       # reader F11: the runner's project folder decides whether the starter lies inside it (control_dirs)
+                       "project_dir": os.path.abspath(os.path.expanduser(os.environ.get("KALMIDO_PROJECT_DIR") or os.getcwd()))}, fh)
+        os.replace(f + ".tmp", f)
+    except OSError:
+        pass
+
+
+def guard_pinned_projects():
+    """reader F11 (2.1400): the project folders pinned by the runner(s) of this computer (guard_pin), absolute."""
+    out = []
+    for sd in [RULES_CACHE_DIR, os.environ.get("KALMIDO_STATE_DIR"), "~/.cache/kalmido-agent"]:
+        try:
+            with open(os.path.join(os.path.expanduser(sd), GUARD_PIN_FILE), encoding="utf-8") as fh:
+                x = (json.load(fh) or {}).get("project_dir") if sd else None
+        except (OSError, ValueError, AttributeError, TypeError):
+            continue
+        if isinstance(x, str) and x and x not in out:
+            out.append(os.path.abspath(x))
+    return out
+
+
+def guard_pinned():
+    """(block_extra, dangerous_on) pinned by the runner(s) of this computer (guard_pin; the state folders of control_dirs):
+    the lists are joined, the guard is on when any runner has it on. ("", False) without a pin."""
+    extra, on = [], False
+    for sd in [RULES_CACHE_DIR, os.environ.get("KALMIDO_STATE_DIR"), "~/.cache/kalmido-agent"]:
+        if not sd:
+            continue
+        try:
+            with open(os.path.join(os.path.expanduser(sd), GUARD_PIN_FILE), encoding="utf-8") as fh:
+                d = json.load(fh)
+        except (OSError, ValueError):
+            continue
+        if isinstance(d, dict):
+            x = str(d.get("block_extra") or "").strip()
+            if x and x not in extra:
+                extra.append(x)
+            on = on or bool(d.get("block_dangerous"))
+    return ",".join(extra), on
 
 
 def guard_suspicious(text):
-    """A text that names one of the guarded commands (quotes and backslashes ignored): refused when the check itself fails."""
-    return bool(GUARD_NAMES.search(re.sub(r"[\\\"']", "", str(text or ""))))
+    """A text that names one of the guarded commands (quotes and backslashes ignored): refused when the check itself fails.
+    2.1400 (#7116): also a host or a command of the project's own list (block_extra)."""
+    t = re.sub(r"[\\\"']", "", str(text or ""))
+    return bool((GUARD_FIXED and GUARD_NAMES.search(t)) or _block_names_hit(t))
 
 
 def _guard_exe(word):
@@ -2502,7 +2565,10 @@ def _guard_git(args):
 
 
 def _guard_rule(exe, args):
-    """Why this one command (exe + its words) is refused, or None."""
+    """Why this one command (exe + its words) is refused, or None. 2.1400 (#7116): GUARD_FIXED False (KALMIDO_BLOCK_DANGEROUS=0)
+    = the fixed list is off, only the project's own list (block_extra) is checked."""
+    if not GUARD_FIXED:
+        return None
     if exe == "git":
         return _guard_git(args)
     pos = [a for a in args if not a.startswith("-")]
@@ -2683,6 +2749,9 @@ def _guard_words(w, fed, depth):
             sub = _guard_git_sub(w, s + 1)  # 2.615.0 (#3758, Fable re-check): git grep / log -S / --grep search text
             if sub is not None and w[sub] in GUARD_GIT_SEARCH:
                 text |= set(range(sub + 1, len(w)))
+    why = _block_words(w, s, text)  # 2.1400 (#7116): the project's own list (hosts, commands)
+    if why:
+        return why
     for i, a in enumerate(w):
         if i in text:
             continue
@@ -2737,6 +2806,294 @@ def guard_reason(cmd, depth=0, fed=False):
     return None
 
 
+# kalmido-capability: project_block (2.1400, #7116)
+# 2.1400 (#7116): the project's own block list. KALMIDO_BLOCK_EXTRA in the runner's env file (never a file in the project
+# folder: the agent writes there) names what the guard refuses on top of its fixed list, separated by commas or new lines:
+#   host:NAME   a computer (ssh / scp / rsync / sftp / mosh target, user@NAME, NAME:path, ssh://NAME, NAME.domain; * ? globs)
+#   cmd:WORDS   a command (deploy.sh, "make deploy", "git push origin production"): the program and then these words in
+#               this order (other words between them allowed; * ? globs per word)
+#   path:PATH   a path (~/.ssh, .env*, /etc/app/secrets): a Bash line that names it is refused, and every run's settings deny
+#               Read / Edit of it (block_path_rules)
+# An item without a prefix: a path when it has / or starts with ~ or ., else a host when it is one word, else a command.
+# The runner hands the list to the hook on its command line (--block-extra, hex): the model's process cannot change it. It
+# holds also with KALMIDO_BLOCK_DANGEROUS=0 (that switches off only the fixed list). The same parsing as the fixed list
+# (shell words, chains, substitutions, sh -c / ssh host / sudo ... in front). A name check, not a wall.
+GUARD_FIXED = True  # False: KALMIDO_BLOCK_DANGEROUS=0 (--secret-only), the fixed list is off
+GUARD_EXTRA = None  # the hook's --block-extra (None: KALMIDO_BLOCK_EXTRA of the environment)
+GUARD_NO_EXTRA = "Refused by the Kalmido starter (#7116, the project's own block list KALMIDO_BLOCK_EXTRA): "
+_BLOCK_CACHE = {}
+
+
+def block_extra_parse(text):
+    """2.1400 (#7116): KALMIDO_BLOCK_EXTRA -> {"host": [names], "cmd": [[words]], "path": [paths]} (see above)."""
+    text = str(text or "")
+    if text in _BLOCK_CACHE:
+        return _BLOCK_CACHE[text]
+    out = {"host": [], "cmd": [], "path": []}
+    for item in re.split(r"[,\n]", text):
+        item = item.strip()
+        if not item:
+            continue
+        kind, sep, val = item.partition(":")
+        kind = kind.strip().lower()
+        if not sep or kind not in out or not val.strip():
+            kind, val = ("path" if ("/" in item or "\\" in item or item.startswith(("~", "."))) else
+                         "host" if re.fullmatch(r"[A-Za-z0-9*?._-]+", item) else "cmd"), item
+        val = val.strip()
+        if kind == "cmd":
+            try:
+                words = shlex.split(val)
+            except ValueError:
+                words = val.split()
+            if words:
+                out["cmd"].append(words)
+        elif kind == "host":
+            out["host"].append(val.lower())
+        else:
+            out["path"].append(val)
+    _BLOCK_CACHE[text] = out
+    return out
+
+
+def block_extra():
+    """2.1400 (#7116): the project's own list in force (the hook's --block-extra, else KALMIDO_BLOCK_EXTRA)."""
+    if GUARD_EXTRA is not None:
+        return block_extra_parse(GUARD_EXTRA)
+    return block_extra_parse(",".join(x for x in (os.environ.get("KALMIDO_BLOCK_EXTRA", "").strip(), guard_pinned()[0]) if x))
+
+
+def _block_host(word, hosts):
+    """A word that names one of the hosts: a part between @ : / = , [ ] (user@HOST, HOST:path, ssh://HOST, -J HOST,
+    ProxyJump=HOST), the host itself or HOST.domain."""
+    import fnmatch
+    for part in re.split(r"[@:/=,\[\]\s]+", GUARD_SUB.sub("", word).lower()):
+        if part and any(fnmatch.fnmatchcase(part, h) or fnmatch.fnmatchcase(part, h + ".*") for h in hosts):
+            return part
+    return None
+
+
+def _block_cmd(w, i, pats):
+    """The pattern (words) that the command starting at w[i] matches, or None: its program (name or as written) and then the
+    pattern's further words in this order."""
+    import fnmatch
+    if i >= len(w):
+        return None
+    exe, raw = _guard_exe(w[i]), w[i]
+    for pat in pats:
+        p0 = pat[0]
+        if not (fnmatch.fnmatchcase(exe, _guard_exe(p0)) or fnmatch.fnmatchcase(raw, p0)):
+            continue
+        k = 1
+        for a in w[i + 1:]:
+            if k < len(pat) and fnmatch.fnmatchcase(a, pat[k]):
+                k += 1
+        if k == len(pat):
+            return pat
+    return None
+
+
+def _block_words(w, s, text):
+    """2.1400 (#7116): one simple command against the project's own list: a host in a word that is no text (echo / grep /
+    a git message), a command pattern at the first program or at the one its wrappers run (w[s])."""
+    ex = block_extra()
+    if ex["host"]:
+        for i, a in enumerate(w):
+            if i not in text:
+                h = _block_host(a, ex["host"])
+                if h:
+                    return GUARD_NO_EXTRA + f"the computer {h} is on the project's block list."
+    if ex["cmd"]:
+        for i in {_guard_skip(w, 0), s}:
+            pat = _block_cmd(w, i, ex["cmd"])
+            if pat:
+                return GUARD_NO_EXTRA + f"the command {' '.join(pat)} is on the project's block list."
+    return None
+
+
+def _block_names_hit(text):
+    """For the fallbacks (too deep, the check failed): does the text name a host or the program of a command of the list?"""
+    ex = block_extra()
+    low = text.lower()
+    return any(h.replace("*", "").replace("?", "") and h.replace("*", "").replace("?", "") in low for h in ex["host"]) or any(
+        _guard_exe(p[0]).replace("*", "") and _guard_exe(p[0]).replace("*", "") in low for p in ex["cmd"])
+
+
+def _block_path_rx(p):
+    """A path of the list as a regular expression on a command line: absolute / ~ paths anywhere (also as $HOME/...), a
+    relative name as a path part (after a space, quote, = or /); * = within one part, ** = across parts."""
+    def glob(x):
+        out, i = "", 0
+        while i < len(x):
+            if x.startswith("**", i):
+                out, i = out + r"[^\s'\"]*", i + 2
+            elif x[i] == "*":
+                out, i = out + r"[^\s/'\"]*", i + 1
+            elif x[i] == "?":
+                out, i = out + r"[^\s/]", i + 1
+            else:
+                out, i = out + re.escape(x[i]), i + 1
+        return out
+    p = p.replace("\\", "/").rstrip("/")
+    end = r"(?![^\s/'\";|&)<>`])"
+    forms = []
+    if p.startswith("~/"):
+        rest = p[2:]
+        home = os.path.expanduser("~").replace("\\", "/")
+        forms += [glob(p), glob(home + "/" + rest), r"\$\{?HOME\}?/" + glob(rest),
+                  r"(?<![^\s'\"=:/<>(|;&`])" + glob(rest)]  # after cd ~ the rest alone
+    elif p.startswith("/") or re.match(r"[A-Za-z]:/", p):
+        forms.append(glob(p))
+    else:
+        forms.append(r"(?<![^\s'\"=:/<>(|;&`])" + glob(p[2:] if p.startswith("./") else p))
+    return re.compile("(?:" + "|".join(f + end for f in forms) + ")")
+
+
+def block_path(cmd):
+    """2.1400 (#7116): a Bash line that names a path of the project's own list (also as text: grep / cat read it) -> why."""
+    text = re.sub(r"[\\\"']", "", str(cmd or "")).replace("\\", "/")
+    for p in block_extra()["path"]:
+        try:
+            if _block_path_rx(p).search(text):
+                return GUARD_NO_EXTRA + f"the path {p} is on the project's block list."
+        except re.error:
+            continue
+    return None
+
+
+def block_path_rules(paths=None):
+    """2.1400 (#7116): Claude Code deny rules for the paths of the list: Read and Edit of the path and of everything below it
+    (~/x stays ~/x, an absolute path //x, ./x and a name without / anywhere in the project: **/x)."""
+    rules = []
+    for p in (block_extra()["path"] if paths is None else paths):
+        p = p.replace("\\", "/").rstrip("/")
+        if not p:
+            continue
+        if p.startswith("~/"):
+            rp = p
+        elif p.startswith("/") or re.match(r"[A-Za-z]:/", p):
+            rp = rule_path(p) if not any(c in p for c in "*?") else "/" + p
+        elif p.startswith("./") or "/" in p:
+            rp = "./" + p[2:] if p.startswith("./") else "./" + p
+        else:
+            rp = "**/" + p
+        for x in (rp, rp + "/**"):
+            rules += [f"Read({x})", f"Edit({x})"]
+    return rules
+
+
+# kalmido-capability: control_files (2.1400, #7117)
+# 2.1400 (#7117): the agent does not change what steers it. Every run's and job's settings deny Edit of the runner's state
+# folder (its files and the job folders' files: KALMIDO-DISPATCH.json, dispatch-STOP, dispatch.json, run-settings.json ...;
+# the outbox folders and a job's working copy below stay writable), of the starter files (the folder of this file, unless it lies inside the project:
+# then it is the project's own code), of KALMIDO-DISPATCH.json / KALMIDO-DISPATCH-STOP and of .claude/settings*.json; the
+# guard refuses a Bash line that names them or KALMIDO_BLOCK_* / KALMIDO_STATE_DIR / KALMIDO_DISPATCH_CONFIG. This part holds
+# also with KALMIDO_BLOCK_DANGEROUS=0 (like the env file part). A name check and deny rules, not a wall.
+CONTROL_NAMES = re.compile(r"(?i)KALMIDO_BLOCK_|KALMIDO_STATE_DIR|KALMIDO_DISPATCH_CONFIG|KALMIDO-DISPATCH|\.claude[/\\]+settings")  # reader F9: any case
+CONTROL_PROGS = ("agent_job.py", "kalmido_cli.py")  # the starter's programs the agent runs itself (jobs, the CLI)
+GUARD_NO_CONTROL = "Refused by the Kalmido starter (#7117): "
+
+
+def control_dirs():
+    """2.1400 (#7117): (the runner's state folders -- of --state, KALMIDO_STATE_DIR (a job) and the default --, the starter's
+    folder or None when it lies inside the project folder), absolute."""
+    out = []
+    for sd in [RULES_CACHE_DIR, os.environ.get("KALMIDO_STATE_DIR"), "~/.cache/kalmido-agent"]:
+        if sd:
+            x = os.path.abspath(os.path.expanduser(sd))
+            if x not in out:
+                out.append(x)
+    here = os.path.dirname(os.path.abspath(__file__))
+    # reader F11 (2.1400): a runner's pinned project folder decides, not the cwd of the process that starts a job (the model's)
+    projs = guard_pinned_projects() or [os.path.abspath(os.path.expanduser(os.environ.get("KALMIDO_PROJECT_DIR") or os.getcwd()))]
+    inside = any((here + os.sep).startswith(proj.rstrip(os.sep) + os.sep) for proj in projs)
+    return out, (None if inside else here)
+
+
+def control_deny_rules(states=None, starter=False):
+    """2.1400 (#7117): Claude Code deny rules for the control files (see above). Edit covers every tool that writes files."""
+    st, here = control_dirs()
+    states = st if states is None else states
+    here = here if starter is False else starter
+    rules = []
+    for d in states:  # files only (a folder rule would close the outbox and a job's working copy below it too)
+        rp = rule_path(d)
+        rules += [f"Edit({rp}/*.*)", f"Edit({rp}/*STOP*)", f"Edit({rp}/cursor)", f"Edit({rp}/req-expired)",
+                  f"Edit({rp}/wakes/**)", f"Edit({rp}/jobs/*/*.*)"]
+    if here:
+        rp = rule_path(here)
+        rules += [f"Edit({rp}/*.*)", f"Edit({rp}/VERSION)"]
+    cfg = os.environ.get("KALMIDO_DISPATCH_CONFIG") or ""
+    if cfg:
+        rules.append(f"Edit({rule_path(cfg)})")
+    rules += ["Edit(**/KALMIDO-DISPATCH.json)", "Edit(**/KALMIDO-DISPATCH-STOP)", "Edit(**/.claude/settings*.json)",
+              "Edit(~/.claude/settings*.json)"]
+    return rules
+
+
+def _control_outbox(word, d):
+    """A word under an outbox folder of the state folder d (<d>/outbox/..., <d>/jobs/<id>/outbox/...) or a job's working
+    copy (<d>/jobs/<id>/wt/...): the agent's own files."""
+    rest = word.replace("\\", "/").split(d.replace("\\", "/"), 1)[-1]
+    return bool(re.match(r"/(?:outbox|jobs/[^/]+/(?:outbox|wt))(?:/|$)", rest)) and ".." not in rest.split("/")
+
+
+def guard_control(cmd, states=(), starter=None):
+    """2.1400 (#7117): a Bash line that names the agent's control files (CONTROL_NAMES), a state folder (states; its outbox
+    folders excepted) or the starter's folder (starter; only agent_job.py / kalmido_cli.py run as a program pass) -> why."""
+    raw = str(cmd or "")
+    text = re.sub(r"[\"']", "", raw)
+    # reader F5: a backslash the shell drops (KALMIDO\-DISPATCH, sett\ings) -- both forms, Windows paths need the backslash
+    if CONTROL_NAMES.search(text) or CONTROL_NAMES.search(text.replace("\\", "")):
+        return GUARD_NO_CONTROL + "the command touches the agent's own control files or switches (KALMIDO_BLOCK_*, the state folder, KALMIDO-DISPATCH, .claude/settings)."
+    # reader F9 (2.1400): the folders also in the form without the backslashes the shell drops (web\-1 = web-1)
+    for variant in dict.fromkeys((raw, raw.replace("\\", ""))):
+        why = _guard_control_dirs(variant, states, starter)
+        if why:
+            return why
+    return None
+
+
+def _guard_control_dirs(raw, states=(), starter=None):
+    """guard_control's folder part for one form of the line (raw) -> why | None."""
+    text = re.sub(r"[\"']", "", raw)
+    home = os.path.expanduser("~").replace("\\", "/")
+    forms = []
+    for d in [x for x in states or () if x] + ([starter] if starter else []):
+        d = os.path.abspath(d).replace("\\", "/")
+        fs = {d, os.path.realpath(d).replace("\\", "/")}
+        fs |= {"~" + f[len(home):] for f in list(fs) if f.startswith(home + "/")}
+        fs |= {"$HOME" + f[1:] for f in list(fs) if f.startswith("~/")} | {"${HOME}" + f[1:] for f in list(fs) if f.startswith("~/")}
+        forms.append((d, d == (os.path.abspath(starter).replace("\\", "/") if starter else None), sorted(fs, key=len, reverse=True)))
+    if not forms or not any(f in text.replace("\\", "/") for _, _, fs in forms for f in fs):
+        return None
+    try:
+        toks = _guard_tokens(raw.replace("\\", "/"))
+    except ValueError:
+        return GUARD_NO_CONTROL + "the command names the agent's state or starter folder."
+    seg = []
+    for t in toks + [";"]:
+        if t and all(c in GUARD_PUNCT for c in t):
+            first = _guard_skip(seg, 0)
+            while first < len(seg) and _guard_exe(seg[first]) in GUARD_WRAP - GUARD_SHELLS:
+                first = _guard_skip(seg, first + 1)
+            prog_ok = first < len(seg) and (_guard_exe(seg[first]).startswith("python") or _guard_exe(seg[first]) in CONTROL_PROGS)
+            for i, w in enumerate(seg):
+                hit = [(d, is_starter, [f for f in fs if f in w]) for d, is_starter, fs in forms if any(f in w for f in fs)]
+                if not hit:
+                    continue
+                d, is_starter, fs = max(hit, key=lambda h: len(h[0]))  # the deepest folder decides (state inside the starter's)
+                if not is_starter and any(_control_outbox(w.replace(f, d, 1), d) for f in fs):
+                    continue
+                if (is_starter and prog_ok and _guard_exe(w) in CONTROL_PROGS
+                        and (i == first or (i == first + 1 + sum(1 for a in seg[first + 1:i] if a.startswith("-"))))):
+                    continue
+                return GUARD_NO_CONTROL + "the command names the agent's state or starter folder (its control files, the starter)."
+            seg = []
+        else:
+            seg.append(t)
+    return None
+
+
 def run_env_dirs(extra=()):
     """2.1386.0 (#6668, review R3 F1): every folder that holds a team agent's request token files (<state>/run-env: p<id>.env,
     op.env, auto.env) -- of this runner's --state, of KALMIDO_STATE_DIR (a job) and of the default state folder -- as
@@ -2776,6 +3133,16 @@ def hook_settings(perm_relay=False, usage=True, env_files=(), secret_dirs=()):
     for x in dirs:
         if '"' not in x:
             gcmd += f' --secret-dir "{x}"'
+    states, here = control_dirs()  # 2.1400 (#7117): the agent's control files, named to the hook
+    for x in states:
+        if '"' not in x:
+            gcmd += f' --control-dir "{x}"'
+    if here and '"' not in here:
+        gcmd += f' --starter-dir "{here}"'
+    extra = ",".join(x for x in (os.environ.get("KALMIDO_BLOCK_EXTRA", "").strip(), guard_pinned()[0]) if x)  # 2.1400 (#7116, reader F4): the
+    # project's own list -- of the environment and pinned by the runner (a job the agent starts never gets less) -- on the command line
+    if extra:  # (hex: no quoting) -- the hook never reads it from an environment the model's process could change
+        gcmd += " --block-extra " + extra.encode("utf-8").hex()
     s["hooks"]["PreToolUse"] = [{"matcher": "Bash", "hooks": [{"type": "command", "command": gcmd, "timeout": 30}]}]
     # kalmido-capability: usage_hook (2.306.0, #2927)
     # 2.306.0 E (#2927): the usage hook next to this file as Stop / SubagentStop hook ("Usage" and the usage limits in
@@ -2783,6 +3150,7 @@ def hook_settings(perm_relay=False, usage=True, env_files=(), secret_dirs=()):
     if usage:  # 2.619.0 (#3267): the one builder of the usage hook (usage_hook_settings), runs and jobs alike
         s["hooks"].update(usage_hook_settings())
     deny = secret_deny_rules(extra=env_files, dirs=dirs)  # 2.1367.0 (#6457): the token's file stays closed to the model's own file tools
+    deny += [r for r in block_path_rules() + control_deny_rules(states, here) if r not in deny]  # 2.1400 (#7116, #7117)
     if deny:
         s["permissions"] = {"deny": deny}
     return s
@@ -2914,19 +3282,42 @@ def guard_hook(argv):
     in with --settings). A refused command gets Claude Code's deny with the reason the agent reads; anything else no output
     (the normal permission rules decide). The hook's own failure refuses only a command that names a guarded command:
     a bug here must not stop every Bash step of the agent, and must not let a dangerous one through."""
-    raw = ""
     only = "--secret-only" in argv  # 2.1386.0 (#6668): KALMIDO_BLOCK_DANGEROUS=0 -- the env file part stays
     files = [argv[i + 1] for i, a in enumerate(argv[:-1]) if a == "--secret-file"]
     dirs = [argv[i + 1] for i, a in enumerate(argv[:-1]) if a == "--secret-dir"]  # 2.1386.0 (#6668, review R3 F1)
+    global GUARD_FIXED, GUARD_EXTRA
+    keep = (GUARD_FIXED, GUARD_EXTRA)
+    try:
+        return _guard_hook_run(argv, only, files, dirs)
+    finally:
+        GUARD_FIXED, GUARD_EXTRA = keep  # one call of the hook changes nothing for later checks in the same process
+
+
+def _guard_hook_run(argv, only, files, dirs):
+    """guard_hook with the hook's own lists in force (GUARD_FIXED, GUARD_EXTRA from its command line)."""
+    global GUARD_FIXED, GUARD_EXTRA
+    raw = ""
+    GUARD_FIXED = not only  # 2.1400 (#7116): KALMIDO_BLOCK_DANGEROUS=0 switches off the fixed list, never the project's own
+    GUARD_EXTRA = ""  # only what the runner wrote on the command line counts, never the environment of the model's process
+    ex = [argv[i + 1] for i, a in enumerate(argv[:-1]) if a == "--block-extra"]
+    try:
+        GUARD_EXTRA = bytes.fromhex(ex[-1]).decode("utf-8", "replace") if ex else ""
+    except ValueError:
+        GUARD_EXTRA = "*"  # a damaged list: every host counts (fail closed)
+    has_extra = any(block_extra().values())
+    ctl = [argv[i + 1] for i, a in enumerate(argv[:-1]) if a == "--control-dir"]  # 2.1400 (#7117)
+    starter = ([argv[i + 1] for i, a in enumerate(argv[:-1]) if a == "--starter-dir"] or [None])[-1]
     try:
         raw = sys.stdin.read()
         d = json.loads(raw or "{}")
         if d.get("tool_name") != "Bash":
             return 0
         line = (d.get("tool_input") or {}).get("command") or ""
-        why = guard_secret(line, files=files, dirs=dirs) or (None if only else guard_reason(line))  # 2.1367.0 (#6457): the env file first
+        why = guard_secret(line, files=files, dirs=dirs) or guard_control(line, ctl, starter) or block_path(line) or (  # 2.1367.0 (#6457): the env file first
+            guard_reason(line) if (not only or has_extra) else None)
     except Exception as e:  # noqa: BLE001 - fail closed only for what looks dangerous (see above)
-        sus = ("kalmido-agent.env" in raw or "KALMIDO_ENV_FILE" in raw or "/proc/" in raw or "run-env" in raw) or (not only and guard_suspicious(raw))
+        sus = ("kalmido-agent.env" in raw or "KALMIDO_ENV_FILE" in raw or "/proc/" in raw or "run-env" in raw) or guard_suspicious(raw) or bool(
+            CONTROL_NAMES.search(raw) or any(x and x in raw for x in ctl + [starter or ""]))
         why = (GUARD_NO + f"the check failed ({type(e).__name__}) on a command that names a guarded command.") if sus else None
     if why:
         print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
@@ -3217,6 +3608,7 @@ class Runner:
     def hook_settings(self):
         """2.44.0 (#1442): the settings file handed to every run with --settings (never the person's own settings): the
         PermissionRequest hook that asks in the chat. Further hooks of other parts go in here too (see hook_settings)."""
+        guard_pin(self.state_dir)  # 2.1400 (reader F4): the jobs this agent starts keep the runner's guard
         return hook_settings(PERM_RELAY, env_files=[f for f in [getattr(self, "run_env_file", None)] if f])
 
     def req_mode(self):

@@ -243,11 +243,18 @@ by hand. Go through this list before the first run; each line names what goes wr
   [4b](#4b-an-own-os-user-for-the-agents-tools)): it cannot read your SSH keys, cloud logins or other projects.
 - [ ] **No production access on this computer:** no keys, no `.env` files and no deploy token for the live system. A
   key that is not there cannot be misused by an injected text.
+- [ ] **The rights profile for a programming agent** (2.1400): `--profile dev` / `-RightsProfile dev` in the setup
+  command ([AGENT-SETUP.md](AGENT-SETUP.md#7-permissions-claudesettingsjson)) instead of an allow list written by hand or
+  "allow everything".
+- [ ] **The live system on the project's block list** (2.1400): `KALMIDO_BLOCK_EXTRA` in the runner's env file with the
+  live hosts, the deploy commands and the secret paths ([Dangerous commands refused](#4-claude-code-project-settings)).
 - [ ] **A repository token for this one repository only**, allowed to push branches and open pull requests, nothing else.
 - [ ] **Branch protection on the git server:** the main and the production branch only through a pull request, the
   project's CI as the required check, no force-push, no changing tags. Merging and deploying stay with a person.
 - [ ] **The dispatcher ends in a pull request** ([Working a list off](AGENTS.md#working-a-list-off-24810)):
-  `KALMIDO_DISPATCH_CHECK_CMD` set in the runner's env file (and `KALMIDO_DISPATCH_PR_CMD` for the project's git server),
+  `KALMIDO_DISPATCH_CHECK_CMD` and `KALMIDO_DISPATCH_PUSH_URL` set in the runner's env file (and `KALMIDO_DISPATCH_PR_CMD` for
+  the project's git server; 2.1400.0: the check runs on a fresh copy of the job's commit, exactly that commit is pushed, and
+  a repository config that could run a command or redirect the push stops the landing),
   `places` 1. The check runs the code of the job's branch with the runner's user: it gets no Kalmido variables and no
   tokens, but anything else that user can read, it can read too - so run the runner as the dedicated user above.
 - [ ] **First a dry run:** *Work the list off* on *Dry run* with one place, and read its day report before switching to
@@ -348,8 +355,10 @@ path, use the dedicated user, the firewall and the wrapper of this recipe instea
 `~kalmido-agent/kalmido/.claude/settings.json`. This is the **hardened profile**: nothing but the Kalmido tools and reading
 the work folder, so the agent has no notes (`NOTIZEN.md`), no working routine (`WORKFLOW-KALMIDO.md`), no jobs, no files at its
 answers and asks no permission questions in the chat. The **standard profile** (`defaultMode: default`, narrow `Edit` / `Write` for those
-two files and `Bash` for the job tool only) is in [AGENT-SETUP.md](AGENT-SETUP.md#7-permissions-claudesettingsjson); use it when the agent
-should have those functions, and keep the rest of the recipe unchanged:
+two files and `Bash` for the job tool only) and, 2.1400, the **programming agent profile** (`dev`: the project folder, git
+without force-push / tags / pushing main, build and test commands; secrets, ssh, curl, sudo and the control files denied)
+are in [AGENT-SETUP.md](AGENT-SETUP.md#7-permissions-claudesettingsjson); use them when the agent should have those
+functions, and keep the rest of the recipe unchanged:
 
 ```json
 {
@@ -394,8 +403,9 @@ commands (they have no such hook); `KALMIDO_PERM_RELAY=0` switches it off. What 
 - What stays: the hook gets address and key through its environment, and Claude Code hands that same environment to
   the agent's tools. An agent that may run programs can read the key and ask questions of its own (they only reach the
   chat; an *Allow* goes back to its own connection and opens nothing), but it cannot answer one. Running as **the same
-  OS user** it can still change its own Claude Code settings, the starter files or the runner itself (or stop the runner
-  and wait for its process number to come back). Against a hostile
+  OS user** its tools are denied its own Claude Code settings, the starter files and the state folder (2.1400, see
+  *Control files* below), but a program it writes and runs could still change them (or stop the runner and wait for its
+  process number to come back). Against a hostile
   agent the allow list and `dontAsk` stay the real limit; the wall is the own OS user for the agent's tools below
   ([An own OS user for the agent's tools](#4b-an-own-os-user-for-the-agents-tools)).
 
@@ -420,6 +430,31 @@ command the person allowed in the chat), these command lines:
 It is **on** by default for Claude Code (also with `KALMIDO_PERM_RELAY=0`); `KALMIDO_BLOCK_DANGEROUS=0` in the env file
 switches it off (both launchers pass the env file on). The agent gets Claude Code's *deny* with the reason and the
 instruction not to look for another way but to name the refused step in its answer; the person can run it themselves.
+
+**The project's own block list (2.1400, #7116, `project_block`).** The fixed list knows nothing about your project: the
+live server's name, its deploy script, the folder with its keys. Name them in the runner's env file (never in a file of
+the project folder: the agent writes there), separated by commas:
+
+```sh
+KALMIDO_BLOCK_EXTRA=host:shop-live, host:db*.example.net, cmd:deploy.sh, cmd:git push origin production, cmd:make release, path:~/.ssh, path:.env*
+```
+
+- `host:NAME` refuses every command that names the computer as a target: `ssh` / `scp` / `rsync` / `sftp` / `mosh`,
+  `user@NAME`, `NAME:path`, `ssh://NAME`, `NAME.domain`, `-J NAME`, `ProxyJump=NAME`, also `git clone NAME:repo` or
+  `psql -h NAME`. The words of `echo` / `grep` and a git message stay text (`git commit -m "fix for shop-live"` passes).
+- `cmd:WORDS` refuses the program (by name or as written: `deploy.sh` covers `./deploy.sh`, `bash scripts/deploy.sh`,
+  `sudo ./deploy.sh`) followed by the further words in this order, other words between them allowed (`cmd:git push origin
+  production` also refuses `git push -u origin production`).
+- `path:PATH` refuses a Bash line that names the path (`~/.ssh` also as `$HOME/.ssh`; a name without `/` such as `.env*`
+  as a part of any path), and every run's and job's settings deny `Read` and `Edit` of it and of everything below it.
+- `*` and `?` work as wildcards; an item without a prefix is a path when it has a `/` or starts with `~` or `.`, a host
+  when it is one word, else a command.
+
+The list is read with the same rules as the fixed one (chains, `$( )`, `sh -c`, `ssh host ...`, `sudo` / `timeout` in
+front). The runner hands it to the hook on the hook's command line, so the model's process cannot clear it through its
+environment, and it holds **also with `KALMIDO_BLOCK_DANGEROUS=0`** (that switches off only the fixed list). It has the
+same limits as the fixed list below (a script written first, a variable as host): it keeps an injected `ssh shop-live`
+from running, the wall is still no production key on the agent's computer.
 
 How it reads a command: like a shell splits it (quotes, `;` `&&` `||` `|` `&` and new lines, `( )` / `{ }`, `if ...
 then`); a `$( )`, backtick or `<( )` stays ONE word of the outer command (`git push origin $(git branch --show-current)
@@ -452,10 +487,32 @@ What it does **not** cover (state it to the people you run the agent for):
 - other tools than Bash: an MCP server or a plugin of the person that runs commands, or the PowerShell tool;
 - a command with its own `--settings` (the runner then adds no settings file, see above) and other profiles (Codex CLI,
   generic commands have no such hook);
-- an agent that may change its own setup: whoever can edit the env file, `.claude/settings.json` (`disableAllHooks`) or
-  the starter files can switch the guard off; if the hook cannot start at all (Python missing), Claude Code runs the
-  command. Like the permission relay it guards against mistakes and plain injected commands; the wall against a hostile
-  agent stays the own OS user, the narrow allow list and branch / tag protection on the git server.
+- an agent that changes its own setup by a way the control files part below does not see (a program it wrote first, a
+  path through a link); if the hook cannot start at all (Python missing), Claude Code runs the command. Like the
+  permission relay it guards against mistakes and plain injected commands; the wall against a hostile agent stays the own
+  OS user, the narrow allow list and branch / tag protection on the git server.
+
+**Control files (2.1400, #7117, `control_files`).** The agent's tools do not change what steers the agent. Every run's and
+job's settings deny `Edit` (that is every tool that writes files) of
+
+- the runner's state folder: its files (`KALMIDO-DISPATCH.json`, `dispatch-STOP`, `dispatch.json`, `state.json`, the cursor,
+  the request token files) and the files of the job folders (`run-settings.json`, the brief); the outbox folders and a
+  job's working copy below it stay writable;
+- the starter files (the folder of `agent_run.py`; not when it lies inside the project folder: then it is the project's
+  own code under version control);
+- `KALMIDO-DISPATCH.json` and `KALMIDO-DISPATCH-STOP` anywhere, `.claude/settings*.json` of the project and of the home
+  folder (`disableAllHooks`, `env` or an allow rule would switch the guard off), `KALMIDO_DISPATCH_CONFIG`; the env file
+  was closed already (2.1367.0).
+
+The guard refuses a Bash line that names them: `KALMIDO_BLOCK_*`, `KALMIDO_STATE_DIR`, `KALMIDO_DISPATCH_CONFIG`,
+`KALMIDO-DISPATCH`, `.claude/settings`, a path into the state folder (outbox and job working copy excepted) or into the
+starter's folder -- only `agent_job.py` and `kalmido_cli.py` started as a program pass. So the agent can neither raise
+`places`, empty the check or delete the stop file, nor switch the guard off (`KALMIDO_BLOCK_DANGEROUS` comes only from the
+env file; a job the agent starts with `KALMIDO_BLOCK_DANGEROUS=0` in front is refused). The dispatcher reads its
+configuration from the state folder; one in the project folder may only tighten
+([Working a list off](AGENTS.md#working-a-list-off-24810)). This part holds also with `KALMIDO_BLOCK_DANGEROUS=0`. It is
+a name check and deny rules for the same OS user: a program the agent wrote first can still reach these files; the wall
+stays the own OS user for the agent's tools (4b), where the state folder and the starter belong to the runner's user.
 
 ### 4b. An own OS user for the agent's tools
 

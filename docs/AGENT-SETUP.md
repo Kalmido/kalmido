@@ -126,6 +126,12 @@ answers without the question, `off` skips it, or name IPs / networks; Enter or n
 rule on that computer's key only and never makes it wider than the agent's own address rule. Take it only with a fixed
 address: when the address changes, the agent cannot reach Kalmido until you change the rule (*Settings > Agents >* the agent).
 
+2.1400 (#7115): the dialog also offers a *Rights profile* for Claude Code (`--profile hardened|standard|dev` /
+`-RightsProfile hardened|standard|dev`; the rules are in [`mcp/agent_profiles.json`](../mcp/agent_profiles.json), a starter
+file): the setup adds its `allow` / `deny` rules and its `defaultMode` to `.claude/settings.local.json`. *Programming agent*
+(`dev`) is for an agent that builds in the project folder; see [step 7](#7-permissions-claudesettingsjson). Without a
+profile only the deny rules above are written, as before.
+
 2.1367.0 (#2700): the dialog offers a *Rules template*. *Software development* (`--template software` / `-Template software`)
 adds rules for building software (a working copy and branch per order, a brief first, tests in two stages, one collected
 release, flaky tests collected, decisions in bold, limits reported) to the new `CLAUDE.md` and creates `BRIEF-TEMPLATE.md`;
@@ -538,8 +544,8 @@ For headless runs (`claude -p`, step 9) the same server as a JSON file, `~/agent
   and public comments (2.36.2), deploys the fix first and publishes it afterwards.
 - **The task list is the truth for tickets and releases.** A task is done only when its code is on the default branch
   and published (released / live); never tick it off or report it done before that. Done only in part: comment what is
-  left and enter a new version (the project's version field) for the rest at once. Never end work on an unmerged branch:
-  merge it, or park it explicitly with the reason as a comment on the task. Name the task in every commit and pull
+  left and enter a new version (the project's version field) for the rest at once. End work in a pull request, never on a bare branch and never by merging yourself: open it,
+  ask with `request_merge_approval` and merge only after the person's approval and green CI (a job of the dispatcher only commits; the dispatcher checks and opens the pull request), or park it explicitly with the reason as a comment on the task. Name the task in every commit and pull
   request (`#123`, or the task's `key` like `APP-123` when its project has a ticket key; `fixes #123` / `fixes APP-123` completes it on merge) or call the branch `kalmido-<id>` / `app-123-...`. Before every "done" report
   call `list_build_status` (list_id = the project) and settle each open task that already has a published version or an open
   branch; `get_task` shows the same as `build` (`state` released / main / branch / none, `branches`, `stale` = open
@@ -582,8 +588,10 @@ sed -n '/kalmido-agent-rules:start/,/kalmido-agent-rules:end/p' ~/kalmido/mcp/CL
 reading the env files in `~/.kalmido` and the env file, editing the env file, in `.claude/settings.local.json`; see
 [Quickest](#quickest-one-command-on-your-computer)). The profiles below are for a setup by hand and for narrowing further.
 
-`~/agent/.claude/settings.json`. Two profiles; pick one on purpose and use the same everywhere (this guide,
-[AGENT-SECURITY.md](AGENT-SECURITY.md#4-claude-code-project-settings), [AGENTS.md](AGENTS.md#set-up-an-agent), the guide in the app):
+`~/agent/.claude/settings.json`. Three profiles (2.1400: the third, *dev*, for a programming agent); pick one on purpose and
+use the same everywhere (this guide, [AGENT-SECURITY.md](AGENT-SECURITY.md#4-claude-code-project-settings),
+[AGENTS.md](AGENTS.md#set-up-an-agent), the guide in the app). The one-command setup writes each of them with
+`--profile` / `-RightsProfile` from [`mcp/agent_profiles.json`](../mcp/agent_profiles.json):
 
 | | Hardened | Standard |
 |---|---|---|
@@ -636,6 +644,20 @@ The standard profile changes these lines (everything else, the hooks included, s
   }
 }
 ```
+
+**The programming agent profile (`dev`, 2.1400, #7115).** For an agent that builds software in the project folder (a
+partner's repository, the dispatcher's jobs). Mode `default` (a chat run asks for anything else; a job cannot ask, there
+it is a no). Its rules are in [`mcp/agent_profiles.json`](../mcp/agent_profiles.json); in short:
+
+| | Programming agent (`dev`) |
+|---|---|
+| Allowed | the Kalmido tools, `Read` and `Edit` in the project folder, the job tool; git to read, branch, commit, `fetch origin`, `pull --ff-only` and merge (2.1400: a `git push` asks first - in a job it is a no, the dispatcher pushes the checked commit itself); `ls`, `grep`, `head`, `tail`, `diff`, `mkdir` (`find` and `rg` ask: `-exec` / `--pre` start programs); the usual build and test commands (`make`, `npm test / run / ci / install`, `pnpm` and `yarn` test / run / install, `pytest`, `go build / test`, `cargo build / test`, `mvn test / verify / package`, `gradle test / build`, `dotnet build / test`, `composer install / test`, `bundle exec rspec / rake`, `tsc`, `eslint`, `ruff`, `prettier`; no general starters like `npx`). These are refused by name, not walled off: build and test commands run the project's code with the agent's rights |
+| Denied | force-push, `--delete` / `--mirror`, pushing `main` / `master`, every `git tag`, `update-ref`, `reset --hard`, `clean`; `docker ... prune`; `sudo`, `su`, reboot / shutdown; `ssh`, `scp`, `sftp`, `curl`, `wget`, `WebFetch`, `WebSearch`; reading the usual secret places in the home folder (ssh, cloud, GitHub CLI, docker, kube, gpg, netrc, git credentials, npm / PyPI tokens) and `.env*`; editing `.env*`, `.git/` (hooks, config), the Claude Code settings files, `KALMIDO-DISPATCH.json` / `-STOP`, the starter files and the state folder |
+| The project's block list | the setup adds `KALMIDO_BLOCK_EXTRA` with the secret paths to the env file when it has none; add your live hosts (`host:...`) and deploy commands (`cmd:...`) there ([AGENT-SECURITY.md](AGENT-SECURITY.md#4-claude-code-project-settings)) |
+
+What the git server does not allow, no profile has to: protect the main and production branch (pull request only, CI
+required) and the tags there as well. The runner adds the guard, the control file rules and the block list to every run
+and job of every profile (2.615.0, 2.1400).
 
 With the launcher in event mode (`--events`) the agent needs no `./bin/events.sh`; the line `Bash(./bin/events.sh)` is only
 for the loop of [step 8](#8-event-monitor-with-back-off). The Stop and SubagentStop hooks are step 10. Check with `claude` in `~/agent`: `/permissions` lists exactly these rules.
@@ -801,6 +823,9 @@ chat messages of one person that arrive together: one run). It does what a hoste
   default, also without the permission questions; `KALMIDO_BLOCK_DANGEROUS=0` in `agent.env`
   (Windows: the same key in the env file) switches it off. What it cannot see (scripts written first, variables as
   commands, other tools): [AGENT-SECURITY.md](AGENT-SECURITY.md#4-claude-code-project-settings).
+  2.1400 (#7116): `KALMIDO_BLOCK_EXTRA` in the same file adds the project's own list -- live hosts (`host:shop-live`),
+  deploy commands (`cmd:deploy.sh`), secret paths (`path:~/.ssh`), separated by commas; it holds also with
+  `KALMIDO_BLOCK_DANGEROUS=0`.
 - **One conversation per chat** (2.44.0, Claude Code only): the runs of one person's chat go on in the same
   conversation (`--resume`) instead of starting fresh; task events and other commands still run fresh, and every person
   has a conversation of their own. A new one starts at the limits of the agent's runtime section *Interim summary*
@@ -843,7 +868,7 @@ chat messages of one person that arrive together: one run). It does what a hoste
   a server with chat files (2.13.1+); older servers get nothing.
 - **Working a list off** (2.481.0, [`mcp/agent_dispatch.py`](../mcp/agent_dispatch.py)): *Settings > Agents > (agent) >
   Runtime > Work the list off* (*Off* / *Dry run* / *Active*) lets the starter work the lists of `KALMIDO-DISPATCH.json` in
-  the project folder off on its own. It closes built tasks (a commit with `#ID` in `close_ref`), starts the next job when a
+  the runner's state folder (2.1400: `state` next to the env file; one in the project folder may only tighten) off on its own. It closes built tasks (a commit with `#ID` in `close_ref`), starts the next job when a
   place is free (2.1368.0: in its own working copy; once it ended, the starter runs the project's `check_cmd` itself and
   only when it is green opens a pull request with a *Ready to merge* card for you; merging stays yours), tells you once about stuck tasks and silent jobs, and sends a day report. A task whose *Blocked by* field
   names an open task waits until that one is built (2.1394.0). It builds only tasks you wrote

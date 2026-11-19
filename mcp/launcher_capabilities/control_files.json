@@ -1,0 +1,11 @@
+{
+  "id": "control_files",
+  "since": "2.1400.0",
+  "what": "Claude Code: the agent's tools do not change what steers it (#7117): every run's and job's settings deny Edit of the runner's state folder files (KALMIDO-DISPATCH.json, dispatch-STOP, dispatch.json, the job folders' run-settings.json; outbox folders and a job's working copy stay writable), of the starter files (not when they lie inside the project folder), of KALMIDO-DISPATCH.json / KALMIDO-DISPATCH-STOP and .claude/settings*.json; the guard hook (--control-dir, --starter-dir) refuses a Bash line that names them, KALMIDO_BLOCK_*, KALMIDO_STATE_DIR or KALMIDO_DISPATCH_CONFIG (agent_job.py / kalmido_cli.py run as a program pass), also with KALMIDO_BLOCK_DANGEROUS=0; the dispatcher reads KALMIDO-DISPATCH.json from the state folder, one in the project folder may only tighten. A name check and deny rules, not a wall",
+  "core": [
+    "def guard_control",
+    "def control_deny_rules",
+    "--control-dir",
+    "--starter-dir"
+  ]
+}

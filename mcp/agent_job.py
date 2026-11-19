@@ -1074,7 +1074,9 @@ def cmd_start(argv):
         try:
             top = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, check=True, timeout=30).stdout.strip()
             wt = os.path.join(d, "wt")
-            subprocess.run(["git", "-C", top, "worktree", "add", "-b", f"job/{jid}", wt], capture_output=True, text=True, check=True, timeout=120)
+            # 2.1400 (reader F3): the repository's hooks and fsmonitor never run when the job's working copy is made
+            subprocess.run(["git", "-C", top, "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "worktree", "add", "-b",
+                            f"job/{jid}", wt], capture_output=True, text=True, check=True, timeout=120)
             j["worktree"] = {"path": wt, "branch": f"job/{jid}", "repo": top}
             j["cwd"] = wt
         except Exception as e:
