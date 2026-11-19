@@ -19489,6 +19489,5 @@
   "Another organisation’s export is running on this server. Please try again later.": "Op deze server loopt de export van een andere organisatie. Probeer het later opnieuw.",
   "The export of {0} is ready. Download it within {1} hours.": "De export van {0} is klaar. Download hem binnen {1} uur.",
   "The export of {0} failed. Please try again later or ask the server admin.": "De export van {0} is mislukt. Probeer het later opnieuw of vraag het de serverbeheerder.",
-  "The export of {0} failed: there was not enough space on the server. Please ask the server admin.": "De export van {0} is mislukt: er was niet genoeg ruimte op de server. Vraag het de serverbeheerder.",
-  "Width of the list": "Breedte van de lijst"
+  "The export of {0} failed: there was not enough space on the server. Please ask the server admin.": "De export van {0} is mislukt: er was niet genoeg ruimte op de server. Vraag het de serverbeheerder."
 }

@@ -19489,6 +19489,5 @@
   "Another organisation’s export is running on this server. Please try again later.": "En este servidor se está ejecutando la exportación de otra organización. Inténtalo más tarde.",
   "The export of {0} is ready. Download it within {1} hours.": "La exportación de {0} está lista. Descárgala en un plazo de {1} horas.",
   "The export of {0} failed. Please try again later or ask the server admin.": "La exportación de {0} ha fallado. Inténtalo más tarde o pregunta al administrador del servidor.",
-  "The export of {0} failed: there was not enough space on the server. Please ask the server admin.": "La exportación de {0} ha fallado: no había espacio suficiente en el servidor. Pregunta al administrador del servidor.",
-  "Width of the list": "Ancho de la lista"
+  "The export of {0} failed: there was not enough space on the server. Please ask the server admin.": "La exportación de {0} ha fallado: no había espacio suficiente en el servidor. Pregunta al administrador del servidor."
 }
