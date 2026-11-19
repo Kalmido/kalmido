@@ -25,10 +25,10 @@ with @bgj_fn(kind) that gets the payload's arguments; it runs in the same contex
 no request). Without the database (bgj_add fails) the work runs in a thread as before.
 
 (#6388): a row whose function raises waits again with a growing gap (BGJ_RETRY_S, doubled per run) while its kind
-has runs left (bgj_fn retry=, default its tries; mail:* and push:* 3: their function raising means nothing went out); a
+has runs left (bgj_fn retry=, default its tries; mail:* and push:* catch their own send errors: one run); a
 waiting row of a kind with a highest age (bgj_fn max_age=, mail:* 24 h, push:* 1 h) older than that is failed 'expired'
 instead of going out days late, a row of a kind no process knows after BGJ_UNKNOWN_H hours 'unknown kind'. bgj_trouble
-gives the numbers the watchdog alerts the admins with (notify/alerts.py aa_bgjobs). BGJ_ON_STOP: functions a stopping process calls before it releases its rows (the
+gives the numbers the watchdog alerts the admins with (notify/alerts.py aa_bgjobs). BGJ_ON_STOP: functions a stopping process calls after it released its rows (the
 server agent tells the person whose request it was working on).
 """
 import base64
@@ -67,13 +67,14 @@ BGJ_PROGRESS_KEEP_H = 1  # 2.370.3 (review 7): the progress of an ended row (cou
 BGJ_LONG_SLOTS = env_int("KALMIDO_BG_LONG_SLOTS", 4, lo=1)  # 2.370.3 (#2760): exports / imports at once per process
 BGJ_RETRY_S = 30        # (#6388): s before the second run of a row whose function raised; doubled per further run
 BGJ_UNKNOWN_H = 24      # (#6388): a row of a kind no process knows is failed after this ('unknown kind')
-# (#6388): per kind prefix: (runs at most when the function raises, highest age in s of a waiting row)
-BGJ_PREFIX = {"mail:": (3, 24 * 3600), "push:": (3, 3600)}
+# (#6388): per kind prefix: the highest age in s of a waiting row. #7181 (reader F3 of job/5550): no retry by prefix -- the
+# mail:* / push:* functions catch their own send errors (a raising run could have sent half), so they keep one run
+BGJ_PREFIX = {"mail:": 24 * 3600, "push:": 3600}
 BGJ_FNS = {}            # kind -> function(*args)
 BGJ_TRIES_OF = {}       # kind -> runs at most (review 2.193.0: a mail is not sent a second time after a lost run)
 BGJ_RETRY_OF = {}       # (#6388): kind -> runs at most when its function raises
 BGJ_AGE_OF = {}         # (#6388): kind -> highest age (s) of a waiting row; no entry = none
-BGJ_ON_STOP = []        # (#6388): f() called when the process stops, before its rows are released
+BGJ_ON_STOP = []        # (#6388): f() called when the process stops, after its rows are released (#7181)
 _Q = {"thread": None, "house": 0.0, "watch": 0.0}
 _SLOTS = {"busy": 0, "long": 0}
 _LOCK = threading.Lock()
@@ -97,16 +98,16 @@ def bgj_fn(kind, tries=BGJ_TRIES, gate=True, long=False, retry=None, max_age=Non
     """Registers the function of a kind (decorator); it gets the arguments bgj_add was given. tries: runs at most (1 for
     work that must not happen twice, e.g. a mail: a lost run is then failed, not repeated). gate: see the top. long: an
     export / import (2.370.3, #2760): its own slots, never in the way of the short rows. (#6388): retry = runs at
-    most when the function raises (None: the prefix's in BGJ_PREFIX, else tries), max_age = s a row may wait (None: the
-    prefix's, else no limit). free (#6951 reader F4): its rows never run strict - a record the lock must not
+    most when the function raises (None: its tries), max_age = s a row may wait (None: the
+    prefix's in BGJ_PREFIX, else no limit). free (#6951 reader F4): its rows never run strict - a record the lock must not
     swallow (the support access log of a moving organisation)."""
     pre = next((v for k, v in BGJ_PREFIX.items() if kind.startswith(k)), None)
 
     def deco(fn):
         BGJ_FNS[kind] = fn
         BGJ_TRIES_OF[kind] = tries
-        BGJ_RETRY_OF[kind] = retry if retry is not None else pre[0] if pre else tries
-        age = max_age if max_age is not None else pre[1] if pre else None
+        BGJ_RETRY_OF[kind] = retry if retry is not None else tries
+        age = max_age if max_age is not None else pre
         if age:
             BGJ_AGE_OF[kind] = int(age)
         if not gate:
@@ -512,7 +513,7 @@ def bgj_trouble(c):
     with system_ctx(c):  # counts of the queue over every workspace, no content
         fk = c.execute("""SELECT kind, COUNT(*) AS n FROM bg_jobs WHERE state='failed' AND finished_at >= ? GROUP BY kind
                           ORDER BY n DESC, kind""", (iso(now - timedelta(hours=1)),)).fetchall()
-        old = c.execute("SELECT MIN(run_after) FROM bg_jobs WHERE state='wait' AND run_after <= ?", (iso(now),)).fetchone()[0]
+        old = _oldest_due(c, now)
     wait_s = 0
     if old:
         try:
@@ -521,6 +522,21 @@ def bgj_trouble(c):
             wait_s = 0
     return {"failed_1h": sum(int(r["n"]) for r in fk), "failed_kinds": [r["kind"] for r in fk[:5]], "oldest_wait_s": wait_s}
 
+
+
+def _oldest_due(c, now):
+    """#7181 (reader F4 of job/5550): run_after of the oldest due row that really should run by now, or None: only kinds this
+    process knows (a row of an unknown kind has its own end, _expire), and no long kind while every long slot is taken
+    (an export waits rightly behind the running ones). Under the caller's system_ctx."""
+    kinds = sorted(BGJ_FNS)
+    longs = [k for k in kinds if k in BGJ_LONG]
+    if longs and c.execute("SELECT COUNT(*) FROM bg_jobs WHERE state='run' AND kind IN (" + ",".join("?" * len(longs)) + ")",
+                           longs).fetchone()[0] >= BGJ_LONG_SLOTS:
+        kinds = [k for k in kinds if k not in BGJ_LONG]
+    if not kinds:
+        return None
+    return c.execute("SELECT MIN(run_after) FROM bg_jobs WHERE state='wait' AND run_after <= ? AND kind IN ("
+                     + ",".join("?" * len(kinds)) + ")", (iso(now), *kinds)).fetchone()[0]
 
 
 def bgj_pending(c, kind):
@@ -660,9 +676,10 @@ def bgj_on_term():
         end = time.monotonic() + BGJ_STOP_WAIT_S  # review 1: the running rows get the time Docker gives before its SIGKILL
         while (_SLOTS["busy"] or _SLOTS["long"]) and time.monotonic() < end:
             time.sleep(0.1)
-        # (#6388): first the stop hooks (e.g. the server agent tells whose request it was working on), then the release;
-        # one failing step never keeps the next from running
-        for what, f in [("stop hook", h) for h in list(BGJ_ON_STOP)] + [("release", bgj_release)]:
+        # #7181 (reader F1 of job/5550): first the release (quick, the database only), then the stop hooks (the server agent
+        # tells whose request it was working on - a chat note with up to 30 s): Docker's SIGKILL may cut off a note, never
+        # the release. One failing step never keeps the next from running
+        for what, f in [("release", bgj_release)] + [("stop hook", h) for h in list(BGJ_ON_STOP)]:
             try:
                 f()
             except Exception as e:  # noqa: BLE001 -- a failing hook must not block the release; no database: the housekeeping finds the rows after BGJ_LOST s

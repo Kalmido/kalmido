@@ -3,15 +3,19 @@
 """(#6388): the queue bg_jobs - failed and lost rows are seen, a raising function is tried again, waiting rows have a
 highest age; a server agent's run that a restart cut off tells its person. Own container (start.sh). Invented accounts only.
  1. a function that raises: the row waits again with a growing gap (30 s, then 60 s), the payload kept, the error named; after
-    its runs (retry=3) it fails; a kind with tries=1 and no retry fails at once (the old way). mail:* / push:* retry 3, highest
-    age 24 h / 1 h; other kinds keep their tries and have no highest age
+    its runs (retry=3) it fails; a kind with tries=1 and no retry fails at once (the old way). mail:* / push:* keep one run
+    (#7181: they catch their own send errors), highest age 24 h / 1 h; other kinds keep their tries and have no highest age
  2. the housekeeping: a push waiting over an hour and a mail over 24 h fail 'expired' (payload gone), younger ones and kinds
     without a highest age wait on; a row of a kind no process knows fails 'unknown kind' after 24 h, not before
  3. the watchdog (notify/alerts.py aa_bgjobs): more than KALMIDO_BG_ALARM_FAILED rows failed in the last hour and a due row waiting > 15 min
-    -> two admin alerts (kind storage, numbers and kind names only); GET /api/admin/health shows failed_1h / oldest_wait_s
+    -> two admin alerts (kind storage, numbers and kind names only); GET /api/admin/health shows failed_1h / oldest_wait_s;
+    #7181 (reader F4 of job/5550): the oldest due row counts only kinds the process knows, no long kind while every long
+    slot is taken
  4. the server agent: a run taken for lost (_claim) and the runs of a stopping process (srv_on_stop, a hook of
     bgjobs BGJ_ON_STOP) end 'interrupted' and their person hears "please send it again" once; the run's own end then says
-    nothing more
+    nothing more; #7181 (reader F2): a run the watchdog took for lost hears no restart named and its own end says nothing
+ 5. #7181 (reader F1 of job/5550): at SIGTERM the rows are released before the stop hooks run (a slow chat note never costs
+    the release)
 freelancer-matrix: n/a (no new route; alice has no organisation)
 usage: p21408_6388_bgjobs_test.py <datadir>"""
 import json
@@ -113,8 +117,8 @@ check(st[1].get("state") == "wait" and st[1].get("attempts") == 2 and 55 <= st[1
 check(st[2].get("state") == "failed" and st[2].get("attempts") == 3 and not st[2].get("kept"), f"after its 3 runs the row fails, payload gone {st[2]}")
 check((r1.get("once") or {}).get("state") == "failed" and (r1.get("once") or {}).get("attempts") == 1,
       f"a kind with tries=1 and no retry fails at its first error (as before) {r1.get('once')}")
-check(r1.get("retry") == {"mail:pwreset": 3, "mail:polls": 3, "push:send": 3, "backup": 3, "umz:import": 1},
-      f"retry: mail / push 3, the others their tries {r1.get('retry')}")
+check(r1.get("retry") == {"mail:pwreset": 1, "mail:polls": 1, "push:send": 1, "backup": 3, "umz:import": 1},
+      f"retry: every kind its tries (#7181: mail / push catch their own errors, one run) {r1.get('retry')}")
 check(r1.get("age") == {"mail:pwreset": 86400, "mail:portal": 86400, "push:send": 3600, "backup": None, "umz:import": None},
       f"highest age: mail 24 h, push 1 h, the others none {r1.get('age')}")
 
@@ -170,7 +174,18 @@ with system_ctx(c):
                   "VALUES('p6388:gone', '', 'failed', 1, ?, ?, ?, 'RuntimeError')", (q.iso(now), q.iso(now), q.iso(now)))
     c.execute("INSERT INTO bg_jobs(kind, payload, state, attempts, run_after, created_at) VALUES('p6388:late', 'v2.x', 'wait', 0, ?, ?)",
               (q.iso(now - timedelta(minutes=20)), q.iso(now - timedelta(minutes=20))))
+    # #7181 (F4): a kind no process knows, due for 40 min, and an export behind full long slots, due for 30 min: not counted
+    c.execute("INSERT INTO bg_jobs(kind, payload, state, attempts, run_after, created_at) VALUES('p6388:nokind3', 'v2.x', 'wait', 0, ?, ?)",
+              (q.iso(now - timedelta(minutes=40)), q.iso(now - timedelta(minutes=40))))
+    for i in range(q.BGJ_LONG_SLOTS):
+        c.execute("INSERT INTO bg_jobs(kind, payload, state, attempts, run_after, created_at, started_at, beat_at) "
+                  "VALUES('p6388:exp', '', 'run', 1, ?, ?, ?, ?)", (q.iso(now), q.iso(now), q.iso(now), q.iso(now)))
+    c.execute("INSERT INTO bg_jobs(kind, payload, state, attempts, run_after, created_at) VALUES('p6388:exp', 'v2.x', 'wait', 0, ?, ?)",
+              (q.iso(now - timedelta(minutes=30)), q.iso(now - timedelta(minutes=30))))
 c.commit()
+# this process knows p6388:late and the long p6388:exp (the server process knows neither: GET /api/admin/health counts none)
+q.bgj_fn("p6388:late", tries=1)(lambda *a: None)
+q.bgj_fn("p6388:exp", tries=1, long=True)(lambda *a: None)
 t = alerts.aa_bgjobs(c, force=True)
 again = alerts.aa_bgjobs(c)
 qq = [x for x in alerts._AA["q"]]
@@ -179,15 +194,17 @@ print(json.dumps({"quiet": quiet, "keys0": keys0, "t": t, "again": again, "alert
 al = {a[1]: a for a in r3.get("alerts") or []}
 check(not [k for k in r3.get("keys0") or [] if k.startswith("bgjobs:")], f"a quiet queue: no alert {r3.get('keys0')} {r3.get('quiet')}")
 t = r3.get("t") or {}
-check(t.get("failed_1h", 0) > 10 and "p6388:gone" in (t.get("failed_kinds") or []) and t.get("oldest_wait_s", 0) >= 1150,
-      f"the numbers: failed in the last hour, their kinds, the oldest due row's wait {t}")
+check(t.get("failed_1h", 0) > 10 and "p6388:gone" in (t.get("failed_kinds") or []) and 1150 <= t.get("oldest_wait_s", 0) < 1700,
+      f"the numbers: failed in the last hour, their kinds, the oldest due row's wait (a known kind; #7181: not the unknown "
+      f"kind of 40 min, not the export behind full long slots of 30 min) {t}")
 check("bgjobs:failed" in al and al["bgjobs:failed"][0] == "storage" and al["bgjobs:failed"][3] == t.get("failed_1h")
       and "p6388:gone" in str(al["bgjobs:failed"][2]), f"more than {10} failed in an hour: an admin alert (storage) with count and kinds {al.get('bgjobs:failed')}")
 check("bgjobs:waiting" in al and al["bgjobs:waiting"][2][0] >= 19, f"the oldest due row waits over 15 min: an admin alert with the minutes {al.get('bgjobs:waiting')}")
 check(r3.get("again") is None, "the watchdog looks again only after AA_BG_EVERY")
 hq = (A.get(B + "/api/admin/health").json() or {}).get("queue") or {}
-check(hq.get("failed_1h", 0) > 10 and hq.get("oldest_wait_s", 0) >= 1150 and "p6388:gone" in (hq.get("failed_kinds") or []),
+check(hq.get("failed_1h", 0) > 10 and "p6388:gone" in (hq.get("failed_kinds") or []) and "oldest_wait_s" in hq,
       f"GET /api/admin/health: the queue shows failed_1h, failed_kinds, oldest_wait_s {hq}")
+check(hq.get("oldest_wait_s", 9999) < 1150, f"#7181: rows of kinds the server does not know raise no 'is the worker running?' {hq}")
 py("""
 from kalmido.core.db import connect
 from kalmido.core.pg import system_ctx
@@ -222,6 +239,7 @@ sr._claim(c, uid, out=out)
 c.close()
 sr._lost_say(out.get("lost"))
 claim_said = list(said)
+taken = [sr._taken(lost), sr._taken(live)]  # #7181: the lost run's own end says nothing more, a running one's does
 said.clear()
 sr._LIVE[live] = uid
 sr.srv_on_stop()
@@ -231,17 +249,41 @@ with system_ctx(c):
     c.execute("DELETE FROM agent_runs WHERE id IN (?, ?)", (lost, live))
 c.commit()
 print(json.dumps({"uid": uid, "claim": claim_said, "stop": said, "st": {str(k): v for k, v in st.items()}, "told": live in sr._TOLD,
-                  "hooked": sr.srv_on_stop in q.BGJ_ON_STOP, "lost": lost, "live": live, "text": sr.SRV_INTR_TEXT}))
+                  "hooked": sr.srv_on_stop in q.BGJ_ON_STOP, "lost": lost, "live": live, "text": sr.SRV_INTR_TEXT,
+                  "lost_text": sr.SRV_LOST_SAY, "taken": taken}))
 """)
 uid, txt = r4.get("uid"), r4.get("text")
 st4 = r4.get("st") or {}
-check(r4.get("claim") == [[uid, [uid], txt]], f"a run taken for lost: its person hears once 'please send it again' {r4.get('claim')}")
+ltxt = r4.get("lost_text")
+check(r4.get("claim") == [[uid, [uid], ltxt]] and "restart" not in (ltxt or "restart"),
+      f"a run taken for lost: its person hears once 'please send it again', no restart named (#7181) {r4.get('claim')}")
+check(r4.get("taken") == [True, False], f"#7181: the run taken for lost says nothing more at its own end, a running one does {r4.get('taken')}")
 check(st4.get(str(r4.get("lost"))) == ["failed", "The server agent was interrupted"], f"... the run is interrupted {st4}")
 check(r4.get("hooked") and r4.get("stop") == [[uid, [uid], txt]] and st4.get(str(r4.get("live"))) == ["failed", "The server agent was interrupted"],
       f"the stop of the process: the running run ends interrupted, its person is told at once {r4.get('stop')} {st4}")
 check(r4.get("told"), "the run told at the stop says nothing more at its own end")
 de = json.load(open(os.path.join(N, "..", "static", "i18n", "de.json"), encoding="utf-8"))
-check(all(k in de for k in (txt or "-", "The oldest background job has been waiting for {0} minutes. Is the worker running?",
+NEU = os.path.join(N, "..", "static", "i18n", "neu")  # the packages' new texts until the merge queue folds them in
+for fn in sorted(os.listdir(NEU)) if os.path.isdir(NEU) else []:
+    if fn.endswith(".json"):
+        de.update(json.load(open(os.path.join(NEU, fn), encoding="utf-8")).get("de") or {})
+check(all(k in de for k in (txt or "-", ltxt or "-", "The oldest background job has been waiting for {0} minutes. Is the worker running?",
                             "{0} background job failed in the last hour ({1}).")), "the new texts are translated (de)")
+
+# ---------------------------------------------------------------- 5. the stop: release first, then the hooks (#7181)
+r5 = py("""
+import json, os, signal
+from kalmido.accounts import bgjobs as q
+order = []
+signal.signal(signal.SIGTERM, lambda s, f: order.append("prev"))  # a former handler: the stop returns to it (no os._exit)
+keep, rel = list(q.BGJ_ON_STOP), q.bgj_release
+q.BGJ_ON_STOP[:] = [lambda: order.append("hook")]
+q.bgj_release = lambda: order.append("release") or (0, 0)
+q.bgj_on_term()
+os.kill(os.getpid(), signal.SIGTERM)
+q.BGJ_ON_STOP[:], q.bgj_release = keep, rel
+print(json.dumps({"order": order}))
+""")
+check(r5.get("order") == ["release", "hook", "prev"], f"#7181 (F1): at SIGTERM the release runs before the stop hooks {r5.get('order')}")
 
 sys.exit(kt.done("p21408_6388_bgjobs_test"))

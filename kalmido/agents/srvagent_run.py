@@ -72,6 +72,8 @@ SRV_LOST_TEXT = N_("The server agent was interrupted")  # agent_runs.error of a 
 # (#6388): what the person whose request a lost / stopped run worked on reads in the chat (its events are taken: no second
 # run on its own, the cost brake stays)
 SRV_INTR_TEXT = N_("I was interrupted (the server restarted) and could not finish your request. Please send it again.")
+# #7181 (reader F2 of job/5550): a run the watchdog took for lost (no beat for SRV_LOST_S) - no restart needed for that
+SRV_LOST_SAY = N_("I was interrupted and could not finish your request. Please send it again.")
 _LIVE = {}            # (#6388): run id -> agent id of the runs of this process
 _TOLD = set()         # (#6388): runs whose person was told at the stop (their own end says nothing more)
 _LIVE_LOCK = threading.Lock()
@@ -275,15 +277,15 @@ def _wait_say(aid, who, text=SRV_WAIT_TEXT):
             _db(lambda c: c.execute("DELETE FROM api_tokens WHERE token_hash=?", (_token_hash(tok),)))
 
 
-def _lost_say(lost):
+def _lost_say(lost, text=SRV_LOST_SAY):
     """(#6388): lost = [(agent id, person)] of runs taken for lost: each person hears once that the request was
-    interrupted and should be sent again (SRV_INTR_TEXT)."""
+    interrupted and should be sent again (SRV_LOST_SAY; the stop of the process: SRV_INTR_TEXT)."""
     by = {}
     for aid, uid in lost or ():
         if uid and uid not in by.setdefault(aid, []):
             by[aid].append(uid)
     for aid, who in by.items():
-        _wait_say(aid, who, SRV_INTR_TEXT)
+        _wait_say(aid, who, text)
 
 
 def srv_on_stop():
@@ -306,7 +308,7 @@ def srv_on_stop():
                 with _LIVE_LOCK:
                     _TOLD.add(rid)
     _db(mark)
-    _lost_say(lost)
+    _lost_say(lost, SRV_INTR_TEXT)
 
 
 BGJ_ON_STOP.append(srv_on_stop)
@@ -402,6 +404,17 @@ def _db(fn):
 
 def _end(rid, state, text=""):
     _db(lambda c: c.execute("UPDATE agent_runs SET state=?, ended=?, error=? WHERE id=?", (state, iso(now_utc()), text, rid)))
+
+
+def _taken(rid):
+    """#7181 (reader F2 of job/5550): is run rid no longer running in the database - the watchdog in _claim (another process,
+    or this one after a long step) failed it and its person heard SRV_LOST_SAY? Then its own end says nothing more."""
+    try:
+        r = _db(lambda c: c.execute("SELECT state FROM agent_runs WHERE id=?", (rid,)).fetchone())
+    except Exception as e:  # noqa: BLE001 -- no database: the run's end goes on as before (its token is tidied all the same)
+        print("server agent run", rid, "state:", type(e).__name__, flush=True)
+        return False
+    return r is None or r[0] != "run"
 
 
 def _aborted(rid):
@@ -525,6 +538,7 @@ def _run(aid, rid):
             told = rid in _TOLD
             _TOLD.discard(rid)
         try:
+            told = told or _taken(rid)  # #7181: the watchdog took it for lost and told the person (_lost_say)
             _finish(aid, rid, tok, state, text, None if told else asker, lang)  # (#6388): told at the stop already
         except Exception as e:  # noqa: BLE001
             print("server agent", aid, "run", rid, "end:", type(e).__name__, flush=True)
