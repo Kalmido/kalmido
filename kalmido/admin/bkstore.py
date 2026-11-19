@@ -3,6 +3,7 @@ content), however many backups hold it. Standalone (standard library + cryptogra
 also runs outside the app (a copy of the store from the off-site target or the Pi):
 
     python3 -I kalmido/admin/bkstore.py assemble BACKUP STORE OUT [--passphrase-file FILE]
+    python3 -I kalmido/admin/bkstore.py decrypt BACKUP.zip.enc OUT.zip --passphrase-file FILE
 
 (-I: the folder of the script must not come first on the module path, it holds a module named operator.py.)
 
@@ -509,21 +510,64 @@ def decrypt_file(src, dst, pw):
             i += 1
 
 
+def _read_pw(pwfile):
+    """The passphrase from a file ("-" = stdin), never from the command line (it would stand in the shell history and ps)."""
+    if pwfile == "-":
+        return sys.stdin.readline().strip()
+    with open(pwfile) as f:
+        return f.read().strip()
+
+
+def decrypt_cmd(src, out, pwfile):
+    """#6611: decrypt BACKUP.zip.enc OUT.zip --passphrase-file FILE: the plain zip of an encrypted backup, for the way by hand
+    without a running Kalmido (SELF-HOSTING.md). A backup with shared files (format 3) only holds the small ones: assemble it
+    first (that writes a complete encrypted file), then decrypt that."""
+    if not pwfile:
+        print("decrypt: --passphrase-file FILE is needed (\"-\" = read it from stdin)", file=sys.stderr)
+        return 2
+    pw = _read_pw(pwfile)
+    with open(src, "rb") as f:
+        if f.read(len(MAGIC)) != MAGIC:
+            print("decrypt: not an encrypted Kalmido backup (it is a plain zip already, or another file)", file=sys.stderr)
+            return 1
+    try:
+        fd = os.open(out, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)  # never overwrites; the content is the plain data
+    except FileExistsError:
+        print(f"decrypt: {out} exists already", file=sys.stderr)
+        return 2
+    os.close(fd)
+    try:
+        decrypt_file(src, out, pw)
+        with zipfile.ZipFile(out) as z:
+            man = json.loads(z.read("manifest.json"))
+    except (StoreError, zipfile.BadZipFile, KeyError, ValueError) as e:
+        os.unlink(out)
+        print(f"decrypt failed: {getattr(e, 'code', type(e).__name__)} (wrong passphrase or a damaged file); nothing written",
+              file=sys.stderr)
+        return 1
+    if man.get("format_version") == 3 and man.get("shared"):
+        print(f"written: {out} - but it holds only the small files: {len(man['shared'])} shared files are in the store. Run "
+              "assemble on the encrypted file first, then decrypt its output.", file=sys.stderr)
+        return 3
+    print(f"written: {out} (plain zip, format {man.get('format_version')}; it holds the data unencrypted: delete it after use)")
+    return 0
+
+
 def main(argv):
-    """assemble BACKUP STORE OUT [--passphrase-file FILE]: a complete archive (format 2) for "Restore from a file"."""
+    """assemble BACKUP STORE OUT [--passphrase-file FILE]: a complete archive (format 2) for "Restore from a file".
+    decrypt BACKUP OUT --passphrase-file FILE (#6611): the plain zip of an encrypted backup."""
     args, pwfile = list(argv), None
     if "--passphrase-file" in args:
         i = args.index("--passphrase-file")
         pwfile = args[i + 1] if i + 1 < len(args) else None
         del args[i:i + 2]
+    if args[:1] == ["decrypt"] and len(args) == 3 and ("--passphrase-file" not in argv or pwfile):
+        return decrypt_cmd(args[1], args[2], pwfile)
     if len(args) != 4 or args[0] != "assemble" or ("--passphrase-file" in argv and not pwfile):
         print(__doc__.split("\n\n")[1] if "\n\n" in __doc__ else __doc__, file=sys.stderr)
         return 2
     _, src, store, out = args
-    pw = ""
-    if pwfile:
-        with open(pwfile) as f:
-            pw = f.read().strip()
+    pw = _read_pw(pwfile) if pwfile else ""
     with open(src, "rb") as f:
         enc = f.read(len(MAGIC)) == MAGIC
     work = tempfile.mkdtemp(prefix="kalmido-assemble-")
