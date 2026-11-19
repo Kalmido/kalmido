@@ -78,8 +78,10 @@ function chatFloatPlace(p) {
 // its header (left / top set) keeps its bottom right corner while it grows. Phone and full screen: no window, no grips.
 const CHF_MIN = [18, 20], CHF_STEP = 16;
 function chatFloatLim(p) {
-  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16, r = p.getBoundingClientRect(), free = !!p.style.left;
-  return {minW: CHF_MIN[0] * rem, minH: CHF_MIN[1] * rem, maxW: r.right - 8, maxH: r.bottom - 8, r, free};  // the bottom right corner stays put
+  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16, r = p.getBoundingClientRect(), shown = r.width > 0;
+  // the bottom right corner stays put; while the window is still hidden (opening: no box yet) the viewport is the limit and
+  // nothing moves - the CSS max-width / max-height keep it inside
+  return {minW: CHF_MIN[0] * rem, minH: CHF_MIN[1] * rem, maxW: (shown ? r.right : innerWidth) - 8, maxH: (shown ? r.bottom : innerHeight) - 8, r, free: shown && !!p.style.left};
 }
 function chatFloatSize(p, w, h, save) {
   if (!(w > 0 && h > 0)) { p.style.width = p.style.height = ''; if (save) LS.del('chatSize'); chatGripVal(p); return; }
