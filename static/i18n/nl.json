@@ -19489,6 +19489,7 @@
   "The export of {0} is ready. Download it within {1} hours.": "De export van {0} is klaar. Download hem binnen {1} uur.",
   "The export of {0} failed. Please try again later or ask the server admin.": "De export van {0} is mislukt. Probeer het later opnieuw of vraag het de serverbeheerder.",
   "The export of {0} failed: there was not enough space on the server. Please ask the server admin.": "De export van {0} is mislukt: er was niet genoeg ruimte op de server. Vraag het de serverbeheerder.",
+  "Width of the list": "Breedte van de lijst",
   "Not updated since {0}": "Niet bijgewerkt sinds {0}",
   "Calendar {0} could not be updated: its events as of {1} still block times here.": "Agenda {0} kon niet worden bijgewerkt: de afspraken met stand {1} blokkeren hier nog steeds tijden.",
   "Calendar {0} could not be updated for more than a day. Its events are as of {2} and still count as busy.": "Agenda {0} kon al meer dan een dag niet worden bijgewerkt. De afspraken hebben de stand van {2} en tellen nog steeds als bezet.",

@@ -13,7 +13,7 @@
 const RS_LOCAL = ['lookLocal', 'sideGroups', 'sideFold', 'sideOpenG', 'collapsed', 'sbbOpen', 'sbbFold', 'sbbUnfold', 'mdOpen', 'rings',
   'vmode', 'agband', 'tabbar', 'chatFloat', 'chatPos', 'chatSize', 'calMode', 'tvMode', 'statsMode', 'timeScope', 'timePeriod', 'newsFilter',
   'newsKind', 'jobsFilter'];  // #7289: chatSize = the floating chat's size; 2.1183.0 (#6178): favgripX (#6082) gone with the grip
-const RS_LOCAL_PRE = ['pw.', 'sort2.', 'lst.sort.', 'fcols.', 'lcw.'];
+const RS_LOCAL_PRE = ['pw.', 'sort2.', 'lst.sort.', 'fcols.', 'lcw.', 'lsdW.'];  // #7290: lsdW. = the list's width beside a detail
 const RS_UNDO = 'tasks.rsUndoLocal', RS_TOAST = 'tasks.rsToast';
 
 /** -> {localStorage key: raw value} of what this device keeps for itself and would go back */

@@ -443,3 +443,70 @@ document.addEventListener('click', async e => {
   if (b.dataset.dsb === 'new') dsb_new(+b.dataset.cl);
   else dsb_menu(b, (DSB.cl?.sheets || []).find(x => x.id === +b.dataset.id));
 });
+
+// #7290: the building block list beside detail (.lsd2, start-lsd-4553.css) gets a grip between list and detail: drag it to
+// make the list wider or narrower, arrow keys (Shift: 4 rem), Home / End = narrowest / widest, Enter or double-click = the
+// standard width. From --w-leiste-min (14rem) to half the pair; remembered per page and device (localStorage lsdW.<page>, in
+// rem). For every two-column .lsd2 (contacts, clients, quotations / invoices), not on a phone or a narrow content area (one
+// column) and not for the receipts' one-column list (.lsdone). Loaded with contacts, clients and office (lazyload.js LD_NEED).
+const lsg_key = () => { const r = S.route || {}; return 'lsdW.' + (r.mod || '') + (r.mod === 'office' && r.tab ? '.' + r.tab : ''); };
+const lsg_rem = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+function lsg_lim(p) {
+  const min = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--w-leiste-min')) || 14;
+  return [min, Math.max(min, Math.floor(p.clientWidth / lsg_rem() / 2 * 4) / 4)];
+}
+function lsg_set(p, w, save) {  // w in rem; null = the standard width of the building block
+  const [min, max] = lsg_lim(p);
+  if (w == null) { p.classList.remove('lsdset'); p.style.removeProperty('--lsdW'); if (save) LS.del(lsg_key()); }
+  else { w = Math.round(Math.max(min, Math.min(max, w)) * 4) / 4; p.style.setProperty('--lsdW', w + 'rem'); p.classList.add('lsdset'); if (save) LS.set(lsg_key(), w); }
+  lsg_place(p);
+}
+function lsg_place(p) {
+  const g = $(':scope > .lsdgrip', p), l = $(':scope > .lsdl', p); if (!g || !l) return;
+  const two = getComputedStyle(p).gridTemplateColumns.trim().split(/\s+/).length > 1 && [...p.children].filter(x => x !== g).length > 1;  // the detail: .lsdr or the card (.ctcard)
+  g.hidden = !two; if (!two) return;
+  const gap = parseFloat(getComputedStyle(p).columnGap) || 0, w = l.getBoundingClientRect().width;
+  g.style.left = (l.offsetLeft + w + gap / 2 - g.offsetWidth / 2) + 'px';
+  const [min, max] = lsg_lim(p);
+  g.setAttribute('aria-valuemin', String(min)); g.setAttribute('aria-valuemax', String(max)); g.setAttribute('aria-valuenow', String(Math.round(w / lsg_rem() * 4) / 4));
+}
+let lsg_ro = null;
+function lsg_sync() {
+  for (const p of $$('#view .lsd2:not(.lsdone)')) {
+    if (!document.body.classList.contains('lsgdrag')) {  // a redraw (morph) may drop the class and the variable: the stored width again
+      const v = LS.get(lsg_key(), null), on = Number.isFinite(v);
+      if (on && p.style.getPropertyValue('--lsdW') !== v + 'rem') p.style.setProperty('--lsdW', v + 'rem');
+      if (!on && p.style.getPropertyValue('--lsdW')) p.style.removeProperty('--lsdW');
+      if (p.classList.contains('lsdset') !== on) p.classList.toggle('lsdset', on);
+    }
+    if (!$(':scope > .lsdgrip', p)) {
+      const lbl = esc(tr('Width of the list')), tip = esc(tr('Drag to resize · double-click: default size'));
+      p.insertAdjacentHTML('beforeend', `<div class="lsdgrip" tabindex="0" role="separator" aria-orientation="vertical" aria-label="${lbl}" title="${tip}"></div>`);
+      if (!p._lsg) { p._lsg = 1; lsg_ro?.observe(p); }
+    }
+    lsg_place(p);
+  }
+}
+if (typeof ResizeObserver !== 'undefined') lsg_ro = new ResizeObserver(es => { for (const e of es) if (e.target.isConnected) lsg_place(e.target); });
+domReady(() => { const v = $('#view'); if (!v) return; let q = 0; new MutationObserver(() => { if (!q) q = requestAnimationFrame(() => { q = 0; lsg_sync(); }); }).observe(v, {childList: true, subtree: true}); lsg_sync(); });
+document.addEventListener('pointerdown', e => {
+  const g = e.target.closest?.('#view .lsd2 > .lsdgrip'); if (!g || e.button !== 0) return;
+  const p = g.parentElement, l = $(':scope > .lsdl', p); if (!l) return;
+  e.preventDefault(); try { g.setPointerCapture(e.pointerId); } catch { /* gone */ }
+  const x0 = e.clientX, w0 = l.getBoundingClientRect().width, rem = lsg_rem(); let w = null;
+  g.classList.add('drag'); document.body.classList.add('lsgdrag');
+  const mv = rafThrottle(x => { w = (w0 + x - x0) / rem; lsg_set(p, w); });
+  const m2 = ev => mv(ev.clientX);
+  const up = () => { g.removeEventListener('pointermove', m2); mv.flush(); g.classList.remove('drag'); document.body.classList.remove('lsgdrag');
+    if (w != null && Math.abs(w * rem - w0) > 2) lsg_set(p, w, true); };
+  g.addEventListener('pointermove', m2); g.addEventListener('pointerup', up, {once: true}); g.addEventListener('pointercancel', up, {once: true});
+});
+document.addEventListener('dblclick', e => { const g = e.target.closest?.('#view .lsd2 > .lsdgrip'); if (g) { lsg_set(g.parentElement, null, true); announce(tr('Default width')); } });
+document.addEventListener('keydown', e => {
+  const g = e.target.closest?.('#view .lsd2 > .lsdgrip'); if (!g) return;
+  const p = g.parentElement, l = $(':scope > .lsdl', p); if (!l) return;
+  const st = e.shiftKey ? 4 : 1, w = l.getBoundingClientRect().width / lsg_rem(), [min, max] = lsg_lim(p);
+  const to = {ArrowLeft: w - st, ArrowRight: w + st, Home: min, End: max}[e.key];
+  if (to != null) { e.preventDefault(); e.stopPropagation(); lsg_set(p, to, true); announce(tr('{0} rem', String(Math.round(l.getBoundingClientRect().width / lsg_rem() * 4) / 4))); }
+  else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); lsg_set(p, null, true); announce(tr('Default width')); }
+});
