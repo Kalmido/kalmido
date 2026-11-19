@@ -77,6 +77,7 @@ from ..core.schema import MAX_DEPTH  # 2.149.0 G (#2517): pulled up from functio
 from ..office.model import pb_personal  # 2.1316.0 (#6577): umz_office_space
 from ..life.model import JOURNAL_MAX, jr_open, jr_seal  # 2.306.0 A (#2885); 2.531.0 (#4317): + JOURNAL_MAX, jr_open
 from ..accounts.orginvite import ojn_drop_later, ojn_invite, ojn_later  # 2.278.0 A (#3095)
+from ..accounts.orginvite import OINV_DAY, oinv_by_import, oinv_day_left, oinv_on  # 2.1424.0 (#6580)
 from ..collab.e2e import _pub, e2e_has_keys, e2e_import_keys, e2e_same_keys  # 2.278.0 C (#3091)
 from .oilock import oil_preview, OIL_NODES, OIL_LOCKS, OIL_KEYS  # #4300: locked folders of the file store
 from ..hub.absence import ABS_HALF, ABS_KINDS, ABS_NOTE_MAX, ABS_SPAN_MAX, DATE_RE  # 2.765.0 (#3965)
@@ -874,6 +875,8 @@ def umz_preview(c, uid, man, data, can_invite, files=None):
                                                   "filters", "templates", "time_entries", "event_calendars", "events", "address_books",
                                                   "contacts", "journal", "notes")},  # 2.362.0 (#3090): + project notes
         "lists": lists[:500], "people": people[:500], "can_invite": bool(can_invite),
+        # 2.1424.0 (#6580): the organisations among the targets whose admin invites the missing people (umz_may_invite)
+        "invite_orgs": [t["id"] for t in targets if t["id"] != "private"] if oinv_on(c) else [],
         "people_salt": umz_salt(man) or "",  # 2.239.0 A (#2882): the client checks a typed address against the keyed hash
         "server_links": [_txt(x.get("name"), 100) or _txt(x.get("base_url"), 200) for x in data.get("server_links", [])][:20],
         "encrypted": {"attachments": len(ce.get("attachments") or []) if isinstance(ce.get("attachments"), list) else 0,
@@ -2369,7 +2372,8 @@ def umz_private(c, run, uid, man, zf, files, data, who):
 
 def umz_share(c, run, uid, data, picks, can_invite, salt=None):
     """After the import: lists shared with the people ticked in the preview (found by their e-mail hash), missing people
-    invited (instance admins only, the address typed by the admin must match the hash). Returns the people's results for
+    invited (the address typed by the admin must match the hash; into an organisation by its admin through the normal
+    invitation way, 2.1424.0 #6580, into the private space by an instance admin only). Returns the people's results for
     the report."""
     out = []
     # 2.644.0 (#5024): the imported projects locked until the caller commits (id order, like the watchdog's lffolder.lf_own_stale):
@@ -2454,7 +2458,15 @@ def umz_fix_people(c, run, uid, names):
 
 def umz_invite(c, run, uid, email, name, role="member"):
     """A new account for a missing person (instance admin) and the invitation link by e-mail (#697). 2.360.2 M (#2561): into an
-    organisation only by accepting an invitation (org_joins, in the admins' list of open invitations), in the confirmed role."""
+    organisation only by accepting an invitation (org_joins, in the admins' list of open invitations), in the confirmed role.
+    2.1424.0 (#6580): into an organisation its admin invites (not only an instance admin), the normal way of Settings >
+    Organisation > Invite by e-mail (orginvite.oinv_by_import: the day's limit, the mail budget, an address with an account
+    the admin may not see stays silent, #3570) -> the account the invitation lies on (None: nobody invited)."""
+    if run.org:
+        nid = oinv_by_import(c, run.org, email, role, name, uid)
+        if nid:
+            run.created.setdefault("org_joins", []).append([run.org, nid])
+        return nid
     if c.execute("SELECT 1 FROM users WHERE lower(email)=?", (email,)).fetchone():
         return None  # the address exists but the admin does not see it: never a second account
     base = re.sub(r"[^a-z0-9._-]", "", email.split("@")[0].lower())[:24] or "user"
@@ -2464,13 +2476,9 @@ def umz_invite(c, run, uid, email, name, role="member"):
     while c.execute("SELECT 1 FROM users WHERE username=?", (login,)).fetchone():
         i += 1
         login = f"{base}{i}"[:32]
-    nid = create_user(c, login, name or login, None, None, False, onboard=True, ask_purpose=uid if run.org else 0)  # 2.364.0 A (#3032)
+    nid = create_user(c, login, name or login, None, None, False, onboard=True, ask_purpose=0)  # 2.364.0 A (#3032)
     c.execute("UPDATE users SET email=? WHERE id=?", (email, nid))
     uset(c, nid, "lang", usettings(c, uid).get("lang") or "en")
-    if run.org:
-        with system_ctx(c):  # the organisation's admin invites a person who is no member (structure)
-            ojn_invite(c, run.org, nid, role, by=uid)
-        run.created.setdefault("org_joins", []).append([run.org, nid])
     try:
         invite_new(c, nid, uid, send=True)
     except Denied:
@@ -3148,6 +3156,7 @@ def umz_undo(c, uid, r):
             uset(c, uid, k, v.get("old") if v.get("old") is not None else "")
     for oid, who in cr.get("org_joins") or []:  # 2.360.2 M (#2561): an invitation not accepted yet goes with the import
         c.execute("DELETE FROM org_joins WHERE org_id=? AND user_id=? AND created_by=?", (int(oid), int(who), uid))
+        c.execute("DELETE FROM org_invites WHERE org_id=? AND user_id=? AND created_by=?", (int(oid), int(who), uid))  # 2.1424.0 (#6580): like Withdraw
         ojn_drop_later(c, int(oid), int(who), uid)
     c.execute("UPDATE imports SET undone_at=? WHERE id=?", (iso(now_utc()), r["id"]))
     bump(c)
@@ -3346,13 +3355,14 @@ def umz_undo_plan_get(iid):
     return jsonify(umz_undo_preview(db(), me(), iid))
 
 
-def umz_invites(c, uid, st, org, picks, can_invite):
+def umz_invites(c, uid, st, org, picks, can_invite, mails_out=None):
     """2.1402.0 (#6579): the people an organisation export's run invites into the target org (umz_share: a found account not
     a member yet, ticked "share"; a missing one ticked "invite" with an address, by an instance admin) -- they join its storage
     pool once they accept. 0 into the private space and for an account export (it invites nobody into an organisation).
     Review F1 (job/5521): counted like umz_share acts and like quota_info's pool counts -- distinct accounts (many keys
     with one user name are one seat), never an agent or an account with a quota of its own (it never joins the pool), an
-    invitation only for an address whose hash is the key's (else umz_share invites nobody), distinct addresses."""
+    invitation only for an address whose hash is the key's (else umz_share invites nobody), distinct addresses.
+    2.1424.0 (#6580): mails_out (a set) gets the addresses invited by e-mail (the day's limit of the invitations)."""
     if org is None or (st.get("preview") or {}).get("kind") != "org":
         return 0
     ids, salt = st.get("people_ids") or {}, st.get("people_salt")
@@ -3368,6 +3378,8 @@ def umz_invites(c, uid, st, org, picks, can_invite):
             em = _email(v.get("email"))
             if em and umz_email_hash(em, salt) == k:
                 mails.add(em.strip().lower())
+    if mails_out is not None:
+        mails_out.update(mails)
     if accounts:
         q = ",".join("?" * len(accounts))
         with system_ctx(c):  # structure: which of them would count in the pool (quota_info's members)
@@ -3377,11 +3389,18 @@ def umz_invites(c, uid, st, org, picks, can_invite):
     return len(accounts) + len(mails)
 
 
+def umz_may_invite(c, org):
+    """2.1424.0 (#6580, decided 16.11.2026): who may invite the missing people of the file -- into an organisation its admin
+    (the caller checked it) while inviting by e-mail is on (Settings > Users, org_invites), always an instance admin; into
+    the private space only an instance admin (a new account of the server)."""
+    return bool(g.user["is_admin"]) or (org is not None and oinv_on(c))
+
+
 @app.post("/api/account/import/<iid>/run")
 def umz_go(iid):
     """{target: "private" | org id (I am its admin), people: {key: {share: bool, invite: bool, email?: str}}} -> the run starts.
-    key = the preview's hash (review M1; a plain address of an older client works too); email = the address an instance
-    admin typed for an invitation (checked against the hash in the run)."""
+    key = the preview's hash (review M1; a plain address of an older client works too); email = the address the admin typed
+    for an invitation (checked against the hash in the run; umz_may_invite says who may)."""
     umz_person()
     uid = me()
     st = _need(uid, iid)
@@ -3417,7 +3436,13 @@ def umz_go(iid):
                         or (_email(em) if "@" in str(em) else ""), "login": _txt(v.get("login"), 64)}  # 2.278.0 B (#3094): a user name
             if "role" in v:  # 2.278.0 A (#3095): the role the admin confirmed (unknown = member; none sent = the file's)
                 picks[e]["role"] = umz_role(v["role"])
-    invites = umz_invites(c, uid, st, org, picks, bool(g.user["is_admin"]))
+    can_invite = umz_may_invite(c, org)
+    mails = set()
+    invites = umz_invites(c, uid, st, org, picks, can_invite, mails)
+    if org is not None and mails:
+        if len(mails) > oinv_day_left(c, uid):  # 2.1424.0 (#6580): all or nothing, like the storage below
+            c.rollback()
+            return err(tr("Too many invitations today (at most {0}). Try again tomorrow.", OINV_DAY), 429)
     short = umz_room_at(c, uid, org, int(st.get("need") or 0), invites)  # 2.1402.0 (#6579): all or nothing, before the run
     if short:
         c.rollback()
@@ -3425,7 +3450,7 @@ def umz_go(iid):
         return jsonify(error=tr_stored([e.text, *e.args_]), code="quota_exceeded", **short), 409
     c.rollback()
     try:
-        _thread(uid, umz_run, iid, {"org": org, "people": picks, "can_invite": bool(g.user["is_admin"]), "invites": invites}, iid=iid,
+        _thread(uid, umz_run, iid, {"org": org, "people": picks, "can_invite": can_invite, "invites": invites}, iid=iid,
                 state={"state": "running", "progress": {"done": 0, "total": 1}, "target": org})
     except Denied:
         _set(uid, iid, state="preview")
