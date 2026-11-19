@@ -434,6 +434,7 @@ ORDER = (
     "office.offerlink",  # 2.356.0 C (#3003): quotation <-> invoices made from it (links, asking before a second invoice)
     "office.doclang",  # 2.40.0 (#1381): language switch of drafts swaps the standard texts (no routes; used by office.docs)
     "office.countries",  # 2.40.0 (#1372): the ISO 3166-1 alpha-2 list (no routes)
+    "office.docauthor",  # (#7300): "Created by" of a quotation (no routes; used by office.docs and office.ledger)
     "office.contacts_cl",  # 2.40.0 (#1380): contact persons of a client (no routes; used by team.clients, office.docs, legacyimport)
     "office.legacyimport",  # 2.39.1 (#1182): legacy import (clients / services / equipment from .xlsx, archive of old PDFs)
     "office.archiveedit",  # 2.81.0 B (#1834): correct an archived document afterwards (client, tax lines, paid) + its history

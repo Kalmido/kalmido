@@ -37,7 +37,8 @@ from .ledger import ofx_user_label  # 2.1287.0 (#6470)
 from .ledger import ofx_unlink, ofx_unlock  # 2.1005.0 (#5415): a finalised quotation never sent goes as a draft
 from .ledger import ofx_past_year  # 2.1380.0 (#6976)
 from .ledger import ofx_company_from_free  # 2.1308.0 (#6477): free recipient lines read like the company's
-from .countries import fk_country_code, fk_country_label  # 2.296.0 B (#3168); 2.1308.0 (#6477): + fk_country_code
+from .docauthor import oda_choices, oda_clean, oda_default, oda_name  # (#7300): "Created by" of a quotation
+from .countries import fk_country_code, fk_country_label, fk_country_relabel  # (#3168, #6477, #7301)
 from .invoices import (INV_KINDS, INV_STATUSES, STATE_TXT, inv_apply_client, inv_manual_number, inv_money_fields, inv_new_row, inv_paid_map, inv_payments,
                        inv_reminder_totals, inv_render, inv_scheme, inv_state)
 from .invoices import ofi_ref_doc, ofi_ref_keep  # 2.269.0 D (#3046)
@@ -220,8 +221,9 @@ def _client(c, oid, cid):
     return dict(r) if r else None
 
 
-def _recipient_from_client(cl, contact=None, home="DE"):
-    """contact (2.40.0 #1380): the chosen contact person's name ("" = none; None = the client's default).
+def _recipient_from_client(cl, contact=None, home="DE", lg=None):
+    """contact (2.40.0 #1380): the chosen contact person's name ("" = none; None = the client's default). lg (#7301):
+    the document's language, the country line is printed in it.
     2.97.0 B (#1951): the address comes from the client's fixed fields only (name, attn., street, extra line, postcode city,
     the country when it is not home = the company's, as the invoice prints it); the fields themselves travel along (the
     e-invoice reads them, no parsing of lines). missing: street, postcode or city empty."""
@@ -235,7 +237,7 @@ def _recipient_from_client(cl, contact=None, home="DE"):
     country = g_("country").upper()
     # 2.296.0 B (#3168): fk_country_label = "NIEDERLANDE" instead of "NL"
     lines += [x for x in (g_("street"), g_("address_extra"), " ".join(x for x in (g_("zip"), g_("city")) if x),
-                          fk_country_label(country, home or "DE") if country and country != (home or "DE").upper() else "") if x]
+                          fk_country_label(country, home or "DE", lg) if country and country != (home or "DE").upper() else "") if x]
     return {"name": cl["name"], "name_extra": g_("name_extra"), "lines": lines[:12], "street": g_("street"), "extra": g_("address_extra"), "zip": g_("zip"),
             "city": g_("city"), "country": country, "missing": not all(g_(k) for k in ("street", "zip", "city"))}
 
@@ -249,12 +251,17 @@ def cdn_doc_recipient(c, oid, r, stored=None):
     """2.97.0 B (#1951): the recipient of document row r: a draft with a client reads it from the client (now), a finished /
     sent one or one without a client keeps what is stored (old free lines stay as they are)."""
     rec = stored if stored is not None else _j(r["recipient"], {})
-    if not r["client_id"] or ofx_locked(r) or r["status"] == "sent":
+    if ofx_locked(r) or r["status"] == "sent":
+        return rec
+    lg = doc_lg(_cur_val(r, "lang"))  # (#7301): the country line follows the document's language, not the sender's
+    if not r["client_id"]:  # its own fixed fields: the stored country line in the document's language now
+        if rec.get("country") and rec.get("lines"):
+            rec = dict(rec, lines=fk_country_relabel(rec["lines"], rec["country"], cdn_home(c, oid), lg))
         return rec
     cl = _client(c, oid, r["client_id"])
     if not cl:
         return rec
-    return _recipient_from_client(cl, fk_doc_contact_name(c, cl["id"], _cur_val(r, "contact_id")), cdn_home(c, oid))
+    return _recipient_from_client(cl, fk_doc_contact_name(c, cl["id"], _cur_val(r, "contact_id")), cdn_home(c, oid), lg)
 
 
 # 2.40.0 (#1380): the contact person of a document (office_docs.contact_id): NULL = the client's default, 0 = none, else
@@ -573,6 +580,9 @@ def doc_public(c, oid, r, admin, items=True):
         d[k] = _j(d.get(k), dflt)
     d["recipient"] = dict(cdn_doc_recipient(c, oid, r, d["recipient"]))  # 2.97.0 B (#1951): a draft shows its client's address now
     d["recipient_missing"] = bool(d["recipient"].pop("missing", False))  # street, postcode or city missing at the client
+    if r["kind"] == "offer":  # (#7300): "Created by": the name, and the people to choose from while it is a draft
+        d["author_name"] = oda_name(c, oid, r)
+        d["author_choices"] = [] if ofx_locked(r) else oda_choices(c, oid)
     for k in ("issuer_rev", "ref_sha256"):  # (#6701): internal fingerprints
         d.pop(k, None)
     d["mail"] = oms_public(r)  # (#6820): {state, at} instead of the two columns
@@ -709,6 +719,7 @@ def doc_brief(r, pm=None, lg=None, today=None):
          "net": t.get("net") or 0, "net_text": fmt_money(t.get("net") or 0, r["lang"], r["currency"]),
          "gross": t.get("gross") or 0, "gross_text": fmt_money(t.get("gross") or 0, r["lang"], r["currency"]),
          "net_incl_raw": t.get("net_incl_raw"), "updated_at": r["updated_at"], "created_by": r["created_by"],
+         "author_id": _cur_val(r, "author_id"),  # (#7300)
          "locked": ofx_locked(r), "due_date": r["due_date"] if "due_date" in r.keys() else None, "cancels_id": r["cancels_id"] if "cancels_id" in r.keys() else None,
          "inv_type": r["inv_type"] if "inv_type" in r.keys() else "",  # 2.120.0 A (#2087)
          "trial": bool(r["trial"]) if "trial" in r.keys() else False,  # (#2576)
@@ -812,7 +823,7 @@ def _fields_clean(v):
 REC_FIELDS = {"street": 200, "extra": 200, "zip": 20, "city": 120, "country": 2}
 
 
-def _recipient_clean(v, home="DE"):
+def _recipient_clean(v, home="DE", lg=None):  # lg (#7301): the document's language for the country line
     """{name, lines} or {name, street, extra, zip, city, country} -> the stored recipient of a document without a client.
     2.1308.0 (#6477): with the fixed fields (any of REC_FIELDS given) they are the address and the printed lines are made
     from them (name, street, extra line, postcode city, the country when it is not home); free lines alone keep the lines and
@@ -827,7 +838,7 @@ def _recipient_clean(v, home="DE"):
         f["country"] = fk_country(v.get("country") or "", "recipient.country") or ""
         country = f["country"] if f["country"] != (home or "DE").upper() else ""
         lines = [x for x in (name, f["street"], f["extra"], " ".join(x for x in (f["zip"], f["city"]) if x),
-                             fk_country_label(country, home or "DE") if country else "") if x]
+                             fk_country_label(country, home or "DE", lg) if country else "") if x]
         return {"name": name, "lines": lines[:12], **f}
     lines = v.get("lines") or []
     if isinstance(lines, str):
@@ -941,11 +952,11 @@ def clean_doc(c, oid, b, cur, admin):
         kid = f["contact_id"] if "contact_id" in f else _cur_val(cur, "contact_id")
         cl = _client(c, oid, ncid)
         if cl:
-            rec = _recipient_from_client(cl, fk_doc_contact_name(c, cl["id"], kid), cdn_home(c, oid))
+            rec = _recipient_from_client(cl, fk_doc_contact_name(c, cl["id"], kid), cdn_home(c, oid), doc_lg(lang))  # (#7301)
             rec.pop("missing", None)
             f["recipient"] = json.dumps(rec, ensure_ascii=False)
     elif "recipient" in b and b.get("recipient") is not None:
-        f["recipient"] = json.dumps(_recipient_clean(b["recipient"], cdn_home(c, oid)), ensure_ascii=False)
+        f["recipient"] = json.dumps(_recipient_clean(b["recipient"], cdn_home(c, oid), doc_lg(lang)), ensure_ascii=False)
     for k, mx in (("project_title", PT_MAX), ("project_ref", 80), ("intro", TEXT_MAX), ("closing", TEXT_MAX), ("order_ref", 80)):
         if k in b:
             f[k] = pt_text(b.get(k), k) if k == "project_title" else _text(b.get(k), k, mx)  # 2.431.0 B (#3594)
@@ -996,6 +1007,7 @@ def clean_doc(c, oid, b, cur, admin):
             v = _num(b.get(k), k, lo, hi)
             f[k] = dflt if v is None else v
     ofd_discount_clean(c, oid, b, cur, f)  # 2.1042.0 (#5815)
+    oda_clean(c, oid, b, cur, f)  # (#7300): "Created by" of a quotation
     # 2.1353.0 (#6839): an older quotation keeps its own calculation when producing is switched on (decision #2251/#2252);
     # 2.380.0 (#3420) switched it to the pack's share by amount like a new one - taken back
     f.update(prd_doc_clean(c, oid, b))  # 2.113.1 (#2252): handling costs / markup
@@ -1210,7 +1222,8 @@ def doc_create(c, oid, uid, b, admin, number=True):
            **prd_new_doc(c, oid, s),  # 2.113.1 (#2251, #2252): the options of the industry packs switched on
            "intro": _default_text(c, oid, s, "intro", lang), "closing": _default_text(c, oid, s, "closing", lang),
            "rights": json.dumps(rights, ensure_ascii=False), "fields": "[]", "totals": "{}", "created_by": uid, "created_at": ts,
-           "updated_at": iso_ms(now_utc()), "sent_at": None, "trial": trial_flag(b.get("trial"))}  # 2.144.10 A (#2576)
+           "updated_at": iso_ms(now_utc()), "sent_at": None, "trial": trial_flag(b.get("trial")),  # (#2576)
+           "author_id": oda_default(c, oid, uid, kind)}  # (#7300): "Created by" = the person making it
     if s.get("small_business"):  # 2.47.3 (#1360): section 19 UStG
         row["vat_note"] = "small"
     row["currency"] = hc_code(row["currency"]) or hc_home(s)  # 2.189.0 (#2475): the office's currency of new documents
@@ -1282,13 +1295,14 @@ def doc_next_number(c, oid, r, s, peek=False):
     # 2.118.0 A (#2265): a quotation's duplicate keeps the first one's running number with the next {version};
     # quotations count per organisation, client or project (onc_next)
     ver, num = onc_version(c, oid, r, inv_scheme(s, r["kind"]), lambda x: {"project": x["project_title"], "client": _j(x["recipient"], {}).get("name") or "",
-                                                                         "initials": _initials(c, x["created_by"]), "kuerzel": _client_code(c, x)})
+                                                                         "initials": _initials(c, _cur_val(x, "author_id") or x["created_by"]),  # (#7300): the person named
+                                                                         "kuerzel": _client_code(c, x)})
     if num:
         return num
     seen = set()
     for i in range(ODOC_NEXT_MAX):  # a scheme without {seq} uniqueness (e.g. only {date}): keep counting until free
         num, _seq = onc_next(c, oid, s, r, inv_scheme(s, r["kind"]), d, peek=peek, ahead=i if peek else 0, project=r["project_title"],
-                             client=rec.get("name") or "", initials=_initials(c, r["created_by"]), version=ver, kuerzel=_client_code(c, r))
+                             client=rec.get("name") or "", initials=_initials(c, _cur_val(r, "author_id") or r["created_by"]), version=ver, kuerzel=_client_code(c, r))
         by = odoc_number_taken_by(c, oid, num, r["id"])  # 2.39.1 (#1182): also a number of the legacy archive
         if by is None:
             return num
@@ -1563,6 +1577,10 @@ def odoc_render(c, doc_id, oid, keep_detail=False):
         meta.append([L.get("offer_po") or tr("Your order number|pdf", lg=lang), r["order_ref"]])
     if r["valid_until"]:
         meta.append([L.get("valid_until", tr("Valid until|document", lg=lang)), valid_text])
+    # (#7300): "Created by" as "Ihr Ansprechpartner" -- a finalised one as frozen with it
+    author = str(snd.get("author_name") or "") if locked else oda_name(c, oid, r)
+    if author:
+        meta.append([L.get("offer_contact") or tr("Your contact|pdf", lg=lang), author])
     sf, st = (r["service_from"] or "", r["service_to"] or "") if "service_from" in r.keys() else ("", "")
     if sf or st:  # 2.36.2: period of service
         per = _fd(sf) if sf == st or not st else (_fd(st) if not sf else f"{_fd(sf)} – {_fd(st)}")
@@ -1649,7 +1667,11 @@ def odoc_groups():
         f"SELECT project_title, COUNT(*) {base} AND project_title <> '' GROUP BY project_title ORDER BY lower(project_title) LIMIT 300", (oid,))]
     years = [{"year": r[0], "n": r[1]} for r in c.execute(
         f"SELECT substr(date, 1, 4) AS y, COUNT(*) {base} AND date <> '' GROUP BY y ORDER BY y DESC LIMIT 50", (oid,))]
-    return jsonify(clients=clients[:300], projects=projects, years=years)
+    # (#7300): the people named as "Created by" (a quotation without one counts for its maker, like {initials})
+    who = {p["id"]: p["name"] for p in oda_choices(c, oid)}  # none in a personal office: no filter there
+    au = {r[0]: r[1] for r in c.execute(f"SELECT COALESCE(author_id, created_by), COUNT(*) {base} AND kind='offer' GROUP BY 1", (oid,)) if r[0]} if who else {}
+    authors = sorted(({"id": k, "name": who.get(k) or ofx_user_label(c, k), "n": n} for k, n in au.items()), key=lambda x: x["name"].lower())
+    return jsonify(clients=clients[:300], projects=projects, years=years, authors=[a for a in authors if a["name"]][:300])
 
 
 def _odoc_text_key(s):
@@ -1719,6 +1741,9 @@ def odoc_list():
     if str(request.args.get("client_id") or "").isdigit():
         sql += " AND client_id=?"
         args.append(int(request.args["client_id"]))
+    if re.fullmatch(r"[0-9]{1,18}", str(request.args.get("author_id") or "")):  # (#7300): "Created by" (else its maker)
+        sql += " AND COALESCE(author_id, created_by)=?"
+        args.append(int(request.args["author_id"]))
     if request.args.get("project"):
         sql += " AND project_title=?"
         args.append(str(request.args["project"])[:300])

@@ -19562,5 +19562,9 @@
   "In the office: only their own receipts, travel expenses, drives and times, read-only. You give more in the office settings under Rights.": "In ufficio: solo le proprie ricevute, spese di viaggio, tragitti e tempi, in sola lettura. Ne concedi di più nelle impostazioni dell'ufficio, alla voce Diritti.",
   "Projects are shared one by one, or opened to everyone in the organisation in the project's settings.": "I progetti si condividono uno per uno, oppure si aprono a tutta l'organizzazione nelle impostazioni del progetto.",
   "{0} joined and starts in the default group": "{0} si è unito e parte nel gruppo predefinito",
-  "Its starter asks for no request token yet: from {0} its own token reaches only its channel. Run the setup command on its computer again.": "Il suo avviatore non chiede ancora un token di richiesta: dal {0} il suo token raggiunge solo il suo canale. Esegui di nuovo il comando di configurazione sul suo computer."
+  "Its starter asks for no request token yet: from {0} its own token reaches only its channel. Run the setup command on its computer again.": "Il suo avviatore non chiede ancora un token di richiesta: dal {0} il suo token raggiunge solo il suo canale. Esegui di nuovo il comando di configurazione sul suo computer.",
+  "Your contact|pdf": "Vostro referente",
+  "Former member": "Ex membro",
+  "printed on the quotation as the contact person": "compare sul preventivo come referente",
+  "This organisation is retired: its data stays as it is": "Questa organizzazione è dismessa: i suoi dati restano come sono"
 }

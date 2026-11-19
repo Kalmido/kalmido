@@ -352,7 +352,7 @@ body>.modal{position:fixed;inset:0;max-height:none;max-width:none;margin:0}  /* 
 code.topic{background:var(--bg3);padding:2px .4375rem;border-radius:var(--r-s);font-family:var(--mono);font-size:var(--fs-s);word-break:break-all}
 
 /* ---------- toast ---------- */
-#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(1.5rem + var(--tabs-bot));z-index:var(--z-toast);background:var(--bg3);border-radius:var(--radius);padding:.5rem .625rem .5rem .875rem;display:flex;gap:.75rem;align-items:center;box-shadow:var(--shadow);font-size:var(--fs-m);width:max-content;max-width:calc(100vw - 2rem)}
+#toast{position:fixed;bottom:calc(1.5rem + var(--tabs-bot));z-index:var(--z-toast);background:var(--bg3);border-radius:var(--radius);padding:.5rem .625rem .5rem .875rem;display:flex;gap:.75rem;align-items:center;box-shadow:var(--shadow);font-size:var(--fs-m);width:max-content;max-width:calc(100vw - 2rem)}
 #toast button{color:var(--accent);font-weight:600}
 /* 2.41.0 (#1437): the vCard import's progress / result: stays until it is closed */
 
@@ -558,7 +558,7 @@ fieldset[disabled] .rowgrip{cursor:auto}
 .rowd-after{box-shadow:0 2px 0 var(--accent)}
 .rowd-ghost{list-style:none;max-height:5rem;overflow:hidden}
 @media (pointer:coarse){ .rowgrip{min-width:2.75rem;min-height:2.75rem} .ofdit .ofdpos.rowgrip{min-width:0;align-self:stretch} }
-.qadd.sheet{position:fixed;left:50%;top:18%;transform:translateX(-50%);width:min(35rem,92vw);z-index:58;background:var(--bg2);border-radius:var(--r-l);padding:.75rem;margin:0;box-shadow:var(--shadow)}
+.qadd.sheet{position:fixed;top:18%;width:min(35rem,92vw);z-index:58;background:var(--bg2);border-radius:var(--r-l);padding:.75rem;margin-block:0;box-shadow:var(--shadow)}
 .iconbtn.on{color:var(--accent)}
 
 .md{line-height:1.6;cursor:text;min-height:1.5rem;word-break:break-word}
@@ -579,7 +579,7 @@ fieldset[disabled] .rowgrip{cursor:auto}
 .md a{color:var(--accent);text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--accent) 40%,transparent)}
 .md code{font-family:var(--mono);font-size:var(--fs-s);background:var(--bg3);padding:1px .3125rem;border-radius:var(--r-s)}
 
-#mbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(1.25rem + var(--tabs-bot));z-index:44;background:var(--bg3);border:1px solid var(--line2);border-radius:var(--r-l);padding:.375rem .5rem;display:flex;align-items:center;gap:2px;box-shadow:0 .75rem 1.875rem rgba(0,0,0,.45);max-width:calc(100vw - 1.25rem);overflow-x:auto}
+#mbar{position:fixed;bottom:calc(1.25rem + var(--tabs-bot));z-index:44;background:var(--bg3);border:1px solid var(--line2);border-radius:var(--r-l);padding:.375rem .5rem;display:flex;align-items:center;gap:2px;box-shadow:0 .75rem 1.875rem rgba(0,0,0,.45);max-width:calc(100vw - 1.25rem);overflow-x:auto}
 #mbar .mcount{font:var(--fs-s) var(--mono);padding:0 .5rem;white-space:nowrap;color:var(--accent)}
 
 .fchips{display:flex;flex-wrap:wrap;gap:.375rem}
@@ -666,7 +666,7 @@ fieldset[disabled] .rowgrip{cursor:auto}
 .smodal .shdr .tmini{margin-right:.25rem}
 
 @media (max-width:767px){
-  .qadd.sheet{top:auto;transform:none;width:auto;left:0;right:0;bottom:0;border-radius:1rem 1rem 0 0;box-shadow:none}
+  .qadd.sheet{top:auto;width:auto;margin:0;left:0;right:0;bottom:0;border-radius:1rem 1rem 0 0;box-shadow:none}
   .calbar h2{flex:1 1 100%}
   .calbar .seg{flex:1}
   .calbar .seg button{flex:1;justify-content:center;padding:.3125rem .25rem}
@@ -684,7 +684,7 @@ fieldset[disabled] .rowgrip{cursor:auto}
   .tl{--tl-name:6.75rem}
   .tl-name{font-size:var(--fs-s);padding:0 .375rem}
   .featgrid{grid-template-columns:1fr}
-  #mbar{left:.625rem;right:.625rem;transform:none;justify-content:space-between}
+  #mbar{left:.625rem;right:.625rem;width:auto;margin:0;justify-content:space-between}
 }
 
 .navlist{display:flex;flex-direction:column;gap:2px;border:1px solid var(--line);border-radius:var(--radius);padding:.25rem}
@@ -745,7 +745,7 @@ fieldset[disabled] .rowgrip{cursor:auto}
 .atthint{font-size:var(--fs-s);margin-top:.375rem}
 .filedrop{box-shadow:inset 0 0 0 2px var(--accent)!important;background:color-mix(in srgb,var(--accent) 8%,var(--bg2))!important}
 /* 2.32.0 (#362): what a drop of files onto a list does */
-#fdhint{position:fixed;transform:translateX(-50%);z-index:90;pointer-events:none;display:flex;align-items:center;gap:.5rem;max-width:min(32rem,90vw);padding:.5rem .875rem;border-radius:99rem;background:var(--accent);color:var(--accent-ink);font-size:var(--fs-s);font-weight:500;box-shadow:var(--shadow)}
+#fdhint{position:fixed;z-index:90;pointer-events:none;display:flex;align-items:center;gap:.5rem;max-width:min(32rem,90vw);padding:.5rem .875rem;border-radius:99rem;background:var(--accent);color:var(--accent-ink);font-size:var(--fs-s);font-weight:500;box-shadow:var(--shadow)}
 #fdhint span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lightbox{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;padding:1rem 1rem 4.375rem}
 .lightbox img{max-width:100%;max-height:100%;object-fit:contain;border-radius:.375rem}
@@ -1437,9 +1437,9 @@ svg.chart{display:block;max-width:100%;overflow:visible}
 .cconf svg{width:100%;height:100%;stroke:var(--cc,var(--accent))}
 .ccheck{position:absolute;display:grid;place-items:center;border-radius:50%;background:var(--accent);color:var(--accent-ink);opacity:0;box-shadow:0 .75rem 2.5rem rgba(0,0,0,.3);will-change:transform,opacity}
 .ccheck svg{width:58%;height:58%;stroke:currentColor}
-.cele-quip{position:fixed;left:50%;bottom:calc(1.75rem + var(--tabs-bot));z-index:97;display:flex;align-items:center;gap:.75rem;width:max-content;max-width:min(27.5rem,calc(100vw - 2rem));padding:.625rem 1rem .625rem .875rem;
-  background:var(--bg2);border-radius:var(--r-l);box-shadow:var(--shadow);pointer-events:none;opacity:0;transform:translate(-50%,.5rem);transition:opacity .25s,transform .25s}
-.cele-quip.on,.cele-quip.calm{opacity:1;transform:translate(-50%,0)}
+.cele-quip{position:fixed;bottom:calc(1.75rem + var(--tabs-bot));z-index:97;display:flex;align-items:center;gap:.75rem;width:max-content;max-width:min(27.5rem,calc(100vw - 2rem));padding:.625rem 1rem .625rem .875rem;
+  background:var(--bg2);border-radius:var(--r-l);box-shadow:var(--shadow);pointer-events:none;opacity:0;translate:0 .5rem;transition:opacity .25s,translate .25s}
+.cele-quip.on,.cele-quip.calm{opacity:1;translate:none}
 .cele-quip div{display:flex;flex-direction:column;gap:2px;min-width:0}
 .cele-quip b{font-size:var(--fs-s);font-weight:500;color:var(--accent);font-family:var(--mono);display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;overflow-wrap:anywhere}  /* 2.380 E (#3331): two lines, not cut to one */
 .cele-quip span{font-size:var(--fs-b);color:var(--text)}
@@ -1602,7 +1602,7 @@ div.calerr{font-size:var(--fs-s);padding:.25rem 0}
   #fab svg{width:1.5rem;height:1.5rem;stroke-width:2.2}
   #fab.gone{display:none}
   #app.detail-open #fab{right:calc(var(--detW,25.5rem) + 1.25rem)}
-  .qadd.sheet{top:auto;bottom:0;left:50%;transform:translateX(-50%);width:min(40rem,100vw);border-radius:1rem 1rem 0 0;padding:.875rem .875rem calc(.875rem + var(--safe-b))}
+  .qadd.sheet{top:auto;bottom:0;left:0;right:0;margin:0 auto;width:min(40rem,100vw);border-radius:1rem 1rem 0 0;padding:.875rem .875rem calc(.875rem + var(--safe-b))}
   #view{padding-bottom:calc(var(--safe-b) + 6rem)}
 }
 
@@ -3026,10 +3026,10 @@ button.mention.mlink:hover,button.mention.mlink:focus-visible{text-decoration:un
 #pov-files.povdrop{outline:2px dashed var(--accent);outline-offset:.25rem}
 @media (pointer:coarse){ .chrx .rx{min-width:2.75rem;min-height:2.75rem;justify-content:center} }
 /* #433: the change check failed for more than 30 s */
-#stale{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 1rem);z-index:55;display:inline-flex;align-items:center;gap:.375rem;padding:.375rem .75rem;border-radius:2rem;border:1px solid var(--line,transparent);background:var(--bg3);color:var(--text2);font:inherit;font-size:var(--fs-s);cursor:pointer;box-shadow:var(--shadow);max-width:calc(100vw - 2rem)}
+#stale{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 1rem);z-index:55;display:inline-flex;align-items:center;gap:.375rem;padding:.375rem .75rem;border-radius:2rem;border:1px solid var(--line,transparent);background:var(--bg3);color:var(--text2);font:inherit;font-size:var(--fs-s);cursor:pointer;box-shadow:var(--shadow);max-width:calc(100vw - 2rem)}
 #stale span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* 2.27.0 (#968): a newer version runs on the server than the code in this window */
-#newver{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + .5rem);z-index:95;display:inline-flex;align-items:center;gap:.5rem;padding:.375rem .4375rem .375rem .875rem;border-radius:2rem;border:1px solid var(--accent);background:var(--bg2);color:var(--text);font-size:var(--fs-s);box-shadow:var(--shadow);max-width:calc(100vw - 2rem)}
+#newver{position:fixed;top:calc(env(safe-area-inset-top,0px) + .5rem);z-index:95;display:inline-flex;align-items:center;gap:.5rem;padding:.375rem .4375rem .375rem .875rem;border-radius:2rem;border:1px solid var(--accent);background:var(--bg2);color:var(--text);font-size:var(--fs-s);box-shadow:var(--shadow);max-width:calc(100vw - 2rem)}
 #newver span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media (max-width:767px){ #newver{top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 4.75rem)} }
 #newver svg{color:var(--accent);flex:none}
@@ -3038,9 +3038,9 @@ button.mention.mlink:hover,button.mention.mlink:focus-visible{text-decoration:un
 /* 2.1170.0 (#6132): ONE stack for the bars (core.js barStack): new version, code changed, changes waiting, uploads. A computer: under the
    header (--bars-top = its bottom edge, core.js barsPos); a phone: above the tab bar AND the "+" button. One above the other, never on
    top of each other; the stack itself lets clicks through. A phone's bar wraps its words instead of cutting them. */
-#bars{position:fixed;left:50%;transform:translateX(-50%);top:calc(var(--bars-top,3.5rem) + .5rem);z-index:95;display:flex;flex-direction:column;align-items:center;gap:.375rem;width:max-content;max-width:calc(100vw - 2rem);pointer-events:none}
+#bars{position:fixed;top:calc(var(--bars-top,3.5rem) + .5rem);z-index:95;display:flex;flex-direction:column;align-items:center;gap:.375rem;width:max-content;max-width:calc(100vw - 2rem);pointer-events:none}
 #bars:empty{display:none}
-#bars > :is(#newver,#codechg,#stale,#upbars){position:static;transform:none;top:auto;bottom:auto;left:auto;pointer-events:auto;max-width:100%}
+#bars > :is(#newver,#codechg,#stale,#upbars){position:static;top:auto;bottom:auto;left:auto;pointer-events:auto;max-width:100%}
 #bars > #newver{order:1} #bars > #codechg{order:2} #bars > #stale{order:3} #bars > #upbars{order:4}
 @media (max-width:767px){
   #bars{top:auto;bottom:calc(var(--tabs-bot) + 4.75rem);width:calc(100vw - 1.5rem);max-width:none}
@@ -3512,7 +3512,7 @@ svg.kword{display:block;height:.82em;width:auto;aspect-ratio:371.8/81;color:#EEE
 .cmrxq .rx.add{border-color:transparent}
 @media (pointer:coarse){ .cmrxq .rx{min-width:2.75rem;min-height:2.75rem;justify-content:center} }
 /* 2.13.2 (#478 F8): offline / waiting changes in the task header on phones */
-#stale.indet{position:static;transform:none;box-shadow:none;max-width:9.5rem;min-height:2.75rem;padding:0 .5rem;font-size:var(--fs-xs);background:var(--bg3);flex:0 1 auto;min-width:0}
+#stale.indet{position:static;width:auto;margin:0;box-shadow:none;max-width:9.5rem;min-height:2.75rem;padding:0 .5rem;font-size:var(--fs-xs);background:var(--bg3);flex:0 1 auto;min-width:0}
 /* 2.13.2 (#478 F10): avatar initials with more contrast (accent mixed with the text colour, light and dark) */
 .avatar{color:color-mix(in srgb,var(--accent) 55%,var(--text))}
 /* F11: touch targets: "Set status", the assignee pictures (hit area 44 px, the picture stays small) */
@@ -3531,7 +3531,7 @@ svg.kword{display:block;height:.82em;width:auto;aspect-ratio:371.8/81;color:#EEE
 }
 /* 2.13.2 (#478): settings: the link of a helper text that went behind (i) stays as one small line */
 /* 2.13.4: while dragging a task by touch: "Move to list…" at the top (drop it there to pick the list) */
-.tdmove{position:fixed;left:50%;top:calc(var(--vvt,0px) + 4.5rem);transform:translateX(-50%);z-index:var(--z-pop);display:flex;align-items:center;gap:.5rem;min-height:2.75rem;padding:0 1.125rem;border-radius:1.375rem;background:var(--bg2);border:1px dashed var(--line2);color:var(--text2);font-size:var(--fs-s);box-shadow:var(--shadow);pointer-events:none}
+.tdmove{position:fixed;top:calc(var(--vvt,0px) + 4.5rem);z-index:var(--z-pop);display:flex;align-items:center;gap:.5rem;min-height:2.75rem;padding:0 1.125rem;border-radius:1.375rem;background:var(--bg2);border:1px dashed var(--line2);color:var(--text2);font-size:var(--fs-s);box-shadow:var(--shadow);pointer-events:none}
 .tdmove.on{border-style:solid;border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--bg2))}
 /* 2.13.4: the phone chat: only the messages scroll. #view kept its list padding (room for the + button) and scrolled
    by it, so a swipe beside the box pushed the composer up and left an empty gap above the tab bar */
@@ -4317,7 +4317,7 @@ a.tref:hover{background:var(--accent-soft)}
 /* 2.18.0 review (R13): roadmap list rows: the toggle fills the name cell, "Open list" sits next to it (not inside) */
 /* 2.18.0 review: with "Set milestone" the bulk bar is wider; next to an open task panel it stays left of it (it covered the
    panel's comment field at 1440) */
-@media (min-width:768px){ body:has(#app.detail-open) #mbar{left:calc((100vw - var(--detW,25.5rem)) / 2);max-width:calc(100vw - var(--detW,25.5rem) - 1.25rem)} }
+@media (min-width:768px){ body:has(#app.detail-open) #mbar{right:var(--detW,25.5rem);max-width:calc(100vw - var(--detW,25.5rem) - 1.25rem)} }
 /* 2.18.0 review: the list name in rows (Trash, search, …) cut with "…" (a flex span cannot show the ellipsis) */
 .meta .lst{display:inline-block;min-width:0}
 /* 2.18.0 review: touch targets in the Repository area (error-report (i), the repository link) at least 44 px */
@@ -4915,7 +4915,7 @@ button.lkchip:hover{border-color:var(--accent)}
 @media (prefers-reduced-motion:no-preference){ .svtick.on{animation:svtick 2.2s ease forwards} }
 @keyframes svtick{0%{opacity:0}10%{opacity:1}75%{opacity:1}100%{opacity:0}}
 /* UX-55: "All saved" for a moment where the "changes waiting" chip was */
-#savedok{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 1rem);z-index:55;display:inline-flex;align-items:center;gap:.375rem;padding:.375rem .75rem;border-radius:2rem;border:1px solid var(--line2);background:var(--bg3);color:var(--ok-t);font-size:var(--fs-s);opacity:0;pointer-events:none;transition:opacity .2s}
+#savedok{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 1rem);z-index:55;display:inline-flex;align-items:center;gap:.375rem;padding:.375rem .75rem;border-radius:2rem;border:1px solid var(--line2);background:var(--bg3);color:var(--ok-t);font-size:var(--fs-s);opacity:0;pointer-events:none;transition:opacity .2s}
 #savedok.on{opacity:1}
 @media (prefers-reduced-motion:reduce){ #savedok{transition:none} }
 @media (max-width:767px){ #savedok{bottom:calc(env(safe-area-inset-bottom,0px) + 4.75rem)} }
@@ -5273,8 +5273,8 @@ a.nitem.ndm{text-decoration:none;color:inherit}
 }
 .cmeta .trdline{min-height:1.5rem;padding:0 .25rem}
 @media (pointer:coarse){ .cmeta button.trdline{min-height:2.75rem;margin-block:-.625rem} }
-.dswpos{position:fixed;top:calc(var(--safe-t,0px) + .5rem);left:50%;transform:translate(-50%,-.5rem);z-index:70;padding:.25rem .75rem;border-radius:99rem;background:var(--bg3);border:1px solid var(--line2);color:var(--text2);font-size:var(--fs-s);box-shadow:0 .25rem 1rem rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s}
-.dswpos.on{opacity:1;transform:translate(-50%,0)}
+.dswpos{position:fixed;top:calc(var(--safe-t,0px) + .5rem);translate:0 -.5rem;z-index:70;padding:.25rem .75rem;border-radius:99rem;background:var(--bg3);border:1px solid var(--line2);color:var(--text2);font-size:var(--fs-s);box-shadow:0 .25rem 1rem rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:opacity .2s,translate .2s}
+.dswpos.on{opacity:1;translate:none}
 @media (prefers-reduced-motion:reduce){ .dswpos{transition:none} }
   /* 2.32.0 (#1079): the name before the longer badge */
 .lybar{display:flex;align-items:center;gap:.5rem}
@@ -6187,7 +6187,7 @@ body.fab-on #view .hpadd{padding-right:var(--fab-safe)}  /* 2.1111.0 (#5963): th
 
 /* 2.46.1 C (#1554): several contacts at once - the selection bar (looks like the tasks' #mbar), a tick per row;
    2.428.0 A (#3581): class .mselbar = every selection's bar (multisel.js ms_barHtml) */
-.mselbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(1.25rem + var(--tabs-bot));z-index:44;background:var(--bg3);border:1px solid var(--line2);border-radius:var(--r-l);padding:.375rem .5rem;display:flex;align-items:center;gap:2px;box-shadow:0 .75rem 1.875rem rgba(0,0,0,.45);max-width:calc(100vw - 1.25rem);overflow-x:auto;scrollbar-width:none}
+.mselbar{position:fixed;bottom:calc(1.25rem + var(--tabs-bot));z-index:44;background:var(--bg3);border:1px solid var(--line2);border-radius:var(--r-l);padding:.375rem .5rem;display:flex;align-items:center;gap:2px;box-shadow:0 .75rem 1.875rem rgba(0,0,0,.45);max-width:calc(100vw - 1.25rem);overflow-x:auto;scrollbar-width:none}
 .mselbar .mcount{font:var(--fs-s) var(--mono);padding:0 .5rem;white-space:nowrap;color:var(--accent)}
 .mselbar .mbb{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:.125rem;min-width:2.75rem;min-height:2.75rem;padding:.125rem .375rem;border:0;border-radius:var(--radius);background:none;color:var(--text2);font:inherit;font-size:var(--fs-xs);line-height:1.1;cursor:pointer;flex:none}
 .mselbar .mbb:hover:not(:disabled){background:var(--bg4);color:var(--text)}
@@ -6196,7 +6196,7 @@ body.fab-on #view .hpadd{padding-right:var(--fab-safe)}  /* 2.1111.0 (#5963): th
 .mselbar .mbb .mbl{white-space:nowrap}
 .mselbar .mbx{flex:none}
 .mselbar .mbb[hidden]{display:none}  /* 2.1168.0 (#6118): the buttons multisel.js ms_fit put into "…" (and "…" while all fit) */
-@media (max-width:767px){ .mselbar{left:.625rem;right:.625rem;transform:none;justify-content:space-between;gap:0;padding:.25rem .375rem} .mselbar .mcount{padding:0 .25rem;font-size:var(--fs-xs)} .mselbar .mbb{flex:1 1 0;min-width:3.25rem} }
+@media (max-width:767px){ .mselbar{left:.625rem;right:.625rem;width:auto;margin:0;justify-content:space-between;gap:0;padding:.25rem .375rem} .mselbar .mcount{padding:0 .25rem;font-size:var(--fs-xs)} .mselbar .mbb{flex:1 1 0;min-width:3.25rem} }
 .ctpicking .ctlistw{padding-bottom:5rem}
 .ctrow .ctchk{width:1.25rem;height:1.25rem;border:1.5px solid var(--line2);border-radius:.375rem;display:inline-flex;align-items:center;justify-content:center;flex:none;color:var(--bg)}
 .ctrow .ctchk.on{background:var(--accent);border-color:var(--accent)}
@@ -8253,7 +8253,7 @@ time,.meta .dt,.dpbtn,.remchips button,.dprow .dpt,.dprow .dps,.fwhen{font-famil
   #tabs button>span:not(.dot):not(.temoji):not(.tsw):not(.tico){position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%)}
 }
 /* 2.363.3 (#3134): upload progress with Cancel (upbar.js), above the toast */
-#upbars{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(4.75rem + var(--tabs-bot));z-index:80;display:flex;flex-direction:column;gap:.375rem;width:min(22rem,calc(100vw - 2rem))}
+#upbars{position:fixed;bottom:calc(4.75rem + var(--tabs-bot));z-index:80;display:flex;flex-direction:column;gap:.375rem;width:min(22rem,calc(100vw - 2rem))}
 .upbar{background:var(--bg3);border-radius:var(--radius);box-shadow:var(--shadow);padding:.5rem .625rem .5rem .875rem;font-size:var(--fs-m)}
 .uphead{display:flex;gap:.75rem;align-items:center}
 .upn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

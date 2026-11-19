@@ -809,6 +809,18 @@ h.api.req = real_req
 d.tick(force=True)
 c = cards(h, 323)
 check(len(c) == 1 and "findings - read them" in c[0]["suggestion"]["summary"], f"#7032 (reader F5): ... and comes the next round with its verdict {c}")
+# (#7199, reader F6): a card that keeps failing is not tried every round for ever: after CARD_TRIES rounds the person
+# is told of the pull request without it (once), no further try
+READ_RESULT[0] = "VERDICT: green"
+d, h = read_round(624, 324)
+tries = []
+h.api.req = (lambda real: lambda m, p_, b=None, **k: (tries.append(1), (_ for _ in ()).throw(RuntimeError("410 gone")))[1] if p_ == "/tasks/324/comments" else real(m, p_, b, **k))(h.api.req)
+res = None
+for _ in range(ad.CARD_TRIES + 3):
+    res = d.tick(force=True) or res
+e = d.reg["jobs"]["624"]
+check(len(tries) == ad.CARD_TRIES and e.get("carded") and not cards(h, 324), f"#7199 F6: {ad.CARD_TRIES} tries, then no more ({len(tries)}) {e.get('card_fail')}")
+check("pr:624" in d.reg["told"], f"#7199 F6: the person is told of the pull request without the card {sorted(d.reg['told'])}")
 READ_RESULT[0] = None  # the review area is full: not started
 d, h = read_round(622, 322)
 n = len(READS)

@@ -19561,5 +19561,9 @@
   "In the office: only their own receipts, travel expenses, drives and times, read-only. You give more in the office settings under Rights.": "In het kantoor: alleen de eigen bonnen, reiskosten, ritten en tijden, alleen lezen. Meer geef je vrij in de kantoorinstellingen onder Rechten.",
   "Projects are shared one by one, or opened to everyone in the organisation in the project's settings.": "Projecten worden een voor een gedeeld, of in de instellingen van het project voor iedereen in de organisatie geopend.",
   "{0} joined and starts in the default group": "{0} is erbij gekomen en begint in de standaardgroep",
-  "Its starter asks for no request token yet: from {0} its own token reaches only its channel. Run the setup command on its computer again.": "Zijn starter vraagt nog geen verzoektoken aan: vanaf {0} bereikt zijn eigen token alleen nog zijn kanaal. Voer de installatieopdracht op zijn computer opnieuw uit."
+  "Its starter asks for no request token yet: from {0} its own token reaches only its channel. Run the setup command on its computer again.": "Zijn starter vraagt nog geen verzoektoken aan: vanaf {0} bereikt zijn eigen token alleen nog zijn kanaal. Voer de installatieopdracht op zijn computer opnieuw uit.",
+  "Your contact|pdf": "Uw contactpersoon",
+  "Former member": "Voormalig lid",
+  "printed on the quotation as the contact person": "staat op de offerte als contactpersoon",
+  "This organisation is retired: its data stays as it is": "Deze organisatie is opgeheven: haar gegevens blijven zoals ze zijn"
 }

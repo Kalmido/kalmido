@@ -56,9 +56,11 @@ def fk_country_names(lg):
     return _FK_NAMES.get(lg) or {}
 
 
-def fk_country_label(code, home):
+def fk_country_label(code, home, lg=None):
     """The printed country of an address in a document of a sender in home (ISO code): '' for the sender's own country, the
-    name in capitals in home's language (English for other countries), the text as it was for an unknown code."""
+    name in capitals in the document's language lg (#7301: an English quotation prints "AUSTRIA", not
+    "ÖSTERREICH"; English for a language countrynames.json lacks), without lg in home's language (English for other
+    countries); the text as it was for an unknown code."""
     c = fk_country_code(code)
     h = fk_country_code(home) or str(home or "").strip().upper()
     if c == "":
@@ -67,8 +69,23 @@ def fk_country_label(code, home):
         return str(code).strip()
     if c == h:
         return ""
-    names = fk_country_names(FK_NAME_LANG.get(h, "en")) or fk_country_names("en")
+    names = fk_country_names(str(lg).strip().lower() if lg else FK_NAME_LANG.get(h, "en")) or fk_country_names("en")
     return str(names.get(c) or c).upper()
+
+
+def fk_country_relabel(lines, code, home, lg):
+    """(#7301): the stored address lines of a draft without a client, with their last line -- the country as it was
+    printed, in whatever language -- in the document's language lg now. Lines whose last line is no country name stay."""
+    c = fk_country_code(code)
+    lines = list(lines or [])
+    if not c or not lines:
+        return lines
+    fk_country_names("en")  # loads the file
+    known = {str(n.get(c) or "").upper() for n in _FK_NAMES.values() if isinstance(n, dict)} - {""}
+    if str(lines[-1]).strip().upper() in known | {c}:
+        new = fk_country_label(c, home, lg)
+        lines = lines[:-1] + ([new] if new else [])
+    return lines
 
 
 # 2.296.0 F (#3168): the 27 member states (ISO codes; GR, not EL) -- reverse charge text and the client's VAT id.
