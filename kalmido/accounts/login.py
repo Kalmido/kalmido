@@ -503,8 +503,10 @@ TOTP_SKEW_STEPS = 20  # (#6615): +-10 minutes looked at (never accepted) when a 
 
 def totp_wrong(secret_b32, code):
     """(#6615): the answer text for a refused authenticator code. A code that fits a time step up to TOTP_SKEW_STEPS
-    away (never accepted: only said) means the clock of the server or the phone is off -- with one log line for the admin
-    (a self-hosted server without time sync refused every code with only "Wrong code")."""
+    away (never accepted) means the clock of the server or the phone is off -- one log line for the admin (a self-hosted
+    server without time sync refused every code with only "Wrong code"). Only a PAST step is said to the caller: it can
+    never become valid again; a future step gets the plain "Wrong code" like any wrong code, else the answer would tell a
+    guesser which code will be valid later (reader finding F1, job #5735)."""
     code = re.sub(r"\s", "", str(code or ""))
     try:
         key = base64.b32decode(secret_b32 + "=" * (-len(secret_b32) % 8)) if secret_b32 else b""
@@ -517,7 +519,9 @@ def totp_wrong(secret_b32, code):
                 mins = round(d * TOTP_STEP / 60)
                 print(f"2fa: an authenticator code fits a clock {mins:+d} min off: check the server's time (NTP) and the phone's",
                       flush=True)
-                return tr("Wrong code. It would fit a clock {0} minutes off: check the time on your phone and on the server.", abs(mins) or 1)
+                if d < 0:
+                    return tr("Wrong code. It would fit a clock {0} minutes off: check the time on your phone and on the server.", abs(mins) or 1)
+                break
     return tr("Wrong code")
 
 

@@ -19504,6 +19504,7 @@
   "Larger": "Größer",
   "Smaller": "Kleiner",
   "Default size": "Standardgröße",
+  "the e-mail server cannot be reached": "der Mailserver ist nicht erreichbar",
   "The workspace could not be switched: {0} is shown again": "Der Arbeitsbereich konnte nicht gewechselt werden: {0} wird wieder gezeigt",
   "You are no longer a member of {0}: all workspaces are shown": "Du bist nicht mehr Mitglied von {0}: Alle Arbeitsbereiche werden gezeigt",
   "Which workspace? The office always belongs to a workspace.": "Für welchen Arbeitsbereich? Das Büro gehört immer zu einem Arbeitsbereich.",

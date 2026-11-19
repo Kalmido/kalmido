@@ -206,12 +206,14 @@ out = {}
 with F.test_request_context():
     out['auth'] = smtp_why(smtplib.SMTPAuthenticationError(535, b'no'))
     out['net'] = smtp_why(ConnectionRefusedError(111, 'refused'))
+    out['net_admin'] = smtp_why(ConnectionRefusedError(111, 'refused'), admin=True)
     out['other'] = smtp_why(ValueError('x'))
     sec = base64.b32encode(b'0123456789abcdefghij').decode().rstrip('=')
     key = base64.b32decode(sec + '=' * (-len(sec) % 8))
     now = int(time.time() // TOTP_STEP)
-    far = totp_code(key, now + 6)
+    far = totp_code(key, now - 6)
     out['skew'] = totp_wrong(sec, far)
+    out['future'] = totp_wrong(sec, totp_code(key, now + 6))
     out['skew_ok'] = totp_match(sec, far)
     out['plain'] = totp_wrong(sec, '000000' if totp_code(key, now) != '000000' else '111111')
     try:
@@ -232,8 +234,11 @@ except ValueError:
     S = {}
 check("refused the sign-in" in S.get("auth", ""), f"test mail: a refused login in words {got[:300]}")
 check("cannot be reached" in S.get("net", "") and S.get("other") == "ValueError", f"test mail: not reachable in words, else the class name {S}")
+check(S.get("net") == "the e-mail server cannot be reached" and "cannot be reached" in S.get("net_admin", "") and S.get("net_admin") != S.get("net"),
+      f"test mail: the mail server's host only for an instance admin (reader F2) {S.get('net')} / {S.get('net_admin')}")
 check("3 minutes off" in S.get("skew", "") and S.get("skew_ok") is None, f"2FA: a code 3 min off is said, never accepted {S.get('skew')}")
 check(S.get("plain") == "Wrong code", f"2FA: a wrong code stays 'Wrong code' {S.get('plain')}")
+check(S.get("future") == S.get("plain"), f"2FA: a code of a future step gets the same answer as any wrong code (reader F1) {S.get('future')}")
 check(S.get("full") and S["full"][0] == 507 and "not enough space" in S["full"][1] and S.get("other_os") == "passed",
       f"a full disk while storing a task file: 507 with words; another file error stays {S.get('full')} {S.get('other_os')}")
 

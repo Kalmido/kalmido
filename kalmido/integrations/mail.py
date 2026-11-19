@@ -81,9 +81,10 @@ if SMTP_INSECURE and (MAIL_IN_ON or MAIL_OUT_ON):
     print("mail: WARNING KALMIDO_SMTP_INSECURE=1: the certificate of the admin mail server is not checked", flush=True)
 
 
-def smtp_why(e):
+def smtp_why(e, admin=False):
     """(#6615): why sending through the server's SMTP failed, in words for the test mail (no password, no message
-    text): refused login, refused sender / recipient, TLS, not reachable; else the error's class name as before."""
+    text): refused login, refused sender / recipient, TLS, not reachable; else the error's class name as before. The
+    mail server's host and port only for an instance admin: every account may send itself a test mail (reader F2)."""
     import smtplib
     import socket
     import ssl
@@ -96,6 +97,8 @@ def smtp_why(e):
     if isinstance(e, (ssl.SSLError, smtplib.SMTPNotSupportedError)):
         return tr("the encrypted connection failed (KALMIDO_SMTP_TLS, KALMIDO_SMTP_PORT)")
     if isinstance(e, (socket.timeout, TimeoutError, ConnectionError, socket.gaierror, smtplib.SMTPServerDisconnected, smtplib.SMTPConnectError)):
+        if not admin:
+            return tr("the e-mail server cannot be reached")
         return tr("the e-mail server {0} cannot be reached", f"{SMTP['host']}:{SMTP['port'] or ''}".rstrip(":"))
     return type(e).__name__
 
@@ -1111,7 +1114,7 @@ def mail_test():
     c = db()
     if not MAIL_OUT_ON:
         return err(tr("E-mail sending is not set up on this server"), 409)
-    u = c.execute("SELECT email, email_proved FROM users WHERE id=?", (me(),)).fetchone()
+    u = c.execute("SELECT email, email_proved, is_admin FROM users WHERE id=?", (me(),)).fetchone()
     if not u or not (u["email"] or "").strip():
         return err(tr("No e-mail address is stored for you: an admin adds it (Settings > Organisation > People)"), 409)
     if not MAIL_PROOF["ok"](u):  # 2.1299.0 (#6352): the summary only to a proved address (the button "Confirm address" is next to it)
@@ -1128,5 +1131,5 @@ def mail_test():
     try:
         mail_send(u["email"].strip(), *m, from_name=APP_NAME)
     except Exception as e:  # noqa: BLE001
-        return err(tr("Sending failed: {0}", smtp_why(e)), 502)  # (#6615): in words (was the class name only)
+        return err(tr("Sending failed: {0}", smtp_why(e, admin=bool(u["is_admin"]))), 502)  # (#6615): in words (was the class name only)
     return jsonify(ok=True, to=u["email"].strip())
