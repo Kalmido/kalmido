@@ -75,7 +75,7 @@ const txt = el => (el?.textContent || '').replace(/\s+/g, ' ').trim();
   check(!w.__toasts.some(t => /Meanwhile someone else/.test(t)), 'no "someone else" message for her own steps');
 
   // Fable review M1: a 409 that is no version conflict (a locked month, a folder that switches; no "current") is said as it is,
-  // not as "someone else uploaded" (the step still counts as done: Fable review N1, follow-up task)
+  // not as "someone else uploaded"; 2.1412.0 (#6227 N1): the step stays in the history (was: counted as done)
   w.eval(`(() => { const f0 = window.fetch; window.__f1 = f0; window.fetch = (u, o) => /versions\\/\\d+\\/restore/.test(String(u)) ? Promise.resolve(new Response(JSON.stringify({error: 'Folder is switching right now'}), {status: 409, headers: {'Content-Type': 'application/json'}})) : f0(u, o); return 1; })()`);
   w.__toasts.length = 0;
   await w.eval('histStep("redo")');
@@ -83,6 +83,36 @@ const txt = el => (el?.textContent || '').replace(/\s+/g, ' ').trim();
   check(!w.__toasts.some(t => /Meanwhile someone else/.test(t)), 'M1: no "someone else" message for a 409 without current');
   w.eval('window.fetch = window.__f1');
   check(await content(FK, PL) === 'Plan A', 'M1: nothing changed while refused');
+  // 2.1412.0 (#6227 N1): the refused step is still there to redo; once the folder lets it, Redo goes
+  check(w.eval(`HIST.redo.some(e => e.label === 'Upload')`), 'N1: the refused Redo stays in the history');
+  await w.eval('histStep("redo")');
+  check(await until(async () => await content(FK, PL) === 'Plan B'), 'N1: Redo again once the server lets it: Plan B');
+
+  // 2.1412.0 (#6227 N2): two files of the same name in one upload, another version in between (two portions: a tiny size limit
+  // makes each file its own request; between them a version from elsewhere) - Undo leaves the file and names it like a conflict
+  const mb0 = w.eval('S.maxFileMb');
+  w.eval('S.maxFileMb = 0.00002');
+  w.eval(`(() => { const r0 = window.rawFetch; window.__r0 = r0; let n = 0; window.rawFetch = async (m, u, b) => { const r = await r0(m, u, b); if (/files\/upload/.test(String(u)) && ++n === 1) { const fd = new FormData(); fd.append('file', new Blob(['Luecke fremd']), 'luecke.txt'); fd.append('space', 'private'); await r0('POST', '/api/files/upload', fd); } return r; }; return 1; })()`);
+  w.__toasts.length = 0;
+  await w.eval(`ab_upload([new File(['Luecke 1'], 'luecke.txt', {type: 'text/plain'}), new File(['Luecke 2'], 'luecke.txt', {type: 'text/plain'})], null)`);
+  w.eval('window.rawFetch = window.__r0');
+  const LU = await until(async () => (await items(FK, 'space=private')).find(x => x.name === 'luecke.txt')?.id);
+  check(LU && ((await call(FK, 'GET', `/api/files/nodes/${LU}`)).versions || []).length === 3, 'N2: three versions (own, from elsewhere, own)');
+  await w.eval('histStep("undo")');
+  check(await until(() => w.__toasts.some(t => /Meanwhile someone else uploaded a newer version, it stays as it is: luecke\.txt/.test(t))), 'N2: Undo names the file like a conflict: ' + JSON.stringify(w.__toasts));
+  check(await content(FK, LU) === 'Luecke 2' && (await items(FK, 'space=private')).some(x => x.id === LU), 'N2: the file stays as it is (not back over the other version, not in the trash)');
+
+  // 2.1412.0 (#6227 N3): the session ends in the middle of an upload: the rest "Signed out" in the list, the end as usual
+  w.eval(`(() => { const r0 = window.__r0; let n = 0; window.rawFetch = (m, u, b) => /files\/upload/.test(String(u)) && ++n === 2 ? Promise.reject(new Error('auth')) : r0(m, u, b); return 1; })()`);
+  await w.eval(`ab_upload([new File(['Teil 1'], 'abm-1.txt', {type: 'text/plain'}), new File(['Teil 2'], 'abm-2.txt', {type: 'text/plain'})], null)`);
+  w.eval('window.rawFetch = window.__r0');
+  w.eval(`S.maxFileMb = ${JSON.stringify(mb0)}`);
+  const out3 = await until(() => [...d.querySelectorAll('#upbars .upout')].find(x => /abm-2\.txt/.test(txt(x))));
+  check(out3 && /Signed out/.test(txt(out3)) && !/abm-1\.txt/.test(txt(out3)), 'N3: the rest in the list with "Signed out": ' + txt(out3));
+  check(await until(() => /1 file uploaded · 1 not uploaded/.test(txt(d.querySelector('#toast')))), 'N3: the message with the uploaded file as usual: ' + txt(d.querySelector('#toast')));
+  check(w.eval(`HIST.undo.at(-1)?.label === 'Upload'`), 'N3: the upload is a step in the history');
+  check((await items(FK, 'space=private')).some(x => x.name === 'abm-1.txt'), 'N3: the first file is on the server');
+  out3?.querySelector('.upoutx')?.click();
 
   // ================= #6173 2: a refused portion stands in the list only, not in a toast as well
   // the server's own 400: the portion's form goes up with an empty file in it (the server refuses the whole form)

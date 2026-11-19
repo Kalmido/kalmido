@@ -316,7 +316,8 @@ async function histStep(dir, n = 1, only = null) {
       }
       let r;
       try { r = await histDo(e, dir); } catch (x) {  // 2.1358.0 (#6328): every run takes exactly the entry's own groups (was: only = exact)
-        if (!(x instanceof Offline) && x.message !== 'auth') { out(e); dropped = e; }  // gone or no rights: api() said why
+        // 2.1412.0 (#6227 N1): x.keep = the step says it is not done (ablage.js upload versions): it stays like offline
+        if (!(x instanceof Offline) && x.message !== 'auth' && !x?.keep) { out(e); dropped = e; }  // gone or no rights: api() said why
         stop = true; break;
       }
       out(e);
