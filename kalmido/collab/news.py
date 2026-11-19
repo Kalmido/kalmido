@@ -12,7 +12,7 @@ from ..accounts.delhold import sdl_held  # 2.1298.0 (#6395)
 from ..accounts.supportgrant import SGA_BELL  # 2.1350.0 (#6502)
 from ..core.pg import st_ids  # 2.674.0 B (#4194)
 from ..core.schema import USER_DEFAULTS
-from ..core.i18n import N_, tr
+from ..core.i18n import LANGS, N_, tr  # #6581: LANGS (news_own)
 from ..core.db import body, db, err, iso, iso_ms, now_utc, usettings
 from ..accounts.session import me
 from ..accounts.pictures import avatar_map
@@ -64,6 +64,7 @@ NEWS_KINDS += ("evchange", "apbooking", "calsub")  # 2.367.2 (#2969): an event I
 NEWS_KINDS += ("aprequest",)  # 2.367.2 (#2968): someone asks ME for an approval (row "assign", team/approvals.py)
 NEWS_KINDS += ("docpaid", "docoverdue")  # 2.367.4 (#2972): a payment on an invoice / invoices past their due date (row "office", office/dunning.py)
 NEWS_KINDS += ("orglogin", "orgjoinres", "orgrole")  # 2.367.4 (#2974): an organisation admin signed in from a new address (row "usage"); the answer to my invitation; my role changed (row "share")
+NEWS_KINDS += ("oxdone",)  # #6581: my export of an organisation / my office is ready or failed (row "export", admin/orgexport.py ox_tell)
 NEWS_KINDS += ("integfail",)  # 2.367.3 (#2971): a channel, webhook, mailbox, git connection or inbox of mine stopped (row "integration", collab/integfail.py)
 NEWS_KINDS += ("job_watch",)  # 2.392.2 (#3366): the watchdog found a job of an agent stalled / its branch stranded (row "approval", agents/watch.py)
 NEWS_KINDS += ("docflow",)  # 2.581.0 (#4803): a document flow tells me about a document (row "docflow", docs/flows.py; News only)
@@ -111,7 +112,7 @@ NEWS_FOR_ME_ANY = ("evinvite", "tbl_urgent", "proposal", "playbook_proposal", "j
 
 def news_to_me(kind, actor_id, data, agents, s=None):
     # 2.61.0 (#1818): my own file was locked (no actor); 2.122.0 A (#2097): files for me; 2.138.0 C (#1972): recovery key
-    if kind in ("upscan", "filereq", "orgkey", "ptlimit", "apblimit", "fetcherr", "evchange", "apbooking", "calsub", "integfail", "docoverdue", "orglogin", "budgetwarn", "docflow", "offerexp"):  # 2.138.4 C (#2380): ptlimit = the portal's sign-in mails used up
+    if kind in ("upscan", "filereq", "orgkey", "ptlimit", "apblimit", "fetcherr", "evchange", "apbooking", "calsub", "integfail", "docoverdue", "orglogin", "budgetwarn", "docflow", "offerexp", "oxdone"):  # oxdone (#6581): my own export; ptlimit (#2380): the portal's sign-in mails used up
         return True
     if kind in NEWS_DUE_KINDS:  # 2.1037.0 (#5801): a follow-up day / an agent's proposal waits on me (were "For you" in the app only)
         return True
@@ -258,6 +259,7 @@ NOTIF_ROWS += ("notice",)  # 2.367.4 (#2974): the server's maintenance notice se
 NOTIF_ROWS += ("integration",)  # 2.367.3 (#2971): one of my integrations stopped working (News + push on by default)
 NOTIF_ROWS += ("timebudget",)  # 2.555.0 (#4570): a project / task of mine reached 80 % / 100 % of its budget (News + push on by default)
 NOTIF_ROWS += ("support",)  # 2.1350.0 (#6502): support access to my account / my organisation (News + push on by default)
+NOTIF_ROWS += ("export",)  # #6581: my export of an organisation / my office is ready or failed (News + push on by default)
 NOTIF_ROWS += ("docflow",)  # 2.581.0 (#4803): a document flow of my workspace tells me about a document (News only, on by default)
 NOTIF_NEWS_GROUP = {"comment": "comment", "reply": "comment", "follow": "comment", "mention": "mention", "assign": "assign",
                     "complete": "complete", "status": "status", "share": "share", "unblock": "unblock"}
@@ -276,6 +278,7 @@ NOTIF_NEWS_NEW["integration"] = 1  # 2.367.3 (#2971)
 NOTIF_NEWS_NEW["timebudget"] = 1  # 2.555.0 (#4570)
 NOTIF_NEWS_NEW["docflow"] = 1  # 2.581.0 (#4803)
 NOTIF_NEWS_NEW["support"] = 1  # 2.1350.0 (#6502)
+NOTIF_NEWS_NEW["export"] = 1  # #6581
 NOTIF_PUSH_DEFAULT = {"comment": 1, "reply": 1, "follow": 1, "mention": 1, "assign": 1, "newtask": 0, "complete": 1,
                       "status": 0, "share": 0, "unblock": 1, "approval": 1, "followup": 1, "reminder": 1, "usage": 1,
                       "proposal": 1, "nag": 1, "chat": 1, "errreport": 1}
@@ -293,6 +296,7 @@ NOTIF_PUSH_DEFAULT["integration"] = 1  # 2.367.3 (#2971)
 NOTIF_PUSH_DEFAULT["timebudget"] = 1  # 2.555.0 (#4570)
 NOTIF_PUSH_DEFAULT["docflow"] = 0  # 2.581.0 (#4803): News only (NOTIF_NO_PUSH)
 NOTIF_PUSH_DEFAULT["support"] = 1  # 2.1350.0 (#6502)
+NOTIF_PUSH_DEFAULT["export"] = 1  # #6581
 NOTIF_NO_NEWS = ("reminder", "nag", "chat", "notice")
 NOTIF_NO_PUSH = ("limits", "calsub", "docflow")  # 2.453.0 (#3781): News only (the notes promise no push, no mail)
 NOTIF_UNMUTED = ("mention", "assign")        # still come through a muted list
@@ -330,6 +334,7 @@ KIND_ROW["budgetwarn"] = "timebudget"  # 2.555.0 (#4570)
 KIND_ROW["docflow"] = "docflow"  # 2.581.0 (#4803)
 KIND_ROW["chatmention"] = "mention"  # 2.1037.0 (#5800): switched with the mentions (News + push)
 KIND_ROW["support"] = "support"  # 2.1350.0 (#6502)
+KIND_ROW["oxdone"] = "export"  # #6581
 KIND_ROW["wiki_shared"] = "share"  # 2.126.2 B (#2355): switched with the sharing row (News on, no push by default)
 
 
@@ -544,6 +549,29 @@ def news_put(c, uid, kind, task_id=None, list_id=None, comment_id=None, data=Non
     c.execute("INSERT INTO notifications(user_id,kind,task_id,list_id,actor_id,comment_id,data,created_at) "
               "VALUES(?,?,?,?,?,?,?,?)", (uid, kind, task_id, list_id, actor or None, comment_id,
                                           json.dumps(data or {}, ensure_ascii=False), iso_ms(now_utc())))
+
+
+def news_own(c, uid, kind, text, title=None, click="", data=None):
+    """#6581: a notice about something uid started themselves (their export is ready or failed): no object of others and no
+    actor, so no rights step of obj_notify -- the person is the only one who hears it. text(lg) / title(lg) = the words in
+    uid's language (stored, like collab/integfail.py). Writes the News entry when the row of kind is on for the News; ->
+    the push (uid, title, text, link, prio) when it is on for pushes (the caller sends it after its commit), else None.
+    Never for an agent or a locked account. The caller commits."""
+    from ..notify.push import push_prio
+    with system_ctx(c):  # the person's own settings (a background run has no request)
+        u = c.execute("SELECT disabled, kind FROM users WHERE id=?", (uid,)).fetchone()
+        if not u or u["disabled"] or u["kind"] == "agent":
+            return None
+        s = usettings(c, uid)
+        lg = s.get("lang") if s.get("lang") in LANGS else "en"
+        t, row = text(lg), KIND_ROW.get(kind, kind)
+        if notif_ok(c, uid, s, row, "news"):
+            c.execute("INSERT INTO notifications(user_id,kind,task_id,list_id,actor_id,comment_id,data,created_at) VALUES(?,?,?,?,?,?,?,?)",
+                      (uid, kind, None, None, None, None, json.dumps({**(data or {}), "text": t, "click": click}, ensure_ascii=False),
+                       iso_ms(now_utc())))
+        if title and notif_ok(c, uid, s, row, "push"):
+            return uid, title(lg), t, f"{PUBLIC_URL}/#{click}", push_prio(s)
+    return None
 
 
 def news_read_job(c, j, ts=None):
@@ -845,7 +873,7 @@ def news_items(c, uid, s=None, mentions_only=False, to_me=False):
                 continue
         elif kind in ("orggone", "whorgcut"):  # 2.361.0 (#2920): the organisation is gone (name + my numbers in data)
             pass  # 2.380 G (#3391): whorgcut = webhook + organisation names in data, no task, no list
-        elif kind in ("fetcherr", "integfail"):  # 2.425.0 C (#3453): my receipt fetcher's portal error (no task, no list)
+        elif kind in ("fetcherr", "integfail", "oxdone"):  # my receipt fetcher's portal error (#3453), my export (#6581): no task, no list
             pass
         elif kind == "docflow":  # 2.581.0 (#4803): a document flow's note, while I still see the document
             from ..files.store import fs_role

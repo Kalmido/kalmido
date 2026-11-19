@@ -29,6 +29,7 @@ reordering blocks fails the authentication. The organisation's recovery key (Set
 archive on any machine: 2.138.0 C (#1972) the header carries recovery_wrapped (the org key wrapped with the recovery key
 valid at the time of the export, core/orgcrypt.py rck_wrap); a recovery key of the earlier format is the org key itself."""
 import base64
+import errno
 import hashlib
 import json
 import os
@@ -48,7 +49,7 @@ from flask import g, jsonify, send_file
 from .exportleft import left_lines  # 2.362.4 (#3107)
 from .oilock import oil_export_keys  # #4300
 from ..core.config import app, APP_VERSION, ATT_DIR, DB, OFFICE_DIR
-from ..core.db import connect, db, err, iso, now_utc
+from ..core.db import DbError, connect, db, err, iso, now_utc
 from ..core.pg import qi, system_ctx, table_names
 from ..core.objcomments import ocm_note_cols, ocm_old_cols, ocm_video_cols  # 2.972.0 (#5272); 2.981.0 (#5273): + video / note
 from ..core.objexport import oex_left, oex_nodes, oex_org, oex_org_raw  # 2.1093.0 (#5289): the export register of the core
@@ -69,6 +70,8 @@ from ..accounts.orgs import _need_org_admin, org_role  # 2.369.5 (#2517): pulled
 from ..accounts.orgretain import odl_admin_export  # 2.369.5 (#2517): pulled up from functions
 from ..office.ledger import ofx_log, ofx_log_name  # 2.369.5 (#2517): pulled up from functions; 2.1287.0 (#6470): + ofx_log_name
 from ..accounts.bgjobs import bgj_add, bgj_busy, bgj_drop, bgj_fn  # 2.370.3 (#2760)
+from ..collab.comments import send_pushes  # #6581: the push of the export's end
+from ..collab.news import news_own  # #6581: the export's end as the starter's News item
 
 EXPORT_DIR = os.environ.get("TASKS_EXPORT_DIR", os.path.join(os.path.dirname(DB), "exports"))
 OX_KEEP_H = 24  # a finished archive waits this long, then the watchdog removes it
@@ -1375,6 +1378,72 @@ def _running(oid, c=None):
         return True
 
 
+OX_SPACE_FACTOR = 1.1  # #6581: the archive needs about the bytes of the files it carries (+ the rows), on top the spare of the account export
+
+
+def ox_need_bytes(c, oid):
+    """#6581: about the bytes the archive of organisation oid takes on the disk: the files it carries (attachments and project
+    files of its projects, every version of its file store, every other file table of the organisation). An estimate in the
+    way of acctexport.umz_start: the rows are small beside the files, the factor covers them."""
+    with system_ctx(c):  # sizes only, no content
+        n = c.execute(f"""SELECT (SELECT COALESCE(SUM(a.size),0) FROM attachments a JOIN tasks t ON t.id=a.task_id JOIN lists l ON l.id=t.list_id
+                                  WHERE l.org_id=? AND {live_sql("a")})
+                               + (SELECT COALESCE(SUM(f.size),0) FROM list_files f JOIN lists l ON l.id=f.list_id WHERE l.org_id=? AND {live_sql("f")})
+                               + (SELECT COALESCE(SUM(v.size),0) FROM fs_versions v JOIN fs_nodes n ON n.id=v.node_id WHERE n.org_id=?)""",
+                      (oid, oid, oid)).fetchone()[0] or 0
+        have = table_names(c)
+        for (t,) in c.execute("""SELECT table_name FROM information_schema.columns WHERE table_schema=current_schema() AND column_name='size'
+                                 AND table_name IN (SELECT table_name FROM information_schema.columns
+                                                    WHERE table_schema=current_schema() AND column_name='org_id')""").fetchall():
+            if t in have and t not in ("fs_nodes", "fs_versions", "attachments", "list_files", "bg_jobs"):
+                n += c.execute(f"SELECT COALESCE(SUM(size),0) FROM {qi(t, have)} WHERE org_id=?", (oid,)).fetchone()[0] or 0
+    return int(n)
+
+
+def _ox_personal(c, oid):
+    with system_ctx(c):  # #6581: is it a personal office (structure, no content)
+        r = c.execute("SELECT personal_of FROM orgs WHERE id=?", (oid,)).fetchone()
+    return bool(r and r["personal_of"] is not None)
+
+
+def ox_org_busy(c, oid):
+    """#6581: another organisation's export waits or runs on this instance (one organisation export at a time: the archive
+    is a copy of every file on the same disk). A personal office (orgs.personal_of) counts for nothing here and is never held
+    up by it: it is one person's office, small beside a company (P4, the self-employed)."""
+    if _ox_personal(c, oid):
+        return False
+    with system_ctx(c):  # states of the queue and which organisation is a personal office, no content
+        return c.execute("""SELECT 1 FROM bg_jobs j JOIN orgs o ON o.id=j.org_id WHERE j.kind='ox:export' AND j.state IN ('wait', 'run')
+                            AND j.org_id<>? AND o.personal_of IS NULL LIMIT 1""", (oid,)).fetchone() is not None
+
+
+OX_TELL = {"done": N_("The export of {0} is ready. Download it within {1} hours."),
+           "failed": N_("The export of {0} failed. Please try again later or ask the server admin."),
+           "nospace": N_("The export of {0} failed: there was not enough space on the server. Please ask the server admin.")}
+
+
+def ox_tell(oid, uid, what):
+    """#6581: the starter hears the end of the run (News + push of the event "export" of the notification settings): ready,
+    failed, failed for lack of disk space (collab/news.py news_own). Own connection (the run's may be broken); never fails the run."""
+    c = connect()
+    try:
+        with system_ctx(c):  # the organisation's name (a background run)
+            o = c.execute("SELECT name, personal_of FROM orgs WHERE id=?", (oid,)).fetchone()
+        if not o:
+            return
+        own = o["personal_of"] is not None
+        click = "office/settings" if own else "settings/org"
+        push = news_own(c, uid, "oxdone", lambda lg: tr(OX_TELL[what], tr("your office", lg=lg) if own else o["name"], OX_KEEP_H, lg=lg),
+                        title=lambda lg: tr("Export", lg=lg), click=click, data={"what": what, "own": own})
+        c.commit()
+        if push:
+            send_pushes([push])
+    except (DbError, OSError, KeyError, ValueError) as e:  # the state on the export page says it all the same; never fails the run
+        print(f"org export {oid}: notice failed: {type(e).__name__}", flush=True)
+    finally:
+        c.close()
+
+
 @bgj_fn("ox:export", long=True)
 def ox_export_row(oid, uid):
     """2.370.3 (#2760): the queue row of an organisation's export (run again after a lost run: it only writes its file)."""
@@ -1389,7 +1458,7 @@ def ox_export_row(oid, uid):
 def ox_run(oid, uid):
     """The thread: archive of organisation oid, started by uid."""
     c = connect()
-    part = None
+    part, tell = None, "failed"
     try:
         with system_ctx(c):  # the organisation's rows only (every query names it); the starter is its admin
             from ..core.orgcrypt import oc_key
@@ -1435,6 +1504,7 @@ def ox_run(oid, uid):
             c.execute("INSERT INTO office_doc_log(org_id, doc_id, user_id, at, action, target, detail, user_name) VALUES(?,?,?,?,?,?,?,?)",
                       (oid, None, uid, iso(done), "export", "org", json.dumps({"bytes": size, "file": name}), ofx_log_name(c, oid, uid)))  # 2.1287.0 (#6470)
             c.commit()
+        tell = "done"
     except Exception as e:  # noqa: BLE001 -- the state says it failed; never a key or content in the message
         try:
             c.rollback()
@@ -1442,13 +1512,17 @@ def ox_run(oid, uid):
             pass
         print(f"org export {oid} failed: {type(e).__name__}", flush=True)
         st = _state(oid) or {}
-        _state_set(oid, {**{k: st.get(k) for k in ("by", "started_at")}, "state": "failed", "error": type(e).__name__, "done_at": iso(now_utc())})
+        full = isinstance(e, OSError) and e.errno == errno.ENOSPC  # #6581: the disk ran full during the run
+        _state_set(oid, {**{k: st.get(k) for k in ("by", "started_at")}, "state": "failed", "error": "nospace" if full else type(e).__name__,
+                         "done_at": iso(now_utc())})
+        tell = "nospace" if full else "failed"
     finally:
         if part and os.path.exists(part):
             os.remove(part)
         c.close()
         with _OX_LOCK:
             _OX.pop(int(oid), None)
+    ox_tell(oid, uid, tell)  # #6581: the starter hears the end (after the file is in place and the state written)
 
 
 def ox_status(oid):
@@ -1463,7 +1537,9 @@ def ox_status(oid):
             st = {"state": "none"}
     out = {k: st.get(k) for k in ("state", "started_at", "done_at", "expires_at", "file", "bytes", "files", "plain", "missing") if st.get(k) is not None}
     if st.get("state") == "failed":
-        out["error"] = tr("The export was interrupted. Please start it again.") if st.get("error") == "interrupted" else tr("The export failed. Please try again later or ask the server admin (server log).")
+        out["error"] = tr("The export was interrupted. Please start it again.") if st.get("error") == "interrupted" else \
+            tr("There is not enough space on the server for the export. Please ask the server admin.") if st.get("error") == "nospace" else \
+            tr("The export failed. Please try again later or ask the server admin (server log).")  # #6581: nospace
     return out
 
 
@@ -1583,11 +1659,22 @@ def ox_start(oid):
     if oc_status(c, oid).get("rotating"):  # 2.138.0 C (#1972, review F2): the archive's recovery header needs the finished key
         return err(tr("The organisation’s key is being renewed on the server. Try again when that is finished."), 409)
     uid = me()
+    # #6581: the archive is a copy of every file on the same disk: refused before it starts when it would not fit (as the
+    # account export, acctexport.umz_space_ok with its spare); the old archive of this organisation is replaced, so it counts free
+    old = sum(os.path.getsize(os.path.join(_odir(oid), f)) for f in (os.listdir(_odir(oid)) if os.path.isdir(_odir(oid)) else ())
+              if f.endswith(OX_FILES) and os.path.isfile(os.path.join(_odir(oid), f)))
+    from .acctexport import umz_space_ok  # #6581: the account export's disk check (acctexport imports this module)
+    if not umz_space_ok(EXPORT_DIR, max(0, ox_need_bytes(c, oid) * OX_SPACE_FACTOR - old)):
+        c.rollback()
+        return err(tr("There is not enough space on the server for the export. Please ask the server admin."), 507)
+    c.rollback()
     mv_allow(c)  # (#6951, reader F1): the export runs while the organisation moves - its queue row too (not strict)
 
     def guard(qc):  # 2.370.3 (#2760): under the queue's lock of the organisation: one export at a time in every process
         if _running(oid, qc):
             raise Denied(409, tr("An export of this organisation is already running"))
+        if ox_org_busy(qc, oid):  # #6581: one organisation export at a time on the instance (under the instance-wide lock below)
+            raise Denied(409, tr("Another organisation’s export is running on this server. Please try again later."))
         st = _state(oid) or {}
         fx = ox_foreign(c, oid, own, {**st, "state": ox_status(oid).get("state")})
         if fx and fx[1]:  # 2.278.0 A (#3093): never replace the archive of another admin who still holds the organisation
@@ -1595,7 +1682,10 @@ def ox_start(oid):
         _state_set(oid, {"state": "running", "by": uid, "started_at": iso(now_utc())})
     with _OX_LOCK:
         try:
-            bgj_add("ox:export", int(oid), uid, org_id=int(oid), user_id=uid, lock=f"ox:export:{int(oid)}", guard=guard)
+            # #6581: the lock is the instance's for organisations (the check of the others' rows and the add as one step),
+            # a personal office keeps its own (never waits on a company's export)
+            bgj_add("ox:export", int(oid), uid, org_id=int(oid), user_id=uid, guard=guard,
+                    lock=f"ox:export:{int(oid)}" if own or _ox_personal(c, oid) else "ox:export:orgs")
         except Denied as e:
             return err(e.text(), e.code)
     return jsonify(ox_status(oid)), 202
