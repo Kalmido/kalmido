@@ -632,8 +632,8 @@ function tourSteps() {
     sel: '#tabs [data-go="inbox"], #top .menu', r: rect(() => vis('#tabs [data-go="inbox"]') || $('#top .menu'))}
     : {id: 'side', sel: '#side .sg-focus .srow', t: N_('Smart lists'), d: N_('New tasks without a project land in the Basket. Today, Tomorrow and Next 7 days collect from all projects.'),
       r: () => unionRect($$('#side .sg-focus .srow').slice(0, 4))});
-  const org = tourOrg(), wsEl = () => $$('[data-act="ws-menu"]').find(e => e.getBoundingClientRect().width) || null;
-  if (org) s.push({id: 'org', sel: '[data-act="ws-menu"]', t: N_('You are in {0}'), targs: [org.name], d: N_('Your projects and the team chat of {0} are in the menu. Here at the top you switch between {0} and your private workspace.'), args: [org.name], r: rect(wsEl)});
+  const org = tourOrg(), wsEl = () => $$('#kbar .kbfirm, [data-act="ws-menu"]').find(e => e.getBoundingClientRect().width) || null;  // 2.1437.0 (#7299): the chip (the brand leads to Start)
+  if (org) s.push({id: 'org', sel: '#kbar .kbfirm, [data-act="ws-menu"]', t: N_('You are in {0}'), targs: [org.name], d: N_('Your projects and the team chat of {0} are in the menu. Here at the top you switch between {0} and your private workspace.'), args: [org.name], r: rect(wsEl)});
   s.push({id: 'add', sel: m ? '#fab' : '#view .qadd .box', t: N_('Quick add'), d: N_('Type the way you think: “Dentist tomorrow 3pm !high #private”. Date, priority, tags and project are picked up as you type.'), r: rect(m ? '#fab' : '#view .qadd .box')});
   s.push({id: 'detail', sel: '#view .trow', t: N_('Details'), d: touch ? N_('Tap a task for its details. Swipe right to complete, left to reschedule.') : N_('Click a task for its details. Drag it onto a day or a project to move it.'), r: rect('#view .trow')});
   // steps only name modules that are on (a "Simple list" setup has no habits / focus)

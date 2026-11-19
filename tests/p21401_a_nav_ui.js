@@ -103,10 +103,10 @@ const NAMES = sel => `(() => [...document.querySelectorAll('${sel} .fv2-tile')].
     check(await signIn(o, 'alice') === 200, 'alice: login (phone)');
     await nav(B + '#today');
     check(await ready(ev, `S.booted && document.querySelectorAll('#tabs button').length > 0 && !!document.querySelector('#top .menu')`, 80), 'phone: the tab bar is up');
-    await ev(`(() => { document.querySelector('#top .menu').click(); return 1; })()`);
-    check(await ready(ev, `!!document.querySelector('#side.open .sbbrand')`), 'phone: the drawer opens with the brand on top');
-    await ev(`(() => { document.querySelector('#side .sbbrand').click(); return 1; })()`);
-    check(await ready(ev, `!!document.querySelector('#pop [role="menuitem"]')`), 'phone: the brand opens its menu');
+    // 2.1437.0 (#7299): the workspace menu opens from the chip in the header (the drawer's brand leads to Start)
+    check(await ready(ev, `!!document.querySelector('#top .wschip')`), 'phone: the chip in the header');
+    await ev(`(() => { document.querySelector('#top .wschip').click(); return 1; })()`);
+    check(await ready(ev, `!!document.querySelector('#pop [role="menuitem"]')`), 'phone: the chip opens its menu'); 
     const ph = await ev(MENU);
     check(desk && ph.items.join('|') === desk.items.join('|') && ph.head.join('|') === desk.head.join('|'), '#6127: phone and computer show the same menu, same order ' + JSON.stringify({phone: ph.items, computer: desk && desk.items}));
     check(!/compan|panel|Start|Hide the sidebar/i.test(ph.text), '#6127 phone: no Start / Hide the sidebar / company in the menu ' + ph.text);
@@ -178,9 +178,9 @@ const NAMES = sel => `(() => [...document.querySelectorAll('${sel} .fv2-tile')].
     await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: 390, height: 844}});
     await nav(B + '#inbox');
     await ready(ev, `!!document.querySelector('#top .menu')`, 60);
-    await ev(`(() => { document.querySelector('#top .menu').click(); return 1; })()`);
-    await ready(ev, `!!document.querySelector('#side.open .sbbrand')`);
-    await ev(`(() => { document.querySelector('#side .sbbrand').click(); return 1; })()`);
+    // 2.1437.0 (#7299): without an organisation the chip shows Private and opens the same menu (the drawer's brand leads to Start)
+    check(await ready(ev, `!!document.querySelector('#top .wschip')`), 'frida phone: the chip (Private) in the header');
+    await ev(`(() => { document.querySelector('#top .wschip').click(); return 1; })()`);
     await ready(ev, `!!document.querySelector('#pop [role="menuitem"]')`);
     const fp = await ev(MENU);
     check(fp.items.join('|') === fd.items.join('|'), '#6127 frida phone: the same menu as on the computer ' + JSON.stringify({phone: fp.items, computer: fd.items}));

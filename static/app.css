@@ -7891,20 +7891,17 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 /* 2.161.2 A (#2607, variant B): the brand on top of the sidebar is the workspace switch: the bot icon + the word mark,
    the shown workspace as a small line under it (dot + name), an arrow on the right; the small mark at the bottom
    (2.145.0 A #2437) is gone. :root:root beats the plain head rules of the switch (2.138.2 C) and the compact density. */
-:root:root #side .sbhead .wsbar.sbbrand{flex:1 1 auto;width:auto;max-width:100%;min-height:2.25rem;padding:0 .375rem;margin-left:-.375rem;gap:.625rem;border:0;border-radius:var(--radius);background:none;color:var(--text);font-size:var(--fs-l);font-weight:600}
-:root:root #side .sbhead .wsbar.sbbrand:hover{background:var(--bg3)}
+:root:root #side .sbhead .sbbrand{display:flex;align-items:center;flex:1 1 auto;width:auto;max-width:100%;min-height:2.25rem;padding:0 .375rem;margin-left:-.375rem;gap:.625rem;border:0;border-radius:var(--radius);background:none;color:var(--text);font-size:var(--fs-l);font-weight:600;text-decoration:none}  /* 2.1437.0 (#7299): a link to Start (was the workspace switch .wsbar) */
+:root:root #side .sbhead .sbbrand:hover{background:var(--bg3)}
+#side .sbhead .sbbrand:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 #side .sbhead:has(.sbbrand) .spacer{display:none}
 #side .sbbrand svg.logo{width:2.25rem;height:2.25rem;flex:none}
 #side .sbbrand .sbbt{display:flex;flex-direction:column;align-items:flex-start;gap:.1875rem;flex:1 1 auto;min-width:0}
 #side .sbbrand svg.kword{width:auto;height:1.0625rem;color:var(--text)}
-#side .sbbrand .sbbsub{display:flex;align-items:center;gap:.375rem;max-width:100%;min-width:0;color:var(--text2);font-size:var(--fs-s);font-weight:500;line-height:var(--lh-tight)}
-#side .sbbrand .sbbsub .wsp-dot{width:.5rem;height:.5rem}
-#side .sbbrand .sbbsub svg.i{width:var(--ic-s);height:var(--ic-s);flex:none}
-#side .sbbrand > svg.i:last-child{flex:none;margin-left:auto}
-@media (pointer:coarse){ :root:root #side .sbhead .wsbar.sbbrand{min-height:2.75rem} }  /* the head keeps its height (2.25 rem, 2.75 on touch): it sits on the middle of #top (#2438) */
-/* 2.152.2 C (#2660): in the 300 px drawer the line under the mark ("Alle Arbeitsbereiche") was cut ("Alle Arbeitsber…", 88 of 110 px):
-   the mark takes the free width - slimmer gaps, and the touch tool buttons give back 0.5 rem each (still 2.25 rem) */
-:root:root #side .sbhead:has(.sbbrand) .wsbar.sbbrand{gap:.375rem;padding:0 .25rem}
+@media (pointer:coarse){ :root:root #side .sbhead .sbbrand{min-height:2.75rem} }  /* the head keeps its height (2.25 rem, 2.75 on touch): it sits on the middle of #top (#2438) */
+/* 2.152.2 C (#2660): the mark takes the free width of the 300 px drawer - slimmer gaps, and the touch tool buttons give back
+   0.5 rem each (still 2.25 rem) */
+:root:root #side .sbhead:has(.sbbrand) .sbbrand{gap:.375rem;padding:0 .25rem}
 @media (pointer:coarse){ #side .sbhead:has(.sbbrand) .sbtools .iconbtn{min-width:2.25rem}  }
 /* 2.161.2 A (#2608): the brand's bot blinks now and then (wsBlink, workspace.js); nothing with reduced motion */
 #side .sbbrand svg.logo .lg-eyes{transform-box:fill-box;transform-origin:50% 50%}
@@ -8109,17 +8106,19 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 #app.sb-b.side-rail #side{top:var(--kbH)}
 #app.sb-b #top .menu,#app.sb-b #top .cmdbar{display:none!important}
 /* 2.165.8 (#2619): folded + task open below 1140 px the menu button stood in for the hidden bar; 2.290.0 C (#3163): the bar stays */
-#kbar .kbsw{display:flex;align-items:center;gap:.75rem;min-width:0;height:2.25rem;padding:0;border:0;background:none;color:var(--text);cursor:pointer}
-#kbar .kbbrand{display:flex;align-items:center;gap:.625rem;flex:none;padding:0 .25rem}
+/* 2.1437.0 (#7299): the brand (.kbbrand, a link to Start) and the workspace chip (.kbsw.kbfirm, its menu) side by side */
+#kbar .kbbrand{display:flex;align-items:center;gap:.625rem;flex:none;height:2.25rem;padding:0 .25rem;margin-right:.75rem;border-radius:.5rem;color:var(--text);text-decoration:none}
+#kbar .kbbrand:hover{background:color-mix(in srgb,var(--accent) 10%,var(--kbbg,var(--bg2)))}
+#kbar .kbbrand:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 #kbar .kbbrand svg.logo{width:1.75rem;height:1.75rem;flex:none}
 #kbar .kbbrand svg.kword{width:auto;height:.9375rem;color:var(--text)}
-#kbar .kbfirm{display:flex;align-items:center;gap:.375rem;min-width:0;max-width:15rem;height:1.875rem;padding:0 .5625rem;border-radius:.5rem;color:var(--text2);font-size:var(--fs-s);font-weight:500}
+#kbar .kbfirm{display:flex;align-items:center;gap:.375rem;min-width:0;max-width:15rem;height:1.875rem;padding:0 .5625rem;border:0;border-radius:.5rem;background:none;color:var(--text2);font-size:var(--fs-s);font-weight:500;cursor:pointer}
 #kbar .kbfirm .wsn{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #kbar .kbfirm .wsp-dot{width:.5rem;height:.5rem;flex:none}
 #kbar .kbfirm .wsp-dot:not([data-wsc]){box-shadow:inset 0 0 0 .09375rem var(--muted)}
 #kbar .kbfirm>svg.i{width:var(--ic-s);height:var(--ic-s);flex:none;opacity:.7}
-#kbar .kbsw:hover .kbfirm,#kbar .kbsw:focus-visible .kbfirm,#kbar .kbsw[aria-expanded="true"] .kbfirm{background:color-mix(in srgb,var(--accent) 15%,var(--kbbg,var(--bg2)));color:var(--text)}
-#kbar .kbsw:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:.5rem}  /* 2.165.8 (#2619): the ring on the switch itself (p2160_a11y) */
+#kbar .kbfirm:hover,#kbar .kbfirm:focus-visible,#kbar .kbfirm[aria-expanded="true"]{background:color-mix(in srgb,var(--accent) 15%,var(--kbbg,var(--bg2)));color:var(--text)}
+#kbar .kbfirm:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:.5rem}  /* 2.165.8 (#2619): the ring on the switch itself (p2160_a11y) */
 #kbar .kbsw{position:relative;flex-shrink:.01}  /* 2.572.0 (#4746): the favourites row is sized by its tiles and shrinks first after the search; the switch gives way only when nothing else can */
 #kbar .kbacct{position:relative}
 #kbar .kbupd{position:absolute;top:.125rem;right:.125rem;width:.5rem;height:.5rem;border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px var(--kbbg,var(--bg2))}  /* 2.380.2 (#3400): an update; 2.1401.0 (#6127): on the account button, Settings sit in its menu */
@@ -8137,9 +8136,9 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 #kbar .kbacct{display:grid;place-items:center;width:2rem;height:2rem;padding:0;border:0;border-radius:50%;background:none;cursor:pointer}
 #kbar .kbacct .avatar{width:1.75rem;height:1.75rem;font-size:var(--fs-xs)}
 #kbar .kbacct:hover .avatar{box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 35%,transparent)}
-#kbar .kbsw svg.logo .lg-eyes{transform-box:fill-box;transform-origin:50% 50%}
+#kbar .kbbrand svg.logo .lg-eyes{transform-box:fill-box;transform-origin:50% 50%}
 @media (prefers-reduced-motion: no-preference){
-  #kbar .kbsw.blink svg.logo .lg-eyes{animation:b-blink .36s ease-in-out 1}
+  #kbar .kbbrand.blink svg.logo .lg-eyes{animation:b-blink .36s ease-in-out 1}
   #kbar svg.logo.bstartle .lg-eyes{animation:b-startle .7s ease-out 1}
 }
 /* the workspace menu: each company's own sign (picture, symbol or initial) */
@@ -8158,7 +8157,7 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 /* the bar of the areas: the open tile in the accent's tint (#e3dffa light) */
 :root[data-theme="light"] .srb.on{background:color-mix(in srgb,var(--accent) 15%,transparent)}
 @media (prefers-color-scheme: light){ :root[data-theme="auto"] .srb.on{background:color-mix(in srgb,var(--accent) 15%,transparent)} }
-@media (pointer:coarse){ #kbar .kbsw,#kbar .kbacct{min-height:2.75rem} #kbar .kbacct{width:2.75rem} }
+@media (pointer:coarse){ #kbar .kbbrand,#kbar .kbsw,#kbar .kbacct{min-height:2.75rem} #kbar .kbacct{width:2.75rem} }
 #pop .menu-list:has(.kbwsi){max-width:17rem}
 #pop .kbwsi .ml{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #srail .srb.on,#side .sbmr .srb.on{color:color-mix(in srgb,var(--accent) 78%,var(--text))}  /* the open tile's word keeps 4.5:1 on its tint (light and dark), in the phone's drawer too */
