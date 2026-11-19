@@ -39,6 +39,7 @@ INTEG_TEXT = {
     "webhook_admin_lost": N_("Webhook {0} was switched off: the person who set it up is no admin of the organisation any more. {1} waiting events since {2} were discarded."),
     "hookin": N_("Inbound webhook {0} is paused: {1}"),
     "reqmail": N_("Requests by e-mail to project {0} reached the hourly limit: further e-mails wait in the mailbox and are taken in later."),  # 2.1322.0 (#6560 3)
+    "reqmail_cap": N_("Requests by e-mail to project {0}: more than {3} e-mails wait for the hourly limit. {2} further e-mails were not taken in; they stay read in the mailbox."),  # #6874
     "errhook": N_("Error reports of project {0} are paused: {1}"),  # 2.1322.0 (#6560 4)
     "mailbox": N_("Mailbox {0} cannot fetch e-mail, failing since {1}."),
     "git": N_("Git connection {0} cannot fetch, failing since {1}."),
