@@ -24,6 +24,54 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1420.0] - 2026-11-19
+
+Package 2.1411.0 (Bündel: Starter (mcp): ein gemeinsames Modul für doppelte , Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Changed
+- MCP server: one data fence for every tool's result (#7151). Instead of field rules in `get_task`, `list_subtasks` and `list_attachments`, `handle()` judges every object of every result by the author it names (`created_by`, `author_id`, `by`, `author {id}`, a message's `user_id` with `body`), by `updated_by` (a text another account rewrote) and by the server's outside mark (`untrusted`, `origin`): texts of accounts other than the token's own, the owner and `KALMIDO_OWNER_IDS` are fenced as data and marked `untrusted: true` - now also in `list_tasks`, the search, the agent chat, the team chat, notes and the wiki. A text field the agent writes back that is exactly one fence loses its fence lines; a quoted fence inside a longer text stays. `fields=compact` of `GET /api/v1/tasks` carries `created_by`, `updated_by` and `by_creator` (and `origin` / `untrusted` when set). An author field of any shape (an object, a list, a name) is judged without breaking the server; a result the fence cannot judge comes back whole as data.
+- Reference starter: one shared module `mcp/agent_common.py` (a new starter file, required by both setups) for redact, the API transport (429 retry, new request token after 401), chat parts, kill_tree, multipart and write_json; `defuse_fence` and `env_credentials` come from `kalmido_mcp.py`, which stays a file of its own. About 290 copied lines are gone (#7151).
+- Office: reading sealed values takes the organisation key row once per transaction instead of once per row and field, the switch `org_encrypt` too; a sealed list of N rows reads `org_keys` once instead of N times or more. Sealing a new value still reads the key row fresh (#6401).
+
+### Fixed
+- Reference starter dispatcher: `GH_REPO` for the pull request is set from `push_url` on any host (GitHub Enterprise with its host, addresses with a user or a port), not only github.com; a `push_url` without owner/repo is named once in the log (#7170).
+- Reference starter jobs (`agent_job.py`) mask JWTs, PEM keys, AWS / Slack / GitLab tokens, `user:password@` in URLs and `password=...` pairs in job logs and results like the event runner; before they went through (#7151).
+
+Package 2.1413 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Starter-Dispatcher: Lese-Job prüft das Bündel vor ).
+
+### Fixed
+- Retiring an organisation (self-hosting): the retention counts each finalised office document by its kind - invoices and credit notes 8 years, offers, reminders and delivery notes 6 years (plus the operator's buffer) - instead of all as books (10 years), as the retention hint says; the deletion lock of an account or organisation names the same day (#6361).
+- Organisation move (read only): background work a writing request starts (emptying a big trash) now runs under the same lock as the request (`bg_jobs.strict`); opening the agreements no longer purges a moving organisation's trash; the retention export's move exception comes after the rights check; an instance admin can end the move of an organisation that has no active admin of its own any more (noted in its history), so no organisation stays read only without an admin; anonymous sources (mail, file request, public form) use at most half of a workspace's hourly text recognition budget, the members' own files keep the rest (#6951).
+
+### Changed
+- Starter dispatcher: before the "Ready to merge" card a read-only review job (`agent_job.py start --audit`) reads the pull request; the card goes out when it ended and names its verdict (green / findings / no verdict). `read_pr` (default on) and `read_wait_h` (default 6) are set in the state folder's `KALMIDO-DISPATCH.json` only (#7032).
+
+Package 2.1416 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Added
+- Office: missing required details of a draft stand as a list above the document (blocks apart from hints), each line with a jump to its field, the client or Settings > Company & office with the section open; Finalise (and the PDF download) open their dialog only when nothing blocks, "Check again" reads the list anew; the document's GET brings `missing` [{key, text, level}], the agents' invoice API adds `missing_keys` (#6529)
+- Office: card "Set up your office" on top of the office (Start and Quotes & invoices) while name, address, tax number or IBAN is missing: five rows with tick and jump (company, tax and small business, bank, numbers, logo), can be hidden per office (#6530)
+
+### Changed
+- Office: a quotation is finalised only with the company's name and address (the same list as the invoice); an organisation's office presets its company name from the organisation (#6530)
+- Team chat: the room list, unread counts and push badges no longer read every message of a room - newest message per room by index, unread only for rooms with news, the @mention check reads the newest 500 unread messages (#6400)
+- tools/check_innerhtml.py keys a finding by its expression without comments, so removing a version mark from a comment is no new finding; baseline re-keyed with the same count per file (#7173)
+
+Package 2.1414 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Added
+- First start of a self-registered account (#6519): before the welcome tour one skippable question "Private or with an organisation?"; "For my organisation" with its name creates it and opens the closing step below. Only on servers in the workspaces mode, never for accounts an admin made.
+- After adding an organisation (workspace menu, Settings, the first-start question) a closing step "The organisation … is set up" with two next steps: "Enter the organisation's details" (Settings > Company & office, without the office Settings > Organisation) and "Invite people" (the invitation dialog), or "Later" (#6519).
+- Settings > Account: a person without an organisation finds "Add an organisation" there (on a phone too); before, the button only showed once one belonged to an organisation (#6519).
+
+### Changed
+- Agents (#6455, audit F5): `task_added`, `tasks_added` and `tidy` of a task a person created or moved in who may not address the agent in that project carry `origin: "member"` and `untrusted: true` on the event and its task; the reference starter frames such text as data.
+- API v1 (#6455): a received filed mail (`GET /api/v1/mails`, `/mails/{id}`) carries `origin: "mail"`, `untrusted: true`; a document a stranger filled (document mail address, mailbox rule, file request: `GET /api/v1/documents`) carries `origin` `mail` / `file_request` and `untrusted: true` - also for REST users without MCP.
+
+Package 2.1420 (Start pflegen: Startgröße senken).
+### Changed
+- Start care (#4742): 144 rules of `app.css` that only one area loaded on demand draws move unchanged into that area's stylesheet, ahead of its own rules so the cascade stays. New stylesheets: e-mail hub and mailbox dialog, mail viewer, project dialog, questionnaires, Office > Clients, an agent's proposal card, the habit dialog, the tags overview and folder settings. The start loads 1.6 KB less CSS (gzip); the CSS ceiling in `tools/perf_budget.json` drops from 122163 to 121118 (2.5 percent room).
+
 ## [2.1415.0] - 2026-11-19
 
 Package 2.1400 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Starter-Dispatcher: Stopp-Signal nicht verschlucke).
@@ -197,7 +245,8 @@ Package 2.1401.0 (Bündel: Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher
 - #7037 Number ranges: a closed range opens again only with a scheme the office accepts; the import cleans a refused scheme; a new range and the import also check the correction scheme; the settings refuse the scheme of a range; moving the personal office refuses a range scheme the organisation already uses.
 - #6952 MCP: a test checks that the items of a completed task's subtask copy (`sub_snapshot`, an object) are fenced as data (the fence came with #6906).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1415.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1420.0...HEAD
+[2.1420.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1420.0
 [2.1415.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1415.0
 [2.1412.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1412.0
 [2.1405.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1405.0
