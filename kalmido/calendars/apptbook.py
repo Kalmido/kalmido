@@ -194,8 +194,12 @@ def apb_page_out(c, uid, p):
          "url": apb_url(p["slug"]), "updated_at": p["updated_at"]} if p else \
         {"slug": apb_slug_suggest(c, uid), "enabled": False, "title": "", "intro": "", "cal_id": None, "office_org_id": None,
          "hours": DEFAULT_HOURS, "tz": getattr(TZ, "key", ""), "url": None}
+    from .subscriptions import CAL_ON, cal_stale
+    # 2.1423.0 (#6551): subscriptions out of date whose events still block times here (visible ones, like apb_busy)
+    stale = [{"name": r["name"], "synced_at": r["synced_at"]} for r in c.execute(
+        "SELECT name, status, synced_at, created_at FROM cal_subs WHERE user_id=? AND visible ORDER BY id", (uid,)) if cal_stale(r)] if CAL_ON else []
     return {"page": d, "exists": bool(p), "calendars": cals, "offices": apb_offices(c, uid), "mail_ok": apb_mail_on(),
-            "links_ok": bool(public_links_on(c, "calendar")), "contacts_on": contacts_on(c, uid)}
+            "links_ok": bool(public_links_on(c, "calendar")), "contacts_on": contacts_on(c, uid), "stale_subs": stale}
 
 
 # ---------------------------------------------------------------- the person's settings

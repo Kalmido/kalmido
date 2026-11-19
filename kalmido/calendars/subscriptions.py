@@ -85,6 +85,11 @@ CAL_MAX_SUBS = 20            # per user
 CAL_INTERVALS = (15, 60)     # minutes
 CAL_ALERT_FAILS = 5          # failed syncs in a row -> admin alert ("integration")
 CAL_USER_FAILS = 3           # 2.367.2 (#2969): failed syncs in a row -> one News item for the person
+# 2.1423.0 (#6551): a subscription not fetched for longer than this (seconds since the last success, else since it was
+# added) is "out of date": a warning mark at its name and its events in the calendar, "as of" its last success, one push
+# (event "integration") when it turns so. Its events stay and still count as busy (booking page, availability, day plan):
+# rather busy than booked twice (owner decision, 16.11.2026).
+CAL_STALE_S = 24 * 3600
 CAL_NET_LIMIT = _env_int("KALMIDO_CALENDAR_RATE", 30)  # adds / discoveries / manual refreshes per user within FAIL_WINDOW (15 min)
 CAL_COLORS = ("#6d8cff", "#2dd4bf", "#f5b041", "#f87171", "#c084fc", "#4ade80", "#f472b6", "#94a3b8", "#6ee7b7")
 CAL_TEXT = {"title": 300, "location": 300, "description": 4000}
@@ -1174,6 +1179,10 @@ def cal_sync(c, sid, force=False):
             if upd["fails"] == CAL_USER_FAILS:  # 2.367.2 (#2969): once per streak, the name only (never the link)
                 from ..collab.news import news_add
                 news_add(c, s["user_id"], "calsub", actor=0, data={"sub_id": sid, "name": upd.get("name") or s["name"]})
+            try:
+                _cal_stale_tell(c, s, upd.get("name") or s["name"], lg, now)  # 2.1423.0 (#6551)
+            except Exception as e2:  # noqa: BLE001 -- the notice never costs the row its error state
+                print("calendar sync: stale notice failed:", type(e2).__name__, flush=True)
             if upd["fails"] >= CAL_ALERT_FAILS:
                 aa_now("integration", f"calendar:{sid}:{ce.code}",
                        N_("Calendar subscription #{0} of user {1} failed {2} times in a row ({3})."),
@@ -1185,6 +1194,36 @@ def cal_sync(c, sid, force=False):
         with _CAL_LOCK:
             _CAL_BUSY.discard(sid)
         eph_busy_give(f"calsub:{sid}")
+
+
+def cal_stale(r, now=None):
+    """2.1423.0 (#6551): True while the subscription r fails and its last success (or, never fetched, its adding) lies more
+    than CAL_STALE_S back."""
+    if r["status"] != "error":
+        return False
+    t = parse_iso(r["synced_at"] or r["created_at"] or "")
+    return bool(t) and ((now or now_utc()) - t).total_seconds() > CAL_STALE_S
+
+
+def _cal_stale_tell(c, s, name, lg, now):
+    """2.1423.0 (#6551): one push + News item (event "integration", switchable) when the failed sync just done made the
+    subscription s (its row before this sync) out of date: the sync before was still within CAL_STALE_S of the last success,
+    or succeeded. The caller commits."""
+    t = parse_iso(s["synced_at"] or s["created_at"] or "")
+    if not t or (now - t).total_seconds() <= CAL_STALE_S:
+        return
+    before = parse_iso(s["tried_at"] or "") if s["fails"] else None
+    if before and (before - t).total_seconds() > CAL_STALE_S:
+        return  # told at the failure that crossed the line (once per outage; a success starts anew)
+    from ..core.i18n import short_day
+    from ..core.usertz import hm_text, tz_of_s
+    from ..core.db import usettings
+    from ..collab.integfail import integ_tell
+    us = usettings(c, s["user_id"])
+    loc = t.astimezone(tz_of_s(us))
+    stand = f"{short_day(loc, lg)} {hm_text(loc, us)}" if s["synced_at"] else ""
+    integ_tell(c, [s["user_id"]], "calsub_stale" if stand else "calsub_stale_never", name, click="settings",
+               more=(stand,), focus="calendars", sub_id=s["id"])
 
 
 def cal_due(r, now):
@@ -1256,6 +1295,7 @@ def cal_public(r):
             "error": r["error"], "error_text": cal_err_text(r["error"]) if r["error"] else "",
             "synced_at": r["synced_at"], "tried_at": r["tried_at"], "events": r["events"], "truncated": bool(r["truncated"]),
             "fails": r["fails"], "write": bool(r["dav_write"]), "can_write": bool(r["dav_can_write"]),  # 2.52.0 B (#1128)
+            "stale": cal_stale(r),  # 2.1423.0 (#6551): out of date (synced_at = as of)
             "updated_at": cal_ver(r)}  # 2.564.0 D (#4701): the version the edit dialog sends back
 
 
@@ -1546,8 +1586,11 @@ def cal_events():
     if not CAL_ON:
         return jsonify(events=own, subs={}, evcals=evcals)
     # 2.52.0 B (#1128): w = a writable CalDAV subscription; its events carry uid, dvw_write and dvw_rec (a repeating series)
-    subs = {r["id"]: {"name": r["name"], "color": r["color"], "w": bool(r["kind"] == "caldav" and r["dav_write"] and r["dav_can_write"])}
-            for r in c.execute("SELECT id, name, color, kind, dav_write, dav_can_write FROM cal_subs WHERE user_id=? AND visible", (uid,))}
+    # 2.1423.0 (#6551): stale = out of date (cal_stale), synced_at = as of when: the view marks the calendar and its events
+    subs = {r["id"]: {"name": r["name"], "color": r["color"], "w": bool(r["kind"] == "caldav" and r["dav_write"] and r["dav_can_write"]),
+                      **({"stale": True, "synced_at": r["synced_at"]} if cal_stale(r) else {})}
+            for r in c.execute("""SELECT id, name, color, kind, dav_write, dav_can_write, status, synced_at, created_at FROM cal_subs
+                                  WHERE user_id=? AND visible""", (uid,))}
     rows = c.execute("""SELECT e.*, d.href AS dvw_href, d.rec AS dvw_rec FROM cal_events e JOIN cal_subs s ON s.id=e.sub_id
                         LEFT JOIN cal_dav_res d ON d.sub_id=e.sub_id AND d.uid=e.uid
                         WHERE s.user_id=? AND s.visible AND e.d1>=? AND e.d0<=? ORDER BY e.start, e.id LIMIT 20000""",
