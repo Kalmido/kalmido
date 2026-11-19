@@ -112,8 +112,8 @@ const NAMES = sel => `(() => [...document.querySelectorAll('${sel} .fv2-tile')].
     check(!/compan|panel|Start|Hide the sidebar/i.test(ph.text), '#6127 phone: no Start / Hide the sidebar / company in the menu ' + ph.text);
     await shot('p21401a-menu-390.png');
     await ev(`(() => { [...document.querySelectorAll('#pop [role="menuitem"]')].find(b => (b.querySelector('.ml') || b).textContent.trim() === 'Alpha Studio').click(); return 1; })()`);
-    // (#7235): the switch keeps the open drawer and shows the new workspace in it (#3847, p2455_a_phone_ui); a tap beside it closes it
-    check(await ready(ev, `wsCur().startsWith('org:') && !!document.querySelector('#side.open')`), '#6127 phone: the pick switches, the drawer stays open (#3847)');
+    // 2.1437.0 (#7299): the chip sits in the header (the drawer is closed): the pick switches, no drawer opens
+    check(await ready(ev, `wsCur().startsWith('org:') && !document.querySelector('#side.open')`), '#6127 / #7299 phone: the pick switches, no drawer');
     await ev(`(() => { closeSide(); return 1; })()`);
     check(await ready(ev, `!document.querySelector('#side.open')`), 'phone: the drawer closes afterwards');
     // the workspace button in the phone's header (shown while one workspace is): the same menu as the computer's in the organisation

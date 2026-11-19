@@ -37,7 +37,7 @@ const FEAT = 'cal,comments,collab';
   const signIn = (ev, u) => ev(`fetch('/api/auth/login', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify({username: '${u}', password: 'password123'})}).then(r => r.status)`);
   // vertical middle of the workspace head and of the page header's content row (the title)
   const mids = `(() => { const m = e => { const b = e.getBoundingClientRect(); return b.top + b.height / 2; };
-    const h = document.querySelector('#side .sbhead .wsbar') || document.querySelector('#side .sbhead'), t = document.querySelector('#top h1') || document.querySelector('#top');
+    const h = document.querySelector('#side .sbhead .sbbrand') || document.querySelector('#side .sbhead') /* 2.1437.0 (#7299): the brand (was the switch .wsbar) */, t = document.querySelector('#top h1') || document.querySelector('#top');
     return h && t ? [m(h), m(t)] : null; })()`;
   // geometry for failure messages
   const dbg = `(() => { const r = e => { if (!e) return null; const b = e.getBoundingClientRect(); return [Math.round(b.top), Math.round(b.height)]; }, q = s => document.querySelector(s), cs = getComputedStyle(q('#side'));

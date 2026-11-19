@@ -46,7 +46,7 @@ const ORGN = 'Alpha Studio';
   const popOpen = `!!document.querySelector('#pop:not(.hidden) [role="menuitem"].kbwsi')`;
   const pick = async (o, name) => {
     await o.until(popOpen);
-    await o.ev(`(() => { const b = [...document.querySelectorAll('#pop [role="menuitem"].kbwsi')].find(x => x.textContent.trim() === ${JSON.stringify(name)}); b?.click(); return !!b; })()`);
+    await o.ev(`(() => { const b = [...document.querySelectorAll('#pop [role="menuitem"].kbwsi')].find(x => (x.querySelector('.ml') || x).textContent.trim() === ${JSON.stringify(name)}); b?.click(); return !!b; })()`);
   };
 
   // ================= computer: the head bar
