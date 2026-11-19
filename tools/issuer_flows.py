@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
 """(#6702) The test organisation of the invoice issuer API on a TEST server, and the flows of an outside system through it.
 
-Never against a live server: both commands stop unless the server gives out test keys only (GET /api/office/issuers and
-GET /api/v1/issuer answer environment "test", KALMIDO_ISSUER_ENV unset or "test"). Invented companies and figures only.
+Never against a live server, three locks before anything is written (review F1-F2 of job/5775):
+ - --test-host HOST names the test server on purpose and must be the host of --url; the hosted service (kalmido.com and its
+   subdomains) is always refused, because a server without KALMIDO_ISSUER_ENV reports "test" by default;
+ - the server itself must say environment "test" (GET /api/office/issuers in the signed-in person's current office, before
+   setup writes anything; GET /api/v1/issuer before run does);
+ - https only (plain http only for a loopback or private address), and no redirect is followed: the key and the sign-in
+   headers never go to another host.
+Invented companies and figures only.
 
-  issuer_flows.py setup --url URL --key-file FILE [--login USER | --header "Name: value" ...]
+  issuer_flows.py setup --url URL --test-host HOST --key-file FILE [--login USER | --header "Name: value" ...]
       The organisation "Vertragstest" (the signed-in person must be an instance admin; it becomes the organisation's admin),
       its office with invented company data, the number range VT-{yyyy}-{seq} and one invoice issuer "Vertragstest" in the
-      review mode. The key is written once into FILE (mode 0600), never printed. Repeatable: what exists is kept; an issuer
+      review mode. The key is written once into FILE (mode 0600, no symlink), never printed. Repeatable: what exists is kept; an issuer
       without a key file gets a new key. The sign-in confirmation of the issuer takes the password of KIS_CONFIRM_PASSWORD
       (default KIS_ADMIN_PASSWORD).
-  issuer_flows.py run --url URL --key-file FILE --out DIR [--login USER | --header ...] [--to ADDRESS] [--kosit]
+  issuer_flows.py run --url URL --test-host HOST --key-file FILE --out DIR [--login USER | --header ...] [--to ADDRESS] [--kosit]
       With the key: clients and drafts for Germany 19 % (with a unit price of 4 places), an EU business with reverse charge
       and a business in a third country; the same request again (200, the same draft), another content under the same
       client_ref (409 ref_conflict), a client's new e-mail (the hold mark: checked false, flag client_changed). With the
@@ -25,6 +31,7 @@ server. Python standard library only.
 import argparse
 import hashlib
 import http.cookiejar
+import ipaddress
 import json
 import os
 import re
@@ -33,10 +40,12 @@ import sys
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
+from urllib.parse import urlsplit
 
 ORG_NAME = "Vertragstest"
 RANGE_CODE, RANGE_SCHEME = "VT", "VT-{yyyy}-{seq}"
 ISSUER_NAME = "Vertragstest"
+HOSTED = "kalmido.com"  # the hosted service: never a test server
 COMPANY = {"name": "Vertragstest Studio", "street": "Probeweg 1", "zip": "20457", "city": "Hamburg", "country": "DE",
            "email": "buero@vertragstest.example", "tax_number": "12/345/67890", "vat_id": "DE123456789",
            "iban": "DE89370400440532013000", "bic": "COBADEFFXXX"}
@@ -50,6 +59,33 @@ CLIENTS = {
 }
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """A redirect is an answer, never followed (the key and the sign-in headers stay with the named host)."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def guard(url, test_host):
+    """Exit 2 unless url is the named test server: its host = test_host, not the hosted service, https or a local http."""
+    u = urlsplit(url)
+    host = (u.hostname or "").lower().rstrip(".")
+    if not host or host != (test_host or "").lower().rstrip("."):
+        print(f"REFUSED: --url's host {host!r} is not the --test-host {test_host!r}")
+        sys.exit(2)
+    if host == HOSTED or host.endswith("." + HOSTED):
+        print(f"REFUSED: {host} is the hosted service, never a test server")
+        sys.exit(2)
+    if u.scheme != "https":
+        try:
+            local = host == "localhost" or ipaddress.ip_address(host).is_loopback or ipaddress.ip_address(host).is_private
+        except ValueError:
+            local = False
+        if u.scheme != "http" or not local:
+            print(f"REFUSED: {u.scheme}:// to {host} - https only (plain http only for a loopback or private address)")
+            sys.exit(2)
+
+
 class Http:
     """A session (cookies, X-Requested-With) or a key (Authorization: Bearer)."""
 
@@ -58,7 +94,7 @@ class Http:
         self.h = {"X-Requested-With": "kalmido", "Accept": "application/json", **(headers or {})}
         if key:
             self.h["Authorization"] = "Bearer " + key
-        self.op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+        self.op = urllib.request.build_opener(_NoRedirect, urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
 
     def req(self, method, path, body=None, raw=False):
         data = json.dumps(body).encode() if body is not None else None
@@ -120,6 +156,12 @@ def to_org(s, org):
 
 def setup(a):
     s, me = session(a)
+    st, j = s.req("GET", "/api/office/issuers")  # the server's environment, before anything is written (review F1)
+    if st != 200:
+        print(f"REFUSED: the environment cannot be read ({st} {err_code(j)}): KALMIDO_ISSUER_KEYS=1 on the server, and the signed-in "
+              "person's current workspace an office (switch it there once in the app)")
+        return 2
+    test_only(j.get("environment"), "GET /api/office/issuers")
     org = find_org(s)
     if org is None:
         st, j = s.req("POST", "/api/admin/orgs", {"name": ORG_NAME, "admin_id": me["id"]})
@@ -156,7 +198,8 @@ def setup(a):
     key = j.get("key") if isinstance(j, dict) else None
     if st != 201 or not key:
         sys.exit(f"the issuer's key: {st} {err_code(j)} (the sign-in confirmation: KIS_CONFIRM_PASSWORD)")
-    fd = os.open(a.key_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    fd = os.open(a.key_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    os.fchmod(fd, 0o600)  # review F3: also an older file of the key (a mode set only on creation)
     with os.fdopen(fd, "w") as f:
         f.write(key + "\n")
     print(f"issuer {ISSUER_NAME} in the review mode, its key written to {a.key_file} (shown nowhere else)")
@@ -288,6 +331,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("command", choices=("setup", "run"))
     p.add_argument("--url", required=True)
+    p.add_argument("--test-host", required=True, help="the host of --url, named on purpose: this is a test server")
     p.add_argument("--key-file", required=True)
     p.add_argument("--login")
     p.add_argument("--header", action="append")
@@ -295,6 +339,7 @@ def main():
     p.add_argument("--to", default="kunde-de@example.com")
     p.add_argument("--kosit", action="store_true")
     a = p.parse_args()
+    guard(a.url, a.test_host)
     return setup(a) if a.command == "setup" else run(a)
 
 
