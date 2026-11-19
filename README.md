@@ -19,11 +19,11 @@
 
 ## What's new
 
-**2.1432.0** (2026-11-19):
-- **Office**: invoice issuer keys now prepare invoice drafts with a sums check and idempotent client_ref; a person checks, finalises and sends them. New members of a company you created start in the "Staff" office group.
-- **Calendar**: subscriptions that could not be fetched for over a day are marked out of date, and you are told once.
-- **Agents**: team agents' long-lived tokens reach only their channel from 2027-01-01; proposals outside an agent's circle hide their title.
-- **Live updates**: changes wake only the tabs of people who can see them, and a focused drop-down no longer blocks them.
+**2.1434.0** (2026-11-19):
+- **Chat and lists**: the floating chat window can be resized from its top left corner; the list beside contacts, clients and quotations can be dragged wider.
+- **Import**: a list CSV, Markdown list or vCard exported from Kalmido comes back complete when imported again.
+- **Organisation**: before a new recovery key Kalmido says that earlier archives open only with the earlier key, and offers a new export right after.
+- **Agents**: agents without a chosen control level follow the circle rule at level "free"; writing into a wider circle needs a card.
 
 Full history: [CHANGELOG.md](CHANGELOG.md).
 
