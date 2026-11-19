@@ -2,7 +2,6 @@
 import contextlib
 import hashlib
 import ipaddress
-import os
 import random
 import re
 import secrets
@@ -27,6 +26,7 @@ from ..core.ratedb import rate_known_add, rate_known_at  # 2.312.0 C (#3265): kn
 # ---------------------------------------------------------------- auth
 
 from ..core.ctx import me  # noqa: E402,F401  2.149.0 G (#2517): moved to core/ctx.py, re-exported here
+from ..core.env import env_float  # 2.1437.0 (#6615): a wrong value = one warning with its name
 
 
 def _peer_trusted():
@@ -499,7 +499,7 @@ def _rate_over(keys):
 # LOGIN_SLOW_PER_IP delayed requests per address and LOGIN_SLOW_MAX in all wait at once (each holds a server thread),
 # beyond that 429 with Retry-After. KALMIDO_LOGIN_SLOW_S sets the delay (tests: small).
 try:
-    LOGIN_SLOW_S = max(0.0, float(os.environ.get("KALMIDO_LOGIN_SLOW_S", "") or 2.5))
+    LOGIN_SLOW_S = max(0.0, env_float("KALMIDO_LOGIN_SLOW_S", 2.5))
 except ValueError:  # bundle 2.305: a wrong value ("2,5", text) must not stop the server
     print("KALMIDO_LOGIN_SLOW_S: not a number, 2.5 s used", flush=True)
     LOGIN_SLOW_S = 2.5

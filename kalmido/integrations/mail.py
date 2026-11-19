@@ -9,6 +9,7 @@ import html
 import imaplib
 import os
 import re
+import sys
 import secrets
 import smtplib
 import threading
@@ -35,7 +36,7 @@ from ..accounts.users import need_admin
 from ..notify.alerts import aa_count, aa_err, aa_fail, aa_ok
 from ..agents.core import agent_added_events, agent_comment_events, need_person  # 2.553.0 B (#3460): the events also for integrations/reqmail.py
 from ..collab.teamchat import tchat_unread
-from ..core.env import env_bool
+from ..core.env import env_bool, env_int
 from ..core.mailframe import MAIL_ACC, Safe, mail_html  # noqa: F401  2.420.0 B (#3499): the one mail frame (re-exported here)
 from ..api.common import hit_limit  # 2.149.0 G (#2517): pulled up from functions
 from ..collab.liste2eguard import le2b_net, le2b_list_locked, le2b_off  # 2.369.5 (#2517): pulled up from functions
@@ -60,12 +61,12 @@ from ..core.mailguard import MailRefused, mail_parse, mail_precheck  # 2.1281.0 
 # nobody) they are deleted from the mailbox (KALMIDO_IMAP_KEEP=1: only marked \Seen). Out: KALMIDO_SMTP_* sends the daily summary (digest
 # time of the push, setting digest_mail) to the person's e-mail address.
 MAIL_ADDRESS = os.environ.get("KALMIDO_MAIL_ADDRESS", "").strip()
-IMAP = {"host": os.environ.get("KALMIDO_IMAP_HOST", "").strip(), "port": int(os.environ.get("KALMIDO_IMAP_PORT", "0") or 0),
+IMAP = {"host": os.environ.get("KALMIDO_IMAP_HOST", "").strip(), "port": env_int("KALMIDO_IMAP_PORT", 0),
         "user": os.environ.get("KALMIDO_IMAP_USER", "").strip(), "password": os.environ.get("KALMIDO_IMAP_PASSWORD", ""),
         "folder": os.environ.get("KALMIDO_IMAP_FOLDER", "INBOX").strip() or "INBOX",
         "ssl": env_bool("KALMIDO_IMAP_SSL", True),
-        "interval": max(10, int(os.environ.get("KALMIDO_IMAP_INTERVAL", "60") or 60))}
-SMTP = {"host": os.environ.get("KALMIDO_SMTP_HOST", "").strip(), "port": int(os.environ.get("KALMIDO_SMTP_PORT", "0") or 0),
+        "interval": max(10, env_int("KALMIDO_IMAP_INTERVAL", 60))}
+SMTP = {"host": os.environ.get("KALMIDO_SMTP_HOST", "").strip(), "port": env_int("KALMIDO_SMTP_PORT", 0),
         "user": os.environ.get("KALMIDO_SMTP_USER", "").strip(), "password": os.environ.get("KALMIDO_SMTP_PASSWORD", ""),
         "tls": (os.environ.get("KALMIDO_SMTP_TLS", "starttls").strip().lower() or "starttls"),
         "from": os.environ.get("KALMIDO_MAIL_FROM", "").strip() or MAIL_ADDRESS}
@@ -73,8 +74,32 @@ IMAP_KEEP = env_bool("KALMIDO_IMAP_KEEP", False)  # 2.240.0 A (#2883)
 SMTP_INSECURE = env_bool("KALMIDO_SMTP_INSECURE", False)  # 2.240.0 A (#2883): admin SMTP/IMAP without a certificate check
 MAIL_IN_ON = bool(MAIL_ADDRESS and IMAP["host"] and IMAP["user"])
 MAIL_OUT_ON = bool(SMTP["host"] and SMTP["from"])
+if SMTP["host"] and not SMTP["from"]:  # 2.1437.0 (#6615): was silent -- the server sent no mail and nobody knew why
+    print("mail: WARNING KALMIDO_SMTP_HOST is set but neither KALMIDO_MAIL_FROM nor KALMIDO_MAIL_ADDRESS: e-mail sending stays off",
+          file=sys.stderr, flush=True)
 if SMTP_INSECURE and (MAIL_IN_ON or MAIL_OUT_ON):
     print("mail: WARNING KALMIDO_SMTP_INSECURE=1: the certificate of the admin mail server is not checked", flush=True)
+
+
+def smtp_why(e):
+    """2.1437.0 (#6615): why sending through the server's SMTP failed, in words for the test mail (no password, no message
+    text): refused login, refused sender / recipient, TLS, not reachable; else the error's class name as before."""
+    import smtplib
+    import socket
+    import ssl
+    if isinstance(e, smtplib.SMTPAuthenticationError):
+        return tr("the e-mail server refused the sign-in (KALMIDO_SMTP_USER / KALMIDO_SMTP_PASSWORD)")
+    if isinstance(e, smtplib.SMTPSenderRefused):
+        return tr("the e-mail server refused the sender address (KALMIDO_MAIL_FROM)")
+    if isinstance(e, smtplib.SMTPRecipientsRefused):
+        return tr("the e-mail server refused the recipient address")
+    if isinstance(e, (ssl.SSLError, smtplib.SMTPNotSupportedError)):
+        return tr("the encrypted connection failed (KALMIDO_SMTP_TLS, KALMIDO_SMTP_PORT)")
+    if isinstance(e, (socket.timeout, TimeoutError, ConnectionError, socket.gaierror, smtplib.SMTPServerDisconnected, smtplib.SMTPConnectError)):
+        return tr("the e-mail server {0} cannot be reached", f"{SMTP['host']}:{SMTP['port'] or ''}".rstrip(":"))
+    return type(e).__name__
+
+
 MAIL_TOKEN_RE = re.compile(r"\+([A-Za-z0-9_-]{10,40})@")
 MAIL_BODY_MAX, MAIL_PREFIX_RE = 20000, re.compile(r"^\s*((fwd?|wg|aw|re|tr|rv|fw|doorst|antw)\s*:\s*)+", re.I)
 
@@ -1103,5 +1128,5 @@ def mail_test():
     try:
         mail_send(u["email"].strip(), *m, from_name=APP_NAME)
     except Exception as e:  # noqa: BLE001
-        return err(tr("Sending failed: {0}", type(e).__name__), 502)
+        return err(tr("Sending failed: {0}", smtp_why(e)), 502)  # 2.1437.0 (#6615): in words (was the class name only)
     return jsonify(ok=True, to=u["email"].strip())

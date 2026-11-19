@@ -7,7 +7,6 @@ private address. Admin > Server also shows "Your IP" as the server sees it (self
 """
 import sys
 import ipaddress
-import os
 from datetime import timedelta
 
 from flask import jsonify, request
@@ -16,10 +15,11 @@ from ..core.config import app, TRUSTED_PROXIES
 from ..core.db import connect, db, iso, now_utc
 from ..accounts.session import _ip_in, client_ip
 from ..accounts.users import need_admin
+from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
 
 LOGIN_IP_DAYS = 14
 LOGIN_IP_WINDOW = 7  # days looked at
-LOGIN_IP_MIN = max(2, int(os.environ.get("KALMIDO_IP_WARN_ACCOUNTS", "3") or 3))  # accounts from one address before it warns
+LOGIN_IP_MIN = max(2, env_int("KALMIDO_IP_WARN_ACCOUNTS", 3))  # accounts from one address before it warns
 LOGIN_IP_SHARE = 0.8  # ... and at least this share of all accounts that signed in during the window
 _WARNED = set()
 

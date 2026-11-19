@@ -18,9 +18,10 @@ from ..core.objhooks import obj_boundary  # 2.649.0 (#5051)
 from ..core.objhooks import OLNK_AREA_RELS  # 2.1076.0 (#5271, review)
 from ..core.objhooks import FOLLOW  # 2.924.0 (#5069): core/objects.py obj_node_follow
 from ..accounts.orgs import INSTANCE_ENV  # 2.369.5 (#2517): pulled up from functions
+from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
 
 # when the check runs: once a day at this local hour or later; KALMIDO_TENANT_CHECK=always = at every watchdog tick (tests)
-TENANT_CHECK_HOUR = int(os.environ.get("KALMIDO_TENANT_CHECK_HOUR", "3") or 3)
+TENANT_CHECK_HOUR = env_int("KALMIDO_TENANT_CHECK_HOUR", 3)
 TENANT_CHECK_ENV = os.environ.get("KALMIDO_TENANT_CHECK", "").strip().lower()
 TENANT_SAMPLE = 20
 

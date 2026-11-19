@@ -1,6 +1,5 @@
 """The News feed and the notification settings (matrix + list bells)."""
 import json
-import os
 import re
 import time
 from datetime import datetime, timedelta
@@ -23,6 +22,7 @@ from ..core.objcomments import OCM_MENTION_RE  # 2.972.0 (#5272): the one mentio
 from ..core.objfollow import OFL_LEVEL, ofl_bells_here  # 2.981.0 (#5287): a project's bell is a row of the core's obj_follow
 from ..core.errors import BadInput  # 2.149.0 G (#2517): pulled up from functions
 from ..core.access import list_people  # 2.369.5 (#2517): pulled up from functions
+from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
 
 
 # ---------------------------------------------------------------- News feed ("Neuigkeiten")
@@ -34,8 +34,8 @@ from ..core.access import list_people  # 2.369.5 (#2517): pulled up from functio
 # Visibility is re-checked at read time: items of tasks / lists I no longer see, tasks in the trash and
 # deleted comments disappear. Retention: NEWS_KEEP_DAYS days and at most NEWS_KEEP_MAX items per user
 # (watchdog, hourly).
-NEWS_KEEP_DAYS = int(os.environ.get("TASKS_NEWS_DAYS", "90"))
-NEWS_KEEP_MAX = int(os.environ.get("TASKS_NEWS_MAX", "500"))
+NEWS_KEEP_DAYS = env_int("TASKS_NEWS_DAYS", 90)
+NEWS_KEEP_MAX = env_int("TASKS_NEWS_MAX", 500)
 NEWS_KINDS = ("mention", "comment", "assign", "unassign", "take", "complete", "share", "role", "unshare", "unblock", "status",
               "newtask", "approval", "followup",  # 2.1.0
               "dispo",  # 2.50.0 (#1194): somebody booked me firmly in the disposition (row "assign", hub/dispo.py)

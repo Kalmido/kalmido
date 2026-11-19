@@ -44,6 +44,7 @@ from .pages import (WIKI_ZIP_FILES, WIKI_ZIP_FILE_MAX, wiki_clean_path, wiki_fit
 from ..docs.pagesize import PG_MAX, pg_of  # #5227: a picture's size from its header
 from .wikie2e import wke_mode, wke_page_mode  # 2.369.5 (#2517): pulled up from functions; 2.637.0 (#4745): wke_mode
 from .wkembed import WEM_LINK_RE, wem_find_file, wem_visible  # 2.1324.0 (#6589): the file store's files of the export
+from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
 
 WKA_LANG = threading.local()  # 2.177.0 (#2685): the language of the person a background import (wkimport.py) works for
 WKA_TOO_LARGE = N_("The archive is too large")
@@ -61,7 +62,7 @@ def tr(key, *a, lg=None):
 def _wka_env_mb(name, dflt, hi=512):
     """Review L8: at most hi MB (a file is held in memory a few times while it is checked and sealed)."""
     try:
-        return min(hi, max(1, int(os.environ.get(name, "").strip() or dflt)))
+        return min(hi, max(1, env_int(name, dflt)))
     except ValueError:
         return dflt
 
@@ -871,7 +872,7 @@ WKA_NOT_REFMAX = N_("More linked files than one export takes ({0}); this one sta
 def _wka_ref_max():
     """KALMIDO_WIKI_EXPORT_REF_MAX; a value that is no number falls back to 2000 instead of failing the start (review N1)."""
     try:
-        return max(1, int(os.environ.get("KALMIDO_WIKI_EXPORT_REF_MAX", "2000") or 2000))
+        return max(1, env_int("KALMIDO_WIKI_EXPORT_REF_MAX", 2000))
     except ValueError:
         return 2000
 

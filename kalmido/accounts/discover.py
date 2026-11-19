@@ -20,7 +20,6 @@ import base64
 import hashlib
 import hmac
 import json
-import os
 import secrets
 import unicodedata
 from datetime import timedelta
@@ -37,10 +36,11 @@ from ..accounts.session import _rate_blocked, _rate_fail, _token_hash, client_ip
 from ..accounts.pictures import avatar_url, avatar_path  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.orgs import may_see  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.signup import cinv_signup_on  # 2.1191.0 (#4550): the switch of the invitation links (accounts/cinvite.py)
+from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
 
 DISC_DAY = 30            # searches per account and day
 DISC_CHECK_DAY = 300     # addresses of the address book check per account and day
-DISC_IP = (int(os.environ.get("KALMIDO_DISC_PER_IP", "60") or 60), "dip:")  # searches + checks per client address in 15 min
+DISC_IP = (env_int("KALMIDO_DISC_PER_IP", 60), "dip:")  # searches + checks per client address in 15 min
 DISC_TOKEN_DAYS = 3
 DISC_LINK_UNDO_H = 24    # a disconnect can be undone by the one who disconnected for this long
 DISC_LIMIT = N_("That is enough searching for today. Try again tomorrow.")

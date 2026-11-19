@@ -1,7 +1,6 @@
 """Agents: accounts, event queue + long polling, runtime settings, permissions of people towards agents."""
 import contextlib
 import json
-import os
 import re
 import uuid
 import threading
@@ -39,6 +38,7 @@ from ..accounts.orgs import is_org_admin  # 2.369.5 (#2517): pulled up from func
 from ..accounts.orgs import user_orgs  # 2.777.0 C (#5378)
 from ..accounts.orgroles import user_orgs_full  # 2.777.0 C (#5378)
 from ..accounts.orgroles import org_role_key, SAY_NO  # 2.1287.0 (#6454)
+from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
 
 
 # ---------------------------------------------------------------- 2.0.0: agents, reactions, shared list tags, tidy
@@ -832,7 +832,7 @@ def agent_added_events(c, tid, from_lid=None, source=None, info=None):
 # changed the task for TIDY_QUIET_S and nobody has it open in a field (the client's "editing" signal, task_editing_set);
 # the watchdog sends it then (tidy_tick). An agent's tidy is refused (409) when people changed the task after the event,
 # or while someone edits it; the original text always stays (tidy_apply).
-TIDY_QUIET_S = int(os.environ.get("KALMIDO_TIDY_QUIET_S", "120"))
+TIDY_QUIET_S = env_int("KALMIDO_TIDY_QUIET_S", 120)
 TASK_EDIT_S = 45
 _TEDIT, _TEDIT_LOCK = {}, threading.Lock()
 

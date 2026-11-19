@@ -9,7 +9,6 @@ reminder: draft -> issued -> sent. Numbers come with finalising (OFX_NUMBER_AT_F
 last value. Amounts: the calculator (calc.inv_calc) is Decimal throughout; totals of these kinds are decimal strings.
 Every route: office_gate (no agents, no kids) + office_org; foreign documents are 404. No agent reaches any of this."""
 import json
-import os
 import re
 import smtplib
 from datetime import date, timedelta
@@ -42,6 +41,7 @@ from .pdf import office_pdf  # 2.369.5 (#2517): pulled up from functions
 from .pdfweb import epdf_mark  # 2.369.5 (#2517): pulled up from functions
 from ..core.orgcrypt import oc_item_store  # 2.369.5 (#2517): pulled up from functions
 from ..lists.projpo import ppo_doc_take  # #6945
+from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
 
 INV_KINDS = ("invoice", "credit", "reminder")
 INV_STATUSES = {"invoice": ("draft", "issued", "sent", "paid", "cancelled"), "credit": ("draft", "issued", "sent", "paid"),
@@ -1583,7 +1583,7 @@ def inv_own_text_quota(c, oid, uid):
 def h6r_env_int(name, default):
     """A positive whole number from the environment variable name, else default (unset / not a number)."""
     try:
-        return max(1, int(os.environ.get(name) or default))
+        return max(1, env_int(name, default))
     except ValueError:
         return default
 

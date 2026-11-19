@@ -7,11 +7,10 @@ Only the preview and (while the document has none) the archive number from a QR 
 folder and the review state stay as they are. A document that fails is skipped (log), the run goes on.
 KALMIDO_DOCS_THUMB_FILL=off switches it off."""
 import json
-import os
 import time
 
 from ..core.db import gsetting, gset
-from ..core.env import env_bool
+from ..core.env import env_bool, env_int
 from ..files.store import fs_read  # 2.369.5 (#2517): pulled up from functions
 from ..tasks.attachtext import file_kind  # 2.369.5 (#2517): pulled up from functions
 from . import store as S  # 2.369.5 (#2517): pulled up from functions
@@ -20,7 +19,7 @@ from .scanmark import ScanBusy, scan_of  # 2.836.0 (#5390)
 from .pagesize import PG_IMG, PG_PDF, PgBusy, pg_of  # 2.905.0 (#5393)
 
 FILL = env_bool("KALMIDO_DOCS_THUMB_FILL", True)
-FILL_S = max(1, int(os.environ.get("KALMIDO_DOCS_THUMB_FILL_S", "15") or 15))  # s between two portions
+FILL_S = max(1, env_int("KALMIDO_DOCS_THUMB_FILL_S", 15))  # s between two portions
 FILL_N = 5           # documents per portion
 FILL_KEY = "docs_thumb_fill"  # settings: {"below": lowest node id handled so far} or {"done": 1}
 _Q = {"at": 0.0}

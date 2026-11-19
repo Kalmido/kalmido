@@ -32,7 +32,7 @@ from ..collab.comments import collab_on, push_gate_tick, task_push_tick
 from ..collab.news import news_cleanup, news_unread_me, notif_ok
 from ..personal.habits import habit_times, pomo_close, pomo_elapsed, pomo_planned_end
 from ..personal.timetrack import _num, time_watchdog
-from ..core.env import env_bool, env_int
+from ..core.env import env_bool, env_float, env_int
 from ..core.merges import mg_prune  # 2.149.0 G (#2517): pulled up from functions
 from ..lists.lffolder import lf_expire_tick  # 2.352.0 A (#2748)
 from ..core.dlock import dl_of, dl_task_hidden  # 2.369.5 (#2517): pulled up from functions
@@ -321,9 +321,9 @@ def _webpush_result(c, uid, sub, drop, st, retry, host, payload, now, aa_count):
 #     show a notification (userVisibleOnly) and tolerate the odd exception, hence the caps;
 #   - Apple (web.push.apple.com): never a silent push (Safari revokes such subscriptions), only the piggyback above.
 # Dismiss pushes do not count as delivered notifications (no last_ok, no admin alert bookkeeping).
-DISMISS_WAIT = float(os.environ.get("KALMIDO_DISMISS_WAIT", "30"))
-DISMISS_GAP = float(os.environ.get("KALMIDO_DISMISS_GAP", "60"))
-DISMISS_DAY = int(os.environ.get("KALMIDO_DISMISS_DAY", "30"))
+DISMISS_WAIT = env_float("KALMIDO_DISMISS_WAIT", 30)
+DISMISS_GAP = env_float("KALMIDO_DISMISS_GAP", 60)
+DISMISS_DAY = env_int("KALMIDO_DISMISS_DAY", 30)
 DISMISS_KEEP = 3 * 86400  # a notification older than this is not tracked any more
 DISMISS_TAG = re.compile(r"(?:t|team|agents|prop)-\d{1,12}|\*")  # 2.19.0 (#668): chats, agents, proposals; "*" = all
 # endpoint prefixes that behave like Apple's push service (tests: the fake push service)

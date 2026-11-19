@@ -5,7 +5,6 @@ import hashlib
 import io
 import json
 import math
-import os
 import re
 import zipfile
 import icalendar
@@ -40,6 +39,7 @@ from ..lists.listtrash import otr_trash  # 2.272.0 C (#3027)
 from ..collab.liste2e import le2e_mode
 from ..accounts.orgs import user_orgs  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.orgroles import need_org_write  # 2.369.5 (#2517): pulled up from functions
+from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
 
 
 # ---------------------------------------------------------------- TickTick import (parse_ticktick, below the other parsers)
@@ -94,7 +94,7 @@ def tt_reminders(s):
 # (IMPORT_UNDO_HOURS; an account import ACCOUNT_IMPORT_UNDO_DAYS, #4350). Limits: IMPORT_MAX_MB per file, IMPORT_MAX_TASKS per import, ZIP / JSON bomb guards, rate limit.
 def _imp_env(name, dflt):
     try:
-        return max(1, int(os.environ.get(name, "") or dflt))
+        return max(1, env_int(name, dflt))
     except ValueError:
         return dflt
 

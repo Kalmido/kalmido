@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """2.149.0 D (#2511): every environment variable the server reads is declared in kalmido/core/env.py, and docs/ENV.md
-(generated from that registry) is current.
+(generated from that registry) is current. 2.1437.0 (#6615): no number is read with int() / float() straight from os.environ
+(env_int / env_float name the variable when its value is wrong); the server names unknown KALMIDO_* variables at its start
+from the same registry (env_unknown).
 
   python3 tools/env_check.py               check (CI lint): exit 1 on an undeclared variable or a stale docs/ENV.md
   python3 tools/env_check.py --write-docs  write docs/ENV.md from the registry
@@ -34,6 +36,10 @@ READS = [
     # 2.522.0 (#4180): also through a module (O._env_int("KALMIDO_SPLIT_PAGES", ...) in docs/split.py was not seen)
     re.compile(r"(?<![\w.])(?:[A-Za-z_][A-Za-z0-9_]*\.)?[A-Za-z_][A-Za-z0-9_]*env[A-Za-z0-9_]*\(\s*[\"']" + NAME + r"[\"']"),
 ]
+# 2.1437.0 (#6615): a number read straight from the environment (int(os.environ...)) ends the start with a ValueError without
+# the variable's name; env_int / env_float (kalmido/core/env.py) warn with the name and take the default. Test-only variables
+# (KALMIDO_TEST_*, or a line marked "env_check: test only") may stay.
+RAW_NUM = re.compile(r"\b(?:int|float)\(\s*os\.(?:environ|getenv)\b")
 FSTR = re.compile(r"(?<![\w.])os\.(?:environ\.get|getenv)\(\s*f[\"']([A-Z][A-Z0-9_]*)\{")
 
 
@@ -42,6 +48,18 @@ def sources():
     for d, _dirs, files in os.walk(os.path.join(ROOT_SRC, "kalmido")):
         out += [os.path.join(d, f) for f in files if f.endswith(".py")]
     return sorted(p for p in out if os.path.isfile(p))
+
+
+def raw_numbers():
+    """2.1437.0 (#6615): ["file:line"] of numbers read without env_int / env_float."""
+    out = []
+    for p in sources():
+        rel = os.path.relpath(p, ROOT_SRC)
+        with open(p, encoding="utf-8") as f:
+            for n, line in enumerate(f, 1):
+                if RAW_NUM.search(line) and not line.lstrip().startswith("#") and "KALMIDO_TEST_" not in line and "env_check: test only" not in line:
+                    out.append(f"{rel}:{n}")
+    return out
 
 
 def reads():
@@ -142,6 +160,8 @@ def main(argv):
     for pre in sorted(prefixes):
         if not any(n.startswith(pre) for n in known):
             bad.append(f"{pre}* ({prefixes[pre]}) is read with a built name but no {pre}... variable is declared")
+    for w in raw_numbers():
+        bad.append(f"{w}: a number read with int()/float() from os.environ: use env_int / env_float (kalmido/core/env.py, #6615)")
     try:
         with open(DOCS, encoding="utf-8") as f:
             cur = f.read()

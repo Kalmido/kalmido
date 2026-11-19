@@ -31,6 +31,7 @@ from psycopg.pq import TransactionStatus
 from psycopg.types.string import TextLoader
 from psycopg.types.datetime import TimestamptzLoader
 from psycopg_pool import ConnectionPool, PoolTimeout
+from .env import env_int, env_float  # 2.1437.0 (#6615): a wrong value = one warning with its name
 
 Error = psycopg.Error
 DatabaseError = psycopg.DatabaseError
@@ -622,7 +623,7 @@ def pool_refresh():
 # the agents' long-poll places follow: threads - 8). 2.102.0 D (#1994): the threads come from KALMIDO_THREADS (default 16 then) and the pool follows them: 3 per thread + 8 for
 # the background threads (16 -> 56, unchanged); KALMIDO_DB_POOL_MAX (or KALMIDO_POOL_MAX) still sets it explicitly.
 try:
-    WEB_THREADS = min(256, max(2, int(os.environ.get("KALMIDO_THREADS", "") or 24)))
+    WEB_THREADS = min(256, max(2, env_int("KALMIDO_THREADS", 24)))
 except ValueError:
     print("warning: KALMIDO_THREADS is not a number; using 24", flush=True)
     WEB_THREADS = 24
@@ -651,7 +652,7 @@ def _web_procs():
     """2.642.0 (#4975): KALMIDO_WEB_PROCS = web processes of this container on the same port (default 1 = one process, as
     before). The worker role serves no requests: always 1."""
     try:
-        n = min(WEB_PROCS_MAX, max(1, int(os.environ.get("KALMIDO_WEB_PROCS", "") or 1)))
+        n = min(WEB_PROCS_MAX, max(1, env_int("KALMIDO_WEB_PROCS", 1)))
     except ValueError:
         print("warning: KALMIDO_WEB_PROCS is not a number; using 1", flush=True)
         n = 1
@@ -669,7 +670,7 @@ def _web_procs():
 # processes it starts (1 .. N-1); the first process is 0.
 WEB_PROCS = _web_procs()
 try:
-    WEB_PROC = min(WEB_PROCS - 1, max(0, int(os.environ.get("KALMIDO_WEB_PROC_INDEX", "") or 0)))
+    WEB_PROC = min(WEB_PROCS - 1, max(0, env_int("KALMIDO_WEB_PROC_INDEX", 0)))
 except ValueError:
     WEB_PROC = 0
 WEB_THREADS_ALL = WEB_THREADS
@@ -706,7 +707,7 @@ _POOL_TO = {"n": 0, "last": 0.0}  # 2.102.0 D (#1994): pool waits that ran out (
 # transaction would otherwise hold its snapshot and locks). init_db and the backup lift the statement limit for themselves.
 # 2.37.0 (review K2-4): KALMIDO_DB_STATEMENT_TIMEOUT overrides the 30 s (seconds; 0 = no limit) for big instances.
 try:
-    STATEMENT_TIMEOUT_S = max(0, int(float(os.environ.get("KALMIDO_DB_STATEMENT_TIMEOUT", "") or 30)))
+    STATEMENT_TIMEOUT_S = max(0, int(env_float("KALMIDO_DB_STATEMENT_TIMEOUT", 30)))
 except ValueError:
     print("warning: KALMIDO_DB_STATEMENT_TIMEOUT is not a number of seconds; using 30", flush=True)
     STATEMENT_TIMEOUT_S = 30

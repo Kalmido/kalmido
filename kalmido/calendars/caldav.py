@@ -44,7 +44,7 @@ from ..tasks.tasks import my_tags, task_create, task_update
 from ..tasks.lifecycle import task_complete, task_delete, task_reopen, task_restore
 from ..core.errors import BadInput
 from ..calendars.icalfeed import hm_minutes, ics_dur, ics_fold, ics_rrule, ics_text, ics_utc, ics_vtimezone
-from ..core.env import env_bool
+from ..core.env import env_bool, env_int
 from ..api.common import hit_limit, v1_call, V1Error  # 2.149.0 G (#2517): pulled up from functions
 
 
@@ -79,7 +79,7 @@ from ..api.common import hit_limit, v1_call, V1Error  # 2.149.0 G (#2517): pulle
 DAV_ON = env_bool("KALMIDO_CALDAV", True)
 DAV_HTTP_OK = env_bool("KALMIDO_CALDAV_HTTP", False)
 try:
-    DAV_DONE_DAYS = max(0, int(os.environ.get("KALMIDO_CALDAV_DONE_DAYS", "") or 90))
+    DAV_DONE_DAYS = max(0, env_int("KALMIDO_CALDAV_DONE_DAYS", 90))
 except ValueError:
     DAV_DONE_DAYS = 90
 DAV_ROOT = "/dav/"

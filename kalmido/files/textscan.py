@@ -36,7 +36,7 @@ from ..docs import store as S
 from ..core.srchreg import srch_register  # 2.1026.0 (#5280)
 from ..core.objsearch import osr_name_cond  # 2.1026.0 (#5280)
 from ..core.objwords import osw_copy, osw_drop, osw_match, osw_prefilter, osw_put, osw_register, osw_terms  # 2.1002.0 (#5279)
-from ..core.env import env_bool
+from ..core.env import env_bool, env_int
 from ..core.orgcrypt import oc_read_file  # 2.149.0 G (#2517): pulled up from functions
 from .fslock import fl_is_locked  # 2.353.0 A (#2758)
 from .fsviews import fsv_drop  # 2.429.0 (#3580)
@@ -46,9 +46,9 @@ KINDS = ("att", "list", "fs")
 COL = {"att": "att_id", "list": "list_file_id", "fs": "node_id"}
 ON = env_bool("KALMIDO_FILE_OCR", True)
 BACKFILL = ON and env_bool("KALMIDO_FILE_OCR_BACKFILL", True)
-BACKFILL_S = max(1, int(os.environ.get("KALMIDO_FILE_OCR_BACKFILL_S", "20") or 20))  # s between two files of the catch-up
-MAX_MB = max(1, int(os.environ.get("KALMIDO_FILE_OCR_MAX_MB", "50") or 50))  # larger files are not read
-REHOME_S = max(1, int(os.environ.get("KALMIDO_FILE_OCR_REHOME_S", "300") or 300))  # s between two workspace sweeps
+BACKFILL_S = max(1, env_int("KALMIDO_FILE_OCR_BACKFILL_S", 20))  # s between two files of the catch-up
+MAX_MB = max(1, env_int("KALMIDO_FILE_OCR_MAX_MB", 50))  # larger files are not read
+REHOME_S = max(1, env_int("KALMIDO_FILE_OCR_REHOME_S", 300))  # s between two workspace sweeps
 # 2.92.0 C (#1926): + Word / Excel (.docx / .xlsx: their text through the limited worker of files/officeprev.py, no OCR)
 MIMES = ("application/pdf", "image/jpeg", "image/png", "image/heic", "image/heif",
          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",

@@ -16,7 +16,7 @@ from ..core.instance import LEGAL_ENV, PRIVACY_EMAIL_ENV, legal_url_ok  # 2.306.
 from ..accounts.session import me
 from ..api.common import v1_args, v1_err, v1_json, v1_view
 from ..api.scopes import need_scope  # 2.360.0 A (#2496)
-from ..core.env import env_bool, SRV_AGENT_MARK, srv_recipient  # (#6510)
+from ..core.env import env_bool, env_int, SRV_AGENT_MARK, srv_recipient  # (#6510)
 from ..core.pg import system_ctx  # 2.149.0 G (#2517): pulled up from functions
 from ..core.ephem import eph_within  # 2.642.0 (#4975)
 from ..core.mailbudget import MAIL_DAY_RCPT, MAIL_DAY_SENDER, mail_budget, mail_day_limit, mail_rcpt_key  # noqa: F401  2.1297.0 (#6548): moved to core
@@ -55,7 +55,7 @@ QUOTA_MAX_MB = 10_000_000
 # 2.281.0 E (#3117): uploads per person and hour (the request sizes of uploads; KALMIDO_UPLOAD_HOURLY_MB, 0 = off). The file /
 # request limits stay; a person over it gets 429 until the hour has room again. Counted in this process (like hit_limit).
 try:
-    UPLOAD_HOURLY_MB = max(0, int(os.environ.get("KALMIDO_UPLOAD_HOURLY_MB", "") or 1024))
+    UPLOAD_HOURLY_MB = max(0, env_int("KALMIDO_UPLOAD_HOURLY_MB", 1024))
 except ValueError:
     print("warning: KALMIDO_UPLOAD_HOURLY_MB is not a number; using 1024", flush=True)
     UPLOAD_HOURLY_MB = 1024

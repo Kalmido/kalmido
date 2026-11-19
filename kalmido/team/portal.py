@@ -15,7 +15,6 @@ client) fills the rest of this module. Keep the signatures; a changed contract g
 import hashlib
 import hmac
 import html
-import os
 import re
 import secrets
 import time
@@ -41,6 +40,7 @@ from ..collab.comments import collab_user, lang_of  # 2.369.5 (#2517): pulled up
 from ..collab.news import KIND_ROW, news_add, notif_ok  # 2.369.5 (#2517): pulled up from functions
 from ..notify.push import push_prio, push_reachable  # 2.369.5 (#2517): pulled up from functions
 from ..notify.taskbell import tbl_level, tbl_sent, tbl_urgent_users, TBL_PRIO  # 2.369.5 (#2517): pulled up from functions
+from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
 
 PT_TOKEN_RE = re.compile(r"[A-Za-z0-9_-]{20,64}")
 PT_EMAIL_MAX = 200
@@ -115,7 +115,7 @@ PT_CMT_RATE, PT_CMT_HOUR, PT_CMT_MAX = 10, 30, 4000   # answers per address and 
 PT_LOGIN_IP, PT_LOGIN_ADDR, PT_LOGIN_SPACE = 5, 3, 200  # sign-in requests per address / per e-mail / sign-in mails per space (window below)
 PT_LOGIN_WIN = 3600
 try:  # 2.138.4 C (#2380): the space's sign-in mails per window can be set (tests use a small one)
-    PT_LOGIN_SPACE = max(1, int(os.environ.get("KALMIDO_PORTAL_LOGIN_SPACE") or PT_LOGIN_SPACE))
+    PT_LOGIN_SPACE = max(1, env_int("KALMIDO_PORTAL_LOGIN_SPACE", PT_LOGIN_SPACE))
 except ValueError:
     pass
 PT_LOGIN_TTL = 30 * 60     # s: a sign-in link is valid this long, once

@@ -17,6 +17,14 @@ import sys
 import tempfile
 import threading
 import time
+try:  # 2.1437.0 (#6615): a wrong value = one warning with its name; guarded like the imports below (single-file loads)
+    from ..core.env import env_int
+except ImportError:  # loaded as a single file: core/env.py by its path (it imports nothing of the app)
+    import importlib.util as _ilu
+    _spec = _ilu.spec_from_file_location("kalmido_env_single", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "core", "env.py"))
+    _envm = _ilu.module_from_spec(_spec)
+    _spec.loader.exec_module(_envm)
+    env_int = _envm.env_int
 try:  # 2.369.5 (#2517): pulled up from functions; #3506: guarded, ocr.py is also loaded as a single file (tests, ocr_langs)
     from ..tasks.attachtext import file_kind, pdf_text, _decode
     from ..files.photometa import pm_kind
@@ -27,7 +35,7 @@ except ImportError:  # loaded as a single file (tests, no package): only the pur
 
 def _env_int(name, default, lo, hi):
     try:
-        return min(hi, max(lo, int(os.environ.get(name, "") or default)))
+        return min(hi, max(lo, env_int(name, default)))
     except ValueError:
         return default
 

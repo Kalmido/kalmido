@@ -1,6 +1,5 @@
 """Access control: who sees / changes which list and task, module switches, list roles."""
 
-import os
 import re
 import time
 from typing import NamedTuple, Optional
@@ -17,6 +16,7 @@ from .pg import qi, set_ctx_hook, st_ids, system_ctx as pg_system, table_columns
 from .dlock import DL_FEAT_AREA, dl_area_locked, dl_list_hidden, dl_lists_sql, dl_task_hidden, dl_task_sql  # 2.235.0 B (#2902): an agent's data lock
 from .dlock import dl_tasks_locked  # 2.674.0 B (#4194)
 from ..core.pg import system_ctx as _sys, LOOKUP  # 2.369.5 (#2517): pulled up from functions
+from .env import env_float  # 2.1437.0 (#6615): a wrong value = one warning with its name
 
 
 # ---------------------------------------------------------------- access control
@@ -326,7 +326,7 @@ _BG_CTX = {}
 # triggers renew it on every write to org_members / agents (org, account) / orgs (personal office), in the writing
 # transaction, so a change reaches every process with the next request. The session itself is never cached.
 try:
-    ACX_TTL = float(os.environ.get("KALMIDO_ACX_TTL", "10").strip() or 0)
+    ACX_TTL = env_float("KALMIDO_ACX_TTL", 10)
 except ValueError:
     ACX_TTL = 10.0
 _REQ_CTX = {}

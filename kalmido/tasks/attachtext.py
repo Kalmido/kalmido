@@ -23,6 +23,7 @@ from ..tasks.attachments import file_ext, need_attachment, TEXT_MIME
 from ..tasks.validation import as_int
 from ..accounts.session import me
 from ..api.common import hit_limit, v1_args, v1_err, v1_view
+from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
 
 TEXT_FILE_MB = 20          # larger files are refused (413)
 TEXT_CAP = 200_000         # characters at most (the rest: truncated: true)
@@ -31,7 +32,7 @@ PDF_PAGES = 1000           # pages at most
 
 def _env_int(name, default, lo, hi):
     try:
-        return min(hi, max(lo, int(os.environ.get(name, "") or default)))
+        return min(hi, max(lo, env_int(name, default)))
     except ValueError:
         return default
 
