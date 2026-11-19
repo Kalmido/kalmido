@@ -102,7 +102,7 @@ _SPENT_LOCK = threading.Lock()
 
 
 def ocr_charge(ws, seconds, clock=time.monotonic, anon=False):
-    """2.1337.0 (#6651): book the seconds one recognition of workspace ws took (its hour budget, OCR_WS_HOUR_S).
+    """(#6651): book the seconds one recognition of workspace ws took (its hour budget, OCR_WS_HOUR_S).
     (#6951): anon = an anonymous source's -- booked on the anonymous share as well (ocr_anon_tired)."""
     if not ws or seconds <= 0:
         return

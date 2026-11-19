@@ -38,7 +38,7 @@ from ..core.pg import insert_id  # 2.369.5 (#2517): pulled up from functions
 # (count key, legal kind, SQL of the years per row: org_id = ?) -- the year a period starts from (its end + N years)
 ODL_LEGAL = (
     # (#6361): kind "doc" = per row by the document's kind (core/retention.py ret_doc_kind), the query gives (year, kind)
-    ("documents", "doc", "SELECT substr(COALESCE(NULLIF(date, ''), CAST(locked_at AS text)), 1, 4), kind FROM office_docs "  # 2.1115.0 (#5951): TIMESTAMPTZ
+    ("documents", "doc", "SELECT substr(COALESCE(NULLIF(date, ''), CAST(locked_at AS text)), 1, 4), kind FROM office_docs "  # (#5951): TIMESTAMPTZ
                          "WHERE org_id=? AND locked_at IS NOT NULL"),
     ("archive", "book", "SELECT substr(COALESCE(NULLIF(date, ''), CAST(created_at AS text)), 1, 4) FROM office_archive WHERE org_id=?"),
     ("bookarch", "book", "SELECT CAST(year AS TEXT) FROM office_bookarch WHERE org_id=?"),  # 2.414.0 (#3502): the booking archive
@@ -162,7 +162,7 @@ def _until(kind, years):
     review A8: an expired period keeps nothing, it neither retires an organisation nor a personal office).
     (#6361): kind "doc" -- `years` are (year, office_docs.kind) and each row has the period of its own kind."""
     pairs = [(v[0], ret_doc_kind(v[1])) for v in years] if kind == "doc" else [(v, kind) for v in years]
-    ends = [y + ret_keep_years(k) for y, k in ((_year(v), k) for v, k in pairs) if y]  # 2.545.0 (#4595): the law + the buffer
+    ends = [y + ret_keep_years(k) for y, k in ((_year(v), k) for v, k in pairs) if y]  # (#4595): the law + the buffer
     end = f"{max(ends)}-12-31" if ends else None
     return end if end and end >= local_now().date().isoformat() else None
 

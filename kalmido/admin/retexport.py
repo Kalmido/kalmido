@@ -955,7 +955,7 @@ def rx_org_zip(oid):
     c = db()
     sub = rx_subject(c, "org", oid)
     if rx_may_export(c, sub):  # (#6951): only after the right (_download answers everybody else as before)
-        mv_allow(c)  # 2.1337.0 (#6600): a download, also while the organisation is moving (its log line)
+        mv_allow(c)  # (#6600): a download, also while the organisation is moving (its log line)
     with system_ctx(c):  # the organisation's name for the index (the right is checked in _download)
         name = (c.execute("SELECT name FROM orgs WHERE id=?", (oid,)).fetchone() or [""])[0]
     return _download(sub, name)
@@ -995,7 +995,7 @@ def rx_org_waiver(oid):
     sub = rx_subject(c, "org", oid)
     if not rx_owner(c, sub):
         raise Denied(404)
-    mv_allow(c)  # 2.1337.0 (#6600): part of having a moving organisation deleted (#2956); (#6951): after the right
+    mv_allow(c)  # (#6600): part of having a moving organisation deleted (#2956); (#6951): after the right
     with system_ctx(c):  # the organisation's name for the security log
         name = (c.execute("SELECT name FROM orgs WHERE id=?", (oid,)).fetchone() or [""])[0]
     return _rx_declare(sub, name, request.method == "POST")

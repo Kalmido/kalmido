@@ -1408,11 +1408,11 @@ def process(c, nid):
         except Exception:  # noqa: BLE001 -- the language is a hint only
             ulang = None
         t0 = time.monotonic()
-        anon_s = anon_clock(c, m)  # 2.1337.0 (#6651): a shorter clock for an anonymous source
+        anon_s = anon_clock(c, m)  # (#6651): a shorter clock for an anonymous source
         res = doc_text(node["name"], node["mime"], data, lang=ulang, langs=cfg_get(c, ws)["ocr_langs"] or None,  # 2.635.0 (#4807 b)
                        doc_s=anon_s)
         if res.get("error") != "busy":
-            ocr_charge(ws, time.monotonic() - t0, anon=anon_s is not None)  # 2.1337.0 (#6651): the workspace's hour budget (#6951: + the anonymous share)
+            ocr_charge(ws, time.monotonic() - t0, anon=anon_s is not None)  # (#6651): the workspace's hour budget (#6951: + the anonymous share)
     if res.get("error") == "busy":
         return "wait"
     if ei and not res.get("error"):
@@ -1434,7 +1434,7 @@ def process(c, nid):
         # review: at most as many pages as the text recognition (ocr.OCR_PAGES) and ocr.QR_DOC_S seconds in all
         t0 = time.monotonic()
         codes = qr_codes(data, res.get("kind"), pages=min(int(res.get("pages") or 1), OCR_PAGES), budget=QR_DOC_S, want=lambda cs: EX.find_asn(pre, (), codes=cs) is not None)
-        ocr_charge(ws, time.monotonic() - t0, anon=m["source"] in ANON_SOURCES)  # 2.1337.0 (#6651): reading the codes rasters the pages too
+        ocr_charge(ws, time.monotonic() - t0, anon=m["source"] in ANON_SOURCES)  # (#6651): reading the codes rasters the pages too
         asn_found = EX.find_asn(pre, [text[:20000]], codes=codes)
     ex = EX.extract(text, guess=False)
     if m["source"] == "paperless":           # an import keeps due date and amount empty (only a monetary field fills them)
