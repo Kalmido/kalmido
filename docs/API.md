@@ -2068,6 +2068,86 @@ buttons; the key never finalises, numbers, sends or books.
   log. The key reads only: it never writes, finalises or sends.
 - Limits (`429 limit_reached`, `Retry-After`, an alarm, no pause): `day_docs` drafts within 24 hours, `open_drafts` waiting drafts.
 
+### Routes and errors at a glance
+
+*Since 2.1446.0 (#6702).* The routes below `/api/v1`; besides the errors of its line every route can answer `401
+unauthorized`, `403 forbidden`, `403 issuer_paused`, `403 issuer_keys_off`, `403 address_refused`, `404 not_found`, `429
+rate_limited` and `503 unavailable`.
+
+| Route | Success | Errors of the route |
+|---|---|---|
+| `GET /issuer` | 200 | `unknown_field` |
+| `PUT /issuer/clients/by-ref/{ref}` | 201 set up, 200 | `unknown_field`, `invalid_field`, `invalid`, `version_required`, `too_large`, `conflict`, `client_trashed`, `client_gone`, `limit_reached` |
+| `GET /issuer/clients/by-ref/{ref}` | 200 | `unknown_field`, `invalid_field`, `client_trashed`, `client_gone` |
+| `POST /issuer/invoices` | 201 made, 200 the same again | `unknown_field`, `invalid_field`, `invalid`, `too_large`, `client_unknown`, `payee_unknown`, `ref_conflict`, `totals_mismatch`, `client_trashed`, `payee_mismatch`, `withdrawn`, `client_gone`, `limit_reached` |
+| `GET /issuer/docs` | 200 | `unknown_field`, `invalid_field` |
+| `GET /issuer/docs/{id}` | 200 | `unknown_field` |
+| `GET /issuer/docs/by-ref/{ref}` | 200 | `unknown_field`, `invalid_field`, `withdrawn` |
+| `GET /issuer/docs/{id}/pdf` | 200 | `unknown_field`, `not_draft`, `edited_by_human` |
+| `GET /issuer/docs/{id}/file` | 200 | `unknown_field`, `invalid_field`, `not_final` |
+| `POST /issuer/docs/{id}/withdraw` | 200 | `unknown_field`, `not_draft`, `not_own_draft`, `limit_reached` |
+
+Every error answers `{"error": {"code": "<name>", "message": "<text for people>", ...}}`; `unknown_field` and
+`version_required` add `fields`, `invalid_field` adds `field`, `totals_mismatch` adds Kalmido's `totals`, `conflict` adds the
+`current` client. Decide by the name, never by the message. Each name belongs to one class, and the class says what the
+outside system's queue does:
+
+- **stop** - `401 unauthorized` (unknown, ended or expired key, or a key of the other environment), `403 issuer_keys_off`,
+  `403 address_refused`: stop the queue of this key and alarm a person; never repeat on your own.
+- **later** - `403 issuer_paused`, `429 rate_limited`, `429 limit_reached`, `503 unavailable`: keep the request in the queue
+  and repeat it unchanged after `Retry-After` seconds.
+- **probe** - `403 forbidden` (a route outside the list) and `404 not_found` on an id: never repeat. These calls count
+  towards the issuer's self-pause (20 distinct targets within an hour); the by-ref routes do not count.
+- **fix** - `400 invalid`, `400 unknown_field`, `400 invalid_field`, `400 version_required`, `413 too_large`, `404
+  client_unknown` (set the client up first), `404 payee_unknown`: the request is wrong; correct the data, never send it
+  unchanged again. `400`, `409`, `410` and `429` never count towards a pause, so a queue that holds a wrong request back hurts
+  nobody.
+- **conflict** - every `409`: `conflict`, `ref_conflict`, `totals_mismatch`, `payee_mismatch`, `client_trashed`,
+  `not_draft`, `not_own_draft`, `edited_by_human`, `not_final`. No blind repeat: read the current state (the answer or a
+  `GET`), then decide.
+- **gone** - `410 withdrawn`, `410 client_gone`: for good; that `client_ref` never makes a draft again, that `external_ref`
+  is never set up again.
+
+**Rounding.** Unit prices up to 4 places, quantities up to 4 places. Each line: quantity x unit price, rounded half up to the
+cent; the lines are summed per tax rate; the tax of each rate is computed on that sum and rounded half up to the cent; gross
+= net + tax. `expect` holds the result of exactly this rule (a sum rounded only once at the end can differ by a cent: `409
+totals_mismatch`).
+
+**Territories with VAT rules of their own** that have no country code (the flag `vat_territory`, by the client's
+postcode): ES 35 / 38 Canary Islands, 51 Ceuta, 52 Melilla; IT 23041 Livigno, 22061 Campione d'Italia; GR 63086 / 63087
+Mount Athos; FI 22 Aland; FR 971-976 overseas; DE 78266 Buesingen, DE 27498 Heligoland. Kalmido derives no VAT case from
+it; a person decides. Ask the buyer at the purchase or hand such a case to a person.
+
+**Refused fields.** A request carries only the fields of its list; any other field answers `400 unknown_field` with
+`fields`, nothing is ignored silently. Fields an invoice draft never takes (Kalmido or a person sets them): `date`,
+`number`, `range`, `series`, `finalize`, `status`, `currency`, `iban`, `bic`, `link`, `payment_link`, `discount`, `intro`,
+`closing`, `project_title`, `customer_no`, `notes`. A client never takes a customer number, a note, a free address, a
+contact person, an hourly rate or a Peppol id. A bank account is named only as `wish.payee` (the id of an account an admin
+allowed) with `payee_check`; a payment link or a free IBAN never.
+
+**Ids of your environment.** Keep `client_ref` and `external_ref` with a fixed prefix of the environment they come from
+(`prod:order:4711`, `test:order:4711`, `prod:account:12`) and never change it: several development systems behind one test
+key, or a test system that is later pointed at the live server, would otherwise meet each other's purchases (`409
+ref_conflict`, `410 withdrawn`) and overwrite each other's clients. A test server gives out and takes only `kis_test_…`
+keys, a live server only `kis_live_…` keys (`KALMIDO_ISSUER_ENV`).
+
+### Changes of the contract
+
+The contract of these routes stands in machine-readable form in `docs/api/issuer-contract.json`: the routes and their
+statuses, the fields of every answer and request, the values of every list (`status`, `flags`, `unit`, `tax`, ...), every
+error name with its status and class, and the fixed limits. The hard suite `tests/p6702_office_issuer_contract_test.py` holds
+the code and the running server against that file in every release, so the contract never changes unnoticed.
+
+- A change an outside system may rely on - a field or a value removed or renamed, a status or an error name changed, a
+  limit lowered, a field that becomes required - is announced here with its date at least **90 days** before it takes
+  effect (deprecation). Where it can, the old and the new form work side by side during those 90 days.
+- An addition - a new optional field in an answer, a new value of a list, a new route, a new error name on a new route, a
+  limit raised - comes without notice and is named here. Ignore fields and values you do not know.
+- Every change of the file raises its `version` and is listed below.
+
+Changes:
+- 2.1446.0 (#6702): version 1 - the state of 2.1436.0 (key, clients, drafts, reads, preview, files, withdrawal).
+
 ## Arrangements of views for agents
 
 *Since 2.55.0.*
