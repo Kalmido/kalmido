@@ -17,7 +17,7 @@ import sys
 import requests
 
 from freelancer_fixture import freelancer, login
-from kt import B, check, dbx, done, fresh, setup
+from kt import B, check, circle_yes, dbx, done, fresh, setup
 
 V = B + "/api/v1"
 SCOPES = ["read", "write", "wiki:read", "wiki:write"]
@@ -91,10 +91,14 @@ def task_patch(t, title):
 
 
 def page_patch(t, text):
+    """#7142: bob's agent has no control level and counts as "free" for the circle rule; it reads the project and the page,
+    the organisation's knowledge space is read by more people: the write comes as a card, bob (who reads all its places)
+    says Yes, the step runs from the card and answers by the role cap as the direct request did."""
     g = t.get(V + f"/wiki/pages/{PG}")
     if not g.ok:
         return g.status_code
-    return t.patch(V + f"/wiki/pages/{PG}", json={"body": text, "expect_updated_at": data(g)["updated_at"]}).status_code
+    r = t.patch(V + f"/wiki/pages/{PG}", json={"body": text, "expect_updated_at": data(g)["updated_at"]})
+    return circle_yes(r, dict(t.headers), BA, Bo, V, BOB, base=B).status_code
 
 
 # ================================================================== member: the agent writes

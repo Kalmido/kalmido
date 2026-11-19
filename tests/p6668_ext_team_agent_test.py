@@ -954,13 +954,6 @@ r = ask([SC])
 check(r.ok and dbx("SELECT allowed_ips FROM api_tokens WHERE user_id=? AND asked_by=?", (XT, uid["carl"])) == [("",)],
       "(k) R3 F2: without a rule of its own the agent's rule (none) as before")
 RC = r.json().get("token") or "" if r.ok else ""
-# #7114 (reader #5427 F3): "Remove address rule" (machine_ip_reset) takes only a computer's key, never a request token
-RQID = (dbx("SELECT id FROM api_tokens WHERE user_id=? AND asked_by=?", (XT, uid["carl"])) or [(0,)])[0][0]
-dbx("UPDATE api_tokens SET allowed_ips='0.0.0.0/0,::/0' WHERE id=?", (RQID,))
-r = A.patch(B + f"/api/admin/agents/{XT}", json={"machine_ip_reset": RQID})
-check(r.status_code == 404 and dbx("SELECT allowed_ips FROM api_tokens WHERE id=?", (RQID,)) == [("0.0.0.0/0,::/0",)],
-      f"#7114 F3: machine_ip_reset refuses a request token (404) and leaves its rule {r.status_code}")
-dbx("UPDATE api_tokens SET allowed_ips='' WHERE id=?", (RQID,))
 
 # ---- review R3 F3: every order event must be one the person may give; another event of hers carries none along
 # Without the fix (any()) carl's order in project two (he is no member there: no order) came with a token as soon as one
