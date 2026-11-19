@@ -14,7 +14,7 @@ from ..core.ctx import me
 from ..core.errors import BadInput, Denied, UnknownFields
 from ..core.ratedb import RATE_SHARED_MIN_S, rate_hit
 from ..core.access import feat_has  # 2.1327.0 (#6823): the one reading of the module switches
-from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
+from ..core.env import env_int  # (#6615): a wrong value = one warning with its name
 
 
 V1_CODES = {400: "invalid", 401: "unauthorized", 403: "forbidden", 404: "not_found", 405: "method_not_allowed",

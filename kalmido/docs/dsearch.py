@@ -20,7 +20,7 @@ from ..files.store import fs_role  # 2.306.0 D3 (#2875)
 from . import store as S
 from ..core.objwords import osw_match  # 2.1002.0 (#5279)
 from ..core.objtags import OTG_FS_IN  # 2.1119.0 (#5277)
-from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
+from ..core.env import env_int  # (#6615): a wrong value = one warning with its name
 
 DSR_KEYS = {"tag": "tag", "tags": "tag", "absender": "sender", "sender": "sender", "von": "sender", "from": "sender",
             "typ": "type", "type": "type", "art": "type", "datum": "date", "date": "date", "eingang": "added", "added": "added"}

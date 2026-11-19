@@ -135,7 +135,7 @@ def _main(row):
 @v1_view
 def v1_agent_request_token():
     """2.1386.0 (#6668): the token of one request of a team agent (see the module text)."""
-    g.idem_no_body = True  # 2.1437.0 (#6558): the token is shown once, never kept with an idempotency key
+    g.idem_no_body = True  # (#6558): the token is shown once, never kept with an idempotency key
     from .srvteam import srv_may_order, srv_requester  # a later module
     aid = need_agent()
     b = v1_json()

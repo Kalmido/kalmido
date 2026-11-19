@@ -379,7 +379,7 @@ def docs_fetchers():
 @app.post("/api/docs/fetchers")
 def docs_fetcher_new():
     """{ws, name} -> 201 {id, name, target, code}: a new receipt fetcher; the setup code is shown only in this answer."""
-    g.idem_no_body = True  # 2.1437.0 (#6558): the fetcher key is shown once, never kept with an idempotency key
+    g.idem_no_body = True  # (#6558): the fetcher key is shown once, never kept with an idempotency key
     _v1().need_api()
     b = body()
     unknown = sorted(k for k in b if k not in ("ws", "name"))

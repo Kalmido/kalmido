@@ -74,7 +74,7 @@ IMAP_KEEP = env_bool("KALMIDO_IMAP_KEEP", False)  # 2.240.0 A (#2883)
 SMTP_INSECURE = env_bool("KALMIDO_SMTP_INSECURE", False)  # 2.240.0 A (#2883): admin SMTP/IMAP without a certificate check
 MAIL_IN_ON = bool(MAIL_ADDRESS and IMAP["host"] and IMAP["user"])
 MAIL_OUT_ON = bool(SMTP["host"] and SMTP["from"])
-if SMTP["host"] and not SMTP["from"]:  # 2.1437.0 (#6615): was silent -- the server sent no mail and nobody knew why
+if SMTP["host"] and not SMTP["from"]:  # (#6615): was silent -- the server sent no mail and nobody knew why
     print("mail: WARNING KALMIDO_SMTP_HOST is set but neither KALMIDO_MAIL_FROM nor KALMIDO_MAIL_ADDRESS: e-mail sending stays off",
           file=sys.stderr, flush=True)
 if SMTP_INSECURE and (MAIL_IN_ON or MAIL_OUT_ON):
@@ -82,7 +82,7 @@ if SMTP_INSECURE and (MAIL_IN_ON or MAIL_OUT_ON):
 
 
 def smtp_why(e):
-    """2.1437.0 (#6615): why sending through the server's SMTP failed, in words for the test mail (no password, no message
+    """(#6615): why sending through the server's SMTP failed, in words for the test mail (no password, no message
     text): refused login, refused sender / recipient, TLS, not reachable; else the error's class name as before."""
     import smtplib
     import socket
@@ -1128,5 +1128,5 @@ def mail_test():
     try:
         mail_send(u["email"].strip(), *m, from_name=APP_NAME)
     except Exception as e:  # noqa: BLE001
-        return err(tr("Sending failed: {0}", smtp_why(e)), 502)  # 2.1437.0 (#6615): in words (was the class name only)
+        return err(tr("Sending failed: {0}", smtp_why(e)), 502)  # (#6615): in words (was the class name only)
     return jsonify(ok=True, to=u["email"].strip())

@@ -9,7 +9,7 @@ import time
 from datetime import timedelta
 from flask import g, jsonify, request
 
-from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
+from ..core.env import env_int  # (#6615): a wrong value = one warning with its name
 from ..core.config import app, ATT_DIR, MAX_FILE_MB
 from ..core.pgbus import bus_on, bus_send  # 2.622.0 (#3891)
 from ..core.pg import insert_id

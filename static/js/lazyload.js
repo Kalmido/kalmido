@@ -185,7 +185,7 @@ const LD_CALL = {settings: ['settingsModal', 'setApply', 'settingsSync', 'modCou
   orgadmin: ['oadmOpen'],  // 2.1238.0 (#4280): Projects of the organisation (Settings > Workspaces, a news item)
   sched: ['schedOpen'],  // 2.1238.0 (#4280): the plans of an agent (Plans in the agent chat, the agents' view)
   habitdlg: ['habitModal'],  // 2.1238.0 (#4280): New habit / open a habit (habits view, palette)
-  propcards: ['propOpen'],  // 2.1238.0 (#4280): the card of an agent's proposal (bell, news, agents' view, links #prop/…)
+  propcards: ['propOpen'],  // (#4280): the card of an agent's proposal (bell, news, agents' view, links #prop/…)
   grip: ['grip_col', 'grip_row', 'grip_corner']};  // #7293: the stand-ins resolve to the grip's handle once the module is in
 // 2.65.0 (#1823): functions that only update what the module drew: before it is loaded there is nothing to update (no loading)
 const LD_NOP = {agentchat: ['chatLoad', 'chatPatch', 'chatFit', 'stepsChanged', 'chatTypers', 'chatStHtml'], timeline: ['tlKbSync', 'tlAfterRender', 'rmAfterRender'],

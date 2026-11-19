@@ -36,7 +36,7 @@ from ..core.reqtime import rt_stats
 from ..accounts.session import _BG_TURN, GATE
 from ..accounts.bgjobs import bgj_add, bgj_counts, bgj_fn, bgj_kick
 from ..core.instance import UPDATE_KICK, _update_now
-from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
+from ..core.env import env_int  # (#6615): a wrong value = one warning with its name
 
 bgj_fn("instance:update")(_update_now)  # 2.370.3 (#2760): "check for updates now" (core/instance.py) through the queue
 UPDATE_KICK.append(lambda: bgj_add("instance:update", once=True))

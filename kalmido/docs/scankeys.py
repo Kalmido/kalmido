@@ -200,7 +200,7 @@ def docs_scan_keys():
 @app.post("/api/docs/scan-keys")
 def docs_scan_key_new():
     """{ws, name, parent_id?} -> 201 {id, name, target, code}: a new scan inbox; the setup code is shown only in this answer."""
-    g.idem_no_body = True  # 2.1437.0 (#6558): the scan key is shown once, never kept with an idempotency key
+    g.idem_no_body = True  # (#6558): the scan key is shown once, never kept with an idempotency key
     V = _v1()
     V.need_api()
     b = body()

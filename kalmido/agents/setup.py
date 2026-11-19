@@ -164,7 +164,7 @@ def _my(aid):
 
 @app.post("/api/my/agents/<int:aid>/setup-code")
 def ains_my_code(aid):
-    g.idem_no_body = True  # 2.1437.0 (#6558): the setup code is shown once, never kept with an idempotency key
+    g.idem_no_body = True  # (#6558): the setup code is shown once, never kept with an idempotency key
     c = _my(aid)
     return ains_code_new(c, aid)
 
@@ -183,7 +183,7 @@ def ains_my_machine_del(aid, tid):
 
 @app.post("/api/admin/agents/<int:aid>/setup-code")
 def ains_admin_code(aid):
-    g.idem_no_body = True  # 2.1437.0 (#6558): the setup code is shown once, never kept with an idempotency key
+    g.idem_no_body = True  # (#6558): the setup code is shown once, never kept with an idempotency key
     need_api()
     c = db()
     with system_ctx(c):  # the instance admin manages agent accounts (any organisation; structure, no content), like the token route
@@ -247,7 +247,7 @@ def ains_redeem():
     allowed_ips_applied}.
     2.1367.0 (#6457): allowed_ips ("current" or IPs / networks) = an address rule for this computer's key. No login: the one-time
     code is the credential. 2.380 G (#3390): starter_sha256 = {file: sha256}, the setup refuses a downloaded file that differs."""
-    g.idem_no_body = True  # 2.1437.0 (#6558): the token is shown once, never kept with an idempotency key
+    g.idem_no_body = True  # (#6558): the token is shown once, never kept with an idempotency key
     keys = [("setup:ip:" + rate_ip(), AINS_RATE)]
     if _rate_blocked(keys):
         return err(tr("Too many failed attempts, please wait a few minutes"), 429)

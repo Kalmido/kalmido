@@ -840,7 +840,7 @@ def drop_agent_set(c, u, b):
 
 @app.post("/api/me/drop-token")
 def me_drop_token():
-    g.idem_no_body = True  # 2.1437.0 (#6558): the drop address token is shown once, never kept with an idempotency key
+    g.idem_no_body = True  # (#6558): the drop address token is shown once, never kept with an idempotency key
     if g.user["kid"]:  # 2.86.0 (N3 review): a child account has no upload token (also if KID_WRITE ever widens)
         return err(tr("Not possible with a child account"), 403)
     c = db()

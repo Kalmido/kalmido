@@ -42,7 +42,7 @@ from ..accounts.orgroles import need_org_area, org_sees_all, org_readonly, user_
 from .shhist import shh_log, shh_meta  # 2.369.5 (#2517): pulled up from functions; 2.564.0 (#4701): shh_meta
 from ..office.homecur import HC_CODES  # 2.769.0 (#5351): the currencies a currency column may have
 from .vars import SH_FIELD_HELP, sh_sources, _agent_cap  # 2.369.5 (#2517): pulled up from functions
-from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
+from ..core.env import env_int  # (#6615): a wrong value = one warning with its name
 
 SH_KINDS = ("text", "number", "currency", "percent", "date", "select") + SHK_KINDS  # 2.124.0 B (#2110): + checkbox, person, link, file
 SH_COLOR_MODES = ("cell", "row")
@@ -50,7 +50,7 @@ SH_COLOR_MODES = ("cell", "row")
 # one table. The environment values are for the tests only
 SH_RANGE_BUDGET = env_int("KALMIDO_SHEET_RANGE_BUDGET", 15_000_000)
 SH_BOOK_CELLS_MAX = env_int("KALMIDO_SHEET_CELLS_MAX", 1_000_000)
-SH_BOOK_MB_MAX = env_int("KALMIDO_SHEET_MB_MAX", 200)  # 2.360.2 L (#2561): the same for the size of the inputs
+SH_BOOK_MB_MAX = env_int("KALMIDO_SHEET_MB_MAX", 200)  # (#2561): the same for the size of the inputs
 SH_BOOK_SMALL = 1024  # 2.360.2 L (#2561): a change of an existing cell below this size is not summed up on every keystroke
 SH_TITLE_MAX, SH_COL_TITLE_MAX, SH_COLS_MAX, SH_ROWS_MAX, SH_CELLS_MAX, SH_OPTIONS_MAX = 200, 80, 200, 5000, 5000, 100
 SH_START_COLS, SH_START_ROWS = 3, 10

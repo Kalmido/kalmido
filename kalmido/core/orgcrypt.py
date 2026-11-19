@@ -61,7 +61,7 @@ from ..core.pg import system_ctx, write_lock
 from ..core.errors import Denied  # 2.1124.0 (#6047)
 from ..core.db import body, bump, connect, db, err, fresh_within, gset, iso, iso_ms, now_utc  # 2.149.0 G (#2517): pulled up from functions
 from .moneycol import mc_fields  # 2.755.0 (#5293): the NUMERIC money columns back as the text the office code reads
-from .env import env_int, env_float  # 2.1437.0 (#6615): a wrong value = one warning with its name
+from .env import env_int, env_float  # (#6615): a wrong value = one warning with its name
 
 PREFIX = "kenc1:"
 MAGIC = b"KENC1\n"
@@ -1800,7 +1800,7 @@ def oc_route_recovery(oid):
     org_keys.recovery_shown_at, the other admins get a News item -- never the value. 409 without a server key / while a
     rotation runs. oid 0 = the own personal office."""
     from flask import g
-    g.idem_no_body = True  # 2.1437.0 (#6558): the recovery key is shown once, never kept with an idempotency key
+    g.idem_no_body = True  # (#6558): the recovery key is shown once, never kept with an idempotency key
     c, b = db(), body()
     oid = _org_admin(c, oid)
     if not SECRET_KEY:

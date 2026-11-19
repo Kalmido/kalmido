@@ -59,7 +59,7 @@ from webauthn.helpers import structs as wa_structs
 from flask import Flask, Response, g, has_request_context, jsonify, redirect, request, send_file, send_from_directory
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from .env import env_bool, env_int, env_port  # 2.149.0 D (#2511): one reading of the switches; 2.1437.0 (#6615): numbers
+from .env import env_bool, env_int, env_port  # (#2511): one reading of the switches; (#6615): numbers
 
 mimetypes.add_type("font/woff2", ".woff2")  # slim images have no /etc/mime.types (bundled Geist fonts); 2.1437.0: after the imports (E402)
 
@@ -70,7 +70,7 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
 
 def _tz():
-    """2.1437.0 (#6615): TZ with a name that is no time zone ends the start with one FATAL line naming it (was a traceback of
+    """(#6615): TZ with a name that is no time zone ends the start with one FATAL line naming it (was a traceback of
     ZoneInfo in the restart loop); empty = Europe/Berlin."""
     v = (os.environ.get("TZ") or "").strip() or "Europe/Berlin"
     try:
@@ -81,7 +81,7 @@ def _tz():
 
 
 TZ = _tz()
-PORT = env_port("PORT", 3040)  # 2.1437.0 (#6615): a value that is no port = one FATAL line with the name (app.py listens on it)
+PORT = env_port("PORT", 3040)  # (#6615): a value that is no port = one FATAL line with the name (app.py listens on it)
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "")  # topic of the first admin (seed); other users: settings
 NTFY_URL = os.environ.get("NTFY_URL", "https://ntfy.sh")
 NTFY_TOKEN = os.environ.get("NTFY_TOKEN", "")  # optional ntfy access token (write access to NTFY_TOPIC)

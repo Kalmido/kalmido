@@ -17,7 +17,7 @@ import sys
 import tempfile
 import threading
 import time
-try:  # 2.1437.0 (#6615): a wrong value = one warning with its name; guarded like the imports below (single-file loads)
+try:  # (#6615): a wrong value = one warning with its name; guarded like the imports below (single-file loads)
     from ..core.env import env_int
 except ImportError:  # loaded as a single file: core/env.py by its path (it imports nothing of the app)
     import importlib.util as _ilu

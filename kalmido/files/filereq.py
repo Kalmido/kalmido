@@ -51,7 +51,7 @@ from .upsafe import H6D_SLACK, UploadRefused, h6d_read  # 2.369.5 (#2517): pulle
 from ..collab.news import news_add, notif_ok  # 2.369.5 (#2517): pulled up from functions
 from ..collab.comments import collab_user  # 2.369.5 (#2517): pulled up from functions
 from ..notify.push import push_prio  # 2.369.5 (#2517): pulled up from functions
-from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
+from ..core.env import env_int  # (#6615): a wrong value = one warning with its name
 
 FRQ_TOKEN_RE = re.compile(r"[A-Za-z0-9_-]{20,64}")
 FRQ_TITLE_MAX, FRQ_NOTE_MAX, FRQ_NAME_MAX = 120, 2000, 120

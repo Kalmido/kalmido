@@ -1285,7 +1285,7 @@ ROT_WS = (("doc_rules", "id", "data", "doc_rules.data"), ("doc_models", "id", "d
           ("doc_field_values", "id", "value", "doc_field_values.value"),  # 2.153.0 (#2179): custom field values (docs/fields.py)
           ("obj_comments", "id", "body", "doc_notes.text"),  # 2.635.0 (#4807 d): notes on documents (docs/notes.py); 2.981.0 (#5273):
           ("obj_comment_trash", "comment_id", "body", "doc_notes.text"))  # rows of the comments' core (DOC_WS: their workspace)
-ROT_SETTLE = env_float("KALMIDO_ORGCRYPT_ROT_SETTLE", 30)  # 2.360.2 L (#2561): longest wait for running writers (0 = none)
+ROT_SETTLE = env_float("KALMIDO_ORGCRYPT_ROT_SETTLE", 30)  # (#2561): longest wait for running writers (0 = none)
 
 
 # 2.138.0 C (#1972): tables with one row per organisation (no id column; office_cf_start since 2.123)

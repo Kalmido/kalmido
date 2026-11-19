@@ -38,7 +38,7 @@ from ..accounts.orgs import is_org_admin  # 2.369.5 (#2517): pulled up from func
 from ..accounts.orgs import user_orgs  # 2.777.0 C (#5378)
 from ..accounts.orgroles import user_orgs_full  # 2.777.0 C (#5378)
 from ..accounts.orgroles import org_role_key, SAY_NO  # 2.1287.0 (#6454)
-from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
+from ..core.env import env_int  # (#6615): a wrong value = one warning with its name
 
 
 # ---------------------------------------------------------------- 2.0.0: agents, reactions, shared list tags, tidy

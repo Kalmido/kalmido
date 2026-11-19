@@ -41,7 +41,7 @@ from .pdf import office_pdf  # 2.369.5 (#2517): pulled up from functions
 from .pdfweb import epdf_mark  # 2.369.5 (#2517): pulled up from functions
 from ..core.orgcrypt import oc_item_store  # 2.369.5 (#2517): pulled up from functions
 from ..lists.projpo import ppo_doc_take  # #6945
-from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
+from ..core.env import env_int  # (#6615): a wrong value = one warning with its name
 
 INV_KINDS = ("invoice", "credit", "reminder")
 INV_STATUSES = {"invoice": ("draft", "issued", "sent", "paid", "cancelled"), "credit": ("draft", "issued", "sent", "paid"),

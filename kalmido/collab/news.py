@@ -22,7 +22,7 @@ from ..core.objcomments import OCM_MENTION_RE  # 2.972.0 (#5272): the one mentio
 from ..core.objfollow import OFL_LEVEL, ofl_bells_here  # 2.981.0 (#5287): a project's bell is a row of the core's obj_follow
 from ..core.errors import BadInput  # 2.149.0 G (#2517): pulled up from functions
 from ..core.access import list_people  # 2.369.5 (#2517): pulled up from functions
-from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
+from ..core.env import env_int  # (#6615): a wrong value = one warning with its name
 
 
 # ---------------------------------------------------------------- News feed ("Neuigkeiten")

@@ -36,7 +36,7 @@ from .fsroots import fs_area_before, fs_area_root_need_free  # 2.199.0 F (#2742,
 from .fslock import fl_is_locked, fsl_denied, fsl_map  # 2.353.0 A (#2758); F: + scan
 from .scan import sc_guard  # 2.369.5 (#2517): pulled up from functions
 from .web import _parent_arg, _items, fs_trash_entries, fs_trash_root_by  # 2.589.0 (#4875): + fs_trash_entries, fs_trash_root_by; 2.369.5 (#2517): pulled up from functions
-from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
+from ..core.env import env_int  # (#6615): a wrong value = one warning with its name
 
 ABM_IDS_MAX = 500  # ids per request
 ABM_ZIP_MAX_MB = env_int("KALMIDO_FILES_ZIP_MAX_MB", 1024)

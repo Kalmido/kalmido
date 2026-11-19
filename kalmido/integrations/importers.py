@@ -39,7 +39,7 @@ from ..lists.listtrash import otr_trash  # 2.272.0 C (#3027)
 from ..collab.liste2e import le2e_mode
 from ..accounts.orgs import user_orgs  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.orgroles import need_org_write  # 2.369.5 (#2517): pulled up from functions
-from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
+from ..core.env import env_int  # (#6615): a wrong value = one warning with its name
 
 
 # ---------------------------------------------------------------- TickTick import (parse_ticktick, below the other parsers)

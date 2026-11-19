@@ -498,11 +498,11 @@ def totp_match(secret_b32, code, last_step=0):
     return None
 
 
-TOTP_SKEW_STEPS = 20  # 2.1437.0 (#6615): +-10 minutes looked at (never accepted) when a code fails
+TOTP_SKEW_STEPS = 20  # (#6615): +-10 minutes looked at (never accepted) when a code fails
 
 
 def totp_wrong(secret_b32, code):
-    """2.1437.0 (#6615): the answer text for a refused authenticator code. A code that fits a time step up to TOTP_SKEW_STEPS
+    """(#6615): the answer text for a refused authenticator code. A code that fits a time step up to TOTP_SKEW_STEPS
     away (never accepted: only said) means the clock of the server or the phone is off -- with one log line for the admin
     (a self-hosted server without time sync refused every code with only "Wrong code")."""
     code = re.sub(r"\s", "", str(code or ""))
@@ -786,7 +786,7 @@ def auth_2fa():
         if st:
             ok = c.execute("UPDATE users SET totp_step=? WHERE id=? AND totp_step<?", (st, u["id"], st)).rowcount == 1
         elif secret:
-            wrong = totp_wrong(secret, b.get("code"))  # 2.1437.0 (#6615): a clock that is off is said
+            wrong = totp_wrong(secret, b.get("code"))  # (#6615): a clock that is off is said
     if not ok:
         _code_fail(u, p)
         c.rollback()
@@ -830,7 +830,7 @@ def auth_2fa_pk():
 # ---- login: enrolment forced by the admin policy (ticket kind "enrol")
 @app.post("/api/auth/enrol/totp")
 def auth_enrol_totp():
-    g.idem_no_body = True  # 2.1437.0 (#6558): the authenticator secret is shown once, never kept with an idempotency key
+    g.idem_no_body = True  # (#6558): the authenticator secret is shown once, never kept with an idempotency key
     p, u, e = _ticket(("enrol",))
     if e:
         return e
@@ -840,7 +840,7 @@ def auth_enrol_totp():
 
 @app.post("/api/auth/enrol/totp/confirm")
 def auth_enrol_totp_confirm():
-    g.idem_no_body = True  # 2.1437.0 (#6558): the recovery codes are shown once, never kept with an idempotency key
+    g.idem_no_body = True  # (#6558): the recovery codes are shown once, never kept with an idempotency key
     p, u, e = _ticket(("enrol",))
     if e:
         return e
@@ -848,7 +848,7 @@ def auth_enrol_totp_confirm():
     st = totp_match(p.get("totp") or "", body().get("code")) if p.get("totp") else None
     if not st:
         _code_fail(u, p)
-        return err(totp_wrong(p.get("totp") or "", body().get("code")), 401)  # 2.1437.0 (#6615)
+        return err(totp_wrong(p.get("totp") or "", body().get("code")), 401)  # (#6615)
     c.execute("UPDATE users SET totp_secret=?, totp_step=? WHERE id=?", (seal(c, f"totp:{u['id']}", p["totp"]), st, u["id"]))
     codes = rc_new(c, u["id"])
     pend_drop()
@@ -867,7 +867,7 @@ def auth_enrol_pk_options():
 
 @app.post("/api/auth/enrol/passkey")
 def auth_enrol_pk():
-    g.idem_no_body = True  # 2.1437.0 (#6558): the recovery codes are shown once, never kept with an idempotency key
+    g.idem_no_body = True  # (#6558): the recovery codes are shown once, never kept with an idempotency key
     p, u, e = _ticket(("enrol",))
     if e:
         return e
@@ -988,7 +988,7 @@ def me_2fa():
 
 @app.post("/api/me/2fa/totp")
 def me_totp_begin():
-    g.idem_no_body = True  # 2.1437.0 (#6558): the authenticator secret is shown once, never kept with an idempotency key
+    g.idem_no_body = True  # (#6558): the authenticator secret is shown once, never kept with an idempotency key
     u, b = g.user, body()
     e = _reauth(u, b)
     if e:
@@ -1002,7 +1002,7 @@ def me_totp_begin():
 
 @app.post("/api/me/2fa/totp/confirm")
 def me_totp_confirm():
-    g.idem_no_body = True  # 2.1437.0 (#6558): the recovery codes are shown once, never kept with an idempotency key
+    g.idem_no_body = True  # (#6558): the recovery codes are shown once, never kept with an idempotency key
     from ..notify.alerts import aa_count
     u, c = g.user, db()
     keys = _rate_keys(u["username"])
@@ -1015,7 +1015,7 @@ def me_totp_confirm():
     st = totp_match(p["secret"], body().get("code"))
     if not st:
         _rate_fail(keys)
-        return err(totp_wrong(p["secret"], body().get("code")), 400)  # 2.1437.0 (#6615): a clock that is off is said
+        return err(totp_wrong(p["secret"], body().get("code")), 400)  # (#6615): a clock that is off is said
     pend_take(f"totp:{u['id']}")
     first = not twofa_methods(c, u)
     c.execute("UPDATE users SET totp_secret=?, totp_step=? WHERE id=?", (seal(c, f"totp:{u['id']}", p["secret"]), st, u["id"]))
@@ -1063,7 +1063,7 @@ def me_totp_disable():
 
 @app.post("/api/me/2fa/recovery")
 def me_recovery_new():
-    g.idem_no_body = True  # 2.1437.0 (#6558): the recovery codes are shown once, never kept with an idempotency key
+    g.idem_no_body = True  # (#6558): the recovery codes are shown once, never kept with an idempotency key
     u, c, b = g.user, db(), body()
     e = _reauth(u, b)
     if e:
@@ -1090,7 +1090,7 @@ def me_pk_options():
 
 @app.post("/api/me/passkeys")
 def me_pk_add():
-    g.idem_no_body = True  # 2.1437.0 (#6558): the recovery codes are shown once, never kept with an idempotency key
+    g.idem_no_body = True  # (#6558): the recovery codes are shown once, never kept with an idempotency key
     from ..notify.alerts import aa_count
     u, c, b = g.user, db(), body()
     p = pend_take(f"wareg:{u['id']}")

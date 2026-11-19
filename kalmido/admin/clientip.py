@@ -15,7 +15,7 @@ from ..core.config import app, TRUSTED_PROXIES
 from ..core.db import connect, db, iso, now_utc
 from ..accounts.session import _ip_in, client_ip
 from ..accounts.users import need_admin
-from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
+from ..core.env import env_int  # (#6615): a wrong value = one warning with its name
 
 LOGIN_IP_DAYS = 14
 LOGIN_IP_WINDOW = 7  # days looked at

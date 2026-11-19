@@ -16,7 +16,7 @@ from flask import g, request
 
 from ..core.config import app
 from ..core.pg import rt_begin, rt_end
-from .env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
+from .env import env_int  # (#6615): a wrong value = one warning with its name
 
 try:
     REQ_SLOW_MS = max(0, env_int("KALMIDO_SLOW_REQUEST_MS", 500))

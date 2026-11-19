@@ -73,11 +73,11 @@ def attachment_upload(tid):
     return jsonify(one_task(c, tid))
 
 
-ATT_FULL_ERRNO = (errno.ENOSPC, errno.EDQUOT)  # 2.1437.0 (#6615): the disk (or the folder's quota) is full
+ATT_FULL_ERRNO = (errno.ENOSPC, errno.EDQUOT)  # (#6615): the disk (or the folder's quota) is full
 
 
 def _att_full(e):
-    """2.1437.0 (#6615): a full disk while storing an attachment = 507 with words (was a general 500), as paperless/zipimp.py."""
+    """(#6615): a full disk while storing an attachment = 507 with words (was a general 500), as paperless/zipimp.py."""
     if e.errno in ATT_FULL_ERRNO:
         raise Denied(507, tr("There is not enough space on the server for this upload right now")) from None
 

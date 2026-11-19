@@ -211,7 +211,7 @@ def admin_agents():
 def admin_agent_create():
     """{username, display_name?, note?, webhook_url?, avatar_preset?} -> the agent + its API token (and the webhook's signing
     secret) -- both shown this once."""
-    g.idem_no_body = True  # 2.1437.0 (#6558): the token and webhook secret are shown once, never kept with an idempotency key
+    g.idem_no_body = True  # (#6558): the token and webhook secret are shown once, never kept with an idempotency key
     from ..agents.proposals import PROP_MODES
     from ..api.scopes import agent_scopes_set
     need_admin()
@@ -292,7 +292,7 @@ def runtime_set(c, a, rt):
 def admin_agent_update(aid):
     """{display_name?, note?, enabled?, webhook_url? ('' removes it), limits? (2.1.1: {period, metric, soft?, hard?}, null = none),
     username? / avatar_preset? (2.1.2 #346: a preset or null = initials; an own photo: POST .../avatar)}"""
-    g.idem_no_body = True  # 2.1437.0 (#6558): a new webhook secret is shown once, never kept with an idempotency key
+    g.idem_no_body = True  # (#6558): a new webhook secret is shown once, never kept with an idempotency key
     from ..agents.proposals import PROP_MODES
     from ..agents.usage import usage_limits_clean
     from ..api.scopes import agent_scopes_set
@@ -443,7 +443,7 @@ def admin_agent_avatar(aid):
 @app.post("/api/admin/agents/<int:aid>/token")
 def admin_agent_token(aid):
     """A new API token for the agent; every older token of the agent stops at once. Shown this once."""
-    g.idem_no_body = True  # 2.1437.0 (#6558): the token is shown once, never kept with an idempotency key
+    g.idem_no_body = True  # (#6558): the token is shown once, never kept with an idempotency key
     need_api()
     c = db()
     with system_ctx(c):  # 2.37.0 (#1150): the instance admin manages agent accounts (any organisation; structure, no content)
@@ -456,7 +456,7 @@ def admin_agent_token(aid):
 
 @app.post("/api/admin/agents/<int:aid>/secret")
 def admin_agent_secret(aid):
-    g.idem_no_body = True  # 2.1437.0 (#6558): the webhook secret is shown once, never kept with an idempotency key
+    g.idem_no_body = True  # (#6558): the webhook secret is shown once, never kept with an idempotency key
     c = db()
     with system_ctx(c):  # 2.37.0 (#1150): the instance admin manages agent accounts (any organisation; structure, no content)
         a = need_agent_admin(c, aid, cred=True)  # 2.485.0 (#3939)
@@ -771,7 +771,7 @@ def my_agents_get():
 @app.post("/api/my/agents")
 def my_agent_create():
     """{username, display_name?, note?} -> my new personal agent + its API token (shown this once)."""
-    g.idem_no_body = True  # 2.1437.0 (#6558): the token is shown once, never kept with an idempotency key
+    g.idem_no_body = True  # (#6558): the token is shown once, never kept with an idempotency key
     c = db()
     need_person(403, tr("Agents cannot use this endpoint"))
     need_api()
@@ -955,7 +955,7 @@ def ac_agent_color(aid):
 @app.post("/api/my/agents/<int:aid>/token")
 def my_agent_token(aid):
     """A new API token for my personal agent; every older one stops at once. Shown this once."""
-    g.idem_no_body = True  # 2.1437.0 (#6558): the token is shown once, never kept with an idempotency key
+    g.idem_no_body = True  # (#6558): the token is shown once, never kept with an idempotency key
     need_api()
     c = db()
     need_own_agent(c, aid)

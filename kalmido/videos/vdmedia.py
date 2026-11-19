@@ -36,7 +36,7 @@ from ..files.scan import sc_guard
 from ..files.store import fs_chain, fs_deleted, fs_folder, fs_log_add, fs_put, fs_role, fs_version_row, need_node, safe_fs_name
 from ..files.upsafe import h6d_read
 from ..files.web import _send_headers
-from ..core.env import env_float  # 2.1437.0 (#6615): a wrong value = one warning with its name
+from ..core.env import env_float  # (#6615): a wrong value = one warning with its name
 
 VDM_KINDS = ("video", "image", "pdf")
 VDM_HEAD = 1024  # 2.658.0 (#5043): the type is read from the first VDM_HEAD bytes only (never the whole file)
