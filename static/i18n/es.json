@@ -19561,9 +19561,5 @@
   "In the office: only their own receipts, travel expenses, drives and times, read-only. You give more in the office settings under Rights.": "En la oficina: solo sus propios recibos, gastos de viaje, trayectos y tiempos, solo lectura. Das más en los ajustes de la oficina, en Derechos.",
   "Projects are shared one by one, or opened to everyone in the organisation in the project's settings.": "Los proyectos se comparten uno a uno, o se abren a todos en la organización en los ajustes del proyecto.",
   "{0} joined and starts in the default group": "{0} se unió y empieza en el grupo predeterminado",
-  "Its starter asks for no request token yet: from {0} its own token reaches only its channel. Run the setup command on its computer again.": "Su iniciador aún no pide token de solicitud: a partir del {0} su propio token solo llega a su canal. Vuelve a ejecutar el comando de configuración en su ordenador.",
-  "Your contact|pdf": "Su persona de contacto",
-  "Former member": "Antiguo miembro",
-  "printed on the quotation as the contact person": "figura en el presupuesto como persona de contacto",
-  "This organisation is retired: its data stays as it is": "Esta organización está dada de baja: sus datos se quedan como están"
+  "Its starter asks for no request token yet: from {0} its own token reaches only its channel. Run the setup command on its computer again.": "Su iniciador aún no pide token de solicitud: a partir del {0} su propio token solo llega a su canal. Vuelve a ejecutar el comando de configuración en su ordenador."
 }
