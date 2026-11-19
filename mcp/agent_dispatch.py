@@ -303,6 +303,33 @@ def places_of(agent, cfg):
     return 1, "default"
 
 
+# 2.1383.0 (#4064): every switch on this computer that suspends a safeguard of the starter -- each one in use is logged once
+# when the runner starts ("overridden: ...") and counted in the dispatcher's day report. A new switch of this kind goes in here,
+# never without its log line (tests/p2481_dispatch_test.py checks that the runner still reads each of them).
+OVERRIDE_SWITCHES = {
+    "KALMIDO_APPROVAL_CHECK": ("0", "no approval check of chat answers"),
+    "KALMIDO_PERM_RELAY": ("0", "no permission questions in the chat"),
+    "KALMIDO_SESSION_RESUME": ("0", "a fresh run per event"),
+}
+MODE_RANK = {"off": 0, "dry": 1, "on": 2}
+OVERRIDE_KEEP_S = 30 * 86400
+
+
+def overrides(agent):
+    """2.1383.0 (#4064): the overrides in use now: ["KALMIDO_PERM_RELAY=0 (no permission questions in the chat)", ...];
+    KALMIDO_DISPATCH counts when it switches the dispatcher further on than the setting in Kalmido (dry / on against off)."""
+    out = []
+    for name, (val, what) in OVERRIDE_SWITCHES.items():
+        if (os.environ.get(name) or "").strip() == val:
+            out.append(f"{name}={val} ({what})")
+    env = (os.environ.get("KALMIDO_DISPATCH") or "").strip().lower()
+    app = str(((agent or {}).get("runtime") or {}).get("dispatch") or "").strip().lower()
+    app = app if app in MODES else "off"
+    if env in MODES and MODE_RANK[env] > MODE_RANK[app]:
+        out.append(f"KALMIDO_DISPATCH={env} (Kalmido: {app})")
+    return out
+
+
 def mode_of(agent):
     """off | dry | on: KALMIDO_DISPATCH on this computer, else runtime.dispatch of GET /api/v1/agent ("" = off)."""
     env = (os.environ.get("KALMIDO_DISPATCH") or "").strip().lower()
@@ -944,9 +971,39 @@ class Dispatcher:
         self.project_dir = project_dir or os.getcwd()
         self.state_path = os.path.join(host.state_dir, STATE_FILE)
         self.reg = load_json(self.state_path, {})
-        for k, v in (("jobs", {}), ("tries", {}), ("told", {}), ("counted", []), ("closed", {}), ("started", 0), ("red", []), ("bundles", {})):
+        for k, v in (("jobs", {}), ("tries", {}), ("told", {}), ("counted", []), ("closed", {}), ("started", 0), ("red", []), ("bundles", {}), ("overrides", [])):
             self.reg.setdefault(k, v)
         self.last = 0.0
+        self.seen_overrides = set()  # 2.1383.0 (#4064): counted once per run of the runner (= per start)
+
+    def note_overrides(self, now):
+        """2.1383.0 (#4064): count each override in use once per start of the runner (the runner logs it at its start), and a
+        stop file that was there at the last round and is gone now (a brake lifted by hand)."""
+        agent = getattr(self.host, "agent", None) or {}
+        found = overrides(agent)
+        stop = os.path.exists(os.path.join(self.host.state_dir, STOP_FILE)) or os.path.exists(os.path.join(self.project_dir, "KALMIDO-DISPATCH-STOP"))
+        if self.reg.get("stop_seen") and not stop:
+            found.append("stop file removed")
+            self.seen_overrides.discard("stop file removed")
+        self.reg["stop_seen"] = stop
+        for what in found:
+            if what in self.seen_overrides:
+                continue
+            self.seen_overrides.add(what)
+            if what.startswith("KALMIDO_DISPATCH") or what == "stop file removed":  # the others are logged by the runner at its start
+                log("overridden: " + what)
+            self.reg["overrides"].append([int(now), what])
+        self.reg["overrides"] = [x for x in self.reg["overrides"] if now - float(x[0]) < OVERRIDE_KEEP_S][-500:]
+
+    def override_count(self, now, days=7):
+        """2.1383.0 (#4064): (count, distinct names) of the overrides of the last days."""
+        rec = [x for x in self.reg.get("overrides") or [] if now - float(x[0]) < days * 86400]
+        names = []
+        for _, what in rec:
+            w = what.split(" (", 1)[0]
+            if w not in names:
+                names.append(w)
+        return len(rec), names
 
     def save(self):
         try:
@@ -1025,6 +1082,7 @@ class Dispatcher:
                 log(problem + ": idle")
             return res
         w = Writer(dry, cfg["max_writes"])
+        self.note_overrides(now)  # 2.1383.0 (#4064)
         api = self.data_api()
         if api is None:  # review F1 (#6668): fail closed
             res["problem"] = "no request token for the person chosen in the agent's settings"
@@ -1286,6 +1344,9 @@ class Dispatcher:
         lines.append(", ".join(f"{self.say('dispatch_state_' + s)} {counts[s]}" for s in STATES if counts.get(s)) or self.say("dispatch_nothing"))
         if res["brakes"]:
             lines.append(self.say("dispatch_brakes", ", ".join(res["brakes"])))
+        n, names = self.override_count(now)  # 2.1383.0 (#4064): every override of a safeguard, counted
+        if n:
+            lines.append(self.say("dispatch_overrides", n, ", ".join(names)))
         if res.get("skipped"):  # 2.1308.0 (#6523)
             lines.append(self.say("dispatch_skipped", " ".join(f"#{t}" for t in sorted(res["skipped"]))))
         if res.get("waiting"):  # 2.1394.0 (#5200)

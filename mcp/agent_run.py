@@ -1105,6 +1105,8 @@ TEXTS = {
     "dispatch_brief_decision": {"en": "a bold decision line", "de": "eine fette Entscheidungszeile", "fr": "une ligne de décision en gras", "es": "una línea de decisión en negrita", "it": "una riga di decisione in grassetto", "nl": "een vetgedrukte beslisregel"},
     "dispatch_brief_where": {"en": "a section Where", "de": "ein Abschnitt Fundstellen", "fr": "une section Emplacements", "es": "una sección Ubicaciones", "it": "una sezione Posizioni", "nl": "een sectie Vindplaatsen"},
     "dispatch_brief_size": {"en": "the size", "de": "die Größe", "fr": "la taille", "es": "el tamaño", "it": "la dimensione", "nl": "de grootte"},
+    # 2.1383.0 (#4064): the overrides of a safeguard in the day report
+    "dispatch_overrides": {"en": "Overridden (7 days): {0} - {1}", "de": "Übersteuert (7 Tage): {0} - {1}", "fr": "Contourné (7 jours) : {0} - {1}", "es": "Anulado (7 días): {0} - {1}", "it": "Aggirato (7 giorni): {0} - {1}", "nl": "Overschreven (7 dagen): {0} - {1}"},
     "status_plan_limit": {"en": "Plan limit reached", "de": "Tarifgrenze erreicht", "fr": "Limite de l'abonnement atteinte",
                           "es": "Límite del plan alcanzado", "it": "Limite del piano raggiunto", "nl": "Limiet van het abonnement bereikt"},
     "status_plan_limit_at": {"en": "Plan limit reached, back at {0}", "de": "Tarifgrenze erreicht, zurück um {0}",
@@ -4466,6 +4468,20 @@ class Runner:
         return len(evs)
 
     # kalmido-capability: dispatcher (2.481.0, #3662; 2.1368.0 #7028: a job ends in a pull request with an approval card)
+    # kalmido-capability: override_log (2.1383.0, #4064)
+    def log_overrides(self):
+        """2.1383.0 (#4064): one line in the runner's log per switch of this computer that suspends a safeguard (approval check,
+        permission questions, session resume, the dispatcher switched on against Kalmido); the dispatcher counts them in its
+        day report. A new switch of that kind goes into agent_dispatch.OVERRIDE_SWITCHES, never without this line."""
+        try:
+            import agent_dispatch
+        except ImportError:
+            return []
+        found = agent_dispatch.overrides(self.agent)
+        for what in found:
+            log("overridden: " + what)
+        return found
+
     def dispatch_watch(self):
         """2.481.0 (#3662): the mechanical dispatcher (agent_dispatch.py) -- switched on in Kalmido (runtime.dispatch dry | on)
         or with KALMIDO_DISPATCH, it works the lists of KALMIDO-DISPATCH.json off: one tick every interval_min, closes built
@@ -5224,6 +5240,7 @@ class Runner:
                 wait = min(300, wait * 2)
         self.cur = cur
         self.refresh_agent()
+        self.log_overrides()
         self.ensure_perm_watch()
         threading.Thread(target=self.fetch_loop, daemon=True).start()
         last_hk = 0.0
