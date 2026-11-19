@@ -139,7 +139,9 @@ ROT = {"rotate_size": "medium", "rotate_runs": 60, "rotate_idle_min": 45, "rotat
        # 2.997.0 (#5679): the model per run (#5668 / #5684), off by default - one model as before
        "model_split": False, "model_decide": "", "model_routine": "", "model_review": "",
        # 2.1394.0 (#7031): model and effort per kind of job, empty = the host's default
-       "model_job": "", "effort_job": "", "model_audit": "", "effort_audit": ""}
+       "model_job": "", "effort_job": "", "model_audit": "", "effort_audit": "",
+       # #7368: the effort beside every model field, empty = the host's default
+       "effort": "", "effort_decide": "", "effort_review": "", "effort_routine": ""}
 me = cl.get("/agent").json()
 check(me.get("runtime") == {"model": "", "autocompact": True, "autocompact_pct": None, "nightly_reset": "", "permission_mode": "", "perm_user": None, "reset_seq": 0,
                             "timezone": "Europe/Berlin", **ROT}, f"runtime defaults: {me.get('runtime')}")

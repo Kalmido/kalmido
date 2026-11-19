@@ -6,7 +6,7 @@ model_split, model_decide, model_routine):
    buttons, reactions, comments, unknown events = decide; new tasks, tidy, follow-ups = routine; a job wake only with a HARD
    sign (not done, late messages, result not in the chat, a question / approval card, an open decision, a hard red that is
    not a story, soft or negated); a planned job only with a sign word
- - model_pair / session_model_key / with_model
+ - model_pair / session_model_key / with_model; #7368: run_effort / with_effort, --effort of the run's kind
  - end to end with a fake claude in PATH: a chat run on the decide model, a task event on the routine model, a job wake in
    the same conversation (resumed, other model), a failed switch runs once more on the previous model and the conversation
    stays on it; switch off = the command's own --model, untouched
@@ -145,6 +145,16 @@ check(ar.session_model_key({"model_split": True, "model_decide": "a", "model_rou
 check(ar.with_model(["claude", "-p", "--model", "x", "--model=y", "--verbose"], "z") == ["claude", "-p", "--verbose", "--model", "z"],
       "with_model replaces every --model")
 check(ar.with_model(["claude", "--model", "x"], "") == ["claude"], "empty = the command's default (no --model)")
+# #7368: the effort per kind of run (run_effort / with_effort): off = effort; on = effort_decide / _review / _routine with the
+# fallback of the model fields; an unknown value and "" = no --effort
+check(ar.run_effort({"effort": "High"}) == "high" and ar.run_effort({"effort": "high", "effort_routine": "low"}, "routine") == "high"
+      and ar.run_effort({}) == "" and ar.run_effort({"effort": "turbo"}) == "", "#7368: off: only runtime effort, unknown = none")
+SP = {"model_split": True, "effort": "medium", "effort_decide": "max", "effort_routine": "low"}
+check(ar.run_effort(SP, "decide") == "max" and ar.run_effort(SP, None) == "max" and ar.run_effort(SP, "routine") == "low"
+      and ar.run_effort(SP, "review") == "max" and ar.run_effort({**SP, "effort_review": "xhigh"}, "review") == "xhigh"
+      and ar.run_effort({"model_split": True, "effort": "medium"}, "routine") == "medium", "#7368: on: per kind, empty falls back like the models")
+check(ar.with_effort(["claude", "--effort", "low", "--effort=max", "-p"], "high") == ["claude", "-p", "--effort", "high"]
+      and ar.with_effort(["claude", "--effort", "low"], "") == ["claude", "--effort", "low"], "#7368: with_effort replaces; empty keeps the command's own")
 
 # ================================================================ end to end: a fake claude in PATH
 BIN = os.path.join(TMP, "bin")
@@ -270,10 +280,26 @@ r.refresh_due = True
 s = go([wake()])
 check(s and s[-1]["model"] == "haiku", f"a new conversation picks again (not stuck): {s}")
 
+# #7368: --effort of the run's kind next to --model (empty = none)
+RT.update(effort_decide="max", effort_routine="low")
+r.refresh_due = True
+s = go([ev("chat", user={"id": 7, "name": "Ann"}, message={"id": 14, "body": "effort"})])
+s2 = go([ev("task_added", task={"id": 15, "title": "New"})])
+eff = lambda x: x["args"][x["args"].index("--effort") + 1] if x["args"].count("--effort") == 1 else None  # noqa: E731
+check(len(s) == 1 and eff(s[0]) == "max" and len(s2) == 1 and eff(s2[0]) == "low", f"#7368: the decide run max, the routine run low: {s} {s2}")
+RT.update(effort_decide="", effort_routine="")
+r.refresh_due = True
+s = go([ev("task_added", task={"id": 16, "title": "New"})])
+check(len(s) == 1 and "--effort" not in s[0]["args"], f"#7368: empty = no --effort: {s}")
+
 # switch off: the command's own --model stays as it is
 RT.update(model_split=False)
 r.refresh_due = True
 s = go([ev("task_added", task={"id": 7})])
 check(len(s) == 1 and s[0]["model"] == "base" and s[0]["args"].count("--model") == 1, f"off: the launcher's --model, untouched: {s}")
 check(s[0]["cls"] == "" and s[0]["rid"] == "", f"#5684: off = no kind for the usage hook: {s}")
+RT.update(effort="high", effort_decide="max")
+r.refresh_due = True
+s = go([ev("chat", user={"id": 7, "name": "Ann"}, message={"id": 17, "body": "off"})])
+check(s and eff(s[-1]) == "high", f"#7368: off: runtime effort for every run (after the summary of the old conversation): {s}")
 sys.exit(done("p5668_model_per_run"))

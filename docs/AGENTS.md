@@ -3174,7 +3174,8 @@ Admins set per agent, in **Settings > Agents > Status > (agent) > Runtime** (cal
 
 | Setting | Meaning | API (`runtime`) |
 |---|---|---|
-| Model | e.g. `opus`, `sonnet`, `haiku` or a full model id; empty = the agent's default | `model` (string, `""`) |
+| Model | a choice: *Agent default*, *Fable*, *Opus*, *Sonnet*, *Haiku* or *Other …* (a free field for any other model id, e.g. a full one); empty = the agent's default. #7368: a value equal to `fable`, `opus`, `sonnet` or `haiku` ignoring case is stored in lower case, any other name as typed. The same choice serves every model field below | `model` (string, `""`) |
+| Effort (#7368) | next to every model field of the section *Model*: *Agent default*, *Low*, *Medium*, *High*, *Extra high*, *Maximum* (Claude Code's `--effort`), saved at once. `effort` goes with the one model; with *Model per run* on `effort_decide`, `effort_review` and `effort_routine` go with their kinds (empty: decide / routine = `effort`, review = the decide effort, the same fallback as the model fields) | `effort`, `effort_decide`, `effort_review`, `effort_routine` (`""`, `"low"`, `"medium"`, `"high"`, `"xhigh"`, `"max"`; 400 otherwise; `null` = `""`) |
 | Model per run (2.974.0) | *Select the model per run*: off (default) = the one model above for every run. On = the host picks per run: *For your messages and decisions* (the person's chat messages, buttons, reactions, comments, team messages, unknown events, a job wake with a hard sign, a planned job that names a decision / approval / warning / failure) and *For routine* (job wakes without a hard sign, new tasks, tidy, follow-ups, other planned jobs); an empty field = *Model*. Same rules for the names as *Model*. Shown in the admin's *Runtime* and in the owner's permissions dialog of a personal agent (section *Model*, saved at once). While it is on the chat header shows only the model of the last run. 2.992.0: a third field *For reviews* (`model_review`, empty = *For your messages and decisions*) and below them the usage of the last 7 days per kind (runs, tokens, the costs only when the host reports them); the header shows *runs with <model of the last run>*, a tap opens this section (its owner, admins) | `model_split` (bool, default `false`), `model_decide`, `model_routine`, `model_review` (string, `""`; 400 otherwise) |
 | Jobs on its computer (2.1394.0) | model and effort for the long work the agent starts as a job on its computer (`agent_job.py`): *Model for build jobs*, *Effort for build jobs*, *Model for review jobs* (`--audit`, read only), *Effort for review jobs*; empty = the agent's default. Effort: *Low*, *Medium*, *High*, *Extra high*, *Maximum* (Claude Code's `--effort`). Shown in the admin's *Runtime* and in the owner's permissions dialog of a personal agent, saved at once | `model_job`, `model_audit` (string, `""`; same rules as `model`), `effort_job`, `effort_audit` (`""`, `"low"`, `"medium"`, `"high"`, `"xhigh"`, `"max"`; 400 otherwise; `null` = `""`) |
 | Auto-compact | summarize the conversation when this much of the context is used; off = never | `autocompact` (bool), `autocompact_pct` (10-100 or `null` = the agent's default) |
@@ -3225,6 +3226,12 @@ a review job (`agent_job.py start --audit`) those of `model_audit` / `effort_aud
 empty field keeps the command as it is. A command that is not Claude Code keeps its own model and gets no effort. The job's
 log names the model and the effort.
 
+#7368: the effort per kind of run. The reference starter (`mcp/agent_run.py`, capability `model_per_run`) gives a Claude Code
+command `--effort` of the run's kind next to its `--model`: with the model per run off `effort`, with it on `effort_decide`,
+`effort_review` or `effort_routine` (an empty one falls back like the model fields); empty = no `--effort` (the command's own
+stays). A command that is not Claude Code gets no effort. The run's log line names the effort. Changing it needs no new
+conversation.
+
 2.312.0: *Permission questions go to* is offered in the runtime section of a team agent (the people come from
 `GET /api/agents/{id}/perm-users` -> `{team, current, people: [{id, name}]}`, for instance admins and the owner of a personal
 agent). Saving checks the person (400 `perm_user` for an agent account, a disabled account, someone the agent does not reach
@@ -3241,7 +3248,8 @@ GET /api/v1/agent   -> {…, "runtime": {"model": "sonnet", "autocompact": true,
                                         "git_author": "Kalmido <noreply@kalmido.com>", "dispatch": "",
                                         "model_split": false, "model_decide": "", "model_routine": "",
                                         "model_review": "", "model_job": "", "effort_job": "",
-                                        "model_audit": "", "effort_audit": ""}}
+                                        "model_audit": "", "effort_audit": "", "effort": "",
+                                        "effort_decide": "", "effort_review": "", "effort_routine": ""}}
 PATCH /api/admin/agents/{id}  {"runtime": {"model": "opus", "autocompact_pct": 80}}   (admins; only the given keys change)
 POST  /api/admin/agents/{id}/reset                                                     (admins; 409 while paused)
 ```
