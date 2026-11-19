@@ -19471,6 +19471,7 @@
   "Coming from another program? Then enter the next number here": "Arrivi da un altro programma? Inserisci qui il numero successivo",
   "Logo / letterhead": "Logo / carta intestata",
   "Your logo on every document (optional)": "Il tuo logo su ogni documento (facoltativo)",
+  "For server admins": "Per gli amministratori del server",
   "Check for a new version every 6 hours": "Controlla ogni 6 ore se c'è una nuova versione",
   "The server asks GitHub every 6 hours for the latest release; nothing is installed automatically and the browser never contacts GitHub. The result shows below.": "Il server chiede a GitHub ogni 6 ore l’ultima versione; non viene installato nulla automaticamente e il browser non contatta mai GitHub. Il risultato è più in basso.",
   "The Kalmido AI is switched off in this organisation. An admin of the organisation can switch it on (Settings > Organisation > People).": "L’IA di Kalmido è disattivata in questa organizzazione. Un admin dell’organizzazione può attivarla (Impostazioni > Organizzazione > Persone).",

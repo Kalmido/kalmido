@@ -19470,6 +19470,7 @@
   "Coming from another program? Then enter the next number here": "Kom je van een ander programma? Vul hier dan het volgende nummer in",
   "Logo / letterhead": "Logo / briefhoofd",
   "Your logo on every document (optional)": "Je logo op elk document (optioneel)",
+  "For server admins": "Voor serverbeheerders",
   "Check for a new version every 6 hours": "Elke 6 uur controleren op een nieuwe versie",
   "The server asks GitHub every 6 hours for the latest release; nothing is installed automatically and the browser never contacts GitHub. The result shows below.": "De server vraagt GitHub elke 6 uur naar de nieuwste versie; er wordt niets automatisch geïnstalleerd en de browser neemt nooit contact op met GitHub. Het resultaat staat hieronder.",
   "The Kalmido AI is switched off in this organisation. An admin of the organisation can switch it on (Settings > Organisation > People).": "De Kalmido-AI is in deze organisatie uitgeschakeld. Een beheerder van de organisatie kan hem inschakelen (Instellingen > Organisatie > Personen).",

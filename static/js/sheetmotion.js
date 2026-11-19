@@ -126,7 +126,15 @@ function ui_doneStart(id, hide) {
     let left = rows.length;
     const fold = e => { if (e.propertyName !== 'height' || !e.target.classList.contains('ui-gone')) return; e.target.removeEventListener('transitionend', fold); if (!--left) end(); };
     rows.forEach(r => { r.addEventListener('transitionend', fold); r.style.height = r.offsetHeight + 'px'; r.offsetHeight; r.classList.add('ui-gone'); });
-    tm.push(setTimeout(end, UI_GONE_MS + 150));
+    // (#7231): the timer is the fallback for a fold that does not run (no transition, a hidden tab); a fold that still
+    // runs (a slow device, its frames come late: the CI redrew under a row that still had height) is waited for, up to 1 s more
+    let late = 0;
+    const fallback = () => {
+      if (a.ended || a.cancelled) return;
+      const runs = rows.some(r => r.isConnected && (r.getAnimations?.() || []).some(x => x.transitionProperty === 'height' && x.playState === 'running'));
+      if (runs && ++late <= 10) tm.push(setTimeout(fallback, 100)); else end();
+    };
+    tm.push(setTimeout(fallback, UI_GONE_MS + 150));
   };
   if (!rows.length) end();
   else if (!hide) tm.push(setTimeout(end, mo ? UI_STRIKE_MS : 0));

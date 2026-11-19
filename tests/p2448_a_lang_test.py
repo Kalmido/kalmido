@@ -132,23 +132,39 @@ CL = A.post(B + "/api/clients", json={"name": "Example Ltd", "org_id": ORG, "str
 Q = A.post(B + O + "/docs", json={"client_id": CL, "project_title": "Retainer"}).json()["id"]
 A.put(B + f"{O}/docs/{Q}/items", json={"items": [{"kind": "service", "title": "Care", "qty": 1, "unit": "flat", "rate": 500}]})
 TPL = A.post(B + f"{O}/docs/{Q}/invoice", json={}).json()["id"]
-r = A.post(B + O + "/series", json={"template_id": TPL, "every": "monthly", "start": date.today().isoformat(), "auto_send": True, "title": "Rente"})
-check(r.status_code == 201, "a series " + r.text[:200])
-dbx("UPDATE office_inv_series SET created_by=? WHERE id=?", (FID, r.json()["id"]))  # its creator left: every admin of the area hears of it
+
+
+def series_of_gone_creator(title):
+    """A series due today whose creator left the area: every admin hears of it. It is made with tomorrow's start and only made
+    due today after created_by moved -- made due at once, the server's own watchdog (rin_tick every few intervals) could take
+    it in between and tell only its creator (Alice): red once in the CI (night run 19.11.2026, only Alice's task)."""
+    tomorrow, today = (date.today() + timedelta(days=1)).isoformat(), date.today().isoformat()
+    r = A.post(B + O + "/series", json={"template_id": TPL, "every": "monthly", "start": tomorrow, "auto_send": True, "title": title})
+    check(r.status_code == 201, f"a series {title} " + r.text[:200])
+    dbx("UPDATE office_inv_series SET created_by=?, start=?, next_date=? WHERE id=?", (FID, today, today, r.json()["id"]))
+
+
+series_of_gone_creator("Rente")
 in_ct("import app\nfrom kalmido.core.db import connect\nfrom kalmido.office import recurring as x\nx._RIN_LAST['at'] = -1e12\n"
       "c = connect()\nx.rin_tick(c)\nc.close()")
-t = dict(dbx("SELECT created_by, content FROM tasks WHERE title LIKE '%Rente%'"))
+
+
+def both_admins(sql):
+    """The tasks of sql per admin, once both have one: the server's watchdog may hold the series (its lock) while the tick
+    above runs, then the tasks come with its commit a moment later."""
+    return until(lambda: (lambda d: d if ALICE in d and BOB in d else None)(dict(dbx(sql))), 20) or dict(dbx(sql))
+
+
+t = both_admins("SELECT created_by, content FROM tasks WHERE title LIKE '%Rente%'")
 check("Der Kunde hat keine E-Mail-Adresse" in t.get(ALICE, ""), f"the German admin reads German {t}")
 check("Le client n’a pas d’adresse e-mail" in t.get(BOB, ""), f"the French admin reads French, whoever came first {t}")
 
 # 2.454.0 (#3808): the same for a check that fails inside finalising (tax number and IBAN are missing here)
 dbx("UPDATE clients SET email_invoice='billing@example.com' WHERE id=?", (CL,))
-r = A.post(B + O + "/series", json={"template_id": TPL, "every": "monthly", "start": date.today().isoformat(), "auto_send": True, "title": "Zweite"})
-check(r.status_code == 201, "a second series " + r.text[:200])
-dbx("UPDATE office_inv_series SET created_by=? WHERE id=?", (FID, r.json()["id"]))
+series_of_gone_creator("Zweite")
 in_ct("import app\nfrom kalmido.core.db import connect\nfrom kalmido.office import recurring as x\nx._RIN_LAST['at'] = -1e12\n"
       "c = connect()\nx.rin_tick(c)\nc.close()")
-t = dict(dbx("SELECT created_by, content FROM tasks WHERE content LIKE '%Zweite%'"))  # 2.367.4 (#2972): the series of one day share a task
+t = both_admins("SELECT created_by, content FROM tasks WHERE content LIKE '%Zweite%'")  # 2.367.4 (#2972): the series of one day share a task
 check("Vor dem Festschreiben fehlt" in t.get(ALICE, "") and "Steuernummer oder USt-IdNr." in t.get(ALICE, ""), f"#3808: the German admin reads the check in German {t}")
 check("Manque avant la clôture" in t.get(BOB, "") and "numéro fiscal" in t.get(BOB, ""), f"#3808: the French admin in French, the field names too {t}")
 

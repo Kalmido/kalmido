@@ -19,7 +19,7 @@ import subprocess
 import sys
 import tempfile
 
-from kt import check, done  # noqa: E402
+from kt import check, done, lang as i18n_lang  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(HERE, "..")
@@ -144,7 +144,7 @@ check("['dev', N_('Programming agent')]" in js and "' --profile ' + pf" in js an
       "agentsetup.js: the dialog offers the profile and puts it into the command")
 TEXTS = ["Rights profile", "Deny rules only", "Hardened (Kalmido tools only)", "Standard (+ notes and jobs)", "Programming agent"]
 for code_ in ("de", "es", "fr", "it", "nl"):
-    tr = json.loads(rd("static", "i18n", f"{code_}.json"))
+    tr = i18n_lang(code_)  # (#7239): the big file + static/i18n/neu/ (a package's texts wait there until the train folds them in)
     check(all(tr.get(t) for t in TEXTS), f"{code_}: the dialog's texts translated")
 check("--profile hardened|standard|dev" in rd("docs", "AGENT-SETUP.md") and "agent_profiles.json" in rd("docs", "AGENT-SETUP.md"), "AGENT-SETUP.md documents it")
 

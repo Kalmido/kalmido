@@ -50,7 +50,9 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR
   // ================= the project page (#983, #1061)
   let w = await boot({user: 'alice', hash: 'l/' + P, ls: pov}), d = w.document;
   await until(() => d.querySelector('#view .pov .lygrid .povs'));
-  const blocks = () => [...d.querySelectorAll('#view .lygrid[data-ly="project"] > .lyb')].map(b => b.dataset.lyk);
+  // 2.1385.0 (#6944): a run of half blocks sits in two columns (.lyrun > .lycol): the arranged order is the blocks' style order
+  const lyKeys = v => [...d.querySelectorAll(`#view .lygrid[data-ly="${v}"] .lyb`)].sort((a, b) => (+a.style.order || 0) - (+b.style.order || 0)).map(b => b.dataset.lyk);
+  const blocks = () => lyKeys('project');
   check(blocks().join() === 'desc,status,ms,files,links,people,notes,chat,time,flow'.split(',').filter(k => d.querySelector('#pov-' + k)).join() && blocks().length >= 6, '#983: the blocks in the default order ' + blocks());
   check(d.querySelector('#pov-ms.povs-empty .povh [data-pov="ms-add"]') && d.querySelector('#pov-links.povs-empty .povh [data-pov="link-add"]'), '#1061: an empty block is one line with its button in the head');
   check(!d.querySelector('#pov-desc.povs-empty') && d.querySelector('#pov-desc .povmd'), '#1061: a block with content stays big');
@@ -164,7 +166,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR
   w = await boot({user: 'alice', hash: 'time'}); d = w.document;
   await until(() => d.querySelector('#view .lygrid[data-ly="time"] .lyb'));
   check(d.querySelector('[data-act="ly-custom"][data-lyv="time"]'), '#1063: Time tracking has "Customise"');
-  const tb = () => [...d.querySelectorAll('#view .lygrid[data-ly="time"] > .lyb')].map(b => b.dataset.lyk);
+  const tb = () => lyKeys('time');  // 2.1385.0 (#6944)
   check(tb().includes('lists') && tb().includes('entries'), '#1063: the report as blocks ' + tb());
   click(w, d.querySelector('[data-act="ly-custom"][data-lyv="time"]')); await until(() => d.querySelector('.lyed[data-lyed="time"]'));
   const sw3 = d.querySelector('.dcust [data-dshow="lists"]'); sw3.checked = false; sw3.dispatchEvent(new w.Event('change', {bubbles: true}));
@@ -198,7 +200,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR
   for (const id of [P, P2nd]) await call('POST', `/api/lists/${id}/status`, {status: 'on_track', note: ''});  // 2.352.0 B (#2752): tracked = has a status
   w = await boot({user: 'alice', hash: 'overview'}); d = w.document;
   await until(() => d.querySelector('#view .lygrid[data-ly="projects"] .lyb'));
-  const pb = () => [...d.querySelectorAll('#view .lygrid[data-ly="projects"] > .lyb')].map(b => b.dataset.lyk);
+  const pb = () => lyKeys('projects');  // 2.1385.0 (#6944)
   check(pb().join() === 'tiles,projects,note', '#1063: the projects overview as blocks ' + pb());
   click(w, d.querySelector('[data-act="ly-custom"][data-lyv="projects"]')); await until(() => d.querySelector('.lyed[data-lyed="projects"]'));
   check(d.querySelector('.dcust [data-dshow="projects"]').disabled, '#1063: the projects themselves cannot be hidden');
@@ -210,7 +212,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR
   await call('PUT', `/api/lists/${P}/members`, {user_id: ag.id, role: 'edit'});
   w = await boot({user: 'alice', hash: 'agents'}); d = w.document;
   await until(() => d.querySelector('#view .lygrid[data-ly="agents"] .lyb'));
-  const ab = () => [...d.querySelectorAll('#view .lygrid[data-ly="agents"] > .lyb')].map(b => b.dataset.lyk);
+  const ab = () => lyKeys('agents');  // 2.1385.0 (#6944)
   check(ab().includes('agents') && ab().includes('jobs'), '#1063: the Agents overview as blocks ' + ab());
   w.eval(`lyOpen('agents', true)`); await until(() => d.querySelector('.lyed[data-lyed="agents"]'));
   click(w, d.querySelector('.dcust [data-act="ly-mv"][data-k="jobs"][data-d="-1"]')); await sleep(200);

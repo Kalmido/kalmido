@@ -216,8 +216,9 @@ const acz_html = () => acz_on() ? `${apiHtml()}${whHtml()}${aiPaneOn() ? `<h4 id
   <div class="members" id="s-acz-ags"><div class="muted mhint">${tr('Loading…')}</div></div>` : ''}` : '';
 // 2.364.0 C (#3044): Access is listed only with an own API token / webhook (acz_mine); else it waits under "For advanced users"
 const acz_mine = () => !!(S.api?.mine || S.webhooks?.mine);
-const acz_linkHtml = on => { const row = `<div class="row aczlink"><span class="muted">${tr('API tokens, webhooks and agent tokens are in one place.')}</span><button type="button" class="btn sm" data-m="go-access">${ic('key', 's')} ${tr('Open Access')}</button></div>`;
-  return !on ? '' : acz_mine() ? row : `<details class="sdet aczadv"><summary>${tr('For advanced users')}</summary>${row}</details>`; };
+// bare (#7230): already inside a fold "For advanced users" (Settings > Account, details.sdev): no second one around it (#6129)
+const acz_linkHtml = (on, bare) => { const row = `<div class="row aczlink"><span class="muted">${tr('API tokens, webhooks and agent tokens are in one place.')}</span><button type="button" class="btn sm" data-m="go-access">${ic('key', 's')} ${tr('Open Access')}</button></div>`;
+  return !on ? '' : acz_mine() || bare ? row : `<details class="sdet aczadv"><summary>${tr('For advanced users')}</summary>${row}</details>`; };
 async function acz_draw(md) {
   tokDraw(md); whDraw(md);
   const box = $('#s-acz-ags', md); if (!box) return;

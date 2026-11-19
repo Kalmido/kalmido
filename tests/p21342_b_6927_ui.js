@@ -18,7 +18,8 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
 // in the page: tick the row off, wait for the real end of its fold (transitionend of the height; the redraw first = measured then),
 // then for the redraw (toggleTask's promise) and two frames; the next row's top at each step
 // n: the n-th row of the list (in screen order, it has a next row)
-const MEASURE = n => `(async () => {
+// block: ms the main thread stays busy right when the fold starts (a slow device's late frame, #7231)
+const MEASURE = (n, block = 0) => `(async () => {
   const q = s => document.querySelector(s), row = document.querySelectorAll('#view .trow[data-id]')[${n}];
   if (!row) return {err: 'no row'};
   const id = +row.dataset.id;
@@ -26,14 +27,25 @@ const MEASURE = n => `(async () => {
   if (!nx) return {err: 'no next row'};
   const nid = nx.dataset.id, top = () => { const n = q('#view .trow[data-id="' + nid + '"]'); return n ? Math.round(n.getBoundingClientRect().top * 10) / 10 : null; };
   const rowTop = Math.round(row.getBoundingClientRect().top * 10) / 10, next0 = top();
-  const folded = new Promise(res => { const f = e => { if (e.target === row && e.propertyName === 'height') { row.removeEventListener('transitionend', f); res('folded'); } }; row.addEventListener('transitionend', f); });
+  // 2.1428.0 (#7231): a time line (ms after the tick) for the log: class ui-gone set, the height's transition started, fold end, redraw
+  const t0 = performance.now(), ms = () => Math.round(performance.now() - t0), tl = {};
+  const mo = new MutationObserver(() => {
+    if (tl.gone !== undefined || !row.classList.contains('ui-gone')) return;
+    tl.gone = ms();
+    const b0 = performance.now(); while (performance.now() - b0 < ${block}) { /* a late frame */ }
+  });
+  mo.observe(row, {attributes: true, attributeFilter: ['class']});
+  row.addEventListener('transitionstart', e => { if (e.target === row && e.propertyName === 'height' && tl.start === undefined) tl.start = ms(); });
+  const folded = new Promise(res => { const f = e => { if (e.target === row && e.propertyName === 'height') { row.removeEventListener('transitionend', f); tl.folded = ms(); res('folded'); } }; row.addEventListener('transitionend', f); });
   const p = toggleTask(id);
-  const first = await Promise.race([folded, p.then(() => 'redrawn')]);
+  const first = await Promise.race([folded, p.then(() => { tl.redrawn = ms(); return 'redrawn'; })]);
   const atFold = top(), cs = getComputedStyle(row), h = Math.round(row.getBoundingClientRect().height * 10) / 10;
   const box = {pt: cs.paddingTop, pb: cs.paddingBottom, mt: cs.marginTop, mb: cs.marginBottom, bt: cs.borderTopWidth, bb: cs.borderBottomWidth, mh: cs.minHeight};
   await p;
+  if (tl.redrawn === undefined) tl.redrawn = ms();
+  mo.disconnect();
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-  return {first, rowTop, next0, atFold, h, box, after: top(), gone: !q('#view .trow[data-id="' + id + '"]'), cls: row.className};
+  return {first, rowTop, next0, atFold, h, box, after: top(), gone: !q('#view .trow[data-id="' + id + '"]'), cls: row.className, tl};
 })()`;
 
 (async () => {
@@ -48,6 +60,7 @@ const MEASURE = n => `(async () => {
   await call(CA, 'PATCH', `/api/lists/${LC}`, {columns: ['due', 'who']});
   const mk = async (list, title) => (await call(CA, 'POST', '/api/tasks', {list_id: list, title})).id;
   for (const t of ['Water the plants', 'Buy stamps', 'Call the bakery', 'Fix the shelf', 'Sort the receipts', 'Plan the trip']) { await mk(L, t); await mk(LC, t); }
+  for (const t of ['Book the venue', 'Mend the fence', 'Read the manual']) await mk(L, t);  // 2.1428.0 (#7231): three ticks per pass
 
   const ready = async (ev, expr, n = 60) => { for (let i = 0; i < n; i++) { if (await ev(expr).catch(() => false)) return true; await sleep(250); } return false; };
   const ffLogin = async ({ev, nav}) => {
@@ -55,8 +68,8 @@ const MEASURE = n => `(async () => {
     await ev(`(() => { localStorage.clear(); sessionStorage.clear(); return 1; })()`);
     return ev(`fetch('/api/auth/login', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify({username: 'alice', password: 'password123'})}).then(x => x.status)`);
   };
-  const tick = async (ev, tag, n) => {
-    const m = await ev(MEASURE(n));
+  const tick = async (ev, tag, n, block) => {
+    const m = await ev(MEASURE(n, block));
     const s = `${tag} ` + JSON.stringify(m);
     check(m && !m.err && m.first === 'folded', `#6927 ${tag}: the fold ends before the list redraws ` + s);
     check(m && m.atFold !== null && Math.abs(m.atFold - m.rowTop) <= 1, `#6927 ${tag}: folded, no gap is left (the next row sits where the ticked row began) ` + s);
@@ -75,6 +88,9 @@ const MEASURE = n => `(async () => {
       check(await ev(`showDone('l:${L}') === false`), `${tag}: the list hides completed`);
       await tick(ev, `${tag} plain list, first row`, 0);
       await tick(ev, `${tag} plain list, a middle row`, 1);
+      // 2.1428.0 (#7231): a frame comes 450 ms late right as the fold starts (CI runner): the fallback timer (400 ms) must not
+      // redraw under the running fold
+      await tick(ev, `${tag} plain list, a late frame`, 0, 450);
       await shot(`p21342b-${tag}-plain.png`);
       await nav(B + '#l/' + LC);
       check(await ready(ev, `document.querySelectorAll('#view .trow[data-id]').length >= 3`), `${tag}: the list with columns shows its rows`);

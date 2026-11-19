@@ -16,7 +16,9 @@ const call = async (method, url, body, ck = CK) => { const r = await fetch(B + u
 const until = (fn, n) => require('./boot').until(fn, {timeout: n ? n * 150 : 15000, step: 150});  // 2.358.0 (#3286): the shared wait of tests/boot.js (default at least 15 s); an explicit n/ms keeps its window
 const click = (w, el) => el.dispatchEvent(new w.MouseEvent('click', {bubbles: true, cancelable: true}));
 const FEAT = 'cal,comments,collab,time,progress,agents,clients,family,habits,pomo,timeline,stats';
-const keys = d => [...d.querySelectorAll('#view .lyb[data-lyk]')].map(x => x.dataset.lyk);
+// 2.1428.0 (#7237): a run of half blocks sits in two columns (.lyrun > .lycol, #6944): the DOM goes column by column, the
+// arranged order is the blocks' style order (blocks without one keep their DOM order: stable sort)
+const keys = d => [...d.querySelectorAll('#view .lyb[data-lyk]')].sort((a, b) => (+a.style.order || 0) - (+b.style.order || 0)).map(x => x.dataset.lyk);
 const saved = async k => { const s = await call('GET', '/api/state'); const v = s.settings?.[k] || ''; return v ? JSON.parse(v) : {}; };
 
 (async () => {
