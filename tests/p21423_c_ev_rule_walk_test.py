@@ -8,11 +8,12 @@ dates are compared with the unmoved rule (the reference, outside the timing).
 
  - 20 timed daily series from 1900 (Europe/Berlin, the window crosses the end of summer time): same dates, fast
  - weekly every 2nd week on Monday + Thursday from 1900 (all day), daily from 1900 with UNTIL inside the window,
-   an EXDATE in the window, yearly from 1900, monthly on the first Monday from the year 1000 (400-year move),
-   COUNT=9999 from 2000 (never moved): all the same dates as the unmoved rule
+   an EXDATE in the window, yearly from 1900, monthly from 1900 (first Monday, every workday 20 times, the 31st by
+   default, every 5th month, the last workday by BYSETPOS), every 3rd year on the first Monday of November, COUNT=9999
+   from 2000 (never moved): all the same dates as the unmoved rule
  - is_occ of a daily series from 1900: a real date yes, another time no -- fast
- - a rule that cannot move and passes more than EV_WALK_MAX dates before the window (MONTHLY;INTERVAL=7 with 28 days a
-   month from the year 1000) shows only its extra date (RDATE) there, fast
+ - a rule that cannot move and passes more than EV_WALK_MAX dates before the window (COUNT, the stop lowered to 100)
+   shows only its extra date (RDATE) there
 usage: p21423_c_ev_rule_walk_test.py <datadir>      (P21423C_NOSTART=1 = the server already runs)"""
 import json
 import os
@@ -71,11 +72,21 @@ with app.test_request_context("/", headers={"Accept-Language": "en"}):
     run("until_1900", row("1900-01-01T18:30", "1900-01-01T19:00", "FREQ=DAILY;UNTIL=20261028T235959Z"))
     run("exdate_1900", row("1900-01-01", "1900-01-02", "FREQ=DAILY", all_day=1, exdates="2026-10-30,2026-11-02"))
     run("yearly_1900", row("1900-10-25", "1900-10-26", "FREQ=YEARLY", all_day=1))
-    run("monthly_1000", row("1000-01-06T08:00", "1000-01-06T09:00", "FREQ=MONTHLY;BYDAY=1MO"))
+    run("monthly_1mo", row("1900-01-01T08:00", "1900-01-01T09:00", "FREQ=MONTHLY;BYDAY=1MO"))
+    run("monthly_workdays", row("1900-01-01T08:00", "1900-01-01T17:00", "FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR"), n=20)
+    run("monthly_31", row("1900-01-31", "1900-02-01", "FREQ=MONTHLY", all_day=1))
+    run("monthly_i5", row("1900-03-03T12:00", "1900-03-03T13:00", "FREQ=MONTHLY;INTERVAL=5"))
+    run("monthly_last_wd", row("1900-01-31T16:00", "1900-01-31T17:00", "FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1"))
+    run("yearly_i3", row("1903-11-02", "1903-11-03", "FREQ=YEARLY;INTERVAL=3;BYMONTH=11;BYDAY=1MO", all_day=1))
     run("count_2000", row("2000-01-01T07:00", "2000-01-01T07:30", "FREQ=DAILY;COUNT=9999"))
-    days = ",".join(str(i) for i in range(1, 29))
-    run("walk_cap", row("1000-01-01", "1000-01-02", f"FREQ=MONTHLY;INTERVAL=7;BYMONTHDAY={days}", all_day=1,
-                        extra="RDATE;VALUE=DATE:20261104"), compare=False)
+    # the walk stop (a COUNT rule cannot move; 9999 dates stay under the real stop, so the stop is lowered here)
+    keep = getattr(m, "EV_WALK_MAX", None)
+    m.EV_WALK_MAX = 100
+    try:
+        run("walk_cap", row("2000-01-01", "2000-01-02", "FREQ=DAILY;COUNT=9999", all_day=1, extra="RDATE;VALUE=DATE:20261104"),
+            compare=False)
+    finally:
+        m.EV_WALK_MAX = keep
     r = row("1900-01-01T09:00", "1900-01-01T10:00", "FREQ=DAILY")
     t0 = time.monotonic()
     hits = [m.is_occ(r, "2026-11-02T09:00") for _ in range(10)] + [m.is_occ(r, "2026-11-02T10:00")]
@@ -103,8 +114,9 @@ def got(key, fast=FAST):
 
 res, n = got("daily_1900")
 check(res is True and n == 22, f"#6727 daily from 1900: the window's 22 days at 09:00 local time, as the unmoved rule ({res}, {n})")
-for key, want in (("weekly2_1900", None), ("until_1900", 9), ("exdate_1900", 20), ("yearly_1900", 1), ("monthly_1000", 1),
-                  ("count_2000", None)):
+for key, want in (("weekly2_1900", None), ("until_1900", 9), ("exdate_1900", 20), ("yearly_1900", 1), ("monthly_1mo", 1),
+                  ("monthly_workdays", 16), ("monthly_31", 1), ("monthly_i5", 1), ("monthly_last_wd", 1), ("yearly_i3", 1),
+                  ("count_2000", 22)):
     res, n = got(key)
     check(res is True and (want is None or n == want), f"#6727 {key}: the same dates as the unmoved rule ({res}, {n} dates)")
 res, n = got("walk_cap")
