@@ -19202,7 +19202,7 @@
   "You do not see the project of this quotation": "Du siehst das Projekt dieses Angebots nicht",
   "Only the project's owner or admins see everyone's times": "Nur Eigentümer oder Admins des Projekts sehen die Zeiten aller",
   "The tracked times changed meanwhile; open the post-calculation again": "Die erfassten Zeiten haben sich inzwischen geändert; öffne die Nachkalkulation erneut",
-  "The backup was made with Kalmido {0}; this server only takes data from Kalmido {1} or newer. Restore it on Kalmido {2}.x first (or a newer version older than this one), then make a new backup there.": "Die Sicherung wurde mit Kalmido {0} erstellt; dieser Server übernimmt nur Daten ab Kalmido {1}. Spiele sie zuerst unter Kalmido {2}.x ein (oder einer neueren Version, die älter als diese ist) und erstelle dort eine neue Sicherung.",
+  "The backup was made with Kalmido {0}; this server only takes data from Kalmido {1} or newer. Restore it on Kalmido {2} first (or a newer version older than this one), then make a new backup there.": "Die Sicherung wurde mit Kalmido {0} erstellt; dieser Server übernimmt nur Daten ab Kalmido {1}. Spiele sie zuerst unter Kalmido {2} ein (oder einer neueren Version, die älter als diese ist) und erstelle dort eine neue Sicherung.",
   "The account this access belongs to is locked": "Das Konto, zu dem dieser Zugang gehört, ist gesperrt",
   "The date {0} lies in an earlier year.": "Das Datum {0} liegt in einem früheren Jahr.",
   "Set the date to today": "Datum auf heute setzen",
