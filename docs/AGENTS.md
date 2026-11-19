@@ -618,7 +618,7 @@ Steps that are the same on every system:
    **hardened** (`defaultMode: dontAsk`, only `mcp__kalmido` and `Read` allowed, no `Edit` / `Write`, the env file denied; the agent then has
    no notes, no working routine, no jobs, no files at its answers and asks no permission questions) or **standard**
    (`defaultMode: default`, plus narrow `Edit` / `Write` for `WORKFLOW-KALMIDO.md` and `NOTIZEN.md` and `Bash` for the job tool only;
-   permission questions go to the chat; 2.625.0, #3661: the answer reaches the hook over a local connection of the runner,
+   permission questions go to the chat, 2.1407.0 (#7119) also those of its jobs; 2.625.0, #3661: the answer reaches the hook over a local connection of the runner,
    never through a file the agent could write; the wall against a hostile agent is an own OS user for its tools,
    [AGENT-SECURITY.md](AGENT-SECURITY.md#4b-an-own-os-user-for-the-agents-tools)). Both: the usage hook as Stop and SubagentStop hook.
 5. **Test**: the [test checklist](AGENT-SETUP.md#11-test-checklist), including the kill switch and the 10

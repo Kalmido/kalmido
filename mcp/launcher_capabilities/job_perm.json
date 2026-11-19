@@ -1,0 +1,11 @@
+{
+  "id": "job_perm",
+  "since": "2.1407.0",
+  "what": "A job (agent_job.py) asks a permission question in the chat like a run (#7119): the runner opens a second local channel for the jobs of its host (same checks as perm_channel; its key lives as long as the runner) and hands it down in its environment (KALMIDO_JOB_PERM_*), the job gives it to its Claude Code process as the PermissionRequest hook's channel. The runner takes the person to ask and the label from the job's record (an open job of this host, else denied at once), the operator rule of perm_relay applies; no answer within KALMIDO_PERM_TIMEOUT = denied, never an automatic yes. No runner (it restarted while the job ran, KALMIDO_PERM_RELAY=0): the step is denied as before, without a question",
+  "core": [
+    "def perm_request_job",
+    "def job_perm_env",
+    "JOB_PERM_KEYS",
+    "KALMIDO_JOB_ID"
+  ]
+}

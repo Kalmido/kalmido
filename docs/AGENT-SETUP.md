@@ -794,6 +794,11 @@ chat messages of one person that arrive together: one run). It does what a hoste
   chooses the socket's parent folder (default: the temp folder; on macOS keep that path short, a socket path has at most
   104 bytes - a longer one denies every question and logs why); `KALMIDO_PERM_SHARED=1` lets Claude Code under an own
   OS user connect ([AGENT-SECURITY.md](AGENT-SECURITY.md#4b-an-own-os-user-for-the-agents-tools)).
+  2.1407.0 (#7119): **jobs ask too.** A job (`agent_job.py`) whose step is outside the allow list gets the same question
+  in the chat (*May I run this? (job #N, Bash)*), asked of the job's person under the same operator rule; no answer in
+  time = denied, never an automatic yes. The runner hands its jobs a second local channel of their own through its
+  environment; a job still running after the runner restarted has none and the step is denied without a question. Give a
+  job command no "allow everything" mode for this: keep `default` and answer in the chat.
 - **Dangerous commands refused** (2.615.0, Claude Code only): the same run settings carry a `PreToolUse` hook for Bash that
   refuses force-push, deleting remote branches or tags, deleting or moving tags, `docker ... prune` and reboot / shutdown,
   whatever the allow list or the permission mode say (also `bypassPermissions`); it reads chains, `$( )`, `sh -c`, `ssh`,

@@ -1278,17 +1278,38 @@ def week_window(info, state):
                 state["week_resets"] = max(state.get("week_resets") or 0, w["resetsAt"])
 
 
+# kalmido-capability: job_perm (2.1407.0, #7119)
+def job_perm_env(ar, j):
+    """2.1407.0 (#7119): the environment of the job's permission hook -- the runner's jobs' channel (KALMIDO_JOB_PERM_*,
+    the runner sets it in its environment, every job it or one of its runs starts inherits it) under the names the hook
+    reads, the job as the asker (KALMIDO_JOB_ID: the runner takes the person and the label from the job's record) and the
+    time limit; {} = no channel (no runner, an older one, KALMIDO_PERM_RELAY=0): the job asks nobody, the step is denied."""
+    keys = getattr(ar, "JOB_PERM_KEYS", None) if ar else None
+    if not keys or not getattr(ar, "PERM_RELAY", False):
+        return {}
+    sock, key, pid = (os.environ.get(k) or "" for k in keys)
+    if not sock or not re.fullmatch(r"[0-9a-f]{64}", key) or not pid.isdigit():
+        return {}
+    return {"KALMIDO_PERM_SOCK": sock, "KALMIDO_PERM_KEY": key, "KALMIDO_PERM_PID": pid, "KALMIDO_JOB_ID": str(int(j["id"])),
+            "KALMIDO_PERM_TIMEOUT": str(getattr(ar, "PERM_TIMEOUT_S", 540)), "KALMIDO_PERM_UID": str(j.get("chat_user") or ""),
+            "KALMIDO_RUN_LABEL": f"job #{int(j['id'])}"}
+
+
 # kalmido-capability: dangerous_guard (2.615.0, #3758)
 def job_settings(ar, j, base, d):
     """2.615.0 E (#3758): ["--settings", <job folder>/run-settings.json] for a Claude Code job without its own --settings:
     the guard against dangerous commands (agent_run.hook_settings: PreToolUse / Bash, KALMIDO_BLOCK_DANGEROUS=0 = off),
-    never the person's own settings. No permission relay (nobody answers it for a job); 2.619.0 (#3267): with the usage
-    hook (KALMIDO_USAGE_HOOK=0 = off), the same builder as the chat runs; [] for other profiles, without hooks or when agent_run.py cannot be loaded."""
+    never the person's own settings. 2.1407.0 (#7119): the permission hook too when the runner handed down its jobs'
+    channel (job_perm_env): a step outside the allow list asks the person in the chat as a run's does, no answer in time =
+    denied; without the channel (no runner, KALMIDO_PERM_RELAY=0) such a step stays denied without a question. 2.619.0
+    (#3267): with the usage hook (KALMIDO_USAGE_HOOK=0 = off), the same builder as the chat runs; [] for other profiles,
+    without hooks or when agent_run.py cannot be loaded."""
     if not ar or ar.agent_profile(j["cmd"]) != "claude" or not ar.claude_native(j["cmd"]) or \
             any(a == "--settings" or a.startswith("--settings=") for a in base):
         return []
     # 2.1386.0 (#6668, review R3 F1): the run-env folder of this job's state folder is closed to the job's model too
-    hs = ar.hook_settings(perm_relay=False, usage=True, secret_dirs=[os.path.join(state_dir(), "run-env")])  # 2.619.0 (#3267): jobs get the usage hook too
+    relay = bool(job_perm_env(ar, j)) and getattr(ar, "PERM_RELAY", False)  # kalmido-capability: job_perm (2.1407.0, #7119)
+    hs = ar.hook_settings(perm_relay=relay, usage=True, secret_dirs=[os.path.join(state_dir(), "run-env")])  # 2.619.0 (#3267): jobs get the usage hook too
     if not hs["hooks"] and not hs.get("permissions"):  # 2.1367.0 (#6457): the deny rules of the env file count too
         return []
     f = os.path.join(d, "run-settings.json")
@@ -1359,6 +1380,11 @@ def cmd_run(argv):
     base = job_model_args(ar, profile, base, ((api.soft("GET", "/agent") or {}).get("runtime") or {}), j)  # 2.1394.0 (#7031)
     env = dict(os.environ, KALMIDO_OUTBOX=outbox, KALMIDO_JOB_ID=str(j["id"]))
     env.pop("KALMIDO_JOB_CMD", None)  # a job does not start jobs
+    # 2.1407.0 (#7119): never the channel of the run that started the job (its key is gone with that run); the jobs' channel
+    # of the runner under the hook's names, the KALMIDO_JOB_PERM_* names themselves stay out of the model's process
+    for k in ("KALMIDO_PERM_DIR", "KALMIDO_PERM_SOCK", "KALMIDO_PERM_KEY", "KALMIDO_PERM_PID") + tuple(getattr(ar, "JOB_PERM_KEYS", ()) or ()):
+        env.pop(k, None)
+    env.update(job_perm_env(ar, j))
     # kalmido-capability: token_scoped (2.1367.0, #6457): the job's model process gets the env file's path, never the token
     env.pop("KALMIDO_TOKEN", None)
     exe = shutil.which(base[0]) or base[0]
