@@ -138,8 +138,13 @@ r = Bo.post(B + f"/api/orgs/{ORG}/out-requests", json={"kind": "clients", "id": 
 check(r.ok and Er.post(B + f"/api/orgs/{ORG}/out-requests/{r.json().get('id')}", json={"decision": "approve"}).ok,
       "setup: the creator asks, an admin releases (#6607) " + r.text[:200])
 r = Bo.patch(B + f"/api/clients/{CX}", json={"org_id": None})
-check(r.ok, "the creator moves the released client without finalised documents to private " + r.text[:200])
-check(Bo.get(B + f"/api/office/docs/{DX}").json().get("client_contacts") == [], "the organisation's draft no longer lists the contact persons")
+# #7317: a draft of the old office keeps the client there (409 naming it); was: moved, the draft kept a client it no longer had
+check(r.status_code == 409 and r.json().get("code") == "client_in_use" and "draft quotations or invoices" in (r.json().get("what") or []),
+      "#7317: the client with a draft of its office stays (409 names the drafts) " + r.text[:200])
+check(sql("SELECT org_id FROM clients WHERE id=?", (CX,))[0][0] == ORG, "#7317: it is still in the organisation")
+sql("UPDATE office_docs SET deleted_at=? WHERE id=?", (TS, DX), write=True)  # the draft into the trash (bob has no right to delete it here)
+r = Bo.patch(B + f"/api/clients/{CX}", json={"org_id": None})
+check(r.ok, "the creator moves the released client without drafts or finalised documents to private " + r.text[:200])
 # freelancer-matrix: contacts -- the own private client
 FC = Fr.post(B + "/api/clients", json={"name": "Freelance Client", "org_id": None}).json()["id"]
 doc(Fr, FC, lock=True)

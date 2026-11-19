@@ -530,8 +530,9 @@ function lsg_set(p, w, save) {  // w in rem; null = the standard width of the bu
   lsg_place(p);
 }
 function lsg_place(p) {
-  const g = $(':scope > .lsdgrip', p), l = $(':scope > .lsdl', p); if (!g || !l) return;
-  const two = getComputedStyle(p).gridTemplateColumns.trim().split(/\s+/).length > 1 && [...p.children].filter(x => x !== g).length > 1;  // the detail: .lsdr or the card (.ctcard)
+  const g = $(':scope > .lsdgrip', p), l = $(':scope > .lsdl', p); if (!g) return;
+  // #7376: without the list (a phone or a narrow area draws only the open card) the grip is hidden too, never at the left edge
+  const two = !!l && getComputedStyle(p).gridTemplateColumns.trim().split(/\s+/).length > 1 && [...p.children].filter(x => x !== g).length > 1;  // the detail: .lsdr or the card (.ctcard)
   g.hidden = !two; if (!two) return;
   const gap = parseFloat(getComputedStyle(p).columnGap) || 0, w = l.getBoundingClientRect().width;
   g.style.left = (l.offsetLeft + w + gap / 2 - g.offsetWidth / 2) + 'px';

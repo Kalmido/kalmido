@@ -6,7 +6,8 @@
 //   the page on this device: a reload brings the same width
 // - arrow keys: left 1 rem narrower; Home = the narrowest (--w-leiste-min, 14 rem), End = at most half the pair
 // - double-click: the standard width again, nothing stored
-// Firefox 390 x 844 touch: one column, no grip to see
+// Firefox 390 x 844 touch: one column, no grip to see - the list alone and (#7376) an open contact / client card, where only
+// the card is drawn: no grey line at its left edge; open and back still work
 // Invented names only.
 const {execFileSync} = require('child_process');
 const path = require('path');
@@ -29,12 +30,14 @@ const login = async user => { const r = await fetch(B + 'api/auth/login', {metho
   const fr = await call(ACK, 'POST', '/api/users', {username: 'frida', display_name: 'Frida', password: 'password123', email: 'frida@example.com', orgs: []});
   check(fr.id > 0, 'a person without an organisation ' + JSON.stringify(fr));
   const FCK = await login('frida');
-  await call(FCK, 'PATCH', '/api/settings', {lang: 'en', tour: 'done', features: 'contacts'});
+  await call(FCK, 'PATCH', '/api/settings', {lang: 'en', tour: 'done', features: 'contacts,clients,office'});
   const bk = (await call(FCK, 'POST', '/api/books', {name: 'People'})).id;
   const LONG = 'Maximiliane Konstantinopoulou-Wettersteinhausen';
   const c1 = await call(FCK, 'POST', '/api/contacts', {book_id: bk, fn: LONG, given: 'Maximiliane', family: 'Konstantinopoulou-Wettersteinhausen'});
   for (const n of ['Ann Example', 'Ben Example']) await call(FCK, 'POST', '/api/contacts', {book_id: bk, fn: n});
   check(c1.id > 0, 'setup: contacts');
+  const cl1 = await call(FCK, 'POST', '/api/clients', {name: 'Example Studio'});
+  check(cl1.id > 0, 'setup: a client ' + JSON.stringify(cl1));
 
   const signIn = async ({ev, nav}) => {
     await nav(B + 'static/icon.svg');
@@ -83,6 +86,18 @@ const login = async user => { const r = await fetch(B + 'api/auth/login', {metho
     await nav(B + '#contacts');
     await until(`!!document.querySelector('#view .ctrow')`, {timeout: 20000});
     check(await ev(`(() => { const g = document.querySelector('#view .lsd2 > .lsdgrip'); return !g || g.hidden || !g.getClientRects().length; })()`), `${tag}: one column, no grip`);
+    // #7376: an open card on the phone (only the card in the pair, no list): the grip stays hidden
+    const noGrip = `(() => { const g = document.querySelector('#view .lsd2 > .lsdgrip'); return !g || g.hidden || !g.getClientRects().length || getComputedStyle(g).display === 'none'; })()`;
+    for (const [hash, back, name] of [[`#contacts/${c1.id}`, '#contacts', 'contact'], [`#client/${cl1.id}`, '#clients', 'client']]) {
+      await nav(B + hash);
+      const card = await until(`(() => { const c = document.querySelector('#view .ctcard:not(.ctnone)'); return c && c.getBoundingClientRect().width > 300 ? 1 : 0; })()`, {timeout: 20000});
+      check(!!card, `${tag}: the ${name} card opens`);
+      await until(`!!document.querySelector('#view .lsd2 > .lsdgrip') || 1`, {timeout: 2000});
+      check(await ev(noGrip), `${tag} #7376: the open ${name} card has no grip at its edge`);
+      await nav(B + back);
+      check(await until(`!!document.querySelector('#view .ctrow') && !document.querySelector('#view .ctcard:not(.ctnone)')`, {timeout: 20000}), `${tag}: back to the ${name} list`);
+      check(await ev(noGrip), `${tag} #7376: the ${name} list has no grip`);
+    }
   }, true);
   console.log(`p7290_lsdgrip_ui: ${ok} ok, ${F.length} failed`);
   process.exit(F.length ? 1 : 0);

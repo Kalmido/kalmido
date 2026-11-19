@@ -1689,13 +1689,27 @@ The rules are the same for all three:
   `tasks.*` key unless it goes into `LS_KEEP`). A size that belongs to the account or to an object passes
   `load()` (-> the value, `null` = default, `undefined` = nothing stored) and `save(v)` (`v` null = back to the default)
   instead. The default itself is never stored.
+- **The check (#7294):** `tools/pr_lint.py griff` (rules in `tools/griff_lint.py`) is red when a change ADDS a fixed size
+  without the grip: a column of 12rem or more (or a variable without a fallback) beside an fr column, `flex: 0 0 <fixed>`,
+  a floating box (position fixed / absolute, under `#pop` / `.dpop` / `.lightbox` / `#achat`) with a written width / height
+  of 12rem or more. Green: the rule reads `--g-<key>` (or an old grip's variable until it moves), auto-fill / auto-fit, the
+  phone @media, a dialog card, and `/* griff-ok: REASON */` at the rule (menus, hints, icon / number columns).
+  `python3 tools/griff_lint.py FILE.css` lists the stock.
+- **A grip outside the layout (`place: true`, #7303 #7304):** where a grip may not be an item of the grid or flex box (a list
+  beside its content whose box has fixed columns), the grip stands absolutely in the scope (a positioned box) on the
+  panel's far edge, in the middle of the gap, kept there by a ResizeObserver; it is hidden while the panel is not drawn or
+  fills the scope alone (one column). A list beside its content in the page uses it through `render.js gcol_html(KEY)`
+  (drawn right after the list; `gcol_sync` mounts it after each draw, min `--w-leiste-min`, max = what leaves the content
+  beside it 20rem, no fixed cap): team chat
+  `tc-list`, file store `ab-list`, notes `nt-list`, knowledge `wk-list`. An own window (`/?mini=1`) stores no size
+  (miniwin.js MW_GUARD, #5358).
 - **Taking over old sizes:** `legacy: 'pw.side'` or a list of `{key, map, raw}`: when nothing is stored under the new key,
   the first old key with a value is converted (`map(old)`, e.g. px -> rem or `{w, h}`), stored under the new key, and all the
   old keys go. A key starting with `kalmido.` (or `raw: true`) is read as it is, any other through `LS` (`tasks.<key>`).
   The old keys of today's grips: `pw.side` / `pw.det` / `pw.chat`, `bellSize`, `dv.stripW` / `dv.maskW`, `shzSize`,
   `kalmido.dlgsize.*`.
 
-Who uses it: the thread pane of the team chat (#7302, `tc-thread`, chat.js `tth_grip`), the open receipts beside the bank
+Who uses it: the lists beside their content in the page (#7303 #7304, above), the thread pane of the team chat (#7302, `tc-thread`, chat.js `tth_grip`), the open receipts beside the bank
 bookings (#7306, `bank-norc`, office_banknorc.js `bnr_grip`) and the two columns of the document view (#7315, `dv-sw` /
 `dv-mw`, docview.css maps them to `--dv-sw` / `--dv-mw`; docview.js `dcv_grips`). A grip in a view that is morphed on a
 redraw is hung again after each draw (the morph takes its marks off; during a drag the same handle stays). The other grips of

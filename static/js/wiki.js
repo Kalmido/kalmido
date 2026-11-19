@@ -247,7 +247,7 @@ function viewWiki() {
   const tagv = !id && S.route.wtag != null && typeof wkt_viewHtml === 'function' && (!all || op);  // 2.371 (#3150): a tag's pages
   const main = tagv ? `<article class="ntedit wkpage wktagview" aria-label="${esc(tr('Tags|wiki'))}">${wkt_viewHtml(sp, S.route.wtag)}</article>` : id ? `<article class="ntedit wkpage${typeof wkst_cls === 'function' ? wkst_cls(cur?.space || sp) : ''}"${/*html-ok*/ wso_row(cur?.space || sp) /* 2.1241.0 (#6182) */} aria-label="${esc(cur ? wk_base(cur.path) : tr('Page'))}">${/*html-ok*/ cur ? (cur._wke && typeof wkeLockHtml === 'function' ? wkeLockHtml(cur.space, true) : wk_pageHtml(cur)) : wk_pgStateHtml(id, sp)}</article>` : '';
   if (mob) wk_scrollAfter(id, !!d?.pages);
-  return `<div class="ntwrap wkwrap${id ? (typeof pgw_cls === 'function' ? pgw_cls('wiki', id) : '') : ''}">${wst}<div class="ntview ${id || tagv ? 'open' : ''}"${id ? ' data-pw="1"' : ''}>${mob && (id || tagv) ? '' : side}${main}</div></div>`;  // 2.599.0 (#4808): the page's width (chat.js pgw_*), data-pw = reports it to #top
+  return `<div class="ntwrap wkwrap${id ? (typeof pgw_cls === 'function' ? pgw_cls('wiki', id) : '') : ''}">${wst}<div class="ntview ${id || tagv ? 'open' : ''}"${id ? ' data-pw="1"' : ''}>${mob && (id || tagv) ? '' : side}${/*html-ok*/ !mob && (id || tagv) ? gcol_html('wk-list') /* #7303: the grip's fixed markup (render.js) */ : ''}${main}</div></div>`;  // (#4808): the page's width (chat.js pgw_*), data-pw = reports it to #top
 }
 // 2.152.3 B (#2620): knowledge on a computer with sidebar B: the panel holds the folders (wk_panelHtml), the page shows a bar
 // (space, search, "New page", the space's menu) and below it the open page or the open folder as a list like a file manager
