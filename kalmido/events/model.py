@@ -21,7 +21,7 @@ from ..core.dlock import dl_area_locked, dl_of, dl_tasks_locked  # 2.560.0 B (#4
 from ..core.objsearch import osr_ids_sql, osr_scope_nodes, osr_scope_org  # 2.1026.0 (#5280)
 from ..core.pages import valid_url
 from ..tasks.validation import (
-    as_int, clean_reminders, rmd_export, rr_feasible, rr_norm, rr_problem, valid_date, valid_hm,
+    as_int, clean_reminders, rmd_export, rr_feasible, rr_norm, rr_problem, rr_shift_days, valid_date, valid_hm,
 )
 from ..collab.comments import user_names
 from ..core.errors import BadInput
@@ -498,20 +498,41 @@ def _until_utc(rule, zone, all_day):
     return ";".join(parts)
 
 
-def ev_rule(r):
-    """dateutil rule of the series (None: not repeating / not expandable) -- start: naive (all day) or aware (timed)."""
+def ev_rule(r, near=None):
+    """dateutil rule of the series (None: not repeating / not expandable) -- start: naive (all day) or aware (timed).
+    2.1423.0 (#6727): near (a local date) = only the dates from about there on are read: the start moves towards it by
+    whole periods (rr_shift_days, same dates from there on), so dateutil does not walk from a start in 1900 to today."""
     rule = r["rrule"]
     if not rule or rr_problem(rule):
         return None
     zone = ev_zone(r["tz"])
     try:
-        if r["all_day"]:
-            st = datetime.fromisoformat(r["start"][:10])
-            return rrulestr(_until_utc(rule, zone, True), dtstart=st)
-        st = wall(r["start"]).replace(tzinfo=zone)
-        return rrulestr(_until_utc(rule, zone, False), dtstart=st)
+        st = datetime.fromisoformat(r["start"][:10]) if r["all_day"] else wall(r["start"]).replace(tzinfo=zone)
+        if near is not None:
+            # wall-clock days (an aware datetime plus days keeps its local time), so summer time changes nothing
+            st = st + timedelta(days=rr_shift_days(dict(p.split("=", 1) for p in rule.split(";")), st.date(), near))
+        return rrulestr(_until_utc(rule, zone, bool(r["all_day"])), dtstart=st)
     except (ValueError, TypeError, OverflowError):
         return None
+
+
+# 2.1423.0 (#6727): dates a rule may pass before the wanted range (after the move of ev_rule). What cannot move (COUNT,
+# MONTHLY / YEARLY with an interval off the 400-year cycle) is walked with this stop; above it the rule shows no dates
+# there, only its extra dates (RDATE) and changed occurrences. 10 000 dates take some milliseconds; a COUNT rule has at
+# most 9999 (rr_problem), so only a rule nobody writes by hand (many dates a month for centuries) reaches the stop.
+EV_WALK_MAX = 10000
+
+
+def ev_dates_from(rule, a):
+    """2.1423.0 (#6727): the dates of rule from a on (inclusive), lazily; stops after EV_WALK_MAX dates before a."""
+    n = 0
+    for dt in rule:
+        if dt >= a:
+            yield dt
+            continue
+        n += 1
+        if n > EV_WALK_MAX:
+            return
 
 
 def ov_list(r):
@@ -626,10 +647,11 @@ def ev_expand(r, lo, hi, cap=EV_OCC_CAP):
         b = datetime(hi.year, hi.month, hi.day) + timedelta(days=2)
         if not r["all_day"]:
             a, b = a.replace(tzinfo=zone), b.replace(tzinfo=zone)
+        rule = ev_rule(r, a.date()) or rule  # 2.1423.0 (#6727): start moved close to the range, walk with a stop
         seen = set()
         try:
-            for dt in rule.xafter(a, count=cap * 2, inc=True):
-                if dt > b:
+            for dt in ev_dates_from(rule, a):
+                if dt > b or len(seen) >= cap * 2:
                     break
                 key = occ_key(r, dt)
                 seen.add(key)
@@ -1156,12 +1178,12 @@ def is_occ(r, occ):
     """occ is a date the series really has (its original start)."""
     if occ in ev_rdates(r):  # 2.126.0 C (#1985): an extra date of the series
         return True
-    rule = ev_rule(r)
-    if rule is None:
+    if ev_rule(r) is None:
         return occ == r["start"]
     try:
         dt = datetime.fromisoformat(occ[:10]) if r["all_day"] else wall(occ).replace(tzinfo=ev_zone(r["tz"]))
-        hit = rule.after(dt - timedelta(seconds=1))
+        rule = ev_rule(r, dt.date() - timedelta(days=2))  # 2.1423.0 (#6727): start moved close to occ, walk with a stop
+        hit = next(ev_dates_from(rule, dt), None) if rule is not None else None
     except (ValueError, TypeError, OverflowError, AttributeError):
         return False
     return hit is not None and occ_key(r, hit) == occ
