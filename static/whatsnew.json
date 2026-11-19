@@ -1,6 +1,28 @@
 {
  "versions": [
   {
+   "version": "2.1434.0",
+   "date": "2026-11-19",
+   "items": [
+    {
+     "de": "Organisation: vor einem neuen Wiederherstellungsschlüssel sagt Kalmido, dass ältere Archive nur mit dem bisherigen Schlüssel aufgehen, und bietet danach gleich einen neuen Export an.",
+     "en": "Organisation: before a new recovery key Kalmido says that earlier archives open only with the earlier key, and offers a new export right after."
+    },
+    {
+     "de": "Das schwebende Chat-Fenster lässt sich an seiner linken oberen Ecke größer und kleiner ziehen.",
+     "en": "The floating chat window can be resized by dragging its top left corner."
+    },
+    {
+     "de": "Kontakte, Kunden und Angebote: Die Liste neben der Karte lässt sich per Ziehen breiter machen.",
+     "en": "Contacts, clients and quotations: the list beside the card can be dragged wider."
+    },
+    {
+     "de": "Eine aus Kalmido exportierte Listen-CSV, Markdown-Liste oder vCard kommt beim Wieder-Import vollständig zurück.",
+     "en": "A list CSV, Markdown list or vCard exported from Kalmido comes back complete when imported again."
+    }
+   ]
+  },
+  {
    "version": "2.1432.0",
    "date": "2026-11-19",
    "items": [
@@ -1279,20 +1301,6 @@
     {
      "de": "Am Handy haben die Büro-Listen nur noch eine Navigationszeile: Pfeil zurück, Reiter und Belegarten in einer Reihe.",
      "en": "On a phone, office lists have a single navigation line: back arrow, tabs and document kinds in one row."
-    }
-   ]
-  },
-  {
-   "version": "2.996.0",
-   "date": "2026-11-12",
-   "items": [
-    {
-     "de": "Das Call Sheet zeigt oben die Logos von Produktion, Agentur und Kunde, auch im PDF.",
-     "en": "The call sheet shows the logos of production, agency and client on top, in the PDF too."
-    },
-    {
-     "de": "Gelöschte Bewirtungsbelege und Vertrags-PDFs liegen im Büro-Papierkorb und lassen sich dort wiederherstellen.",
-     "en": "Deleted entertainment receipts and contract PDFs lie in the office trash and can be restored there."
     }
    ]
   }

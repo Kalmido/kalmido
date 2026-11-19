@@ -24,6 +24,32 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1434.0] - 2026-11-19
+
+Package 2.1433.0 (Bündel: Gegenlesen-Hinweise job/5148: 2 offene Hinweise be, Sammelpaket: Aufgaben ohne Paket (Dispatcher), Bündel: Sammelpaket: Aufgaben ohn).
+
+### Changed
+- #7142 Agents without a chosen control level follow the circle rule at level "free": every step still runs without a card, but writing into a wider or public circle, a chat message or a job to a person outside the circle needs a card; status text, progress line and job words reach non-readers empty. A deletion keeps going without the circle check. For every level, a new list of the agent without folder or family and its own private saved view count as read by nobody else. Agent docs (docs/AGENTS.md, docs/AGENT-SETUP.md, mcp/CLAUDE.template.md) and the control dialog say so.
+- #6604 Organisation encryption: before a new recovery key is made, the question says that archives downloaded before open only with the earlier key (Cancel is the focused button, the step itself red); after the change the key dialog offers "Create export" for the same organisation or office. No new one-way step: making a new recovery key was already irreversible, the package only warns about it.
+- #7181 Background queue: mail and push jobs keep one run (they catch their own send errors; the docs no longer promise 3 runs).
+
+### Fixed
+- #6953 Accounting: folders below the documents folder that hold a receipt can be opened (folder only); single check and listing need the receipt's organisation alike; every folder listing (web, API v1 list and folder with children) uses one filter (store.fs_children_visible). Office figures show the weighted pipeline only with the pipeline right; a project's acceptance links show address and signer data by the same rule as quotations; the office log is closed to accounting by prefix.
+- #7181 Background queue: on stop the running jobs are released before the stop hooks run (a slow chat note can no longer cost the release); a server agent run taken for lost tells its person once, without naming a server restart, and its own end adds no second message; the "oldest due job" alarm counts only known job kinds and no export waiting behind full long slots.
+
+Package 2.1434.0 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Eigene Formate nicht rundreisefähig: Listen-CSV ko).
+
+### Added
+- Floating chat window: resize it by a grip at its top left corner (plus the left and top edges); arrow keys on the focused grip, Home / End = smallest / largest, Enter or double-click = default size; at least about 18 x 20 rem, at most the window; remembered per device next to its position. Phone and full screen unchanged (#7289)
+- List beside detail (contacts, clients, quotations / invoices): a grip between the list and the open entry makes the list wider or narrower; from 14 rem to half the area, remembered per page and device, arrow keys, double-click or Enter = standard width; not on phones or narrow content (one column) (#7290)
+
+### Changed
+- "Waiting for me" > Blocked shows only what the person can settle: tasks with a waiting note as before, tasks waiting on another task only when assigned to the person. Unassigned tasks of one's own lists that only wait on another task drop out there (the daily briefing keeps them); count and tile follow (#7284)
+
+### Fixed
+- Notifications: notify() itself turns a disabled account away (no push, no channel message), a second line behind every caller; the weekly rotation, the contact care push and the fixed-time reminder are tested with a disabled account (#6486)
+- Own formats round-trip: re-importing the list CSV keeps done tasks done (state from "Status", the date column as done date), sub-tasks under their parent ("Parent task" / "Hauptaufgabe") and the priority, in every app language; the Markdown import reads the export's tail "(due …, high priority, repeats …)" so titles stay whole; vCard 3.0 marks a company with X-ABShowAs:COMPANY / X-KIND:org and the import reads both (also Apple Contacts cards). Suite p6587_roundtrip_api (new) (#6587)
+
 ## [2.1432.0] - 2026-11-19
 
 Package 2.1428 (Bündel: Bündel: Weich rot: p290_ui, Weich rot: perf_ui, Weich rot: p2546_b_locked u. 3 weitere, Weich rot: p2925_a_words, Weich rot: p2240_u).
@@ -353,7 +379,8 @@ Package 2.1401.0 (Bündel: Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher
 - #7037 Number ranges: a closed range opens again only with a scheme the office accepts; the import cleans a refused scheme; a new range and the import also check the correction scheme; the settings refuse the scheme of a range; moving the personal office refuses a range scheme the organisation already uses.
 - #6952 MCP: a test checks that the items of a completed task's subtask copy (`sub_snapshot`, an object) are fenced as data (the fence came with #6906).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1432.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1434.0...HEAD
+[2.1434.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1434.0
 [2.1432.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1432.0
 [2.1426.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1426.0
 [2.1420.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1420.0
