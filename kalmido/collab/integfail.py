@@ -52,7 +52,7 @@ INTEG_TEXT = {
     "docflow_admin": N_("Document flow {0} was paused: the person who set up its webhook is no admin of the workspace any more."),  # 2.1321.0 (#6555)
     "carddav": N_("Address book {0} cannot be read any more: its birthdays and anniversaries may be out of date."),  # 2.1342.0 (#6553 2)
     "carddav_wb": N_("Address book {0} did not take the changed date of {2}; it stays in Kalmido only ({1})."),  # 2.1342.0 (#6553 2)
-    # 2.1423.0 (#6551): a calendar subscription not fetched for over a day ({2} = its last success)
+    # (#6551): a calendar subscription not fetched for over a day ({2} = its last success)
     "calsub_stale": N_("Calendar {0} could not be updated for more than a day. Its events are as of {2} and still count as busy."),
     "calsub_stale_never": N_("Calendar {0} could not be fetched for more than a day since it was added."),
     "backup": N_("Backup failed: {0}"),

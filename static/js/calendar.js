@@ -228,7 +228,7 @@ function cevTime(e, d) {
 // 2.52.0 (#1016): cgok = may be dragged into other days (caldrag.js)
 // 2.800.0 (#5468): an event of a subscribed calendar is personal and shows in every workspace: it carries the subscription's mark
 // 2.1212.0 (#6158): the subscription's mark is a link (the circling arrows read like "repeats"); an own series carries the repeat mark
-// 2.1423.0 (#6551): a subscription not fetched for over a day (server cal_stale) wears a warning mark instead, "as of" in its title
+// (#6551): a subscription not fetched for over a day (server cal_stale) wears a warning mark instead, "as of" in its title
 const cevStaleText = x => !x?.stale ? '' : x.synced_at ? tr('Not updated since {0}', fmtStamp(new Date(x.synced_at), false)) : tr('Could not sync');
 const cevStale = e => e.own || abcX(e) ? '' : cevStaleText(S.cal.subs?.[e.sub]);
 const cevSubMark = e => abcX(e) ? '' : e.own ? (e.recurring ? `<span class="cevsub cevrep" title="${esc(tr('Repeats'))}" aria-label="${esc(tr('Repeats'))}" role="img">${ic('repeat', 's')}</span>` : '')
@@ -299,7 +299,7 @@ function cevPop(anchor, id) {
     <div class="cevm">${ic('clock', 's')}<span>${esc(cevWhen(e))}</span></div>
     ${e.location ? `<div class="cevm">${ic('mappin', 's')}<span>${esc(e.location)}</span></div>` : ''}
     <div class="cevm">${ic('cal', 's')}<span>${esc(cevCal(e))} · ${tr('read-only')}</span></div>
-    ${cevStale(e) ? `<div class="cevm cevstale">${ic('alert', 's')}<span>${esc(cevStale(e))}</span></div>` : '' /* 2.1423.0 (#6551) */}
+    ${cevStale(e) ? `<div class="cevm cevstale">${ic('alert', 's')}<span>${esc(cevStale(e))}</span></div>` : '' /* (#6551) */}
     ${desc ? `<div class="cevdesc">${cevLinkify(desc)}${e.description.length > 2000 ? '…' : ''}</div>` : ''}
     ${abcX(e) ? '' : `<div class="cevact"><button class="btn sm" data-cevtask>${ic('plus', 's')} ${tr('Create task from event')}</button></div>`}</div>`);  // 2.155.0 B (#2076)
   p.onclick = ev => { if (ev.target.closest('[data-cevtask]')) { closePop(); cevToTask(e); } };

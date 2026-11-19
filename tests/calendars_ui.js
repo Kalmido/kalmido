@@ -50,7 +50,7 @@ const STUB = 'http://127.0.0.1:8095';
     'popover of the HTML event: everything escaped, only the https URL linked');
   check(w.__xss === undefined, 'no script ran');
   w.eval('closePop()');
-  // 2.1423.0 (#6551): a subscription out of date (the server's stale + synced_at, p21423_c_calsub_stale_test.py): its events wear
+  // (#6551): a subscription out of date (the server's stale + synced_at, p21423_c_calsub_stale_test.py): its events wear
   // a warning mark with "as of" instead of the link mark, the popover says since when
   const lsub = w.eval(`S.cal.items.find(e => e.title === 'Lunch with Sam')?.sub`);
   w.eval(`Object.assign(S.cal.subs[${JSON.stringify(lsub)}], {stale: true, synced_at: '2026-11-18T13:05:00Z'}); renderView()`);

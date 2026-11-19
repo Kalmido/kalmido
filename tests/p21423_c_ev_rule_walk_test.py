@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # kalmido-suite: fresh
-"""2.1423.0 (#6727): the recurrence expansion of own events (kalmido/events/model.py ev_expand / is_occ / ev_rule) no
+"""(#6727): the recurrence expansion of own events (kalmido/events/model.py ev_expand / is_occ / ev_rule) no
 longer walks from a start in 1900 to the window. Own events (CalDAV PUT, ICS import, app) keep their rule and start;
 dateutil walked every date from DTSTART (FREQ=DAILY from 1900: about 46 000 dates per series and per calendar query).
 Own container (start.sh), the app's own functions in a probe; invented rows only. Each case measures its time, and its
