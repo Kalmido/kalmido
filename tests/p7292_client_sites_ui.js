@@ -5,7 +5,7 @@
 //  - the main client's card: the block "Locations" with all together and one linked row per location; the link opens the
 //    location, whose card names its main client with a link back
 //  - the form "Belongs to (main client)": only clients that are no location; chosen + Save = the client is a location
-//  - the card's menu "Add location" opens "New client" with the main client chosen; Save makes the location
+//  - the card's menu "Add location" (#7295: a copy as a location) opens the new location's form with the main client chosen
 //  - "Archive" on a main client asks about its locations; "Only the main client" archives it alone
 //  - a person without an organisation: the same list and card
 // freelancer-matrix: clients (frida has no organisation)
@@ -93,10 +93,12 @@ async function listAndCard(ck, user, tag) {
     let its = await until(() => { const x = menuItems(d); return x.length && x; }) || [];
     const add = its.find(x => x.textContent.trim() === 'Add location');
     check(add, 'menu: "Add location" ' + its.map(x => x.textContent.trim()));
-    if (add) {
+    if (add) {  // #7295: "Add location" copies the main client as a location (the dialog first), then its form opens
       add.click();
+      const ok1 = await until(() => btnText(d, 'Add location'));
+      ok1?.click();
       const nm = await until(() => d.querySelector('.modal.cldlg #cl-parent') && d.querySelector('.modal.cldlg'));
-      check(nm && nm.querySelector('#cl-parent').value === String(P) && nm.querySelector('#cl-more')?.open, 'menu: "New client" with the main client chosen, the details open');
+      check(nm && nm.querySelector('#cl-parent').value === String(P), 'menu: the new location opens in its form with the main client chosen');
       if (nm) {
         typeIn(w, nm.querySelector('#cl-name'), 'Acme Bonn');
         nm.querySelector('[data-m="save"]').click();

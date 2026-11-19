@@ -652,13 +652,28 @@ def _cal_clean(v, n):
     return s.strip()[:n]
 
 
+def _cal_nocomments(s):
+    """#6433: HTML comments out in one pass; an unclosed one stays (as before)."""
+    out, i = [], 0
+    while True:
+        a = s.find("<!--", i)
+        b = s.find("-->", a + 4) if a >= 0 else -1
+        if b < 0:
+            break
+        out.append(s[i:a])
+        i = b + 3
+    out.append(s[i:])
+    return "".join(out)
+
+
 def _cal_plain(v, n):
     """DESCRIPTION as plain text: some calendars (Google) put HTML there; tags go, entities are decoded. The client
     escapes everything anyway (and only links http / https URLs)."""
     s = _cal_clean(v, 20000)
     if re.search(r"<[a-zA-Z/!]", s):
         s = re.sub(r"(?i)<br\s*/?>|</p\s*>|</div\s*>|</li\s*>", "\n", s)
-        s = re.sub(r"(?s)<!--.*?-->|<[^>]{0,2000}>", "", s)
+        # #6433: linear - comments by find (<!--.*?--> scanned to the end for every unclosed one), a tag ends at the next < or >
+        s = re.sub(r"<[^<>]{0,2000}>", "", _cal_nocomments(s))
         s = html.unescape(s)
         s = re.sub(r"\n{3,}", "\n\n", s)
     return _cal_clean(s, n)

@@ -98,7 +98,7 @@ ROUTES = {
     "POST /api/v1/tasks/{}/notes/replace-section": "change", "POST /api/v1/lists/{}/overview/append": "change",
     "POST /api/v1/lists/{}/overview/replace-section": "change",
     "POST /api/v1/address-books": "change", "POST /api/v1/address-books/{}/import": "change", "POST /api/v1/clients": "change",
-    "POST /api/v1/clients/bulk": "change", "POST /api/v1/contacts": "change", "POST /api/v1/contacts/bulk": "change",
+    "POST /api/v1/clients/bulk": "change", "POST /api/v1/clients/{}/copy": "change", "POST /api/v1/contacts": "change", "POST /api/v1/contacts/bulk": "change",
     "POST /api/v1/documents": "change", "POST /api/v1/event-calendars": "change",
     "POST /api/v1/event-calendars/{}/import": "change", "POST /api/v1/events": "change",
     "POST /api/v1/events/{}/prep-task": "change", "POST /api/v1/events/{}/restore": "change",

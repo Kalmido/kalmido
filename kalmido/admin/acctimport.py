@@ -34,7 +34,7 @@ import zipfile
 from decimal import Decimal, InvalidOperation  # 2.765.0 (#5315)
 from datetime import date, datetime, timedelta
 
-from flask import g, jsonify, request
+from flask import Response, g, jsonify, request
 
 from ..core.config import app, ATT_DIR, MAX_FILE_MB, PUBLIC_URL
 from ..core.config import USERNAME_RE  # 2.278.0 B (#3094)
@@ -47,7 +47,7 @@ from ..lists.projects import LIST_FILES_SUB
 from ..lists.tplextra import tx_import, tx_keys
 from ..tasks.attachments import safe_name
 from .hosting import fmt_bytes, quota_info
-from ..core.db import body, bump, connect, db, err, iso, iso_ms, now_utc, parse_iso, usettings, uset, create_user, DataError, IntegrityError
+from ..core.db import body, bump, connect, db, err, iso, iso_ms, now_utc, parse_iso, usettings, uset, create_user, DataError, IntegrityError, DbError
 from ..core.pg import insert_id, system_ctx, ts_canon  # 2.1095.0 (#5306): ts_canon
 from ..core.moneycol import MC_COLS, MC_FITS  # 2.765.0 (#5315): the money columns NUMERIC(14,2) and their rule
 from ..core.coltype import CT_JSON  # 2.1111.0 (#5953): the JSON columns that were TEXT (JSONB now)
@@ -60,6 +60,8 @@ from ..core.i18n import lang, LANGS, N_, short_day, stored_join, tr as _tr_base,
 from ..core.access import Denied, ROLES, list_role, my_inbox, my_max_sort, WRITE_ROLES
 from ..accounts.session import me
 from ..accounts.bgjobs import bgj_active, bgj_add, bgj_busy, bgj_drop, bgj_fn  # 2.370.3 (#2760)
+from ..collab.comments import send_pushes  # (#6583): the push of the run's end
+from ..collab.news import news_own  # (#6583): the run's end as the person's News item
 from ..lists.listhead import HEAD_STYLES  # 2.459.0 (#3849)
 from ..lists.lists import clean_color, LIST_COLOR_RE
 from ..core.objtags import otg_add, otg_find, otg_link, otg_user_add  # 2.947.0 (#5275); 2.955.0 (#5276): otg_user_add
@@ -356,6 +358,7 @@ UMZ_TASK_ROLES = (("approver_id", N_("Approver")), ("reviewer_id", N_("Reviewer"
 UMZ_ROLE_LOST = N_("Role on tasks not imported (the person is not on this server or was not selected): {0}")
 UMZ_AREAS_LEFT = N_("These areas stay on the old server: {0}")
 UMZ_WARN_MAX = 50  # the result names at most this many warnings, the ones a run must always name (run.must) on top and first
+# (#6583): the whole list stays in imports.warnings and in the report file (GET /api/imports/<id>/report)
 
 _UMI = {}  # user id -> running check / import thread (of this process; 2.370.3 (#2760): the queue row tells it for every process)
 _UMI_START = {}  # 2.308.0 (#3261): user id -> steps waiting for that worker's end before they start their own
@@ -434,7 +437,10 @@ def _drop(uid, iid):
 
 
 def umz_import_cleanup():
-    """Watchdog part (acctexport.umz_cleanup): uploads older than UMZ_KEEP_H hours, finished or cancelled ones."""
+    """Watchdog part (acctexport.umz_cleanup): a folder whose state.json did not change for UMZ_KEEP_H hours. (#6583): the
+    folder of a finished / failed run stays that long (its result, the warnings), only its upload goes at once (the run removes
+    it; one left over goes here); the upload of an interrupted run stays with it, so the run can start again (_view: back to
+    the preview, which writes the state anew: UMZ_KEEP_H from then). A cancelled one went at once (umz_cancel)."""
     n = 0
     if not os.path.isdir(UMZ_IN_DIR):
         return 0
@@ -450,9 +456,15 @@ def umz_import_cleanup():
                     st = json.load(f)
             except (OSError, ValueError):
                 old, st = True, {}
-            if old or st.get("state") in ("done", "stopped", "failed", "invalid"):
+            if old:
                 shutil.rmtree(q, ignore_errors=True)
                 n += 1
+            elif st.get("state") in ("done", "stopped", "failed", "invalid") and os.path.exists(os.path.join(q, "upload.bin")):
+                try:
+                    os.remove(os.path.join(q, "upload.bin"))
+                    n += 1
+                except OSError:
+                    pass
         if not os.listdir(p):
             os.rmdir(p)
     return n
@@ -1549,6 +1561,7 @@ class _Run:
         self.invites = 0  # 2.1402.0 (#6579): the people this run invites into the target, counted in its storage (umz_take)
         self.kind = "account"  # or "org": an organisation export (part 4)
         self.chain = {}  # 2.1327.0 (#6591): office id -> its hash chain check after the import (oi_office._f_chain)
+        self.committed = None  # (#6583): the import's id once its rows are committed (an error after that is no "nothing imported")
 
     def m(self, kind, old):
         o = _oid(old)
@@ -1579,11 +1592,12 @@ class _Run:
         if must:
             self.must.add(k)
 
-    def warnings(self):
-        """2.531.0 (#4317) F4: the warnings of the result: the ones that must be named first, then at most UMZ_WARN_MAX others."""
+    def warnings(self, full=False):
+        """(#4317) F4: the warnings of the result: the ones that must be named first, then at most UMZ_WARN_MAX others.
+        (#6583): full = all of them (imports.warnings, the report file); the result names how many it left out (warn_more)."""
         first = [k for k in self.warn if k in self.must]
-        rest = [k for k in self.warn if k not in self.must][:UMZ_WARN_MAX]
-        return [{"text": list(k), "count": self.warn[k]} for k in first + rest]
+        rest = [k for k in self.warn if k not in self.must]
+        return [{"text": list(k), "count": self.warn[k]} for k in first + (rest if full else rest[:UMZ_WARN_MAX])]
 
     def old(self, kind, new):
         """2.531.0 (#4317) F16: new is a row of an earlier import of this source (run.there found it): what hangs on it came
@@ -2603,6 +2617,57 @@ def umz_undo_made(c, made):
     return files
 
 
+UMZ_FAILED = N_("The import failed. Nothing was imported. Please try again later or ask the server admin (server log).")
+# (#6583): an error after the rows were committed: they are in (and can be undone), the step after them failed
+UMZ_AFTER_FAILED = N_("Imported, but the follow-up work failed (sharing, invitations, names of people). The imported data is there and the import can be undone; share by hand where needed.")
+UMZ_TELL = {"done": N_("The import of {0} is finished."),
+            "warn": N_("The import of {0} is finished. Warnings: {1}. Settings > Data has the full list as a report."),
+            "trouble": N_("The import of {0} is in, but the follow-up work failed. Settings > Data shows the result."),
+            "failed": N_("The import of {0} failed. {1}")}
+UMZ_YOUR = N_("your export")  # the name when the upload had none
+
+
+def umz_tell(uid, what, name, *a):
+    """(#6583): the person hears the end of the run (News + push of the row "import" of the notification settings, News kind
+    umzdone): finished with the number of warnings, in but the follow-up failed, failed with the reason (a stored text).
+    Own connection (the run's may be broken); never fails the run (collab/news.py news_own, as admin/orgexport.py ox_tell)."""
+    c = connect()
+    try:
+        push = news_own(c, uid, "umzdone",
+                        lambda lg: _tr_base(UMZ_TELL[what], _txt(name, 120) or _tr_base(UMZ_YOUR, lg=lg), *[tr_stored(x, lg) for x in a], lg=lg),
+                        title=lambda lg: _tr_base("Import", lg=lg), click="settings/data", data={"what": what})
+        c.commit()
+        if push:
+            send_pushes([push])
+    except (DbError, OSError, KeyError, ValueError) as e:  # the state in Settings > Data says it all the same; never fails the run (as ox_tell)
+        print(f"account import of user {uid}: notice failed: {type(e).__name__}", flush=True)
+    finally:
+        c.close()
+
+
+def umz_finish(uid, iid, st, run, shared, iid_db, trouble=False):
+    """The end of a run whose rows are committed: the result (the warnings cut at UMZ_WARN_MAX, warn_more = how many more the
+    report file has), the upload removed at once (#6583: only state.json and the report stay, the folder for UMZ_KEEP_H), the
+    state done, the notice."""
+    result = {"created": run.stats, "people": shared, "import_id": iid_db,
+              "undo_until": iso(umz_undo_until(now_utc())) if iid_db else None,
+              "warnings": run.warnings()}  # (#3765): key + values, umz_view translates; (#4317) F4: the must ones first
+    result["warn_more"] = len(run.warn) - len(result["warnings"])  # (#6583)
+    if trouble:
+        result["trouble"] = [UMZ_AFTER_FAILED]
+    if run.chain:  # (#6591): the hash chain check of each office the import wrote documents into
+        result["chain"] = run.chain
+    # (#6060): the upload goes BEFORE the state says done / stopped - the finally below removed it only after, so a
+    # client that read "done" could still find the file (a slow CI runner: p273_b_api "the upload is gone after the run")
+    try:
+        os.remove(os.path.join(_dir(uid, iid), "upload.bin"))
+    except OSError:
+        pass
+    _set(uid, iid, state="done", result=result, progress=None, interrupted=None)
+    n = len(run.warn)  # the lines of the report (each with its count)
+    umz_tell(uid, "trouble" if trouble else "warn" if n else "done", st.get("name"), *([n] if n and not trouble else []))
+
+
 def umz_unwrite(run):
     """Removes the files of rows that were never committed."""
     for p in run.written if run else ():
@@ -2670,11 +2735,13 @@ def umz_run(uid, iid, opts):
             iid_db = None
             if any(run.created[k] for k in run.created):  # recorded with the rows (2.137.0, #2344: + "oi"): whatever happens next, undo works
                 from ..integrations.importers import imp_prune
-                iid_db = insert_id(c, "INSERT INTO imports(user_id,source,file_name,created,report,created_at) VALUES(?,?,?,?,?,?)",
-                                   (uid, UMZ_SOURCE, _txt(st.get("name"), 200), json.dumps({**run.created, "src": run.src}), json.dumps(report), iso(now_utc())))
+                iid_db = insert_id(c, "INSERT INTO imports(user_id,source,file_name,created,report,warnings,created_at) VALUES(?,?,?,?,?,?,?)",
+                                   (uid, UMZ_SOURCE, _txt(st.get("name"), 200), json.dumps({**run.created, "src": run.src}), json.dumps(report),
+                                    json.dumps(run.warnings(full=True)), iso(now_utc())))  # (#6583): every warning, uncut
                 imp_prune(c, uid)
             c.commit()
             run.written = []  # committed: the files belong to their rows now
+            run.committed = iid_db
             for fn in run.after:  # 2.574.0 (#4556): umz_more._conn_tell
                 fn(c)
             shared = []
@@ -2699,24 +2766,16 @@ def umz_run(uid, iid, opts):
                 if iid_db:
                     c.execute("UPDATE imports SET created=? WHERE id=?", (done, iid_db))
                 else:
-                    iid_db = insert_id(c, "INSERT INTO imports(user_id,source,file_name,created,report,created_at) VALUES(?,?,?,?,?,?)",
-                                       (uid, UMZ_SOURCE, _txt(st.get("name"), 200), done, json.dumps(report), iso(now_utc())))
+                    iid_db = insert_id(c, "INSERT INTO imports(user_id,source,file_name,created,report,warnings,created_at) VALUES(?,?,?,?,?,?,?)",
+                                       (uid, UMZ_SOURCE, _txt(st.get("name"), 200), done, json.dumps(report), json.dumps(run.warnings(full=True)), iso(now_utc())))
+                    run.committed = iid_db
+            if iid_db:  # (#6583): the warnings of the steps after the commit (sharing ...) join the record too
+                c.execute("UPDATE imports SET warnings=? WHERE id=?", (json.dumps(run.warnings(full=True)), iid_db))
             bump(c)
             c.commit()
         finally:
             zf.close()
-        result = {"created": run.stats, "people": shared, "import_id": iid_db,
-                  "undo_until": iso(umz_undo_until(now_utc())) if iid_db else None,
-                  "warnings": run.warnings()}  # 2.448.0 (#3765): key + values, umz_view translates; 2.531.0 (#4317) F4: the must ones first
-        if run.chain:  # 2.1327.0 (#6591): the hash chain check of each office the import wrote documents into
-            result["chain"] = run.chain
-        # 2.1140.0 (#6060): the upload goes BEFORE the state says done / stopped - the finally below removed it only after, so a
-        # client that read "done" could still find the file (a slow CI runner: p273_b_api "the upload is gone after the run")
-        try:
-            os.remove(os.path.join(_dir(uid, iid), "upload.bin"))
-        except OSError:
-            pass
-        _set(uid, iid, state="done", result=result, progress=None)
+        umz_finish(uid, iid, st, run, shared, iid_db)
         print(f"account import of user {uid}: {run.stats.get('tasks', 0)} tasks", flush=True)
     except UmzQuota as e:  # 2.1402.0 (#6579): the target's storage was full in the run: everything rolled back, nothing half
         c.rollback()
@@ -2725,22 +2784,39 @@ def umz_run(uid, iid, opts):
         oi_drop_empty_pb(c, run, uid)
         _set(uid, iid, state="failed", error=[e.text, *e.args_], progress=None)
         print(f"account import of user {uid}: the target's storage was full, rolled back", flush=True)
+        umz_tell(uid, "failed", (_st(uid, iid) or {}).get("name"), [e.text, *e.args_])  # (#6583)
     except UmzBad as e:
         c.rollback()
         umz_unwrite(run)  # 2.362.4 (#3100)
         from .orgimport import oi_drop_empty_pb
         oi_drop_empty_pb(c, run, uid)  # 2.137.1 review (#2399): also when the file turns out bad while writing
         _set(uid, iid, state="invalid", error=[e.text, *e.args_])
+        umz_tell(uid, "failed", (_st(uid, iid) or {}).get("name"), [e.text, *e.args_])  # (#6583)
     except Exception as e:  # noqa: BLE001 -- the state says it failed; never content in the message
         try:
             c.rollback()
         except Exception:  # noqa: BLE001 -- rollback after an error: the failed state counts
             pass
-        umz_unwrite(run)
-        from .orgimport import oi_drop_empty_pb
-        oi_drop_empty_pb(c, run, uid)  # 2.137.1 (#2399): the personal office made for this run, if it stayed empty
         print(f"account import of user {uid} failed: {type(e).__name__}", flush=True)
-        _set(uid, iid, state="failed", error=[N_("The import failed. Nothing was imported. Please try again later or ask the server admin (server log).")])
+        if run is not None and run.committed:
+            # (#6583): the rows are in (and can be undone): the step after the commit failed, not the import -- the result
+            # says so, with what came in, instead of "Nothing was imported"
+            run.warning(UMZ_AFTER_FAILED, must=True)
+            try:
+                c.execute("UPDATE imports SET warnings=? WHERE id=?", (json.dumps(run.warnings(full=True)), run.committed))
+                c.commit()
+            except DbError:  # the record keeps the warnings of the commit; the state below names this one
+                try:
+                    c.rollback()
+                except DbError:  # the connection is gone: nothing to roll back
+                    pass
+            umz_finish(uid, iid, _st(uid, iid) or {}, run, [], run.committed, trouble=True)
+        else:
+            umz_unwrite(run)
+            from .orgimport import oi_drop_empty_pb
+            oi_drop_empty_pb(c, run, uid)  # (#2399): the personal office made for this run, if it stayed empty
+            _set(uid, iid, state="failed", error=[UMZ_FAILED])
+            umz_tell(uid, "failed", (_st(uid, iid) or {}).get("name"), [UMZ_FAILED])  # (#6583)
     finally:
         try:
             p = os.path.join(_dir(uid, iid), "upload.bin")
@@ -3335,6 +3411,27 @@ class _UmzDryRun(Exception):
     """2.611.0 (#4866): ends the preview's savepoint (rolled back)."""
 
 
+def umz_back_to_preview(uid, iid, st):
+    """(#6583): a run that ended without writing its end (a restart, a live update: its queue row failed, tries=1, the state
+    stayed "running") falls back to the preview while its upload is there, so the person starts it again instead of uploading
+    everything anew. Nothing of it is in: the run commits its rows in one step (umz_run) -- a run that got that far counts as
+    imported, and the preview asks for the confirmation of a second import (umz_go, again). The upload stays UMZ_KEEP_H hours
+    from now (umz_import_cleanup reads the state's age). -> the new state, None without the upload."""
+    try:
+        if not os.path.exists(os.path.join(_dir(uid, iid), "upload.bin")):
+            return None
+        pv = dict(st["preview"])
+        try:
+            earlier = umz_again(db(), uid, st.get("src") or "", st.get("export_id") or "")
+        except DbError:  # no answer from the database: the start asks again (umz_go)
+            earlier = pv.get("earlier")
+        pv["again"], pv["earlier"] = bool(earlier), earlier
+        print(f"account import of user {uid}: the run was interrupted, back to the preview", flush=True)
+        return _set(uid, iid, state="preview", preview=pv, progress=None, interrupted=True)
+    except (OSError, Denied):
+        return None
+
+
 # ---------------------------------------------------------------- routes (people only)
 def _view(uid, iid, st):
     lost = False
@@ -3342,7 +3439,12 @@ def _view(uid, iid, st):
         st = _st(uid, iid) or st  # 2.307.1 (CI): the thread may have written its last state and ended after st was read
         # #3506: the second look only after that fresh read; a row ending between two looks at an old st said "interrupted"
         lost = st.get("state") in ("checking", "running") and not _busy(uid) and int(uid) not in _UMI_START
+    if lost and st.get("state") == "running" and st.get("preview"):
+        st = umz_back_to_preview(uid, iid, st) or st
+        lost = st.get("state") != "preview"
     out = {"id": iid, "state": st.get("state"), "size": st.get("size"), "received": st.get("received"), "name": st.get("name", "")}
+    if st.get("interrupted") and st.get("state") == "preview":
+        out["interrupted"] = True  # (#6583): the app says so and offers the start again
     if lost:
         out["state"] = "failed"
         out["error"] = tr("The import was interrupted. Please start it again.")
@@ -3365,6 +3467,8 @@ def _view(uid, iid, st):
         out["result"] = {**res, "warnings": [{**x, "text": tr_stored(x["text"])} for x in res.get("warnings") or []]}
         if res.get("stopped"):
             out["result"]["stopped"] = tr_stored(res["stopped"])
+        if res.get("trouble"):  # (#6583): in, but the step after the commit failed
+            out["result"]["trouble"] = tr_stored(res["trouble"])
     return out
 
 
@@ -3474,6 +3578,40 @@ def umz_undo_plan_get(iid):
     return jsonify(umz_undo_preview(db(), me(), iid))
 
 
+@app.get("/api/imports/<int:iid>/report")
+def umz_report_file(iid):
+    """(#6583): the report of one of my imports as a text file (Settings > Data, the import's result): file, time, what came
+    in, what stayed on the old server and every warning (imports.warnings, uncut -- the result names at most UMZ_WARN_MAX).
+    People only, like the undo plan; another person's import is not there (404)."""
+    umz_person()
+    c = db()
+    r = c.execute("SELECT * FROM imports WHERE id=? AND user_id=?", (iid, me())).fetchone()
+    if not r:
+        c.rollback()
+        raise Denied(404)
+    rep, warns = json.loads(r["report"] or "{}"), json.loads(r["warnings"] or "[]")
+    c.rollback()
+    head = tr("Import report")
+    out = [f"Kalmido - {head}", "=" * (10 + len(head)), "",
+           f"{tr('File')}: {r['file_name'] or '-'}", f"{tr('Imported on')}: {r['created_at']}", f"{tr('Import')}: #{int(r['id'])}"]
+    if r["undone_at"]:
+        out.append(f"{tr('Undone on')}: {r['undone_at']}")
+    made = [f"  {k}: {v}" for k, v in rep.items() if isinstance(v, int) and not isinstance(v, bool) and v and k not in ("target",)]
+    if made:
+        out += ["", tr("Imported") + ":", *made]
+    left = [x for x in rep.get("not_taken") or [] if isinstance(x, dict)]
+    if left:
+        out += ["", tr("These areas stay on the old server: {0}", "")]
+        out += [f"  {tr_stored(x.get('what'))}: {x.get('count')}" for x in left]
+    out += ["", f"{tr('Warnings')}: {len(warns)}"]
+    for x in warns if isinstance(warns, list) else ():
+        if isinstance(x, dict):
+            n = int(x.get("count") or 1)
+            out.append(f"- {tr_stored(x.get('text'))}" + (f" ({n})" if n > 1 else ""))
+    return Response("\n".join(out) + "\n", mimetype="text/plain",
+                    headers={"Content-Disposition": f'attachment; filename="kalmido-import-{int(iid)}.txt"', "Cache-Control": "no-store"})
+
+
 def umz_invites(c, uid, st, org, picks, can_invite, mails_out=None):
     """2.1402.0 (#6579): the people an organisation export's run invites into the target org (umz_share: a found account not
     a member yet, ticked "share"; a missing one ticked "invite" with an address, by an instance admin) -- they join its storage
@@ -3577,7 +3715,7 @@ def umz_go(iid):
     c.rollback()
     try:
         _thread(uid, umz_run, iid, {"org": org, "people": picks, "can_invite": can_invite, "invites": invites}, iid=iid,
-                state={"state": "running", "progress": {"done": 0, "total": 1}, "target": org})
+                state={"state": "running", "progress": {"done": 0, "total": 1}, "target": org, "interrupted": None})
     except Denied:
         _set(uid, iid, state="preview")
         raise

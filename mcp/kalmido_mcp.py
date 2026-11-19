@@ -2616,6 +2616,12 @@ TOOLS += [
      _obj(_CLIENT, ["name"]), lambda api, a: api.call("POST", "/clients", body=_pick(a, tuple(_CLIENT)))),
     ("update_client", "2.23.0: change a client.", _obj({"client_id": S_ID, **_CLIENT_UP}, ["client_id"]),
      lambda api, a: api.call("PATCH", f"/clients/{int(a['client_id'])}", body=_pick(a, tuple(_CLIENT_UP)))),
+    ("copy_client", "#7295: a copy of a client (name + \" (copy)\") or with as_location a new location of it (same name, name_extra empty; "
+                    "of a location: a location of its main client), in its workspace. Takes over name, name_extra, the address fields, "
+                    "country, rate, icon, color, note; the contact persons only with contacts. Never projects, documents, hours, budget, "
+                    "links or the archive state. Undo: delete_client of the new one. People only - an agent account gets 403.",
+     _obj({"client_id": S_ID, "as_location": {"type": "boolean"}, "contacts": {"type": "boolean"}}, ["client_id"]),
+     lambda api, a: api.call("POST", f"/clients/{int(a['client_id'])}/copy", body=_pick(a, ("as_location", "contacts")))),
     ("delete_client", "2.23.0: delete a client (its creator or an admin); its projects stay. 2.152.0: a client used in quotations, invoices or contracts is archived instead (answer archived: true). 2.272.0: it goes to the trash (answer trashed: true), bulk_clients untrash brings it back. 2.370.4: people only - an agent account gets 403.", _obj({"client_id": S_ID}, ["client_id"]),
      lambda api, a: api.call("DELETE", f"/clients/{int(a['client_id'])}")),
     ("bulk_clients", "2.47.3: several clients at once (ids from list_clients, up to 1000). delete: a client used in quotations, invoices or "

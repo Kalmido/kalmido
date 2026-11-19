@@ -236,7 +236,7 @@ APP_TO_API = {
     "POST /api/tasks/{}/typing": ["POST /tasks/{}/typing"],  # 2.22.0 (#693)
     # 2.23.0 (#463): clients, workload, approvals, forms
     "GET /api/clients": ["GET /clients"], "POST /api/clients": ["POST /clients"], "GET /api/clients/{}": ["GET /clients/{}"],
-    "PATCH /api/clients/{}": ["PATCH /clients/{}"], "DELETE /api/clients/{}": ["DELETE /clients/{}"], "GET /api/workload": ["GET /workload"],
+    "PATCH /api/clients/{}": ["PATCH /clients/{}"], "POST /api/clients/{}/copy": ["POST /clients/{}/copy"], "DELETE /api/clients/{}": ["DELETE /clients/{}"], "GET /api/workload": ["GET /workload"],
     "GET /api/team/absences": ["GET /absences"],  # 2.50.0 (#1195): "away" only
     "POST /api/clients/bulk": ["POST /clients/bulk"],  # 2.47.3 (#1733)
     "POST /api/clients/{}/restore": ["POST /clients/bulk"],  # 2.272.0 D (#3029): action untrash

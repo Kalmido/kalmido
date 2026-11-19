@@ -128,6 +128,13 @@ const api = async (w, method, url, body) => (await w.fetch(url, {method, headers
   check(nt('docpaid', {number: 'RE-1', client: 'Muster AG'}).includes('RE-1, Muster AG'), 'a payment names the invoice');
   check(nt('docoverdue', {n: 3}).includes('3'), 'several overdue invoices: the count');
   check(nt('orgrole', {name: 'Nordwind', role: 'accounting'}).includes('Accounting') || nt('orgrole', {name: 'Nordwind', role: 'accounting'}).includes('Buchhaltung'), 'a new role by its name');
+  // #6432: the new owner's name in 'handed your project to' is text, never markup (also every other value through trh)
+  const evil = '<a href="https://evil.example/" class="x6432">Bob</a>';
+  { const box = d.createElement('div'); box.innerHTML = nt('owner', {given: evil, name: 'P'});
+    check(!box.querySelector('a.x6432') && box.textContent.includes(evil), '#6432: a display name with markup shows as text in "handed your project": ' + box.innerHTML); }
+  { const box = d.createElement('div'); box.innerHTML = nt('fetcherr', {portal: 'P', error: evil}) + w.eval(`actText0({kind: 'title', user_id: 1, data: {to: ${JSON.stringify(evil)}}}, {})`);
+    check(!box.querySelector('a') && box.textContent.split(evil).length === 3, '#6432: values without q() are escaped once (no markup, no &amp;): ' + box.innerHTML); }
+  check(nt('orglogin', {name: 'A & B', ip: '1.2.3.4'}).includes('A &amp; B') && !nt('orglogin', {name: 'A & B'}).includes('&amp;amp;'), '#6432: a q() value is escaped once, not twice');
   w.close();
   console.log(`\n${ok} ok, ${F.length} failed`);
   if (errs.length) console.log('JS ERRORS', [...new Set(errs)]);

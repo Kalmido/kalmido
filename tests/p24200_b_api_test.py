@@ -121,12 +121,25 @@ if j:
     check("cid:logo" not in a, "no logo without an embedded one")
 
 # ================================================================ accounts
+# #6432: a display name takes no < > (one helper accounts/session.py dname_clean): setup, an admin's user dialog, the own settings
+DN_ERR = "The display name cannot contain < or >."
+r = sess().post(B + "/api/auth/setup", json={"username": "alice", "display_name": "<a href=//x>Alice</a>", "password": "password123"})
+check(r.status_code == 400 and DN_ERR in r.text, "#6432: setup refuses a display name with < > " + r.text[:200])
 assert sess().post(B + "/api/auth/setup", json={"username": "alice", "display_name": "Alice Admin", "password": "password123"}).ok
 A = sess("alice")
 A.post(B + "/api/admin/setup", json={"lang": "en", "collab_all": True, "modules": ["cal", "comments"]})
-r = A.post(B + "/api/users", json={"username": "bob", "display_name": "Bob <b>Member</b>", "password": "password123", "email": "bob@example.com"})
+r = A.post(B + "/api/users", json={"username": "bob", "display_name": "Bob & Member", "password": "password123", "email": "bob@example.com"})  # #6432: no < > in a name any more, & proves the escape
 assert r.ok, r.text
 BOB = r.json()["id"]
+r = A.post(B + "/api/users", json={"username": "eve", "display_name": "Eve <img src=x>", "password": "password123"})
+check(r.status_code == 400 and DN_ERR in r.text, "#6432: a new user with < > in the display name: 400 " + r.text[:200])
+r = A.patch(B + f"/api/users/{BOB}", json={"display_name": '<a href="https://evil.example/">Bob</a>'})
+check(r.status_code == 400 and DN_ERR in r.text, "#6432: the admin cannot give a display name with < > " + r.text[:200])
+r = A.patch(B + "/api/me", json={"display_name": "A > B"})
+check(r.status_code == 400 and DN_ERR in r.text, "#6432: the own display name with > : 400 " + r.text[:200])
+check(A.patch(B + "/api/me", json={"display_name": "Alice & Co"}).ok and A.patch(B + "/api/me", json={"display_name": "Alice Admin"}).ok, "#6432: & stays allowed")
+check(A.patch(B + "/api/me", json={"display_name": "Alice <x>"}).status_code == 400 and A.get(B + "/api/state").json()["me"]["display_name"] == "Alice Admin",
+      "#6432: the refused name is not stored, the earlier one stays")
 ALICE = A.get(B + "/api/state").json()["me"]["id"]
 A.patch(B + "/api/settings", json={"lang": "en", "features": "cal,comments,collab,events,contacts", "tour": "done"})
 
@@ -138,7 +151,7 @@ check(len(m) >= 1, f"bob gets the reset mail ({len(m)})")
 if m:
     subj, text, hb = parts(m[-1])
     framed(hb, "reset link")
-    check("cid:logo" in hb and PETROL in hb and "Bob &lt;b&gt;Member&lt;/b&gt;" in hb and "<b>Member</b>" not in hb,
+    check("cid:logo" in hb and PETROL in hb and "Bob &amp; Member" in hb and "Bob & Member" not in hb,
           "reset link: logo, petrol button, the name escaped")
     check("Set a new password" in text and "/#invite/" in text and "<td" not in text, "reset link: the text part as before " + text[:200])
 

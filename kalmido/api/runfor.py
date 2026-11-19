@@ -306,6 +306,7 @@ RUN_ROUTES = {
     "GET /chat-attachments/{}": ("mine", "only the requester's rows (core/access.py run_person)"),
     "GET /clients": ("noagent", "client_rows kalmido/team/clients.py (agent -> []), clients_list"),
     "POST /clients": ("noagent", "_gate kalmido/team/clients.py"),
+    "POST /clients/{}/copy": ("noagent", "_gate kalmido/team/clients.py (client_copy, #7295)"),
     "POST /clients/bulk": ("noagent", "_gate kalmido/team/clients.py via clients_bulk kalmido/team/clients_bulk.py"),
     "DELETE /clients/{}": ("noagent", "_gate kalmido/team/clients.py"),
     "GET /clients/{}": ("noagent", "need_client kalmido/team/clients.py -> client_rows"),

@@ -6,6 +6,7 @@ import io
 import json
 import math
 import re
+import threading
 import zipfile
 import icalendar
 from datetime import date, datetime, timedelta, timezone
@@ -132,7 +133,31 @@ IMPORT_OPTS += ("api_key",)  # 2.394.0 A (#3377): a source's own API key, for th
 # (registered by their module, e.g. integrations/imp_linear.py); the key lives only in this request
 IMPORT_FETCHERS = {}
 IMPORT_SAMPLES = 8
-csv.field_size_limit(max(csv.field_size_limit(), 4 * CONTENT_MAX))
+# #6433: the CSV cell limit of a task import (a description may hold CONTENT_MAX characters, longer ones are cut with a
+# warning) - raised only while an import reads its file (imp_csv_cells), no longer for the whole process
+IMP_CSV_CELL_MAX = 4 * CONTENT_MAX
+# #6433: a cell is cut / refused before any pattern runs on it (quadratic patterns on 800,000 characters held the server for
+# minutes): a date longer than this is no date, a name (person, file) is cut to this
+IMP_DATE_MAX, IMP_NAME_MAX = 100, 300
+_IMP_CSV_LOCK = threading.Lock()
+_IMP_CSV_HOLD = {"n": 0, "old": None}
+
+
+@contextlib.contextmanager
+def imp_csv_cells():
+    """#6433: csv.field_size_limit is one value for the whole process (waitress threads): the first import that reads raises
+    it to IMP_CSV_CELL_MAX, the last one puts the old value back; every other CSV reader keeps the default limit."""
+    with _IMP_CSV_LOCK:
+        if not _IMP_CSV_HOLD["n"]:
+            _IMP_CSV_HOLD["old"] = csv.field_size_limit(max(csv.field_size_limit(), IMP_CSV_CELL_MAX))
+        _IMP_CSV_HOLD["n"] += 1
+    try:
+        yield
+    finally:
+        with _IMP_CSV_LOCK:
+            _IMP_CSV_HOLD["n"] -= 1
+            if not _IMP_CSV_HOLD["n"]:
+                csv.field_size_limit(_IMP_CSV_HOLD["old"])
 # 2.394.0 B (#3377): sources that come through a repository connection, not a file (kalmido/integrations/git_issues.py):
 # names for the import record and the history only, no parser, never offered for an upload
 IMPORT_SOURCES_CONN = {"github": "GitHub Issues", "gitlab": "GitLab Issues"}
@@ -197,24 +222,25 @@ def imp_csv(text, plan=None, first_ln=1):
     first = text.split("\n", 1)[0]
     delim = max((",", ";", "\t"), key=first.count)
     try:
-        rd = csv.reader(io.StringIO(text), delimiter=delim)
-        head = next(rd, None)
-        if not head:
-            imp_fail(N_("The file is empty"))
-        orig = [imp_line(h, 100) for h in head]
-        keys = [h.lower() for h in orig]
-        rows, ln = [], first_ln
-        for r in rd:
-            ln += 1
-            if not any(x.strip() for x in r):
-                continue
-            row = DvaImpRow({k: (csv_uncell(r[i]) if i < len(r) else "") for i, k in enumerate(keys) if k})  # 2.273.0 D (#3051)
-            row.ln = ln
-            rows.append(row)
-            if plan is not None and any(x.strip() for i, x in enumerate(r) if i >= len(keys) or not keys[i]):
-                dva_imp_row_warn(plan, DVA_IMP_NOHEAD, row)
-            if len(rows) > IMPORT_MAX_TASKS * 3:
-                imp_fail(N_("Too many rows (more than {0} tasks)"), IMPORT_MAX_TASKS)
+        with imp_csv_cells():  # #6433
+            rd = csv.reader(io.StringIO(text), delimiter=delim)
+            head = next(rd, None)
+            if not head:
+                imp_fail(N_("The file is empty"))
+            orig = [imp_line(h, 100) for h in head]
+            keys = [h.lower() for h in orig]
+            rows, ln = [], first_ln
+            for r in rd:
+                ln += 1
+                if not any(x.strip() for x in r):
+                    continue
+                row = DvaImpRow({k: (csv_uncell(r[i]) if i < len(r) else "") for i, k in enumerate(keys) if k})  # (#3051)
+                row.ln = ln
+                rows.append(row)
+                if plan is not None and any(x.strip() for i, x in enumerate(r) if i >= len(keys) or not keys[i]):
+                    dva_imp_row_warn(plan, DVA_IMP_NOHEAD, row)
+                if len(rows) > IMPORT_MAX_TASKS * 3:
+                    imp_fail(N_("Too many rows (more than {0} tasks)"), IMPORT_MAX_TASKS)
     except csv.Error:
         imp_fail(N_("The CSV file could not be read"))
     return keys, rows, dict(zip(keys, orig))
@@ -282,7 +308,7 @@ def imp_zip(data, exts, full=False, shared=None):
 
 
 def imp_stem(name):
-    base = str(name or "").replace("\\", "/").rsplit("/", 1)[-1]
+    base = str(name or "").replace("\\", "/").rsplit("/", 1)[-1][:IMP_NAME_MAX]  # #6433: cut before the patterns
     base = re.sub(r"\.(csv|json|ics|ical|ifb|txt|zip|md|markdown)$", "", base, flags=re.I)
     return imp_line(re.sub(r"\s*\[\d+\]$", "", base), LIST_NAME_MAX)  # Todoist backup: "Name [2203306141].csv"
 
@@ -421,6 +447,8 @@ def imp_numdate(s, dmy=None):
     """Numeric dates of CSV exports: 15.01.2025, 1/15/2025 (US; 15/1/2025 when the day is > 12 or dmy), 2025-01-15,
     optionally with a time (10:00[:00] [AM|PM]). -> (date, time | None)."""
     s = str(s or "").strip()
+    if len(s) > IMP_DATE_MAX:  # #6433: no date, and no pattern on a long cell
+        return None, None
     d, t = imp_iso(s)
     if d:
         return d, t
@@ -601,7 +629,10 @@ def _imp_rrule(body):
 
 def imp_nl_date(text, lg="en"):
     """Todoist DATE text -> {due, time, repeat, repeat_from} or None (not understood). lg: DATE_LANG (en / de only)."""
-    s = re.sub(r"\s+", " ", str(text or "").strip().lower())
+    s = str(text or "").strip()
+    if len(s) > IMP_DATE_MAX:  # #6433: no date, and no pattern on a long cell
+        return None
+    s = re.sub(r"\s+", " ", s.lower())
     if not s:
         return None
     iso_d, iso_t = imp_iso(s)
@@ -671,7 +702,8 @@ def parse_todoist(data, fname, opts, plan):
     _todoist_csv(text, fname, opts, plan)
 
 
-_TD_FILE = re.compile(r"\[\[file\s+(\{.*?\})\]\]", re.S)
+# #6433: no brackets inside, so every "[[file" looks only up to the next bracket (was .*?: quadratic on many unclosed ones)
+_TD_FILE = re.compile(r"\[\[file\s+(\{[^\[\]]*\})\]\]")
 
 
 def _todoist_files(s):
@@ -737,7 +769,7 @@ def _todoist_csv(text, fname, opts, plan):
             continue
         if typ == "note":
             if last is not None:
-                who = imp_line(re.sub(r"\s*\(\d+\)$", "", r.get("author") or ""), 100)
+                who = imp_line(re.sub(r"\s*\(\d+\)$", "", (r.get("author") or "")[:IMP_NAME_MAX]), 100)  # #6433
                 body = _todoist_files(content)
                 last.setdefault("_comments", []).append(f"**{who}**: {body.strip()}" if who else body.strip())
             continue
@@ -761,7 +793,7 @@ def _todoist_csv(text, fname, opts, plan):
         imp_addnote(t, r.get("description"))
         if uncompletable:
             imp_warn(plan, N_("Headings without a checkbox (* ...) became normal tasks"), t["title"])
-        resp = imp_line(re.sub(r"\s*\(\d+\)$", "", r.get("responsible") or ""), 100)
+        resp = imp_line(re.sub(r"\s*\(\d+\)$", "", (r.get("responsible") or "")[:IMP_NAME_MAX]), 100)  # #6433
         if resp:
             t["assignee"] = {"name": resp}
         if (r.get("date") or "").strip():
@@ -1214,22 +1246,23 @@ def imp_csv_multi(text):
     first = text.split("\n", 1)[0]
     delim = max((",", ";", "\t"), key=first.count)
     try:
-        rd = csv.reader(io.StringIO(text), delimiter=delim)
-        head = next(rd, None)
-        if not head:
-            imp_fail(N_("The file is empty"))
-        keys = [imp_line(h, 100).lower() for h in head]
-        rows = []
-        for r in rd:
-            if not any(x.strip() for x in r):
-                continue
-            row = {}
-            for i, k in enumerate(keys):
-                if k and i < len(r) and r[i].strip():
-                    row.setdefault(k, []).append(csv_uncell(r[i]))  # 2.273.0 D (#3051)
-            rows.append(row)
-            if len(rows) > IMPORT_MAX_TASKS * 3:
-                imp_fail(N_("Too many rows (more than {0} tasks)"), IMPORT_MAX_TASKS)
+        with imp_csv_cells():  # #6433
+            rd = csv.reader(io.StringIO(text), delimiter=delim)
+            head = next(rd, None)
+            if not head:
+                imp_fail(N_("The file is empty"))
+            keys = [imp_line(h, 100).lower() for h in head]
+            rows = []
+            for r in rd:
+                if not any(x.strip() for x in r):
+                    continue
+                row = {}
+                for i, k in enumerate(keys):
+                    if k and i < len(r) and r[i].strip():
+                        row.setdefault(k, []).append(csv_uncell(r[i]))  # (#3051)
+                rows.append(row)
+                if len(rows) > IMPORT_MAX_TASKS * 3:
+                    imp_fail(N_("Too many rows (more than {0} tasks)"), IMPORT_MAX_TASKS)
     except csv.Error:
         imp_fail(N_("The CSV file could not be read"))
     return keys, rows
@@ -1239,6 +1272,8 @@ def imp_anydate(s, dmy=None):
     """imp_numdate + dates with month names: 'January 15, 2025', 'Wednesday, January 15th 2025', '15 Jan 2025',
     '15. Januar 2025', '15/Jan/25 10:00 AM' (Jira), optionally a time (10:00 [AM|PM]) and a time zone after it. -> (date, time | None)."""
     s = str(s or "").strip()
+    if len(s) > IMP_DATE_MAX:  # #6433: no date; \([^)]*\) and the time pattern are quadratic on a long cell
+        return None, None
     d, t = imp_numdate(s, dmy)
     if d:
         return d, t
@@ -1322,7 +1357,7 @@ IMP_PRIO_OWN = {w: p for p, k in ((1, "Low"), (3, "Medium"), (5, "High"), (7, "U
 
 def imp_who(t, src, v):
     """People of a file never become accounts: their names go into the notes as text."""
-    v = imp_line(re.sub(r"^\[|\]$", "", str(v or "").strip()), 300)
+    v = imp_line(re.sub(r"^\[|\]$", "", str(v or "").strip()[:IMP_NAME_MAX]), IMP_NAME_MAX)  # #6433: cut first
     if v:
         imp_addnote(t, tr("Assignee ({0}): {1}", IMPORT_SOURCES[src], v))
 
@@ -1641,7 +1676,7 @@ IMPORT_NEST_ZIPS = 20  # ZIPs inside a ZIP (Notion splits big exports into parts
 
 
 def _notion_name(path):
-    base = str(path or "").replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
+    base = str(path or "").replace("\\", "/").rstrip("/").rsplit("/", 1)[-1][-IMP_NAME_MAX:]  # #6433: cut first (the id is at the end)
     base = re.sub(r"\.(csv|md|markdown|zip)$", "", base, flags=re.I)
     base = re.sub(r"_all$", "", base)
     return imp_line(_NOTION_ID.sub("", base), LIST_NAME_MAX)
@@ -1671,7 +1706,10 @@ def _notion_files(data):
 
 def _notion_date(v):
     """'January 15, 2025', 'January 15, 2025 10:00 AM (GMT+1)', '2025-01-15', ranges 'A → B' -> (start, due, time)."""
-    parts = [x.strip() for x in re.split(r"\s+(?:→|->)\s+", str(v or "").strip()) if x.strip()]
+    v = str(v or "").strip()
+    if len(v) > 2 * IMP_DATE_MAX:  # #6433: no date range, and no pattern on a long cell
+        return None, None, None
+    parts = [x.strip() for x in re.split(r"\s+(?:→|->)\s+", v) if x.strip()]
     if not parts:
         return None, None, None
     d1, t1 = imp_anydate(parts[0])
@@ -1860,7 +1898,7 @@ def _cu_date(v, text):
     d, t = _imp_epoch(v)
     if not d:
         d, t = imp_anydate(v)
-    if not d and text:
+    if not d and text and len(str(text).strip()) <= IMP_DATE_MAX:  # #6433: no pattern on a long cell
         d, t = imp_anydate(re.sub(r"\s+(?:gmt|utc)[+-]?\d*$", "", str(text).strip(), flags=re.I))
     return d, (None if t == "00:00" else t)
 
@@ -2676,5 +2714,6 @@ def imports_list():
         until = imp_undo_until(r)  # 2.585.0 (#4350)
         out.append({"id": r["id"], "source": r["source"], "source_name": "Newsletter" if r["source"] == "newsletter" else imp_name(r["source"]),
                     "file_name": r["file_name"], "created_at": r["created_at"], "counts": _imp_report(r["report"]),
-                    "undone_at": r["undone_at"], "can_undo": not r["undone_at"] and until > now_utc(), "undo_until": iso(until)})
+                    "undone_at": r["undone_at"], "can_undo": not r["undone_at"] and until > now_utc(), "undo_until": iso(until),
+                    "warnings": len(json.loads(r["warnings"] or "[]"))})  # (#6583): the report file (GET /api/imports/<id>/report) names them
     return jsonify(imports=out, max_mb=IMPORT_MAX_MB, max_tasks=IMPORT_MAX_TASKS)

@@ -63,7 +63,7 @@ KINDS = {
     "form": ("matrix", "p2300_tenant_test.py: forms by id, the form page for another organisation"),
     # 2.63.0 B (#1513): customer reports: the status page / the portal never across organisations, a task's ticket by id
     "portal": ("matrix", "p263_b_api_test.py: status links and the portal show one space's tickets only, a task's ticket by id"),
-    "client": ("matrix", "p2300_tenant_test.py: clients by id, workload"),
+    "client": ("matrix", "p2300_tenant_test.py: clients by id, workload; p7295_client_copy_test.py: the copy of a client (#7295)"),
     # 2.36.1 (#1021): office & finance -- every row belongs to an organisation (org_id), read through office_org (the workspace
     # one works in); foreign ids 404; agents and kids 403 before any query; 2.47.3 (#1360): a private person works in the own
     # personal office (a hidden area only its owner reaches). No /api/v1, no MCP in stage 1
@@ -449,6 +449,7 @@ ROUTES = {
     # ---- client (13)
     "GET /api/clients": "client", "GET /api/clients/{}": "client", "POST /api/clients": "client",
     "PATCH /api/clients/{}": "client", "DELETE /api/clients/{}": "client", "GET /api/v1/clients": "client",
+    "POST /api/clients/{}/copy": "client", "POST /api/v1/clients/{}/copy": "client",  # #7295: p7295_client_copy_test.py (another workspace's client: 404)
     "POST /api/clients/bulk": "client", "POST /api/v1/clients/bulk": "client",  # 2.47.3 (#1733): every id checked first (p2473_c_api_test.py)
     "GET /api/clients/{}/book-contacts": "client",  # 2.59.0 (#1735): only the client's own address books (p259_a_api_test.py)
     "POST /api/clients/merge": "client", "POST /api/clients/merges/{}/undo": "client",  # 2.66.0 (#1835): every client checked, one workspace, undo by its scope (p266_b_api_test.py)
@@ -908,7 +909,7 @@ ROUTES = {
     # 2.52.0 (#1128): writing into the person's own CalDAV subscription (need_calsub: the subscription's owner only)
     "POST /api/calendars/{}/events": "own", "PATCH /api/calendars/{}/events": "own", "DELETE /api/calendars/{}/events": "own",
     "POST /api/calendars/{}/events/restore": "own", "POST /api/calendars/{}/write": "own", "POST /api/import/{}": "own",
-    "POST /api/imports/{}/undo": "own", "GET /api/imports": "own", "GET /api/imports/{}/undo-plan": "own", "GET /api/me/mail": "own",  # 2.585.0 (#4350): + undo-plan
+    "POST /api/imports/{}/undo": "own", "GET /api/imports": "own", "GET /api/imports/{}/undo-plan": "own", "GET /api/imports/{}/report": "own", "GET /api/me/mail": "own",  # 2.585.0 (#4350): + undo-plan
     # 2.73.0 B (#1473): the account export / import: the person's own files (a folder per person, another person's id = 404);
     # the import's target organisation needs its admin (p273_b_api_test.py)
     "GET /api/account/export": "own", "POST /api/account/export": "own", "DELETE /api/account/export": "own",

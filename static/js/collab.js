@@ -21,7 +21,7 @@ const NEWS_CHIPS = [['mention', 'at', N_('Mentions'), ['mention']], ['comment', 
   ['agents', 'bot', N_('Agents'), ['approval', 'agentask', 'proposal', 'usage']], ['share', 'users', N_('Sharing'), ['share', 'role', 'unshare', 'owner', 'orgjoin', 'orgjoinres', 'orgrole', 'orgdelnotice', 'orggone', 'whorgcut', 'integfail']],
   ['followup', 'hourglass', N_('Follow-ups'), ['followup']]];
 NEWS_CHIPS[0][3].push('chatmention');  // 2.1037.0 (#5800): a mention in the team chat is a mention
-NEWS_CHIPS.find(x => x[0] === 'share')?.[3].push('oxdone');  // #6581: my export is ready / failed, beside the other notices of an organisation
+NEWS_CHIPS.find(x => x[0] === 'share')?.[3].push('oxdone', 'umzdone');  // #6581: my export is ready / failed, beside the other notices of an organisation; #6583: my import
 const newsKindOk = (it, k = S.nf.kind) => { const c = k && NEWS_CHIPS.find(x => x[0] === k); return !c || c[3].includes(it.kind); };
 function newsChipsHtml(items, attr) {
   const k = S.nf.kind, have = NEWS_CHIPS.filter(c => c[0] === k || (items || []).some(it => c[3].includes(it.kind)));
@@ -245,125 +245,126 @@ function newsListName(it) {
   return l ? (l.is_inbox ? tr('Basket') : listName(l.name)) : listName(it.data?.name || '');
 }
 function newsText(it, U) {
-  const d = it.data || {}, who = `<b>${esc(viaName(d, it.actor_id, U))}</b>`, q = x => `<b>${esc(x)}</b>`;
+  const d = it.data || {}, who = i18nHtml(`<b>${esc(viaName(d, it.actor_id, U))}</b>`), q = x => i18nHtml(`<b>${esc(x)}</b>`);  // #6432: trh / trnh below escape every other value
   switch (it.kind) {
-    case 'mention': return tr('{0} mentioned you', who);
+    case 'mention': return trh('{0} mentioned you', who);
     case 'chatmention': return tcm_newsText(it, who);  // 2.1037.0 (#5800)
     case 'e2e_key': return le2u_newsText(it, who, q);  // 2.64.1 (#1817): the key of a locked list was released to me
-    case 'wiki_e2e_key': return tr('{0} released the key for the knowledge pages of {1} to you', who, q(it.data?.name || tr('Organisation')));  // 2.64.3 B (#1817): the key of an encrypted knowledge space
+    case 'wiki_e2e_key': return trh('{0} released the key for the knowledge pages of {1} to you', who, q(it.data?.name || trh('Organisation')));  // (#1817): the key of an encrypted knowledge space
     case 'tbl_urgent': return tbl_newsText(it, who);  // 2.53.0 C (#1424)
-    case 'comment': if ((it.tasks || []).length > 1) return trn('{1} left {0} comments on {2} tasks', '{1} left {0} comments on {2} tasks', it.count, who, it.tasks.length);  // 2.13.0 (#453 A5)
-      return it.count > 1 ? trn('{1} left {0} comments', '{1} left {0} comments', it.count, (it.actors || [it.actor_id]).map(a => `<b>${esc(uname(a, U))}</b>`).join(', ')) : tr('{0} commented', who);
-    case 'assign': return d.group ? tr('{0} assigned a task to your group {1}', who, q(d.group)) : tr('{0} assigned a task to you', who);
-    case 'take': return tr('{0} took a task of your group {1}', who, q(d.group || ''));  // 2.10.0 (#441)
-    case 'unassign': return !it.task_id && it.list_id ? tr('{0} removed you as assignee of a task in {1}', who, q(newsListName(it))) : tr('{0} removed you as assignee', who);  // 2.38.0 (#1155): out of sight
-    case 'complete': return d.st === 'reopen' ? tr('{0} reopened a task', who) : d.st === 'wont' ? tr('{0} closed a task as won’t do', who) : tr('{0} completed a task', who);  // 2.473.0 (#3357): st = what a watcher hears of
-    case 'share': return d.org ? (d.role === 'admin' ? tr('{0} added you to the organisation {1} as an admin', who, q(d.name || '')) : tr('{0} added you to the organisation {1}', who, q(d.name || '')))  // 2.28.0 (#935)
-      : d.role === 'view' ? tr('{0} shared the project {1} with you (read-only)', who, q(newsListName(it)))
-      : d.role === 'participant' ? tr('{0} added you to {1} as a participant (you see the tasks assigned to you)', who, q(newsListName(it)))
-        : d.role === 'admin' ? tr('{0} shared the project {1} with you as an admin', who, q(newsListName(it)))
-          : d.group ? tr('{0} shared the project {1} with your group {2}', who, q(newsListName(it)), q(d.group)) : tr('{0} shared the project {1} with you', who, q(newsListName(it)));
-    case 'role': return tr('{0} changed your role in {1} to {2}', who, q(newsListName(it)), q(roleLabel(d.role)));
-    case 'unshare': return d.org ? tr('{0} removed you from the organisation {1}', who, q(d.name || ''))  // 2.28.0 (#935)
+    case 'comment': if ((it.tasks || []).length > 1) return trnh('{1} left {0} comments on {2} tasks', '{1} left {0} comments on {2} tasks', it.count, who, it.tasks.length);  // 2.13.0 (#453 A5)
+      return it.count > 1 ? trnh('{1} left {0} comments', '{1} left {0} comments', it.count, i18nHtml((it.actors || [it.actor_id]).map(a => `<b>${esc(uname(a, U))}</b>`).join(', '))) : trh('{0} commented', who);
+    case 'assign': return d.group ? trh('{0} assigned a task to your group {1}', who, q(d.group)) : trh('{0} assigned a task to you', who);
+    case 'take': return trh('{0} took a task of your group {1}', who, q(d.group || ''));  // (#441)
+    case 'unassign': return !it.task_id && it.list_id ? trh('{0} removed you as assignee of a task in {1}', who, q(newsListName(it))) : trh('{0} removed you as assignee', who);  // (#1155): out of sight
+    case 'complete': return d.st === 'reopen' ? trh('{0} reopened a task', who) : d.st === 'wont' ? trh('{0} closed a task as won’t do', who) : trh('{0} completed a task', who);  // (#3357): st = what a watcher hears of
+    case 'share': return d.org ? (d.role === 'admin' ? trh('{0} added you to the organisation {1} as an admin', who, q(d.name || '')) : trh('{0} added you to the organisation {1}', who, q(d.name || '')))  // (#935)
+      : d.role === 'view' ? trh('{0} shared the project {1} with you (read-only)', who, q(newsListName(it)))
+      : d.role === 'participant' ? trh('{0} added you to {1} as a participant (you see the tasks assigned to you)', who, q(newsListName(it)))
+        : d.role === 'admin' ? trh('{0} shared the project {1} with you as an admin', who, q(newsListName(it)))
+          : d.group ? trh('{0} shared the project {1} with your group {2}', who, q(newsListName(it)), q(d.group)) : trh('{0} shared the project {1} with you', who, q(newsListName(it)));
+    case 'role': return trh('{0} changed your role in {1} to {2}', who, q(newsListName(it)), q(roleLabel(d.role)));
+    case 'unshare': return d.org ? trh('{0} removed you from the organisation {1}', who, q(d.name || ''))  // (#935)
       + (d.lists ? ' ' + esc(trn('Your {0} project of the organisation stayed with it ({1}).', 'Your {0} projects of the organisation stayed with it ({1}).', d.lists, d.to || '')) : '')  // 2.148.1 A (#2480)
       + (d.back ? ' ' + esc(trn('{0} item you had brought in is back in your private workspace.', '{0} items you had brought in are back in your private workspace.', d.back)) : '')  // 2.361.0 (#2922)
-      : tr('{0} removed you from the project {1}', who, q(newsListName(it)));
-    case 'owner': return (d.given != null ? tr('{0} handed your project {1} to {2}', who, q(newsListName(it)), d.given) : d.self ? tr('You took over the project {1} from {0}', who, q(newsListName(it))) : tr('{0} made you the owner of the project {1}', who, q(newsListName(it))))  // 2.1.2 (#349)
+      : trh('{0} removed you from the project {1}', who, q(newsListName(it)));
+    case 'owner': return (d.given != null ? trh('{0} handed your project {1} to {2}', who, q(newsListName(it)), q(d.given)) : d.self ? trh('You took over the project {1} from {0}', who, q(newsListName(it))) : trh('{0} made you the owner of the project {1}', who, q(newsListName(it))))  // (#349)
       + ((d.reset || []).includes('link') ? ' ' + esc(tr('Its public link was reset: share the new link again if needed.')) : '')  // 2.148.1 A (#2478)
       + ((d.reset || []).includes('hook') ? ' ' + esc(tr('Its deploy webhooks were switched off: switch them on again under environments if needed.')) : '');
-    case 'orglist': return ({archive: tr('{0} archived the project {1} (admin of {2})', who, q(d.name || ''), q(d.org || '')),  // 2.35.0 (#1101)
-      restore: tr('{0} restored the project {1} from the archive (admin of {2})', who, q(d.name || ''), q(d.org || '')),
-      delete: tr('{0} deleted the project {1} permanently (admin of {2}). Its tasks are in the trash of the owner’s basket.', who, q(d.name || ''), q(d.org || '')),
+    case 'orglist': return ({archive: trh('{0} archived the project {1} (admin of {2})', who, q(d.name || ''), q(d.org || '')),  // (#1101)
+      restore: trh('{0} restored the project {1} from the archive (admin of {2})', who, q(d.name || ''), q(d.org || '')),
+      delete: trh('{0} deleted the project {1} permanently (admin of {2}). Its tasks are in the trash of the owner’s basket.', who, q(d.name || ''), q(d.org || '')),
       // 2.39.1 (#1188): a list admin archived / restored / deleted my list
-      larchive: d.member ? tr('{0} archived the project {1} (project admin)', who, q(d.name || '')) : tr('{0} archived your project {1} (project admin)', who, q(d.name || '')),  // 2.40.0 (#1337): d.member
-      lrestore: d.member ? tr('{0} restored the project {1} from the archive (project admin)', who, q(d.name || '')) : tr('{0} restored your project {1} from the archive (project admin)', who, q(d.name || '')),
-      ldelete: tr('{0} deleted your project {1} permanently (project admin). Its tasks are in the trash of your basket.', who, q(d.name || '')),
+      larchive: d.member ? trh('{0} archived the project {1} (project admin)', who, q(d.name || '')) : trh('{0} archived your project {1} (project admin)', who, q(d.name || '')),  // (#1337): d.member
+      lrestore: d.member ? trh('{0} restored the project {1} from the archive (project admin)', who, q(d.name || '')) : trh('{0} restored your project {1} from the archive (project admin)', who, q(d.name || '')),
+      ldelete: trh('{0} deleted your project {1} permanently (project admin). Its tasks are in the trash of your basket.', who, q(d.name || '')),
       // 2.102.0 A (#1988): into the list trash (restorable there with everything)
-      trash: tr('{0} moved the project {1} to the trash (admin of {2})', who, q(d.name || ''), q(d.org || '')),
-      ltrash: tr('{0} moved your project {1} to the trash (project admin)', who, q(d.name || '')),
-      lrename: tr('{0} renamed your project {1} to {2} (project admin)', who, q(d.old || ''), q(d.name || '')),  // 2.40.0 (#1431)
-      owner: tr('{0} handed the project {1} to {2} (admin of {3})', who, q(d.name || ''), q(d.to || ''), q(d.org || '')),
-      moveout: tr('{0} moved {1} out of the organisation {2}', who, q(d.name || ''), q(d.org || '')),  // 2.148.1 B (#2483)
-      export: trn('{1} exported {0} project of the organisation {2} with an account export', '{1} exported {0} projects of the organisation {2} with an account export', d.count || 1, who, q(d.org || '')),  // 2.362.3 (#3101)
+      trash: trh('{0} moved the project {1} to the trash (admin of {2})', who, q(d.name || ''), q(d.org || '')),
+      ltrash: trh('{0} moved your project {1} to the trash (project admin)', who, q(d.name || '')),
+      lrename: trh('{0} renamed your project {1} to {2} (project admin)', who, q(d.old || ''), q(d.name || '')),  // (#1431)
+      owner: trh('{0} handed the project {1} to {2} (admin of {3})', who, q(d.name || ''), q(d.to || ''), q(d.org || '')),
+      moveout: trh('{0} moved {1} out of the organisation {2}', who, q(d.name || ''), q(d.org || '')),  // (#2483)
+      export: trnh('{1} exported {0} project of the organisation {2} with an account export', '{1} exported {0} projects of the organisation {2} with an account export', d.count || 1, who, q(d.org || '')),  // (#3101)
       // 2.361.2 (#2923): a member asks back what they brought in; an admin releases / declines it
-      outreq: tr('{0} asks to take {1} back into their private workspace (organisation {2})', who, q(d.name || ''), q(d.org || '')),
-      outok: tr('{0} released {1}: you can move it into your private workspace now (within {2} days)', who, q(d.name || ''), d.days || 14),
-      outno: tr('{0} rejected giving {1} back (organisation {2})', who, q(d.name || ''), q(d.org || '')),
-      takeover: tr('{0} (server admin) handed your project {1} to {2}', who, q(d.name || ''), q(d.to || '')),  // 2.148.1 B (#2491)
-      acctdel: tr('{0} deletes their account on {1}. The project {2} is deleted with it: copy what you need before that day.', who, esc(fmtDayAbs(d.day || '')), q(d.name || '')),  // 2.1151.0 D (#4562)
+      outreq: trh('{0} asks to take {1} back into their private workspace (organisation {2})', who, q(d.name || ''), q(d.org || '')),
+      outok: trh('{0} released {1}: you can move it into your private workspace now (within {2} days)', who, q(d.name || ''), d.days || 14),
+      outno: trh('{0} rejected giving {1} back (organisation {2})', who, q(d.name || ''), q(d.org || '')),
+      takeover: trh('{0} (server admin) handed your project {1} to {2}', who, q(d.name || ''), q(d.to || '')),  // (#2491)
+      acctdel: trh('{0} deletes their account on {1}. The project {2} is deleted with it: copy what you need before that day.', who, fmtDayAbs(d.day || ''), q(d.name || '')),  // (#4562)
       // 2.56.0 (#1795): an organisation admin renamed it / changed its icon or colour
-      rename: tr('{0} renamed the project {1} to {2} (admin of {3})', who, q(d.old || ''), q(d.name || ''), q(d.org || '')),
-      restyle: tr('{0} changed the icon or colour of the project {1} (admin of {2})', who, q(d.name || ''), q(d.org || '')),
-      asstcomments: tr('{0} allowed the assistant to read comments of all members in projects shared with it (admin of {1})', who, q(d.org || ''))})[d.action] || tr('{0} changed something', who);  // 2.240.0 A (#2884)
-    case 'unblock': return d.hidden ? tr('{0} completed a task you cannot see: your task is unblocked', who) : tr('{0} completed {1}: your task is unblocked', who, q(d.title || ''));
-    case 'newtask': return tr('{0} added a task', who);
-    case 'orgjoin': return tr('{0} invites you to join the organisation {1}', who, q(d.name || ''));  // 2.148.1 A (#2480): oinvview.js
+      rename: trh('{0} renamed the project {1} to {2} (admin of {3})', who, q(d.old || ''), q(d.name || ''), q(d.org || '')),
+      restyle: trh('{0} changed the icon or colour of the project {1} (admin of {2})', who, q(d.name || ''), q(d.org || '')),
+      asstcomments: trh('{0} allowed the assistant to read comments of all members in projects shared with it (admin of {1})', who, q(d.org || ''))})[d.action] || trh('{0} changed something', who);  // (#2884)
+    case 'unblock': return d.hidden ? trh('{0} completed a task you cannot see: your task is unblocked', who) : trh('{0} completed {1}: your task is unblocked', who, q(d.title || ''));
+    case 'newtask': return trh('{0} added a task', who);
+    case 'orgjoin': return trh('{0} invites you to join the organisation {1}', who, q(d.name || ''));  // (#2480): oinvview.js
     // 2.361.0 (#2920): the server admin deletes my organisation on a day / took that back / deleted it (with what of mine was in it)
-    case 'orgdelnotice': return d.day ? tr('The organisation {0} will be deleted on {1}. Save what you want to keep before that day.', q(d.name || ''), esc(fmtDayAbs(d.day)))
-      + (olvText(d.own) ? ' ' + esc(tr('Yours in it: {0}.', olvText(d.own))) : '') : tr('The deletion of the organisation {0} was called off.', q(d.name || ''));
-    case 'whorgcut': return tr('Your webhook {0} no longer delivers events of the organisation {1}. An admin of it can set it up as an organisation webhook.', q(d.webhook || ''), q(d.org || ''));  // 2.380 G (#3391)
-    case 'orggone': return tr('The organisation {0} was deleted.', q(d.name || '')) + (olvText(d.own) ? ' ' + esc(tr('Yours that went with it: {0}.', olvText(d.own))) : '');
-    case 'connreq': return tr('{0} wants to connect with you', who);  // 2.49.0 (#1106)
-    case 'connok': return d.via === 'invite' ? tr('{0} accepted your invitation and is connected with you now', who) : tr('{0} accepted your connection request', who);  // 2.1191.0 (#4550): an invitation link
-    case 'lytpl': return tr('{0} sent you the arrangement {1}', who, q(d.name || ''));  // 2.55.0 (#1068)
-    case 'dispo': return tr('{0} booked you: {1} ({2})', who, q(d.title || ''), d.start ? esc(fmtDayAbs(d.start.slice(0, 10))) : '');  // 2.50.0 (#1194)
-    case 'leavereq': return tr('{0} asks for holiday ({1})', who, d.start ? esc(fmtDayAbs(d.start) + (d.end && d.end !== d.start ? ' – ' + fmtDayAbs(d.end) : '')) : '');  // 2.125.0 A (#2117)
-    case 'leavedecide': return (d.state === 'approved' ? tr('{0} approved your holiday ({1})', who, d.start ? esc(fmtDayAbs(d.start)) : '') : tr('{0} rejected your holiday ({1})', who, d.start ? esc(fmtDayAbs(d.start)) : ''));
-    case 'errreport': return d.title ? tr('New error reported: {0}', q(d.title)) : tr('A new error was reported');  // 2.18.0
-    case 'approval': return d.title ? tr('{0} is waiting for your approval: {1}', who, q(d.title)) : tr('{0} is waiting for your approval', who);
-    case 'agentask': return it.count > 1 ? trn('{1} has {0} question for you', '{1} has {0} questions for you', it.count, who) : tr('{0} has a question for you', who);  // 2.1039.0 (#5805): one row per agent
-    case 'job_watch': return d.kind === 'branch_stranded' ? tr('{0}: work lies on a branch without a merge ({1})', who, q(d.title || '')) : tr('{0}: a job makes no progress ({1})', who, q(d.title || ''));  // 2.392.2 (#3366): the watchdog  // 2.367.2 (#2968): a list-wide one has no task title
-    case 'aprequest': return tr('Approval needed: {0} (from {1})', q(it.task_title || ''), who) + (d.note ? ': ' + q(d.note) : '');  // 2.367.2 (#2968)
-    case 'signoff': return d.state === 'accepted' ? (d.sk === 'document' ? tr('{0} signed {1}', q(d.name || ''), q(d.title || '')) : tr('{0} approved {1}', q(d.name || ''), q(d.title || '')))
-      : d.sk === 'video' ? tr('{0} asks for changes to {1}', q(d.name || ''), q(d.title || '')) : tr('{0} rejected {1}', q(d.name || ''), q(d.title || ''));  // 2.266.0 (#2965): a customer through a link
+    case 'orgdelnotice': return d.day ? trh('The organisation {0} will be deleted on {1}. Save what you want to keep before that day.', q(d.name || ''), fmtDayAbs(d.day))
+      + (olvText(d.own) ? ' ' + esc(tr('Yours in it: {0}.', olvText(d.own))) : '') : trh('The deletion of the organisation {0} was called off.', q(d.name || ''));
+    case 'whorgcut': return trh('Your webhook {0} no longer delivers events of the organisation {1}. An admin of it can set it up as an organisation webhook.', q(d.webhook || ''), q(d.org || ''));  // (#3391)
+    case 'orggone': return trh('The organisation {0} was deleted.', q(d.name || '')) + (olvText(d.own) ? ' ' + esc(tr('Yours that went with it: {0}.', olvText(d.own))) : '');
+    case 'connreq': return trh('{0} wants to connect with you', who);  // (#1106)
+    case 'connok': return d.via === 'invite' ? trh('{0} accepted your invitation and is connected with you now', who) : trh('{0} accepted your connection request', who);  // (#4550): an invitation link
+    case 'lytpl': return trh('{0} sent you the arrangement {1}', who, q(d.name || ''));  // (#1068)
+    case 'dispo': return trh('{0} booked you: {1} ({2})', who, q(d.title || ''), d.start ? fmtDayAbs(d.start.slice(0, 10)) : '');  // (#1194)
+    case 'leavereq': return trh('{0} asks for holiday ({1})', who, d.start ? fmtDayAbs(d.start) + (d.end && d.end !== d.start ? ' – ' + fmtDayAbs(d.end) : '') : '');  // (#2117)
+    case 'leavedecide': return (d.state === 'approved' ? trh('{0} approved your holiday ({1})', who, d.start ? fmtDayAbs(d.start) : '') : trh('{0} rejected your holiday ({1})', who, d.start ? fmtDayAbs(d.start) : ''));
+    case 'errreport': return d.title ? trh('New error reported: {0}', q(d.title)) : trh('A new error was reported');  // 2.18.0
+    case 'approval': return d.title ? trh('{0} is waiting for your approval: {1}', who, q(d.title)) : trh('{0} is waiting for your approval', who);
+    case 'agentask': return it.count > 1 ? trnh('{1} has {0} question for you', '{1} has {0} questions for you', it.count, who) : trh('{0} has a question for you', who);  // (#5805): one row per agent
+    case 'job_watch': return d.kind === 'branch_stranded' ? trh('{0}: work lies on a branch without a merge ({1})', who, q(d.title || '')) : trh('{0}: a job makes no progress ({1})', who, q(d.title || ''));  // (#3366): the watchdog  // (#2968): a list-wide one has no task title
+    case 'aprequest': return trh('Approval needed: {0} (from {1})', q(it.task_title || ''), who) + (d.note ? ': ' + q(d.note) : '');  // (#2968)
+    case 'signoff': return d.state === 'accepted' ? (d.sk === 'document' ? trh('{0} signed {1}', q(d.name || ''), q(d.title || '')) : trh('{0} approved {1}', q(d.name || ''), q(d.title || '')))
+      : d.sk === 'video' ? trh('{0} asks for changes to {1}', q(d.name || ''), q(d.title || '')) : trh('{0} rejected {1}', q(d.name || ''), q(d.title || ''));  // (#2965): a customer through a link
     case 'review': return rvw_newsText(it, d, who, q);  // 2.60.0 C (#1512)
     case 'tsheet': return tsl_newsText(it, d, who, q);  // 2.125.0 B (#2119)
-    case 'wiki_shared': return d.folder ? tr('{0} shared the pages of the folder {1} with you', who, q(String(d.path || '').split('/').pop())) : tr('{0} shared the page {1} with you', who, q(String(d.path || '').split('/').pop()));  // 2.126.2 B (#2355)
-    case 'apdecide': return {approved: tr('{0} approved {1}', who, q(it.task_title || '')), changes: tr('{0} asks for changes to {1}', who, q(it.task_title || '')),
-      rejected: tr('{0} rejected {1}', who, q(it.task_title || ''))}[d.state] || tr('{0} decided on your approval request', who);  // 2.23.0 (#463)
-    case 'signup': return d.org_id ? tr('{0} registered with the address of your organisation and waits for approval', q(d.name || d.username || '')) : tr('{0} registered and waits for your approval', q(d.name || d.username || ''));  // 2.23.0 (#711); 2.464.0 (#3882): an organisation's admin approves too
-    case 'delhold': return d.stage === 'lock' ? tr('{0} asked to delete their account and was locked: the deletion waits for your decision, at the latest until {1}', q(d.username || ''), esc(fmtDate(String(d.until || '').slice(0, 10))))
-      : tr('Decide on the held deletion of {0}: without a decision it runs on {1}', q(d.username || ''), esc(fmtDate(String(d.until || '').slice(0, 10))));  // 2.1298.0 (#6395)
-    case 'orglogin': return tr('Admin {0} signed in from a new address: {1}', q(d.name || ''), esc(d.ip || ''));  // 2.367.4 (#2974)
+    case 'wiki_shared': return d.folder ? trh('{0} shared the pages of the folder {1} with you', who, q(String(d.path || '').split('/').pop())) : trh('{0} shared the page {1} with you', who, q(String(d.path || '').split('/').pop()));  // (#2355)
+    case 'apdecide': return {approved: trh('{0} approved {1}', who, q(it.task_title || '')), changes: trh('{0} asks for changes to {1}', who, q(it.task_title || '')),
+      rejected: trh('{0} rejected {1}', who, q(it.task_title || ''))}[d.state] || trh('{0} decided on your approval request', who);  // (#463)
+    case 'signup': return d.org_id ? trh('{0} registered with the address of your organisation and waits for approval', q(d.name || d.username || '')) : trh('{0} registered and waits for your approval', q(d.name || d.username || ''));  // (#711); (#3882): an organisation's admin approves too
+    case 'delhold': return d.stage === 'lock' ? trh('{0} asked to delete their account and was locked: the deletion waits for your decision, at the latest until {1}', q(d.username || ''), fmtDate(String(d.until || '').slice(0, 10)))
+      : trh('Decide on the held deletion of {0}: without a decision it runs on {1}', q(d.username || ''), fmtDate(String(d.until || '').slice(0, 10)));  // (#6395)
+    case 'orglogin': return trh('Admin {0} signed in from a new address: {1}', q(d.name || ''), d.ip || '');  // (#2974)
     case 'support': return sgaNewsText(d, q);  // 2.1350.0 (#6502)
-    case 'orgjoinres': return d.yes ? tr('{0} accepted your invitation to {1}', who, q(d.name || '')) : tr('{0} rejected your invitation to {1}', who, q(d.name || ''));
-    case 'orgrole': return tr('{0} changed your role in {1}: {2}', who, q(d.name || ''), esc(({admin: tr('Admin'), readonly: tr('Read-only'), accounting: tr('Accounting'), guest: tr('Guest')})[d.role] || tr('Member')));
+    case 'orgjoinres': return d.yes ? trh('{0} accepted your invitation to {1}', who, q(d.name || '')) : trh('{0} rejected your invitation to {1}', who, q(d.name || ''));
+    case 'orgrole': return trh('{0} changed your role in {1}: {2}', who, q(d.name || ''), ({admin: tr('Admin'), readonly: tr('Read-only'), accounting: tr('Accounting'), guest: tr('Guest')})[d.role] || tr('Member'));
     // (#6510): a server agent names the real receiver (provider and host); an older entry with the internal mark
     // 'kalmido-server' says only "its AI provider"
-    case 'agentjoin': return d.host ? tr('{0} added the agent {1} to {2}. What this agent reads in the project goes to {3} ({4}).', who, q(d.agent || ''), q(newsListName(it)), q(d.provider || ''), q(d.host))
-      : d.provider && d.provider !== 'kalmido-server' ? tr('{0} added the agent {1} to {2}. It runs at {3}. What it reads in the project goes there.', who, q(d.agent || ''), q(newsListName(it)), q(d.provider))
-      : tr('{0} added the agent {1} to {2}. What it reads in the project goes to its AI provider.', who, q(d.agent || ''), q(newsListName(it)));  // 2.24.0 (#896)
-    case 'followup': return d.note ? tr('Follow up today: waiting on {0}', q(d.note)) : tr('Follow up today: the task is waiting on someone');
+    case 'agentjoin': return d.host ? trh('{0} added the agent {1} to {2}. What this agent reads in the project goes to {3} ({4}).', who, q(d.agent || ''), q(newsListName(it)), q(d.provider || ''), q(d.host))
+      : d.provider && d.provider !== 'kalmido-server' ? trh('{0} added the agent {1} to {2}. It runs at {3}. What it reads in the project goes there.', who, q(d.agent || ''), q(newsListName(it)), q(d.provider))
+      : trh('{0} added the agent {1} to {2}. What it reads in the project goes to its AI provider.', who, q(d.agent || ''), q(newsListName(it)));  // (#896)
+    case 'followup': return d.note ? trh('Follow up today: waiting on {0}', q(d.note)) : trh('Follow up today: the task is waiting on someone');
     case 'usage': return aiuNewsText(d);  // 2.1.1 (#326)
-    case 'proposal': return d.title || d.assistant ? tr('{0} has a proposal for you: {1}', d.assistant ? q(tr('Assistant')) : who, q(d.title || ''))  // (#1411): the built-in assistant has no person
-      : tr('{0} has a proposal for you', who);  // #7159: a team agent's words reach only who reads all it reads
-    case 'upscan': return tr('The virus scanner found {0} in your file {1}. The file is locked.', esc(d.sig || '?'), q(d.name || ''));  // 2.61.0 (#1818)
-    case 'attskip': return trn('{0} file was not filed ({1}): {2}', '{0} files were not filed ({1}): {2}', d.n || 1,
-      esc(({quota: tr('the storage is full'), virus: tr('the virus scanner refused it'), lock: tr('the list is encrypted in the browser'), large: tr('the file is too large')})[d.why] || tr('it was refused')),
+    case 'proposal': return d.title || d.assistant ? trh('{0} has a proposal for you: {1}', d.assistant ? q(trh('Assistant')) : who, q(d.title || ''))  // (#1411): the built-in assistant has no person
+      : trh('{0} has a proposal for you', who);  // #7159: a team agent's words reach only who reads all it reads
+    case 'upscan': return trh('The virus scanner found {0} in your file {1}. The file is locked.', d.sig || '?', q(d.name || ''));  // (#1818)
+    case 'attskip': return trnh('{0} file was not filed ({1}): {2}', '{0} files were not filed ({1}): {2}', d.n || 1,
+      ({quota: tr('the storage is full'), virus: tr('the virus scanner refused it'), lock: tr('the list is encrypted in the browser'), large: tr('the file is too large')})[d.why] || tr('it was refused'),
       q(d.name || ''));  // #6531: collab/attskip.py, the mail stays in the mailbox
-    case 'filereq': { const d = it.data || {}; return trn('{0} file arrived through {1}', '{0} files arrived through {1}', d.n || 1, q(d.title || '')) + (d.name ? ' · ' + q(d.name) : ''); }  // 2.122.0 A (#2097)
+    case 'filereq': { const d = it.data || {}; return trnh('{0} file arrived through {1}', '{0} files arrived through {1}', d.n || 1, q(d.title || '')) + (d.name ? ' · ' + q(d.name) : ''); }  // (#2097)
     case 'oxdone': return esc(d.text || '');  // #6581: written in the person's language by the server (admin/orgexport.py ox_tell)
+    case 'umzdone': return esc(d.text || '');  // #6583: the same for my import (admin/acctimport.py umz_tell)
     case 'integfail': return esc(d.text || '') + (d.what === 'mailbox' || d.what === 'git' || d.what === 'hookin' ? ' ' + esc(tr('Check the connection in the settings, or remove it.')) : '');  // 2.1111.0 (#5963): the way to the solution  // 2.367.3 (#2971): written in the person's language by the server (collab/integfail.py)
-    case 'fetcherr': return tr('Receipt fetcher {0}: {1}', q(d.portal || ''), esc(d.error || ''));  // 2.425.0 C (#3453): docfetch.js
-    case 'docflow': return d.flow ? tr('Flow {0}: {1}', q(d.flow), q(d.name || '')) : tr('Document flow: {0}', q(d.name || ''));  // 2.581.0 (#4803): docs/flows.py
-    case 'orgkey': return ocNewsText(d, it.actor_id ? who : q(tr('The server admin')), q);  // 2.138.0 C (#1972): orgcrypt.js
-    case 'apblimit': return tr('Your booking page reached its limit of {0} confirmation e-mails today. Further bookings work again tomorrow.', d.limit || '?');  // 2.360.2 L (#2561)
-    case 'ptlimit': return d.org ? tr('The client portal of {0} reached its limit of {1} sign-in e-mails per hour. Further clients get a link again later.', q(d.org), d.limit || '?')
-      : tr('Your client portal reached its limit of {0} sign-in e-mails per hour. Further clients get a link again later.', d.limit || '?');  // 2.138.4 C (#2380)
+    case 'fetcherr': return trh('Receipt fetcher {0}: {1}', q(d.portal || ''), d.error || '');  // (#3453): docfetch.js
+    case 'docflow': return d.flow ? trh('Flow {0}: {1}', q(d.flow), q(d.name || '')) : trh('Document flow: {0}', q(d.name || ''));  // (#4803): docs/flows.py
+    case 'orgkey': return ocNewsText(d, it.actor_id ? who : q(trh('The server admin')), q);  // (#1972): orgcrypt.js
+    case 'apblimit': return trh('Your booking page reached its limit of {0} confirmation e-mails today. Further bookings work again tomorrow.', d.limit || '?');  // (#2561)
+    case 'ptlimit': return d.org ? trh('The client portal of {0} reached its limit of {1} sign-in e-mails per hour. Further clients get a link again later.', q(d.org), d.limit || '?')
+      : trh('Your client portal reached its limit of {0} sign-in e-mails per hour. Further clients get a link again later.', d.limit || '?');  // (#2380)
     case 'playbook_proposal': return pbNewsText(it, who, q);  // 2.39.0 (#1168)
     case 'evinvite': case 'evshare': case 'evchange': return evNewsText(it, who, q);  // 2.21.0 (#659)
-    case 'apbooking': return (d.what === 'new' ? tr('New booking: {0}', q(d.line || '')) : tr('Booking cancelled by the client: {0}', q(d.line || '')));  // 2.367.2 (#2969)
-    case 'docpaid': return tr('Payment received: {0}', q([d.number, d.client].filter(Boolean).join(', ')));  // 2.367.4 (#2972)
-    case 'docoverdue': return d.n > 1 ? tr('{0} invoices are overdue', d.n) : tr('Invoice overdue: {0}', q([d.number, d.client].filter(Boolean).join(', ')));
+    case 'apbooking': return (d.what === 'new' ? trh('New booking: {0}', q(d.line || '')) : trh('Booking cancelled by the client: {0}', q(d.line || '')));  // (#2969)
+    case 'docpaid': return trh('Payment received: {0}', q([d.number, d.client].filter(Boolean).join(', ')));  // (#2972)
+    case 'docoverdue': return d.n > 1 ? trh('{0} invoices are overdue', d.n) : trh('Invoice overdue: {0}', q([d.number, d.client].filter(Boolean).join(', ')));
     case 'offerexp': { const w = q([d.number, d.client].filter(Boolean).join(', '));  // 2.1064.0 (#5818): office/offerexp.py
-      return d.state === 'gone' ? tr('Quotation {0} has expired without an answer', w) : +d.days > 0 ? trn('Quotation {1} expires in {0} day', 'Quotation {1} expires in {0} days', +d.days, w) : tr('Quotation {0} expires today', w); }
-    case 'calsub': return tr('Your calendar subscription {0} keeps failing. Its events may be out of date.', q(d.name || ''));  // 2.367.2 (#2969)
-    case 'budgetwarn': { const nm = q(d.scope === 'task' ? it.task_title || '' : newsListName(it)), hh = esc(tr('{0} of {1} h', fmtNum(d.tracked_h ?? 0, 1), fmtNum(d.h ?? 0, 1)));  // 2.555.0 (#4570)
-      return d.level >= 100 ? tr('{0} is over its budget: {1}', nm, hh) : tr('{0} reached 80 % of its budget: {1}', nm, hh); }
-    case 'abshare': return d.role === 'edit' ? tr('{0} shared the address book {1} with you', who, q(d.name || '')) : tr('{0} shared the address book {1} with you (read-only)', who, q(d.name || ''));  // 2.21.0 (#658)
-    case 'status': return d.status ? tr('{0} set {1} to {2}', who, q(newsListName(it)), `<span class="stpill st-${esc(d.status)} inl"><i></i>${esc(statusLabel(d.status))}</span>`) : tr('{0} cleared the status of {1}', who, q(newsListName(it)));
+      return d.state === 'gone' ? trh('Quotation {0} has expired without an answer', w) : +d.days > 0 ? trnh('Quotation {1} expires in {0} day', 'Quotation {1} expires in {0} days', +d.days, w) : trh('Quotation {0} expires today', w); }
+    case 'calsub': return trh('Your calendar subscription {0} keeps failing. Its events may be out of date.', q(d.name || ''));  // (#2969)
+    case 'budgetwarn': { const nm = q(d.scope === 'task' ? it.task_title || '' : newsListName(it)), hh = tr('{0} of {1} h', fmtNum(d.tracked_h ?? 0, 1), fmtNum(d.h ?? 0, 1));  // (#4570)
+      return d.level >= 100 ? trh('{0} is over its budget: {1}', nm, hh) : trh('{0} reached 80 % of its budget: {1}', nm, hh); }
+    case 'abshare': return d.role === 'edit' ? trh('{0} shared the address book {1} with you', who, q(d.name || '')) : trh('{0} shared the address book {1} with you (read-only)', who, q(d.name || ''));  // (#658)
+    case 'status': return d.status ? trh('{0} set {1} to {2}', who, q(newsListName(it)), i18nHtml(`<span class="stpill st-${esc(d.status)} inl"><i></i>${esc(statusLabel(d.status))}</span>`)) : trh('{0} cleared the status of {1}', who, q(newsListName(it)));
   }
-  return tr('{0} changed something', who);
+  return trh('{0} changed something', who);
 }
 const NEWS_ICON = {job_watch: 'clock', playbook_proposal: 'book', orglist: 'archive', mention: 'at', comment: 'comment', assign: 'user', unassign: 'user', take: 'check', complete: 'check', share: 'users', role: 'users', unshare: 'users', unblock: 'deps', status: 'pulse', newtask: 'plus', approval: 'bot', agentask: 'bot', followup: 'hourglass', usage: 'chart', proposal: 'bot', errreport: 'bug', apdecide: 'eye', signup: 'user', delhold: 'user', support: 'key', agentjoin: 'bot', e2e_key: 'key', wiki_e2e_key: 'key', orgkey: 'key'};  // 2.64.1 / 2.64.3 B (#1817)
 /** @type {any} */ (NEWS_ICON).wiki_shared = 'book';  // 2.126.2 B (#2355)
@@ -371,6 +372,7 @@ const NEWS_ICON = {job_watch: 'clock', playbook_proposal: 'book', orglist: 'arch
 /** @type {any} */ (NEWS_ICON).whorgcut = 'alert';  // 2.380 G (#3391)
 /** @type {any} */ (NEWS_ICON).integfail = 'alert';  // 2.367.3 (#2971)
 /** @type {any} */ (NEWS_ICON).oxdone = 'download';  // #6581
+/** @type {any} */ (NEWS_ICON).umzdone = 'upload';  // #6583
 // 2.361.0 (#2920 / #2922): what of a person is in an organisation (accounts/orgleave.py OLV_STAYS, the same words)
 const OLV_WORDS = {files: n => trn('{0} file', '{0} files', n), wiki_pages: n => trn('{0} knowledge page', '{0} knowledge pages', n),
   tables: n => trn('{0} table', '{0} tables', n), bookmarks: n => trn('{0} bookmark', '{0} bookmarks', n), polls: n => trn('{0} poll', '{0} polls', n),
@@ -553,6 +555,7 @@ async function newsOpen(i, opts) {
   if (it.kind === 'filereq' && it.data?.node) { go('ablage/' + it.data.node); return; }  // 2.122.0 A (#2097): the folder the files went into
   if (it.kind === 'integfail') { const d = it.data || {}; if (d.list && listById(d.list)) go('l/' + d.list); else if (d.ws) loadModule('hubmailbox').then(hmb_load).then(() => hmb_dialog(d.ws)); else settingsModal(d.focus); return; }  // 2.367.3 (#2971): where to repair it
   if (it.kind === 'oxdone') { if (it.data?.own) go('office/settings'); else settingsModal('org'); return; }  // #6581: where the export is downloaded
+  if (it.kind === 'umzdone') { settingsModal('data'); return; }  // #6583: the import's result and its report
   if (it.kind === 'fetcherr') { settingsModal('fetcher'); return; }  // 2.425.0 C (#3453): the receipt fetcher's portals
   if (it.kind === 'docflow' && it.data?.doc) { go('docs/' + it.data.doc); return; }  // 2.581.0 (#4803): the document
   if (it.kind === 'tsheet') { tsl_open(it.data); return; }  // 2.125.0 B (#2119): the time page on that month
@@ -576,7 +579,7 @@ async function newsOpen(i, opts) {
 // ---- 2.122.0 (#2314): phones: a sideways swipe on the task opened from the news goes to the next (left) / previous (right)
 // UNREAD news in the order and with the filter (tab, kind, workspace) of the list; it is marked read like on opening. None left:
 // a short notice, the view stays. Same exceptions as the swipe on tasks (detail.js, #1071); the swipe on the list rows stays.
-const NSW_SKIP = /^(orglogin|orgjoinres|orgrole|proposal|playbook_proposal|evinvite|evchange|apbooking|calsub|docpaid|docoverdue|offerexp|evshare|abshare|connreq|connok|orgjoin|lytpl|dispo|usage|upscan|signup|delhold|support|leavereq|leavedecide|tsheet|wiki_shared|orgdelnotice|orggone|whorgcut|integfail|oxdone)$/;  // the kinds without a 'what next' switch (#2117, #2119, #6581)
+const NSW_SKIP = /^(orglogin|orgjoinres|orgrole|proposal|playbook_proposal|evinvite|evchange|apbooking|calsub|docpaid|docoverdue|offerexp|evshare|abshare|connreq|connok|orgjoin|lytpl|dispo|usage|upscan|signup|delhold|support|leavereq|leavedecide|tsheet|wiki_shared|orgdelnotice|orggone|whorgcut|integfail|oxdone|umzdone)$/;  // the kinds without a 'what next' switch (#2117, #2119, #6581, #6583)
 const nswOn = () => !!S.nswTask && S.sel === S.nswTask;
 function nswTarget(dir) {
   const its = S.nf.items || [], cur = its.findIndex(x => x.id === S.nswId);
@@ -700,90 +703,90 @@ function actText(a, U) {  // "via API" after lines written through a personal ac
 }
 const viaName = (d, id, U) => d?.gsy ? d.gsy : d?.rule ? tr('Rule {0}', d.rule.name || '') : d?.via === 'public_link' && !id ? (d.ext_name ? tr('{0} (client, via the link)', d.ext_name) : tr('Someone via the public link')) : uname(id, U);  // 2.50.0 (#329): + the customer's name
 function actText0(a, U) {
-  const d = a.data || {}, who = `<b>${esc(viaName(d, a.user_id, U))}</b>`, q = x => `<b>${esc(x)}</b>`;
+  const d = a.data || {}, who = i18nHtml(`<b>${esc(viaName(d, a.user_id, U))}</b>`), q = x => i18nHtml(`<b>${esc(x)}</b>`);  // #6432: trh / trnh below escape every other value
   const due = () => q((d.start && d.start < d.due ? fmtDayAbs(d.start) + ' – ' : '') + fmtDayAbs(d.due) + (d.time ? ', ' + d.time : ''));
   switch (a.kind) {
-    case 'created': if (d.report) return tr('Created from an error report ({0})', q(d.report === 'sentry' ? 'Sentry' : d.report === 'client' ? tr('Browser') : tr('webhook')));  // 2.18.0 (#408); 2.102.0 E (#1999): client
-      if (d.sheet && d.proposal) return tr('{0} carried the task over from a table, from a proposal by {1}', who, q(uname(d.agent, U))) + ` <a href="#sheets/${+d.sheet}">${esc(tr('Open table'))}</a>`;  // 2.126.1 B (#2125)
-      if (d.sheet) return tr('{0} carried the task over from a table', who) + ` <a href="#sheets/${+d.sheet}">${esc(tr('Open table'))}</a>`;  // 2.89.0 (#1916, D): no table name (the list may be shared wider)
-      if (d.offer) return tr('{0} created the task from a quotation', who);  // 2.537.0 C (#3433): no number (the project may be shared wider than the office)
-      return d.proposal ? tr('{0} created the task from a proposal by {1}', who, q(uname(d.agent, U))) : tr('{0} created the task', who);
-    case 'proposal': return tr('{0} applied a proposal by {1}', who, q(uname(d.agent, U)));
-    case 'offer_gone': return tr('{0}: the position is no longer in the quotation (the task stays)', who);  // 2.537.0 C (#3433)
-    case 'offer_back': return tr('{0}: the position is in the quotation again', who);  // 2.3.0 (#262)
-    case 'event': return tr('The task became an event; the people who came along are invited to it');  // 2.21.0 (#659)
-    case 'title': return tr('{0} renamed the task to “{1}”', who, esc(d.to || ''));
+    case 'created': if (d.report) return trh('Created from an error report ({0})', q(d.report === 'sentry' ? 'Sentry' : d.report === 'client' ? trh('Browser') : trh('webhook')));  // (#408); (#1999): client
+      if (d.sheet && d.proposal) return trh('{0} carried the task over from a table, from a proposal by {1}', who, q(uname(d.agent, U))) + ` <a href="#sheets/${+d.sheet}">${esc(tr('Open table'))}</a>`;  // (#2125)
+      if (d.sheet) return trh('{0} carried the task over from a table', who) + ` <a href="#sheets/${+d.sheet}">${esc(tr('Open table'))}</a>`;  // 2.89.0 (#1916, D): no table name (the list may be shared wider)
+      if (d.offer) return trh('{0} created the task from a quotation', who);  // (#3433): no number (the project may be shared wider than the office)
+      return d.proposal ? trh('{0} created the task from a proposal by {1}', who, q(uname(d.agent, U))) : trh('{0} created the task', who);
+    case 'proposal': return trh('{0} applied a proposal by {1}', who, q(uname(d.agent, U)));
+    case 'offer_gone': return trh('{0}: the position is no longer in the quotation (the task stays)', who);  // (#3433)
+    case 'offer_back': return trh('{0}: the position is in the quotation again', who);  // (#262)
+    case 'event': return trh('The task became an event; the people who came along are invited to it');  // (#659)
+    case 'title': return trh('{0} renamed the task to “{1}”', who, d.to || '');
     case 'bell': return tbl_actText(d, who);  // 2.53.0 C (#1424)
-    case 'content': return tr('{0} edited the description', who) + (d.prev && canEdit(taskById(S.sel)) ? ` <button type="button" class="linkbtn" data-act="md-restore" data-aid="${+a.id}">${esc(tr('Restore the previous description'))}</button>` : '');  // 2.270.0 D (#3028): the text before the edit (mdtitle.js md-restore)
-    case 'note_lock': return tr('{0} locked the note', who);  // 2.48.0 (#1642)
-    case 'note_unlock': return tr('{0} removed the lock from the note', who);
-    case 'choice': return d.approval ? (d.approval === 'approved' ? tr('{0} approved “{1}”', who, esc(d.title || '')) : tr('{0} rejected “{1}”', who, esc(d.title || ''))) : tr('{0} answered: {1}', who, esc((d.labels || []).join(', ')));  // 2.41.0 (#1383)
-    case 'md_subtasks': return tr('{0} turned checklist items into subtasks', who) + (d.prev && canEdit(taskById(S.sel)) ? ` <button type="button" class="linkbtn" data-act="md-restore" data-aid="${+a.id}">${esc(tr('Restore the description'))}</button>` : '');  // 2.40.0 (#1409)
-    case 'due': return d.due ? tr('{0} set the due date to {1}', who, due()) : tr('{0} removed the due date', who);
-    case 'snooze': return tr('{0} snoozed the task to {1}', who, due());
-    case 'dep_shift': return tr('{0} moved a task that blocks this one, so it moved along to {1}', who, due());
-    case 'priority': return tr('{0} changed the priority to {1}', who, q(tr([N_('None'), N_('Low'), '', N_('Medium'), '', N_('High'), '', N_('Urgent')][+d.p] || N_('None'))));
-    case 'assign': return d.to ? tr('{0} assigned the task to {1}', who, q(uname(d.to, U))) : tr('{0} removed the assignee', who);
-    case 'delegate': return d.to ? tr('{0} delegated the task to {1}', who, q(uname(d.to, U))) : tr('{0} removed the delegation', who);  // 2.473.0 (#3357)
+    case 'content': return trh('{0} edited the description', who) + (d.prev && canEdit(taskById(S.sel)) ? ` <button type="button" class="linkbtn" data-act="md-restore" data-aid="${+a.id}">${esc(tr('Restore the previous description'))}</button>` : '');  // (#3028): the text before the edit (mdtitle.js md-restore)
+    case 'note_lock': return trh('{0} locked the note', who);  // (#1642)
+    case 'note_unlock': return trh('{0} removed the lock from the note', who);
+    case 'choice': return d.approval ? (d.approval === 'approved' ? trh('{0} approved “{1}”', who, d.title || '') : trh('{0} rejected “{1}”', who, d.title || '')) : trh('{0} answered: {1}', who, (d.labels || []).join(', '));  // (#1383)
+    case 'md_subtasks': return trh('{0} turned checklist items into subtasks', who) + (d.prev && canEdit(taskById(S.sel)) ? ` <button type="button" class="linkbtn" data-act="md-restore" data-aid="${+a.id}">${esc(tr('Restore the description'))}</button>` : '');  // (#1409)
+    case 'due': return d.due ? trh('{0} set the due date to {1}', who, due()) : trh('{0} removed the due date', who);
+    case 'snooze': return trh('{0} snoozed the task to {1}', who, due());
+    case 'dep_shift': return trh('{0} moved a task that blocks this one, so it moved along to {1}', who, due());
+    case 'priority': return trh('{0} changed the priority to {1}', who, q(trh([N_('None'), N_('Low'), '', N_('Medium'), '', N_('High'), '', N_('Urgent')][+d.p] || N_('None'))));
+    case 'assign': return d.to ? trh('{0} assigned the task to {1}', who, q(uname(d.to, U))) : trh('{0} removed the assignee', who);
+    case 'delegate': return d.to ? trh('{0} delegated the task to {1}', who, q(uname(d.to, U))) : trh('{0} removed the delegation', who);  // (#3357)
     case 'watch':
-      if (d.to) return d.on ? tr('{0} added {1} to the watchers', who, q(uname(d.to, U))) : tr('{0} removed {1} from the watchers', who, q(uname(d.to, U)));
-      return d.on ? tr('{0} started watching the task', who) : tr('{0} stopped watching the task', who);
-    case 'assign_group': return d.group ? tr('{0} assigned the task to the group {1}', who, q(d.group)) : tr('{0} removed the group', who);  // 2.10.0 (#441)
-    case 'take': return tr('{0} took the task (group {1})', who, q(d.group || ''));
-    case 'list': return tr('{0} moved the task to the project {1}', who, q(d.inbox && inboxDef(d.name) ? tr('Basket') : listName(d.name)));
-    case 'ml_add': return d.name ? tr('{0} also showed the task in the project {1}', who, q(d.name)) : tr('{0} also showed the task in another project', who);  // 2.71.0 B (#1459)
-    case 'ml_rm': return d.name ? tr('{0} removed the task from the project {1}', who, q(d.name)) : tr('{0} removed the task from another project', who);
-    case 'section': return d.name ? tr('{0} moved the task to the section {1}', who, q(d.name)) : tr('{0} removed the task from its section', who);
-    case 'parent': return d.title ? tr('{0} made the task a subtask of {1}', who, q(d.title)) : tr('{0} made the task a main task', who);
-    case 'snippets': return d.n ? tr('{0} changed the code snippets ({1})', who, d.n) : tr('{0} removed the code snippets', who);  // 2.35.0 (#1095)
-    case 'ttype': return d.to ? tr('{0} set the type to {1}', who, q(ttName(d.to))) : tr('{0} removed the type', who);  // 2.4.0 (#340)
-    case 'lock': return d.on ? tr('{0} locked the task', who) : tr('{0} unlocked the task', who);  // 2.36.0 (#1118)
-    case 'locked_bypass': return tr('{0} changed the task although it is locked (agents are not bound by the lock)', who);  // 2.564.0 (#4702)
-    case 'ms': return d.on ? tr('{0} made the task a milestone', who) : tr('{0} made the milestone a normal task', who);  // 2.18.0 (#430)
-    case 'milestone': return d.title ? tr('{0} added the task to the milestone {1}', who, q(d.title)) : tr('{0} removed the task from its milestone', who);
-    case 'repeat': return d.rule ? tr('{0} set the repetition to {1}', who, q(repeatLabel(d.rule))) : tr('{0} stopped the repetition', who);
-    case 'link': return d.url ? tr('{0} set the link to {1}', who, q(urlHost(d.url))) : tr('{0} removed the link', who);
-    case 'complete': return d.next ? tr('{0} completed the task, next occurrence {1}', who, q(fmtDayAbs(d.next))) : tr('{0} completed the task', who);
-    case 'wont': return tr("{0} marked the task as won’t do", who);
-    case 'reopen': return tr('{0} reopened the task', who);
-    case 'skip': return tr('{0} skipped an occurrence, next one {1}', who, q(fmtDayAbs(d.next)));
-    case 'attach': return (d.n || 1) === 1 ? tr('{0} added the attachment {1}', who, q(d.enc ? tr('Encrypted file') : (d.names || [])[0] || '')) : trn('{1} added {0} attachment', '{1} added {0} attachments', d.n, who);
-    case 'attach_rm': return tr('{0} removed the attachment {1}', who, q(d.name || ''));
-    case 'waiting': return d.until ? tr('{0} set the task to waiting on someone ({1}), follow up on {2}', who, q(d.note || '–'), q(dayLabel(d.until))) : tr('{0} set the task to waiting on someone ({1})', who, q(d.note || '–'));
-    case 'waiting_rm': return tr('{0} ended the waiting on someone', who);
-    case 'subtask': return tr('{0} added the subtask {1}', who, q(d.title || ''));
-    case 'dep_add': return d.hidden ? tr('{0} marked the task as blocked by a task you cannot see', who) : tr('{0} marked the task as blocked by {1}', who, q(d.title || ''));
-    case 'dep_rm': return d.hidden ? tr('{0} removed a dependency on a task you cannot see', who) : tr('{0} removed the dependency on {1}', who, q(d.title || ''));
-    case 'blocks_add': return d.hidden ? tr('{0} marked the task as blocking a task you cannot see', who) : tr('{0} marked the task as blocking {1}', who, q(d.title || ''));
-    case 'blocks_rm': return d.hidden ? tr('{0} removed the task as a blocker of a task you cannot see', who) : tr('{0} removed the task as a blocker of {1}', who, q(d.title || ''));
-    case 'rel_add': return tr({duplicate_of: N_('{0} marked the task as a duplicate of {1}'), has_duplicate: N_('{0} marked {1} as a duplicate of this task')}[d.k] || N_('{0} related the task to {1}'), who, q(d.title || ''));  // 2.576.0 (#3371)
-    case 'rel_rm': return tr('{0} removed the relation to {1}', who, q(d.title || ''));
-    case 'unblocked': return d.hidden ? tr('{0} completed the last task blocking this one', who) : tr('{0} completed {1}, the task is no longer blocked', who, q(d.title || ''));
-    case 'field': return d.v == null ? tr('{0} cleared the field {1}', who, q(d.name || '')) : tr('{0} set {1} to {2}', who, q(d.name || ''), q(actField(d)));
-    case 'apstate': return {pending: tr('{0} asked {1} for approval', who, q(uname(d.approver, U))), approved: tr('{0} approved the task', who), changes: tr('{0} asked for changes', who),
-      rejected: tr('{0} rejected the task', who), cancelled: tr('{0} withdrew the approval request', who)}[d.state] + (d.note ? ': ' + q(d.note) : '');  // 2.23.0 (#463)
+      if (d.to) return d.on ? trh('{0} added {1} to the watchers', who, q(uname(d.to, U))) : trh('{0} removed {1} from the watchers', who, q(uname(d.to, U)));
+      return d.on ? trh('{0} started watching the task', who) : trh('{0} stopped watching the task', who);
+    case 'assign_group': return d.group ? trh('{0} assigned the task to the group {1}', who, q(d.group)) : trh('{0} removed the group', who);  // (#441)
+    case 'take': return trh('{0} took the task (group {1})', who, q(d.group || ''));
+    case 'list': return trh('{0} moved the task to the project {1}', who, q(d.inbox && inboxDef(d.name) ? trh('Basket') : listName(d.name)));
+    case 'ml_add': return d.name ? trh('{0} also showed the task in the project {1}', who, q(d.name)) : trh('{0} also showed the task in another project', who);  // (#1459)
+    case 'ml_rm': return d.name ? trh('{0} removed the task from the project {1}', who, q(d.name)) : trh('{0} removed the task from another project', who);
+    case 'section': return d.name ? trh('{0} moved the task to the section {1}', who, q(d.name)) : trh('{0} removed the task from its section', who);
+    case 'parent': return d.title ? trh('{0} made the task a subtask of {1}', who, q(d.title)) : trh('{0} made the task a main task', who);
+    case 'snippets': return d.n ? trh('{0} changed the code snippets ({1})', who, d.n) : trh('{0} removed the code snippets', who);  // (#1095)
+    case 'ttype': return d.to ? trh('{0} set the type to {1}', who, q(ttName(d.to))) : trh('{0} removed the type', who);  // (#340)
+    case 'lock': return d.on ? trh('{0} locked the task', who) : trh('{0} unlocked the task', who);  // (#1118)
+    case 'locked_bypass': return trh('{0} changed the task although it is locked (agents are not bound by the lock)', who);  // (#4702)
+    case 'ms': return d.on ? trh('{0} made the task a milestone', who) : trh('{0} made the milestone a normal task', who);  // (#430)
+    case 'milestone': return d.title ? trh('{0} added the task to the milestone {1}', who, q(d.title)) : trh('{0} removed the task from its milestone', who);
+    case 'repeat': return d.rule ? trh('{0} set the repetition to {1}', who, q(repeatLabel(d.rule))) : trh('{0} stopped the repetition', who);
+    case 'link': return d.url ? trh('{0} set the link to {1}', who, q(urlHost(d.url))) : trh('{0} removed the link', who);
+    case 'complete': return d.next ? trh('{0} completed the task, next occurrence {1}', who, q(fmtDayAbs(d.next))) : trh('{0} completed the task', who);
+    case 'wont': return trh("{0} marked the task as won’t do", who);
+    case 'reopen': return trh('{0} reopened the task', who);
+    case 'skip': return trh('{0} skipped an occurrence, next one {1}', who, q(fmtDayAbs(d.next)));
+    case 'attach': return (d.n || 1) === 1 ? trh('{0} added the attachment {1}', who, q(d.enc ? trh('Encrypted file') : (d.names || [])[0] || '')) : trnh('{1} added {0} attachment', '{1} added {0} attachments', d.n, who);
+    case 'attach_rm': return trh('{0} removed the attachment {1}', who, q(d.name || ''));
+    case 'waiting': return d.until ? trh('{0} set the task to waiting on someone ({1}), follow up on {2}', who, q(d.note || '–'), q(dayLabel(d.until))) : trh('{0} set the task to waiting on someone ({1})', who, q(d.note || '–'));
+    case 'waiting_rm': return trh('{0} ended the waiting on someone', who);
+    case 'subtask': return trh('{0} added the subtask {1}', who, q(d.title || ''));
+    case 'dep_add': return d.hidden ? trh('{0} marked the task as blocked by a task you cannot see', who) : trh('{0} marked the task as blocked by {1}', who, q(d.title || ''));
+    case 'dep_rm': return d.hidden ? trh('{0} removed a dependency on a task you cannot see', who) : trh('{0} removed the dependency on {1}', who, q(d.title || ''));
+    case 'blocks_add': return d.hidden ? trh('{0} marked the task as blocking a task you cannot see', who) : trh('{0} marked the task as blocking {1}', who, q(d.title || ''));
+    case 'blocks_rm': return d.hidden ? trh('{0} removed the task as a blocker of a task you cannot see', who) : trh('{0} removed the task as a blocker of {1}', who, q(d.title || ''));
+    case 'rel_add': return trh({duplicate_of: N_('{0} marked the task as a duplicate of {1}'), has_duplicate: N_('{0} marked {1} as a duplicate of this task')}[d.k] || N_('{0} related the task to {1}'), who, q(d.title || ''));  // (#3371)
+    case 'rel_rm': return trh('{0} removed the relation to {1}', who, q(d.title || ''));
+    case 'unblocked': return d.hidden ? trh('{0} completed the last task blocking this one', who) : trh('{0} completed {1}, the task is no longer blocked', who, q(d.title || ''));
+    case 'field': return d.v == null ? trh('{0} cleared the field {1}', who, q(d.name || '')) : trh('{0} set {1} to {2}', who, q(d.name || ''), q(actField(d)));
+    case 'apstate': return {pending: trh('{0} asked {1} for approval', who, q(uname(d.approver, U))), approved: trh('{0} approved the task', who), changes: trh('{0} asked for changes', who),
+      rejected: trh('{0} rejected the task', who), cancelled: trh('{0} withdrew the approval request', who)}[d.state] + (d.note ? ': ' + q(d.note) : '');  // (#463)
     case 'review': return rvw_actText(d, who, q, U);  // 2.60.0 C (#1512)
-    case 'irreversible': return d.on === 0 ? tr('{0} took the one-way mark off', who) : d.reason ? tr('{0} marked this as a one-way step: {1}', who, q(d.reason)) : tr('{0} marked this as a one-way step', who);  // 2.392.0 C (#3370)
-    case 'irreversible_yes': return tr('{0} gave the yes to this one-way step', who);
-    case 'delivery': return !d.state ? tr('{0} cleared the delivery state', who) : d.state === 'parked' ? (d.note ? tr('{0} parked the task: {1}', who, q(d.note)) : tr('{0} parked the task', who))  // 2.392.2 (#3365)
-      : d.state === 'waiting' ? tr('{0} set the task to waiting for {1}', who, q(d.task ? '#' + d.task : d.note || '')) : tr('{0} set the task to in progress', who);
-    case 'decision': return tr('{0} recorded a decision', who);
-    case 'approval': return d.waiting ? tr('{0} approved the comment of {1} (one of two approvals)', who, q(uname(d.agent, U))) : d.ok ? tr('{0} approved the comment of {1}', who, q(uname(d.agent, U))) : tr('{0} rejected the comment of {1}', who, q(uname(d.agent, U)));
+    case 'irreversible': return d.on === 0 ? trh('{0} took the one-way mark off', who) : d.reason ? trh('{0} marked this as a one-way step: {1}', who, q(d.reason)) : trh('{0} marked this as a one-way step', who);  // (#3370)
+    case 'irreversible_yes': return trh('{0} gave the yes to this one-way step', who);
+    case 'delivery': return !d.state ? trh('{0} cleared the delivery state', who) : d.state === 'parked' ? (d.note ? trh('{0} parked the task: {1}', who, q(d.note)) : trh('{0} parked the task', who))  // (#3365)
+      : d.state === 'waiting' ? trh('{0} set the task to waiting for {1}', who, q(d.task ? '#' + d.task : d.note || '')) : trh('{0} set the task to in progress', who);
+    case 'decision': return trh('{0} recorded a decision', who);
+    case 'approval': return d.waiting ? trh('{0} approved the comment of {1} (one of two approvals)', who, q(uname(d.agent, U))) : d.ok ? trh('{0} approved the comment of {1}', who, q(uname(d.agent, U))) : trh('{0} rejected the comment of {1}', who, q(uname(d.agent, U)));
     case 'agent_job': {
       const jt = q(d.title_key ? tr(...d.title_key) : d.title || '');  // 2.454.0 (#3808): a proposal's title in the reader's language
-      return d.action === 'approve' ? tr('{0} approved the job {2} of {1}', who, q(uname(d.agent, U)), jt)
-        : d.action === 'reject' ? tr('{0} rejected the job {2} of {1}', who, q(uname(d.agent, U)), jt) : tr('{0} stopped the job {2} of {1}', who, q(uname(d.agent, U)), jt);
+      return d.action === 'approve' ? trh('{0} approved the job {2} of {1}', who, q(uname(d.agent, U)), jt)
+        : d.action === 'reject' ? trh('{0} rejected the job {2} of {1}', who, q(uname(d.agent, U)), jt) : trh('{0} stopped the job {2} of {1}', who, q(uname(d.agent, U)), jt);
     }
-    case 'tidy': return tr('{0} tidied up the task (the original text is at the top of the notes)', who);
-    case 'ltags': return d.tags?.length ? tr('{0} set the project tags {1}', who, q(d.tags.map(g => '#' + g).join(' '))) : tr('{0} removed the project tags', who);
-    case 'delete': return tr('{0} moved the task to the trash', who);
-    case 'restore': return tr('{0} restored the task', who);
-    case 'import': return tr('{0} imported the task from {1}', who, q(d.source || ''));
+    case 'tidy': return trh('{0} tidied up the task (the original text is at the top of the notes)', who);
+    case 'ltags': return d.tags?.length ? trh('{0} set the project tags {1}', who, q(d.tags.map(g => '#' + g).join(' '))) : trh('{0} removed the project tags', who);
+    case 'delete': return trh('{0} moved the task to the trash', who);
+    case 'restore': return trh('{0} restored the task', who);
+    case 'import': return trh('{0} imported the task from {1}', who, q(d.source || ''));
     case 'git_pr': case 'git_done': return gitActText(a, d, q);  // 2.2.0 (#271)
     case 'git_sync_lost': case 'git_sync_fail': return gsy_actText(a.kind, d);  // 2.394.0 C (#3377): gitrepo.js
-    case 'err_again': return tr('The error happened again ({0}×)', d.n || 2) + (d.level ? ` <span class="muted">· ${esc(d.level)}</span>` : '');  // 2.18.0 (#408)
+    case 'err_again': return trh('The error happened again ({0}×)', d.n || 2) + (d.level ? ` <span class="muted">· ${esc(d.level)}</span>` : '');  // (#408)
   }
-  return tr('{0} changed the task', who);
+  return trh('{0} changed the task', who);
 }
 // comment text: the same markdown as a description (renderMd: headings, lists, read-only checkboxes, bold, code, links;
 // 2.13.2 #478 N4, before only inline), <@id> -> highlighted @name; compact in comments and chat bubbles (.mdc)

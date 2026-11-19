@@ -545,7 +545,15 @@ def client_create():
     c = db()
     uid = me()
     _gate(c)
-    f = clean_client(c, uid, body(), new=True)
+    cid = cl_create_do(c, uid, body())
+    bump(c)
+    c.commit()
+    return jsonify(client_public(c, uid, need_client(c, cid, uid), stats=True)), 201
+
+
+def cl_create_do(c, uid, b):
+    """The new client of body b (POST /api/clients, #7295: its copy) -> its id. The caller bumps and commits."""
+    f = clean_client(c, uid, b, new=True)
     if "org_id" not in f:  # 2.148.1 H (#2480): the chosen / only organisation where uid may add, else private (was the first)
         f["org_id"] = ws_chosen_org(c, uid)
         if sga_org_foreign(c, f["org_id"]):  # 2.538.0 (#4365): a support session's new client lands privately
@@ -556,12 +564,50 @@ def client_create():
     ts = iso(now_utc())
     f.update(created_by=uid, created_at=ts, updated_at=iso_ms(now_utc()))  # 2.269.0 C (#3017): the base of the next save
     cid = insert_id(c, f"INSERT INTO clients({','.join(f)}) VALUES({','.join('?' * len(f))})", list(f.values()))
-    _contacts_from_body(c, cid, f.get("org_id"), body(), f)
+    _contacts_from_body(c, cid, f.get("org_id"), b, f)
     if f.get("address"):
         cdn_fill_address(c, cid)
+    return cid
+
+
+# #7295: what a copy / a new location takes over: name, name addition, the address fields, country, hourly
+# rate, icon, colour, note; the contact persons only when asked. Never projects, documents, hours, budget, approval /
+# questionnaire links, the archive state, the invoicing fields, e-mail / phone, short code.
+CL_COPY = ("name", "name_extra", "address", "street", "address_extra", "zip", "city", "country", "rate", "icon", "color", "note")
+CL_COPY_CONTACT = ("name", "role", "email", "phone", "is_default", "contact_id", "gets_invoices")
+
+
+@app.post("/api/clients/<int:cid>/copy")
+def client_copy(cid):
+    """#7295: {as_location?: bool, contacts?: bool} -> 201 the new client (as POST /api/clients). A copy ("<name> (copy)") or a
+    new location of client cid (parent_id = cid; of a location: its main client; same name, empty name addition) in cid's
+    workspace. Rights: reading cid (need_client: another workspace's client is 404) and adding a client there (clean_client).
+    Taking it back = DELETE /api/clients/<new id> (into the trash, the app's Undo)."""
+    c = db()
+    uid = me()
+    _gate(c)
+    b = body()
+    b = b if isinstance(b, dict) else {}
+    for k in ("as_location", "contacts"):
+        if k in b and not isinstance(b[k], bool):
+            raise BadInput(tr("Invalid value: {0}", k))
+    r = need_client(c, cid, uid)
+    nb = {k: r[k] for k in CL_COPY if k in r.keys() and r[k] is not None}
+    nb["org_id"] = r["org_id"]
+    if b.get("as_location"):
+        nb["name_extra"] = ""
+        nb["parent_id"] = cl_parent_map(c, [r]).get(int(r["id"])) or int(r["id"])
+    else:
+        nb["name"] = tr("{0} (copy)", r["name"])[:CLIENT_TEXT_MAX["name"]]
+    if b.get("contacts"):
+        from ..office.contacts_cl import fk_contacts
+        nb["contacts"] = [{k: x[k] for k in CL_COPY_CONTACT if k in x} for x in fk_contacts(c, cid)]
+    if not nb.get("address"):
+        nb.pop("address", None)
+    new = cl_create_do(c, uid, nb)
     bump(c)
     c.commit()
-    return jsonify(client_public(c, uid, need_client(c, cid, uid), stats=True)), 201
+    return jsonify(client_public(c, uid, need_client(c, new, uid), stats=True)), 201
 
 
 def _contacts_from_body(c, cid, oid, b, f):
