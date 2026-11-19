@@ -128,24 +128,46 @@ def main():
         rc, out = lint(repo, b11, "--only", "i18n")
         ok("i18n: a new key in the big file is red with the hint", rc == 1 and "'C'" in out and "static/i18n/neu/<KID>.json" in out, out)
 
-        # #7143: marks - an ADDED line of the app code with a version mark is red; marks already there (also those a package
-        # merged meanwhile brought) never count, a tool outside the app code and a moved line without its mark pass
-        commit(repo, {"kalmido/m.py": "x = 1  # 2.1300.0 (#100): the old way\n"}, "#100: stock with a mark")
+        # #7143: marks and suppress read tools/check_rules.py / check_suppress.py from the BASE commit; only the lines a change
+        # adds and removes count, so the stock and what packages merged meanwhile brought never turn an entry red
+        tl = {f"tools/{n}.py": open(os.path.join(os.path.dirname(HERE), "tools", f"{n}.py"), encoding="utf-8").read()
+              for n in ("check_rules", "check_suppress", "lintmsg")}
         b12 = sh(repo, "rev-parse", "HEAD")
-        commit(repo, {"kalmido/m.py": "x = 1  # 2.1300.0 (#100): the old way\ny = 2  # what holds and why\n",
+        commit(repo, {"kalmido/m.py": "x = 1  # 2.1300.0 (#100): stock\n"}, "#100: stock before the checks")
+        rc, out = lint(repo, b12, "--only", "marks,suppress")
+        ok("marks / suppress: a base without the checks is a notice, not red", rc == 0 and "not in the base" in out, out)
+        commit(repo, tl, "#7143: the checks")
+        commit(repo, {"kalmido/m.py": "import os\nx = 1  # 2.1300.0 (#100): stock\nV = os.environ.get('A')\n"
+                      "try:\n    y = 1\nexcept Exception:  # noqa: BLE001 -- a hint never breaks the page\n    y = 0\n"},
+               "#100: stock")
+        b13 = sh(repo, "rev-parse", "HEAD")
+        commit(repo, {"kalmido/m.py": "import os\nx = 1  # 2.1300.0 (#100): stock\ny = 2  # what holds and why\nV = os.environ.get('A')\n"
+                      "try:\n    y = 1\nexcept Exception:  # noqa: BLE001 -- a hint never breaks the page\n    y = 0\n",
                       "tools/t.py": "z = 3  # 2.1403.0 (#7143): a tool\n"}, "#7143: clean addition")
-        rc, out = lint(repo, b12, "--only", "marks")
-        ok("marks: the stock and a tool outside the app code pass", rc == 0 and "pr_lint marks: ok" in out, out)
+        rc, out = lint(repo, b13, "--only", "marks,suppress")
+        ok("marks / suppress: the stock and a mark in a tool pass", rc == 0 and "pr_lint marks: ok" in out and "pr_lint suppress: ok" in out, out)
+        b14 = sh(repo, "rev-parse", "HEAD")
         commit(repo, {"static/js/z.js": "// 2.1403.0 (#7143): new\nlet a = 1;\n", "app.py": "b = 1  # 2.1403 (#7143)\n"}, "#7143: marks")
-        rc, out = lint(repo, b12, "--only", "marks")
+        rc, out = lint(repo, b14, "--only", "marks")
         ok("marks: an added mark in static/js and app.py is red with why / instead",
            rc == 1 and "static/js/z.js: 1 added line" in out and "app.py: 1 added line" in out and "the history is in git" in out
            and "Do not suppress it" in out, out)
-        sys.path.insert(0, os.path.join(os.path.dirname(HERE), "tools"))
-        import check_rules  # noqa: E402 -- tools/ is not a package
-        import pr_lint  # noqa: E402 -- tools/ is not a package
-        ok("marks: pr_lint and check_rules use the same pattern", pr_lint.MARK.pattern == check_rules.VERSION.pattern,
-           f"{pr_lint.MARK.pattern} != {check_rules.VERSION.pattern}")
+        b15 = sh(repo, "rev-parse", "HEAD")
+        commit(repo, {"kalmido/n.py": "try:\n    q = 1\nexcept Exception:  # noqa: BLE001 -- the page stays up on one bad row\n    q = 0\n"},
+               "#7143: one more BLE001 with a reason")
+        rc, out = lint(repo, b15, "--only", "suppress")
+        ok("suppress: one more noqa: BLE001, even with its reason, is red with why / instead",
+           rc == 1 and "1 more 'noqa:BLE001' marker(s)" in out and "kalmido/n.py +1" in out and "narrowest exception" in out, out)
+        commit(repo, {"kalmido/m.py": "import os\nx = 1  # 2.1300.0 (#100): stock\ny = 2  # what holds and why\nV = os.environ.get('A')\ny = 1\n"},
+               "#7143: one BLE001 less")
+        rc, out = lint(repo, b15, "--only", "suppress")
+        ok("suppress: a marker moved (one added, one removed) passes", rc == 0 and "pr_lint suppress: ok" in out, out)
+        b16 = sh(repo, "rev-parse", "HEAD")
+        commit(repo, {"kalmido/o.py": "import sys  # noqa: E402\nimport os\nW = os.getenv('B')\n"}, "#7143: E402 without reason, env")
+        rc, out = lint(repo, b16, "--only", "suppress")
+        ok("suppress: a new E402 without its reason and a further os.environ read are red, E402 itself may rise",
+           rc == 1 and "1 new 'noqa:E402' marker(s) without the reason" in out and "more 'noqa:E402'" not in out
+           and "1 more os.environ read(s)" in out and "env_int / env_bool" in out, out)
 
         # tests/stages.py: a merge queue entry runs the push stage against the queue's base commit
         import stages  # noqa: E402

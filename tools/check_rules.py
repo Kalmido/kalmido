@@ -20,7 +20,7 @@ Not built here (the right way does not exist yet, so the message could not name 
 (#7153), IBAN patterns outside core/iban.py (#7154), except Exception around unseal( (#7156: unseal_or); the schema,
 export, import and month lock rules (#7145 - #7148) need the structure those tasks build.
 
-usage: python3 tools/check_rules.py [-v] [--root DIR] [--update] [--list RULE]     exit 1 = red
+usage: python3 tools/check_rules.py [-v] [--notice] [--root DIR] [--update] [--list RULE]     exit 1 = red
 Standard library only.
 """
 import ast
@@ -233,7 +233,10 @@ def main(argv):
     for r in skipped:
         base.pop(r, None)
         print(f"check_rules: {r} not checked here (no git)")
-    rose, fell = lintmsg.compare(now, base, lambda r: RULES[r][1])
+    # --notice (the lint job): every rise is a notice - the total moves with every package merged meanwhile; the ratchet per
+    # change is tools/pr_lint.py (marks, suppress: rule env); the other rules seldom move and are red in the queue's checks
+    soft = ("env",) if "--notice" in argv else ()
+    rose, fell = lintmsg.compare(now, base, lambda r: RULES[r][1] and r not in soft)
     red = lintmsg.report("check_rules", rose, fell, lambda r: f"rule {r}", "python3 tools/check_rules.py --update")
     for r, _n, _b, _up, is_sharp in rose:
         if is_sharp:
