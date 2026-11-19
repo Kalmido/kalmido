@@ -106,6 +106,24 @@ try:
           f"--notice (the lint job): the same rise is a notice, red is the per-change check of pr_lint ({out[-300:]})")
     os.remove(os.path.join(d, "static/js/y.js"))
 
+    # #7176: the file-wide and the other tools' markers count too, and a block comment over several lines is read
+    for rel, text, kind in (("kalmido/c.py", "# ruff: noqa\nx = 1\n", "noqa:file"),
+                            ("kalmido/c.py", "# flake8: noqa: E501\nx = 1\n", "noqa:file"),
+                            ("kalmido/c.py", "from calc import dec  # type: ignore[misc]\n", "type-ignore"),
+                            ("kalmido/c.py", "exec(code)  # nosec\n", "nosec"),
+                            ("static/js/z.js", "// @ts-nocheck\nlet a = 1;\n", "ts-ignore"),
+                            ("static/js/z.js", "const t = 'image/*';\n/*\n eslint-disable no-new\n*/\nnew Thing();\n",
+                             "eslint-disable")):
+        put(d, rel, text)
+        rc, out = run(SUP, d)
+        check(rc == 1 and f"'{kind}' markers: 1, the baseline allows 0" in out and f"new '{kind}' without" in out,
+              f"#7176: {text.strip()[:40]!r} counts as '{kind}' without a reason: red ({out[-300:]})")
+        os.remove(os.path.join(d, rel))
+    put(d, "static/js/z.js", "const t = 'image/*';\nlet a = 1;  // the accept list\n")
+    rc, out = run(SUP, d)
+    check(rc == 0, f"#7176: a '/*' inside a string opens no block comment: green ({out[-300:]})")
+    os.remove(os.path.join(d, "static/js/z.js"))
+
     # ---- 3. fewer: green with a notice, --update lowers, never raises
     put(d, "kalmido/a.py", "x = 1\nimport os  # noqa: E402 -- the path is set above\n")
     rc, out = run(SUP, d)

@@ -2,7 +2,8 @@
 """Suppressions only with a reason, and fewer, never more (#7143).
 
 A suppression marker turns a check off for one line: `# noqa: CODE` (ruff), `nosemgrep` (semgrep), `eslint-disable`
-(ESLint) and the "-ok" markers of the own checks (`sprung-ok:`, `lazy-ok`, `coltype-ok:` ... see MARKS). Each one is a place
+(ESLint), `type: ignore` (mypy), `nosec` (bandit), `@ts-ignore` / `@ts-nocheck` / `@ts-expect-error`, the file-wide
+`# ruff: noqa` / `# flake8: noqa` (kind "noqa:file", #7176) and the "-ok" markers of the own checks (`sprung-ok:`, `lazy-ok`, `coltype-ok:` ... see MARKS). Each one is a place
 where a rule found something and the code stayed as it was. Two rules hold for them:
 
   1. A new marker carries its reason in the same comment: `# noqa: BLE001 -- the worker never dies on one run`,
@@ -48,9 +49,16 @@ NO_REASON_SYNTAX = {"mark:html-ok"}  # ${/*html-ok*/ expr}: tools/check_innerhtm
 NOQA = re.compile(r"#\s*noqa\b(?::\s*(?P<codes>[A-Z]+[0-9]+(?:\s*,\s*[A-Z]+[0-9]+)*))?", re.I)
 NOSEMGREP = re.compile(r"\bnosemgrep\b(?::\s*[\w.\-]+(?:\s*,\s*[\w.\-]+)*)?")
 ESLINT = re.compile(r"\beslint-disable(?:-next-line|-line)?\b(?:\s+[@\w/\-]+(?:\s*,\s*[@\w/\-]+)*)?")
+# the file-wide and the other tools' markers (#7176): '# ruff: noqa' / '# flake8: noqa' switch a whole file off, 'type: ignore'
+# (mypy), 'nosec' (bandit), '@ts-ignore' / '@ts-nocheck' / '@ts-expect-error' (TypeScript checking JavaScript)
+FILE_NOQA = re.compile(r"\b(?:ruff|flake8)\s*:\s*noqa\b(?::\s*[A-Z]+[0-9]+(?:\s*,\s*[A-Z]+[0-9]+)*)?", re.I)
+TYPE_IGNORE = re.compile(r"\btype\s*:\s*ignore\b(?:\[[\w\-, ]*\])?")
+NOSEC = re.compile(r"\bnosec\b(?::?\s*B[0-9]{3}(?:\s*,\s*B[0-9]{3})*)?")
+TS_IGNORE = re.compile(r"@ts-(?:ignore|nocheck|expect-error)\b")
+OTHER = ((FILE_NOQA, "noqa:file"), (TYPE_IGNORE, "type-ignore"), (NOSEC, "nosec"), (TS_IGNORE, "ts-ignore"))
 MARK = re.compile(r"(?<![\w-])(?P<m>" + "|".join(re.escape(m) for m in MARKS) + r")(?![\w-]):?")
 VERSION = re.compile(r"\b2\.\d+(?:\.\d+)?(?:\s+[A-Z]\d?)?\s*(?:\(#\d+\)|,\s*#\d+)?")
-ANY = re.compile(r"noqa|nosemgrep|eslint-disable|-ok\b", re.I)  # a file without any of these has no marker
+ANY = re.compile(r"noqa|nosemgrep|eslint-disable|-ok\b|type\s*:\s*ignore|nosec|@ts-", re.I)  # a file without any of these has no marker
 WORD = re.compile(r"[A-Za-zÄÖÜäöüß]{2,}")
 WHY = ("a marker hides a finding for good; without its reason nobody can tell later whether it still holds, and every "
        "marker makes the next one look normal")
@@ -62,6 +70,8 @@ def has_reason(comment, marker_span):
     """At least two words in the comment beside the marker (and its codes) and beside version marks."""
     a, b = marker_span
     rest = VERSION.sub(" ", comment[:a] + " " + comment[b:])
+    for rx, _kind in OTHER:  # a second marker in the same comment is no reason either
+        rest = rx.sub(" ", rest)
     rest = re.sub(r"\b(?:noqa|nosemgrep|eslint-disable[\w-]*)\b", " ", rest)
     return len(WORD.findall(rest)) >= 2
 
@@ -69,11 +79,14 @@ def has_reason(comment, marker_span):
 def found_in(comment):
     """[(kind, has reason)] of one comment's text."""
     out = []
+    file_wide = [m.span() for m in FILE_NOQA.finditer(comment)]
     for m in NOQA.finditer(comment):
+        if any(a <= m.start() < b for a, b in file_wide):
+            continue  # '# ruff: noqa' is the file-wide kind below, not a line's noqa
         codes = [c.upper() for c in re.split(r"\s*,\s*", m.group("codes"))] if m.group("codes") else [""]
         for c in codes:
             out.append(("noqa:" + c if c else "noqa", has_reason(comment, m.span())))
-    for rx, kind in ((NOSEMGREP, "nosemgrep"), (ESLINT, "eslint-disable")):
+    for rx, kind in ((NOSEMGREP, "nosemgrep"), (ESLINT, "eslint-disable")) + OTHER:
         for m in rx.finditer(comment):
             out.append((kind, has_reason(comment, m.span())))
     for m in MARK.finditer(comment):
@@ -103,14 +116,30 @@ JS_LINE = re.compile(r"(?<![:\\'\"])//(.*)$")
 JS_BLOCK = re.compile(r"/\*(.*?)(?:\*/|$)")
 
 
+def in_string(before):
+    """True when a line's text up to here leaves a quote open (an odd number of unescaped ', " or `)."""
+    plain = re.sub(r"\\.", "", before)
+    return any(plain.count(q) % 2 for q in "'\"`")
+
+
 def js_comments(text):
-    """[(line, comment text)] of JavaScript: // to the end of the line and /* ... */ on one line (a // inside a string is
-    rare and only counts when a marker follows it)."""
-    out = []
+    """[(line, comment text)] of JavaScript: // to the end of the line and /* ... */, also over several lines (each line of a
+    block comment is its own entry, so a block-wide 'eslint-disable' or '@ts-nocheck' in the middle of it counts, #7176);
+    a // inside a string is rare and only counts when a marker follows it."""
+    out, inside = [], False
     for i, ln in enumerate(text.split("\n"), 1):
-        for m in JS_BLOCK.finditer(ln):
+        rest = ln
+        if inside:
+            k = ln.find("*/")
+            out.append((i, ln if k < 0 else ln[:k]))
+            if k < 0:
+                continue
+            inside, rest = False, ln[k + 2:]
+        for m in JS_BLOCK.finditer(rest):
             out.append((i, m.group(1)))
-        rest = JS_BLOCK.sub(" ", ln)
+            if not m.group(0).endswith("*/") and not in_string(rest[:m.start()]):
+                inside = True  # an open '/*' inside a string ('image/*') opens no block
+        rest = JS_BLOCK.sub(" ", rest)
         m = JS_LINE.search(rest)
         if m:
             out.append((i, m.group(1)))
