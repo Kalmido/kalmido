@@ -177,7 +177,7 @@ BK_ERR = {"busy": N_("Another backup or restore is running, please try again in 
           # 2.152.0 B (#2172)
           "encrypt_required": N_("This server only writes encrypted backups: set a passphrase (at least 10 characters)."),
           # 2.359.3 (#2893)
-          "server_key": N_("This backup was made with another server key, so its encrypted data could not be read here. Nothing was changed. Put the key of the old server in place, restart and restore again (see SELF-HOSTING.md)."),
+          "server_key": N_("This backup was made with another server key, so its encrypted data could not be read here. Nothing was changed. Put the key of the old server in place (KALMIDO_SECRET_KEY or the key file) and restart: on a fresh server that is enough, otherwise start once with KALMIDO_SECRET_KEY_CHANGED=1. Then sign in as admin and restore again; afterwards sign in with the user names and passwords of the old server (see SELF-HOSTING.md, section Emergency: restoring a backup on a fresh server)."),
           "server_key_none": N_("This server has no server key, so the encrypted data of this backup could not be read here. Nothing was changed. Set the key of the server that made the backup, restart and restore again (see SELF-HOSTING.md)."),
           "not_found": N_("Backup not found."),
           "confirm": N_("Type {0} to confirm."),
@@ -192,7 +192,7 @@ BK_ERR = {"busy": N_("Another backup or restore is running, please try again in 
           # 2.432.0 (#3584): the shared files of a backup (bkstore.py)
           "shared_missing": N_("{0} shared files of this backup are missing in the backup folder. Download the backup from the server that made it (a complete file), or put the shared files back."),
           "old_passphrase": N_("This backup was encrypted with an earlier passphrase. Enter that passphrase to check, restore or download it.")}
-BK_LEFTOVER_NOTE = N_("Folders from a restore are lying next to the data folder ({0}). After a hard stop the database and the files may not match: check them, a successful restore removes them.")  # 2.370.2 (#2779)
+BK_LEFTOVER_NOTE = N_("Folders from a restore are lying next to the data folder ({0}). After a hard stop the database and the files may not match. Restore the same backup again (or the safety backup made just before it, for the state of before): a successful restore removes these folders. Does Kalmido show the state of before the restore and only files are missing? Then stop Kalmido and rename attachments.pre-restore-… back to attachments (office.pre-restore-… to office).")  # 2.370.2 (#2779)
 # 2.359.3 (#2893): what a restore warns about (bk_key_state; "foreign" only gets this far with KALMIDO_SECRET_KEY_CHANGED=1)
 BK_KEY_WARN = {"foreign": N_("This backup was made with another server key: attachments, private files and encrypted fields stay unreadable until that key is back in place."),
                "secrets": N_("This backup may come from another server key: stored access tokens (Git, documents, single sign-on) may be unreadable. Enter them again or put the old key back.")}
