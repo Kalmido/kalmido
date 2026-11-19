@@ -1461,7 +1461,7 @@ def org_mine_update(oid):
     """2.28.0 (#935): {name?, icon?, domains?} -- an organisation admin renames it (modes multi / workspaces; in the mode
     organisation the name comes from the configuration or the instance admin). 2.467.0 (#3898): domains only by a server admin.
     2.53.0 B (#1474): {color?} -- its colour for every member ('' = the default tone); only here (an admin of this
-    organisation), not in the instance admin's routes. 2.61.0 B (#1819): {photo_meta_strip?: bool} likewise.
+    organisation), not in the instance admin's routes. (#1819): {photo_meta_strip?: bool} likewise.
     (#6363): {server_agents?: bool} -- the Kalmido AI (server agents) may work in the organisation (default off)."""
     c, b = db(), body()
     _need_org_admin(c, oid)
