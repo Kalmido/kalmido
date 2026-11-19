@@ -1458,9 +1458,11 @@ def umz_mentions(text, names, who):
 # came along becomes its new number; any other one stays readable as text but is no link any more (it would name whoever has
 # that number on this server): #<WORD JOINER>123 in a text, the plain text "#123" (or "label (#123)") in a page.
 UMZ_TREF_RE = re.compile(r"(\b[Jj][Oo][Bb] ?#?\d{1,9}\b)|(?<![&\w/#])#(\d{1,9})\b")
-# Every repeat is bounded (reader F1 of job/5756): an unclosed "[", "<" or "<a" would otherwise scan to the end of the line / text
-# from each of its starts - quadratic on an imported text of 200,000 brackets.
-UMZ_TREF_KEEP = re.compile(r"```.*?(?:```|\Z)|`[^`\n]{0,2000}`|\[[^\]\n]{0,500}\]\([^)\n]{0,2000}\)|<a\b.{0,2000}?</a>|<[^>\n]{0,500}>",
+# Linear (reader F1 / F4 of job/5756): every scan stops at the next opener of its own kind ("[", "(", "<", "`"), so the scans of
+# two starts never overlap - an imported text of a million unclosed brackets costs one pass, not one pass per bracket. A link
+# or tag with a nested opener is not kept whole; its references are then rewritten like plain text (harmless: a link target
+# of the file gets its new number, any other one is defused).
+UMZ_TREF_KEEP = re.compile(r"```.*?(?:```|\Z)|`[^`\n]*`|\[[^\[\]\n]*\]\([^()\n]*\)|<a\b[^<>]*>[^<]*</a>|<[^<>\n]*>",
                            re.S | re.I)
 UMZ_TREF_OFF = "\u2060"  # WORD JOINER: invisible, no line break; the link pattern sees no digit after the #
 
