@@ -5268,7 +5268,7 @@ a.nitem.ndm{text-decoration:none;color:inherit}
 @media (pointer:coarse){ .lyx{min-width:2.75rem;min-height:2.75rem;justify-content:center} }  /* 2.32 review: the × of a block is a full touch target on a phone */
 .lyadd{display:flex;justify-content:flex-end;margin-top:.75rem}
 .povlybar{display:flex;align-items:center;gap:.5rem;margin:.5rem 0 0;font-size:var(--fs-s)}
-.povpo{display:flex;align-items:center;gap:.5rem;margin:.4rem 0 0;font-size:var(--fs-s)}.povpo input{max-width:16rem;flex:1 1 10rem}  /* #6945: the PO number in the project head */
+.povpo{display:flex;align-items:center;gap:.5rem;margin:.5rem 0 0;font-size:var(--fs-s)}.povpo input{max-width:16rem;flex:1 1 10rem}  /* #6945: the PO number in the project head */
 /* #1061: an empty block is one line: title, a short hint (cut), its button */
 .povs.povs-empty{padding:.375rem .75rem .375rem 1rem}
 .povs.povs-empty .povh{flex-wrap:nowrap;margin-bottom:0}
