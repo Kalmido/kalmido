@@ -154,8 +154,7 @@ async function dropTask0(id, el, clientY) {
   $$('.dragging,.dropbefore,.dropafter,.drop').forEach(x => x.classList.remove('dragging', 'dropbefore', 'dropafter', 'drop'));
   document.body.classList.remove('tdrag');
   if (el.closest('#detail')) return;
-  if (canEdit(t) && await mbDropHook(t, el)) return;  // (#2072): the board of My tasks (its column = date / priority / list)
-  // (#7344): the drop core (dragmulti.js dropRun; one task = a selection of one): My tasks' own order and own sections,
+  // (#7344): the drop core (dragmulti.js dropRun; one task = a selection of one): My tasks' own order and own sections, its board (#7354),
   // read-only tasks too (the own order is the person's); the structure it changes is checked there. Awaited: the same step.
   const core = dropRun([id], el, clientY);
   if (core) { await core; return; }

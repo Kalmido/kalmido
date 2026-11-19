@@ -1522,9 +1522,13 @@ the whole gesture as one step of the history (`histGroup`): structure first (a s
 #6436), then the place. The middle of a row (= make subtasks, `dgMakeSubs`) comes before the core and is the same everywhere.
 
 Adapters today: "My tasks" (`mineorder.js` `moWhere` / `moPut`: own order, own sections, "New section"; a task of "Unassigned
-in your projects" is assigned to me, the own order is this device's own part of the Undo step). Next steps: the board,
-Alt+arrow and the multi panel of My tasks (#7354), the project list's single drag (#7351), a check against new special
-ways (#7352). Tests: `tests/p21389_a_mine_multidrag_ui.js`.
+in your projects" is assigned to me, the own order is this device's own part of the Undo step); the board of My tasks
+(`mineorder.js` `mbWhere`, #7354: a column - `data-dropcol` on the container, `dropAt` kind `col` - and a card before / after
+mean what the column means, for one task and a selection, `mineboard.js` `mb_drop` / `mb_dropMany`). Without a pointer the
+keyboard and the menu use the same adapters: `dropTo(ids, dropRowTgt(row, after))` (Alt+arrow and Move up / down,
+`palette.js` `nudgeCore`: the own order of My tasks, not the project's order for everybody); "Move to section…" of the menu
+and the multi panel is `moPut` too (`mseMoveTo`). Next steps: the project list's single drag (#7351), a check against new
+special ways (#7352). Tests: `tests/p21389_a_mine_multidrag_ui.js`, `tests/p21453_7354_mine_core_ui.js`.
 
 ## Calm view: a redraw keeps the reading place (2.924.0, #5224)
 

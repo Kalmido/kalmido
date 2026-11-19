@@ -77,6 +77,7 @@ document.addEventListener('focusin', e => {
 // orders switch to "Priority" first (as a drop does)
 async function taskNudge(id, d) {
   const t = taskById(id); if (!t || !(t.id > 0)) return;
+  if (await nudgeCore(id, d)) return;  // (#7354)
   if (!canEdit(t)) { roToast(); return; }
   if (S.route.mod === 'tasks' && !['prio'].includes(sortMode())) LS.set('sort2.' + S.route.key, 'prio');
   const sib = siblings(t).filter(x => x.priority === t.priority && (x.section_id || null) === (t.section_id || null));
@@ -91,6 +92,24 @@ async function taskNudge(id, d) {
   try { await api('POST', '/api/tasks/reorder', {items: [{id, sort}]}); } catch { await load().catch(() => {}); render(); return; }
   await load(); render(); kfocus(id);
   announce(d < 0 ? tr('Moved up') : tr('Moved down'));
+}
+// (#7354): where a drop adapter owns the view (My tasks: the own order and own sections, the person's own - read-only tasks too),
+// Alt+arrow / Move up / down put the task before / after its neighbour row through the drop core (dragmulti.js dropTo) instead
+// of the project's order for everybody; true = done (or said). The neighbour: the next row of the same group in the view
+async function nudgeCore(id, d) {
+  if (S.route.mod !== 'tasks' || typeof dropTo !== 'function') return false;
+  const row = $(`#view .trow[data-id="${id}"]`); if (!row) return false;
+  const tgt = r => dropRowTgt(r, d > 0);
+  if (!dropForTgt(tgt(row), [id])) return false;  // no adapter here: the project's own way
+  if (typeof moActive === 'function' && moActive() && moBoard()) return false;  // the board is sorted by its columns: no order to nudge
+  const lv = r => r.classList.contains('subrow') ? -1 : +((r.className.match(/\bsub d(\d+)\b/) || [])[1] || 0);  // the same level: a row's subtasks are no neighbours
+  const g = row.closest('.group'), rows = [...(g || $('#view')).querySelectorAll('.trow[data-id]')].filter(r => r.closest('.group') === g && +r.dataset.id > 0 && !r.closest('#detail') && lv(r) === lv(row));
+  const nb = rows[rows.indexOf(row) + d];
+  if (!nb) { toast(d < 0 ? tr('Already at the top') : tr('Already at the bottom')); return true; }
+  const r = dropTo([id], tgt(nb)); if (!r) return false;
+  await r; kfocus(id);
+  announce(d < 0 ? tr('Moved up') : tr('Moved down'));
+  return true;
 }
 const curTask = () => { const id = S.sel || (S.kf && $(`#view .trow[data-id="${S.kf}"]`) ? S.kf : null); return id ? taskById(id) : null; };
 const typing = t => t && (/INPUT|TEXTAREA|SELECT/.test(t.tagName) || t.isContentEditable);
