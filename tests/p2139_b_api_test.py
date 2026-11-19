@@ -171,7 +171,11 @@ check(r.status_code == 201 and att(r).get("voice") is False, "plain file: voice 
 # ================================================================== agents: read it, cannot send one
 assert A.post(B + f"/api/team/rooms/{CH}/members", json={"user_id": CL}).ok
 assert A.post(B + f"/api/team/rooms/{CH}/members", json={"user_id": RO}).ok
-cur = requests.get(V + "/agent/events?since=latest", headers=CLH).json()["cursor"]
+# (#5195): since 2.1287.0 (#6454) a channel member reaches a team agent only where a project opens it to them (agent_shares):
+# the agent is in Bob's project Team and its members may use it
+assert A.put(B + f"/api/lists/{TEAM}/members", json={"user_id": CL, "role": "edit"}).ok
+assert A.patch(B + f"/api/lists/{TEAM}", json={"agent_members": True}).ok
+cur =requests.get(V + "/agent/events?since=latest", headers=CLH).json()["cursor"]
 r = voice(Bo, CH, M4A, body=f"<@{CL}> please listen", ms="1500")
 ev = [e for e in requests.get(V + f"/agent/events?since={cur}&limit=50", headers=CLH).json()["data"] if e.get("event") == "team_message"]
 ea = ev[-1]["data"]["message"]["attachments"] if ev else []
