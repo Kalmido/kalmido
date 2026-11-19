@@ -19,10 +19,11 @@
 
 ## What's new
 
-**2.1405.0** (2026-11-19):
-- **Settings**: Account and Notifications are sorted and worded in everyday language; "Add organisation" lives under Settings > Organisation.
-- **Workspaces**: organisations without an own symbol show their first letter everywhere.
-- **Security**: support sessions cannot write into an organisation without its grant; agents treat files and subtasks of other accounts as data; signing out never drops unsaved own texts.
+**2.1412.0** (2026-11-19):
+- **Workspaces**: under "All workspaces" every module shows only the workspaces it is switched on in; one menu to switch workspace everywhere, favourites on the phone show their name.
+- **Documents**: receipt fields no longer overwrite a change made on another device.
+- **Agents**: model and effort per job kind; team agent jobs follow the circle rule.
+- **Performance**: long lists scroll smoothly again.
 
 Full history: [CHANGELOG.md](CHANGELOG.md).
 
