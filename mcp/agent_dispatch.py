@@ -52,7 +52,7 @@ STOP_FILE = "dispatch-STOP"
 STATE_FILE = "dispatch.json"
 DRY_LOG = "dispatch-dry.log"
 MODES = ("off", "dry", "on")
-STATES = ("done", "building", "on_branch", "held", "needs_yes", "stuck", "foreign", "ready")
+STATES = ("done", "building", "on_branch", "held", "needs_yes", "stuck", "foreign", "needs_brief", "ready")
 RUNNING = ("starting", "running", "paused")
 
 DEFAULTS = {
@@ -101,6 +101,7 @@ DEFAULTS = {
     "brief_extra": "",        # more text for every brief (the project's rules)
     "max_writes": 40,         # writes (comments, closes) per tick
     "stau_max": 10,           # 2.1368.0 (#4060): more tasks built but not landed (on a branch) than this hold new starts (0 = never)
+    "brief_required": False,  # 2.1383.0 (#4062): on = a task is ready only with a brief (brief_missing), else "needs_brief"
 }
 # 2.1368.0 (#7028, review F2): what the dispatcher RUNS comes only from the runner's environment (its env file), never from
 # KALMIDO-DISPATCH.json: the project folder is the agent's working place, a job could write a command there that the
@@ -125,6 +126,11 @@ SAFE_GIT_KEY_RX = re.compile(r"(?i)^(core\.(repositoryformatversion|filemode|bar
 # 2.1368.0 (#7028): keys that are gone -- named once in the log, never used
 RETIRED = {"worktree": "every job of the dispatcher has its own working copy (branch job/<id>)",
            "finish_cmd": "a job ends in a pull request with an approval card; merging and deploying are the person's"}
+# 2.1383.0 (#4062): the parts of a brief when brief_required is on -- a bold decision line and a section "Where" (Fundstellen) in
+# the description, and a size set in size_field or as a list tag (size_default does not count)
+BRIEF_DECISION_RX = r"(?m)^[ \t>-]*\*\*([^*\n]{3,})\*\*"
+BRIEF_WHERE_WORDS = r"(?:where|locations|files|fundstellen|emplacements|fichiers|ubicaciones|archivos|posizioni|vindplaatsen|bestanden)"
+BRIEF_WHERE_RX = (r"(?im)^(?:[ \t>*-]*\**\s*" + BRIEF_WHERE_WORDS + r"\s*\**\s*:|[ \t]*#{1,6}[ \t]*" + BRIEF_WHERE_WORDS + r"[ \t:]*$)")
 ID_RE = re.compile(r"(?<![Jj]ob )(?<![\w/])#(\d{1,9})\b")
 # 2.1394.0 (#6176): a file a task names -- only paths ("mcp/agent_dispatch.py:223", "app.py"), never words of a sentence: a
 # path has a folder or a source file ending; links are left out
@@ -319,6 +325,28 @@ def size_of(t, cfg, field_ids):
     return cfg["size_default"]
 
 
+def size_set(t, cfg, field_ids):
+    """2.1383.0 (#4062): True when the task's size is set (the size field or a list tag S / M / L), not only size_default."""
+    fid = field_ids.get((t.get("list_id"), "size"))
+    v = str((t.get("fields") or {}).get(fid) or "").strip() if fid else ""
+    v = field_ids.get((t.get("list_id"), "size_opt", v), v)
+    return v[:1].upper() in cfg["size_points"] or any(x.strip().upper() in cfg["size_points"] for x in tags_of(t))
+
+
+def brief_missing(t, cfg, field_ids):
+    """2.1383.0 (#4062): what the task's brief lacks ([] = complete): "decision" (a bold line), "where" (a section Where /
+    Fundstellen), "size" (size_field or a list tag)."""
+    notes = t.get("notes") or ""
+    out = []
+    if not any(not re.fullmatch(r"(?i)\s*" + BRIEF_WHERE_WORDS + r"\s*:?\s*", m.group(1)) for m in re.finditer(BRIEF_DECISION_RX, notes)):
+        out.append("decision")
+    if not re.search(BRIEF_WHERE_RX, notes):
+        out.append("where")
+    if not size_set(t, cfg, field_ids):
+        out.append("size")
+    return out
+
+
 def points(t, cfg, field_ids):
     return int(cfg["size_points"].get(size_of(t, cfg, field_ids), cfg["size_points"].get(cfg["size_default"], 3)))
 
@@ -419,13 +447,14 @@ def wait_reasons(t, evidence, deps, cfg):
     return dep_wait(t, evidence, deps or {}) + file_wait(t, evidence, cfg)
 
 
-def classify(tasks, evidence, jobs, reg, cfg, owner=None, deps=None):
+def classify(tasks, evidence, jobs, reg, cfg, owner=None, deps=None, field_ids=None):
     """One state per open task (STATES): done (commit in close_ref), building (an open job of the dispatcher has it),
     on_branch (a commit on a job branch only), held (skip tag / a waiting line; 2.1394.0, #5200: an open blocker in its
     dependency field that is not built yet, dep_wait; #5201: reopened after the dispatcher closed it; #6176: an open job
     branch changes one of its files, file_wait), needs_yes (one-way without the approval
     tag), stuck (2.1368.0, #4069: max_bundles bundles left it open, max_tries jobs each), foreign (2.1308.0, #6523: not created by the person -- another member's
-    task or one without a creator; 2.1375.0, #6677: or one someone else wrote the text of last; never started), ready."""
+    task or one without a creator; 2.1375.0, #6677: or one someone else wrote the text of last; never started),
+    needs_brief (2.1383.0, #4062: with brief_required on, a task without a bold decision line, a section Where or a size), ready."""
     running = {int(t) for jid, e in reg.get("jobs", {}).items() if (jobs.get(str(jid)) or {}).get("state") in RUNNING
                for t in e.get("tasks") or []}
     out = {}
@@ -448,6 +477,8 @@ def classify(tasks, evidence, jobs, reg, cfg, owner=None, deps=None):
             out[tid] = "needs_yes"
         elif int((reg.get("bundles") or {}).get(str(tid)) or 0) >= int(cfg["max_bundles"]):
             out[tid] = "stuck"
+        elif cfg.get("brief_required") and brief_missing(t, cfg, field_ids or {}):
+            out[tid] = "needs_brief"
         else:
             out[tid] = "ready"
     return out
@@ -1007,7 +1038,7 @@ class Dispatcher:
         self.guard(jobs, cfg, now, res, ev, w)
         owner = self.owner()
         deps = read_deps(self.host.api, tasks)  # 2.1394.0 (#5200): the dependency field of the blocked tasks
-        states = classify(tasks, ev, jobs, self.reg, cfg, owner, deps)
+        states = classify(tasks, ev, jobs, self.reg, cfg, owner, deps, fids)
         res["states"] = states
         by_id = {int(t["id"]): t for t in tasks}
         res["waiting"] = {tid: wt for tid, st in states.items() if st == "held" and (wt := wait_reasons(by_id[tid], ev, deps, cfg))}
@@ -1043,6 +1074,9 @@ class Dispatcher:
                 self.finding(res, f"yes:{tid}", self.say("dispatch_needs_yes", f"#{tid}", cfg["one_way_ok_tag"]))
             elif st == "stuck":
                 self.finding(res, f"stuck:{tid}", self.say("dispatch_stuck", f"#{tid}", int(cfg["max_tries"]) * int(cfg["max_bundles"])))
+            elif st == "needs_brief":  # 2.1383.0 (#4062): said once in the chat, then it waits visibly
+                self.finding(res, f"brief:{tid}", self.say("dispatch_needs_brief", f"#{tid}",
+                                                           ", ".join(self.say("dispatch_brief_" + x) for x in brief_missing(t, cfg, fids))))
         if MOVE_HINT:  # reader F6 (2.1400): told once in the chat and the day report
             self.finding(res, "config-move", self.say("dispatch_config_move", CONFIG_FILE, MOVE_HINT))
         res["brakes"] = self.brakes(cfg)

@@ -3233,7 +3233,8 @@ mode; `KALMIDO_DISPATCH=off|dry|on` on the computer outranks the switch). No mod
    *on a branch* (a commit on a `job/*` branch only), *held* (a tag of `skip_tags` or a line `Waiting for:` / `Blocked by:`
    in its description; 2.1394.0: or its dependency field *Blocked by* names an open task that is not built yet, see below), *waiting for a yes* (its title or description names a step without a way back, `one_way_rx`, and
    it lacks the tag `one_way_ok_tag`, default `approved`: a person sets that tag as the approval), *stuck* (2.1368.0: `max_bundles`
-   bundles, default 3, left it open; see below), *not yours* (2.1308.0: the person did not create it, see below) or *ready*,
+   bundles, default 3, left it open; see below), *not yours* (2.1308.0: the person did not create it, see below), *needs a brief*
+   (2.1383.0: only with `brief_required` on, see below) or *ready*,
 3. guard: a job that ended with a task still open gets exactly ONE second try (`max_tries`, default 2); then the task goes
    back to the list with the comment *Not finished in 2 jobs - back in the list* and into the next bundle, cut anew from the
    list (2.1368.0: no rescue of the same working copy again and again); only after `max_bundles` such bundles it is
@@ -3261,6 +3262,11 @@ day report names the waiting tasks with their blockers, the `--dry-run` output a
 for a commit and a person opened again keeps its bundle: it is *held*, not closed again and not bundled again, and the
 person is told once in the chat. A new commit naming it closes it as usual. Its tries (`max_tries`) also stay when a task
 is closed and opened again.
+**Brief required** (2.1383.0, `brief_required`, default off): when on, a task is *ready* only with a brief - a bold
+decision line in its description (`**Decision: ...**`), a section *Where* (a line `Where:` / `Fundstellen:` or a heading
+`## Where`, naming the files or places to change) and a size set in `size_field` or as a list tag S / M / L (`size_default`
+does not count). Any other task waits as *needs a brief*; the chat names it once with what is missing. A job then never has
+to guess what the person meant.
 
 **Brakes**: a stop file (`dispatch-STOP` in the runner's state folder or `KALMIDO-DISPATCH-STOP` in the project folder), a
 fresh week usage at or above `usage_limit_pct` (default 95) or `KALMIDO_USAGE_LIMIT`, the closed work window, and
