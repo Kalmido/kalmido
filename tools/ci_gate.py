@@ -34,7 +34,7 @@ it finished is no green one = no image. The soft red parts are printed (step sum
 judges the run it runs in, by SUITES (not by shards: a hard shard carries the soft suites of its groups, runs 43149840388,
 43127929985, 43107949743 had a red hard shard with only soft suites red): green when Lint and PR lint (a queue entry: + the plan
 and semgrep) are green, no hard suite is red (every red shard names its red suites, none hard; a cancelled shard = unknown =
-hard) and no hard job (e-invoice validators, ZAP ...) is red. A pull request is green on Lint and PR lint alone (no shards).
+hard) and no hard job (e-invoice validators, ZAP ...) is red or unfinished; #7366: a skipped job outside the must list is no red one. A pull request is green on Lint and PR lint alone (no shards).
 Exit 0 green, 1 red; the soft red parts are printed (a task + collective fix, like the soft red parts of the release push).
 Env: GITHUB_TOKEN (or GH_TOKEN), GITHUB_REPOSITORY, GITHUB_SHA, GITHUB_API_URL (all set on GitHub Actions)."""
 import argparse
@@ -295,9 +295,10 @@ def judge_queue(event, needs, jobs, suites_of, pats, grp):
         name = j.get("name") or ""
         if name == QUEUE_GATE or QUEUE_SHARD_RE.match(name) or j.get("conclusion") == "success":
             continue
-        if j.get("conclusion") in ("skipped", "neutral"):  # review 8: a hard job that did not run is no green one
-            if hard_job(j, pats) and not name.lower().startswith(("lint", "test suites")) and "reporting only" not in name.lower():
-                return False, "hard job did not run: %s" % name, soft
+        if j.get("conclusion") in ("skipped", "neutral"):
+            # #7366 (decision 19.11.2026): in the queue only the fixed list must (above, a skipped must job is red there) has
+            # to have run; a skipped job outside it (the nightly upgrade / restore job ...) is no red one. The nightly / main
+            # judgement (judge_soft) stays hard.
             continue
         if j.get("status") not in (None, "completed") or j.get("conclusion") is None:
             if hard_job(j, pats) and not name.lower().startswith("lint"):

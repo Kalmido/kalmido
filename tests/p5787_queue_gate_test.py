@@ -128,8 +128,12 @@ check(not ok, f"tests red, but no red shard in the list: red ({txt})")
 ten = ["p2272_b_ui"] * gate.ANN_MAX
 ok, txt, _ = gate.judge_queue("merge_group", NEEDS, jobs(shard(1, 1, "failure")), lambda j: ten, pats, GRP)
 check(not ok and "maybe more" in txt, f"{gate.ANN_MAX} red suites named (GitHub names at most 10): unknown = red ({txt})")
-ok, txt, _ = gate.judge_queue("merge_group", {**NEEDS, "tests": OK}, jobs(shard(1, 1), extra=[job(113, "OWASP ZAP baseline", "skipped")]), lambda j: [], pats, GRP)
-check(not ok and "did not run" in txt, f"a hard job skipped: red ({txt})")
+# #7366 (decision 19.11.2026): only the must list has to have run - a skipped must job (zap) is red through needs, a
+# skipped hard-named job outside it (the nightly upgrade / restore job) is no red one
+ok, txt, _ = gate.judge_queue("merge_group", {**NEEDS, "tests": OK, "zap": {"result": "skipped"}}, jobs(shard(1, 1), extra=[job(113, "OWASP ZAP baseline", "skipped")]), lambda j: [], pats, GRP)
+check(not ok and "zap: skipped" in txt, f"a must job skipped: red ({txt})")
+ok, txt, _ = gate.judge_queue("merge_group", {**NEEDS, "tests": OK}, jobs(shard(1, 1), extra=[job(113, "Upgrade and restore (nightly)", "skipped")]), lambda j: [], ["*restore*"], GRP)
+check(ok, f"#7366: a skipped hard-named job outside must: green ({txt})")
 for k in ("checks", "pr-lint", "semgrep", "plan", "einvoice", "zap"):
     ok, txt, _ = gate.judge_queue("merge_group", {**NEEDS, "tests": OK, k: {"result": "failure"}}, jobs(shard(1, 1)), lambda j: [], pats, GRP)
     check(not ok and k in txt, f"{k} red: red ({txt})")
