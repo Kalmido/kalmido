@@ -65,14 +65,14 @@ function umzStorageHtml(p, t) {
   const c = (p.storage?.targets || {})[String(t)];
   return c ? `<div class="shint warn" role="alert">${ic('alert', 's')} ${esc(c.text)}</div>` : '';
 }
-// 2.1424.0 (#6580, decided 16.11.2026): who invites the missing people -- into an organisation its admin (the server lists the
+// (#6580, decided 16.11.2026): who invites the missing people -- into an organisation its admin (the server lists the
 // targets in invite_orgs), into the private space only an instance admin (can_invite); the server decides again at the start
 const umzCanInvite = (p, t) => !!p.can_invite || (t !== 'private' && (p.invite_orgs || []).map(String).includes(String(t)));
 function umzPreviewHtml(j) {
   const p = j.preview, org = p.kind === 'org', src = p.source.url ? esc(p.source.url) : tr('unknown');
   const t0 = p.targets[0]?.id ?? 'private', inv = umzCanInvite(p, t0), invAny = p.can_invite || (p.invite_orgs || []).length;
   const nf = p.people.filter(x => !x.found).length;
-  // 2.1424.0 (#6580): every person with found / not found, and the order (invite first, then import) before the start
+  // (#6580): every person with found / not found, and the order (invite first, then import) before the start
   const people = p.people.length ? `<div class="muted mhint">${esc(tr('People of your projects: {0} of {1} found here', p.people.length - nf, p.people.length))}</div>`
     + (nf ? `<div class="shint warn umzorder">${ic('alert', 's')} ${esc(tr('Invite the missing people first and let them accept, then import: for people not found here, assignments stay empty, comments keep only the name and their times are not taken over.'))}</div>` : '')
     + p.people.map((x, i) => `<div class="mrow umzp">
@@ -194,7 +194,7 @@ function umzInit(md) {
   md.addEventListener('change', async e => {  // review M1: a typed address that is not the one in the file -> hint at once
     if (e.target.id === 's-umz-tgt' && UMZ.cur?.preview) {  // 2.1316.0 (#6577), 2.1402.0 (#6579): the checks of the chosen target
       const oc = $('#s-umz-ochk', md); if (oc) oc.innerHTML = umzStorageHtml(UMZ.cur.preview, e.target.value) + umzOfficeHtml(UMZ.cur.preview, e.target.value);
-      const inv = umzCanInvite(UMZ.cur.preview, e.target.value);  // 2.1424.0 (#6580): inviting depends on the target
+      const inv = umzCanInvite(UMZ.cur.preview, e.target.value);  // (#6580): inviting depends on the target
       md.querySelectorAll('[data-umzinv],[data-umzinvnote]').forEach(x => { x.hidden = !inv; if (!inv) x.querySelectorAll('[data-k="invite"]').forEach(c => { c.checked = false; }); });
       md.querySelectorAll('[data-umzskip]').forEach(x => { x.hidden = inv && !!x.previousElementSibling?.matches('[data-umzinv]'); });
     }

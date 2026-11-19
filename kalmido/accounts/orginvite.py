@@ -41,7 +41,7 @@ from ..api.common import hit_limit  # 2.149.0 G (#2517): pulled up from function
 from ..core.schema import USER_DEFAULTS  # 2.149.0 G (#2517): pulled up from functions
 from ..core.serializers import unlink_files  # 2.149.0 G (#2517): pulled up from functions
 from ..core.pg import system_ctx  # 2.149.0 G (#2517): pulled up from functions
-from ..core.ratedb import rate_counts  # 2.1424.0 (#6580)
+from ..core.ratedb import rate_counts  # (#6580)
 from ..accounts.orgs import _need_org_admin, _oinv_pending, ORG_ROLES, _operator_apart, instance_mode, may_see, org_member_add, org_member_put  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.invite import invite_state, invite_new  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.users import user_purge  # 2.369.5 (#2517): pulled up from functions
@@ -194,17 +194,17 @@ def org_invite_new(oid):
         ojn_neutral_drop(c, oid, email)  # 2.985.0 (#4922): the address has an account (again): its row stands for it now
         c.commit()
         return jsonify(ok=True, by_email=True, invites=oinv_list(c, oid))  # 2.148.1 A (#2480): the same answer as a new account
-    direct = g.user["is_admin"] and not _operator_apart()  # 2.453.0 (#3780): the same test as org_member_put for an existing account
+    direct = g.user["is_admin"] and not _operator_apart()  # (#3780): the same test as org_member_put for an existing account
     uid, inv = oinv_new_account(c, oid, email, role, b.get("name"), b.get("lang"), me(), direct, bg=not g.user["is_admin"])
     inv = _no_link_if_sent(inv, uid)
     bump(c)
     c.commit()
     print("organisation invitation: an account into organisation", oid, "by", login_log_who(g.user), flush=True)
-    # 2.148.1 A (#2480): an organisation admin gets the same answer as for an existing account (the mail result only as
+    # (#2480): an organisation admin gets the same answer as for an existing account (the mail result only as
     # a notice); an instance admin sees every account anyway and keeps the id (undo) and the link
     if g.user["is_admin"]:
         return jsonify(ok=True, by_email=True, invited=True, user_id=uid, invitation=inv, invites=oinv_list(c, oid))
-    return jsonify(ok=True, by_email=True, invites=oinv_list(c, oid))  # 2.148.1 H (#2480): no notice -- the same answer as for an existing account
+    return jsonify(ok=True, by_email=True, invites=oinv_list(c, oid))  # (#2480): no notice -- the same answer as for an existing account
 
 
 def oinv_new_account(c, oid, email, role, name, lg, by, direct, bg=True):
@@ -216,7 +216,7 @@ def oinv_new_account(c, oid, email, role, name, lg, by, direct, bg=True):
     from ..accounts.signup import _username
     name = re.sub(r"\s+", " ", str(name or "")).strip()[:60]
     username = _username(c, email)
-    uid = create_user(c, username, name or username, None, onboard=True, ask_purpose=by)  # 2.364.0 A (#3032)
+    uid = create_user(c, username, name or username, None, onboard=True, ask_purpose=by)  # (#3032)
     c.execute("UPDATE users SET email=?, oinv_made_at=now() WHERE id=?", (email, uid))  # 2.1062.0 (#5864): made by an organisation invitation
     fs = [x for x in (gsetting(c, "default_features") or USER_DEFAULTS["features"]).split(",") if x]
     uset(c, uid, "features", ",".join(fs + ([] if "agents" in fs else ["agents"])))  # like a new account of the admins
@@ -234,14 +234,14 @@ def oinv_new_account(c, oid, email, role, name, lg, by, direct, bg=True):
 
 
 def oinv_left(by):
-    """2.1424.0 (#6580, reader F7): how many tries admin `by` has left today on the day counter of POST /invites (counted over
+    """(#6580, reader F7): how many tries admin `by` has left today on the day counter of POST /invites (counted over
     every process; OINV_DAY when the count cannot be read - oinv_count still refuses at the limit)."""
     key = f"oinv:{by}"
     return max(0, OINV_DAY - int((rate_counts([key], 86400) or {}).get(key) or 0))
 
 
 def oinv_count(by, n):
-    """2.1424.0 (#6580, reader F1/F2): n invitations of admin `by` on the day counter of POST /invites ("oinv:<id>", every try
+    """(#6580, reader F1/F2): n invitations of admin `by` on the day counter of POST /invites ("oinv:<id>", every try
     counts before the address is looked up, a withdrawal gives nothing back) -> False when they do not fit: reader F7 - more
     than what is left counts nothing (the caller refuses and names the rest), else all n are counted."""
     if n > oinv_left(by):
@@ -250,7 +250,7 @@ def oinv_count(by, n):
 
 
 def oinv_by_import(c, oid, email, role, name, by):
-    """2.1424.0 (#6580): the org import invites a person of its file it found no account for (the address typed by the admin of
+    """(#6580): the org import invites a person of its file it found no account for (the address typed by the admin of
     the target organisation, checked against the file's hash by the caller) -- the normal way of POST /invites, outside a
     request: a new address becomes a new account with an invitation (oinv_new_account, never direct: the person joins by
     accepting); an address with an account the admin may not see gets what org_member_put gives it -- an ordinary invitation
@@ -435,7 +435,7 @@ def ojn_silent(c, oid, uid, role, email=None, by=None):
     mail or push; ojn_open / ojn_mine / ojn_waiting skip it). An ordinary invitation stays as it is (review F5: an expired one
     is not opened again without the person hearing of it - like a new address invited again). The caller commits.
     2.985.0 (#4922, review F1): email = the address the admin typed, kept on the row (the list shows it, never a later one of the
-    account; a deletion keeps it, ojn_neutral). Review F4: the address's neutral row gives way. 2.1424.0 (#6580): by = the
+    account; a deletion keeps it, ojn_neutral). Review F4: the address's neutral row gives way. (#6580): by = the
     inviting admin outside a request (the org import's thread)."""
     with system_ctx(c):  # the row of a person who is no member and whom the admin may not see
         email = (email or (c.execute("SELECT email FROM users WHERE id=?", (uid,)).fetchone() or [""])[0] or "").strip().lower() or None
