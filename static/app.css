@@ -6902,6 +6902,10 @@ body.cgdrag .week,body.cgdrag .cal{cursor:grabbing}
 .week.cgs-dz{--cgs-gw:3.25rem}
 .week.cgs-dz :is(.whead,.wallday,.wbody){grid-template-columns:var(--cgs-gw) repeat(var(--cols),calc((100% - var(--cgs-gw)) / var(--nf)));overflow-x:hidden}
 @media (max-width:767px){.week.cgs-dz{--cgs-gw:2.125rem}}
+/* #7388: the grid of a pinch is drawn once for a range of days; the fingers move it by --off columns (each day's cell is one
+   column wide, so -100% = one column) - the hours' gutter and the corner stay in front of the days slid under them */
+.week.cgs-dz :is(.wh,.wad,.wcol){transform:translateX(calc(var(--off,0) * -100%))}
+.week.cgs-dz :is(.whead>div:first-child,.wlbl,.wgutter){position:relative;z-index:2;background:var(--bg)}
 
 /* 2.53.0 D (#1449 #1440): reference cards in rendered text and the preview card at the pointer (refs.js) */
 .rfcard{display:inline-flex;align-items:center;gap:.25rem;max-width:min(18rem,100%);padding:0 .375rem;margin:0 .0625rem;border:1px solid var(--line2);border-radius:var(--r-s);background:var(--bg3);color:var(--text);font-size:.92em;line-height:var(--lh);vertical-align:baseline;text-decoration:none;white-space:nowrap}

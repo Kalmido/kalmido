@@ -61,8 +61,10 @@ const until = (fn, n) => require('./boot').until(fn, {timeout: n ? n * 150 : 150
   // ================= side by side: the days live, the hours stay
   await pinch(2, xOf(3), 'x', false);
   const wk = d.querySelector('#view .week');
-  check(wk.classList.contains('cgs-dz') && /^3\.9/.test(wk.style.getPropertyValue('--nf')) && cols().length === 4, 'spread sideways: live 3.9 days, 4 columns drawn (the last cut) ' + wk.style.getPropertyValue('--nf') + ' ' + cols().length);
-  check(wk.style.getPropertyValue('--h') === '44px' && cols().includes(thu), 'the hours stay, the day under the fingers stays in view');
+  // #7388: the grid of the pinch is drawn once for a range of days; the fingers move it (--off) and size its columns (--nf)
+  const vis = (k = d.querySelector('#view .week')) => { const o = +k.style.getPropertyValue('--off'); return cols().slice(o, o + Math.ceil(+k.style.getPropertyValue('--nf') - 1e-6)); };
+  check(wk.classList.contains('cgs-dz') && /^3\.9/.test(wk.style.getPropertyValue('--nf')) && vis().length === 4 && cols().length >= 14, 'spread sideways: live 3.9 days, 4 columns seen (the last cut) on the grid prepared once ' + wk.style.getPropertyValue('--nf') + ' ' + vis().length + '/' + cols().length);
+  check(wk.style.getPropertyValue('--h') === '44px' && vis().includes(thu), 'the hours stay, the day under the fingers stays in view');
   const wbl = d.querySelector('#view #wbody');
   T(wbl, 'touchend', [touch(wbl, 100, 400)]); T(wbl, 'touchend', []); await sleep(350);
   let c = cols();
@@ -118,7 +120,7 @@ const until = (fn, n) => require('./boot').until(fn, {timeout: n ? n * 150 : 150
   // ================= beyond 14 days: the month (reduced motion: no give), spread in the month: the week
   w.matchMedia = q => ({matches: /reduce/.test(q), media: q, addEventListener() {}, removeEventListener() {}});
   await pinch(.3, xOf(3), 'x', false, 400, 120);  // (fingers wide apart: an axis counts from 48 px)
-  check(cols().length === 14 && !d.querySelector('#view .week').style.transform && d.querySelector('#view .week').classList.contains('cgs-arm'), 'together: 14 days, beyond them it says "month" (reduced motion: no give) ' + cols().length + ' ' + d.querySelector('#view .week').style.transform + ' ' + d.querySelector('#view .week').className);
+  check(vis().length === 14 && !d.querySelector('#view .week').style.transform && d.querySelector('#view .week').classList.contains('cgs-arm'), 'together: 14 days, beyond them it says "month" (reduced motion: no give) ' + vis().length + ' ' + d.querySelector('#view .week').style.transform + ' ' + d.querySelector('#view .week').className);
   const wb2 = d.querySelector('#view #wbody');
   T(wb2, 'touchend', [touch(wb2, 100, 400)]); T(wb2, 'touchend', []); await sleep(350);
   check(e('S.calMode') === 'month' && !!d.querySelector('#view .cal') && !d.querySelector('#view.cgs-zo'), 'released beyond 14 days: the month, without the animation');

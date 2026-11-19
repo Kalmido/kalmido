@@ -66,13 +66,19 @@ const weekH = () => Math.round(calHourH() * uiZ());  // px per hour in the week 
 // set by spreading two fingers sideways (calgest.js), kept on the device like the hour height; the day view = 1 day
 const CAL_DMAX = 14;
 const calDaysN = () => { const v = +LS.get('calDays', 7); return Number.isInteger(v) && v >= 2 && v <= CAL_DMAX ? v : 7; };
-/** @type {{nf: number, from: string, arm?: boolean}|null} */
+/** @type {{nf: number, from: string, r0: string, rn: number, arm?: boolean}|null} */
 let CAL_LIVE = null;  // calgest.js while the fingers move: nf = the fractional count, from = the first day shown
-function calGridDays() {  // the days of the week / day grid and their (fractional) count
-  if (CAL_LIVE) return {days: [...Array(Math.ceil(CAL_LIVE.nf - 1e-6))].map((_, i) => addDays(CAL_LIVE.from, i)), nf: CAL_LIVE.nf};
-  if (S.calMode === 'day') return {days: [S.calSel], nf: 1};
-  const n = calDaysN(), from = n === 7 ? weekStartOf(S.calSel) : S.calSel;
-  return {days: [...Array(n)].map((_, i) => addDays(from, i)), nf: n};
+// #7388: while the fingers move the grid is drawn ONCE for a range of days (r0, rn days) around the shown ones; the fingers
+// only move it (--off = from - r0 columns) and size its columns (--nf), no drawing per day that comes or goes
+const calLiveOff = () => CAL_LIVE ? Math.round((pd(CAL_LIVE.from).getTime() - pd(CAL_LIVE.r0).getTime()) / 864e5) : 0;
+function calGridDays() {  // the days of the week / day grid, their (fractional) count and the days seen (vis)
+  if (CAL_LIVE) {
+    const days = [...Array(CAL_LIVE.rn)].map((_, i) => addDays(CAL_LIVE.r0, i));
+    return {days, nf: CAL_LIVE.nf, vis: [...Array(Math.ceil(CAL_LIVE.nf - 1e-6))].map((_, i) => addDays(CAL_LIVE.from, i))};
+  }
+  if (S.calMode === 'day') return {days: [S.calSel], nf: 1, vis: [S.calSel]};
+  const n = calDaysN(), from = n === 7 ? weekStartOf(S.calSel) : S.calSel, days = [...Array(n)].map((_, i) => addDays(from, i));
+  return {days, nf: n, vis: days};
 }
 const diffDays = (a, b) => Math.round((pd(b) - pd(a)) / 864e5);
 const hm = s => { const [h, m] = s.split(':').map(Number); return h * 60 + m; };
