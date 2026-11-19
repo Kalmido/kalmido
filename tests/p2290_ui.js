@@ -244,7 +244,7 @@ const V = B + 'api/v1';
         const g2 = await ev(box);
         check(g1 && g2 && g2.w === g1.w - 16 && g2.ls === JSON.stringify(`${g2.w},${g2.h}`), `${tag}: #7289 arrow right: 16 px narrower, stored ${JSON.stringify([g1, g2])}`);
         const e0 = await ev(box);  // the left edge alone: only the width
-        await o.drag(e0.x - 6, e0.y + 200, 900, 0);
+        await o.drag(e0.x - 6, e0.y + 200, Math.min(400, 1430 - e0.x), 0);  // inside the viewport, far enough for the minimum
         const g3 = await o.until(`(() => { const b = ${box}; return b && b.w < ${e0.w} ? b : null; })()`, {timeout: 5000});
         const rem = await ev(`parseFloat(getComputedStyle(document.documentElement).fontSize)`);
         check(g3 && g3.w === Math.round(18 * rem) && g3.h === e0.h, `${tag}: #7289 the left edge: narrower down to about 18 rem, the height stays ${JSON.stringify([e0, g3, rem])}`);
