@@ -10,6 +10,7 @@
 //   Download / Actions / Delete in the row below it, nothing sideways; the ZIP's sentence and Download in sight; a one-page
 //   PDF's bar in ONE row with the short page count "1 / 1" (the long one was cut to "Se"); its Full screen without a second
 //   page counter (nothing to turn)
+// - #7211 Firefox 320 px: the PDF bar still fits in its one row (Full screen inside, zoom out / in give way to the pinch), nothing sideways
 // - a Word file drawn ahead as a neighbour does not ask the server for its office preview (it loads when opened)
 // P4: alice works without an organisation (private files): the person without an organisation (freelancer-matrix: files)
 const {execFileSync} = require('child_process');
@@ -175,6 +176,19 @@ async function upload(name, data, type, parent) {
       return {h: Math.round(r.height), spread: Math.max(...tops) - Math.min(...tops), short: s && getComputedStyle(s).display !== 'none' ? s.textContent : '', long: l ? getComputedStyle(l).display : ''}; })()`);
     check(bar && bar.spread <= 3 && bar.h <= 64 && bar.short === '1 / 1' && bar.long === 'none', 'Firefox 360: the PDF bar in one row with "1 / 1" (no "Se") ' + JSON.stringify(bar));
     await shot('p21213b-pdf-360.png');
+    // #7211: at 320 px (a folded foldable) the bar still fits in its one row: every button inside it, Full screen in sight and
+    // working (zoom out / in and the percentage give way, a pinch zooms), nothing sideways
+    await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: 320, height: 680}});
+    const n320 = `(() => { const b = document.querySelector('.dv-view .dv-pvbar'); if (!b || innerWidth !== 320) return null; const r = b.getBoundingClientRect(), kids = [...b.children].filter(e => e.getBoundingClientRect().width > 0 && getComputedStyle(e).display !== 'none'), v = document.querySelector('.dv-view');
+      return {bw: Math.round(r.width), sw: b.scrollWidth, cw: b.clientWidth, out: kids.filter(e => e.getBoundingClientRect().right > r.right + 1).map(e => e.dataset.dc || e.className), full: kids.some(e => e.dataset.dc === 'view'), zoom: kids.some(e => /^dvz:(in|out)$/.test(e.dataset.dc || '')),
+        spread: Math.max(...kids.map((e => Math.round(e.getBoundingClientRect().top + e.getBoundingClientRect().height / 2)))) - Math.min(...kids.map((e => Math.round(e.getBoundingClientRect().top + e.getBoundingClientRect().height / 2)))), page: document.documentElement.scrollWidth, vsw: v.scrollWidth, vcw: v.clientWidth}; })()`;
+    await wait(`(${n320}) !== null`);
+    const b320 = await ev(n320);
+    check(b320 && b320.sw <= b320.cw + 1 && !b320.out.length && b320.full && !b320.zoom && b320.spread <= 3, '#7211 Firefox 320: the PDF bar fits in one row, Full screen inside it, the zoom buttons give way ' + JSON.stringify(b320));
+    check(b320 && b320.page <= 320 && b320.vsw <= b320.vcw + 1, '#7211 Firefox 320: the page does not scroll sideways ' + JSON.stringify(b320));
+    await shot('p21213b-pdf-320.png');
+    await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: 360, height: 740}});
+    await wait(`innerWidth === 360`);
     // its Full screen: one page has nothing to turn - the documents' counter only, no page counter under it
     await ev(`(document.querySelector('.dv-view .dv-pv [data-dc="view"]').click(), 1)`);
     check(await wait(`!!document.querySelector('.lightbox.pview .pvpage canvas')`, 80), 'Firefox 360: Full screen of the PDF opens, its page drawn');
