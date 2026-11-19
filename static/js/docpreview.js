@@ -64,6 +64,7 @@ async function dpvOpen(o) {
     <div class="tvbody dpvbody" tabindex="-1"><div class="tvmsg muted">${tr('Loading…')}</div></div>
     <div class="dpvfoot" hidden></div></div>`;
   const body = $('.dpvbody', m), tabs = $('.dpvtabs', m);
+  if (typeof tv_grip === 'function') tv_grip(m, 'pv-doc', 60);  // #7310 (attachments.js)
   const close = () => { gone = true; m.remove(); if (back?.isConnected) back.focus?.(); };
   const fail = msg => {
     body.innerHTML = `<div class="pvfail dpvfail">${ic('file')}<p>${esc(msg)}</p><a class="btn pri" href="${esc(o.dlUrl || '')}" download="${esc(o.name || '')}">${ic('download')} ${esc(tr('Download'))}</a></div>`;
