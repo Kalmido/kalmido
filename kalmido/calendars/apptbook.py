@@ -32,6 +32,7 @@ from ..accounts.session import _rate_blocked, _rate_fail, _token_hash, rate_ip
 from ..accounts.bgjobs import bgj_add, bgj_fn
 from ..core.errors import BadInput
 from ..core.conflict import ccf_check  # 2.564.0 D (#4701)
+from .subscriptions import CAL_ON, cal_stale  # 2.1423.0 (#6551)
 from ..core.mailframe import mail_html
 from ..tasks.validation import as_int, valid_date, valid_hm
 from ..api.common import hit_limit  # 2.149.0 G (#2517): pulled up from functions
@@ -194,7 +195,6 @@ def apb_page_out(c, uid, p):
          "url": apb_url(p["slug"]), "updated_at": p["updated_at"]} if p else \
         {"slug": apb_slug_suggest(c, uid), "enabled": False, "title": "", "intro": "", "cal_id": None, "office_org_id": None,
          "hours": DEFAULT_HOURS, "tz": getattr(TZ, "key", ""), "url": None}
-    from .subscriptions import CAL_ON, cal_stale
     # 2.1423.0 (#6551): subscriptions out of date whose events still block times here (visible ones, like apb_busy)
     stale = [{"name": r["name"], "synced_at": r["synced_at"]} for r in c.execute(
         "SELECT name, status, synced_at, created_at FROM cal_subs WHERE user_id=? AND visible ORDER BY id", (uid,)) if cal_stale(r)] if CAL_ON else []
