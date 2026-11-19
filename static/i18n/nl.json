@@ -19504,6 +19504,7 @@
   "Larger": "Groter",
   "Smaller": "Kleiner",
   "Default size": "Standaardgrootte",
+  "the e-mail server cannot be reached": "de mailserver is niet bereikbaar",
   "The workspace could not be switched: {0} is shown again": "De werkruimte kon niet worden gewisseld: {0} wordt weer getoond",
   "You are no longer a member of {0}: all workspaces are shown": "Je bent geen lid meer van {0}: alle werkruimtes worden getoond",
   "Which workspace? The office always belongs to a workspace.": "Voor welke werkruimte? Het kantoor hoort altijd bij een werkruimte.",
