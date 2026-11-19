@@ -97,8 +97,11 @@ function cgs_pzStart(area, x, y, src) {
     const {days, nf} = calGridDays(), cols = $$('#view .week:not(.cgs-nbg) .wcol'), c0 = cols[0]?.getBoundingClientRect(), c1 = cols[cols.length - 1]?.getBoundingClientRect();
     const cl = c0 ? c0.left : r.left, cw = Math.max(1, (c1 ? c1.right : r.right) - cl);
     const anchor = addDays(days[0], Math.min(days.length - 1, Math.floor(Math.max(0, Math.min(.999, (x - cl) / cw)) * nf)));
+    const wr = week.getBoundingClientRect();  // #7388: the grid's box once (no layout read per frame after the style writes)
     CGS.pz = {week, wb, src, H0, H: H0, k: 1, kx: 1, ky: 1, x, y, top: r.top, min: (wb.scrollTop + Math.max(0, Math.min(r.height, y - r.top))) / H0 * 60,
-      n0: nf, nf, cl, cw, anchor, from: days[0]};
+      n0: nf, nf, cl, cw, anchor, from: days[0], wl: wr.left, wt: wr.top, ad: /** @type {HTMLElement|null} */ (week.querySelector('.wallday'))?.offsetHeight || 0};
+    // #7388: two fingers: the grid of the days they can reach is drawn now, once, before they move (not mid-gesture)
+    if (src === 'touch') cgs_prep(CGS.pz, nf, days[0]);
   } else {
     const box = /** @type {HTMLElement} */ (area), r = box.getBoundingClientRect();
     box.style.transformOrigin = `${Math.round(x - r.left)}px ${Math.round(y - r.top)}px`;
@@ -106,18 +109,47 @@ function cgs_pzStart(area, x, y, src) {
     CGS.pz = {box, src, k: 1, x, y};
   }
 }
+// #7388: the day of a date string as a number (whole days between two dates)
+const cgs_dd = (a, b) => Math.round((pd(b).getTime() - pd(a).getTime()) / 864e5);
+// #7388: the grid for a pinch, drawn ONCE: the range of days the fingers can reach from here (up to CAL_DMAX days on the side
+// the fingers stand, the shown ones included); the fingers then only move it (--off) and size its columns (--nf). Drawn anew
+// only when they reach beyond the range (the fingers wandered far sideways). The all-day row keeps its height (a day of the
+// range with more all-day entries would push the hours down)
+function cgs_prep(p, nf, from) {
+  const fr = Math.max(0, Math.min(.999, (p.x - p.cl) / p.cw)), last = addDays(from, Math.ceil(nf - 1e-6) - 1);
+  let r0 = addDays(p.anchor, -Math.min(CAL_DMAX - 1, Math.ceil(fr * CAL_DMAX) + 1));
+  if (cgs_dd(r0, from) < 0) r0 = addDays(from, -2);
+  let r1 = addDays(r0, CAL_DMAX + 1);
+  if (cgs_dd(last, r1) < 0) r1 = addDays(last, 2);
+  CAL_LIVE = {nf, from, r0, rn: cgs_dd(r0, r1) + 1, arm: !!p.next};
+  p.vis = '';
+  renderView();
+  if (!cgs_rehook(p)) return false;
+  cgs_days(p);
+  return true;
+}
+// #7388: the days seen follow the fingers without drawing: the columns' width (--nf) and the range's shift (--off); the title
+// names the days seen
+function cgs_days(p) {
+  const L = CAL_LIVE; if (!L || !p.week) return;
+  p.week.style.setProperty('--nf', String(L.nf)); p.week.style.setProperty('--off', String(calLiveOff()));
+  const vis = `${L.from}|${Math.ceil(L.nf - 1e-6)}`;
+  if (vis !== p.vis) { p.vis = vis; const h = $('#view > .calbar h2'); if (h) h.textContent = calWeekTitle(calGridDays().vis); }
+}
 const cgs_pzDraw = rafThrottle(() => {
   const p = CGS.pz; if (!p) return;
   if (p.week) {
     if (!p.week.isConnected && !cgs_rehook(p)) { cgs_pzEnd(); return; }  // drawn anew meanwhile (a live update): the session goes on in the new grid
     const z = uiZ(), want = p.H0 * p.ky, H = Math.max(CAL_HMIN * z, Math.min(CAL_HMAX * z, want)), over = want / H;
-    // 2.290.0 A (#3144): the days without steps: the columns are 1/nf wide (calview.js), drawn anew only when a day comes / goes
+    // 2.290.0 A (#3144): the days without steps: the columns are 1/nf wide (calview.js). #7388: on the grid prepared once
+    // (cgs_prep), never drawn anew while a day comes or goes
     const wantN = p.n0 / p.kx, nf = Math.max(1, Math.min(CAL_DMAX, wantN)), overD = wantN / nf;
-    if (CAL_LIVE || Math.abs(nf - p.n0) > .05) {
-      const from = cgs_from(p, nf), redraw = !CAL_LIVE || CAL_LIVE.from !== from || Math.ceil(CAL_LIVE.nf - 1e-6) !== Math.ceil(nf - 1e-6);
-      CAL_LIVE = {nf, from}; p.nf = nf; p.from = from;
-      if (redraw) { renderView(); if (!cgs_rehook(p)) { cgs_pzEnd(); return; } }
-      else { p.week.classList.toggle('cgs-dz', nf !== Math.ceil(nf - 1e-6)); p.week.style.setProperty('--nf', String(nf)); }
+    if (p.dz || Math.abs(nf - p.n0) > .05) {  // the days change only once the fingers left the dead zone (p.dz: since then)
+      p.dz = true;
+      const from = cgs_from(p, nf), last = addDays(from, Math.ceil(nf - 1e-6) - 1);
+      p.nf = nf; p.from = from;
+      if (!CAL_LIVE || cgs_dd(CAL_LIVE.r0, from) < 0 || cgs_dd(last, addDays(CAL_LIVE.r0, CAL_LIVE.rn - 1)) < 0) { if (!cgs_prep(p, nf, from)) { cgs_pzEnd(); return; } }
+      else { CAL_LIVE.nf = nf; CAL_LIVE.from = from; cgs_days(p); }
     }
     p.H = H;
     p.week.style.setProperty('--h', H + 'px');
@@ -126,7 +158,7 @@ const cgs_pzDraw = rafThrottle(() => {
     // only beyond 14 days (or, without a direction, below the lowest hour height): the month; never the day / week by the hours
     p.next = overD >= CGS_STEP || (p.src !== 'touch' && over <= 1 / CGS_STEP) ? -1 : 0;
     const sc = (1 + (Math.max(.8, Math.min(1.25, over)) - 1) * .25) * (1 - (Math.min(1.25, overD) - 1) * .25);
-    p.week.style.transformOrigin = `${Math.round(p.x - p.week.getBoundingClientRect().left)}px ${Math.round(p.y - p.week.getBoundingClientRect().top)}px`;
+    p.week.style.transformOrigin = `${Math.round(p.x - p.wl)}px ${Math.round(p.y - p.wt)}px`;
     p.week.style.transform = sc === 1 || cgs_still() ? '' : `scale(${sc})`;
     p.week.classList.toggle('cgs-arm', !!p.next);
     if (CAL_LIVE) CAL_LIVE.arm = !!p.next;  // (a grid drawn anew meanwhile, e.g. by the repeats arriving, keeps saying so)
@@ -144,6 +176,9 @@ function cgs_rehook(p) {
   p.week = week; p.wb = wb;
   cgs_hang(wb, p.H0);
   week.style.setProperty('--h', p.H + 'px');
+  const ad = /** @type {HTMLElement|null} */ (week.querySelector('.wallday'));  // #7388: the hours stay where they were
+  if (ad && p.ad && CAL_LIVE) { ad.style.height = p.ad + 'px'; ad.style.overflow = 'hidden'; }
+  if (CAL_LIVE) cgs_days(p);
   return true;
 }
 // 2.290.0 A (#3144): whole days on release: 1 = the day view, 7 = the week of the day under the fingers, else n days from
@@ -160,6 +195,8 @@ function cgs_pzEnd() {
   CGS.pz = null;
   clearTimeout(p.idle);
   const live = !!CAL_LIVE; CAL_LIVE = null;
+  // #7388: what waited for the fingers (the events fetched, a live update: cgs_held / lpHold) is drawn now, once
+  const held = CGS.redraw || !!S.viewStale; CGS.redraw = false;
   // 2.290.0 A (#3144): the week grid only goes to the month (with the day under the fingers)
   const to = p.next ? p.week ? {mode: 'month', day: p.anchor} : cgs_next(p.next, p.x, p.y) : null;
   if (to) { cgs_go(to.mode, to.day, p.next, p.x, p.y); return; }
@@ -167,10 +204,11 @@ function cgs_pzEnd() {
     p.week.style.transform = ''; p.week.classList.remove('cgs-arm');
     const v = Math.round(p.H / uiZ());
     if (v !== calHourH()) LS.set('calHourH', v);
-    if (live) cgs_setDays(p);
-    if (p.week.isConnected || live) renderView();  // the blocks get their px again (the scroll position is kept)
+    if (live && p.dz) cgs_setDays(p);  // #7388: only when the days changed (a pinch up / down keeps them)
+    if (p.week.isConnected || live) { S.viewStale = false; renderView(); }  // the blocks get their px again (the scroll position is kept)
     return;
   }
+  if (held && !cgs_leafing()) { S.viewStale = false; renderView(); return; }
   p.box.classList.remove('cgs-arm');
   p.box.style.transition = 'transform .18s ease-out'; p.box.style.transform = '';
   setTimeout(() => { p.box.style.transition = ''; p.box.style.transformOrigin = ''; }, 200);
@@ -198,6 +236,7 @@ document.addEventListener('touchstart', e => {
     if (!a || a !== b || CG.st?.active || lp?.active || document.body.classList.contains('cgdrag') || document.body.classList.contains('tdrag')) return;
     cgs_dropHolds();
     const [p, q] = [e.touches[0], e.touches[1]];
+    cgs_follow([p.target, q.target]);
     cgs_pzStart(a, (p.clientX + q.clientX) / 2, (p.clientY + q.clientY) / 2, 'touch');
     CGS.pz.d0 = Math.max(1, Math.hypot(p.clientX - q.clientX, p.clientY - q.clientY));
     CGS.pz.dx0 = Math.max(CGS_AX, Math.abs(p.clientX - q.clientX)); CGS.pz.dy0 = Math.max(CGS_AX, Math.abs(p.clientY - q.clientY));  // 2.290.0 A (#3144)
@@ -205,7 +244,25 @@ document.addEventListener('touchstart', e => {
   }
   CGS.hold = false;  // one finger: the leafing (swipenav.js, attached below) decides
 }, {passive: true});
-document.addEventListener('touchmove', e => {
+// #7388 (the cause measured): a touch keeps the element it began on; once the grid is drawn anew (innerHTML) that element is
+// out of the page and the browser sends the finger's touchmove / touchend only to it - never to the document. Measured on main
+// (tests/p7388_calpinch_ui.js): the pinch froze right after the first day that came or went (7.1 days) and did not end with the
+// fingers (each pinch one step). Now nothing is drawn under the fingers (cgs_prep once at the start), and the fingers'
+// elements pass their events on while they are out of the page (in the page the document's listeners take them)
+let CGS_TGT = /** @type {EventTarget[]} */ ([]);
+/** @param {Event} e */
+function cgs_fwd(e) {
+  if (cgs_el(e.target)?.isConnected) return;
+  if (e.type === 'touchmove') cgs_touchMove(/** @type {TouchEvent} */ (e)); else { cgs_touchEnd(e); cgs_lift(); }
+}
+/** @param {(EventTarget|null)[]} ts */
+function cgs_follow(ts) {
+  for (const t of CGS_TGT) for (const ev of ['touchmove', 'touchend', 'touchcancel']) t.removeEventListener(ev, cgs_fwd);
+  CGS_TGT = [...new Set(ts.filter(t => !!t && typeof t.addEventListener === 'function'))];
+  for (const t of CGS_TGT) for (const ev of ['touchmove', 'touchend', 'touchcancel']) t.addEventListener(ev, cgs_fwd, {passive: ev !== 'touchmove'});
+}
+/** @param {any} e */
+function cgs_touchMove(e) {
   const p = CGS.pz;
   if (p?.src === 'touch') {
     if (e.touches.length < 2) return;
@@ -217,9 +274,11 @@ document.addEventListener('touchmove', e => {
     p.x = (a.clientX + b.clientX) / 2; p.y = (a.clientY + b.clientY) / 2;
     cgs_pzDraw();
   }
-}, {passive: false});
+}
+document.addEventListener('touchmove', cgs_touchMove, {passive: false});
 const cgs_dead = k => k > CGS_DEAD ? k / CGS_DEAD : k < 1 / CGS_DEAD ? k * CGS_DEAD : 1;
 function cgs_touchEnd(e) {
+  if (!e.touches?.length && CGS_TGT.length) cgs_follow([]);  // every finger lifted
   if (CGS.pz?.src === 'touch') {
     if (e.touches.length >= 2) return;
     CGS.hold = e.touches.length > 0;
@@ -286,7 +345,7 @@ if (typeof swn_attach === 'function') {
 // a finger that leafs (from the swipe's lock to the end of its snap): the calendar's own redraws (calendar.js: the events, the
 // repeating tasks fetched) and the live ones (liveparts.js lpHold) wait - a grid drawn anew took the moving grid and its
 // placeholder away mid-swipe - and are drawn once the snap / the spring back is over
-const cgs_leafing = () => !!CGS.fing || !!CGS.sw?.snapping();
+const cgs_leafing = () => !!CGS.fing || !!CGS.sw?.snapping() || !!CGS.pz;  // #7388: + two fingers pinching (no grid drawn under them)
 function cgs_held() { if (!cgs_leafing()) return false; CGS.redraw = true; return true; }
 function cgs_after() {
   setTimeout(() => {
