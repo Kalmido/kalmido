@@ -57,6 +57,7 @@ from ..accounts.orgroles import org_limited, org_role_key, need_org_write  # 2.3
 from ..tasks.attachments import safe_name, unexec_name, need_attachment  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.orgretain import odl_custodian  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.orgs import is_org_admin  # 2.369.5 (#2517): pulled up from functions
+from ..accounts.supportgrant import sga_is_support  # 2.1412.0 (#7140)
 from ..lists.projects import need_list_file  # 2.369.5 (#2517): pulled up from functions
 
 
@@ -800,14 +801,34 @@ def fs_version_row(c, nid, version=None):
                      (nid,)).fetchone()
 
 
-def fs_read(c, nid, version=None):
+# 2.1397.0 (#6320): a filed mail's original .eml carries the account's secret filing address in its headers: closed to a
+# support session. 2.1412.0 (#7140, review of job/5474 F1): checked here in fs_read, the one reader every route, export
+# and ZIP goes through (was only in files/web.py _send and files/bulk.py, the wiki export read it); the filed mail's own
+# view (hub/mailview.py) reads with eml_ok - it shows the mail with the address blacked out, not the file.
+FS_EML_REFUSED = N_("A support session does not open the original e-mail file: the client does that")
+
+
+def fs_eml_refused(c, nid):
+    """Denied 403 code support_session when a support session would read node nid and it is the .eml of a filed mail."""
+    if not nid or not sga_is_support(c):
+        return
+    with system_ctx(c):  # only whether the node is a mail's original: structure, no content
+        hit = c.execute("SELECT 1 FROM hub_mails WHERE eml_id=? LIMIT 1", (int(nid),)).fetchone()
+    if hit:
+        raise Denied(403, tr(FS_EML_REFUSED), data={"code": "support_session"})
+
+
+def fs_read(c, nid, version=None, eml_ok=False):
     """The plain bytes of file nid (version: that number, default the current one; a link: its original). No rights check
-    (need_node first). Raises Denied(404) when there is no content."""
+    (need_node first). Raises Denied(404) when there is no content; 2.1412.0 (#7140): Denied(403) for a support session and
+    a filed mail's .eml (fs_eml_refused) unless eml_ok."""
+    if not eml_ok:
+        fs_eml_refused(c, nid)
     n = c.execute("SELECT * FROM fs_nodes WHERE id=?", (nid,)).fetchone()
     if not n:
         raise Denied(404)
     if n["kind"] == "link":
-        t = fs_link_target(c, dict(n))
+        t = fs_link_target(c, dict(n))  # (a link points at an attachment, never at a filed mail's .eml)
         return oc_read_file(c, os.path.join(ATT_DIR, t["path"]))
     v = fs_version_row(c, nid, version)
     if not v:

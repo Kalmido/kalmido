@@ -70,6 +70,7 @@ from ..core.db import now_iso as _now  # noqa: E402  2.149.0 G (#2517): was an o
 from ..team.clients import client_rows  # 2.369.5 (#2517): pulled up from functions
 from ..files.web import _send  # 2.369.5 (#2517): pulled up from functions
 from ..files.store import ROLE_RANK, _free_name, fs_folder, fs_role, fs_put  # 2.369.5 (#2517): pulled up from functions
+from ..files.store import FS_EML_REFUSED, fs_eml_refused  # 2.1412.0 (#7140)
 from ..tasks.attachments import unexec_name  # 2.369.5 (#2517): pulled up from functions
 from ..files.upsafe import UploadRefused, up_marks  # 2.369.5 (#2517): pulled up from functions
 from ..collab.liste2eguard import le2b_off  # 2.369.5 (#2517): pulled up from functions
@@ -283,7 +284,7 @@ def _client_addr_write(c, kind, uid, org_id):
 
 # 2.1397.0 (#6320, review #4788 (3)): a filed mail names the account's secret filing address among its recipients (to_addrs) and
 # its original .eml carries it in the headers: for a support session the address is blacked out and the .eml refused
-HBM_EML_REFUSED = N_("A support session does not open the original e-mail file: the client does that")
+HBM_EML_REFUSED = FS_EML_REFUSED  # 2.1412.0 (#7140): files/store.py
 HBM_TOKEN_MASK = "…"
 
 
@@ -297,14 +298,7 @@ def hbm_mask_tokens(c, v):
     return [rx.sub(HBM_TOKEN_MASK, x) if isinstance(x, str) else x for x in v] if isinstance(v, list) else rx.sub(HBM_TOKEN_MASK, str(v))
 
 
-def hbm_eml_refused(c, nid):
-    """Denied 403 code support_session when a support session would read node nid and it is the .eml of a filed mail."""
-    if not nid or not sga_is_support(c):
-        return
-    with system_ctx(c):  # only whether the node is a mail's original: structure, no content
-        hit = c.execute("SELECT 1 FROM hub_mails WHERE eml_id=? LIMIT 1", (int(nid),)).fetchone()
-    if hit:
-        raise Denied(403, tr(HBM_EML_REFUSED), data={"code": "support_session"})
+hbm_eml_refused = fs_eml_refused  # 2.1412.0 (#7140): moved to files/store.py (fs_read checks it for every reader)
 
 
 def _address_of(c, kind, uid, org_id, cid, lid):
