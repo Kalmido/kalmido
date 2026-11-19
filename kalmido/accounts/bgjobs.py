@@ -83,6 +83,7 @@ _TOKEN = f"{os.getpid()}-{os.urandom(3).hex()}"  # the process in started_by (nu
 
 BGJ_NO_GATE = set()  # 2.370.2 (#2779): kinds of bgj_fn(gate=False)
 BGJ_LONG = set()     # 2.370.3 (#2760): kinds of bgj_fn(long=True)
+BGJ_FREE = set()     # 2.1413.0 (#6951, reader F4): kinds of bgj_fn(free=True) - never strict
 _CUR = threading.local()  # 2.370.3 (#2760): the row the current thread runs (bgj_current)
 
 
@@ -92,12 +93,13 @@ def _now():
     return datetime.now(timezone.utc)
 
 
-def bgj_fn(kind, tries=BGJ_TRIES, gate=True, long=False, retry=None, max_age=None):
+def bgj_fn(kind, tries=BGJ_TRIES, gate=True, long=False, retry=None, max_age=None, free=False):
     """Registers the function of a kind (decorator); it gets the arguments bgj_add was given. tries: runs at most (1 for
     work that must not happen twice, e.g. a mail: a lost run is then failed, not repeated). gate: see the top. long: an
     export / import (2.370.3, #2760): its own slots, never in the way of the short rows. (#6388): retry = runs at
     most when the function raises (None: the prefix's in BGJ_PREFIX, else tries), max_age = s a row may wait (None: the
-    prefix's, else no limit)."""
+    prefix's, else no limit). free (2.1413.0, #6951 reader F4): its rows never run strict - a record the lock must not
+    swallow (the support access log of a moving organisation)."""
     pre = next((v for k, v in BGJ_PREFIX.items() if kind.startswith(k)), None)
 
     def deco(fn):
@@ -111,6 +113,8 @@ def bgj_fn(kind, tries=BGJ_TRIES, gate=True, long=False, retry=None, max_age=Non
             BGJ_NO_GATE.add(kind)
         if long:
             BGJ_LONG.add(kind)
+        if free:
+            BGJ_FREE.add(kind)
         return fn
     return deco
 
@@ -181,7 +185,7 @@ def bgj_add(kind, *args, org_id=None, user_id=None, delay=0.0, once=False, lock=
     nothing runs. progress: the row's first progress (dict, bgj_state)."""
     if kind not in BGJ_FNS:
         raise KeyError(kind)
-    strict = mv_strict_now()  # 2.1413.0 (#6951): asked before the queue's own connection (system context) is open
+    strict = kind not in BGJ_FREE and mv_strict_now()  # 2.1413.0 (#6951): asked before the queue's own connection (system context) is open
     c = None
     refused = []
     try:
