@@ -57,7 +57,8 @@ const lastModal = d => [...d.querySelectorAll('.modal')].pop();
   const sent = await until(() => w.eval('window.__sent'));
   const want = {display_name: 'Robo', note: '', provider: '', proposals: 'shared', webhook_url: '', limits: null,
     // 2.997.0 (#5678): the runtime part also carries the model per run (#5668 / #5684) with its defaults (off, no models)
-    runtime: {model: '', model_split: false, model_decide: '', model_routine: '', model_review: '', autocompact: true, autocompact_pct: null, nightly_reset: '', permission_mode: ''},
+    // #7368: + the effort beside each model field (empty = the agent's default)
+    runtime: {model: '', effort: '', model_split: false, model_decide: '', model_routine: '', model_review: '', effort_decide: '', effort_routine: '', effort_review: '', autocompact: true, autocompact_pct: null, nightly_reset: '', permission_mode: ''},
     scopes: ['read', 'tasks:write', 'comments', 'files:read', 'files:write'], allowed_ips: '', owner_id: null, org_id: org.id, username: 'robo'};
   const norm = o => JSON.stringify(Object.keys(o || {}).sort().reduce((a, k) => ({...a, [k]: o[k]}), {}));
   check(norm(sent) === norm(want), 'sent exactly as before ' + norm(sent));

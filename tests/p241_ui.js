@@ -79,8 +79,10 @@ async function firefox(fn) {
   w.eval(`agModal(${JSON.stringify(await adm(ag.id))}, null)`);
   let md = await until(() => d.querySelector('#ag-model')?.closest('.modal'));
   check(md && /Runtime/.test(md.querySelector('#ag-rt-h')?.textContent || ''), 'agent dialog: section Runtime');
-  check([...d.querySelectorAll('#ag-models option')].map(o => o.value).join() === 'opus,sonnet,haiku' && md.querySelector('#ag-model').getAttribute('list') === 'ag-models', 'model suggestions opus, sonnet, haiku');
-  check(md.querySelector('#ag-model').value === '' && /Agent default/.test(md.querySelector('#ag-model').placeholder), 'model empty = agent default');
+  // #7368: a real choice (the shared list with Fable) instead of a text field with suggestions; the free field only with "Other …"
+  check([...md.querySelectorAll('#ag-model-sel option')].map(o => o.value).join() === ',fable,opus,sonnet,haiku,__other' && !md.querySelector('datalist'), 'model choice: default, fable, opus, sonnet, haiku, other');
+  check(md.querySelector('#ag-model').value === '' && md.querySelector('#ag-model').hidden && md.querySelector('#ag-model-sel').value === ''
+    && /Agent default/.test(md.querySelector('#ag-model-sel').selectedOptions[0].textContent), 'model empty = agent default, no free field');
   check(md.querySelector('#ag-ac').checked && !md.querySelector('#ag-acp').disabled && md.querySelector('#ag-acp').value === '', 'auto-compact on, no percentage');
   check(md.querySelector('#ag-nr')?.type === 'hidden' && md.querySelector('[data-dpfor="ag-nr"]') && !md.querySelector('input[type="time"],input[type="date"]'), 'nightly restart: own time picker, no native input');
   check(/Off/.test(md.querySelector('[data-dpfor="ag-nr"]').textContent), 'nightly restart: Off');
@@ -91,7 +93,7 @@ async function firefox(fn) {
   md.querySelector('#ag-acp').value = '5';
   click(w, md.querySelector('[data-m="ok"]')); await idle(w);
   check(d.querySelector('#ag-model') && !md.querySelector('#ag-err').hidden && /10 to 100/.test(md.querySelector('#ag-err').textContent), 'percentage 5: refused in the dialog');
-  md.querySelector('#ag-model').value = 'sonnet'; md.querySelector('#ag-acp').value = '70';
+  change(w, md.querySelector('#ag-model-sel'), 'sonnet'); md.querySelector('#ag-acp').value = '70';
   w.eval(`dpSet(document.querySelector('#ag-nr'), '04:00')`);
   click(w, md.querySelector('[data-m="ok"]'));
   await until(() => !d.querySelector('#ag-model'));
@@ -105,12 +107,13 @@ async function firefox(fn) {
     rotate_size: 'medium', rotate_runs: 60, rotate_idle_min: 45, rotate_mb: 0.8, rotate_tokens: 150000, rotate_idle_mb: 0.4,
     git_author: 'Kalmido <noreply@kalmido.com>', git_author_name: '', git_author_email: '', git_coauthor: false, dispatch: '',
     model_split: false, model_decide: '', model_routine: '', model_review: '',
-    model_job: '', effort_job: '', model_audit: '', effort_audit: ''}), 'saved: ' + JSON.stringify(a.runtime));
+    model_job: '', effort_job: '', model_audit: '', effort_audit: '',
+    effort: '', effort_decide: '', effort_review: '', effort_routine: ''}), 'saved: ' + JSON.stringify(a.runtime));  // #7368: + the effort per kind of run
   check((await v1(ag.token, 'GET', '/agent')).runtime?.model === 'sonnet', 'the agent reads it');
   // reopen: values shown, Reset now
   w.eval(`agModal(${JSON.stringify(a)}, null)`);
   md = await until(() => d.querySelector('#ag-model')?.closest('.modal'));
-  check(md.querySelector('#ag-model').value === 'sonnet' && md.querySelector('#ag-acp').value === '70' && md.querySelector('#ag-nr').value === '04:00', 'reopened: the values');
+  check(md.querySelector('#ag-model').value === 'sonnet' && md.querySelector('#ag-model-sel').value === 'sonnet' && md.querySelector('#ag-acp').value === '70' && md.querySelector('#ag-nr').value === '04:00', 'reopened: the values');
   let asked = ''; w.confirm = m => { asked = m; return true; };
   click(w, md.querySelector('[data-m="reset"]')); await idle(w);
   check(/Reset Claude now\?/.test(asked) && (await adm(ag.id)).runtime.reset_seq === 1, 'Reset now after a confirm: reset_seq 1');
@@ -248,7 +251,7 @@ async function firefox(fn) {
       await ev(`document.querySelector('#ag-rt-h').scrollIntoView()`); await sleep(200);
       const m1 = await fit('.modal .card');
       check(good(m1, false), `${W}px: agent dialog with Runtime fits ${JSON.stringify(m1)}`);
-      const rows = await ev(`(() => { const md = document.querySelector('#ag-model').closest('.card').getBoundingClientRect(); return ['#ag-model', '#ag-acp', '[data-dpfor="ag-nr"]', '[data-m="reset"]'].map(s => { const r = document.querySelector(s).getBoundingClientRect(); return r.left >= md.left - 1 && r.right <= md.right + 1 && r.width > 20; }); })()`);
+      const rows = await ev(`(() => { const md = document.querySelector('#ag-model').closest('.card').getBoundingClientRect(); return ['#ag-model-sel', '#ag-meff', '#ag-acp', '[data-dpfor="ag-nr"]', '[data-m="reset"]'].map(s => { const r = document.querySelector(s).getBoundingClientRect(); return r.left >= md.left - 1 && r.right <= md.right + 1 && r.width > 20; }); })()`);
       check(rows.every(Boolean), `${W}px: runtime fields inside the dialog ${JSON.stringify(rows)}`);
       await shot(`p241-runtime-${W}.png`);
       await ev(`document.querySelector('.modal [data-m="close"]').click()`); await sleep(300);

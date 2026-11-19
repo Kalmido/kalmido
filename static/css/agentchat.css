@@ -574,3 +574,9 @@ body.kb-open .acsug-l{max-height:min(30vh,9rem)}
 .agmu .agmuk{font-weight:600}
 /* 2.1313.0 (#6557): a message sent through the upload token (via upload token) */
 .cmeta .cvia{color:var(--muted);font-size:var(--fs-xs);padding:0 .25rem}
+/* #7368: a model field = the choice + the free field for "Other …" (agentrotate.js agms_html), and its effort beside it (agme_html) */
+.agmsw{display:flex;flex-wrap:wrap;align-items:center;gap:.375rem .625rem;flex:1;min-width:0}
+.agms{display:flex;flex-wrap:wrap;gap:.375rem;flex:1 1 12rem;min-width:0}
+.modal .row .agms select,.modal .row .agms input{flex:1 1 8rem;min-width:0}
+.agme{display:inline-flex;align-items:center;gap:.375rem;flex:0 1 auto}
+.modal .row .agme select{flex:0 1 auto}
