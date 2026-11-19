@@ -5152,7 +5152,7 @@ a.nitem.ndm{text-decoration:none;color:inherit}
 
 /* ---------- 2.30.0 (#1035 #380): text file viewer (Markdown / source), Markdown tables, quotes, rules ---------- */
 .lightbox.tview{padding:2rem}
-.tvbox{display:flex;flex-direction:column;width:min(56rem,100%);max-height:100%;background:var(--bg2);color:var(--text);border-radius:var(--r-l);box-shadow:var(--shadow);overflow:hidden}
+.tvbox{position:relative;display:flex;flex-direction:column;width:min(var(--g-pv-text-w,56rem),100%);max-height:100%;background:var(--bg2);color:var(--text);border-radius:var(--r-l);box-shadow:var(--shadow);overflow:hidden}
 .tvbar{display:flex;align-items:center;gap:.375rem;padding:.5rem .5rem .5rem 1rem;border-bottom:1px solid var(--line);flex:none}
 .tvname{display:flex;flex-direction:column;min-width:0;flex:0 1 auto}
 .tvname b{font-size:var(--fs-b);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -5168,6 +5168,7 @@ a.nitem.ndm{text-decoration:none;color:inherit}
 @media (max-width:767px){
   .lightbox.tview{padding:0}
   .tvbox{width:100%;max-height:none;height:100%;border-radius:0;padding-top:var(--safe-t)}
+  .tvbox > .grip-c{display:none}  /* #7310: phones keep the full-screen window */
   .tvbar{flex-wrap:wrap;padding:.375rem .375rem .375rem .875rem}
   .tvbar .iconbtn{padding:.625rem}
   .tvseg{order:9;margin:0 0 .25rem}
