@@ -522,8 +522,12 @@ def sga_log_write(c, gids, sup, e, now, op=None, wait="2s"):
                 x = c.execute("SELECT created_by FROM user_invites WHERE user_id=? AND kind='login' AND grant_id IS NOT NULL "
                               "ORDER BY created_at DESC LIMIT 1", (int(sup),)).fetchone()
                 op = x[0] if x else None
-            if first and op:
-                pushes += sga_tell(c, row, "start", op)
+            if first and op:  # #6977 F3: the entry has priority -- a failing bell (News, push) never takes it along
+                try:
+                    with c.savepoint():
+                        pushes += sga_tell(c, row, "start", op)
+                except Exception as x:  # noqa: BLE001
+                    print("support access log: bell of the first use failed:", type(x).__name__, flush=True)
     return pushes
 
 

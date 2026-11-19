@@ -16,7 +16,7 @@ From 2.143.0 on an unknown stored role reads as guest (restrictive), never as me
 from flask import g, has_request_context, request
 
 from ..core.i18n import N_, tr
-from ..core.access import Denied  # 2.149.0 G (#2517): pulled up from functions
+from ..core.access import ACX_SUPPORT_ORGS, Denied  # 2.149.0 G (#2517): pulled up from functions; #6977 F1: the support narrowing
 from .orgs import instance_mode  # 2.369.5 (#2517): pulled up from functions
 from ..core.pg import system_ctx  # 2.369.5 (#2517): pulled up from functions
 
@@ -32,18 +32,20 @@ ACC_MSG = N_("The accounting role can read and export the office and upload rece
 
 def org_roles_of(c, uid):
     """{org id: role} of uid (cached per request; core/access.py acx_drop() forgets it). Unknown values read as guest (the
-    most restricted role) and are logged once per request. Narrowed by org_roles_cap (#6605: a personal agent)."""
+    most restricted role) and are logged once per request. Narrowed by org_roles_cap (#6605: a personal agent; #6977 F1: a support session)."""
     if not uid:
         return {}
     cache = g.setdefault("org_roles", {}) if has_request_context() else {}
-    if uid not in cache:
-        cache[uid] = {} if instance_mode(c) == "shared" else org_roles_cap(c, uid, org_roles_read(c, uid))
-    return cache[uid]
+    key = (uid, _sup_of(uid))  # #6977 F1: a request that becomes a support session (sign-in through its link) asks anew
+    if key not in cache:
+        cache[key] = {} if instance_mode(c) == "shared" else org_roles_cap(c, uid, org_roles_read(c, uid))
+    return cache[key]
 
 
 def org_roles_read(c, uid):
     """{org id: role} of uid as stored (memberships of organisations not retired), uncached and without org_roles_cap: only
-    for org_roles_cap's callers (org_roles_of, accounts/orgs.py user_orgs / org_role)."""
+    for org_roles_cap's callers (org_roles_of, accounts/orgs.py user_orgs / org_role) and the account's own access context
+    (accounts/orgs.py user_orgs raw=True from core/access.py _orgs_of; _ctx_support narrows a support session itself)."""
     with system_ctx(c):  # membership structure (also asked for other people)
         return {r[0]: role_known(r[1], r[0], uid)
                 for r in c.execute("SELECT m.org_id, m.role FROM org_members m JOIN orgs o ON o.id=m.org_id "  # 2.223.2 A (#2859)
@@ -55,10 +57,17 @@ def org_roles_read(c, uid):
 ROLE_RANK = {"guest": 0, "accounting": 1, "readonly": 2, "member": 3, "admin": 4}
 
 
+def _sup_of(uid):
+    """#6977 F1: True when the current request is a support session of account uid (accounts/supportgrant.py sga_acting)."""
+    return has_request_context() and bool(g.get("acx_sup_uid")) and g.get("acx_sup_uid") == uid
+
+
 def org_roles_cap(c, uid, roles):
     """THE one place that narrows the stored roles of uid for the current request (never stored beyond it):
     #6605 (decision 16.11.2026): a personal agent (agents.owner_id) has in each organisation at most the current role of its
-    person; an organisation its person is no longer in gives the agent no role there."""
+    person; an organisation its person is no longer in gives the agent no role there.
+    #6977 F1 (2.1350.0, #6502): a support session of uid has only the organisations its narrowed reading context has
+    (accounts/supportgrant.py sga_orgs_readable through core/access.py ACX_SUPPORT_ORGS; not registered: none)."""
     if not roles:
         return roles
     with system_ctx(c):  # structure: whose agent uid is
@@ -66,6 +75,10 @@ def org_roles_cap(c, uid, roles):
     if a is not None and a[0]:
         own = org_roles_of(c, a[0])
         roles = {o: r if ROLE_RANK.get(r, 0) <= ROLE_RANK.get(own[o], 0) else own[o] for o, r in roles.items() if o in own}
+    if _sup_of(uid):
+        fn = ACX_SUPPORT_ORGS[0]
+        keep = set(fn(c, uid, list(roles))) if fn else set()
+        roles = {o: r for o, r in roles.items() if o in keep}
     return roles
 
 

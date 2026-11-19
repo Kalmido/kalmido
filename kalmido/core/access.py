@@ -295,7 +295,7 @@ def _orgs_of(c, uid):
     if a is not None:
         return ((a[0],) if a[0] else ()), a[0], True
     from ..accounts.orgs import user_orgs
-    return tuple(user_orgs(c, uid)), None, False
+    return tuple(user_orgs(c, uid, raw=True)), None, False  # #6977 F1: the account's own (a support session: _ctx_support narrows)
 
 
 def acx_of(c, uid):

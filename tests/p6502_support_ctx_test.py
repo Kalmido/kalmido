@@ -18,6 +18,10 @@ tenant-matrix: support
    use is in her bell (News "support", stage start); an organisation's grant is in the other admin's bell (stage grant), its
    first use in every admin's bell, an early end in the other admins' bell (stage end); switched off in the notification
    settings (row "support"), no News
+ - #6977 F1: the app's role checks (org_roles_of / user_orgs / org_role) are narrowed per request like the reading context:
+   a route that checks the role and reads as system (GET /api/orgs/<id>/leave-info) answers 404 without the organisation's
+   own grant, GET /api/orgs lists it only with the grant; F3: a throwing bell (SGA_BELL['tell']) never
+   takes the first log entry of a grant along
 usage: p6502_support_ctx_test.py <datadir>"""
 import email
 import email.policy
@@ -141,6 +145,20 @@ check(r.ok, "the operator signs in with the support link " + r.text[:120])
 check(devices() == DEV0, f"(c) the support sign-in is no known device of cara ({DEV0!r} -> {devices()!r})")
 check(reads_org(Y) == (False, False), "support session: neither the organisation's project nor its task (no grant of its admins)")
 check(PL in lists_of(Y) and Y.get(B + f"/api/tasks/{PT}").ok, "support session: her private project and task stay readable")
+
+
+def orgs_seen(s):
+    r = s.get(B + "/api/orgs")
+    assert r.ok, r.text[:200]
+    return {o["id"] for o in r.json()["orgs"]}
+
+
+# #6977 F1: the app's role checks (org_roles_of / user_orgs) have the narrowed organisations too, not only row-level security
+check(CO not in orgs_seen(Y), "#6977 F1: support session: GET /api/orgs names no organisation without its own grant (name, members)")
+check(CO in orgs_seen(Cc), "#6977 F1: cara's own session lists Client Studio")
+# a route that checks the role (org_role) and then reads the organisation's structure as system: was answered before the narrowing
+check(Y.get(B + f"/api/orgs/{CO}/leave-info").status_code == 404, "#6977 F1: support session: the leave preview of Client Studio 404 (org_role narrowed)")
+check(Cc.get(B + f"/api/orgs/{CO}/leave-info").ok, "#6977 F1: cara's own session: the leave preview answers")
 check(reads_org(Cc) == (True, True), "cara's own session right after: still the organisation's project and task (not the narrowed context)")
 check(reads_org(Y) == (False, False), "support session again after her own request: still narrowed (not the account's cached context)")
 st = [x for x in news(Cc, "start") if (x.get("data") or {}).get("grant_id") == G1]
@@ -149,6 +167,8 @@ r = Ca.post(B + "/api/support-access", json={"hours": 1, "org_id": CO})
 check(r.ok, "carl opens support access for Client Studio " + r.text[:120])
 G2 = r.json()["grant"]["id"]
 check(reads_org(Y) == (True, True), "with the organisation's own grant: the support session reads its project and task")
+check(CO in orgs_seen(Y), "#6977 F1: with the organisation's own grant: GET /api/orgs lists it in the support session")
+check(Y.get(B + f"/api/orgs/{CO}/leave-info").ok, "#6977 F1: with the grant: the leave preview answers in the support session")
 check(any((x.get("data") or {}).get("grant_id") == G2 for x in news(Dv, "grant")) and not news(Ca, "grant"),
       "(c) the other admin (dave) hears of carl's grant, carl himself not")
 check(kt.until(lambda: kt.dbx("SELECT uses FROM support_grants WHERE id=?", (G2,))[0][0] not in (None, "", "[]"), 10),
@@ -157,6 +177,7 @@ check(all(any((x.get("data") or {}).get("grant_id") == G2 for x in news(s, "star
       "(c) its first use is in the bell of every admin of the organisation")
 check(Dv.delete(B + f"/api/support-access/{G2}").ok, "dave ends the organisation's grant early")
 check(reads_org(Y) == (False, False), "after the end: the support session no longer reads the organisation")
+check(CO not in orgs_seen(Y), "#6977 F1: after the end: GET /api/orgs no longer lists it")
 check(any((x.get("data") or {}).get("grant_id") == G2 for x in news(Ca, "end")) and not news(Dv, "end"),
       "(c) carl hears that dave ended it, dave himself not")
 check(reads_org(Cc) == (True, True), "cara's own session still reads everything")
@@ -216,4 +237,15 @@ r = Dv.post(B + "/api/support-access", json={"hours": 1, "org_id": CO})
 check(r.ok and len(news(Ca)) == n0, f"carl switched the row 'support' off: dave's grant brings him no News ({len(news(Ca))} vs {n0})")
 check(Dv.delete(B + f"/api/support-access/{r.json()['grant']['id']}").ok and Cc.delete(B + f"/api/support-access/{G1}").ok, "the grants end")
 check(Y.get(B + "/api/state").status_code == 401, "the support session ends with cara's grant")
+
+# ---------------------------------------------------------------- #6977 F3: a failing bell never takes the log's first entry along
+dbw("UPDATE support_grants SET uses='[]', uses_dropped=0 WHERE id=?", (G1,))
+code = ("import os; os.environ['TASKS_WATCHDOG']='0'\nimport app\nfrom kalmido.accounts import supportgrant as sg\n"
+        "def boom(*a, **k):\n    raise RuntimeError('bell down')\n"
+        "sg.SGA_BELL['tell'] = boom\nc = app.connect()\nnow = sg.now_utc()\n"
+        f"e = {{'at': sg.iso(now), 'by': {CARA}, 'm': 'GET', 'r': '/api/f3', 's': 200, 'sup': 1}}\n"
+        f"p = sg.sga_log_write(c, [{G1}], None, e, now, {CARL})\nc.commit()\nprint('written', len(p), flush=True)\n")
+r = subprocess.run(["docker", "exec", kt.CT, "python", "-c", code], capture_output=True, text=True, timeout=120)
+check(r.returncode == 0 and "written 0" in r.stdout, f"#6977 F3: sga_log_write with a throwing SGA_BELL['tell'] goes on (no pushes) {r.stdout[-200:]} {r.stderr[-400:]}")
+check([x.get("r") for x in uses()] == ["/api/f3"], f"#6977 F3: the grant's first entry is written although its bell failed {uses()}")
 sys.exit(kt.done("p6502_support_ctx"))
