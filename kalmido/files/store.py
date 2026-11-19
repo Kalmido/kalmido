@@ -32,7 +32,7 @@ from ..core.config import ATT_DIR, MAX_FILE_MB
 from ..core.i18n import N_, tr
 from ..core.db import insert_id, iso, now_utc, write_lock, db
 from ..core.dlock import dl_chain_cut, dl_wiki_folders, dl_wiki_step_sql  # 2.1045.0 (#5823)
-from ..core.access import Denied, act_for, acx_of, acx_sup_write_row, collab_all
+from ..core.access import Denied, act_for, acx_of, acx_sup_write_row, collab_all, live_sql
 from ..core.orgcrypt import oc_read_file, oc_write_file, oc_user_space
 from ..core.pg import system_ctx  # 2.149.0 G (#2517): pulled up from functions
 from ..core.objhooks import OBJ  # 2.566.0 (#4712): the kinds of the shared core (fs_org_live)
@@ -400,8 +400,8 @@ def _fs_is_receipt(c, nid, org=None):
 
 def _fs_has_receipt_below(c, nid, org):
     """#6953: is there a receipt of organisation org (not in the trash) anywhere below folder nid?"""
-    return c.execute("WITH RECURSIVE d(id) AS (SELECT id FROM fs_nodes WHERE parent_id=? AND deleted_at IS NULL "
-                     "UNION SELECT x.id FROM fs_nodes x JOIN d ON x.parent_id = d.id WHERE x.deleted_at IS NULL) "
+    return c.execute(f"WITH RECURSIVE d(id) AS (SELECT id FROM fs_nodes WHERE parent_id=? AND {live_sql()} "
+                     f"UNION SELECT x.id FROM fs_nodes x JOIN d ON x.parent_id = d.id WHERE {live_sql('x')}) "
                      "SELECT 1 FROM rc_receipts r WHERE r.org_id=? AND r.node_id IN (SELECT id FROM d) LIMIT 1",
                      (nid, org)).fetchone() is not None
 
@@ -517,7 +517,7 @@ def fs_visible_sql_c(c, uid):
     rl = ",".join(map(str, roots))
     root_u = (f" UNION SELECT id FROM fs_nodes WHERE id IN ({rl})"
               f" UNION SELECT id FROM fs_nodes WHERE kind = 'folder' AND id IN (WITH RECURSIVE ra(id, pid) AS ("
-              f"SELECT n.id, n.parent_id FROM fs_nodes n JOIN rc_receipts r ON r.node_id = n.id WHERE r.org_id IN ({','.join(map(str, acc))}) AND n.deleted_at IS NULL "
+              f"SELECT n.id, n.parent_id FROM fs_nodes n JOIN rc_receipts r ON r.node_id = n.id WHERE r.org_id IN ({','.join(map(str, acc))}) AND {live_sql('n')} "
               f"UNION SELECT p.id, p.parent_id FROM fs_nodes p JOIN ra ON p.id = ra.pid WHERE ra.id NOT IN ({rl})) "
               f"SELECT id FROM ra WHERE id IN (WITH RECURSIVE dr(id) AS (SELECT id FROM fs_nodes WHERE id IN ({rl}) "
               f"UNION SELECT x.id FROM fs_nodes x JOIN dr ON x.parent_id = dr.id) SELECT id FROM dr))") if roots else ""
