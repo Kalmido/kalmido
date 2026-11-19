@@ -63,6 +63,7 @@ from ..files import store as fs_store
 from ..files.fsref import fs_ref_may_file, fs_ref_need_move, fs_ref_node, fs_ref_node_role, fs_ref_register, fs_ref_role
 from ..files.fsroots import fs_area_root, fs_area_root_of, fs_area_rule
 from .groups import grp_dl_full, grp_org_limited, grp_sync
+from .folders import need_folder_write
 from .sections import folder_rename_do
 from ..files.store import DEPTH_MAX, _now, fs_chain, fs_deleted, fs_height, fs_log_add, fs_role, safe_fs_name
 
@@ -642,6 +643,8 @@ def _before(c, uid, n):
         p = lf_node_path(c, n)
     if p and uid != n["owner_id"]:  # 2.352.0 F (#2748, review H3): its path is the owner's (settings, every tree): only the owner
         raise Denied(403, tr("Only the owner of the folder can change it."))
+    if p:
+        need_folder_write(c, uid, p)  # #6607: the new path takes every node and list of this path along (folder_rename_do)
     return {"owner": n["owner_id"], "path": p} if p else None
 
 

@@ -241,7 +241,8 @@ def sh_agents_delete():
     aid = b.get("agent_id")
     if not isinstance(aid, int) or isinstance(aid, bool):
         return err(tr("Invalid value: {0}", "agent_id"))
-    need_folder_write(c, me(), f)  # #6607
+    need_folder_write(c, me(), f)  # #6607: also removing - the folder's agent reaches every list of the
+    # folder by its path (folder props agent_id), the organisation's project too
     c.execute("DELETE FROM folder_agents WHERE owner_id=? AND folder=? AND agent_id=?", (me(), f, aid))
     sh_mirror(c, me(), f)
     removed = 0

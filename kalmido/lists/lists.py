@@ -1367,7 +1367,9 @@ def folder_people_delete():
     except (TypeError, ValueError):
         uid = 0
     from ..lists.folders import need_folder_write
-    need_folder_write(c, me(), f)  # #6607
+    need_folder_write(c, me(), f)  # #6607: taking a folder share back is refused too - the share gives roles on every list of the folder,
+    # the organisation's project too (lf_folder_share), so its removal changes that project for the others; per
+    # project the person still leaves / removes (member_remove)
     from ..lists.lffolder import lf_folder_share
     lf_folder_share(c, me(), f, uid, None)  # 2.352.0 A (#2748): the folder's share goes -- and with it the roles it gave
     n = 0
