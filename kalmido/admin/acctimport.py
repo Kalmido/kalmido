@@ -1458,7 +1458,10 @@ def umz_mentions(text, names, who):
 # came along becomes its new number; any other one stays readable as text but is no link any more (it would name whoever has
 # that number on this server): #<WORD JOINER>123 in a text, the plain text "#123" (or "label (#123)") in a page.
 UMZ_TREF_RE = re.compile(r"(\b[Jj][Oo][Bb] ?#?\d{1,9}\b)|(?<![&\w/#])#(\d{1,9})\b")
-UMZ_TREF_KEEP = re.compile(r"```.*?(?:```|\Z)|`[^`\n]*`|\[[^\]\n]*\]\([^)\n]*\)|<a\b.*?</a>|<[^>\n]*>", re.S | re.I)
+# Every repeat is bounded (reader F1 of job/5756): an unclosed "[", "<" or "<a" would otherwise scan to the end of the line / text
+# from each of its starts - quadratic on an imported text of 200,000 brackets.
+UMZ_TREF_KEEP = re.compile(r"```.*?(?:```|\Z)|`[^`\n]{0,2000}`|\[[^\]\n]{0,500}\]\([^)\n]{0,2000}\)|<a\b.{0,2000}?</a>|<[^>\n]{0,500}>",
+                           re.S | re.I)
 UMZ_TREF_OFF = "\u2060"  # WORD JOINER: invisible, no line break; the link pattern sees no digit after the #
 
 
