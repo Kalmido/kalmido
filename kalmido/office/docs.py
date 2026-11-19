@@ -64,7 +64,7 @@ from ..accounts.supportgrant import SGA_BOOKING, sga_is_support  # noqa: E402  2
 from .sheet import prd_options  # 2.369.5 (#2517): pulled up from functions
 from ..core.config import OFFICE_DIR  # 2.369.5 (#2517): pulled up from functions
 from ..files.store import fs_purge, fs_purge_files  # 2.369.5 (#2517): pulled up from functions
-from ..lists.projpo import ppo_doc_take, ppo_from_doc, ppo_of  # #6945
+from ..lists.projpo import ppo_doc_take, ppo_from_doc, ppo_of  # noqa: E402  #6945
 
 
 def _ofr_may(c, uid, oid, level, special=None):
