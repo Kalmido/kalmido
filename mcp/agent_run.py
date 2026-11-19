@@ -3326,6 +3326,9 @@ def _guard_hook_run(argv, only, files, dirs):
 
 
 # kalmido-capability: perm_channel (2.625.0, #3661)
+# 2.1407.0 (#7119): where a job finds the runner's channel for its permission questions (the runner sets them in its own
+# environment, so every job it or one of its runs starts inherits them; agent_job.py hands them to the job's hook)
+JOB_PERM_KEYS = ("KALMIDO_JOB_PERM_SOCK", "KALMIDO_JOB_PERM_KEY", "KALMIDO_JOB_PERM_PID")
 PERM_MAX_REQ = 256 * 1024  # one request of the hook (tool name + input) at most 256 KB
 PERM_MAX_OPEN = 32  # at most 32 questions wait at once; more = denied at once (a flood of connections asks nobody)
 PERM_HS_S = 10  # 2.625 (Fable review of #3661): handshake + request within 10 s, else the connection gives its slot back
@@ -3516,7 +3519,8 @@ def perm_hook(argv):
         mpc.deliver_challenge(c, k)
         nonce = secrets.token_hex(16)
         req = {"tool_name": d.get("tool_name"), "tool_input": d.get("tool_input"), "uid": os.environ.get("KALMIDO_PERM_UID") or "",
-               "label": os.environ.get("KALMIDO_RUN_LABEL") or "", "at": time.time(), "nonce": nonce}
+               "label": os.environ.get("KALMIDO_RUN_LABEL") or "", "at": time.time(), "nonce": nonce,
+               "job": os.environ.get("KALMIDO_JOB_ID") or ""}  # 2.1407.0 (#7119): a job's question names its job
         c.send_bytes(json.dumps(req, ensure_ascii=False).encode("utf-8"))
         if not c.poll(int(os.environ.get("KALMIDO_PERM_TIMEOUT") or PERM_TIMEOUT_S)):
             return out(False, "no answer in the chat in time (counts as no)")
@@ -3580,6 +3584,7 @@ class Runner:
         self.api.keep_status = self.held
         self.perm_thread = None
         self.perm_chan, self.perm_conns, self.perm_lk = None, {}, threading.Lock()  # 2.625.0 (#3661): nonce -> waiting hook
+        self.perm_jobs = None  # 2.1407.0 (#7119): the channel of this host's jobs
         self.cur = 0
         self.proc, self.cur_st, self.abort_ev = None, None, None  # 2.144.0 (#2412): the running command, its stream, the Stop
         self.cur_uid = None  # 2.144.0 (#2412): whose chat the running command answers (None: a task / event run)
@@ -5004,6 +5009,34 @@ class Runner:
             log(f"permission question not asked ({type(e).__name__}): denied")
             self.perm_reply(nonce, "deny")
 
+    # kalmido-capability: job_perm (2.1407.0, #7119)
+    def perm_request_job(self, rq, nonce, conn):
+        """2.1407.0 (#7119): a permission question of a job (agent_job.py) over the jobs' channel -> the same question in the
+        chat as a run's (perm_request: only the operator answers, no answer in time = denied). Who is asked and the label
+        come from the job's record, never from the request: a job of this host that is still open, else denied at once."""
+        jid = str(rq.get("job") or "") if isinstance(rq, dict) else ""
+        j = None
+        try:
+            import agent_job
+            agent_job.STATE_DIR = self.state_dir
+            j = agent_job.load(int(jid)) if jid.isdigit() else None
+            if j and not agent_job.is_open(j):
+                j = None
+        except (ImportError, OSError, ValueError, AttributeError):
+            j = None
+        if not j:
+            log("permission question of a job this host does not run (or no longer): denied")
+            try:
+                conn.send_bytes(json.dumps({"nonce": nonce, "decision": "deny"}).encode("utf-8"))
+            except (OSError, ValueError):
+                pass
+            try:
+                conn.close()
+            except OSError:
+                pass
+            return
+        self.perm_request(dict(rq, uid=str(j.get("chat_user") or ""), label=f"job #{int(jid)}"), nonce, conn)
+
     def ensure_perm_watch(self):
         if self.perm_thread or not PERM_RELAY or not self.is_claude():
             return
@@ -5016,6 +5049,18 @@ class Runner:
             atexit.register(self.perm_chan.close)
         except Exception as e:
             log(f"permission questions: no local connection ({type(e).__name__}) - every question is denied")
+        # kalmido-capability: job_perm (2.1407.0, #7119)
+        try:  # a channel of its own for the jobs of this host: its key stays for the runner's life (a job outlives the run
+            # that started it); the jobs find it in the environment the runner hands down (never in a file)
+            self.perm_jobs = PermChannel(self.perm_request_job)
+            import atexit
+            atexit.register(self.perm_jobs.close)
+            os.environ.update(KALMIDO_JOB_PERM_SOCK=self.perm_jobs.address, KALMIDO_JOB_PERM_KEY=self.perm_jobs.new_key(),
+                              KALMIDO_JOB_PERM_PID=str(os.getpid()))
+        except (OSError, ImportError, ValueError) as e:
+            for k in JOB_PERM_KEYS:
+                os.environ.pop(k, None)
+            log(f"permission questions of jobs: no local connection ({type(e).__name__}) - a job's question is denied")
 
         def watch():
             while True:

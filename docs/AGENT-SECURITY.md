@@ -434,8 +434,13 @@ commands (they have no such hook); `KALMIDO_PERM_RELAY=0` switches it off. What 
 
 **Dangerous commands refused (2.615.0, `dangerous_guard`).** In event mode with Claude Code the same per-run settings
 file also carries a `PreToolUse` hook for Bash (`agent_run.py --guard-hook`). Jobs (`agent_job.py`) get the same hook
-as a settings file of their own in the job's folder (`run-settings.json`, only the guard: no permission questions, no
-usage hook; not when the job command has its own `--settings`). It refuses, before the command runs and
+as a settings file of their own in the job's folder (`run-settings.json`, with the usage hook; not when the job command
+has its own `--settings`). 2.1407.0 (#7119): the job's settings file also carries the permission hook, so a step outside
+the allow list asks in the chat as a run does (*Allow* / *Deny*, only the operator answers, no answer within
+`KALMIDO_PERM_TIMEOUT` = denied, never an automatic yes). The job reaches the runner over a second local channel of its
+own (same checks as above: key both ways, the runner's process, one-time nonce); the runner takes the person to ask from
+the job's record, not from the question. No runner (it restarted while the job ran) or `KALMIDO_PERM_RELAY=0`: the step
+is denied without a question, as before. So a job command with "allow everything" is never needed. It refuses, before the command runs and
 **whatever the allow list or the permission mode say** (also `acceptEdits`, `bypassPermissions`, `dontAsk` and a
 command the person allowed in the chat), these command lines:
 
