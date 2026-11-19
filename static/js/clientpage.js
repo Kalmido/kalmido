@@ -480,8 +480,7 @@ function lsg_sync() {
       if (p.classList.contains('lsdset') !== on) p.classList.toggle('lsdset', on);
     }
     if (!$(':scope > .lsdgrip', p)) {
-      const lbl = esc(tr('Width of the list')), tip = esc(tr('Drag to resize · double-click: default size'));
-      p.insertAdjacentHTML('beforeend', `<div class="lsdgrip" tabindex="0" role="separator" aria-orientation="vertical" aria-label="${lbl}" title="${tip}"></div>`);
+      p.insertAdjacentHTML('beforeend', `<div class="lsdgrip" tabindex="0" role="separator" aria-orientation="vertical" aria-label="${esc(tr('Width of the list'))}" title="${esc(tr('Drag to resize · double-click: default size'))}"></div>`);
       if (!p._lsg) { p._lsg = 1; lsg_ro?.observe(p); }
     }
     lsg_place(p);
