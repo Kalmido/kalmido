@@ -2116,7 +2116,7 @@ async function route() {
   if (r.key === 'search' && S.lastRouteKey !== 'search') S.searchFocus = true;  // 2.15.1 (#633): opening Search focuses its field on a phone too (a re-render or a task closed on top of it does not)
   S.lastRouteKey = r.key;
   const gone = r.mod === 'tasks' && lmiss_id(r.key);  // 2.1205.0 (#6133): a project that is not there is no next start and no recent place
-  if (r.mod === 'tasks' && r.key !== 'search' && !gone && (typeof sbb_taskKey !== 'function' || sbb_taskKey(r.key))) LS.set('lastKey', r.key);  // 2.1450.0 (#7386): never another area's key (a task opened over Agents)
+  if (r.mod === 'tasks' && r.key !== 'search' && !gone && (typeof sbb_taskKey !== 'function' || sbb_taskKey(r.key))) LS.set('lastKey', r.key);  // (#7386): never another area's key (a task opened over Agents)
   if (r.mod === 'tasks' && r.key.startsWith('l:') && !gone) recentPush('l', +r.key.slice(2));
   S.extra = (r.key === 'done' || r.key === 'trash' || r.mod === 'news' || r.mod === 'time') ? [] : null;
   S.hist.k = null;  // 2.40.0 (#1432): entering Completed / Trash starts with the first page again

@@ -521,9 +521,9 @@ function sbb_target(id) {
   const ok = !!h && (id === 'tasks' ? sbb_areaOfMod(mod) === 'tasks' : (sbb_def(id)[4] || []).includes(mod) && (!a || !!mg_parts(a).find(p => p[0] === mod)))
     && (mod !== 'office' || (t => !t || ['import', 'services', 'texts', 'settings'].includes(t) || ofm_items().some(i => i.go === 'office/' + t || t === 'subs' && i.key === 'agreements'))(h.split('/')[1]));  // an office point no longer shown (role, pack): not kept
   if (ok) return h;
-  return id === 'tasks' ? keyToHash(sbb_taskKey(LS.get('lastKey', START_KEY)) ? LS.get('lastKey', START_KEY) : START_KEY) : a ? mg_target(id) : id;  // 2.1450.0 (#7386): a kept key of another area (agents) is no way into Projects
+  return id === 'tasks' ? keyToHash(sbb_taskKey(LS.get('lastKey', START_KEY)) ? LS.get('lastKey', START_KEY) : START_KEY) : a ? mg_target(id) : id;  // (#7386): a kept key of another area (agents) is no way into Projects
 }
-// 2.1450.0 (#7386): a key of a Projects view (a list, a smart list, the start page), not the key of another area. A task opened over
+// (#7386): a key of a Projects view (a list, a smart list, the start page), not the key of another area. A task opened over
 // another page (#t/<id> from Agents) keeps that page's key under it; it was kept as the last Projects view and the phone's icon Projects led to Agents
 const sbb_taskKey = k => !!k && typeof k === 'string' && sbb_areaOfMod(sbb_hashMod(keyToHash(k))) === 'tasks';
 // 2.417.0 A (#3559): an area's start page: tapping the icon (or tab) of the area already open leads there. Projects: its start
