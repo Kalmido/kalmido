@@ -953,8 +953,9 @@ def rx_org_get(oid):
 @app.post("/api/retention/org/<int:oid>/export.zip")  # 2.223.2 C (#2871): POST = the step-up
 def rx_org_zip(oid):
     c = db()
-    mv_allow(c)  # 2.1337.0 (#6600): a download, also while the organisation is moving (its log line)
     sub = rx_subject(c, "org", oid)
+    if rx_may_export(c, sub):  # 2.1413.0 (#6951): only after the right (_download answers everybody else as before)
+        mv_allow(c)  # 2.1337.0 (#6600): a download, also while the organisation is moving (its log line)
     with system_ctx(c):  # the organisation's name for the index (the right is checked in _download)
         name = (c.execute("SELECT name FROM orgs WHERE id=?", (oid,)).fetchone() or [""])[0]
     return _download(sub, name)
@@ -991,10 +992,10 @@ def rx_me_waiver():
 def rx_org_waiver(oid):
     """#6474 (A6): the same for an organisation, by one of its admins (everybody else 404, an instance admin too)."""
     c = db()
-    mv_allow(c)  # 2.1337.0 (#6600): part of having a moving organisation deleted (#2956)
     sub = rx_subject(c, "org", oid)
     if not rx_owner(c, sub):
         raise Denied(404)
+    mv_allow(c)  # 2.1337.0 (#6600): part of having a moving organisation deleted (#2956); 2.1413.0 (#6951): after the right
     with system_ctx(c):  # the organisation's name for the security log
         name = (c.execute("SELECT name FROM orgs WHERE id=?", (oid,)).fetchone() or [""])[0]
     return _rx_declare(sub, name, request.method == "POST")

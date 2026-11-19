@@ -11,6 +11,9 @@ Invented companies, people and figures only. tenant-matrix: org
  - the history of the organisation names the start and the end
  - ending it: a member 403, its admin 200 - writing works again, the series whose period came meanwhile is paused (not made
    late, decision of 16.11.2026) and its admin gets the task "Invoice series ... paused"; the next watchdog run makes nothing
+ - 2.1413.0 (#6951): opening the agreements while moving purges nothing of the organisation's trash (after the move it does);
+   a queue row added by a writing request is strict (runs inside the lock), by a reading one or after mv_allow not; an instance
+   admin who is no member ends a move (noted in the organisation's history), anybody else still 404
 usage: p6600_org_moving_test.py <datadir>"""
 import os
 import re
@@ -98,6 +101,11 @@ assert r.status_code == 201, r.text
 r = A.post(B + OFF + "/series", json={"template_id": r.json()["id"], "every": "monthly", "start": TODAY, "auto_send": 0, "title": "Monatlich"})
 assert r.status_code == 201, r.text
 SER = r.json()["id"]
+# 2.1413.0 (#6951): an agreement in the office's trash whose period is over (a reading request must not purge it while moving)
+r = A.post(B + OFF + "/agreements", json={"kind": "insurance", "name": "Alte Versicherung", "task": 0})
+assert r.status_code == 201, r.text
+AGR = r.json()["id"]
+dbx("UPDATE office_agreements SET archived=2, updated_at='2000-01-01T00:00:00+00:00' WHERE id=?", (AGR,))
 TOKEN = Bo.post(B + "/api/me/tokens", json={"name": "bobs agent", "scopes": ["read", "write"]}).json()["token"]
 API = {"Authorization": "Bearer " + TOKEN}
 check(requests.post(B + "/api/v1/tasks", headers=API, json={"title": "API before", "list_id": L}).status_code == 201,
@@ -166,6 +174,24 @@ check(LB.status_code in (200, 201), f"another organisation writes as before {LB.
 FL = Fr.post(B + "/api/lists", json={"name": "Frida", "org_id": None}).json()["id"]
 check(Fr.post(B + "/api/tasks", json={"title": "Frida works", "list_id": FL}).status_code in (200, 201), "the freelancer works as before")
 
+# 2.1413.0 (#6951): a reading request with a write of its own (the agreements' trash purge) leaves the moving organisation alone
+r = A.get(B + OFF + "/agreements")
+check(r.ok and dbx("SELECT 1 FROM office_agreements WHERE id=?", (AGR,)),
+      f"#6951: opening the agreements while moving does not purge the organisation's trash {r.status_code} {r.text[:160]}")
+# 2.1413.0 (#6951): a queue row runs as strict as the request that added it (a writing request: strict; reading / mv_allow: free)
+out = in_ct("import app\nfrom kalmido.core.config import app as fl\nfrom kalmido.core.db import connect\n"
+            "from kalmido.core.movelock import mv_allow, mv_strict_now\nfrom kalmido.accounts.bgjobs import bgj_add\nids = []\n"
+            "for m, allow in (('DELETE', False), ('GET', False), ('POST', True)):\n"
+            "    with fl.test_request_context('/x', method=m):\n"
+            "        if allow:\n            mv_allow()\n"
+            "        ids.append((mv_strict_now(), bgj_add('office:series_moved', 0, [], delay=3600)))\n"
+            "from kalmido.core.pg import system_ctx\nc = connect()\nwith system_ctx(c):\n"
+            "    rows = [bool(c.execute('SELECT strict FROM bg_jobs WHERE id=?', (i,)).fetchone()[0]) for _s, i in ids]\n"
+            "    c.execute('DELETE FROM bg_jobs WHERE id IN (%s)' % ','.join(str(i) for _s, i in ids))\nc.commit()\n"
+            "print('STRICT', [s_ for s_, _i in ids], rows)\n")
+check("STRICT [True, False, False] [True, False, False]" in out,
+      f"#6951: a writing request's queue row is strict (it runs inside the lock), a reading one's or one after mv_allow not {out[-300:]}")
+
 # ================================================================== (3) the export runs, the series rests, the history
 r = A.post(B + f"/api/orgs/{ORG}/export")
 check(r.status_code == 202, f"the export of the organisation starts while it moves {r.status_code} {r.text[:160]}")
@@ -193,4 +219,18 @@ log = A.get(B + f"/api/orgs/{ORG}/lists").json().get("log", [])
 check(any(x["action"] == "move_off" for x in log), "the history names the end")
 r = A.post(B + M, json={"confirm": "Alpha"})
 check(r.ok and r.json().get("moving") is True and A.delete(B + M).ok, "it can be started and ended again")
+check(not dbx("SELECT 1 FROM office_agreements WHERE id=?", (AGR,)) if A.get(B + OFF + "/agreements").ok else False,
+      "#6951: after the move the agreements' trash is purged as before")
+
+# ================================================================== (5) 2.1413.0 (#6951): the instance admin ends a move
+M2 = f"/api/orgs/{ORG2}/moving"
+r = Ca.post(B + M2, json={"confirm": "Beta"})
+check(r.ok and r.json().get("moving") is True, f"Beta's admin starts its move {r.text[:160]}")
+check(not dbx("SELECT 1 FROM org_members WHERE org_id=? AND user_id=?", (ORG2, ALICE)), "setup: the instance admin is no member of Beta")
+check(Bo.delete(B + M2).status_code == 404, "#6951: somebody else (no member, no instance admin) still gets 404")
+r = A.delete(B + M2)
+check(r.ok and r.json().get("moving") is False, f"#6951: the instance admin ends the move of an organisation he is not in {r.status_code} {r.text[:200]}")
+check(Ca.post(B + "/api/lists", json={"name": "Beta after", "org_id": ORG2}).status_code in (200, 201), "#6951: Beta writes again")
+lg = dbx("SELECT detail FROM org_list_log WHERE org_id=? AND action='move_off' ORDER BY id DESC LIMIT 1", (ORG2,))
+check(lg and "instance_admin" in str(lg[0][0]), f"#6951: the organisation's history notes that the instance admin ended it {lg}")
 sys.exit(done("p6600_org_moving"))
