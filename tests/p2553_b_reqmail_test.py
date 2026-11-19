@@ -355,5 +355,11 @@ check(r == "NoneType 0" and not task_of("<p2553b-cap@example.org>"),
       f"#6874: over the waiting ones the mail is not taken (None: no ticket, not put back for later) {r!r}")
 nt = [json.loads(d).get("text", "") for (d,) in dbx("SELECT data FROM notifications WHERE kind='integfail' AND user_id=?", (BU,))]
 check(sum("were not taken in" in t and "1 further" in t for t in nt) == 1, f"#6874: the project's owner hears the number {nt}")
+# #6874 review F1: a waiting mail removed from the mailbox ends its attempt (else it is due in every round and holds the others up)
+r = py_c("from kalmido.integrations import mail as MM\n"
+         "c.execute(\"INSERT INTO mail_in_seen(box, mid, seen_at, tries, state, imap_uid) VALUES('test:p2553b', 'm-gone', now(), 0, 'later', '9001')\")\n"
+         "c.commit()\nMM.mail_try_gone('test:p2553b', b'9001')\n"
+         "print(c.execute(\"SELECT state FROM mail_in_seen WHERE box='test:p2553b' AND mid='m-gone'\").fetchone()[0])")
+check(r == "done", f"#6874 review F1: a gone waiting mail is done, not due again {r!r}")
 
 sys.exit(done("p2553_b_reqmail"))

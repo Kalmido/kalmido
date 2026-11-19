@@ -191,7 +191,7 @@ def rq_comment(c, msg, mid, p, l, verified):
     tid = p["task_id"]
     whole, skipped, top = _files(c, tid, files, l["owner_id"])
     note = att_skip_note(c, tid, skipped, owner=l["owner_id"], lg=lg)  # #6531: also the reporter reads why a file is missing
-    body = (text or "—")[:P.PT_CMT_MAX - len(note) - 2] + "\n\n" + note if note else (text or "—")[:P.PT_CMT_MAX]
+    body = (text or "—")[:max(0, P.PT_CMT_MAX - len(note) - 2)] + "\n\n" + note if note else (text or "—")[:P.PT_CMT_MAX]
     cid = ocm_add(c, "task", tid, None, body, ext_name=name[:120], extra={"portal": True, "source": "mail"})  # (#5272); (#6431): source mail (origin for agents)
     c.execute("UPDATE attachments SET comment_id=? WHERE task_id=? AND id>?", (cid, tid, top))
     _keep(c, tid, mid, "in")

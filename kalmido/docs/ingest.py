@@ -14,8 +14,8 @@ import time
 from datetime import timedelta
 
 from ..core.config import app
-from ..core.db import connect, iso, now_utc, usettings
-from ..collab.news import news_add  # #6531: the News item of a file the storage refused
+from ..core.db import connect, iso, now_utc
+from ..collab.attskip import att_skip_news  # #6531: the News item of a file the storage refused
 from ..files.upsafe import UploadRefused  # #6531
 from ..accounts.session import GATE, bg_here
 from ..accounts.mailtok import mtk_where  # 2.674.0 (#4382 finding 5)
@@ -553,7 +553,7 @@ def docs_mail_import(c, msg, raw, pre=None):
         first, _made = _docs_mail_into(c, msg, raw, uid, org, sort=sort, letter=letter, budget=budget, pre=pre,
                                        meta_add=fixed, parent_id=dest, cut=cut, left=left)
         if left:  # #6531: a file the storage refused (full, virus) never goes silently: News for the person, the mail stays
-            news_add(c, uid, "attskip", actor=0, s=usettings(c, uid), data={"names": [n[:120] for n, _k in left[:5]], "n": len(left), "why": left[0][1]})
+            att_skip_news(c, uid, left)
     c.commit()
     if first:
         docs_kick()
