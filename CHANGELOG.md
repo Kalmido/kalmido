@@ -24,6 +24,64 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1432.0] - 2026-11-19
+
+Package 2.1428 (Bündel: Bündel: Weich rot: p290_ui, Weich rot: perf_ui, Weich rot: p2546_b_locked u. 3 weitere, Weich rot: p2925_a_words, Weich rot: p2240_u).
+
+### Fixed
+- Settings > Account: "Sign out" and "App server" stay at the very end of Account, outside the folded "Delete account" section (since the folded sections of #6827 they sat hidden inside it) (#7061).
+- Settings: "For advanced users" appears once per tab again; the server admin's hints (mail not set up in Integrations, passkey hint in Account) fold under their own "For server admins", and Account no longer nests the Access fold inside another fold (#7230).
+- Phone: switching the workspace from the workspace menu keeps the open sidebar open and shows the new workspace, as decided in #3847 (#7235).
+- Ticking off a task: the list waits for the fading row to finish folding before it redraws, so it no longer jumps on a slow device or a late frame (#7231).
+- German texts name the office settings "Einstellungen > Firma & Büro" in the e-invoice and invoice issuer key hints; "Briefpapier" instead of "Briefkopf" (#6861).
+- Test suites made robust for the CI or moved to the intended app state: p290_ui (#6665), perf_ui (server warm-up before measuring, budget unchanged, #6666), p2190_ride_ui (tap trace, #7232), p2320_a_ui (#7233), p255_d_ui (#7237), p2448_a_lang (#7234), p2525_a_dataattr_ui (#7236), p2615_c_guard (#7238), p7115_dev_profile (reads static/i18n/neu like the app, `kt.lang`, #7239).
+
+Package 2.1423 (Bündel: Weich rot: admin_alerts, Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Added
+- Calendar subscriptions: a subscription that could not be fetched for over 24 hours is marked out of date - a warning mark with "Not updated since …" replaces the link mark at its events, a line in the event popover, in the subscription list under "Calendars…" and in the booking page settings; one push + News item (Integrations) when it turns out of date; its old events keep counting as busy for booking page, free/busy and day plan (#6551)
+
+### Changed
+- Agents: a proposal a team agent sends to one person (time, shoot, import, object, sheet tasks, general, request, contract notice, layout, rules) carries its title in News and push only for a person inside the agent's circle; outside it reads "{agent} has a proposal for you"; checked at the one output point instead of per route (#7159)
+
+### Fixed
+- Own event series starting long ago (e.g. 1900) are no longer walked from their start on every calendar query: the start moves to the shown range by whole periods (daily, weekly, monthly, yearly), COUNT rules are walked with a bound (#6727)
+- Tests: admin_alerts waits for both capped switch alerts before the summary part (CI red, #7104); p2410_e_api uses a real chat event with its seq so the team agent gets its request token (main red, #7217)
+
+Package 2.1427 (Bündel: Büro: Aussteller-Schlüssel - Rechnungs-Entwürfe mi).
+
+### Added
+- #6701 Invoice issuer drafts (stage 1d of the platform billing): `POST /api/v1/issuer/invoices` makes an invoice draft in the issuer's own number range through the person's own functions (no date, number, range, currency, IBAN or link in the request; at most 50 positions, unit prices up to 4 places, texts with an IBAN, web or e-mail address 400). Kalmido computes each line rounded half up to the cent and the tax per rate on the sum; `expect` must match (409 `totals_mismatch`, nothing made). `client_ref` is kept with the hash of the normalised request: the same request again 200 (also after a person's correction, also at a day's limit), another content 409 `ref_conflict`, withdrawn or purged 410 `withdrawn` for good. Limits `day_docs` / `open_drafts` (429), `over_limit` flag with an alarm over `max_gross` / `day_gross`, flags `client_new`, `client_changed`, `vat_territory` (Büsingen, Heligoland, Canary Islands, Ceuta, Melilla, Livigno, Campione, Mount Athos, Åland, French overseas). The `wish` (paid, sending, payee with `payee_check` - 409 `payee_mismatch` -, reference, due days or due date), `vat_check` and `business_check` are stored sealed, never printed, never proof; a due date under 7 days after the invoice date stops finalising. Read routes with a fixed field list (`GET /api/v1/issuer/docs?changed_since=&cursor=`, `/docs/{id}`, `/docs/by-ref/{client_ref}`; corrections and a person's numbered documents of the range as `origin: manual`), the PDF preview only while the draft is as delivered (409 `edited_by_human`), `POST /docs/{id}/withdraw` into the office trash (`day_withdraw`). Daily alarm for drafts waiting longer than `review_wait_h`. Migration 6701 (same id as the earlier build, free on main): `office_docs.issuer_id`, `issuer_wish` (sealed), `issuer_rev`, `ref_sha256` (additive).
+- #6701 The issuer routes' refusal notices (limit, payee mismatch) go through one helper, `isc_notice`.
+- #6701 Office: the invoice editor of an issuer's draft shows "Made by the invoice issuer …" with its client_ref and the outside system's unconfirmed statements (paid on … by …, sending wished, payment terms, account, VAT ID check - no proof, over limit, VAT territory); nothing is booked or sent from them. The invoice list gets a filter "number range or invoice issuer" (main range, each range, from invoice issuers, one issuer; API `?range=` / `?issuer=any|<id>`).
+
+### Changed
+- #6701 Agent draft routes (quotation, invoice, invoice from a quotation, reminder): the same `client_ref` with another body is now 409 `ref_conflict` instead of silently returning the first draft. Office documents made by an issuer carry `origin: "issuer"`, `untrusted: true` for agents (rules template, in-app rules, docs/AGENTS.md).
+- #6701 An issuer's draft never becomes a series template (409), its client can only change to another client of the same issuer (409), a copy never keeps the issuer, a person's correction of an issuer's invoice inherits it.
+
+Package 2.1432 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Changed
+- #6808: From 2027-01-01 (server setting `KALMIDO_REQ_MAIN_FROM`) the own long-lived token of every team agent reaches only its channel (events, status, jobs, sending messages), also when its starter never asked for a request token; until then *Settings > Agents* names the day on such an agent (run the setup command again). `GET /agent/chats` now needs the request token for a team agent that works per request (`403 request_token_needed` with its own token); the reference starter reads the answered message with the run's token.
+- #6399: Live updates: a change in office, files, contacts, calendars, tables, wiki or an agent's status now wakes only the open tabs of the people who can see it (the writer's organisations, shared lists and shares) instead of every tab of every organisation.
+- #6196: One offline message everywhere: "Only available online." also in account, settings, bell and the app frame; the old sentence is gone.
+- #7169: Lint: `tools/ruff_baseline.py --update` only lowers the baseline, a new finding stays red.
+
+### Fixed
+- #6639: Live updates: a focused drop-down no longer blocks changes from other devices; a field left without input for a minute lets them through too, the open task panel follows without closing the keyboard.
+- #6831: `tools/check_globals.py` explains its red message with Why / Instead (lint suite p21403_c_suppress).
+
+Package 2.1429 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Changed
+- Office rights: in a company a person creates herself (Create company, or moving the private office into a company) a new member or read-only person starts in the office group "Staff" (their own receipts, travel expenses, drives, entertainment receipts and times) instead of the silent "Previous access" with quotations, invoices, clients and the office settings; the admins give more under Office settings > Rights. The start is written to the rights log ("joined and starts in the default group"); such a company offers no "Previous access" on the rights page. Organisations of before and the ones the server admin creates keep "Previous access" for their new members (#6527).
+- Invite people: below the role a sentence says what the role may in the office of this organisation and that projects are shared one by one (#6527).
+- Quote of the day on the sign-in page: the author ("— Hugo Ball") stands in the same line right behind the quote's last word; the name never breaks, it moves to the next line as a whole (#7228).
+
+### Fixed
+- Phone: the workspace chip in the header shows the organisation's letter or symbol again; only its name is hidden (the chip was empty) (#7210).
+- Phone at 320 px: the PDF bar of the file / receipt view fits its one row (zoom out / in and the percentage give way, a pinch zooms; Width, Whole page, Pages and Full screen stay); on Today the task block's "…" no longer lies over "Columns" of the strip of shown fields (#7211).
+
 ## [2.1426.0] - 2026-11-19
 
 Package 2.1422 (Bündel: Versionsdaten beim Abbild-Bau ableiten statt Versi, Sammelpaket: Aufgaben ohne Paket (Dispatcher), Bündel: Wissen-Bildfreigabe am Au).
@@ -295,7 +353,8 @@ Package 2.1401.0 (Bündel: Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher
 - #7037 Number ranges: a closed range opens again only with a scheme the office accepts; the import cleans a refused scheme; a new range and the import also check the correction scheme; the settings refuse the scheme of a range; moving the personal office refuses a range scheme the organisation already uses.
 - #6952 MCP: a test checks that the items of a completed task's subtask copy (`sub_snapshot`, an object) are fenced as data (the fence came with #6906).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1426.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1432.0...HEAD
+[2.1432.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1432.0
 [2.1426.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1426.0
 [2.1420.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1420.0
 [2.1415.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1415.0
