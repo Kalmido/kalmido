@@ -43,6 +43,7 @@ const WS_VIEWS = {
   'static/js/chat.js': 'draw',                // team chats of the workspace
   'static/js/ctfold.js': 'draw',              // 2.351.0 B (#2749): the address book's folder tree shows the shown workspace's entry
   'static/js/collab.js': 'draw',              // 2.145.0 (#2444): the news list's hint rows for the OTHER workspaces (newsElseHtml), drawn with the list
+  'static/js/time.js': 'draw',                // 2.1398.0 (#6722): under "All" the report's filter leaves out workspaces with Time tracking off (tv_wsLists); viewTime uses its data only while S.tv.data._q === timeQuery(), so a switch loads again
   'static/js/agents.js': 'draw',              // agents of the workspace (p2280_ui)
   'static/js/agentview.js': 'helper',         // 2.361.4 (#2928): av_ownArea - in the private area only the person's own agents are created
   'static/js/bookmarks.js': 'draw',           // 2.97.0 (#1950): bookmarks load the shown workspace (bm_sp) unless one is picked in the view
