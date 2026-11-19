@@ -1494,6 +1494,8 @@ Leafing with a swipe (the next / previous document or picture: the full screen o
 panel, the calendar's periods) is the other gesture of the core: `static/js/swipenav.js` -- `swn_attach(root, {area, can, go,
 peek})`. The calendar (calgest.js, 2.1312.0 #6711) leafs with it too: only the grid moves, the neighbour period lies beside it
 as its empty grid; the calendar's pinch zoom and the trackpad's sideways swipe stay its own.
+`swn_owns(target)` (2.1408.0, #6693) tells whether an attached leafing area owns a touch there; a gesture of the page (the
+sidebar's swipe to the right, events.js) asks it and the rows (`RSW_REG`) first and leaves their touches alone.
 
 ## Calm view: a redraw keeps the reading place (2.924.0, #5224)
 
