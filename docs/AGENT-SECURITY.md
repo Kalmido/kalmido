@@ -201,10 +201,12 @@ work apart.
    not simply do it. Kalmido blocks the most important cases on the server, but no AI recognises every deception
    (prompt injection). That is why rules 1 to 3 matter.
 7. **Know where the data goes.** What an agent reads is processed by the AI provider you connected. For confidential
-   work use a local model or a provider whose data processing terms fit your rules. Kalmido itself sends no data to an AI
-   provider on its own. Two optional functions send text to a service the admin enters: the built-in assistant
-   (`KALMIDO_AI_BASE_URL`) and the similarity service (`KALMIDO_EMBED_URL`); both are off while the address is empty.
-   Apart from that, only an agent you connect does.
+   work use a local model or a provider whose data processing terms fit your rules. An agent on the Kalmido server
+   ("Kalmido AI") sends what it reads from the server to the model provider of its API key (Anthropic,
+   `api.anthropic.com`, or the address in `KALMIDO_SRVAGENT_ANTHROPIC_URL`); its set-up and the hint "agent added" to the
+   project members name provider and host. Two optional functions send text to a service the admin enters: the built-in
+   assistant (`KALMIDO_AI_BASE_URL`) and the similarity service (`KALMIDO_EMBED_URL`); both are off while the address is
+   empty. Apart from that, only an agent you connect does.
 8. **Health stays out.** Health projects and the journal are never visible to agents (the scope `private` is never given
    to an agent).
 9. **Check the log.** The project menu *Agent access* shows which agents read and wrote in the project, per day. Every

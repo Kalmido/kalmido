@@ -48,7 +48,7 @@ from ..core.i18n import N_, tr
 from ..core.db import body, db, err, gsetting, iso, now_utc
 from ..core.access import Denied
 from ..core.errors import BadInput
-from ..core.env import env_int
+from ..core.env import env_int, SRV_AGENT_MARK  # 2.1412.0 (#6510)
 from ..accounts.session import me
 from ..accounts.supportgrant import sga_is_support  # 2.557.0 (2nd review)
 from .srvstarter import SRV_DAY_LIMIT_DEFAULT, SRV_DEFAULT_INSTRUCTIONS, SRV_DEFAULT_MODEL, SRV_FLOWS, srv_day_cap, srv_hosted  # 2.1308.0 (#6568): + hosted, ceiling; 2.557.0: the bridge of the parts is gone; 2.638.0 (#4714): + the day limit
@@ -58,7 +58,7 @@ from ..agents.core import agent_row, need_person, RUNTIME_MODEL_MAX, RUNTIME_MOD
 from ..agents.admin import need_agent_admin
 from .srvweb import srv_flow_web, srv_flow_web_in  # 2.571.0 D (#4676)
 
-SRV_PROVIDER = "kalmido-server"     # agents.provider of a server agent
+SRV_PROVIDER = SRV_AGENT_MARK      # agents.provider of a server agent ("kalmido-server", core/env.py since 2.1412.0, #6510)
 SRV_SWITCH = "server_agents_off"    # instance setting: "1" = server agents are off on this server
 SRV_INSTR_MAX = 20000               # characters of the instructions
 SRV_KEY_MIN, SRV_KEY_MAX = 8, 400   # characters of an API key

@@ -431,3 +431,17 @@ def env_bool(name, default):
         print(f"warning: {name}={v[:20]!r} is not a switch value (1/true/yes/on or 0/false/no/off): using the default "
               f"({'on' if default else 'off'})", file=sys.stderr, flush=True)
     return default
+
+
+SRV_AGENT_MARK = "kalmido-server"  # agents.provider of a server agent (agents/srvagent.py SRV_PROVIDER)
+
+
+def srv_recipient():
+    """2.1412.0 (#6510): (provider, host) - where what a server agent reads goes: the model provider behind
+    KALMIDO_SRVAGENT_ANTHROPIC_URL ("Anthropic" for its own address, otherwise the host that is set). The hint "agent
+    added" (admin/hosting.py) and the set-up (agents/srvstarter.py) name it instead of the internal mark SRV_AGENT_MARK.
+    Here in the core layer so that both reach it without an upward import."""
+    from urllib.parse import urlparse
+    url = env_str("KALMIDO_SRVAGENT_ANTHROPIC_URL").rstrip("/")
+    host = (urlparse(url).hostname or url).lower()
+    return ("Anthropic" if host == "anthropic.com" or host.endswith(".anthropic.com") else host), host
