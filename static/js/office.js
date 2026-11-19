@@ -216,6 +216,10 @@ const ofc_setBody = () => S.route.tab === 'import' && typeof oimHtml === 'functi
 // 2.470.0 (#3596): the pages behind Settings (services, text blocks, rights) lead back there; was the tab row General | Templates
 // 2.855.0 (#5456): the button names where it leads (Settings › Company & office [› Texts & templates]), not just "Settings"
 const ofr_backHtml = tab => ofr_grp() && ofr_lvOf('settings') === 'none' ? '' : `<div class="ofcbar"><button type="button" class="btn sm" data-setgo="${tab === 'settings' ? 'biz' : 'biz-tpl'}">${ic('back', 's')} ${esc(tab === 'settings' ? tr('Settings › Company & office') : tr('Settings › Company & office › {0}', tr('Texts & templates')))}</button></div>`;
+// #7390: the box the quotations / invoices are drawn into below a hint (the card "Set up your office", a member's line, the
+// country of a new office): data-fl-fill keeps its rows through a redraw of the page (render.js morphKids) - without it a tab
+// switch emptied it, the page shrank and the scroll position fell to the top before ofdOffersTab filled it again
+const OFC_PBOX = '<div class="pboffers" data-fl-fill></div>';
 function viewOffice() {
   if (!officeOn()) return `<div class="empty">${setLinkHtml(tr('Office & finance is off (Settings > Modules)'))}</div>`;
   const tab = ofcTab();
@@ -233,17 +237,17 @@ function viewOffice() {
   else if (tab === 'start') body = (pb_hintHtml() || '') + ofcMemberHint() + ofm_startHtml();  // 2.87.9 (#1917); 2.356.0 D (#3006): + the members' line
   else if (tab === 'settings' && (S.route.tab === 'rights' || (ofr_grp() && ofr_lvOf('settings') === 'none')) && typeof orr_html === 'function') body = orr_html();  // 2.187.0 A (#2476): the page "Rights" (a person without the settings: only "My rights")
   else if (ofr_grp() && ofr_area(tab) && ofr_lvOf(ofr_area(tab)) === 'none' && !(tab === 'receipts' && OFC.info.submit)) body = noAccessState({sub: tr('Your office rights do not include this area'), action: ofcSubmitBtn() && `<div class="eacts">${/*html-ok*/ ofcSubmitBtn()}</div>`, cls: 'ofclocked'});  // 2.1076.0 (#5450): the one form  // 2.356.0 D (#3006): + the way to hand in receipts  // 2.187.0 A (#2476): a direct link to a hidden area
-  else if (pb_hintHtml()) body = pb_hintHtml() + (ofcDocTab(tab) ? '<div class="pboffers"></div>' : tab === 'settings' ? ofc_setBody() : typeof OFC_TABS.find(t => t[0] === tab)?.[4] === 'function' ? OFC_TABS.find(t => t[0] === tab)[4]() : ofcListHtml(tab));  // 2.47.3 (#1360); 2.92.0 A (#1925): tabs of their own module here too
-  else if (ofcDocTab(tab) && ofcMemberHint()) body = ofcMemberHint() + '<div class="pboffers"></div>';  // 2.356.0 D (#3006): the desktop start of members
+  else if (pb_hintHtml()) body = pb_hintHtml() + (ofcDocTab(tab) ? OFC_PBOX : tab === 'settings' ? ofc_setBody() : typeof OFC_TABS.find(t => t[0] === tab)?.[4] === 'function' ? OFC_TABS.find(t => t[0] === tab)[4]() : ofcListHtml(tab));  // 2.47.3 (#1360); 2.92.0 A (#1925): tabs of their own module here too
+  else if (ofcDocTab(tab) && ofcMemberHint()) body = ofcMemberHint() + OFC_PBOX;  // 2.356.0 D (#3006): the desktop start of members
   else if (ofcDocTab(tab)) body = typeof ofdOffersTab === 'function' ? '' : `<div class="empty">${ic('receipt')}<span>${tr('Quotations arrive with the next step of this module.')}</span></div>`;
   else if (tab === 'settings') body = ofc_setBody();  // 2.39.1 (#1182): office/import
   else if (typeof OFC_TABS.find(t => t[0] === tab)?.[4] === 'function') body = OFC_TABS.find(t => t[0] === tab)[4]();  // 2.47.3 (B, #1022 #1652): tabs of their own module, [3] = admins only
   else body = ofcListHtml(tab);
   if (OFC.info && !OFC.infoErr && (['services', 'texts'].includes(tab) || S.route.tab === 'rights')) body = ofr_backHtml(tab) + body;  // 2.470.0 (#3596): the way back into Settings (was the tabs General | Templates)
   const och = OFC.info && !OFC.infoErr && typeof ocf_chooseHtml === 'function' ? ocf_chooseHtml() : '';  // 2.147.0 (#2462): the country of a new office
-  if (och) body = och + (ofcDocTab(tab) && !body ? '<div class="pboffers"></div>' : body);  // (the quotations fill .pboffers below it)
+  if (och) body = och + (ofcDocTab(tab) && !body ? OFC_PBOX : body);  // (the quotations fill .pboffers below it)
   const osu = OFC.info && !OFC.infoErr && !och && !S.route.id && (tab === 'start' || ofcDocTab(tab)) ? ofsu_html() : '';  // (#6530): the card "Set up your office"
-  if (osu) body = osu + (ofcDocTab(tab) && !body ? '<div class="pboffers"></div>' : body);
+  if (osu) body = osu + (ofcDocTab(tab) && !body ? OFC_PBOX : body);
   const ro = ['readonly', 'accounting'].includes(OFC.info?.role)  // 2.143.0 A (#2151): reads only (create / delete hidden in app.css)
     || (!!ofr_grp() && !!ofr_area(tab) && ['none', 'view'].includes(ofr_lvOf(ofr_area(tab))) && !(tab === 'receipts' && OFC.info?.submit));  // 2.356.0 D (#3129): hands in  // 2.187.0 A (#2476): the group's level of this area
   // 2.147.2 A (#2500): the role words here, not oinvRoleSel (settings module): a direct start of the office threw and stayed on "Loading…"

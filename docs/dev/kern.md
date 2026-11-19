@@ -1539,6 +1539,13 @@ calm jump. A new area does not keep scroll positions itself:
 - The browser's own anchoring (`overflow-anchor: auto` on `#view`) stays on; never set `scrollTop` back to a saved pixel
   value after a redraw (that undoes it).
 - A focus given back after a redraw: `focus({preventScroll: true})`.
+- A tab of the same page that loads its own list (#7390): the switch keeps the page and the rows of the last tab stay, dimmed
+  and busy, until the new list is there - no big loading block in between (the page shrank to it and the scroll position
+  fell to the top). `tabh_keep(key, html)` where the list part is drawn with its data (it gives `html` back),
+  `tabh_arm(key)` at the switch (the tab's click and a kind's address, Back), `tabh_held(key) || loadingHtml('big')` where
+  the loading block stood; `tabh_drop(key)` on an error. First user: the office's quotations / invoices (`office_docs.js`,
+  key `ofd`); #7398 moves the other areas onto it. A box that an area fills after the render keeps its content through a
+  redraw only with `data-fl-fill` (render.js `morphKids`).
 - `tools/check_scrolljump.py` (CI lint) is red for a NEW `scrollIntoView` / `scrollTo` / `scrollBy` / `scrollTop =` /
   `focus()` without `preventScroll` outside a dialog; a jump the person asked for carries `// sprung-ok: <reason>`. The
   places from before are the baseline `tools/scrolljump_baseline.json` (only shrinks, `--update`).

@@ -1181,6 +1181,17 @@ function kr_back(el, a, px) {
   if (Math.abs(el.scrollTop - px) >= 1) el.scrollTop = px;  // sprung-ok: no key in sight: the old pixel offset
 }
 function keepReading(el, fn) { const a = kr_mark(el), px = el?.scrollTop; try { return fn(); } finally { kr_back(el, a, px); } }
+// ---- #7390: a tab of the same page that loads its own list (the office's Invoices / Credit notes / Reminders …; #7398 brings the
+// other areas): the switch keeps the page - head, tab row, search line and scroll position stay - and the rows of the tab shown
+// last stay in place, dimmed and busy, until the new list is there; then only the list part is drawn again. No big loading block
+// in between (the page shrank to it and the scroll position fell to the top). key = the list's place; tabh_keep(key, html) when a
+// list is drawn with its data (gives html back), tabh_arm(key) at the switch, tabh_held(key) where the loading block stood
+// ('' = not armed: a first load, another office, a reload after a change, or longer than 8 s - then the loading block as before).
+const TABH = new Map();
+const tabh_keep = (key, html) => { TABH.set(key, {html, at: 0}); return html; };
+const tabh_arm = key => { const h = TABH.get(key); if (h) h.at = Date.now(); };
+const tabh_drop = key => { TABH.delete(key); };
+const tabh_held = key => { const h = TABH.get(key); return h?.at && Date.now() - h.at < 8000 ? `<div class="tabheld" aria-busy="true" inert>${/*html-ok*/ h.html /* drawn before from escaped parts */}</div>` : ''; };
 // the scrolling box around n (fl_set: a part drawn again keeps the place in its own box)
 function kr_scroller(n) {
   for (; n && n !== document.body && n !== document.documentElement; n = n.parentElement) if (n.scrollHeight > n.clientHeight + 1 && /^(auto|scroll)$/.test(getComputedStyle(n).overflowY)) return n;
