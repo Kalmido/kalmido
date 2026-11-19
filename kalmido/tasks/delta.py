@@ -23,7 +23,7 @@ from flask import has_request_context, jsonify, request
 from ..core.config import app, APP_VERSION
 from ..core.db import appver_parse, db, gset, gsetting, iso, now_utc, trigger_ensure, usettings
 from ..accounts.session import me
-from ..core.access import plists, time_all, token_lists, tvis, vis_sql, wr_sql  # 2.149.0 G (#2517): pulled up from functions
+from ..core.access import joined_lists_sql, plists, time_all, token_lists, tvis, vis_sql, wr_sql  # 2.149.0 G (#2517): pulled up from functions
 from ..core.serializers import load_tasks, td_extra, td_lean, td_mode  # 2.149.0 G (#2517): pulled up from functions; 2.575.0 B (#3966): + td_lean; 2.1117.0 (#6023): + td_mode, td_extra
 from ..core.pg import st_ids  # 2.369.2 (#3136)
 from ..core.state import ev_links, ev_sig, lz_counts, lz_ids_arg, lz_tree, st_where  # 2.149.0 G (#2517): pulled up from functions
@@ -289,9 +289,9 @@ def dl_rows_scope(c, uid):
 # their shares (files, folders, calendars, address books: who they share with, who shares with them, and the organisation
 # of what is shared with them); for an agent its owner and its organisation. People of these organisations are reached by
 # the organisation's key and are not listed one by one.
-_LV_CIRCLE_SQL = """
+_LV_CIRCLE_SQL = f"""
 WITH mo AS (SELECT org_id FROM org_members WHERE user_id=? UNION SELECT org_id FROM agents WHERE user_id=? AND org_id IS NOT NULL),
-ml AS (SELECT id FROM lists WHERE owner_id=? UNION SELECT list_id FROM list_members WHERE user_id=?),
+ml AS {joined_lists_sql()},
 si AS (SELECT node_id FROM fs_shares WHERE user_id=? OR agent_id=? OR group_id IN (SELECT group_id FROM group_members WHERE user_id=?)),
 so AS (SELECT s.user_id, s.group_id FROM fs_shares s JOIN fs_nodes n ON n.id=s.node_id
        WHERE n.owner_id=? OR n.org_id IN (SELECT org_id FROM mo) OR s.node_id IN (SELECT node_id FROM si)),
