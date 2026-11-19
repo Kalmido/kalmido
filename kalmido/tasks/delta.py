@@ -217,7 +217,7 @@ def dl_stamp(c, v):
 DL_SCOPE_ROWS = 500  # 2.369.4 (#2507): more unstamped rows than this at a bump: counted for everyone (no scope worked out)
 
 
-# 2.1432 (#6399): writes whose people are not known from the writer (structure of the whole instance or of who sees what):
+# (#6399): writes whose people are not known from the writer (structure of the whole instance or of who sees what):
 # admin / operator / account management, organisations and their members, groups, sharing and memberships (the person who
 # just lost a share is no longer in any circle). They stay "version:all"; they are rare.
 LV_ALL_PATHS = re.compile(r"^/api/(v1/)?(admin|operator|users|orgs?|groups)(/|$)|/(shares?|members?|leave|transfer)(/|$)")
@@ -232,7 +232,7 @@ def dl_scope(c, area, uid):
     not known; bump's #6335 fallback makes that the writer's own). "self" = the writer's own account. /api/version takes the
     maximum of the own keys (version_sigs), so a change in organisation A no longer makes the members of B fetch a delta
     (the client skips it, liveparts.js lpSkip).
-    2.1432 (#6399): every other area (office, files, contacts, calendars, sheets, wiki, team, an agent's status, "other" ...)
+    (#6399): every other area (office, files, contacts, calendars, sheets, wiki, team, an agent's status, "other" ...)
     was "version:all" - every open tab of every organisation reloaded the whole state. It now goes to the writer's circle
     (lv_circle) plus the people of the task rows the write left; "version:all" stays for the paths of LV_ALL_PATHS."""
     if area in ("self", "undo"):  # #5407: + the own list of steps
@@ -284,7 +284,7 @@ def dl_rows_scope(c, uid):
     return [f"version:org:{o}" for o in sorted(orgs)] + [f"version:u:{p}" for p in sorted(people)]
 
 
-# 2.1432 (#6399): everyone who can see what a person writes outside the task lists: their organisations; the organisations,
+# (#6399): everyone who can see what a person writes outside the task lists: their organisations; the organisations,
 # owners and members of the lists they are in (a project's side objects: tables, knowledge pages, the budget); both sides of
 # their shares (files, folders, calendars, address books: who they share with, who shares with them, and the organisation
 # of what is shared with them); for an agent its owner and its organisation. People of these organisations are reached by
@@ -307,7 +307,7 @@ LIMIT ?"""
 
 
 def lv_circle(c, uid):
-    """2.1432 (#6399): the version keys of the writer's circle (_LV_CIRCLE_SQL) + their own; None = for everyone: outside a
+    """(#6399): the version keys of the writer's circle (_LV_CIRCLE_SQL) + their own; None = for everyone: outside a
     request, a path of LV_ALL_PATHS, more than DL_SCOPE_ROWS keys."""
     if not has_request_context() or LV_ALL_PATHS.search(request.path):
         return None

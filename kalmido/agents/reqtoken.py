@@ -14,7 +14,7 @@ ctl_cap). A team agent that runs elsewhere gets the same cut per request:
  - from the first request token on (agents.per_request, for good) its long-lived token is the agent's channel only (api/runfor.py
    req_main_gate, review F1: the class own plus REQ_MAIN_CHANNEL by name): events, status, chats, jobs, usage, cards,
    messages; the content of projects, files, contacts, pages, search, news, time, office ...
-   only with a request token. 2.1432 (#6808): a program that never asks keeps its whole reach only until
+   only with a request token. (#6808): a program that never asks keeps its whole reach only until
    KALMIDO_REQ_MAIN_FROM (api/runfor.py req_main_on; Settings > Agents names the day), then its token is the channel too;
    GET /agent/chats (what people wrote) needs the request token as well. The reference starter (mcp/agent_run.py) asks
    before every run and hands only the request token to the model.

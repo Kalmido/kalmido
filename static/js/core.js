@@ -848,7 +848,7 @@ async function api(method, url, body) {
   catch (e) {
     if (e instanceof Offline) {
       if (queueable(method, url) && !(body instanceof FormData)) return enqueue(method, url, body);
-      if (method !== 'GET') { toast(tr('Only available online.')); e.shown = true; }  // 2.855.0 (#5451)
+      if (method !== 'GET') { toast(tr('Only available online.')); e.shown = true; }  // (#5451)
     } else if (e.message !== 'auth' && !e.shown) {
       if (e.data?.out_request && typeof oor_ask === 'function') toast(e.message, () => oor_ask(e.data.out_request), 10000, tr('Ask an admin'));  // 2.361.2 (#2923)
       else toast(errText(e, apiWhat(method, url, body)));  // 2.910.0 (#5444): what was not saved, the server's text as an addition
@@ -1874,7 +1874,7 @@ document.addEventListener('visibilitychange', async () => {
 let imeOn = false;
 document.addEventListener('compositionstart', () => { imeOn = true; }, true);
 document.addEventListener('compositionend', () => { imeOn = false; }, true);
-// 2.1432.0 (#6639): a <select> is no typing (a choice made left the focus there and live changes waited, for hours); a field
+// (#6639): a <select> is no typing (a choice made left the focus there and live changes waited, for hours); a field
 // left without input for EDIT_IDLE_MS lets them through too - the redraw morphs and leaves the focused field as it is
 // (renderView keepFocus, the panel lpDetail), so the text and the keyboard stay
 const EDIT_IDLE_MS = 60000;

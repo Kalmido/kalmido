@@ -1512,7 +1512,7 @@ def bump(c, area=None):
         u = getattr(g, "user", None) if has_request_context() else None
         # 2.369.4 (#2507): who the change is for -- the organisations / people of the changed lists get the new version as
         # their key (None: everyone, "version:all"); read before dl_stamp (it works on the rows not stamped yet)
-        # 2.1432 (#6399): the other areas (office, files, contacts, an agent's status ...) go to the writer's circle
+        # (#6399): the other areas (office, files, contacts, an agent's status ...) go to the writer's circle
         # (delta.py lv_circle); "version:all" only outside a request, without an account and for instance-wide paths
         sk = dl_scope(c, area, u["id"] if u is not None else None) or ["version:all"]
         n = dl_stamp(c, int(r[0]))
