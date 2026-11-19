@@ -27,7 +27,8 @@ from ..accounts.session import GATE, me
 from ..accounts.mailtok import mtk_new, mtk_plain, mtk_where  # 2.674.0 (#4382 finding 5)
 from ..accounts.bgjobs import bgj_fn
 from ..core.access import list_role, need_list, vis_sql, WRITE_ROLES, list_state_sql
-from ..core.pages import att_skip_task, mail_files_save, new_inbox_task, split_link, valid_url
+from ..core.pages import new_inbox_task, split_link, valid_url
+from ..collab.attskip import att_skip_task, mail_files_save  # #6531
 from ..tasks.validation import as_int, log_act
 from ..collab.news import news_unread
 from ..collab.integfail import integ_backoff_s, integ_tell  # 2.1269 (#6386), 2.1333.0 (#6545)

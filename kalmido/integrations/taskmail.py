@@ -34,7 +34,7 @@ from ..core.db import bump, iso, now_utc
 from ..core.i18n import lang, tr
 from ..core.objcomments import OCM_MENTION_RE as MENTION_RE, ocm_add, ocm_say_refusal  # 2.972.0 (#5272)
 from ..core.access import task_visible
-from ..core.pages import att_skip_note, mail_files_save
+from ..collab.attskip import att_skip_note, mail_files_save  # #6531
 from ..accounts.login import auth_key
 from ..admin.hosting import mail_budget
 from ..core.mailbudget import mail_own_budget  # 2.1312.0 (#6540)

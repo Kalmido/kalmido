@@ -139,6 +139,7 @@ ORDER = (
     "collab.cmttrash",  # 2.530.0 A (#4315): the trash of comments and team chat messages (helpers only)
     "collab.comments",
     "collab.news",
+    "collab.attskip",  # #6531: a mail's / a form's file left out: the note on the task and the News item
     "collab.integfail",  # 2.367.3 (#2971): an integration stopped working: News + push to who can repair it
     "personal.habits",
     "personal.timetrack",

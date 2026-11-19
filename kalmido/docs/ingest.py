@@ -14,7 +14,9 @@ import time
 from datetime import timedelta
 
 from ..core.config import app
-from ..core.db import connect, iso, now_utc
+from ..core.db import connect, iso, now_utc, usettings
+from ..collab.news import news_add  # #6531: the News item of a file the storage refused
+from ..files.upsafe import UploadRefused  # #6531
 from ..accounts.session import GATE, bg_here
 from ..accounts.mailtok import mtk_where  # 2.674.0 (#4382 finding 5)
 from ..core.pg import system_ctx
@@ -551,8 +553,6 @@ def docs_mail_import(c, msg, raw, pre=None):
         first, _made = _docs_mail_into(c, msg, raw, uid, org, sort=sort, letter=letter, budget=budget, pre=pre,
                                        meta_add=fixed, parent_id=dest, cut=cut, left=left)
         if left:  # #6531: a file the storage refused (full, virus) never goes silently: News for the person, the mail stays
-            from ..collab.news import news_add
-            from ..core.db import usettings
             news_add(c, uid, "attskip", actor=0, s=usettings(c, uid), data={"names": [n[:120] for n, _k in left[:5]], "n": len(left), "why": left[0][1]})
     c.commit()
     if first:
@@ -580,7 +580,6 @@ def _docs_mail_into(c, msg, raw, uid, org, sort=None, letter=None, budget=None, 
     (2.1281.0 #6425, _mail_parts); left = a list that gets (name, "quota" / "virus" / "denied") for every file the
     storage refused (#6531: the caller keeps the mail and tells the owner). -> (first node id or 0, [node ids])."""
     from ..admin.hosting import QuotaExceeded
-    from ..files.upsafe import UploadRefused
     _toks, mail_text, ei_is = _mail_toks(msg)
     mid = _mail_mid(msg, raw)
     add = dict(meta_add or {})

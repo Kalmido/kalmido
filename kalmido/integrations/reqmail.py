@@ -46,7 +46,7 @@ from ..core.pg import system_ctx
 from ..tasks.repo import task_insert  # 2.1358.0 (#6825): the one way into tasks
 from ..core.objcomments import ocm_add  # 2.972.0 (#5272)
 from ..core.access import Denied, MANAGE_ROLES, need_list, task_visible
-from ..core.pages import att_skip_note, att_skip_task, mail_files_save
+from ..collab.attskip import att_skip_note, att_skip_task, mail_files_save  # #6531
 from ..accounts.session import _token_hash, me
 from ..accounts.mailtok import mtk_new, mtk_plain  # 2.674.0 (#4382 finding 5)
 from ..accounts.bgjobs import bgj_add, bgj_fn
