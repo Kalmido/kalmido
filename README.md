@@ -19,11 +19,11 @@
 
 ## What's new
 
-**2.1412.0** (2026-11-19):
-- **Workspaces**: under "All workspaces" every module shows only the workspaces it is switched on in; one menu to switch workspace everywhere, favourites on the phone show their name.
-- **Documents**: receipt fields no longer overwrite a change made on another device.
-- **Agents**: model and effort per job kind; team agent jobs follow the circle rule.
-- **Performance**: long lists scroll smoothly again.
+**2.1415.0** (2026-11-19):
+- **Projects**: a PO number per project that quotations and invoices take over; calmer project page with half tiles in two columns.
+- **Office**: the client list and office figures load faster; post-calculation keeps hour positions by time; import checks storage before it starts.
+- **Agents**: starter rights profile "Programming agent", own block list and protected control files; server agents say where their content goes.
+- **Phone**: swipe right opens the folded sidebar; event invitations go out only from a confirmed address.
 
 Full history: [CHANGELOG.md](CHANGELOG.md).
 
