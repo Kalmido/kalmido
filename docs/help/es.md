@@ -308,3 +308,24 @@ Qué pasa entonces: todos los proyectos de la carpeta quedan compartidos con ell
 
 Qué pasa entonces: quien tenga el enlace puede leer el proyecto, sin iniciar sesión, solo lectura, sin comentarios,
 responsables ni archivos. **Desactivar** termina el enlace al instante.
+
+<!-- help: team#how-to-move-the-company-to-another-server src=7feca89b2e -->
+## Mudar la empresa a otro servidor
+
+1. En el servidor nuevo (el tuyo propio o app.kalmido.com) crea una organización vacía e invita a sus miembros en
+   Ajustes > Organización > Personas - o marca **Invitar por correo** para las personas que faltan en la vista previa de
+   la importación.
+2. En el servidor antiguo apunta la clave de recuperación (Ajustes > Organización > Datos > Cifrado), luego abre
+   **Mudar la organización** y elige **Empezar la mudanza…**: la organización pasa a ser de solo lectura, las series de
+   facturas, los recordatorios y la recogida de correo y banco se detienen.
+3. Elige **Exportar la organización**, luego **Crear exportación** y **Descargar**. Cada persona elige además
+   **Exportar todo** (sus propios datos), y quien tenga una oficina propia, **Exportar la oficina**.
+4. En el servidor nuevo elige **Transferir desde una exportación de Kalmido**: primero el archivo de la organización (con
+   la clave de recuperación, la nueva organización como destino), luego cada persona su propio archivo.
+5. Configura de nuevo lo que no se transfiere: contraseñas y passkeys, contraseñas de las cuentas de correo, dispositivos
+   de calendario y contactos, webhooks y conexiones, enlaces públicos, de formularios y de reservas, direcciones de correo
+   de entrada y agentes.
+
+Qué pasa después: a partir de ahora solo el servidor nuevo asigna números de factura. Pide al admin del servidor antiguo
+que borre la organización antigua; **Terminar la mudanza** solo si al final te quedas allí. Cambiar el nombre de la
+empresa no necesita mudanza: cambia el nombre. Dos empresas no se pueden unir en una, ni una dividirse, sin pérdidas.

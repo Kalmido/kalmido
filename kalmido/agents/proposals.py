@@ -161,8 +161,8 @@ def _p_str(v, what, mx, required=False, line=True):
     if not isinstance(v, str):
         raise BadInput(tr("Invalid value: {0}", what))
     v = re.sub(r"[\x00-\x08\x0b-\x1f]", "", v.replace("\r\n", "\n"))
-    if line:
-        v = re.sub(r"\s*\n\s*", " ", v)
+    if line:  # #6433: linear (\s*\n\s* was quadratic on long blanks); blank lines go as before
+        v = " ".join(x for x in (y.strip() for y in v.split("\n")) if x) if "\n" in v else v
     v = v.strip()
     if len(v) > mx:
         raise BadInput(tr("Too long: {0} (at most {1} characters)", what, mx))

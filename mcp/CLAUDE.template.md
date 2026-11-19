@@ -739,7 +739,7 @@ default) and `set_office_deal_stage` (only the stage and, with `lost`, `lost_rea
 your last read, `409` = a person changed it since). Leads stay with the lead tools: a lead's stage you never set (`409`),
 a person converts it. You never delete a deal, make its quotation or project, or change other fields.
 
-Clients are managed by people (2.370.4): for you `list_clients` is empty, and `create_client`, `update_client`,
+Clients are managed by people (2.370.4): for you `list_clients` is empty, and `create_client`, `copy_client`, `update_client`,
 `delete_client` and `bulk_clients` (also `untrash` out of the trash) answer `403`. The office area's clients you read with
 `list_office_data`; deleting or restoring a client you leave to the person.
 A client's locations (#7292) are clients of their own with `parent_id` = the main client; documents name the location.
@@ -973,7 +973,7 @@ Flow *assign a receipt* (2.48.0): `list_documents` (e.g. `review: true`) -> `get
 `add_occasion`, `add_preparation_task`, `add_project_link`, `add_relation`, `add_reward`, `add_rule`, `add_shop_areas`, `add_snippet`,
 `add_subtask`, `add_time_entry`, `add_upkeep`, `apply_template`, `batch_tasks`, `bulk_clients`, `bulk_contacts`,
 `chat_typing`, `check_in_habit`, `check_time_entries`, `clear_plan_usage`, `clear_waiting`, `client_id`,
-`comment_typing`, `complete_task`, `confirm_abort`, `create_address_book`, `create_client`, `create_contact`, `create_document`, `create_event`,
+`comment_typing`, `complete_task`, `confirm_abort`, `copy_client`, `create_address_book`, `create_client`, `create_contact`, `create_document`, `create_event`,
 `create_event_calendar`, `create_field`, `create_file_folder`, `create_filter`, `create_form`, `create_habit`, `create_view`,
 `create_invoice_draft`, `create_job`, `create_letter_draft`, `create_list`, `create_list_tag`, `create_note`, `create_notepad`, `create_offer_draft`, `create_office_deal`, `create_office_lead`,
 `create_packing_list`, `create_poll`, `create_section`, `create_task`, `create_template`, `create_text_file`, `create_trip`,

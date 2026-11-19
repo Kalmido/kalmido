@@ -89,6 +89,7 @@ DAV_SYNC_KEEP = 30                # sync-token states kept per person and list
 DAV_RATE = 600                    # requests per app password and minute (a first sync of many lists is bursty)
 DAV_MOVE_S = 900                  # a task trashed this recently comes back when a client re-creates it in another list
 DAV_TAGS_MAX = 50
+DAV_FILTERS_MAX, DAV_TEXTMATCH_MAX = 20, 50  # #6433: prop-filters / text-matches of one calendar- or addressbook-query
 APPPW_MAX = 20                    # per person
 APPPW_USED_EVERY = 60             # s between two last_used_at updates
 APPPW_CACHE_S = 900               # s a verified app password skips the KDF (revoking it still stops it at once)
@@ -1491,12 +1492,15 @@ def dav_query_filter(root):
         return lambda m: False  # VEVENT / VJOURNAL: never here
     if todo.find(C_ + "is-not-defined") is not None:
         return lambda m: False
+    pfs = todo.findall(C_ + "prop-filter")
+    if len(pfs) > DAV_FILTERS_MAX or sum(len(pf.findall(C_ + "text-match")) for pf in pfs) > DAV_TEXTMATCH_MAX:  # #6433
+        raise DavError(403, "Too many filters", "<C:supported-filter/>")
     tests = []
     tr_ = todo.find(C_ + "time-range")
     if tr_ is not None:
         a, b = _tr_bound(tr_.get("start")), _tr_bound(tr_.get("end"))
         tests.append(lambda t: not t["due"] or bool(t["repeat"]) or ((not a or (t["due"] >= a)) and (not b or (t["start"] or t["due"]) <= b)))
-    for pf in todo.findall(C_ + "prop-filter"):
+    for pf in pfs:
         pn = pf.get("name", "").upper()
         if pn == "COMPLETED" and pf.find(C_ + "is-not-defined") is not None:
             tests.append(lambda t: t["status"] != 2)

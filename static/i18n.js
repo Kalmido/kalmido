@@ -287,7 +287,12 @@ function trn(one, other, n, ...a) {
 }
 // 2.666.0 (#4074 8): tr() / trn() for HTML: the translation keeps its own markup (<b>, <code>), every inserted value is escaped
 // (a name, a title, a host typed by someone). For values that are HTML already (an esc()-wrapped <b>…</b>) keep tr().
-const i18nEsc = x => String(x ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+// #6432: i18nHtml(s) marks a value that is HTML on purpose (a <b>${esc(name)}</b> built by the caller): trh / trnh keep it, every
+// other value is escaped - a forgotten esc() then shows "<a …>" as text instead of becoming markup. A String object, so string
+// methods and template literals work on it as on the HTML it holds.
+class I18nHtml extends String {}
+const i18nHtml = s => new I18nHtml(String(s ?? ''));
+const i18nEsc = x => x instanceof I18nHtml ? String(x) : String(x ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 /** @param {string} key @param {...any} a @returns {string} */
 function trh(key, ...a) { return tr(key, ...a.map(i18nEsc)); }
 /** @param {string} one @param {string} other @param {number} n @param {...any} a @returns {string} */

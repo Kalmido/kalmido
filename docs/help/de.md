@@ -331,3 +331,24 @@ sofort wieder. Ein einzelnes Projekt teilst du genauso über sein eigenes Menü.
 
 Was dann passiert: Wer den Link hat, kann das Projekt lesen - ohne Anmeldung, nur lesend, ohne Kommentare, Zuständige oder
 Dateien. **Ausschalten** beendet den Link sofort.
+
+<!-- help: team#how-to-move-the-company-to-another-server src=7feca89b2e -->
+## Mit der Firma auf einen anderen Server umziehen
+
+1. Leg auf dem neuen Server (deinem eigenen oder app.kalmido.com) eine leere Organisation an und lade ihre Mitglieder
+   unter Einstellungen > Organisation > Personen ein - oder hake in der Vorschau des Imports bei den fehlenden Personen
+   **Per E-Mail einladen** an.
+2. Notier auf dem alten Server den Wiederherstellungsschlüssel (Einstellungen > Organisation > Daten > Verschlüsselung),
+   öffne dann **Organisation umziehen** und wähle **Umzug starten…**: Die Organisation ist dann nur noch lesbar,
+   Rechnungsserien, Mahnungen, Mail- und Bankabruf ruhen.
+3. Wähle **Organisation exportieren**, dann **Export erstellen** und **Herunterladen**. Jede Person wählt außerdem
+   **Alles exportieren** (ihre eigenen Daten), und wer ein eigenes Büro hat, **Büro exportieren**.
+4. Wähle auf dem neuen Server **Aus einem Kalmido-Export übernehmen**: zuerst die Datei der Organisation (mit dem
+   Wiederherstellungsschlüssel, die neue Organisation als Ziel), dann jede Person ihre eigene Datei.
+5. Richte neu ein, was nicht mitkommt: Passwörter und Passkeys, Passwörter der Mail-Konten, Kalender- und
+   Kontakt-Geräte, Webhooks und Verbindungen, öffentliche, Formular- und Buchungs-Links, Eingangs-Adressen für E-Mails
+   und Agenten.
+
+Was dann passiert: Rechnungsnummern vergibt ab jetzt nur noch der neue Server. Bitte den Admin des alten Servers, die alte
+Organisation zu löschen; **Umzug beenden** nur, wenn du doch dort bleibst. Für eine Umfirmierung brauchst du keinen Umzug -
+ändere den Namen. Zwei Firmen lassen sich nicht ohne Verluste zu einer zusammenlegen, und eine nicht teilen.

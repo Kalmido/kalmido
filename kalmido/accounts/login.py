@@ -31,7 +31,7 @@ from .delhold import SDL_HELD, sdl_held  # 2.1298.0 (#6395)
 from ..core.db import adopt_orphans, body, bump, create_user, db, ensure_inbox, err, gset, gsetting, iso, local_now, now_utc, parse_iso, uset, write_lock
 from ..accounts.session import (
     _DUMMY_HASH, _peer_trusted, _rate_fail, _rate_keys, _rate_reset, _token_hash, login_name_in,
-    client_ip, FAIL_WINDOW, login_wait, proxy_login_value, rate_ip, set_cookie, start_session, user_public,
+    client_ip, dname_clean, FAIL_WINDOW, login_wait, proxy_login_value, rate_ip, set_cookie, start_session, user_public,
 )
 
 
@@ -237,7 +237,11 @@ def auth_setup():
     if (pw or not proxy) and len(pw) < MIN_PASSWORD:
         c.rollback()
         return err(tr("Password: at least {0} characters", MIN_PASSWORD))
-    uid = create_user(c, username, (b.get("display_name") or "").strip()[:60] or username, pw or None, proxy, True,
+    dname, bad = dname_clean(b.get("display_name"), username)  # #6432
+    if bad:
+        c.rollback()
+        return err(bad)
+    uid = create_user(c, username, dname, pw or None, proxy, True,
                       ntfy_topic=NTFY_TOPIC or None, seed_global=True,
                       drop_token=os.environ.get("TASKS_DROP_TOKEN") or None,
                       onboard=not c.execute("SELECT 1 FROM tasks LIMIT 1").fetchone())

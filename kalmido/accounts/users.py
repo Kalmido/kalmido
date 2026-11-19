@@ -14,7 +14,7 @@ from ..core.config import app, COOKIE, EMAIL_RE, MIN_PASSWORD, PUBLIC_URL, USERN
 from ..core.i18n import lang, LANGS, N_, tr, trn
 from ..core.db import body, bump, create_user, db, ensure_inbox, err, gsetting, now_utc, uset, usettings, iso
 from ..core.pg import system_ctx
-from ..accounts.session import _rate_fail, _rate_keys, _token_hash, login_wait, me, session_gen, user_public
+from ..accounts.session import _rate_fail, _rate_keys, _token_hash, dname_clean, login_wait, me, session_gen, user_public
 from ..accounts.pictures import (
     AVATAR_DIR, avatar_drop_file, AVATAR_MAX_MB, avatar_path, AVATAR_PRESETS, avatar_process, avatar_url, LIST_ICON_DIR,
     list_icon_cols, list_icon_drop_file, list_icon_path, LIST_ICON_PRESETS, list_icon_process, list_icon_url, list_pic_guard,
@@ -292,13 +292,16 @@ def user_create():
     topic = str(b.get("ntfy_topic") or "").strip()
     if topic and not NTFY_TOPIC_RE.fullmatch(topic):
         return err(tr("ntfy topic: 1-64 characters a-z, A-Z, 0-9, dash, underscore"))
+    dname, bad = dname_clean(b.get("display_name"), username)  # #6432
+    if bad:
+        return err(bad)
     orgs = om_orgs_arg(c, b)  # 2.46.0 (#1561): checked before the account exists
     if isinstance(orgs, str):
         return err(orgs)
     from ..accounts.orgs import _operator_apart, op_apart_deny, op_foreign_org
     if any(op_foreign_org(c, o, grant=False) for o, _role in orgs):  # 2.485.0 (#3939): not even through support access  # 2.399.0 (#2687): hosted: nobody new in a customer's organisation by the operator
         op_apart_deny()
-    uid = create_user(c, username, (b.get("display_name") or "").strip()[:60] or username, pw or None, proxy,
+    uid = create_user(c, username, dname, pw or None, proxy,
                       bool(b.get("is_admin")), ntfy_topic=topic or None, onboard=True,
                       ask_purpose=None if b.get("kid") is True else me() if orgs else 0)  # 2.364.0 A (#3032)
     if _operator_apart():  # 2.480.0 (#3944, F8): hosted: the operator's own account until it signs in (orgs.op_foreign_account)
@@ -425,7 +428,11 @@ def user_update(uid):
     if (("is_admin" in b and not b["is_admin"]) or b.get("disabled")) and u["is_admin"] and not _active_admins(c, uid):
         return err(tr("At least one active admin is needed"))
     if "display_name" in b:
-        c.execute("UPDATE users SET display_name=? WHERE id=?", ((b["display_name"] or "").strip()[:60] or u["username"], uid))
+        dname, bad = dname_clean(b["display_name"], u["username"])  # #6432
+        if bad:
+            c.rollback()
+            return err(bad)
+        c.execute("UPDATE users SET display_name=? WHERE id=?", (dname, uid))
     if "proxy_login" in b:
         proxy = (b["proxy_login"] or "").strip() or None
         if _proxy_taken(c, proxy, uid):
@@ -775,7 +782,10 @@ def me_update():
     c = db()
     u = g.user
     if "display_name" in b:
-        c.execute("UPDATE users SET display_name=? WHERE id=?", ((b["display_name"] or "").strip()[:60] or u["username"], u["id"]))
+        dname, bad = dname_clean(b["display_name"], u["username"])  # #6432
+        if bad:
+            return err(bad)
+        c.execute("UPDATE users SET display_name=? WHERE id=?", (dname, u["id"]))
     if "color" in b:  # 2.47.1 (#1721): the own fixed colour (only colours of the palette)
         if (u["kind"] or "user") == "agent":  # an agent's colour is set by its admin / owner (PATCH /api/agents/<aid>/color)
             return err(tr("Not allowed"), 403)

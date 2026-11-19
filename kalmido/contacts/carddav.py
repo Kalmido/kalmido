@@ -22,6 +22,7 @@ from ..calendars.caldav import (
     dav_response, dav_xml, DAV_MAX_BODY, DAV_NAME_RE, DavError, dav_color, dav_report_props,
 )
 from ..calendars.caldav import dav_code_fp, dav_fp, dav_once, DavLazy  # 2.665.0 (#4196)
+from ..calendars.caldav import DAV_FILTERS_MAX, DAV_TEXTMATCH_MAX  # #6433: one limit for calendar- and addressbook-query
 from ..core.errors import BadInput
 from ..core.i18n import tr
 from ..contacts.model import (
@@ -297,36 +298,56 @@ def card_now(c, book, name, lock=False):
     return r, _etag(text), text
 
 
-def _match(text, root):
-    """addressbook-query filter: prop-filter + text-match (contains / equals / starts-with / ends-with), anyof / allof."""
+def _filter(root):
+    """#6433: the addressbook-query filter read once per request -> None (no filter) or (allof, [(name, not_defined, allof,
+    [(text, match-type, negate)])]); more than DAV_FILTERS_MAX prop-filters or DAV_TEXTMATCH_MAX text-matches: 403 supported-filter."""
     filt = root.find(CR_ + "filter")
     if filt is None:
-        return True
-    tests = []
-    for pf in filt.findall(CR_ + "prop-filter"):
-        name = pf.get("name", "").upper()
-        vals = []
-        for ln in text.replace("\r\n ", "").split("\r\n"):
+        return None
+    pfs = filt.findall(CR_ + "prop-filter")
+    tms = [pf.findall(CR_ + "text-match") for pf in pfs]
+    if len(pfs) > DAV_FILTERS_MAX or sum(len(x) for x in tms) > DAV_TEXTMATCH_MAX:
+        raise DavError(403, "Too many filters", "<CR:supported-filter/>")
+    tests = [(pf.get("name", "").upper(), pf.find(CR_ + "is-not-defined") is not None, pf.get("test") == "allof",
+              [((tm.text or "").lower(), tm.get("match-type", "contains"), tm.get("negate-condition") == "yes") for tm in tm_])
+             for pf, tm_ in zip(pfs, tms)]
+    return filt.get("test") == "allof", tests
+
+
+def _props(text):
+    """#6433: a card's property values by name, split once per card (not once per prop-filter)."""
+    out = {}
+    for ln in text.replace("\r\n ", "").split("\r\n"):
+        if ":" in ln:
             head = ln.split(":", 1)[0].split(";", 1)[0].split(".")[-1].upper()
-            if head == name and ":" in ln:
-                vals.append(ln.split(":", 1)[1].lower())
-        if pf.find(CR_ + "is-not-defined") is not None:
+            out.setdefault(head, []).append(ln.split(":", 1)[1].lower())
+    return out
+
+
+def _match(text, flt):
+    """addressbook-query filter (_filter): prop-filter + text-match (contains / equals / starts-with / ends-with), anyof / allof."""
+    if flt is None:
+        return True
+    allof, pfs = flt
+    if not pfs:
+        return True
+    props = _props(text)
+    tests = []
+    for name, not_defined, pf_allof, tms in pfs:
+        vals = props.get(name, [])
+        if not_defined:
             tests.append(not vals)
             continue
-        tms = pf.findall(CR_ + "text-match")
         if not tms:
             tests.append(bool(vals))
             continue
         sub = []
-        for tm in tms:
-            t, how, neg = (tm.text or "").lower(), tm.get("match-type", "contains"), tm.get("negate-condition") == "yes"
+        for t, how, neg in tms:
             hit = any((v == t) if how == "equals" else v.startswith(t) if how == "starts-with" else v.endswith(t) if how == "ends-with"
                       else (t in v) for v in vals)
             sub.append(hit != neg)
-        tests.append(all(sub) if pf.get("test") == "allof" else any(sub))
-    if not tests:
-        return True
-    return all(tests) if filt.get("test") == "allof" else any(tests)
+        tests.append(all(sub) if pf_allof else any(sub))
+    return all(tests) if allof else any(tests)
 
 
 def ab_report(c, u, book, raw):
@@ -359,7 +380,8 @@ def ab_report(c, u, book, raw):
         if lim is not None:
             nr = lim.find(CR_ + "nresults")
             n = int(nr.text) if nr is not None and (nr.text or "").strip().isdigit() else None
-        hits = [(nm, m) for nm, m in ac.members.items() if _match(m[2], root)]
+        flt = _filter(root)  # #6433: read and limited once, not per card
+        hits = [(nm, m) for nm, m in ac.members.items() if _match(m[2], flt)]
         if n is not None:
             hits = hits[:n]
         return dav_multistatus(dav_response(dav_href(*base, nm), want, props_member(u, m, role, ver)) for nm, m in hits)

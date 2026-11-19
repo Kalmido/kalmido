@@ -123,6 +123,8 @@ ROUTES = {
     "POST /api/office/{}/{}/undo": "office", "POST /api/clients/{}/undo": "office",
     # 2.585.0 (#4350): what the undo of an account import would take back, before the confirm (p2585_d_api_test.py)
     "GET /api/imports/{}/undo-plan": "tasks",
+    # (#6583): the report file of an import with every warning (p6583_import_flow_test.py, freelancer-matrix: own)
+    "GET /api/imports/{}/report": "own",
     # 2.575.0 (#3778): own module cards of the private workspace (p2575_a_api_test.py, freelancer-matrix: modcards)
     "GET /api/modcards": "modcards", "POST /api/modcards": "modcards", "PATCH /api/modcards/{}": "modcards", "DELETE /api/modcards/{}": "modcards",
     "GET /api/industry": "industry", "PUT /api/industry": "industry",  # 2.578.0 (#4573): p2578_b_industry_test.py
@@ -627,6 +629,7 @@ ROUTES = {
     "PATCH /api/office/legacy/archive/{}": "office", "PATCH /api/office/trips/{}": "office",
     "PATCH /api/office/trips/{}/items/{}": "office", "PATCH /api/office/{}/{}": "office", "PATCH /api/v1/clients/{}": "office",
     "PATCH /api/v1/office/offers/{}": "office", "POST /api/clients": "office", "POST /api/clients/bulk": "office",
+    "POST /api/clients/{}/copy": "office", "POST /api/v1/clients/{}/copy": "office",  # #7295: p7295_client_copy_test.py
     "POST /api/clients/merge": "office", "POST /api/clients/merges/{}/undo": "office",
     "POST /api/newsletter/segments": "office", "POST /api/newsletter/sync": "office",
     "POST /api/office/catalog/refresh": "office", "POST /api/office/deals": "office",

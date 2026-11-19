@@ -81,6 +81,7 @@ EXPECT_4XX = {
     "GET /api/office/docs/{}/timesheet.pdf": (400, "no time entries of the client in the period (the own entries are on a list without a client)"),
     "GET /api/office/docs/{}/postcalc": (409, "the sweep's quotation is not accepted: the post-calculation needs an accepted one (2.1378.0, #4566 B; p21378_a_nachkalk_test.py runs it as the freelancer)"),
     "GET /api/office/logo": (404, "no logo uploaded in the personal office"),
+    "GET /api/imports/{}/undo-plan": (404, "the sweep's own import is a task CSV; the undo plan is there for account imports only (#6583 sweep setup)"),
     "GET /api/office/books/archive/files/{}": (404, "no past DATEV year imported into the personal office, the id is a file of the file store"),
     "GET /api/office/move/check": (404, "the freelancer has no organisation to move the personal office into"),
     "GET /api/tasks/{}/enc-note": (404, "no encrypted note on the own task"),
@@ -379,6 +380,8 @@ ok(F.put(B + f"/api/lists/{IDS['list']}/sprint-settings", json={"on": True}), "s
 _sp = ok(F.post(B + f"/api/lists/{IDS['list']}/sprints", json={"goal": "First cut"}), "sweep setup: a planned sprint", (200, 201))
 IDS["sprint"] = _sp.get("id") or (_sp.get("sprint") or {}).get("id")
 IDS["field"] = _id(ok(F.post(B + f"/api/lists/{IDS['list']}/fields", json={"name": "Reel", "type": "text"}), "sweep setup: a custom field", (200, 201)))
+IDS["imp"] = ok(F.post(B + "/api/import/csv", files={"file": ("sweep.csv", b"title\nImported cut\n", "text/csv")}),
+                "sweep setup: a task CSV import (#6583: its report)").get("import_id")
 for _ in range(480):  # the account export of "own" runs in the background: its file once it is done
     if F.get(B + "/api/account/export").json().get("state") != "running":
         break
@@ -399,6 +402,7 @@ SUBST = [
     (r"/issuer/docs/by-ref/$", "issref"), (r"/issuer/docs/$", "issdoc"),  # 2.1427.0 (#6701)
     (r"/api/team/dispo/callsheet/[^/]+/photo/$", "contact"),  # 2.993.0 (#5650): the logo of a contact on the call sheet
     # 2.421.0 A (#2936): own objects of the setup above; file ids of other stores than the file store: none (skipped)
+    (r"/api/imports/$", "imp"),  # (#6583): the own task CSV import (its report file)
     (r"/me/webhooks/$", "webhook"),  # 2.391.0 (#3362)
     (r"/team/messages/$", "tmsg"),  # 2.1213.0 (#6166): the earlier versions of the own edited message
     (r"/sprints/$", "sprint"), (r"/api/fields/$", "field"), (r"/api/docs/views/$", "docview"),  # 2.602.0 (job/3106)

@@ -308,3 +308,23 @@ het meteen weer. Een los project deel je op dezelfde manier via zijn eigen menu.
 
 Wat er dan gebeurt: wie de link heeft kan het project lezen, zonder inloggen, alleen-lezen, zonder reacties, toegewezenen
 of bestanden. **Uitschakelen** beëindigt de link meteen.
+
+<!-- help: team#how-to-move-the-company-to-another-server src=7feca89b2e -->
+## Met het bedrijf naar een andere server verhuizen
+
+1. Maak op de nieuwe server (je eigen server of app.kalmido.com) een lege organisatie aan en nodig de leden uit onder
+   Instellingen > Organisatie > Personen - of vink in de voorbeeldweergave van de import **Uitnodigen per e-mail** aan
+   voor de personen die ontbreken.
+2. Noteer op de oude server de herstelsleutel (Instellingen > Organisatie > Gegevens > Versleuteling), open dan
+   **Organisatie verhuizen** en kies **Verhuizing starten…**: de organisatie is dan alleen nog leesbaar, factuurreeksen,
+   herinneringen en het ophalen van mail en bank liggen stil.
+3. Kies **Organisatie exporteren**, dan **Export maken** en **Downloaden**. Iedere persoon kiest ook
+   **Alles exporteren** (de eigen gegevens), en wie een eigen kantoor heeft **Kantoor exporteren**.
+4. Kies op de nieuwe server **Overnemen uit een Kalmido-export**: eerst het bestand van de organisatie (met de
+   herstelsleutel, de nieuwe organisatie als doel), dan iedere persoon het eigen bestand.
+5. Stel opnieuw in wat niet meekomt: wachtwoorden en passkeys, wachtwoorden van mailaccounts, agenda- en
+   contactapparaten, webhooks en koppelingen, openbare, formulier- en boekingslinks, inkomende e-mailadressen en agents.
+
+Wat er daarna gebeurt: factuurnummers geeft vanaf nu alleen de nieuwe server. Vraag de admin van de oude server om de oude
+organisatie te verwijderen; **Verhuizing beëindigen** alleen als je toch daar blijft. Voor een nieuwe bedrijfsnaam is
+geen verhuizing nodig - wijzig de naam. Twee bedrijven kun je niet zonder verlies samenvoegen, en één niet splitsen.

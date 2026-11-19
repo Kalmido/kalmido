@@ -117,6 +117,7 @@
  "POST /attachments/{}/restore": "action",
  "POST /clients": "create",
  "POST /clients/bulk": "batch",
+ "POST /clients/{}/copy": "action",
  "POST /comments/{}/choice": "create",
  "POST /comments/{}/reactions": "create",
  "POST /comments/{}/withdraw": "action",

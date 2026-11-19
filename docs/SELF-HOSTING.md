@@ -25,6 +25,7 @@ addresses and paths to your setup.
 - [Exporting encrypted content](#exporting-encrypted-content)
 - [Organisation export](#organisation-export)
 - [Moving from and to app.kalmido.com](#moving-from-and-to-appkalmidocom)
+  - [Moving with the company](#moving-with-the-company)
 - [Server hardening](#server-hardening)
   - [Public links per kind](#public-links-per-kind)
 - [Intrusion alerts](#intrusion-alerts)
@@ -1281,6 +1282,17 @@ for an account import, which carries no invoices). Since 2.362 a billed receipt 
 billed as well ("billed, the invoice did not come along" in the bookkeeping): it cannot be billed a second time; free it
 there only if it was never billed. Rows that cannot be taken over are named in the report with their number per area.
 
+**The run and its report (#6583).** The upload goes in pieces; a piece that fails (network, a server restart) is sent
+again up to five times with a growing pause, then the upload stops with *Continue the upload* -- it goes on at the bytes the
+server has. After leaving the page, select the same file again: the upload continues where it stopped. A run interrupted
+by a restart or an update of the server falls back to its preview while the uploaded file is there (it is kept 24 hours
+from then): start it again, nothing of the interrupted run was imported. When the run ends, the person gets a News item
+(and a push; event *Imports of a Kalmido export* in the notification settings): finished with the number of warnings, or
+failed with the reason. The result stays in *Settings > Data* for 24 hours, the uploaded file is deleted at once; every
+warning (the result shows at most 50) stays with the import for as long as the import is listed and can be downloaded as
+a text file (*Download the report*, also from the list of recent imports). An error after the data was written says
+"Imported, but the follow-up work failed" with the import's undo, never "Nothing was imported".
+
 **Limits:** `KALMIDO_ACCOUNT_IMPORT_MAX_MB` (default 4096) caps the size of an import file, which may have at most 200000
 entries; the data parts may hold at
 most 32 MB of JSON per table and 96 MB together, and `KALMIDO_ACCOUNT_IMPORT_MAX_ROWS` (default 500000) rows per table
@@ -1288,12 +1300,60 @@ most 32 MB of JSON per table and 96 MB together, and `KALMIDO_ACCOUNT_IMPORT_MAX
 once on the whole server, a further one gets `429` (try again later). Taken-over files are scanned like uploads (a file
 the scanner could not check is marked *unchecked* and scanned later; the type is the one found in the content); a file
 counts as browser-encrypted only with the format's header. Comments of other people come over with their name as text,
-never as their account; an export that holds projects of an organisation is noted in its project history; the storage quota of the
-person (hosting) is checked before the upload and for every file during the import -- when it is full, the files that no
-longer fit stay out, everything else still comes and the import can be undone. The import refuses ZIP files with unsafe names, duplicate parts, encryption,
+never as their account; an export that holds projects of an organisation is noted in its project history; the storage of the
+target is checked before the preview, at the start and for every file during the run (all or nothing, see *Storage*
+above). The import refuses ZIP files with unsafe names, duplicate parts, encryption,
 extreme compression ratios or wrong checksums; ids, owners, organisations and authors in the file are never taken over
 as they are. Values in a form the app never writes (a date like 2026-99-99, a time 25:99, an unknown priority, a colour
 that is no #rrggbb, a repeat rule the app refuses) are left out, so the default applies.
+
+### Moving with the company
+
+A company (an organisation with its members and its office) moves from app.kalmido.com to an own server, or back, with
+the same steps in both directions. The server copy of [Moving to a new server](#moving-to-a-new-server) is for a whole
+server you run yourself; this is for one company. Plan a quiet day: from step 4 on nobody works in the old organisation.
+
+1. **The new place.** Set up the other server (this guide) or register on app.kalmido.com, and create an empty
+   organisation there. Import into an organisation that has no office data yet: the import refuses the office part when
+   the target already uses one of its invoice numbers or has locked one of its months.
+2. **Keep the keys.** On the old server note the organisation's recovery key (*Settings > Organisation > Data >
+   Encryption*): it opens the organisation export. Every person keeps the passphrase (or recovery code) of their
+   encryption in the browser: their key bundle comes along and opens locked notes and encrypted files again.
+3. **The people first.** On the new server invite every member (*Settings > Organisation > People*) and let them accept
+   before the import -- or let the import invite them: in its preview the organisation's admin ticks *Invite by e-mail*
+   for every person not found (2.1424.0). Only people found on the new server keep their assignments, comments and times.
+4. **Start the move.** On the old server: *Settings > Organisation > Data > Move the organisation > Start the move…*
+   (2.1337.0). From then on the organisation is read-only for everybody: invoice series, payment reminders, mail fetching
+   and bank fetching rest, no new numbers are given, the export shows a fixed state.
+5. **Export.** Per company one organisation export: *Settings > Organisation > Data > Export the organisation > Create
+   export*, then *Download* (kept 24 hours). Per person two files: the account export (*Settings > Data > Export
+   everything*: their private projects, files, calendars, contacts and settings) and, for a person with an own office, the
+   office export (*Settings > Company & office > Data > Export the office*): the account export holds the own office only
+   as a copy.
+6. **Import.** On the new server the organisation's admin imports the organisation export first (*Settings > Data >
+   Import from a Kalmido export*, the recovery key, the new organisation as the target), then every person imports their
+   own files. Check the result of each import; its report lists every warning.
+7. **Set up again what does not come along** (bound to the old server, or a secret):
+   - passwords, passkeys, two-factor settings, sessions, push devices, API tokens and app passwords: each person anew
+   - mail accounts: a workspace mailbox comes without its password (enter it again), personal mail accounts are connected
+     again
+   - calendar and contact devices (CalDAV / CardDAV accounts on phones and computers), calendar subscriptions
+   - webhooks, Git, Paperless, Karakeep, newsletter and the links to other Kalmido servers
+   - public links, upload links, form, poll and portal links: the import makes new ones, the old ones stop working; send
+     the new ones to the people who used them
+   - booking pages: their address changes with the server; pages of members that the office does not bill, and the
+     booking page of an account export, do not come along
+   - incoming e-mail addresses (tasks by e-mail, mail-in and plus addresses): new on the new server, tell the senders
+   - agents with their keys and tokens, notification channels, invoice issuers and their keys (e-invoicing)
+8. **Numbers in one place only.** From now on invoices, quotations and receipts get their numbers only on the new
+   server; the old organisation stays read-only while the move runs, so it gives none.
+9. **Afterwards.** Ask the admin of the old server (on app.kalmido.com: the operator) to delete the old organisation.
+   *End the move* only if the company stays on the old server after all: then everything runs there again.
+
+**Renaming the company** is no move: change the name of the organisation (and the company data of the office) where it
+is. **Merging two companies into one organisation, or splitting one,** does not work without losses: the import does not
+merge two offices (numbers the target uses already or months it has locked refuse the office part), and an export always
+holds the whole organisation. Keep them as separate organisations.
 
 ## Server hardening
 
@@ -2063,6 +2123,9 @@ Notes:
 - Back to one container: remove `kalmido-worker` and `KALMIDO_ROLE`; nothing else changes.
 
 ## Moving to a new server
+
+This moves a whole server you run. To move one company to or from app.kalmido.com, see
+[Moving with the company](#moving-with-the-company).
 
 1. **Before:** lower the DNS TTL of the name a day ahead; make a backup (*Back up now*).
 2. **Copy:** the data folder (attachments, office files, backups; the files keep owner uid 1000) and the database
