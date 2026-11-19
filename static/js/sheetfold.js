@@ -44,7 +44,7 @@ const shf_item = id => shf_items().find(x => x.id === +id) || null;
 function shf_panelTree(items, sps, cur) {
   const r = S.route, at = r.mod === 'sheets' ? r.shf : null, path = [];
   for (let f = at ? shf_folder(at) : null, g = 0; f && g < 40; f = shf_folder(f.parent_id), g++) path.push(f.id);
-  // 2.1224.0 (#6186), #7389: only the workspace's row wears its stripe (the core's workspace node), its folders and tables none
+  // (#6186, #7389): only the workspace's row wears its stripe (the core's workspace node), its folders and tables none
   const tbl = (x, par, ns) => ({k: 'sh:t' + x.id, name: x.title || tr('Untitled table'), icon: 'sheet', go: 'sheets/' + x.id, on: x.id === cur, kids: false,
     attrs: `data-sbbsh="${x.id}"`, ...(ns ? {ns: 'sh', id: 't' + x.id, par, drag: true, menu: true} : {})});
   const fold = f => ({k: 'sh:f' + f.id, name: f.name, icon: f.shared ? 'users' : 'folder', go: 'sheets/f/' + f.id, on: at === f.id, ns: 'sh', id: 'f' + f.id,

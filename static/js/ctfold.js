@@ -56,7 +56,7 @@ function ctf_panelTree() {
   const ws = typeof wsCur === 'function' ? wsCur() : 'all';
   const sps = ctf_data().spaces.filter(s => (s.root || s.can_add) && (!ws || ws === 'all' || s.space === ws));
   // #7389: the core's workspace node (sbb_treeHtml wso: symbol, stripe, arrow, open); here = the open folder lies in this space
-  return sps.map(s => ({k: 'ct:s:' + s.space, name: ctf_spaceName(s.space), go: 'contacts', wso: s.space /* 2.1241.0 (#6185) */,
+  return sps.map(s => ({k: 'ct:s:' + s.space, name: ctf_spaceName(s.space), go: 'contacts', wso: s.space /* (#6185) */,
     ns: 'ct', id: 'r:' + s.space, par: '', drop: !!s.can_add, menu: !!s.can_add, has: ctf_kids(s.space, null).length > 0, here: !!at && ctf_folder(at)?.space === s.space,
     sub: () => ctf_kids(s.space, null).map(fold)}));
 }
