@@ -7,10 +7,12 @@ reads ruff's JSON output, written here by hand):
  3. the known finding on another line (code moved, other indentation) is green; in another file / under another rule it is new
  4. counted, not a set: a second copy of a known line in the same file is new
  5. an entry without a finding is a notice (green), red with --strict; most entries gone at once is red (scan broken)
- 6. --update writes the baseline from the output (and that output is then green)
+ 6. #7169: --update only lowers: a fixed finding leaves the baseline; a new one is not added and stays red (the baseline
+    unchanged); a scan that lost most known findings at once lowers nothing
  7. the repo: ci.yml installs the ruff version ruff.toml names, runs this tool; the baseline is well formed
  8. #5294: no silent `except Exception: pass` in kalmido/ without a reason (a comment after the noqa marker, or a log)
 usage: python3 tests/p2755_d_ruff_baseline_test.py"""
+import collections
 import json
 import os
 import re
@@ -22,6 +24,8 @@ N = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(N, ".."))
 sys.path.insert(0, N)
 from kt import FAILS, OKS, check  # noqa: E402
+sys.path.insert(0, os.path.join(ROOT, "tools"))
+import ruff_baseline as RB  # noqa: E402
 
 TOOL = os.path.join(ROOT, "tools", "ruff_baseline.py")
 SRC = {"kalmido/a.py": "import os\nx = 1\n\n\n\nimport sys\n", "kalmido/b.py": "import os\n"}
@@ -33,7 +37,7 @@ def item(path, row, code="F401", msg="`os` imported but unused"):
 
 def run(results, files=None, base=None, *flags):
     """(exit code, output, baseline after) of the tool on a temp tree with files {path: text}; base: the results the
-    baseline is made of first (--update), None = no baseline."""
+    baseline is made of first (written directly: --update never adds, #7169), None = no baseline."""
     with tempfile.TemporaryDirectory() as d:
         for rel, text in (files or SRC).items():
             os.makedirs(os.path.dirname(os.path.join(d, rel)), exist_ok=True)
@@ -41,14 +45,17 @@ def run(results, files=None, base=None, *flags):
                 f.write(text)
         rj, bj = os.path.join(d, "ruff.json"), os.path.join(d, "baseline.json")
         if base is not None:
-            with open(rj, "w", encoding="utf-8") as f:
-                json.dump(base, f)
-            subprocess.run([sys.executable, TOOL, rj, "--baseline", bj, "--root", d, "--update"], check=True, capture_output=True)
+            write_base(bj, base, d)
         with open(rj, "w", encoding="utf-8") as f:
             json.dump(results, f)
         r = subprocess.run([sys.executable, TOOL, rj, "--baseline", bj, "--root", d, *flags], capture_output=True, text=True)
         after = json.load(open(bj, encoding="utf-8")) if os.path.exists(bj) else None
         return r.returncode, r.stdout + r.stderr, after
+
+
+def write_base(bj, base, d):
+    """The baseline of the results base on the tree d, as the tool keys them."""
+    RB.save_baseline(bj, collections.Counter(RB.key(x) for x in RB.findings(base, d)))
 
 
 KNOWN = item("kalmido/a.py", 1)
@@ -68,8 +75,7 @@ with tempfile.TemporaryDirectory() as d:
         os.makedirs(os.path.dirname(os.path.join(d, rel)), exist_ok=True)
         open(os.path.join(d, rel), "w", encoding="utf-8").write(text)
     rj, bj = os.path.join(d, "ruff.json"), os.path.join(d, "baseline.json")
-    json.dump([KNOWN], open(rj, "w", encoding="utf-8"))
-    subprocess.run([sys.executable, TOOL, rj, "--baseline", bj, "--root", d, "--update"], check=True, capture_output=True)
+    write_base(bj, [KNOWN], d)
     for rel, text in moved.items():  # the code moves down three lines and gets indented
         open(os.path.join(d, rel), "w", encoding="utf-8").write(text)
     json.dump([item("kalmido/a.py", 4)], open(rj, "w", encoding="utf-8"))
@@ -96,9 +102,27 @@ check(rc == 1 and "gone at once" in out, f"all findings gone at once is red (lin
 rc, out, _ = run({"not": "a list"}, base=[KNOWN])
 check(rc == 1 and "not a JSON list" in out, "an output that is no list is red")
 
-# 6. --update
-rc, out, after = run([KNOWN], None, [KNOWN, item("kalmido/b.py", 1)])
-check(rc == 0 and after and set(after["files"]) == {"kalmido/a.py", "kalmido/b.py"}, f"--update writes every finding: {after}")
+# 6. #7169: --update only lowers
+B1 = item("kalmido/b.py", 1)
+rc, out, after = run([KNOWN], None, [KNOWN, B1], "--update")
+check(rc == 0 and after and set(after["files"]) == {"kalmido/a.py"} and "2 -> 1" in out, f"--update drops a fixed finding: {rc} {after} {out[-200:]}")
+rc, out, after = run([KNOWN, B1], None, [KNOWN], "--update")
+check(rc == 1 and "::error file=kalmido/b.py,line=1" in out, f"--update with a new finding: still red {rc} {out[-300:]}")
+check(after and set(after["files"]) == {"kalmido/a.py"} and sum(len(h) for r in after["files"].values() for h in r.values()) == 1,
+      f"--update with a new finding: the baseline stays as it was (not raised): {after}")
+rc, out, after = run([item("kalmido/a.py", 1), item("kalmido/a.py", 2)], two, [item("kalmido/a.py", 1)], "--update")
+check(rc == 1 and after and after["files"]["kalmido/a.py"]["F401"] == [RB.code_hash("import os")], f"--update: a second copy of a known line is not counted in: {after}")
+before = [item("kalmido/a.py", i + 1) for i in range(120)]
+with tempfile.TemporaryDirectory() as d:
+    for rel, text in many.items():
+        os.makedirs(os.path.dirname(os.path.join(d, rel)), exist_ok=True)
+        open(os.path.join(d, rel), "w", encoding="utf-8").write(text)
+    rj, bj = os.path.join(d, "ruff.json"), os.path.join(d, "baseline.json")
+    write_base(bj, before, d)
+    b0 = open(bj, encoding="utf-8").read()
+    json.dump([], open(rj, "w", encoding="utf-8"))
+    r = subprocess.run([sys.executable, TOOL, rj, "--baseline", bj, "--root", d, "--update"], capture_output=True, text=True)
+    check(r.returncode == 1 and open(bj, encoding="utf-8").read() == b0, f"--update after a broken scan lowers nothing: {r.returncode} {r.stdout[-200:]}")
 
 # 7. the repo
 ci = open(os.path.join(ROOT, ".github/workflows/ci.yml"), encoding="utf-8").read()
