@@ -1255,8 +1255,9 @@ the agent chat and the team chat, notes and the wiki): an object that names its 
 `author {id}`, a message's `user_id` with `body`) or that a text was rewritten by another account (`updated_by`), or that
 the server marks as from outside (`untrusted`, `origin`), gets `"untrusted": true` and its texts (`title`, `notes`,
 `text`, `body`, `name`, `code`, `path`, `excerpt`, `description`, `content`, `summary`, `message`) fenced when that
-account is not trusted. An object that names no author stays as it is. `fields=compact` of `GET /api/v1/tasks` carries
-`created_by` (and `origin` / `untrusted` when set) for it. A fenced text the agent writes back (an edited note, a copied
+account is not trusted (a task's `updated_by: null` = a hand without a person, data too). An object that names no author
+stays as it is. `fields=compact` of `GET /api/v1/tasks` carries `created_by`, `updated_by` and `by_creator` (and `origin` /
+`untrusted` when set) for it. A fenced text the agent writes back (an edited note, a copied
 title) loses its fence lines on the way in.
 
 One task (`GET /api/v1/tasks/{id}`, MCP `get_task`, and the answer of a change) has

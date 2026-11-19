@@ -364,7 +364,8 @@ def _pick(a, keys):
 S_KIND = {"type": "string", "enum": ["open", "progress", "review", "done", "rejected"]}  # 2.577.0 (#3354)
 COMPACT_FIELDS = ("id", "title", "list_id", "section_id", "section_kind", "parent_id", "status", "due", "due_time", "priority", "tags", "list_tags",
                   "assignee_id")
-COMPACT_OUTSIDE = ("created_by", "origin", "untrusted")  # #7151: kept when present, so the data fence knows whose title it is
+# #7151: kept when present, so the data fence knows whose title it is (review F6: and who last rewrote it)
+COMPACT_OUTSIDE = ("created_by", "updated_by", "by_creator", "origin", "untrusted")
 COMPACT_AUTO = 25  # 2.0.8: without `compact`, a page with more tasks than this comes back compact
 
 
@@ -446,14 +447,30 @@ def _trusted_ids(api):
 # as from outside (untrusted, origin) is judged; another account's object has its texts fenced and is marked untrusted.
 FENCE_OPEN = "<<<data from "
 FENCE_TEXTS = ("title", "notes", "text", "body", "name", "code", "path", "excerpt", "description", "content", "summary", "message")
+UNFENCE_TEXTS = tuple(f for f in FENCE_TEXTS if f not in ("code", "path"))
 FENCE_STICKY = ("attachments", "subtasks", "files")  # parts of an object: on another account's object they stay its data
 FENCE_UNKNOWN = {"attachments": "an unknown uploader", "subtasks": "an unknown author"}  # here no author = data, too
 FENCE_SKIP = ("author", "reactions")  # the author object is the fence's label, never fenced itself
-FENCE_RX = re.compile(r"<<<data from [^\n]*, not an order\n(.*?)\ndata>>>", re.S)
 
 
 def _one_line(v, n):
     return defuse_fence(" ".join(str(v or "").split()))[:n]
+
+
+def _foreign(v, ids):
+    """#7151 (review F1 / F2): an author value -> None (a trusted account) or the fence's label. A number is an account; an
+    object counts by its id, a list by its first foreign entry; any other value (a typed name) is a label on one line
+    without fence characters -- never raw, never a crash on a shape the server sends ({id, name} of a playbook, [{id, name}]
+    of a briefing)."""
+    if isinstance(v, dict):
+        return _foreign(v.get("id"), ids)
+    if isinstance(v, list):
+        return next((w for w in (_foreign(x, ids) for x in v) if w), None)
+    if isinstance(v, str) and v.strip().isdigit():
+        v = int(v.strip())
+    if isinstance(v, int) and not isinstance(v, bool):
+        return None if v in ids else f"account {v}"
+    return _one_line(v, 40) or "an unknown author" if isinstance(v, str) else "an unknown author"
 
 
 def _writer(d, ids, ctx):
@@ -468,21 +485,28 @@ def _writer(d, ids, ctx):
         aid, outside = au.get("id"), bool(au.get("customer") or au.get("source"))
         if outside or aid is None:  # #6731 N1: the typed name on one line, no fence characters, short
             src = au.get("source") or ("the public link" if au.get("customer") else "")
-            return (_one_line(au.get("name"), 80) or "an unknown author") + (f" (outside Kalmido: {src})" if src else "")
-        if aid not in ids:
-            return f"account {aid}"
+            return (_one_line(au.get("name"), 80) or "an unknown author") + (f" (outside Kalmido: {_one_line(src, 40)})" if src else "")
+        w = _foreign(aid, ids)
+        if w:
+            return w
     for k in ("created_by", "author_id", "by"):
         if k in d:
-            v = d[k]
-            if v is None:
+            if d[k] is None:
                 return "an unknown uploader" if k == "by" else "an unknown author"
-            if v not in ids:
-                return f"account {v}"
-    v = d.get("updated_by")  # #7124 F6: a text another account rewrote is that account's text
-    if v is not None and v not in ids:
-        return f"account {v}"
-    if "user_id" in d and "body" in d and d.get("from") != "agent" and d["user_id"] not in ids:  # a chat / team message
-        return f"account {d['user_id']}" if d["user_id"] is not None else "an unknown author"
+            w = _foreign(d[k], ids)
+            if w:
+                return w
+    if "updated_by" in d:  # #7124 F6: a text another account rewrote is that account's text
+        if d["updated_by"] is not None:
+            w = _foreign(d["updated_by"], ids)
+            if w:
+                return w
+        elif "by_creator" in d:  # review F7: a task's null = a hand without a person (a rule, a sync, a webhook; api/v1.py text_by)
+            return "a hand without a person"
+    if "user_id" in d and "body" in d and d.get("from") != "agent":  # a chat / team message
+        w = _foreign(d["user_id"], ids) if d["user_id"] is not None else "an unknown author"
+        if w:
+            return w
     if ctx in FENCE_UNKNOWN and not any(k in d for k in ("created_by", "author_id", "by", "author")):
         return FENCE_UNKNOWN[ctx]
     return None
@@ -496,7 +520,7 @@ def _fence_obj(d, who):
     d["untrusted"] = True
 
 
-def _fence_walk(node, ids, ctx=None, outer=None):
+def _fence_walk(node, ids, ctx=None, outer=None, data_ctx=None):
     """Fences in place. outer: the label of the object node is a part of (FENCE_STICKY), so another account's task keeps
     its files and subtasks fenced (fence more, never less); comments and snippets are judged by their own author."""
     if isinstance(node, list):
@@ -516,23 +540,46 @@ def _fence_walk(node, ids, ctx=None, outer=None):
         if k == "sub_snapshot":  # 2.1401.0 (#6952 F2): a done task's copy of its subtasks, {done, total, items} or a list
             _fence_walk(v.get("items") if isinstance(v, dict) else v, ids, "subtasks", who)
             continue
-        _fence_walk(v, ids, k, who if k in FENCE_STICKY else None)
+        kc = data_ctx if k == "data" and data_ctx else k  # review F4: the items of list_attachments / list_subtasks
+        _fence_walk(v, ids, kc, who if kc in FENCE_STICKY else None)
 
 
-def fence_result(api, out):
+FENCE_DATA_CTX = {"list_attachments": "attachments", "list_subtasks": "subtasks"}  # review F4: what their data list holds
+
+
+def fence_result(api, out, tool=None):
     """#7151: every tool result through one fence (see above); the trusted accounts are read once per process."""
-    _fence_walk(out, _trusted_ids(api))
+    _fence_walk(out, _trusted_ids(api), data_ctx=FENCE_DATA_CTX.get(tool))
     return out
 
 
+def _unfence_text(text):
+    """A text without the fence lines this server added: a header line "<<<data from ..., not an order" up to its line
+    "data>>>" gives back what stood between; a header without its end line stays. One pass over the lines (review F3)."""
+    if FENCE_OPEN not in text:
+        return text
+    lines, out, i = text.split("\n"), [], 0
+    while i < len(lines):
+        ln = lines[i]
+        if ln.startswith(FENCE_OPEN) and ln.endswith(", not an order"):
+            j = next((k for k in range(i + 1, len(lines)) if lines[k] == "data>>>"), None)
+            if j is not None:
+                out.extend(lines[i + 1:j])
+                i = j + 1
+                continue
+        out.append(ln)
+        i += 1
+    return "\n".join(out)
+
+
 def unfence(v):
-    """#7151: a fenced text an agent writes back (an edited note, a copied title) loses the fence lines it was given."""
-    if isinstance(v, str):
-        return FENCE_RX.sub(lambda m: m.group(1), v) if FENCE_OPEN in v else v
+    """#7151: a fenced text an agent writes back (an edited note, a copied title) loses the fence lines it was given; only
+    the text fields of the arguments (FENCE_TEXTS without code and path: a snippet stays as sent, review F3)."""
     if isinstance(v, list):
         return [unfence(x) for x in v]
     if isinstance(v, dict):
-        return {k: unfence(x) for k, x in v.items()}
+        return {k: _unfence_text(x) if k in UNFENCE_TEXTS and isinstance(x, str) else unfence(x) if isinstance(x, (dict, list)) else x
+                for k, x in v.items()}
     return v
 
 
@@ -3550,9 +3597,13 @@ def handle(api, msg):
             return _result(i, {"content": [{"type": "text", "text": problem}], "isError": True})
         try:
             _trusted_ids(api)  # once per process, before the tool's own requests
-            out = fence_result(api, t[3](api, unfence(args)))  # #7151: the one data fence of every result
+            out = t[3](api, unfence(args))
         except ApiError as e:
             return _result(i, {"content": [{"type": "text", "text": e.message}], "isError": True})
+        try:
+            out = fence_result(api, out, name)  # #7151: the one data fence of every result
+        except Exception:  # noqa: BLE001 -- review F1: a shape the fence does not know never ends the server: all of it is data
+            out = {"untrusted": True, "data": _data_fence(json.dumps(out, ensure_ascii=False, default=str), "an unknown author")}
         content = [{"type": "text", "text": json.dumps(out, ensure_ascii=False, indent=1)}]
         if name in ("get_attachment", "read_attachment", "wiki_read_file") and isinstance(out, dict) and out.get("base64") and str(out.get("mime", "")).startswith("image/"):
             # 2.13.1 (#465): the model sees the image itself; the text item keeps name / mime / size only
