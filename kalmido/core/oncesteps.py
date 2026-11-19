@@ -124,7 +124,7 @@ def migr_outside7124(c):
     gset(c, "migr_outside7124", "1")
 
 
-def migr_srvorg6363(c):  # 2.1409.0 (#6363): the Kalmido AI per organisation (orgs.srv_agents, default off), once at the update
+def migr_srvorg6363(c):  # (#6363): the Kalmido AI per organisation (orgs.srv_agents, default off), once at the update
     # An organisation whose admins already chose a server agent keeps it on: a team server agent of it with a stored key, or
     # a personal server agent with a key placed in it whose owner is one of its admins. Every other one starts off (the
     # narrower default): its admin switches it on. A new database runs it on empty tables (nothing on).

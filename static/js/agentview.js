@@ -116,7 +116,7 @@ function av_logModal(a, done) {
     catch (x) { const er = $('#avl-err', md); er.textContent = x.message; er.hidden = false; } finally { b.disabled = false; }
   });
 }
-// 2.1409.0 (#6363): the Kalmido AI (agents on the Kalmido server) works in an organisation only after its admin switches it on
+// (#6363): the Kalmido AI (agents on the Kalmido server) works in an organisation only after its admin switches it on
 // (PATCH /api/orgs/<id> {server_agents}, default off); the hint names what goes to the provider
 function oag_kiRow(o, adm) {
   if (o.server_agents === undefined) return null;
@@ -153,7 +153,7 @@ function oag_paneDraw(box) {
     hint.className = 'shint keep';
     hint.textContent = tr('Members can then connect their own AI agent (their own provider and computer) in this organisation and share its projects with it. Admins always may. Agents that are already in it stay.') + (adm ? '' : ' ' + tr('Only an admin of this organisation can change it.'));
     (det.querySelector('summary')).after(row); row.after(hint);
-    const ki = oag_kiRow(o, adm); if (ki) hint.after(...ki);  // 2.1409.0 (#6363)
+    const ki = oag_kiRow(o, adm); if (ki) hint.after(...ki);  // (#6363)
     if (!adm) continue;
     const cb = $('#' + id, /** @type {any} */ (row));
     cb.addEventListener('change', async () => {

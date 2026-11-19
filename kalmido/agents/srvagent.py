@@ -53,8 +53,8 @@ from ..accounts.session import me
 from ..accounts.supportgrant import sga_is_support  # 2.557.0 (2nd review)
 from .srvstarter import SRV_DAY_LIMIT_DEFAULT, SRV_DEFAULT_INSTRUCTIONS, SRV_DEFAULT_MODEL, SRV_FLOWS, srv_day_cap, srv_hosted  # 2.1308.0 (#6568): + hosted, ceiling; 2.557.0: the bridge of the parts is gone; 2.638.0 (#4714): + the day limit
 from ..accounts.login import seal, unseal
-from ..accounts.orgs import is_org_admin, ORG_SWITCH_WATCH  # 2.1409.0 (#6363): + the watch of the organisation's switch
-from ..notify.alerts import aa_org_switch  # 2.1409.0 (#6363)
+from ..accounts.orgs import is_org_admin, ORG_SWITCH_WATCH  # (#6363): + the watch of the organisation's switch
+from ..notify.alerts import aa_org_switch  # (#6363)
 from ..agents.core import agent_row, need_person, RUNTIME_MODEL_MAX, RUNTIME_MODEL_RE
 from ..agents.admin import need_agent_admin
 from .srvweb import srv_flow_web, srv_flow_web_in  # 2.571.0 D (#4676)
@@ -312,7 +312,7 @@ def srv_dict(c, a, row=None):
             "instructions": row["instructions"] if row else "", "has_key": bool(row and row["key_sealed"]),
             "key_hint": "",  # 2.1322.0 (#6560 7): no part of the key is shown any more (kept for older clients)
             "enabled_instance": not srv_off(c), "default_model": dm, "default_instructions": tr(di),  # 2.557.0: in the person's language
-            "enabled_org": not srv_org_blocked(c, a),  # 2.1409.0 (#6363): the switch of the agent's organisation
+            "enabled_org": not srv_org_blocked(c, a),  # (#6363): the switch of the agent's organisation
             "server": bool(row) and (a["provider"] or "") == SRV_PROVIDER,
             "flow_models": srv_flow_models(row),  # 2.565.0 D (#4674)
             "flow_web": srv_flow_web(row),  # 2.571.0 D (#4676)
@@ -338,7 +338,7 @@ def srv_put(aid):
     b = body()
     if not isinstance(b, dict):
         return err(tr("The body must be a JSON object"))
-    if srv_org_blocked(c, a) and b != {"delete_key": True}:  # 2.1409.0 (#6363): only deleting the key while its organisation is off
+    if srv_org_blocked(c, a) and b != {"delete_key": True}:  # (#6363): only deleting the key while its organisation is off
         return srv_org_refuse()
     unknown = sorted(k for k in b if k not in ("provider", "model", "instructions", "api_key", "delete_key", "flow_models", "flow_web",
                                                "day_limit"))  # 2.638.0 (#4714)
@@ -478,7 +478,7 @@ def srv_models_get(aid):
         raise Denied(404)
     if srv_off(c):  # review 2.557.0: switched off = no call to the provider with the owner's key either
         return jsonify(error="server_agents_off", message=tr("Server agents are switched off on this server")), 403
-    if srv_org_blocked(c, a):  # 2.1409.0 (#6363): nor while its organisation has it off
+    if srv_org_blocked(c, a):  # (#6363): nor while its organisation has it off
         return srv_org_refuse()
     try:
         ms = srv_models(c, aid)

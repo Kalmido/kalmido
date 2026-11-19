@@ -611,7 +611,7 @@ def _agent_org_set(c, aid, v, main_org, user_orgs):
         oids = user_orgs_full(c, a["owner_id"], write=True) if a["owner_id"] else []  # 2.143.0 A (#2151)
         if a["owner_id"]:  # 2.361.4 (#2928): the first organisation that lets it have an agent, else its private area
             oids = [o for o in oids if agent_ws_allowed(c, a["owner_id"], o)]
-        if oids and (a["provider"] or "") == "kalmido-server":  # 2.1409.0 (#6363): a server agent never lands by itself where the
+        if oids and (a["provider"] or "") == "kalmido-server":  # (#6363): a server agent never lands by itself where the
             on = {r[0] for r in c.execute(  # organisation has the Kalmido AI off (agents/srvagent.py srv_org_on)
                 f"SELECT id FROM orgs WHERE srv_agents=1 AND id IN ({','.join('?' * len(oids))})", tuple(oids)).fetchall()}
             oids = [o for o in oids if o in on]

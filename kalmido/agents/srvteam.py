@@ -39,7 +39,7 @@ from ..api.scopes import agent_scopes_set
 from .core import AGENT_GATED, agent_row, agent_shares, agent_usable, is_agent, need_person
 from .admin import _agent_name, agent_org_set, make_agent
 from .usage import USAGE_SUM, usage_fmt, usage_limits, usage_limits_clean, usage_period, usage_totals
-from .srvagent import srv_need, srv_off, srv_org_on, srv_org_refuse, SRV_PROVIDER  # 2.1409.0 (#6363): + the organisation's switch
+from .srvagent import srv_need, srv_off, srv_org_on, srv_org_refuse, SRV_PROVIDER  # (#6363): + the organisation's switch
 from .srvstarter import SRV_DAY_LIMIT_DEFAULT, SRV_NOBODY_PART, srv_day_cap, srv_hosted  # 2.1308.0 (#6568)
 
 SRV_PROV = SRV_PROVIDER
@@ -207,7 +207,7 @@ def srv_events_cut(c, who, lids, data):
 
 
 def srv_org_events_cut(c, data):
-    """2.1409.0 (#6363): the events of a run without those of a project whose organisation has the Kalmido AI off (a second floor:
+    """(#6363): the events of a run without those of a project whose organisation has the Kalmido AI off (a second floor:
     the run of an agent of such an organisation ends before; an agent reaches only its own workspace)."""
     lids = {x for x in (_ev_lid(e.get("data")) for e in data if isinstance(e, dict)) if x}
     if not lids:
@@ -394,14 +394,14 @@ def srv_team_create(oid):
     """{username, display_name?} -> 201 {id, username, name, org_id, provider} - a team agent of organisation oid that runs on the
     Kalmido server (provider kalmido-server). Only an admin of oid (no instance admin needed, never through a support access);
     then PUT /api/agents/<id>/server stores the organisation's key. 403 server_agents_off while the instance switch is on,
-    2.1409.0 (#6363): 403 org_server_agents_off while the organisation has the Kalmido AI off."""
+    (#6363): 403 org_server_agents_off while the organisation has the Kalmido AI off."""
     need_person(404)
     c = db()
     if is_agent(g.user) or not is_org_admin(c, me(), oid) or sga_is_support(c):
         raise Denied(404)
     if srv_off(c):
         return jsonify(error="server_agents_off", message=tr("Server agents are switched off on this server")), 403
-    if not srv_org_on(c, oid):  # 2.1409.0 (#6363): only after its admin switched the Kalmido AI on for the organisation
+    if not srv_org_on(c, oid):  # (#6363): only after its admin switched the Kalmido AI on for the organisation
         return srv_org_refuse()
     b = body()
     if not isinstance(b, dict) or any(k not in ("username", "display_name") for k in b):

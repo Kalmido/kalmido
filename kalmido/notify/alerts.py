@@ -67,8 +67,8 @@ AA_SWITCH_LABEL = {"collab_all": N_("Collaboration for everyone"), "time_all": N
                    "oidc_autocreate": N_("Create accounts on the first OIDC sign-in"), "bk_on": N_("Automatic backups"),
                    "public_links": N_("Public links to projects"),
                    "mcp_remote": N_("Hosted MCP access"),  # 2.488.0 (#3363)
-                   "server_agents": N_("Server agents (run on this server with their own API key)"),  # 2.557.0 (#4670)
-                   "org_server_agents": N_("Kalmido AI in this organisation")}  # 2.1409.0 (#6363): aa_org_switch
+                   "server_agents": N_("Server agents (run on this server with their own API key)"),  # (#4670)
+                   "org_server_agents": N_("Kalmido AI in this organisation")}  # (#6363): aa_org_switch
 _AA_LOCK = threading.Lock()
 _AA = {"q": [], "b": {}, "int": {}, "disk_at": 0.0, "qc_at": 0.0, "storage": {}, "qc": {}}
 
@@ -546,7 +546,7 @@ def aa_switch(c, admin, key, value, cfg=None):
 
 
 def aa_org_switch(admin, oid, org_name, key, value):
-    """2.1409.0 (#6363): security alert for a changed switch of an organisation (its admin changed it), like aa_switch with the
+    """(#6363): security alert for a changed switch of an organisation (its admin changed it), like aa_switch with the
     organisation's name: AA_SWITCH_LABEL[key]. The key names the organisation and the direction without a time (reader F1 of
     job/5551): any organisation's admin can switch it, so the cooldown counts its repeats instead of each one using up the
     hour's cap of the real alerts (the switch itself is braked in accounts/orgs.py ORG_SWITCH_HOUR)."""

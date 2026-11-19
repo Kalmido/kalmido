@@ -1419,7 +1419,7 @@ def org_mine_dict(c, r, uid):
             "asst_comments": bool(r["asst_comments"]),  # 2.240.0 (#2884): the assistant may read other members' comments
             "chn_content": bool(r["chn_content"]),  # 2.240.0 (#2867): personal channels get the content of the organisation's lists
             "member_agents": bool(r["member_agents"]),  # 2.361.4 (#2928): members may keep their own agents in it
-            "server_agents": bool(r["srv_agents"]),  # 2.1409.0 (#6363): the Kalmido AI (server agents) may work in it
+            "server_agents": bool(r["srv_agents"]),  # (#6363): the Kalmido AI (server agents) may work in it
             "areas_off": [x for x in (r["areas_off"] or "").split(",") if x],  # 2.409.0 (#3490): areas its admins switched off
             "nav_off": nav_org_off(r),  # 2.418.0 (#3560): menu points its admins switched off for the members
             "role": org_role(c, uid, r["id"]) or "member",
@@ -1450,7 +1450,7 @@ def orgs_mine():
                    retired=odl_former(c, uid))  # 2.186.0 A (#2599): retired organisations I was an admin of (their export)
 
 
-# 2.1409.0 (#6363): a module of a higher layer watches a switch of org_mine_update: {key: fn(c, oid, name, value)}, called after
+# (#6363): a module of a higher layer watches a switch of org_mine_update: {key: fn(c, oid, name, value)}, called after
 # the switch changed (agents/srvagent.py: the security alert of the Kalmido AI) - no upward import here
 ORG_SWITCH_HOUR = 6  # 2.1409.0 (#6363, reader F1 of job/5551): changes of the Kalmido AI switch per organisation and per person in an hour, more = 429
 ORG_SWITCH_WATCH = {}
@@ -1461,8 +1461,8 @@ def org_mine_update(oid):
     """2.28.0 (#935): {name?, icon?, domains?} -- an organisation admin renames it (modes multi / workspaces; in the mode
     organisation the name comes from the configuration or the instance admin). 2.467.0 (#3898): domains only by a server admin.
     2.53.0 B (#1474): {color?} -- its colour for every member ('' = the default tone); only here (an admin of this
-    organisation), not in the instance admin's routes. 2.61.0 B (#1819): {photo_meta_strip?: bool} likewise.
-    2.1409.0 (#6363): {server_agents?: bool} -- the Kalmido AI (server agents) may work in the organisation (default off)."""
+    organisation), not in the instance admin's routes. (#1819): {photo_meta_strip?: bool} likewise.
+    (#6363): {server_agents?: bool} -- the Kalmido AI (server agents) may work in the organisation (default off)."""
     c, b = db(), body()
     _need_org_admin(c, oid)
     if instance_mode(c) != "workspaces":
@@ -1485,7 +1485,7 @@ def org_mine_update(oid):
                 from ..assistant.web import asst_comments_notice
                 asst_comments_notice(c, oid, me())
             c.execute(f"UPDATE orgs SET {k}=? WHERE id=?", (int(b[k]), oid))
-    if "server_agents" in b:  # 2.1409.0 (#6363): the Kalmido AI in this organisation (admins only, default off) - a security alert
+    if "server_agents" in b:  # (#6363): the Kalmido AI in this organisation (admins only, default off) - a security alert
         if not isinstance(b["server_agents"], bool):
             return err(tr("Invalid value: {0}", "server_agents"))
         from .supportgrant import sga_is_support
