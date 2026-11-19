@@ -151,6 +151,7 @@
  "POST /habits/{}/checkin": "action",
  "POST /import/{}": "action",
  "POST /imports/{}/undo": "action",
+ "POST /issuer/invoices": "create",
  "POST /issuer/docs/{}/withdraw": "action",
  "POST /layouts/proposals": "create",
  "POST /life/contracts": "create",
