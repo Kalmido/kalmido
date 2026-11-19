@@ -12,7 +12,8 @@ the highest level of all groups counts, specials add up.
 Who is not ruled by groups (the checks stay exactly as before 2.187):
 - the organisation's admins (they always see everything: nobody can lock them out) and the owner of a personal office;
 - an org member without any row in office_rgroup_members: the implicit group "Previous access" (TPL_LEGACY) -- an update
-  changes nothing, restricting is done afterwards in the rights page.
+  changes nothing, restricting is done afterwards in the rights page. #6527: in a company created by a person
+  (orgs.office_new_tpl, accounts/orgs.py _office_start) a new member / read-only person starts in "Staff" instead.
 Agents: no row = no office access (they start without one), never the special "rights".
 The organisation role still caps everything (orgroles.office_allowed: guests nothing, read-only / accounting only read).
 
@@ -31,6 +32,7 @@ from ..core.pg import insert_id, system_ctx
 from ..core.access import live_sql  # 2.905.0 (#5414): a group in the core's trash is gone
 from ..core.rls import rls_org_open  # 2.602.0 (#4729)
 from ..accounts.orgs import org_role
+from ..accounts.orgroles import office_new_tpl  # #6527: the group a new member of the organisation starts with
 from ..accounts.orgroles import office_allowed
 from .model import office_gate, office_on, office_where, pb_owner
 
@@ -664,10 +666,12 @@ def ofr_get():
     if not mg:
         return jsonify(out)
     caps = _caps(c, uid, oid, mg)
+    new_tpl = office_new_tpl(c, oid)  # #6527: the group new members start with ('' = "Previous access")
     out["templates"] = [{"ref": f"tpl:{k}", "key": k, "name": tr(TEMPLATES[k][0]), "hint": tr(TEMPLATES[k][1]),
                          "levels": TEMPLATES[k][2], "specials": list(TEMPLATES[k][3]),
                          "can_give": mg == "admin" if k == TPL_LEGACY else (k == TPL_NONE or _within(TEMPLATES[k][2], TEMPLATES[k][3], caps))}
                         for k in TPL_ORDER]
+    out["new_tpl"] = new_tpl
     out["groups"] = []
     for gr in _group_rows(c, oid):
         levels, sp = _levels_clean(_load(gr["rights"], {})), _specials_clean(_load(gr["specials"], []))
@@ -683,6 +687,10 @@ def ofr_get():
         out["people"].append({"id": u, "name": name, "role": role, "agent": agent, "fixed": fixed,
                               "groups": refs or ([f"tpl:{TPL_NONE}"] if agent and not drafts.get(u) else [f"tpl:{TPL_LEGACY}"]),
                               "can_edit": not fixed and (mg == "admin" or u != uid) and _person_within(c, oid, u, caps, mg)})
+    # #6527: a company whose new members start in a group of their own offers no "Previous access" (named only while somebody
+    # still has it, e.g. an agent with its draft switch)
+    if new_tpl and not any(f"tpl:{TPL_LEGACY}" in p["groups"] and not p["fixed"] for p in out["people"]):  # the admins are not ruled by groups
+        out["templates"] = [t for t in out["templates"] if t["key"] != TPL_LEGACY]
     out["caps"] = {"levels": caps[0], "specials": sorted(caps[1])}
     out["log_count"] = c.execute("SELECT count(*) FROM office_rights_log WHERE org_id=?", (oid,)).fetchone()[0]
     return jsonify(out)
