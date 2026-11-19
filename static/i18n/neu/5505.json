@@ -1,0 +1,27 @@
+{
+  "de": {
+    "Organisation settings": "Einstellungen der Organisation",
+    "An organisation is set up by the admin of this server. An organisation’s admin can then invite you by e-mail.": "Eine Organisation legt der Admin dieses Servers an. Die Admins einer Organisation können dich dann per E-Mail einladen.",
+    "The organisation “{0}” is set up": "Die Organisation „{0}“ ist angelegt"
+  },
+  "es": {
+    "Organisation settings": "Ajustes de la organización",
+    "An organisation is set up by the admin of this server. An organisation’s admin can then invite you by e-mail.": "Una organización la crea el administrador de este servidor. Después, los administradores de la organización pueden invitarte por correo.",
+    "The organisation “{0}” is set up": "La organización «{0}» está creada"
+  },
+  "fr": {
+    "Organisation settings": "Réglages de l’organisation",
+    "An organisation is set up by the admin of this server. An organisation’s admin can then invite you by e-mail.": "Une organisation est créée par l’administrateur de ce serveur. Ses administrateurs peuvent ensuite t’inviter par e-mail.",
+    "The organisation “{0}” is set up": "L’organisation « {0} » est créée"
+  },
+  "it": {
+    "Organisation settings": "Impostazioni dell’organizzazione",
+    "An organisation is set up by the admin of this server. An organisation’s admin can then invite you by e-mail.": "Un’organizzazione viene creata dall’amministratore di questo server. Poi gli amministratori dell’organizzazione possono invitarti per e-mail.",
+    "The organisation “{0}” is set up": "L’organizzazione «{0}» è stata creata"
+  },
+  "nl": {
+    "Organisation settings": "Organisatie-instellingen",
+    "An organisation is set up by the admin of this server. An organisation’s admin can then invite you by e-mail.": "Een organisatie wordt aangemaakt door de beheerder van deze server. De beheerders van de organisatie kunnen je daarna per e-mail uitnodigen.",
+    "The organisation “{0}” is set up": "De organisatie „{0}” is aangemaakt"
+  }
+}
