@@ -5,6 +5,8 @@
 // - Private + two organisations (Nord, Süd), the office area off in Private (the reported case), workspace "All":
 //   the dialog asks for the workspace (only Nord and Süd offered, not Private); "Add" without a choice says so and keeps the
 //   dialog; Nord chosen -> the client is in the clients list under "All" and in Nord
+// - #7407: "Belongs to" stays empty and locked until the workspace is chosen, then offers only that workspace's main clients
+//   (a chosen one of the other workspace is cleared on a change); the required message goes with the choice
 // - Clients off in Süd too: no field, the client goes into Nord without a question and is listed
 // - the contacts editor under "All" offers no address book of a workspace where Contacts is off
 const path = require('path');
@@ -42,6 +44,10 @@ const FEATS = 'cal,comments,collab,contacts,office,clients,time';
     return {w, d, hit};
   };
 
+  const hN = await call('POST', '/api/clients', {name: 'Haupt Nord', org_id: O1}), hS = await call('POST', '/api/clients', {name: 'Haupt Sued', org_id: O2});
+  check(hN.id && hS.id, 'a main client in Nord and one in Süd');
+  const pOpts = md => [...(md.querySelector('#cl-parent')?.options || [])].map(o => o.textContent).filter(t => t.startsWith('Haupt'));
+
   // ---- two workspaces with Clients on: the dialog asks
   let {w, d} = await listed('-');
   check(w.eval('wsCur()') === 'all', 'the page is under All workspaces');
@@ -50,12 +56,23 @@ const FEATS = 'cal,comments,collab,contacts,office,clients,time';
   let md = d.querySelector('.modal.cldlg'), sel = md.querySelector('#cl-ws');
   const opts = sel ? [...sel.options].map(o => o.value) : [];
   check(sel && JSON.stringify(opts) === JSON.stringify(['', 'org:' + O1, 'org:' + O2]), 'the dialog asks for the workspace: Nord and Süd, not Private: ' + opts);
+  let par = md.querySelector('#cl-parent');
+  check(par && par.disabled && !pOpts(md).length, '#7407: without a workspace "Belongs to" is locked and offers no main client: ' + pOpts(md));
+  check(md.querySelector('#cl-parent-ws') && !md.querySelector('#cl-parent-ws').hidden, '#7407: ... with the hint to choose the workspace first');
   typeIn(w, md.querySelector('#cl-name'), 'Kunde Auswahl');
   md.querySelector('[data-m="save"]').click();
   await sleep(300);
   check(d.body.contains(md) && /workspace/i.test(md.querySelector('.aerr')?.textContent || ''), 'Add without a choice: the dialog stays and says what is missing');
   check(!(await call('GET', '/api/clients')).clients?.some(c => c.name === 'Kunde Auswahl'), '... nothing created');
-  sel.value = 'org:' + O1; sel.dispatchEvent(new w.Event('change', {bubbles: true}));
+  const pick = v => { sel.value = v; sel.dispatchEvent(new w.Event('change', {bubbles: true})); };
+  pick('org:' + O1);
+  check(!(md.querySelector('.aerr')?.textContent || '').trim(), '#7407: the workspace chosen -> the required message is gone');
+  check(!par.disabled && JSON.stringify(pOpts(md)) === '["Haupt Nord"]', '#7407: "Belongs to" offers only the main clients of Nord: ' + pOpts(md));
+  check(md.querySelector('#cl-parent-ws').hidden, '#7407: ... and the hint is gone');
+  par.value = String(hN.id);
+  pick('org:' + O2);
+  check(JSON.stringify(pOpts(md)) === '["Haupt Sued"]' && par.value === '', '#7407: Süd chosen instead -> only Süd\'s main clients, the Nord one cleared: ' + pOpts(md) + ' / ' + par.value);
+  pick('org:' + O1);
   md.querySelector('[data-m="save"]').click();
   await until(() => !d.body.contains(md), 60);
   const c1 = (await call('GET', '/api/clients')).clients?.find(c => c.name === 'Kunde Auswahl');
@@ -69,6 +86,7 @@ const FEATS = 'cal,comments,collab,contacts,office,clients,time';
   await until(() => d.querySelector('.modal.cldlg'), 40);
   md = d.querySelector('.modal.cldlg');
   check(!md.querySelector('#cl-ws'), 'one workspace left: no workspace field');
+  check(JSON.stringify(pOpts(md)) === '["Haupt Nord"]', '#7407: "Belongs to" offers only the main clients of Nord: ' + pOpts(md));
   typeIn(w, md.querySelector('#cl-name'), 'Kunde Direkt');
   md.querySelector('[data-m="save"]').click();
   await until(() => !d.body.contains(md), 60);
