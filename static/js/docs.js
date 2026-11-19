@@ -311,7 +311,7 @@ async function dc_upload(files, ws, source) {
     if ((ws || dc_upWs()) === 'private') fd.append('sort', '1');  // 2.522.0 (#4433): the general input sorts (office / private; no office: nothing)
     if (source) fd.append('source', source);
     // 2.1216.0 (#6109): rawFetch - the refused files are said once, in the list (ab_upOut), not a toast "Error 400" beside it
-    let j; try { j = await rawFetch('POST', '/api/docs', fd); } catch (x) { if (x?.message === 'auth') return ids;  /* 2.1247.0 (#6173): logged out - the login says it */ if (x?.data?.errors) j = x.data; else { out.push(...ab_upRest(parts, i, x)); break; } }  // a 400 with its reasons: the list names them
+    let j; try { j = await rawFetch('POST', '/api/docs', fd); } catch (x) { /* 2.1412.0 (#6227 N3): logged out = the rest "Signed out" in the list (ab_upRest), the message and its history entry as usual */ if (x?.data?.errors) j = x.data; else { out.push(...ab_upRest(parts, i, x)); break; } }  // a 400 with its reasons: the list names them
     ids.push(...(j.ids || [])); dups.push(...(j.dups || []));
     out.push(...(j.errors || []).map(e => ({name: '', why: e})));  // the server's own reasons (each names its file)
   }
