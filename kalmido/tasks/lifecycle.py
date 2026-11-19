@@ -15,7 +15,7 @@ from ..core.schema import MAX_DEPTH
 from ..core.i18n import tr
 from ..core.db import body, bump, connect, db, err, gsetting, iso, local_now, now_utc, parse_iso
 from ..accounts.session import me
-from ..core.access import collab_all, Denied, list_people, list_role, need_list, need_task, wr_sql, WRITE_ROLES
+from ..core.access import collab_all, Denied, list_people, list_role, list_roles, need_list, need_task, wr_sql, WRITE_ROLES
 from ..core.access import live_sql, trash_sql  # 2.1002.0 (#5491): the core's trash filter
 from ..core.serializers import unlink_files
 from ..lists.groups import check_group_assignee, grp_assign_events, grp_name, grp_shares_of_list
@@ -1083,15 +1083,19 @@ def purge_done():
     c = db()
     b = body() if isinstance(body(), dict) else {}
     uid = me()
-    base = f"status!=0 AND {live_sql()} AND list_id IN (SELECT id FROM lists WHERE owner_id=?)"
+    # #6607: the lists I own AND still manage by my role (list_role: a read-only member of the organisation, a support session,
+    # a token limited to lists keep no owner role there) -- not every row with owner_id=me
+    mine_l = [x[0] for x in c.execute("SELECT id FROM lists WHERE owner_id=?", (uid,)).fetchall()]
+    lids = st_ids([x for x, role in list_roles(c, uid, mine_l).items() if role == "owner"])
+    base = f"status!=0 AND {live_sql()} AND list_id = ANY(CAST(? AS BIGINT[]))"
     own = PD_OWN
-    r = c.execute(f"SELECT COUNT(*) FILTER (WHERE {own}), COUNT(*) FROM tasks WHERE {base}", (uid, uid, uid)).fetchone()
+    r = c.execute(f"SELECT COUNT(*) FILTER (WHERE {own}), COUNT(*) FROM tasks WHERE {base}", (uid, uid, lids)).fetchone()
     mine, others = r[0], r[1] - r[0]
     if b.get("dry"):
         return jsonify(own=mine, others=others)
     allx = b.get("others") is True
     gone = [r[0] for r in c.execute(f"UPDATE tasks SET deleted_at=? WHERE {base}" + ("" if allx else f" AND {own}") + " RETURNING id",
-                                    (iso(now_utc()), uid, *(() if allx else (uid, uid)))).fetchall()]
+                                    (iso(now_utc()), lids, *(() if allx else (uid, uid)))).fetchall()]
     for tid in gone:  # 2.533.0 A2 (#4318 B8): a history line per task, as the list's "Clear completed" (trash_task)
         log_act(c, tid, "delete")
     n = len(gone)
