@@ -183,6 +183,16 @@ check(r.status_code == 201, "setup: an agent " + r.text[:200])
 AG, AGT = r.json().get("id"), r.json().get("token")
 check(A.patch(B + f"{OFC}/agents/{AG}", json={"office_drafts": True}).ok, "setup: the agent's office switch")
 
+# (#7203, reader F3): the agents' document list marks an invoice issuer's draft as data from outside, like the detail
+r = A.post(B + D, json={"kind": "invoice", "project_title": "Issuer draft F3"})
+ISD = r.json().get("id") if r.status_code == 201 else 0
+sql("UPDATE office_docs SET issuer_id=4711 WHERE id=?", (ISD,))
+lst = requests.get(B + "/api/v1/office/docs?kind=invoice", headers={**H, "Authorization": "Bearer " + AGT})
+row = next((x for x in (lst.json().get("data") or []) if x.get("id") == ISD), None) if lst.ok else None
+check(row is not None and row.get("origin") == "issuer" and row.get("untrusted") is True, f"#7203 F3: the list marks the issuer's draft untrusted {lst.status_code} {row}")
+other = next((x for x in (lst.json().get("data") or []) if x.get("id") != ISD), None) if lst.ok else None
+check(other is None or not other.get("untrusted"), f"#7203 F3: a person's document stays unmarked {other}")
+sql("UPDATE office_docs SET issuer_id=NULL WHERE id=?", (ISD,))
 outs = [scenario(A, "alice", Ca, member=Bo, agent=AGT), scenario(Fr, "frida", A)]
 tick()
 for who, (old, young) in zip(("alice", "frida"), outs):

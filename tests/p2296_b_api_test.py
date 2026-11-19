@@ -8,6 +8,8 @@ Invented companies, people and the test IBAN only.
  - #3175 the tax rows name their taxable amount ("MwSt. 19 % auf 1.000,00 €"); a credit note prints as
    "Rechnungskorrektur" with the intro "zu der oben genannten Rechnung"; an English document writes "24 October 2026",
    a French one groups with a no-break space
+ - #7301: the country line in the document's language ("NETHERLANDS" in English, also after switching a
+   German quotation to English, also for a draft's own address fields)
  - #3168 reverse charge: 400 without the client's VAT id; a Dutch client: meta "USt-IdNr. Kunde", the country line
    "NIEDERLANDE", the EU text (Art. 196); a German client with VAT id: section 13b
  - #3173 the buyer reference visible ("Käuferreferenz", "Leitweg-ID" for XRechnung); the GiroCode asks for the open amount
@@ -158,6 +160,17 @@ EN = invoice(CNL, [{"title": "Editing", "qty": 1, "rate": 1234.5}], lang="en")
 re_ = render(EN)
 check(re.fullmatch(r"\d{1,2} [A-Z][a-z]+ \d{4}", re_.get("date_text") or "") is not None and "Client VAT ID" in meta(re_),
       f"#3175: English document: '24 October 2026', English head: {re_.get('date_text')!r} {list(meta(re_))}")
+# (#7301): the country line follows the document's language, not the sender's (was "NIEDERLANDE" in English too)
+check((re_["recipient"].get("lines") or [""])[-1] == "NETHERLANDS", f"#7301: English document: the country line in English: {re_['recipient'].get('lines')}")
+QO = Fr.post(B + D, json={"kind": "offer", "client_id": CNL, "project_title": "Pitch", "lang": "de"}).json()["id"]
+check((render(QO)["recipient"].get("lines") or [""])[-1] == "NIEDERLANDE", f"#7301: German quotation: German country line: {render(QO)['recipient'].get('lines')}")
+r = Fr.patch(B + f"{D}/{QO}", json={"lang": "en"})
+check(r.ok and (render(QO)["recipient"].get("lines") or [""])[-1] == "NETHERLANDS",
+      f"#7301: the quotation switched to English: the country line follows: {r.text[:120]} {render(QO)['recipient'].get('lines')}")
+QF = Fr.post(B + D, json={"kind": "offer", "project_title": "Pitch", "lang": "de", "recipient": {"name": "Atelier Wien", "street": "Ringstr. 1", "zip": "1010", "city": "Wien", "country": "AT"}}).json()["id"]
+check((render(QF)["recipient"].get("lines") or [""])[-1] == "ÖSTERREICH", f"#7301: own address fields, German: {render(QF)['recipient'].get('lines')}")
+Fr.patch(B + f"{D}/{QF}", json={"lang": "en"})
+check((render(QF)["recipient"].get("lines") or [""])[-1] == "AUSTRIA", f"#7301: own address fields, switched to English: {render(QF)['recipient'].get('lines')}")
 FRD = invoice(CNL, [{"title": "Montage", "qty": 1, "rate": 1234.5}], lang="fr")
 rf = render(FRD)
 check(rf["totals"].get("net_text") == f"1{NB}234,50 €" and re.fullmatch(r"\d{1,2} \S+ \d{4}", rf.get("date_text") or ""),

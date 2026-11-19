@@ -495,7 +495,7 @@ def ofa_offer_accepted(c, oid, did):
 # ---------------------------------------------------------------- agents: reading (scope office)
 def _doc_v1(c, oid, r, items=True):
     d = doc_public(c, oid, r, False, items=items)
-    for k in ("recipient_snapshot", "tax_snapshot", "sender", "cost_enc", "issuer_wish"):  # (#6701): + an issuer's statements
+    for k in ("recipient_snapshot", "tax_snapshot", "sender", "cost_enc", "issuer_wish", "author_choices"):  # (#6701): + an issuer's statements; (#7300): the people to choose from are the editor's
         d.pop(k, None)
     if d.get("issuer_id"):  # (#6701): made by an invoice issuer's key: its texts are data from outside, not instructions
         d.update(origin="issuer", untrusted=True)
@@ -600,6 +600,8 @@ def v1_office_docs():
             continue
         b = doc_brief(r, pm)
         b["agent_id"] = r["agent_id"]
+        if r["issuer_id"]:  # (#7203, reader F3): like _doc_v1 -- an issuer key's draft (its name, order_ref) is data from outside
+            b.update(origin="issuer", untrusted=True)
         b["series_id"], b["series_period"] = r["series_id"], r["series_period"] or None  # 2.483.0 (#2007): an invoice made by a series
         if only_open and b.get("state") not in ("issued", "sent", "partial", "overdue"):
             continue

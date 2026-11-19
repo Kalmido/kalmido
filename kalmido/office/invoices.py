@@ -728,7 +728,7 @@ def inv_new_row(c, oid, s, kind, lang, src=None):
         row["fx_rate"] = float(fx) if fx is not None else 1
     if src is not None:
         for k in ("lang", "currency", "fx_rate", "vat_mode", "client_id", "recipient", "project_title", "project_ref", "contract_id", "rights", "fields",
-                  "service_from", "service_to", "vat_note", "contact_id"):  # 2.40.0 (#1380): + the contact person
+                  "service_from", "service_to", "vat_note", "contact_id", "author_id"):  # (#1380) the contact person, (#7300) "Created by"
             if k in src.keys() and src[k] is not None:
                 row[k] = src[k]
         row["order_ref"] = _col(src, "order_ref") or src["project_ref"] or ""
@@ -862,7 +862,7 @@ def inv_from_time(c, oid, uid, b):
         args.append(int(b["task_id"]))
     s = office_settings(c, oid)
     row = inv_new_row(c, oid, s, "invoice", s.get("lang") or "de")
-    row.update(client_id=cid, recipient=json.dumps({k: v for k, v in _recipient_from_client(dict(cl), None, cdn_home(c, oid)).items() if k != "missing"}, ensure_ascii=False), service_from=d_from, service_to=d_to,
+    row.update(client_id=cid, recipient=json.dumps({k: v for k, v in _recipient_from_client(dict(cl), None, cdn_home(c, oid), doc_lg(row["lang"])).items() if k != "missing"}, ensure_ascii=False), service_from=d_from, service_to=d_to,
                project_title=cl["name"])
     if "payment_terms_days" in cl.keys() and cl["payment_terms_days"]:
         row["payment_days"] = int(cl["payment_terms_days"])
