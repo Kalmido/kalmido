@@ -95,7 +95,7 @@ function awc_html(st) {
   const free = st.projects.filter(p => !(String(p.id) in (chosen ? d.projects : {})));
   const hist = st.history || [];
   return `<h4 id="awc-h">${tr('Control')}</h4>
-    ${chosen ? '' : `<div class="awstate" role="status" data-awc-legacy>${esc(tr('No level selected yet - works as before.'))}</div>`}
+    ${chosen ? '' : `<div class="awstate" role="status" data-awc-legacy>${esc(tr('No level selected yet - works as before, but writing where more people read and a message to a person outside its circle need an approval card.'))}</div>`}
     <div class="awclv" role="radiogroup" aria-labelledby="awc-h">${AWC_LEVELS.map(([v, n, h]) => `<label class="chkl awcl"><input type="radio" name="awc-level" data-awc="level" value="${v}" ${chosen && d.level === v ? 'checked' : ''}><span><b>${esc(tr(n))}</b><small class="muted">${esc(tr(h))}</small></span></label>`).join('')}</div>
     <div class="awsub" ${chosen && d.level === 'free' ? '' : 'hidden'}><textarea id="awc-goal" data-awc="goal" rows="2" maxlength="500" placeholder="${esc(tr('e.g. keep the project free of bugs'))}" aria-label="${esc(tr('Goal'))}">${esc(d.goal || '')}</textarea></div>
     <div class="row"><label id="awc-ph">${tr('Exceptions per project')}</label></div>

@@ -193,6 +193,17 @@ for m in (CL, BOB, CAROL, DORA):  # everyone of Work and one more person: a memb
 # ================================================================== #1974 an approval job on a task
 T = A.post(B + "/api/tasks", json={"title": "Prepare the offer", "list_id": W, "assignee_id": BOB}).json()["id"]
 r = requests.patch(V + f"/tasks/{T}", headers=CLH, json={"list_id": W3})
+
+
+def alice_yes(r):
+    """2.1433.0 (#7142): the agent has no control level and counts as "free" for the circle rule: dora reads Elsewhere, not
+    Work -- the circle's card first, alice (reads both) says Yes, the step runs from the card; then the move gate of #1974"""
+    import kt
+    check(r.status_code == 409 and (r.json().get("error") or {}).get("circle") == "wider", f"#7142: the circle's card first {r.status_code} {r.text[:160]}")
+    return kt.circle_yes(r, CLH, CL, A, V, kt.me_id(A), base=B)
+
+
+r = alice_yes(r)
 check(r.status_code == 202 and (r.json().get("job") or {}).get("id"), f"#1974: the agent's move into a list with other people waits {r.status_code} {r.text[:200]}")
 J = (r.json().get("job") or {}).get("id")
 check(J and sql("SELECT task_id FROM agent_jobs WHERE id=?", (J,))[0][0] == T, "#1974: the job belongs to the task")

@@ -111,14 +111,26 @@ check(F.get(B + f"/api/tasks/{T1}/timeline").json()["may_yes"] is True, "the own
 # ================================================================== the review: an agent cannot make the marked task go away
 L3 = F.post(B + "/api/lists", json={"name": "Elsewhere", "kind": "project"}).json()["id"]
 check(F.put(B + f"/api/lists/{L3}/members", json={"user_id": AID, "role": "edit"}).ok, "setup: the agent may write in a list without the switch")
-r = requests.post(V + f"/tasks/{T1}/complete", headers=AH)
-check(r.status_code == 409, f"an agent cannot complete it {r.status_code} {r.text[:150]}")
+
+
+def frida_yes(r):
+    """2.1433.0 (#7142): the agent has no control level and counts as "free" for the circle rule: with "Elsewhere" (frida only)
+    it reads a place gert does not, so a write into Release (gert reads it) needs the circle's card first -- frida says Yes,
+    the step runs from the card and meets the mark's own 409 (not the card's)"""
+    check(r.status_code == 409 and (r.json().get("error") or {}).get("circle") == "wider", f"#7142: the circle's card first {r.status_code} {r.text[:150]}")
+    r = kt.circle_yes(r, AH, AID, F, V, FU, base=B)
+    return r if (r.json().get("error") or {}).get("code") not in ("approval_required", "approval_invalid") else None
+
+
+r = frida_yes(requests.post(V + f"/tasks/{T1}/complete", headers=AH))
+check(r is not None and r.status_code == 409, f"an agent cannot complete it {r is not None and r.status_code} {r is not None and r.text[:150]}")
 r = requests.delete(V + f"/tasks/{T1}", headers=AH)
 check(r.status_code == 409, f"... nor trash it {r.status_code} {r.text[:150]}")
-r = requests.patch(V + f"/tasks/{T1}", headers=AH, json={"list_id": L3})
-check(r.status_code == 409, f"... nor move it out {r.status_code} {r.text[:150]}")
+r = frida_yes(requests.patch(V + f"/tasks/{T1}", headers=AH, json={"list_id": L3}))
+check(r is not None and r.status_code == 409, f"... nor move it out {r is not None and r.status_code} {r is not None and r.text[:150]}")
 r = requests.post(V + "/tasks/batch", headers=AH, json={"action": "delete", "ids": [T1]})
 check(dbx("SELECT list_id, deleted_at, completed_at FROM tasks WHERE id=?", (T1,)) == [(L, None, None)], f"... nor by batch: the task is where it was {r.text[:150]}")
+check(F.delete(B + f"/api/lists/{L3}/members/{AID}").ok, "setup: the agent leaves Elsewhere again (one project, one circle)")
 
 # ================================================================== the yes
 check(G.post(B + f"/api/tasks/{T1}/irreversible-yes").status_code == 403, "a member without approver rights: 403")

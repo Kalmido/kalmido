@@ -185,6 +185,17 @@ AGW = A.post(B + "/api/lists", json={"name": "Agent work", "org_id": ORG}).json(
 assert A.put(B + f"/api/lists/{AGW}/members", json={"user_id": CL, "role": "edit"}).ok
 cur = requests.get(V + "/agent/events?since=latest", headers=CLH).json()["cursor"]
 r = requests.post(V + f"/team/rooms/{PRJ}/messages", headers=CLH, json={"body": "I can draft the agenda", "thread_of": R})
+
+
+def alice_yes(r):
+    """2.1433.0 (#7142): the agent has no control level and counts as "free" for the circle rule: it reads "Agent work" (alice
+    only), the channel's other members do not -- the circle's card first, alice (reads every place of it) says Yes"""
+    import kt
+    check(r.status_code == 409 and (r.json().get("error") or {}).get("circle") == "wider", f"#7142: the circle's card first {r.status_code} {r.text[:150]}")
+    return kt.circle_yes(r, CLH, CL, A, V, kt.me_id(A), base=B)
+
+
+r = alice_yes(r)
 check(r.status_code == 201 and r.json()["thread_of"] == R, "v1: the agent answers in the thread " + r.text[:200])
 CT = j(r).get("id")
 post(A, PRJ, f"<@{CL}> please add the budget", thread_of=R)
@@ -210,7 +221,7 @@ check(set(m1["read_by"]["users"]) == {BOB, DAVE} and m1["read_by"]["count"] == 2
 check(set(jj["room"]["read_ok"]) == {BOB, CAROL, DAVE, FRED, CL}, f"read_by: read_ok = the other members {jj['room'].get('read_ok')}")
 check("read_by" not in next(m for m in j(page(Bo, PRJ))["messages"] if m["id"] == M1), "read_by: not at other people's messages")
 check(requests.post(V + f"/team/rooms/{PRJ}/read", headers=CLH, json={}).ok and CL in msg(A, PRJ, M1)["read_by"]["users"], "read_by: the agent counts once it marked read")
-r = requests.post(V + f"/team/rooms/{PRJ}/messages", headers=CLH, json={"body": "Agenda checked"})
+r = alice_yes(requests.post(V + f"/team/rooms/{PRJ}/messages", headers=CLH, json={"body": "Agenda checked"}))  # #7142: as above
 CM = j(r).get("id")
 Bo.post(B + f"/api/team/rooms/{PRJ}/read", json={})
 cm = next((m for m in requests.get(V + f"/team/rooms/{PRJ}/messages", headers=CLH).json()["data"] if m["id"] == CM), {})

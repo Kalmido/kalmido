@@ -43,8 +43,10 @@ Review of 16.11.2026 (G1 - G13), all in the direction "in doubt a card":
   * 2.1398.0 (#6863): a team agent's job for a person (POST /agent/jobs with user_id / in a run for a person, PATCH of its
     title / log) is a message to that person (control.ctl_meta_circle); a job without a task shows its words only to who
     reads every source (job_mute); a proposal for the rules / playbook / layout of a project is a write into that project
-    (circle_of), a layout proposal a message to its person too. An agent without a chosen control level stays outside
-    the rule for now (its own task, see the decision of #6863).
+    (circle_of), a layout proposal a message to its person too.
+  * (#7142, decision of #6863): an agent without a chosen control level counts as "free" for this rule: every step
+    as before, a write into a wider / public circle, a message or job to a person outside it = a card; its status text,
+    progress line and job words are hidden from people who do not read every source (wk_mute / st_mute / job_mute).
 
 The cost per request: the agent's projects, their circles (four statements for all of them, list_circles2) and its shares
 once per request and agent (_sources); a person's roles on the shares once per request, the shares' chains once. wk_mute
@@ -424,10 +426,21 @@ def _target(c, a, path, va, b):
     """A target without a project -> ("public" | "wider" | None, its readers | None = the gate cannot name them)."""
     aid = a["user_id"]
     if path == "/lists":
-        # a new project of a personal agent is its own until somebody shares it (an agent's share waits for a person):
-        # nobody reads it. Named only then -- a team agent's, one for an organisation, in a folder or of a family: not nameable
-        own = a["owner_id"] and not any(b.get(k) not in (None, "", False) for k in ("org_id", "folder", "family"))
+        # a new project of the agent is its own until somebody shares it (an agent's share waits for a person): nobody reads
+        # it. (#7142): also a team agent's and one for an organisation -- a project without a folder and not of a
+        # family gets no person on creation (lists.list_created: folder people and groups come only through a folder; the
+        # organisation reads it only once it is opened, access.ov_open; the admins' overview only shared ones, orgtasks.ot_lists).
+        # In a folder or of a family: not nameable
+        own = not any(b.get(k) not in (None, "", False) for k in ("folder", "family"))
         return None, (frozenset() if own else None)
+    if path == "/filters" or path == "/filters/{}":
+        # (#7142): a saved view the agent keeps for itself (POST /api/v1/filters makes only private ones) is read by
+        # nobody else; a project's shared view: not nameable here (and the route holds it, lists/sections.py need_filter)
+        if path == "/filters":
+            return None, frozenset()
+        with system_ctx(c):
+            r = c.execute("SELECT user_id, shared FROM filters WHERE id=?", (va.get("fid"),)).fetchone()
+        return None, (frozenset() if r and not r["shared"] and r["user_id"] == aid else None)
     if path == "/wiki/pages" or path.startswith("/wiki/pages/{}"):
         return _wiki_target(c, aid, va, b)
     if path.startswith("/team/rooms/{}") or path.startswith("/team/messages/{}"):
@@ -487,13 +500,6 @@ def circle_of(c, a, method, path, va, b, lids):
     return "wider" if src["over"] or sum(1 for x in src["reach"] if src["all"].get(x)) + len(src["nodes"]) > 1 else None
 
 
-def _has_level(a):
-    """Did somebody choose a control level for agent row a (control.ctl_load itself, review G10; an agent from before
-    2.235.0 works as before)?"""
-    from .control import ctl_load  # here: control loads this module
-    return ctl_load(a) is not None
-
-
 def wk_mute(c, marks):
     """The "agent is working" marks {task id: agent id} that show no text: the task's project is a wider or public place for
     that agent. The progress line (the last line of the job's log, whatever route wrote it: the mark itself, a job's log) is
@@ -510,7 +516,7 @@ def wk_mute(c, marks):
     def ask(aid, tid, lid):
         with system_ctx(c):  # the agent's own row (its level), also when a person of another organisation looks at the task
             a = agent_row(c, aid)
-        return bool(a is not None and _has_level(a) and circle_of(c, a, "POST", "/tasks/{}/working", {"tid": tid}, {}, [lid]))
+        return bool(a is not None and circle_of(c, a, "POST", "/tasks/{}/working", {"tid": tid}, {}, [lid]))
     for tid, aid in marks.items():
         lid = lists.get(tid)
         if lid and _short(("wk", aid, lid), lambda: ask(aid, tid, lid)):
@@ -522,7 +528,7 @@ def st_mute(c, a, uid):
     """Is the status text of agent row a hidden from person uid (review G12)? A TEAM agent: everybody who shares a project
     with it sees its status, so its words show only to a person who reads every source of it (the simple form, as the
     progress line). A personal agent's status is its owner's: shown."""
-    if a is None or a["owner_id"] or not uid or uid == a["user_id"] or not _has_level(a):
+    if a is None or a["owner_id"] or not uid or uid == a["user_id"]:
         return False
     return _short(("st", a["user_id"], uid), lambda: not circle_reader(c, a["user_id"], uid))
 
@@ -531,14 +537,14 @@ def job_mute(c, aid, uid):
     """2.1398.0 (#6863): are the words (title, name, log) of a job of agent aid WITHOUT a task hidden from person uid? No
     task, no place whose circle wk_mute could ask: the job reaches the person it is for (the gate asks for that person, as
     for a chat message: control.ctl_meta_circle) and the admins who share the agent (core.job_visible) -- a team agent's
-    words show there only to a person who reads every source of it (with a control level, as wk_mute). A personal agent: never."""
+    words show there only to a person who reads every source of it (as wk_mute). A personal agent: never."""
     if not uid or uid == aid:
         return False
 
     def ask():
         with system_ctx(c):  # the agent's own row, also when a person of another organisation looks
             a = agent_row(c, aid)
-        return bool(a is not None and not a["owner_id"] and _has_level(a) and not circle_reader(c, aid, uid))
+        return bool(a is not None and not a["owner_id"] and not circle_reader(c, aid, uid))
     return _short(("jb", aid, uid), ask)
 
 

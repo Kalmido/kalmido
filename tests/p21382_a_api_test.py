@@ -85,6 +85,11 @@ for lid, ms in ((W, (CL, BOB)), (W3, (CL, BOB, CAROL))):  # Carol only in the ta
 
 def wait_move(task):
     r = requests.patch(V + f"/tasks/{task}", headers=CLH, json={"list_id": W3})
+    # 2.1433.0 (#7142): the agent has no control level and counts as "free" for the circle rule: carol reads Elsewhere, not
+    # Work -- the circle's card first, alice (reads both) says Yes, the step runs from the card and meets the move gate
+    from kt import circle_yes
+    check(r.status_code == 409 and (r.json().get("error") or {}).get("circle") == "wider", f"#7142: the circle's card first {r.status_code} {r.text[:150]}")
+    r = circle_yes(r, CLH, CL, A, V, ALICE, base=B)
     check(r.status_code == 202, f"the agent's move waits {r.status_code} {r.text[:200]}")
     return (r.json().get("job") or {}).get("id")
 

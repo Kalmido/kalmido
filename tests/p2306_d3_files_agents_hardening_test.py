@@ -172,9 +172,19 @@ for lid in (L1, L2):
 check(A.put(B + f"/api/lists/{L1}/members", json={"user_id": BOB, "role": "edit"}).ok, "#2875 setup: Bob in the team list")
 T1 = A.post(B + "/api/tasks", json={"title": "Shared job task D3", "list_id": L1}).json()["id"]
 T2 = A.post(B + "/api/tasks", json={"title": "Hidden job task D3", "list_id": L2}).json()["id"]
-r = ag.post(V + "/agent/jobs", json={"title": "Job for a hidden task", "task_id": T2, "user_id": BOB})
+# 2.1433.0 (#7142): the agent has no control level and counts as "free" for the circle rule: a job for bob is a message to
+# him (#6863) and bob does not read "Alice only D3" -- the circle's card first, alice (reads both) says Yes, the step runs
+
+
+def alice_yes(r):
+    from kt import circle_yes  # here: one helper for the two cases
+    check(r.status_code == 409 and (r.json().get("error") or {}).get("circle") == "wider", f"#7142: a job for bob: the circle's card first {r.status_code} {r.text[:160]}")
+    return circle_yes(r, dict(ag.headers), AG, A, V, ALICE, base=B)
+
+
+r = alice_yes(ag.post(V + "/agent/jobs", json={"title": "Job for a hidden task", "task_id": T2, "user_id": BOB}))
 check(r.status_code == 400, f"#2875 a job for a person who does not see its task: 400 ({r.status_code} {r.text[:200]})")
-r = ag.post(V + "/agent/jobs", json={"title": "Job D3", "task_id": T1, "user_id": BOB})
+r = alice_yes(ag.post(V + "/agent/jobs", json={"title": "Job D3", "task_id": T1, "user_id": BOB}))
 check(r.status_code == 201, f"#2875 a job for a person of the task's list: 201 ({r.status_code} {r.text[:200]})")
 JOB = r.json()["id"] if r.ok else 0
 # a person without an organisation: the own personal agent in the own project

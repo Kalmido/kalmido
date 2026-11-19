@@ -159,31 +159,43 @@ r = requests.put(V + f"/lists/{E2}/members/{DAVE}", headers=atok, json={"role": 
 check(r.ok and DAVE in members(A, E2), "#919: ... bridge_ok from a person's token confirms it " + r.text[:120])
 
 # ================================================================== moving tasks across circles (agents)
+# 2.1433.0 (#7142): the agent has no control level (tests/start.sh: legacy) and counts as "free" for the circle rule: it
+# reads lists with carol / dave, so each write here into {alice, bob} or {alice, carol} needs the circle's card first
+# (alice reads all its lists and says Yes, the step runs from the card); the move gate of #919 answers after it
+
+
+def cy(r):
+    e = (r.json() or {}).get("error") if r.headers.get("content-type", "").startswith("application/json") else None
+    check(r.status_code == 409 and isinstance(e, dict) and e.get("circle") == "wider", "#7142: an agent without a level writing into a wider circle: the circle's card " + r.text[:160])
+    from kt import circle_yes  # here: a new import at the top would be one more E402 of the suite
+    return circle_yes(r, CLH, CL, A, V, ALICE, base=B)
+
+
 # the agent's own list, shared with Alice and Bob (written directly: an agent's sharing waits for approval anyway)
 AG = requests.post(V + "/lists", headers=CLH, json={"name": "Agent board", "org_id": ORG}).json()["id"]
 for p in (ALICE, BOB):
     dbx("INSERT INTO list_members(list_id,user_id,role,own_role,sort,added_at) VALUES(?,?,?,?,?,?)", (AG, p, "edit", "edit", 50, "2026-10-01T00:00:00+00:00"), write=True)
-t1 = requests.post(V + "/tasks", headers=CLH, json={"title": "from the board", "list_id": AG}).json()  # AG = {alice, bob}
+t1 = cy(requests.post(V + "/tasks", headers=CLH, json={"title": "from the board", "list_id": AG})).json()  # AG = {alice, bob}
 check(t1.get("id"), "#919: the agent writes in its list " + str(t1)[:80])
-r = requests.patch(V + f"/tasks/{t1['id']}", headers=CLH, json={"list_id": AC})  # {alice, carol} is not inside {alice, bob}
+r = cy(requests.patch(V + f"/tasks/{t1['id']}", headers=CLH, json={"list_id": AC}))  # {alice, carol} is not inside {alice, bob}
 check(r.status_code == 202 and r.json().get("approval_required"), "#919: an agent moving a task to other people waits for approval (PATCH) " + r.text[:160])
 J = r.json()["job"]["id"]
 check("other people" in r.json()["job"]["title"], "#919: ... the approval says why " + r.json()["job"]["title"])
 check(dbx("SELECT list_id FROM tasks WHERE id=?", (t1["id"],)) == [(AG,)], "#919: ... nothing moved yet")
-r = requests.post(V + f"/tasks/{t1['id']}/move", headers=CLH, json={"list_id": AC})
+r = cy(requests.post(V + f"/tasks/{t1['id']}/move", headers=CLH, json={"list_id": AC}))
 check(r.status_code == 202, "#919: ... the same through POST move " + r.text[:120])
-t2 = requests.post(V + "/tasks", headers=CLH, json={"title": "batch me", "list_id": AG}).json()
-r = requests.post(V + "/tasks/batch", headers=CLH, json={"ids": [t2["id"]], "action": "update", "changes": {"list_id": AC}})
+t2 = cy(requests.post(V + "/tasks", headers=CLH, json={"title": "batch me", "list_id": AG})).json()
+r = cy(requests.post(V + "/tasks/batch", headers=CLH, json={"ids": [t2["id"]], "action": "update", "changes": {"list_id": AC}}))
 check(r.status_code == 202, "#919: ... and through the batch " + r.text[:120])
 r = A.post(B + f"/api/agents/jobs/{J}/action", json={"action": "approve"})
 check(r.ok and dbx("SELECT list_id FROM tasks WHERE id=?", (t1["id"],)) == [(AC,)], "#919: approved by the owner, it moves " + r.text[:200])
-t3 = requests.post(V + "/tasks", headers=CLH, json={"title": "to fewer", "list_id": AG}).json()
-r = requests.patch(V + f"/tasks/{t3['id']}", headers=CLH, json={"list_id": AB})  # {alice, bob} -> {alice, bob}
+t3 = cy(requests.post(V + "/tasks", headers=CLH, json={"title": "to fewer", "list_id": AG})).json()
+r = cy(requests.patch(V + f"/tasks/{t3['id']}", headers=CLH, json={"list_id": AB}))  # {alice, bob} -> {alice, bob} (the circle rule: carol's lists)
 check(r.ok and r.json()["list_id"] == AB, "#919: moving into a list with the same (or fewer) people needs nothing " + r.text[:120])
 t4 = A.post(B + "/api/tasks", json={"title": "person moves", "list_id": Q}).json()
 check(A.patch(B + f"/api/tasks/{t4['id']}", json={"list_id": AB}).ok, "#919: people move freely (only agents wait)")
 # review: an agent's own share request waits for approval; a bridge behind it needs someone who manages every list
-r = requests.put(V + f"/lists/{AG}/members/{CAROL}", headers=CLH, json={"role": "view"})
+r = cy(requests.put(V + f"/lists/{AG}/members/{CAROL}", headers=CLH, json={"role": "view"}))
 check(r.status_code == 202, "#919: an agent's share waits for approval " + r.text[:100])
 r = A.post(B + f"/api/agents/jobs/{r.json()['job']['id']}/action", json={"action": "approve"})
 check(r.ok and r.json()["state"] == "failed" and "different people" in r.json()["log"] and CAROL not in members(A, AG),

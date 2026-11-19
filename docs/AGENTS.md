@@ -3808,7 +3808,11 @@ reads -- anyone else is told only that the agent has a proposal for them (the wo
 they open). A proposal the person asked for (`job_request`) keeps the title of their request.
 
 **An agent made before 2.235.0** has no level (`control.level`
-null, `chosen: false`): it works as before, without any of these checks, until its owner picks one.
+null, `chosen: false`): it works as before, without the checks of a level, until its owner picks one. *(2.1433.0, #7142)*
+Without a chosen control level the circle rule counts the agent as `free`: every step goes as before without a card (a
+deletion too), but a write into a wider or public circle, a chat message, job or progress step to a person outside its
+circle answers `409 approval_required` with `circle`, and its status text, progress line and job words are empty for people
+who do not read every place it reads.
 
 A write the level does not allow answers `409`:
 

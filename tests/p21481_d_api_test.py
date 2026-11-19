@@ -379,6 +379,17 @@ dbx("UPDATE lists SET agent_members=1 WHERE id=?", (DL,))
 T = A.post(B + "/api/tasks", json={"title": "Ship it", "list_id": DL, "assignee_id": BOB}).json()["id"]
 r = requests.post(V + f"/tasks/{T}/comments", headers=AGH, json={"body": "Ready to integrate",
                   "suggestion": {"kind": "integrate", "source": "feat/x", "target": "main", "evidence": "tests green"}})
+# 2.1433.0 (#7142): the agent has no control level and counts as "free" for the circle rule: it reads places bob does not,
+# so its comment into Code (bob reads it) needs the circle's card first -- alice reads everything and says Yes
+
+
+def alice_yes(r):
+    from kt import circle_yes  # here: a new import at the top would be one more E402 of the suite
+    check(r.status_code == 409 and (r.json().get("error") or {}).get("circle") == "wider", "#7142: the circle's card first " + r.text[:160])
+    return circle_yes(r, AGH, AG, A, V, ALICE, base=B)
+
+
+r = alice_yes(r)
 check(r.status_code in (200, 201), "the agent asks to integrate " + r.text[:160])
 K = r.json().get("id") or r.json().get("comment", {}).get("id")
 r = Bo.post(B + f"/api/comments/{K}/decide", json={"decision": "approve"})
