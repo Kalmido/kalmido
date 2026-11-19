@@ -37,6 +37,7 @@ addresses and paths to your setup.
 - [Several servers in one app (2.73)](#several-servers-in-one-app)
 - [Capacity, health and a worker process (2.102)](#capacity-health-and-a-worker-process)
 - [Moving to a new server](#moving-to-a-new-server)
+- [Emergency: restoring a backup on a fresh server](#emergency-restoring-a-backup-on-a-fresh-server)
 - [Trash period of tasks (2.116)](#trash-period-of-tasks)
 - [Outgoing connections (2.223.3)](#outgoing-connections)
 - [Production updates](#production-updates)
@@ -130,6 +131,12 @@ instead of running on. Put the old key back (the file, or `KALMIDO_SECRET_KEY` i
 If it is lost for good, set a new `KALMIDO_SECRET_KEY` yourself, start once with `KALMIDO_SECRET_KEY_CHANGED=1` and
 rewrap each organisation with its recovery key (see below), then remove the switch again; what was sealed only with
 the old key stays lost (tokens are entered again). After a restore the fingerprint is set again for the current key.
+A fresh server is the exception (#6611): as long as its database holds nothing a server key sealed (the first account
+and its settings, no organisation or account keys, no stored tokens, no other data), another key is taken without the
+switch and its fingerprint stored; the log says `note: the server key ... is another one than at the first start`. That
+is the way to bring the key of an old server onto a new one before restoring its backup, see
+[Emergency: restoring a backup on a fresh server](#emergency-restoring-a-backup-on-a-fresh-server). Once anything is in the database the start stops as above and
+the message names where data lies.
 
 **Address and data folder (2.149).** Set `PUBLIC_URL` to the address people open: links in notifications and mails,
 passkeys and the origin check use it. Without it the server uses `http://localhost:3040` and warns in the log at
@@ -452,10 +459,15 @@ server, keep it at or below the version in that line, or build the image with a 
   file from them, then restore it under *Backups > Restore from a file*. Inside the app container:
 
   ```bash
-  docker compose exec kalmido python3 -I /app/kalmido/admin/bkstore.py assemble /data/backups/kalmido-backup-20261029-023000-auto.zip.enc /data/backups/.store /data/complete.zip.enc --passphrase-file /data/passphrase.txt
+  docker compose exec -T kalmido python3 -I /app/kalmido/admin/bkstore.py assemble /data/backups/kalmido-backup-20261029-023000-auto.zip.enc /data/backups/.store /data/complete.zip.enc --passphrase-file - < ~/backup-passphrase.txt
   ```
 
+  The passphrase comes on stdin (`--passphrase-file -`) from a file outside the data and backup folders: a passphrase
+  that lies next to the backups protects nothing, and on the command line it would stand in the shell history.
   Any machine with Python 3.11 and the `cryptography` package can run `bkstore.py` the same way (it needs nothing else).
+  `bkstore.py decrypt BACKUP.zip.enc OUT.zip --passphrase-file FILE` (#6611) turns an encrypted complete file into the
+  plain zip, for the way by hand without the app ([Moving to a new server](#moving-to-a-new-server), end); it refuses to
+  overwrite `OUT.zip`, and on a backup with shared files that was not assembled first it says so (exit code 3).
 - **Backups outside the app** (scripts, a pull from a second machine): use `pg_dump -Fc` with row-level security
   switched on and the system context, otherwise the dump stops or misses rows:
 
@@ -558,10 +570,14 @@ once, then to the current version ([oldest version to update from](UPGRADING.md#
 - **The server key is not part of any backup (2.359.0).** A backup holds the data, never the server key
   (`KALMIDO_SECRET_KEY` or `secret/kalmido.key`), on purpose: a backup that carries its own key protects nothing. Keep a
   copy of the key apart from the backups (a password manager). To restore on another server (a move, a new disk, a lost
-  server), put the old key in place **before the new server's first start**: in `.env` as `KALMIDO_SECRET_KEY=…`, or as the
-  file `secret/kalmido.key`. Then start it and restore the backup. A backup whose organisation or account keys do not open with
+  server), put the old key in place on the new server: in `.env` as `KALMIDO_SECRET_KEY=…`, or as the file
+  `secret/kalmido.key`. The installer starts the new server once with a key of its own; as long as nothing is in its
+  database but the first account, the next start takes the old key without further ado (#6611). The steps, one by one:
+  [Emergency: restoring a backup on a fresh server](#emergency-restoring-a-backup-on-a-fresh-server). Then sign in as admin and restore the backup; afterwards the
+  people of the backup sign in with their old user names and passwords. A backup whose organisation or account keys do not open with
   this server's key is refused before anything changes (#2893; *Verify* warns about it too): put the old key in place,
-  restart and restore again. Only when the old key is lost for good, start with `KALMIDO_SECRET_KEY_CHANGED=1` to restore
+  restart (on a server that already holds data of its own: once with `KALMIDO_SECRET_KEY_CHANGED=1`, then remove it) and
+  restore again. Only when the old key is lost for good, start with `KALMIDO_SECRET_KEY_CHANGED=1` to restore
   anyway: the database comes back with a red warning, but attachments, private files, organisation files, office documents
   and fields and the wiki history cannot be decrypted (the app answers with the code `orgcrypt`); remove the variable
   afterwards. A backup without such keys but from another key restores with a warning: its stored access tokens (Git,
@@ -2077,8 +2093,9 @@ Notes:
    and office fields, the wiki history - plus the stored secrets (repository tokens, sign-on client secret). Account keys
    have no recovery key, so what hangs on them cannot be brought back any other way (2.760.0, #4523): private files (the own file store, attachments and files of projects without an organisation, chats with agents), the journal, privately filed e-mails, the household budget, private knowledge pages with their history and the sealed values of a person's own documents.
    Organisations and private offices are not lost: with their recovery key `rewrap` opens them under the new server key
-   (see [Encryption at rest](#encryption-of-organisation-data)); until then the export of an office refuses. Put the key in place on the new server *before* its first start (see
-   [Backup and encryption](#backup-and-encryption)).
+   (see [Encryption at rest](#encryption-of-organisation-data)); until then the export of an office refuses. Put the key in place on the new server (see
+   [Backup and encryption](#backup-and-encryption); with a backup instead of a copy:
+   [Emergency: restoring a backup on a fresh server](#emergency-restoring-a-backup-on-a-fresh-server)).
 3. **Start** the new server and check the attachments (number and size, see above) and the counts (users, lists,
    tasks; `GET /api/v1/admin/status` with an admin token) against the old server.
 4. **Switch DNS.** Old answers stay cached for a while: test the new server directly with
@@ -2095,10 +2112,49 @@ Notes:
 their files directly inside; the folders `files/`, `lists/`, `budget/`, `wiki/`, `tchat/`, `sheets/` and `tplfiles/` with one folder per
 entry; and `chat/<agent>-<person>/`. Files from 64 KiB on are not in the zip of the backup folder but in `backups/.store`.
 Without the app: **first make one complete file** with the *Download* button or `bkstore.py assemble`
-([A copy of the backup folder elsewhere](#database-postgresql)), otherwise all larger attachments are lost without a warning. Unpack that
-file's `attachments/` to `./data/attachments` and `office/` to `./data/office`, restore the dump with `PGOPTIONS="-c app.role=system"` as in the backup section above. Restoring keeps
+([A copy of the backup folder elsewhere](#database-postgresql)), otherwise all larger attachments are lost without a warning.
+An encrypted file (`.zip.enc`) is no zip yet: decrypt it with
+`bkstore.py decrypt BACKUP.zip.enc OUT.zip --passphrase-file FILE` (the passphrase file outside the data and backup
+folders, `-` reads it from stdin; `OUT.zip` holds everything unencrypted, delete it afterwards). Then stop Kalmido
+(`docker compose stop kalmido`), unpack that zip's `attachments/` to `./data/attachments`, `office/` to `./data/office`
+and `packs/industry/` (the own industry packs, when there are any) to `./data/packs/industry`, restore the dump
+`kalmido.dump` with `PGOPTIONS="-c app.role=system"` as in the backup section above and start Kalmido again with the
+server key of the old server. Restoring in the app keeps
 the backup settings (`bk_` keys) of the running server; every other setting comes from the backup.
 <!-- /backup-folders -->
+
+## Emergency: restoring a backup on a fresh server
+
+The old server is gone, a backup is left. What you need: a **complete** backup file (*Download*, or assembled with
+`bkstore.py assemble`, see [A copy of the backup folder elsewhere](#database-postgresql)), its passphrase when it is
+encrypted (`.zip.enc`), the **server key of the old server** (its `secret/kalmido.key`, or `KALMIDO_SECRET_KEY` from its
+`.env`) and the user name and password of an admin of the old server.
+
+1. **Install** Kalmido on the new machine with the installer ([Quick start](../README.md#quick-start)). It starts the
+   server once and creates a new server key of its own in `secret/kalmido.key`.
+2. **Set up with a throwaway account:** open the address, enter the setup code from the end of the installer (or
+   `docker compose logs kalmido`) and create a first account, for example `setup` with any password. The restore
+   replaces it; it is only needed to sign in as admin. Create nothing else on this server.
+3. **Put the old key in place:** keep the new key aside (`mv secret/kalmido.key secret/kalmido.key.new`) and copy the
+   old `kalmido.key` to `secret/kalmido.key`, then `sudo chown 1000:1000 secret/kalmido.key && chmod 600
+   secret/kalmido.key` (the container's user must read it; an unreadable file means no key at all). Did the old server
+   keep its key in `.env`? Then put its `KALMIDO_SECRET_KEY=…` line into the new `.env` instead (it wins over the file).
+4. **Restart:** `docker compose up -d --force-recreate kalmido`. A fresh server takes the other key (#6611); the log
+   (`docker compose logs kalmido`) says `note: the server key ... is another one than at the first start`. Does it stop
+   with `FATAL: the server key ... is not the one this database was used with` instead, something was created on this
+   server after all (the message names where): add `KALMIDO_SECRET_KEY_CHANGED=1` to `.env`, run the same command
+   again and remove the line after step 6.
+5. **Restore:** sign in with the throwaway account, *Settings > Server > Backup > Restore from a file*, choose the
+   backup, enter its passphrase and type `RESTORE`. A file larger than `KALMIDO_BACKUP_MAX_MB` (4096 MB) goes into
+   `data/backups/` instead and shows up in the list there. A message that the backup was made with another server key
+   means the key of step 3 is not the old server's.
+6. **Sign in with the old credentials:** the restore ends every session and the throwaway account is gone (it is not
+   in the backup): sign in with the user name and password of the old server. Check the counts and the attachments as
+   in [Moving to a new server](#moving-to-a-new-server) (step 3), then delete `secret/kalmido.key.new` and, if set,
+   remove `KALMIDO_SECRET_KEY_CHANGED=1` from `.env` again (`docker compose up -d`).
+
+Without a running Kalmido (the database by hand) the way is at the end of
+[Moving to a new server](#moving-to-a-new-server).
 
 ## Trash period of tasks
 
