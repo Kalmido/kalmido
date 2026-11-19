@@ -372,6 +372,7 @@ RUN_ROUTES = {
     "GET /issuer/docs/{}": ("noagent", "isd_get kalmido/office/issdocs.py -> _iss_me (g.issuer from iss_authenticate, else 403); an agent's token never"),
     "GET /issuer/docs/by-ref/{}": ("noagent", "isd_get_ref kalmido/office/issdocs.py -> _iss_me (g.issuer from iss_authenticate, else 403); an agent's token never"),
     "GET /issuer/docs/{}/pdf": ("noagent", "isd_pdf kalmido/office/issdocs.py -> _iss_me (g.issuer from iss_authenticate, else 403); an agent's token never"),
+    "GET /issuer/docs/{}/file": ("noagent", "isd_file kalmido/office/issdocs.py -> _iss_me (g.issuer from iss_authenticate, else 403); an agent's token never"),
     "POST /issuer/docs/{}/withdraw": ("noagent", "isd_withdraw kalmido/office/issdocs.py -> _iss_me (g.issuer from iss_authenticate, else 403); an agent's token never"),
     "GET /fetcher": ("noagent", "v1_fetcher_get kalmido/docs/fetcher.py -> _fx_row (g.fetcher from fx_authenticate, else 403); scope docs:uploa"),
     "POST /fetcher/documents": ("noagent", "v1_fetcher_upload kalmido/docs/fetcher.py -> _fx_row (g.fetcher from fx_authenticate, else 403); scope docs:up"),
