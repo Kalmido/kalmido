@@ -1128,7 +1128,7 @@ def v1_tasks():
 
 
 V1_COMPACT = ("id", "title", "list_id", "section_id", "section_kind", "parent_id", "status", "due", "due_time", "priority", "tags", "list_tags",
-              "assignee_id", "created_by")  # #7151: created_by, so an agent's data fence knows whose title it is
+              "assignee_id", "created_by", "updated_by", "by_creator")  # #7151: whose title it is and who last rewrote it (agents' data fence)
 
 
 # ---- 2.390.0 B (#3355): the further filters and the sort of GET /api/v1/tasks
