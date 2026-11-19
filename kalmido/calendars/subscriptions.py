@@ -36,7 +36,7 @@ from ..core.db import bump, ALLOW_PURPOSES, body, connect, db, err, gsetting, is
 from ..accounts.session import FAIL_WINDOW, GATE, me
 from ..accounts.login import seal, unseal  # 2.800.0 (#5466): the undo copy of a removed subscription
 from ..core.access import Denied
-from ..tasks.validation import RR_FREQS, RR_PROBE_DAYS
+from ..tasks.validation import RR_FREQS, RR_PROBE_DAYS, rr_shift_days
 from ..core.errors import BadInput
 from ..core.conflict import ccf_check  # 2.564.0 D (#4701)
 from ..calendars.caldav import _DtdRefused, xml_no_dtd
@@ -786,16 +786,7 @@ def _cal_sanitize(ev, w0, budget=None):
     del ev["RRULE"]
     for parts in keep:
         ev.add("RRULE", icalendar.vRecur.from_ical(";".join(f"{k}={v}" for k, v in parts.items())))
-    shift = 0
-    if keep and "COUNT" not in keep[0]:
-        freq, n = keep[0]["FREQ"], int(keep[0].get("INTERVAL", "1"))
-        gap = (w0.date() - naive.date()).days - 7
-        if freq in ("DAILY", "WEEKLY"):
-            step = n * (7 if freq == "WEEKLY" else 1)
-            shift = gap // step * step if gap > 400 else 0
-        else:  # whole 400-year cycles: the Gregorian calendar repeats exactly (weekdays included)
-            ok = (4800 % n == 0) if freq == "MONTHLY" else (400 % n == 0)
-            shift = gap // 146097 * 146097 if ok and gap > 146097 else 0
+    shift = rr_shift_days(keep[0], naive.date(), w0.date()) if keep else 0  # 2.1423.0 (#6727): shared with the own events
     if keep and naive + timedelta(days=shift) < w0:
         # 2.1333.0 (#6429): what the shift cannot move (COUNT, MONTHLY / YEARLY with an interval off the 400-year cycle,
         # many dates per period) is walked here once with a stop, before the library walks it without one and keeps

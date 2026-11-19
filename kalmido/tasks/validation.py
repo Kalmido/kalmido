@@ -376,6 +376,32 @@ def rr_feasible(rep, d0):
         return False
 
 
+def rr_shift_days(parts, d0, d1):
+    """2.1423.0 (#6727): days by which the start of a rule may move towards the date d1 without changing any of its dates
+    from there on (0 = keep it). parts: {KEY: value} of the rule. DAILY / WEEKLY move by whole periods (interval x 1 / 7
+    days, also with BYDAY, BYMONTH, WKST ...), MONTHLY / YEARLY by whole 400-year cycles (the Gregorian calendar repeats
+    exactly, weekdays included) when the interval fits the cycle; a COUNT rule never moves (its dates are counted from
+    the start). The new start stays at least a week before d1. One calculation for the subscriptions (#6429) and the
+    own events: dateutil walks every date from the start to the window, without a stop."""
+    if "COUNT" in parts:
+        return 0
+    freq = str(parts.get("FREQ", "")).upper()
+    try:
+        n = int(parts.get("INTERVAL", "1") or "1")
+    except ValueError:
+        return 0
+    if n < 1:
+        return 0
+    gap = (d1 - d0).days - 7
+    if freq in ("DAILY", "WEEKLY"):
+        step = n * (7 if freq == "WEEKLY" else 1)
+        return gap // step * step if gap > 400 else 0
+    if freq in ("MONTHLY", "YEARLY"):
+        ok = (4800 % n == 0) if freq == "MONTHLY" else (400 % n == 0)
+        return gap // 146097 * 146097 if ok and gap > 146097 else 0
+    return 0
+
+
 def rr_rule(rep, d0):
     """Parsed rrule for expansion from the local date d0 (datetime at midnight), or None if the rule is
     not acceptable / never matches (such rows are treated as not recurring)."""
