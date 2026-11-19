@@ -19,11 +19,12 @@
 
 ## What's new
 
-**2.1434.0** (2026-11-19):
-- **Chat and lists**: the floating chat window can be resized from its top left corner; the list beside contacts, clients and quotations can be dragged wider.
-- **Import**: a list CSV, Markdown list or vCard exported from Kalmido comes back complete when imported again.
-- **Organisation**: before a new recovery key Kalmido says that earlier archives open only with the earlier key, and offers a new export right after.
-- **Agents**: agents without a chosen control level follow the circle rule at level "free"; writing into a wider circle needs a card.
+**2.1441.0** (2026-11-19):
+- **Office**: invoices can be issued as paid; documents show whether their e-mail was delivered; invoice issuer keys fetch the finished PDF / XML of their own documents.
+- **Clients and contacts**: clients can have locations under a main client; "Add a colleague at the same company" in a contact's menu.
+- **Undo**: Ctrl+Z only takes back steps of this window or of the last 2 minutes; otherwise "Recent steps" opens with the step marked.
+- **Mail**: a mail attachment that cannot be filed is named at the task and in the News instead of being dropped; admins are alerted when sending e-mail keeps failing.
+- **Workspaces**: the office opens reliably with its full menu; the logo always leads to Start.
 
 Full history: [CHANGELOG.md](CHANGELOG.md).
 
@@ -195,7 +196,7 @@ More: [docs/TEAM.md](docs/TEAM.md)
 More: [docs/HOME.md](docs/HOME.md), [docs/BUDGET.md](docs/BUDGET.md), [docs/FEEDS.md](docs/FEEDS.md), [docs/BOOKMARKS.md](docs/BOOKMARKS.md)
 
 **Office, files and knowledge**: the paperwork of a small business.
-- Quotes and invoices with PDFs, e-invoices, invoice drafts from outside systems via issuer keys, receipts, letters on your own letterhead, bank import and DATEV export
+- Quotes and invoices with PDFs, e-invoices, invoice drafts from outside systems via issuer keys (which can also fetch the finished PDF / XML), receipts, letters on your own letterhead, bank import and DATEV export
 - Files and documents for you and each organisation, with versions, a trash and sharing
 - Knowledge pages with a mind map (also offline), formulas and Mermaid diagrams, plus tables
 - Your own calendars and address books, synced with the phone's apps
