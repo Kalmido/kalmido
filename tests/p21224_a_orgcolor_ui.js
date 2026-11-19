@@ -67,7 +67,9 @@ const FEAT = 'comments,collab,sheets,time';
   check(await until(() => /Household/.test(d.querySelector('.shvtitle')?.textContent || '') && !d.querySelector('#main').classList.contains('wsc-on'), {timeout: 20000}), '#6186 the open private table: no organisation mark');
   w.eval(`go('sheets')`);
   check(await until(() => d.querySelector('.shvov') && !d.querySelector('#main').classList.contains('wsc-on')), '#6186 back in the overview: no open object, no mark');
-  check(w.eval(`shf_panelTree(SHV.idx.all.items, shvSpaces(), null).find(n => n.id === 'r:org:${ORG}').battrs`).includes('data-wso="1"') && !w.eval(`shf_panelTree(SHV.idx.all.items, shvSpaces(), null).find(n => n.id === 'r:private').battrs`).includes('data-wso'), '#6186 the panel: the organisation\'s workspace entry wears its stripe, Private not');
+  // #7389: the workspace's row wears the stripe (the core's workspace node), its button and the tables below it none
+  const shp = w.eval(`sbb_treeHtml(shf_panelTree(SHV.idx.all.items, shvSpaces(), null))`);
+  check(new RegExp(`class="fhead sbbt[^"]*sbbws[^"]*" data-wso="1"[^>]*data-sbbid="r:org:${ORG}"`).test(shp) && !/class="sbbtn"[^>]*data-wso/.test(shp) && !/data-wso[^>]*data-sbbid="r:private"/.test(shp), '#6186 the panel: the organisation\'s workspace row wears its stripe, Private not, no button');
 
   // ================= #6187 time tracking (the page is always mixed); the list of entries opened as a person does
   const openEntries = async () => { const t = await until(() => d.querySelector('[data-act="tv-entries"]'), {timeout: 20000}); if (t && t.querySelector('.closedc')) t.click(); };
@@ -134,11 +136,12 @@ const FEAT = 'comments,collab,sheets,time';
   await call('PATCH', '/api/settings', {ws_colors: '{}'});
   // ================= 2.1353.0 (#6723) the stripe of the table panel: 3 px x 60 %, centred, no inset shadow, like the other rows
   const probe = d.createElement('div');
-  probe.innerHTML = `<div class="sbbt"><button class="sbbtn" data-wso="1" data-wsc="1" style="--wsd:#4252c7;--wsl:#4252c7">x</button></div>`;
+  // #7389: the stripe sits on the workspace's row (.sbbt) in every area, the button never carries it
+  probe.innerHTML = `<div class="fhead sbbt" data-wso="1" data-wsc="1" style="--wsd:#4252c7;--wsl:#4252c7"><button class="sbbtn">x</button></div>`;
   d.querySelector('#side').appendChild(probe);
-  const cs = w.getComputedStyle(probe.querySelector('.sbbtn'));
-  check(/^(3px|\.1875rem|0\.1875rem) 60%$/.test(cs.backgroundSize), '#6723 table panel button: stripe 3px x 60% ' + cs.backgroundSize);
-  check(cs.boxShadow === 'none', '#6723 table panel button: no inset shadow ' + cs.boxShadow);
+  const cs = w.getComputedStyle(probe.querySelector('.sbbt'));
+  check(/^(3px|\.1875rem|0\.1875rem) 60%$/.test(cs.backgroundSize), '#6723 workspace row of the panel: stripe 3px x 60% ' + cs.backgroundSize);
+  check(cs.boxShadow === 'none', '#6723 workspace row of the panel: no inset shadow ' + cs.boxShadow);
   probe.remove();
   w.close();
 

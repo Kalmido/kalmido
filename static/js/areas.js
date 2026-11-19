@@ -986,6 +986,20 @@ function sbb_treeAnyOpen() {
   const pre = sbb_tpre();
   return !!pre.length && (LS.get('sbbOpen', []) || []).some(k => sbb_tpreHas(pre, k));
 }
+// #7389: a node with wso is a workspace's node (Private / an organisation) and the core draws it the same in every area: its
+// symbol (wsIcon: Private = the house, an organisation = its picture / emoji / first letter; lock: true = the lock of a locked
+// space), its stripe on the row (wso_row with Private's own colour, never on the button or on rows below it), its arrow (has:
+// true = content, null = not loaded yet -> an arrow; false = known empty -> none) and whether it starts open (here: the open
+// object lies in it; the only workspace node of the tree is open as before; else what the person folded by hand, LS sbbOpen).
+// The area gives none of icon / ichtml / kids / open / fold for it: SBB_WSO_OWN, the guard below refuses them (console.error).
+const SBB_WSO_OWN = ['icon', 'ichtml', 'kids', 'open', 'fold'];
+const sbb_wsoBad = [];  // the guard's finds (the test over every area reads them)
+function sbb_wsoNode(n, one) {
+  const bad = SBB_WSO_OWN.filter(p => p in n);
+  if (bad.length) { sbb_wsoBad.push(n.k + ': ' + bad.join(',')); console.error('sbb_treeHtml: a workspace node (wso) takes no ' + bad.join(', ') + ' (#7389)', n.k); }
+  const ws = wso_ws(n.wso);
+  return {...n, icon: undefined, ichtml: n.lock ? ic('lock') : wsIcon(ws), kids: n.has !== false, open: !!n.here || one, fold: undefined, wsoPriv: true};
+}
 // 2.199.0 A (#2742): a node may also carry ns (the module's handlers, sbb_treeReg), id, par (its parent's key: siblings share
 // it), drag (dragged to move / sort), drop (takes nodes into it), menu (right-click / long press / the context key) and auto
 // (an automatic group: a filter view -- other look, never dragged, dropped on, sorted, shared or given a menu)
@@ -993,14 +1007,16 @@ function sbb_treeAnyOpen() {
 // row, what follows the name: count, share mark, menu button), ichtml (the icon's own markup) and fold ({open, attrs}: the
 // area keeps the open state itself)
 function sbb_treeHtml(nodes, lvl = 0) {
-  return nodes.map(n => {
-    if (n.raw != null) return n.raw;
+  const one = nodes.filter(n => n.wso && n.raw == null).length === 1;
+  return nodes.map(n0 => {
+    if (n0.raw != null) return n0.raw;
+    const n = n0.wso ? sbb_wsoNode(n0, one) : n0;
     const open = !!n.kids && (n.fold ? !!n.fold.open : n.open && !SBB_SHUT.has(n.k) || sbb_treeOpen(n.k)), sub = open ? n.sub() : [];
     // 2.406.0 A (#3492): the fold arrow sits at the row's end (after the name), a leaf has none (no placeholder); the symbol
     // has the size of a plain sidebar row's (app.css: one row rule for tree rows and .srow)
     const arrow = n.kids ? `<button type="button" class="sbbtar" ${n.fold ? n.fold.attrs : `data-act="sbb-tree" data-k="${esc(n.k)}" data-open="${open ? 1 : ''}"`} aria-expanded="${open}" aria-label="${esc(tr(open ? 'Collapse' : 'Expand') + ': ' + n.name)}">${ic('chev', 's fcar')}</button>` : '';
     const dn = n.ns && !n.auto ? ` data-sbbns="${esc(n.ns)}" data-sbbid="${esc(String(n.id))}" data-sbbpar="${esc(String(n.par ?? ''))}"${n.drop ? ' data-sbbdrop="1"' : ''}${n.menu ? ' data-sbbmenu="1" aria-haspopup="menu"' : ''}${n.drag && !isTouch() ? ' draggable="true"' : n.drag ? ' data-sbbdrag="1"' : ''}` : '';
-    return `<div class="fhead sbbt ${open ? '' : 'closed'} ${n.on ? 'on' : ''}${n.auto ? ' sbbauto' : ''}${n.cls ? ' ' + n.cls : ''}"${/*html-ok*/ wso_row(n.wso, `--sbbl:${Math.min(lvl, 8)}`) /* 2.1241.0 (#6182): n.wso = an organisation's node wears its stripe */} ${n.attrs || ''}${dn}><button type="button" class="sbbtn" data-go="${esc(n.go)}"${n.on ? ' aria-current="page"' : ''} ${n.battrs || ''}${n.auto ? ` title="${esc(tr('Automatic group'))}"` : ''}>${n.ichtml ?? ic(n.icon || (n.auto ? 'filter' : 'folder'))}<span class="n">${esc(n.name)}</span></button>${arrow}${n.after || ''}</div>`
+    return `<div class="fhead sbbt ${open ? '' : 'closed'} ${n.on ? 'on' : ''}${n.auto ? ' sbbauto' : ''}${n.wso ? ' sbbws' : ''}${n.cls ? ' ' + n.cls : ''}"${/*html-ok*/ wso_row(n.wso, `--sbbl:${Math.min(lvl, 8)}`, !!n.wsoPriv) /* 2.1241.0 (#6182), #7389: a workspace's node wears its stripe, Private its own colour */} ${n.attrs || ''}${dn}><button type="button" class="sbbtn" data-go="${esc(n.go)}"${n.on ? ' aria-current="page"' : ''} ${n.battrs || ''}${n.auto ? ` title="${esc(tr('Automatic group'))}"` : ''}>${n.ichtml ?? ic(n.icon || (n.auto ? 'filter' : 'folder'))}<span class="n">${esc(n.name)}</span></button>${arrow}${n.after || ''}</div>`
       + (!open ? '' : sub === null ? `<div class="sbbtl muted" style="--sbbl:${Math.min(lvl + 1, 8)}">${esc(tr('Loading…'))}</div>` : sbb_treeHtml(sub, lvl + 1));
   }).join('');
 }

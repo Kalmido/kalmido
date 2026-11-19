@@ -44,11 +44,11 @@ const shf_item = id => shf_items().find(x => x.id === +id) || null;
 function shf_panelTree(items, sps, cur) {
   const r = S.route, at = r.mod === 'sheets' ? r.shf : null, path = [];
   for (let f = at ? shf_folder(at) : null, g = 0; f && g < 40; f = shf_folder(f.parent_id), g++) path.push(f.id);
-  // 2.1224.0 (#6186): an organisation's workspace, folder and table wear its stripe (on the button: the row's style holds the level)
+  // 2.1224.0 (#6186), #7389: only the workspace's row wears its stripe (the core's workspace node), its folders and tables none
   const tbl = (x, par, ns) => ({k: 'sh:t' + x.id, name: x.title || tr('Untitled table'), icon: 'sheet', go: 'sheets/' + x.id, on: x.id === cur, kids: false,
-    attrs: `data-sbbsh="${x.id}"`, battrs: wso_row(x.space), ...(ns ? {ns: 'sh', id: 't' + x.id, par, drag: true, menu: true} : {})});
+    attrs: `data-sbbsh="${x.id}"`, ...(ns ? {ns: 'sh', id: 't' + x.id, par, drag: true, menu: true} : {})});
   const fold = f => ({k: 'sh:f' + f.id, name: f.name, icon: f.shared ? 'users' : 'folder', go: 'sheets/f/' + f.id, on: at === f.id, ns: 'sh', id: 'f' + f.id,
-    par: f.parent_id === shf_space(f.space)?.root ? 'r:' + f.space : 'f' + f.parent_id, battrs: wso_row(f.space), drag: shf_canW(f), drop: shf_canW(f), menu: true,
+    par: f.parent_id === shf_space(f.space)?.root ? 'r:' + f.space : 'f' + f.parent_id, drag: shf_canW(f), drop: shf_canW(f), menu: true,
     kids: shf_kids(f.space, f.id).length > 0 || shf_tables(items, f.space, f.id).length > 0, open: path.includes(f.id) && f.id !== at,
     sub: () => [...shf_kids(f.space, f.id).map(fold), ...shf_tables(items, f.space, f.id).map(x => tbl(x, 'f' + f.id, true))]});
   return sps.map(sp => {
@@ -57,9 +57,12 @@ function shf_panelTree(items, sps, cur) {
     const auto = [...lists].map(([lid, xs]) => ({k: 'sh:l' + lid, name: xs[0].list_title || (listById(lid) ? lname(listById(lid)) : tr('Project')), go: 'sheets/l/' + lid, auto: true,
       kids: true, on: r.mod === 'sheets' && r.shl === lid, open: xs.some(x => x.id === cur), sub: () => xs.map(x => tbl(x))}));
     const loose = shf_tables(items, sp, null).filter(x => !x.list_id);
-    return {k: 'sh:s:' + sp, name: shvSpaceName(sp), icon: sp === 'private' ? 'home' : 'building', go: 'sheets', battrs: `data-shsp="${esc(sp)}"${wso_row(sp)}`,
-      ns: 'sh', id: 'r:' + sp, par: '', drop: !!s?.can_add, menu: !!s?.can_add, kids: true, open: true,
-      sub: () => [...shf_kids(sp, null).map(fold), ...loose.map(x => tbl(x, 'r:' + sp, true)), ...auto]};
+    const folders = shf_kids(sp, null), at0 = at ? shf_folder(at) : null;
+    // #7389: the core's workspace node (sbb_treeHtml wso: symbol, stripe on the row, arrow only with content, open with the open object)
+    return {k: 'sh:s:' + sp, name: shvSpaceName(sp), go: 'sheets', wso: sp, battrs: `data-shsp="${esc(sp)}"`,
+      ns: 'sh', id: 'r:' + sp, par: '', drop: !!s?.can_add, menu: !!s?.can_add, has: folders.length + loose.length + auto.length > 0,
+      here: !!cur && items.some(x => x.id === cur && x.space === sp && !x.shared_in) || at0?.space === sp || r.mod === 'sheets' && auto.some(a => a.k === 'sh:l' + r.shl),
+      sub: () => [...folders.map(fold), ...loose.map(x => tbl(x, 'r:' + sp, true)), ...auto]};
   });
 }
 // a workspace in the panel: the overview of the tables shows that workspace's group first (capture, before the router's click)
