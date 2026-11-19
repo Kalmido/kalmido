@@ -40,7 +40,7 @@ from ..accounts.orgs import visible_people  # 2.369.5 (#2517): pulled up from fu
 from ..lists.groups import grp_visible  # 2.369.5 (#2517): pulled up from functions
 from ..core.retention import ret_on, ret_trash_days  # 2.369.5 (#2517): pulled up from functions
 from ..api.common import hit_limit  # 2.523.0 (#4073 d)
-from ..accounts.orgroles import org_writes, need_org_write  # 2.369.5 (#2517): pulled up from functions
+from ..accounts.orgroles import org_role_key, org_writes, need_org_write  # 2.369.5 (#2517): pulled up from functions
 
 SHARE_MAX = 200  # shares per node
 LOG_MAX = 100    # history entries shown
@@ -186,6 +186,9 @@ def files_list():
         ar = fs_area_root_of(c, pid)
         if ar and not fs_area_open(ar[1]):  # 2.199.0 F (#2742, review G1): an area's root lists only the folders with a role of their own; 2.200.0 A (#2747): not an open one
             rows = [r for r in rows if fs_role(c, r["id"], uid, chain=fs_chain(c, r["id"])[:-1])]
+        elif n["role"] != "owner" and n["org_id"] and org_role_key(c, uid, n["org_id"]) == "accounting":
+            # #6953: a folder accounting may walk to its receipts (store._fs_limited_role) lists only what it may open itself
+            rows = [r for r in rows if fs_role(c, r["id"], uid)]
         fs_log_add(c, pid, "list")
         c.commit()
         chain = fs_chain(c, pid)
