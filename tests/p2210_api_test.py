@@ -11,6 +11,7 @@ Contacts: address books, contacts (validation, search, groups, move, conflict), 
 as tasks, vCard import / export; CardDAV (iOS vCard 3.0 with labels + photo, vCard 4.0, multiget in another version, sync,
 query filters, groups, read-only). API v1 + scopes (calendar, contacts: never in "read" or the legacy "write" for contacts),
 OpenAPI, module switches, the data export, #671 (one tolerant local_day)."""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import base64
 import json
 import os
@@ -662,7 +663,7 @@ check(len(ms(r.text)[0]) == 1, "modules off: an empty address book home")
 Bo.patch(B + "/api/settings", json={"features": "cal,comments,events,contacts"})
 
 # ================================================================== the data export, #671
-ex = A.get(B + "/api/export.json").json()
+ex = su_get(A, B + "/api/export.json").json()
 check(len(ex.get("events", [])) >= 5 and len(ex.get("contacts", [])) >= 4 and ex.get("event_calendars"), "the data export has my events and contacts")
 out = subprocess.run(["docker", "exec", CT, "python", "-c", "import app; print(app.local_day('garbage'), app.local_day(''), app.local_day('2026-10-05T23:30:00+00:00'))"],
                      capture_output=True, text=True).stdout.strip().splitlines()[-1]

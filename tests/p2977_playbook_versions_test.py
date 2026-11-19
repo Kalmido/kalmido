@@ -16,6 +16,7 @@ Invented names only. freelancer-matrix: lists  freelancer-matrix: office
    cannot be opened stays with its columns (start check, log line) while the others moved (a sealed text sealed again for the
    new context and readable); the back limit names #5282; once that row is gone the next start drops the columns
 usage: p2977_playbook_versions_test.py <datadir>"""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import base64
 import json
 import os
@@ -217,7 +218,7 @@ check([(x[0], x[1], x[3]) for x in mv] == [(4, "Alt vier", "proposal"), (3, "Alt
       f"the old rows moved with their numbers and sources onto one head {mv}")
 check(mv[1][2] == ALICE and mv[0][2] is None, f"author NULL -> the owner (#1978), a gone account -> NULL (foreign, B-M7) {mv}")
 # Fable review F1: the account export names a gone author 0 (NULL there means the owner's own text, an import would follow it)
-ex = [p for p in A.get(B + "/api/export.json").json().get("playbooks", []) if p.get("list_id") == L2]
+ex = [p for p in su_get(A, B + "/api/export.json").json().get("playbooks", []) if p.get("list_id") == L2]
 check(sorted((p["version"], p["author_id"]) for p in ex) == [(3, ALICE), (4, 0)], f"F1: the export marks the gone author with 0 {ex}")
 d = A.get(B + f"/api/lists/{L2}/playbook").json()
 check(d.get("version") == 4 and d.get("text") == "Alt vier", f"the moved Playbook reads as before {d}")

@@ -2,6 +2,7 @@
 """1.0 tests: version / about, the instance-wide collaboration switch, the update check (fake GitHub API
 inside the container) and (2.36.0) no Paperless data in any answer. Starts its OWN test container (start.sh).
 usage: v1_test.py <datadir>"""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import json
 import os
 import dbx as dbxm  # 2.37.0: the suite has its own dbx() helper
@@ -177,9 +178,9 @@ sb = [t for t in Bo.get(B + "/api/state").json()["tasks"] if t["id"] == tid][0]
 check("paperless" not in sb and "Salary 2026" not in Bo.get(B + "/api/state").text, "state: no Paperless data")
 blid = Bo.post(B + "/api/lists", json={"name": "Bob own", "kind": "project", "time_tracking": True}).json()["id"]
 btid = Bo.post(B + "/api/tasks", json={"title": "bob doc", "list_id": blid}).json()["id"]
-ex = Bo.get(B + "/api/export.json").json()
+ex = su_get(Bo, B + "/api/export.json").json()
 check("paperless_links" not in ex and "paperless_connections" not in ex, "export: no Paperless data")
-exa = A.get(B + "/api/export.json")
+exa = su_get(A, B + "/api/export.json")
 check("Salary 2026" not in exa.text, "export of the owner: no Paperless titles")
 check(not dbx("SELECT 1 FROM information_schema.tables WHERE table_name='paperless_links'"), "#5265: the table paperless_links is gone")
 tl = A.post(B + f"/api/tasks/{tid}/comments", json={"body": "see doc"})

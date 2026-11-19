@@ -200,7 +200,7 @@ for who, s, uid in PEOPLE:
     check("lighthouse_garden" in ex and "kenc1:" not in ex, f"{who}: the CSV export is plain")
     md = s.get(B + "/api/life/journal/export").text
     check(f"## {D(0)} (4/5)" in md and "kenc1:" not in md, f"{who}: the Markdown export is plain")
-    mine = s.get(B + "/api/export.json").json().get("journal") or []
+    mine = su_get(s, B + "/api/export.json").json().get("journal") or []
     check(any(x.get("text") == "A quiet rainy day." and x.get("mood") == 2 for x in mine) and "kenc1:" not in str(mine) and "mood_enc" not in str(mine),
           f"{who}: my data export: the journal plain")
     old = s.put(B + f"/api/life/journal/{D(1)}", json={"text": "From the phone", "expect_updated_at": "1999-01-01T00:00:00.000Z"})

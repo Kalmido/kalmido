@@ -6,6 +6,7 @@ actions, collaboration incl. the instance + personal switches, habit, digest, ti
 Starts its OWN test container (start.sh) with a fake push service inside it (stub_webpush.py on
 127.0.0.1:9997, allowed via KALMIDO_WEBPUSH_HOSTS). Leaves the container running for webpush_ui.js.
 usage: webpush_test.py <datadir>"""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import base64
 import json
 import os
@@ -135,7 +136,7 @@ check(priv and len(b64u_dec(priv[0][0])) == 32, "VAPID private key stored in the
 PRIV = priv[0][0]
 st = A.get(B + "/api/state").json()
 check(st["webpush"]["key"] == VKEY and st["webpush"]["devices"] == 0, "state: webpush key + device count")
-blob = json.dumps(st) + A.get(B + "/api/export.json").text + A.get(B + "/api/push/subs").text + json.dumps(v)
+blob = json.dumps(st) + su_get(A, B + "/api/export.json").text + A.get(B + "/api/push/subs").text + json.dumps(v)
 check(PRIV not in blob, "private VAPID key never in an API response")
 check(st["settings"]["push_channel"] == "webpush", "new users default to channel webpush")
 

@@ -890,7 +890,7 @@ ROUTES = {
     "DELETE /api/v1/tasks/{}/waiting": "tasks", "DELETE /api/v1/trash": "tasks", "GET /api/attachments/{}": "tasks",
     "GET /api/inbox": "tasks", "GET /api/v1/me/waiting": "tasks",  # 2.392.0 D (#3369)
     "GET /api/briefing": "tasks", "GET /api/chat-files/{}": "tasks", "GET /api/comments/{}/choice": "tasks",
-    "GET /api/dayplan": "tasks", "GET /api/dayplan/review": "tasks", "GET /api/deps": "tasks", "GET /api/export.json": "tasks", "GET /api/export/todoist.zip": "tasks", "GET /api/export/markdown.zip": "tasks", 
+    "GET /api/dayplan": "tasks", "GET /api/dayplan/review": "tasks", "GET /api/deps": "tasks", "GET /api/export.json": "tasks", "POST /api/export.json": "tasks", "GET /api/export/todoist.zip": "tasks", "GET /api/export/markdown.zip": "tasks", 
     "GET /api/ical": "tasks", "GET /api/imports": "tasks", "GET /api/news": "tasks", "GET /api/notes": "tasks",
     "GET /api/notes/{}": "tasks", "GET /api/occurrences": "tasks", "GET /api/pomo/stats": "tasks", "GET /api/roadmap": "tasks",
     "GET /api/search": "tasks", "GET /api/sprints/{}": "tasks", "GET /api/stale": "tasks", "GET /api/state": "tasks",

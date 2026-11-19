@@ -16,6 +16,7 @@ freelancer-matrix: tasks, lists
    subtasks, again after an undone deployment no second one, deployed carries its id; a webhook without a user too
  - a person without an organisation: her own list, agent, yes, decision, acceptance task
 usage: p2392_c_api_test.py <datadir>"""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import base64
 import json
 import os
@@ -197,7 +198,7 @@ check(X.post(B + f"/api/tasks/{T2}/decisions", json={"text": "No"}).status_code 
 r = F.get(B + f"/api/tasks/{T2}/timeline").json()
 check(any(a["kind"] == "decision" for a in r["activity"]), "a decision stands in the history")
 
-check("Drop it with the next version" in F.get(B + "/api/export.json").text, "the export of my data carries the decisions")
+check("Drop it with the next version" in su_get(F, B + "/api/export.json").text, "the export of my data carries the decisions")
 
 # trash + delete: the row goes with its task
 F.delete(B + f"/api/tasks/{T2}")

@@ -707,7 +707,7 @@ ROUTES = {
     "DELETE /api/events/{}": "event", "POST /api/events/{}/restore": "event", "POST /api/events/{}/rsvp": "event",
     "POST /api/events/{}/prep-task": "event", "GET /api/tasks/{}/events": "event",
     # ---- export (2)
-    "GET /api/export.json": "export", "GET /api/export/todoist.zip": "export", "GET /api/export/markdown.zip": "export",  "GET /api/v1/export": "export",
+    "GET /api/export.json": "export", "POST /api/export.json": "export", "GET /api/export/todoist.zip": "export", "GET /api/export/markdown.zip": "export",  "GET /api/v1/export": "export",
     # ---- family (32)
     "GET /api/v1/family": "family", "POST /api/v1/family/occasions": "family",
     "GET /api/v1/family/deadline-types": "family", "POST /api/v1/family/deadlines": "family",

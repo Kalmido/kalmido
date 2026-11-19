@@ -7,6 +7,7 @@ private address or to javascript:), a DTD / entity is refused, a feed above 2 MB
 the reading list; read / unread / all read (+ undo by ids); delete + restore; another person's feeds and articles are 404;
 API tokens / agents never reach the routes (no v1 route); OPML import (nested, duplicates, a DTD refused, the limit of
 100) and export; the data export lists the feeds."""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import json
 import os
 import shutil
@@ -249,7 +250,7 @@ r = A.post(B + "/api/feeds", json={"url": FS + "/rdf.xml?x=1"})
 check(r.status_code == 400 and "100" in r.json().get("error", ""), "the 101st feed: refused " + r.text[:200])
 
 # ================================================================== the data export
-r = A.get(B + "/api/export.json")
+r = su_get(A, B + "/api/export.json")
 check(r.ok and len(r.json().get("feeds", [])) == 100 and "etag" not in r.json()["feeds"][0], "the data export lists the feeds " + r.text[:100])
 
 # ================================================================== the module off again: refused, data stays

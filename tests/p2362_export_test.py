@@ -280,7 +280,7 @@ notes = json.loads(zf.read("data/notes.json")) if "data/notes.json" in zf.nameli
 encn = json.loads(zf.read("data/task_enc_notes.json")) if "data/task_enc_notes.json" in zf.namelist() else []
 check([x.get("title") for x in notes] == ["Briefing"], f"#3090: the project note is in the account export {notes}")
 check(len(encn) == 1 and encn[0].get("body") == NOTE, f"#3090: the encrypted task note is in the account export {encn}")
-ej = Fr.get(B + "/api/export.json").json()
+ej = su_get(Fr, B + "/api/export.json").json()
 check([x.get("title") for x in ej.get("notes", [])] == ["Briefing"] and len(ej.get("task_enc_notes", [])) == 1,
       "#3090: export.json carries both too")
 GID, Gr = freelancer(B, A, name="greta", features=FEATURES)

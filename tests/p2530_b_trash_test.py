@@ -14,6 +14,7 @@ fixture). freelancer-matrix: time, tasks
  - removing the sample project: its tasks go into the trash (none deleted for good), the project into the projects' trash
    (restorable with its tasks); the sample's time entry stays when its task was changed, else it goes
 usage: p2530_b_trash_test.py <datadir>      (P2530B_NOSTART=1: a running server on KALMIDO_TEST_PORT)"""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
@@ -111,7 +112,7 @@ H2 = r.json()["id"]
 HB2 = F.post(B + "/api/habits", json={"name": "Walk"}).json()["id"]
 check(requests.delete(V + f"/habits/{H2}", headers=TH).status_code == 204 and dbx("SELECT deleted_at IS NOT NULL FROM habits WHERE id=?", (H2,)) == [(True,)],
       "a person's token: DELETE 204, into the trash")
-r = F.get(B + "/api/export.json")
+r = su_get(F, B + "/api/export.json")
 check(r.ok and all(x.get("id") != H2 for x in r.json().get("habits", [])) and any(x.get("id") == HB2 for x in r.json().get("habits", [])),
       f"my data export leaves the trash out {r.status_code}")
 

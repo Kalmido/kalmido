@@ -14,6 +14,7 @@ host): alice keeps an account of bob's there. A stub (stub_msv.py, port 8099) pl
    (KALMIDO_HOSTED) refuses http and every internal address
  - tenant-matrix: servers -- another person's account: 404 everywhere; agents / API tokens never reach /api/servers
 usage: p273_a_api_test.py <datadir>"""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import base64
 import json
 import os
@@ -415,7 +416,7 @@ lk = {x["id"]: x for x in A.get(B + "/api/servers").json()["links"]}
 check(lk[SIDC]["default_inbox"] and not lk[SIDE]["default_inbox"], "only one account is the default")
 check(A.patch(B + f"/api/servers/{SIDE}", json={"default_inbox": "yes"}).status_code == 400, "default_inbox needs a boolean")
 check(A.patch(B + f"/api/servers/{SIDE}", json={"base_url": "http://x"}).status_code == 400, "the address cannot be changed: 400")
-ex = A.get(B + "/api/export.json").text
+ex = su_get(A, B + "/api/export.json").text
 check(BTOK not in ex and CTOK not in ex, "no token in the export")
 for i in range(7):
     A.post(B + "/api/servers", json={"base_url": f"{STUB}/evil/n{i}", "token": "abk_" + "q" * 40})

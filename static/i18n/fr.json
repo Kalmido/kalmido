@@ -19568,6 +19568,7 @@
   "Nothing changes here: drop onto a task of your own order or onto one of your own sections.": "Rien ne change ici : dépose les tâches sur une tâche de ton propre ordre ou sur une section personnelle.",
   "“Recently assigned” takes no tasks: drop them into another section.": "« Attribuées récemment » n’accepte pas de tâches : dépose-les dans une autre section.",
   "Kalmido connects Google calendars read-only": "Kalmido connecte les agendas Google en lecture seule",
+  "Your data is too large for this file. Use “Move and export everything” above: it makes one ZIP file in the background.": "Tes données sont trop volumineuses pour ce fichier. Utilise « Déménager et tout exporter » ci-dessus : il crée un fichier ZIP en arrière-plan.",
   "Add a colleague at the same company": "Créer un collègue de la même entreprise",
   "The main client does not exist or you cannot see it": "Le client principal n’existe pas ou tu ne peux pas le voir",
   "A client cannot be its own main client": "Un client ne peut pas être son propre client principal",

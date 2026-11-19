@@ -9,6 +9,7 @@
    the built-in default; a stranger gets 404; the standard reaches every member, an own arrangement only its person
  - rollback safety: lists.page_layout + table list_layouts are additive (the 2.31 columns untouched)
 usage: p2320_a_api_test.py <datadir>"""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import json
 import os
 import dbx as dbxm  # 2.37.0: the suite has its own dbx() helper
@@ -134,7 +135,7 @@ check(dbx("SELECT COUNT(*) FROM list_layouts WHERE user_id=?", (CL,))[0][0] == 0
 check(dbx("SELECT COUNT(*) FROM user_settings WHERE user_id=? AND key IN ('view_today', 'dashboard') AND value != ''", (CL,))[0][0] == 0, "#1063: ... no view settings of the agent")
 # the person themselves: their own session works (the same request as above)
 check(A.put(B + f"/api/lists/{P}/layout", json={"layout": json.dumps({"order": ["ms"]})}).ok, "#1063: the person themselves may (session)")
-ex = A.get(B + "/api/export.json").json()
+ex = su_get(A, B + "/api/export.json").json()
 check([x["list_id"] for x in ex.get("list_layouts", [])] == [P] and "view_today" in json.dumps(ex.get("settings", ex)), "#1063: the data export carries my own arrangements")
 
 # ---- rollback safety: only additive changes

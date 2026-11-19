@@ -8,6 +8,7 @@ once), health (a private list: never an agent's, refused as an agent member, hid
 next) + journal (private, mood, empty = deleted, the scope), trips (sections, packing, the all-day event, PATCH trip),
 Karakeep (sealed key never shown, two pages, a source list, archive back, errors, SSRF guard), the REST API v1 + OpenAPI,
 the data export, #681 today_inbox setting."""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import json
 import os
 import shutil
@@ -376,7 +377,7 @@ lst = requests.get(V + "/lists", headers=pv).json()["data"]
 check(any(l.get("life") == "travel" and l.get("trip") for l in lst) and all("life" in l for l in lst), "API lists: life + trip")
 
 # ================================================================== the data export, settings
-ex = A.get(B + "/api/export.json").json()
+ex = su_get(A, B + "/api/export.json").json()
 check(any(x["text"] == "Yesterday" for x in ex["journal"]) and ex["contact_care"] and "token" not in json.dumps(ex.get("karakeep", [])), "the export: journal, care, no Karakeep key")
 check(A.patch(B + "/api/settings", json={"today_inbox": "1"}).ok and A.get(B + "/api/state").json()["settings"]["today_inbox"] == "1", "#681: the setting today_inbox")
 check(A.patch(B + "/api/settings", json={"care_sent": "2020-01-01"}).ok and A.get(B + "/api/state").json()["settings"]["care_sent"] != "2020-01-01", "care_sent is server-only")

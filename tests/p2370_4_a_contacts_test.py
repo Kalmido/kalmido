@@ -16,6 +16,7 @@ private address books, own office) does every step.
 freelancer-matrix: pim
 usage: p2370_4_a_contacts_test.py <datadir>      (P2370A_NOSTART=1: a running server on KALMIDO_TEST_PORT)
 """
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import os
 import subprocess
 import sys
@@ -205,7 +206,7 @@ r = Fr.post(B + f"/api/contacts/merges/{RID3}/undo")
 check(r.status_code == 409 and "trash" in r.text, f"N6: the book in the trash: 409, not 404 ({r.status_code} {r.text[:150]})")
 
 # ================================================================== N8: the export leaves the trash out
-j = Fr.get(B + "/api/export.json").json()
+j = su_get(Fr, B + "/api/export.json").json()
 ids = [b["id"] for b in j.get("address_books", [])]
 check(BK3 not in ids and BK in ids, f"N8: the data export has no book from the trash {ids}")
 check(not any(x.get("book_id") == BK3 for x in j.get("contacts", [])), "N8: ... nor its contacts")

@@ -14,6 +14,7 @@
  - list templates carry the Playbook (a new list from it gets version 1, source template), the account export, OpenAPI,
    a backup with the new tables verifies and restores
 usage: p2390_a_api_test.py <datadir>"""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import os
 import subprocess
 import sys
@@ -328,10 +329,10 @@ nl = nl or next((x["id"] for x in A.get(B + "/api/state").json()["lists"] if x["
 vs = A.get(PB(nl) + "/versions").json().get("versions", []) if nl else []
 check(nl and A.get(PB(nl)).json()["text"].startswith("Receipts: amount") and [v["source"] for v in vs] == ["template"],
       "#1168: the new list from the template gets it as version 1 (source template) " + r.text[:200])
-ex = A.get(B + "/api/export.json").json()
+ex = su_get(A, B + "/api/export.json").json()
 check(any(p["list_id"] == W and p["version"] == 5 for p in ex.get("playbooks", [])) and any(p["folder"] == "Home/Money" for p in ex.get("playbooks", []))
       and any(p["id"] == P3 for p in ex.get("playbook_proposals", [])), "#1168: the account export holds the Playbooks and proposals")
-check(not any(p.get("owner_id") not in (None, ALICE) for p in Bo.get(B + "/api/export.json").json().get("playbooks", [])), "#1168: only one's own")
+check(not any(p.get("owner_id") not in (None, ALICE) for p in su_get(Bo, B + "/api/export.json").json().get("playbooks", [])), "#1168: only one's own")
 check(A.post(B + "/api/folders/rename", json={"old": "Home", "new": "House"}).ok, "setup: rename the folder")
 d = A.get(PB(W)).json()
 check([x["folder"] for x in d["folders"]] == ["House", "House/Money"] and d["effective"].startswith("Household rules"),

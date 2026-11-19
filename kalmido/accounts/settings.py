@@ -1191,27 +1191,77 @@ def umz_export_clean(table, row):
     return row
 
 
-@app.get("/api/export.json")
-def export_json():
-    """My data: lists I own (also shared ones, with their tasks incl. link / sections / files / comments /
-    activity / custom fields + values / dependencies / status updates), my tags, habits, focus sessions, my time entries, filters and settings. Attachment files stay in data/attachments/.
-    2.239.0 A (#2882): the rows filtered like the account export (no webhook address, no server-side settings, no secret
-    columns); the complete copy is the account export (Settings > Data, people only)."""
+EJ_MAX_BYTES = 64 * 1024 * 1024  # 2.1444 (#6586): the largest export.json; above it the account export (ZIP, streamed)
+
+
+class EjTooBig(Exception):
+    pass
+
+
+def ej_dump(parts, maxb=None):
+    """2.1444 (#6586): {key: rows-iterable | value} -> the JSON text of export.json, written row by row; EjTooBig as soon
+    as it would pass maxb characters (the memory of the web thread stays bounded, the rest is not read)."""
+    maxb = EJ_MAX_BYTES if maxb is None else maxb
+    out, n = [], 0
+
+    def put(t):
+        nonlocal n
+        n += len(t)
+        if n > maxb:
+            raise EjTooBig()
+        out.append(t)
+    put("{")
+    for k, (key, v) in enumerate(parts):
+        put(("," if k else "") + "\n" + json.dumps(key) + ": ")
+        if isinstance(v, (list, dict, str, int, float, bool)) or v is None:
+            put(json.dumps(v, ensure_ascii=False))
+            continue
+        put("[")
+        for m, row in enumerate(v):
+            put(("," if m else "") + "\n " + json.dumps(row, ensure_ascii=False))
+        put("]")
+    put("\n}\n")
+    return "".join(out)
+
+
+def ej_text(c, uid):
+    """2.1444 (#6586): the text of export.json (EjTooBig above EJ_MAX_BYTES)."""
     from ..admin.acctexport import umz_clean
-    c = db()
-    q = umz_export_queries(me())  # 2.73.0 B (#1473): shared with the account export (admin/acctexport.py)
-    data = {t: [d for d in (umz_clean(t, r) for r in c.execute(sql, args)) if d is not None] for t, (sql, args) in q.items()}
     from ..life.model import jr_open
-    data["journal"] = [jr_open(c, me(), r) for r in data["journal"]]  # 2.306.0 A (#2885): my journal in plain
     from ..life.budget import bud_export
-    data["budget"] = bud_export(c, me())  # 2.72.0 (#1333): my budgets, decrypted (receipt files stay in data/attachments/)
-    data["user"] = user_public(g.user)
+    q = umz_export_queries(uid)  # 2.73.0 B (#1473): shared with the account export (admin/acctexport.py)
+
+    def rows(t, sql, args):
+        for r in c.execute(sql, args).fetchall():  # whole table first: jr_open reads keys on the same connection
+            d = umz_clean(t, r)
+            if d is not None:
+                yield jr_open(c, uid, d) if t == "journal" else d  # 2.306.0 A (#2885): my journal in plain
+
+    parts = [(t, rows(t, sql, args)) for t, (sql, args) in q.items() if t != "budget"]
+    parts.append(("budget", bud_export(c, uid)))  # 2.72.0 (#1333): my budgets, decrypted (receipt files stay in data/attachments/)
+    parts.append(("user", user_public(g.user)))
+    return ej_dump(parts)
+
+
+def ej_too_big(c):
+    c.rollback()
+    return jsonify(error=tr("Your data is too large for this file. Use “Move and export everything” above: it makes one ZIP file in the background."),
+                   code="too_large"), 413
+
+
+def ej_response(c):
+    """2.1444 (#6586): the file of export.json after the caller's check (the step-up of the web app, the token's scopes of
+    GET /api/v1/export)."""
+    try:
+        text = ej_text(c, me())
+    except EjTooBig:
+        return ej_too_big(c)
     from ..admin.acctexport import umz_log_org_lists
     umz_log_org_lists(c, me())  # 2.148.1 C (#2492): lists of an organisation in the file: noted in its list history
     c.commit()
     name = f"kalmido-export-{local_now():%Y-%m-%d}.json"
-    return Response(json.dumps(data, ensure_ascii=False, indent=1), mimetype="application/json",
-                    headers={"Content-Disposition": f'attachment; filename="{name}"'})
+    return Response(text, mimetype="application/json",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"})
 
 
 # 2.57.0 (#1798): favourites of every kind (lists, folders, views, areas, filters, tags, people, groups, agents) as one json

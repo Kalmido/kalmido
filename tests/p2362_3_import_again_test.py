@@ -260,7 +260,7 @@ rows = told()
 check(len(rows) == 1 and '"count": 1' in str(rows[0][0]) and "Alpha Team" in str(rows[0][0]), f"the admin is told once {rows}")
 check("Geheimes" not in str(rows), "the News carries the count, not the name of a project")
 check(one("SELECT COUNT(*) FROM org_list_log WHERE org_id=? AND list_id=? AND action='export' AND by_id=?", (ORG, LO, BOB)) == 1, "the list history has it")
-ok(Bo.get(B + "/api/export.json"), "export.json")
+ok(su_get(Bo, B + "/api/export.json"), "export.json")
 check(len(told()) == 1, f"a second export of the day tells nobody again {told()}")
 
 if FAILS:

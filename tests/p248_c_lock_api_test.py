@@ -10,6 +10,7 @@ is in p248_c_lock_ui.js).
    a calendar app's PUT changes the title but neither overwrites nor unlocks the note
  - only the person who locked it reads / changes / unlocks it; unlocking writes the plain text back
 usage: p248_c_lock_api_test.py <datadir>"""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import base64
 import json
 import os
@@ -134,7 +135,7 @@ check(r.ok, "app: sending the empty note back unchanged is no change " + r.text[
 r = AG.get("/search", params={"q": "alpha-7"})
 check(r.ok and TP not in [t.get("id") for t in r.json().get("tasks", r.json().get("results", []))] and "alpha" not in r.text,
       "search: the locked text is not found " + r.text[:200])
-ex = A.get(B + "/api/export.json")
+ex = su_get(A, B + "/api/export.json")
 check(ex.ok and "alpha-7" not in ex.text and nb["ct"] in ex.text, "export: no text, the locked note as ciphertext")
 # CalDAV: a calendar app's PUT changes the title but never the note or the lock
 pw = A.post(B + "/api/me/app-passwords", json={"name": "Phone"}).json()["password"]

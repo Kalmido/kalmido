@@ -264,7 +264,7 @@ check(not any(x.get("key") in ("ntfy_topic", "onboard", "digest_sent") for x in 
       "N5: no server-only settings")
 check(any(x.get("url_hint") == "https://hooks.example.com/…" and "url" not in x for x in D["webhooks"]) and
       not any(b"Geheimpfad0815" in z.read(n) for n in names if not n.startswith("files/")), "N5: the webhook only as url_hint")
-EJ = A.get(B + "/api/export.json").json()
+EJ = su_get(A, B + "/api/export.json").json()
 check({"lists", "tasks", "comments", "attachments", "settings", "events", "contacts", "user"} <= set(EJ) and
       len(EJ["tasks"]) == len(D["tasks"]) and "shared_lists" not in EJ and any(x.get("url_hint") and "url" not in x for x in EJ.get("webhooks", [])),
       "GET /api/export.json unchanged (2.239.0 (#2882): the webhook only as url_hint, like the account export)")

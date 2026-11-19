@@ -9,6 +9,7 @@
    the agent API (GET /api/v1/agent/schedules, read only), OpenAPI, the account export, a backup with the new table
    verifies and restores
 usage: p2340_c_api_test.py <datadir>"""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import os
 import dbx as dbxm  # 2.37.0: the suite has its own dbx() helper
 import subprocess
@@ -263,7 +264,7 @@ r = Bo.patch(B + f"/api/agent-schedules/{p1['id']}", json={"enabled": True})
 check(r.ok and r.json()["enabled"] and r.json()["last_state"] is None, "#272: switched on again, the reason is gone")
 
 # ---- the account export carries my plans
-ex = Bo.get(B + "/api/export.json")
+ex = su_get(Bo, B + "/api/export.json")
 check(ex.ok and any(p["id"] == p1["id"] for p in ex.json().get("agent_schedules", [])), "#272: the account export lists bob's plans")
 check(not any(p["user_id"] != BOB for p in ex.json().get("agent_schedules", [])), "#272: only his own")
 

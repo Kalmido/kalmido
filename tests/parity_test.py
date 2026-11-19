@@ -171,6 +171,7 @@ APP_TO_API = {
     "GET /api/inbox": ["GET /me/waiting"],  # 2.392.0 D (#3369)
     "GET /api/lists/{}/status-report": ["GET /lists/{}/status-report"],  # 2.34.0 (#265)
     "GET /api/export.json": ["GET /export"],
+    "POST /api/export.json": ["GET /export"],  # 2.1444 (#6586): the step-up (ticket) of the same file; the token way has its scopes
     "POST /api/import/{}": ["POST /import/{}"],
     "POST /api/imports/{}/undo": ["POST /imports/{}/undo"],
     "GET /api/me/app-passwords": ["GET /me/app-passwords"],

@@ -15,6 +15,7 @@
    into an organisation is resealed and reads the same; the person's export has the budget decrypted
 Starts its OWN container (start.sh) with KALMIDO_SECRET_KEY. Invented data only.
 usage: p272_a_budget_api_test.py <datadir>"""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import base64
 import os
 import struct
@@ -445,7 +446,7 @@ check(after["totals"] == before["totals"] and after["entries"][0]["title"] == "B
       and after["cats"][0]["limit"] == 700.0, "after the reseal the budget reads the same")
 check(Bo.get(B + f"/api/budget/files/{F2m}").content == b"moving receipt", "the receipt reads the same")
 # the person's export
-ex = A.get(B + "/api/export.json").json()
+ex = su_get(A, B + "/api/export.json").json()
 eb = {x["list_id"]: x for x in ex.get("budget", [])}
 check(L in eb and any(e["title"] == "Bonus September" for e in eb[L]["entries"]) and "kenc1:" not in str(eb[L]), "the export has the budget decrypted")
 check(DL not in eb and L2 not in eb, "the export has only the person's own budgets")

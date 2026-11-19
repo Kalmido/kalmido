@@ -39,6 +39,23 @@ const until = (fn, n, ms = 150) => require('./boot').until(fn, {timeout: n ? n *
   check(td && td.hasAttribute('download') && /Todoist CSV/.test(td.textContent), 'Todoist CSV link (download)');
   check(mdl && mdl.hasAttribute('download') && /Markdown/.test(mdl.textContent), 'Markdown link (download)');
   check(js && td && js.parentElement === td.parentElement, 'the three buttons share one row');
+  // 2.1444 (#6586): Download JSON asks for the password first (the step-up of the ZIP export), then the file with a ticket
+  check(js && js.hasAttribute('data-sudl'), 'Download JSON is behind the step-up (data-sudl)');
+  const clicked = [], aclick = w.HTMLAnchorElement.prototype.click;
+  w.HTMLAnchorElement.prototype.click = function () { if (this.hidden) clicked.push(this.getAttribute('href')); else aclick.call(this); };
+  js.click();
+  let pw = await until(() => d.querySelector('.pwprompt #pp-pw'));
+  check(pw, 'a click asks for the password');
+  d.querySelector('.pwprompt [data-m="close"]')?.click();
+  await until(() => !d.querySelector('.pwprompt'));
+  check(!d.querySelector('.pwprompt') && !clicked.length && d.querySelector('a[href="/api/export.json"]'), 'cancel: back in the settings, nothing downloaded');
+  js.click();
+  pw = await until(() => d.querySelector('.pwprompt #pp-pw'));
+  if (pw) { pw.value = 'password123'; d.querySelector('.pwprompt button[type="submit"]').click(); }
+  await until(() => clicked.length);
+  check(/^\/api\/export\.json\?t=[\w-]{20,}$/.test(clicked[0] || ''), 'with the password: the file comes with a one-time ticket ' + clicked[0]);
+  const got = clicked[0] && await w.fetch(clicked[0]);
+  check(got && got.ok && Array.isArray((await got.json()).tasks), 'the ticket opens the JSON export once');
   w.close();
 
   // ================= #2149 admin button

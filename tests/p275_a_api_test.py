@@ -14,6 +14,7 @@
  - agents (token) never reach the routes; the admin overview has counts only
 usage: p275_a_api_test.py <datadir>      (starts its own containers)
 tenant-matrix: assistant"""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import json
 import os
 import shutil
@@ -358,7 +359,7 @@ A.delete(B + f"/api/lists/{W}/members/{BOB}")
 check([x["id"] for x in call(Bo, "get", "/api/assistant").json()["lists"]] == [BL], "bob left Work: share dropped")
 check(not dbx("SELECT 1 FROM assistant_access WHERE user_id=? AND list_id=?", (BOB, W)), "bob left Work: row gone")
 # export of the person
-r = A.get(B + "/api/export.json")
+r = su_get(A, B + "/api/export.json")
 check(r.ok and "assistant_access" in r.text and "assistant_log" in r.text, "export: assistant tables included")
 
 # ---- the key never leaves

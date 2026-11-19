@@ -12,6 +12,7 @@
  - backwards compatible: new tables / a new column only
 tenant-matrix: lytpl
 usage: p255_a_api_test.py <datadir>      (a fresh container; P255A_NOSTART=1 = the server already runs)"""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import json
 import os
 import subprocess
@@ -149,7 +150,7 @@ check(r.status_code in (403, 404), f"#1069: a project page dave cannot see ({r.s
 check(Da.get(B + "/api/layouts/saved", params={"key": f"list:{P}"}).status_code in (403, 404), "#1069: ... nor list its arrangements")
 
 # the data export
-ex = A.get(B + "/api/export.json")
+ex = su_get(A, B + "/api/export.json")
 check(ex.ok and any(x["name"] == "Focus" for x in ex.json().get("view_layouts", [])), "#1069: the export carries view_layouts")
 
 # ================================================================== #1068 templates

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """API tests: comments, mentions, pushes (stub ntfy), activity, comment files, unread, link, IDOR, collab flag.
 Runs against the TEST container (built-in login on 127.0.0.1:3048, data dir DATA). Fresh DB expected."""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import json, os, sys, time, subprocess
 import requests
 
@@ -259,7 +260,7 @@ check(A.patch(B + f"/api/tasks/{PT}", json={"url": ""}).json()["url"] is None, "
 A.patch(B + f"/api/tasks/{PT}", json={"url": "https://docs.example.net/x"})
 res = A.get(B + "/api/tasks", params={"scope": "search", "q": "docs.example"}).json()["tasks"]
 check([t["id"] for t in res] == [PT], "search matches the link")
-exp = A.get(B + "/api/export.json").json()
+exp = su_get(A, B + "/api/export.json").json()
 check(any(t["id"] == PT and t["url"] == "https://docs.example.net/x" for t in exp["tasks"]), "export contains the link")
 check("comments" in exp and "activity" in exp and any(c["task_id"] == ST for c in exp["comments"]), "export contains comments + activity")
 # /drop + /share with links

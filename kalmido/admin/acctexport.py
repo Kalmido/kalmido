@@ -67,6 +67,7 @@ from ..life.model import jr_open  # 2.306.0 A (#2885)
 from ..lists.tplextra import tx_export  # 2.463.0 (#3860)
 from ..accounts.login import unseal  # 2.455.0 (#3469)
 from ..accounts.settings import SETTINGS_SERVER_ONLY, umz_export_clean, umz_export_queries, umz_fmt  # 2.369.5 (#2517): pulled up from functions
+from ..accounts.settings import EjTooBig, ej_response, ej_text, ej_too_big  # 2.1444 (#6586): the file of export.json
 from ..calendars.subscriptions import cal_url_hint  # 2.369.5 (#2517): pulled up from functions
 from ..core.orgcrypt import oc_dec_fields  # 2.369.5 (#2517): pulled up from functions
 from ..wiki.wkhist import wsb_body_or  # 2.369.5 (#2517): pulled up from functions
@@ -1074,6 +1075,24 @@ def umz_download():
     return Response(umz_stream(path, key, raw["bytes"]), mimetype="application/zip", direct_passthrough=True,
                     headers={"Content-Disposition": f'attachment; filename="{st["file"]}"', "Content-Length": str(raw["bytes"]),
                              "Cache-Control": "no-store"})
+
+
+@app.get("/api/export.json")
+@app.post("/api/export.json")  # 2.1444 (#6586): POST = the step-up (password / second factor) -> a ticket for the GET
+def export_json():
+    """My data: lists I own (also shared ones, with their tasks incl. link / sections / files / comments /
+    activity / custom fields + values / dependencies / status updates), my tags, habits, focus sessions, my time entries, filters and settings. Attachment files stay in data/attachments/.
+    2.239.0 A (#2882): the rows filtered like the account export (no webhook address, no server-side settings, no secret
+    columns); the complete copy is the account export (Settings > Data, people only).
+    2.1444 (#6586): behind the same step-up as the account export's download (stepup_download: POST -> ticket, GET ?t=), so
+    the route moved here from accounts/settings.py (the file: ej_response there); the token way GET /api/v1/export keeps its
+    scopes. At most EJ_MAX_BYTES, above that 413 with the way to the ZIP."""
+    c = db()
+    try:  # the size is checked already on the POST (the ticket), so the dialog says it, not a downloaded error file
+        e = stepup_download(c, proxy_ok=True, ticket=lambda: (ej_text(c, me()), {})[1])
+    except EjTooBig:
+        return ej_too_big(c)
+    return e if e is not None else ej_response(c)
 
 
 def umz_forget(uid):
