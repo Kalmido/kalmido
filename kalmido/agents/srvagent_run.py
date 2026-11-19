@@ -409,11 +409,7 @@ def _end(rid, state, text=""):
 def _taken(rid):
     """#7181 (reader F2 of job/5550): is run rid no longer running in the database - the watchdog in _claim (another process,
     or this one after a long step) failed it and its person heard SRV_LOST_SAY? Then its own end says nothing more."""
-    try:
-        r = _db(lambda c: c.execute("SELECT state FROM agent_runs WHERE id=?", (rid,)).fetchone())
-    except Exception as e:  # noqa: BLE001 -- no database: the run's end goes on as before (its token is tidied all the same)
-        print("server agent run", rid, "state:", type(e).__name__, flush=True)
-        return False
+    r = _db(lambda c: c.execute("SELECT state FROM agent_runs WHERE id=?", (rid,)).fetchone())
     return r is None or r[0] != "run"
 
 
@@ -538,7 +534,6 @@ def _run(aid, rid):
             told = rid in _TOLD
             _TOLD.discard(rid)
         try:
-            told = told or _taken(rid)  # #7181: the watchdog took it for lost and told the person (_lost_say)
             _finish(aid, rid, tok, state, text, None if told else asker, lang)  # (#6388): told at the stop already
         except Exception as e:  # noqa: BLE001
             print("server agent", aid, "run", rid, "end:", type(e).__name__, flush=True)
@@ -557,6 +552,8 @@ def _finish(aid, rid, tok, state, text, asker, lang):
                 _status(api, "paused", None, tr(text, lg=lang))
             else:
                 _status(api, "idle", None)
+            if asker and state in ("failed", "aborted") and _taken(rid):
+                asker = None  # #7181: the watchdog took it for lost and told the person already (_lost_say)
             if asker and state == "failed":
                 _say(api, asker, tr("I could not finish this: {0}", tr(text, lg=lang), lg=lang))
             elif asker and state == "aborted":
