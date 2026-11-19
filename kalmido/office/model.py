@@ -349,7 +349,7 @@ def ofx_org_name(c, oid):
     if rls_org_open(c, oid):
         r = c.execute(q, (oid,)).fetchone()
     else:
-        with system_ctx(c):
+        with system_ctx(c):  # instance structure: only the name of this one organisation, whose office the caller reached
             r = c.execute(q, (oid,)).fetchone()
     return " ".join(str(r[0] or "").split())[:200] if r else ""
 
