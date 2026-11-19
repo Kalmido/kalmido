@@ -3,6 +3,10 @@
 // - jsdom: swipe left > 1/3 of the width closes (panel: folded and remembered like the button; drawer: closeSide), a short
 //   swipe keeps it open and the panel snaps back, a vertical move / a swipe to the right / a second finger do nothing,
 //   the same for a person without an organisation
+// - 2.1408.0 (#6693): a swipe to the right on the page opens the folded sidebar (folded by hand: sideFold back to false; the
+//   drawer, also the phone's: open); short = it snaps back; not on a task row (its own swipe), not from the 16 px edge, not
+//   when it shows already; the panel is clipped at its left edge while it moves (glides under the icon bar), the drawer's
+//   scrim follows the finger; a drag of drag.js holding the finger never moves the panel (both ways)
 // - app.css: the rail's show / hide button is position: sticky (stays while the rail scrolls); 2.542.0 (#4610): the button is gone, no rule for it left
 const path = require('path');
 const fs = require('fs');
@@ -19,9 +23,9 @@ const width = (w, px) => Object.defineProperty(w, 'innerWidth', {configurable: t
 
 // touch events with a touch list (jsdom has no TouchEvent)
 const tev = (w, el, type, pts) => { const e = new w.Event(type, {bubbles: true, cancelable: true}); e.touches = pts.map(([x, y]) => ({clientX: x, clientY: y, target: el})); el.dispatchEvent(e); return e; };
-const swipe = (w, el, dx, dy = 0, extra = false) => {
-  tev(w, el, 'touchstart', [[200, 300]].concat(extra ? [[250, 300]] : []));
-  tev(w, el, 'touchmove', [[200 + dx, 300 + dy]].concat(extra ? [[250, 300]] : []));
+const swipe = (w, el, dx, dy = 0, extra = false, x0 = 200) => {
+  tev(w, el, 'touchstart', [[x0, 300]].concat(extra ? [[x0 + 50, 300]] : []));
+  tev(w, el, 'touchmove', [[x0 + dx, 300 + dy]].concat(extra ? [[x0 + 50, 300]] : []));
   tev(w, el, 'touchend', []);
 };
 
@@ -30,7 +34,7 @@ async function jsd(user, L, tag, mobile) {
   await until(() => d.querySelector('#side .srow'));
   const side = d.querySelector('#side'), pick = () => d.querySelector('#side .srow') || side; let item = pick();
   side.getBoundingClientRect = () => ({left: 0, top: 0, width: 270, height: 600, right: 270, bottom: 600});
-  const open = () => side.classList.contains('open'), folded = () => !!w.__store['tasks.sideFold'];
+  const open = () => side.classList.contains('open'), folded = () => !!w.eval("LS.get('sideFold', false)");  // 2.1408.0 (#6693): the value, not the stored text ('false' is truthy)
   check(!errs.length, `${tag}: boots without errors ` + errs.join(' | ')); errs.splice(0);
 
   if (!mobile) {
@@ -44,6 +48,23 @@ async function jsd(user, L, tag, mobile) {
     tev(w, item, 'touchend', []);
     swipe(w, item, -120);
     check(await until(() => folded()), `${tag}: a swipe > 1/3 hides the panel (remembered as the button does)`);
+    // 2.1408.0 (#6693): the swipe to the right brings it back
+    const top = d.querySelector('#top');
+    check(d.querySelector('#app.side-rail'), `${tag}: folded by hand = the panel is out of the way`);
+    swipe(w, top, 30); check(folded() && side.style.transform === '' && side.style.clipPath === '', `${tag}: #6693 a short swipe to the right keeps it folded, the panel snaps back`);
+    swipe(w, top, 150, 0, false, 8); check(folded(), `${tag}: #6693 a start within 16 px of the edge (the phone's Back) opens nothing`);
+    swipe(w, top, 150, 160); check(folded(), `${tag}: #6693 a vertical move opens nothing`);
+    tev(w, top, 'touchstart', [[200, 300]]); const mo = tev(w, top, 'touchmove', [[290, 302]]);
+    check(side.style.transform.includes('-180') && /polygon\(180px/.test(side.style.clipPath) && mo.defaultPrevented,
+      `${tag}: #6693 the panel follows the finger, clipped at its left edge (under the icon bar): ${side.style.transform} ${side.style.clipPath}`);
+    tev(w, top, 'touchend', []); check(folded() && side.style.transform === '', `${tag}: #6693 ... 90 of 270 px is not past a third: it goes back`);
+    swipe(w, top, 120);
+    check(await until(() => !folded()), `${tag}: #6693 a swipe to the right > 1/3 on the head bar brings the panel back (sideFold off)`);
+    check(side.style.transform === '' && side.style.clipPath === '' && side.style.visibility === '', `${tag}: #6693 no inline style left`);
+    // a drag of drag.js holds the finger: the swipe never moves the panel (#6693, the walk of job #4915)
+    item = pick(); tev(w, item, 'touchstart', [[200, 300]]); w.eval('drg_cur = {lifted: true, o: {}, l: {}, d: {}}');  // after the start: drag.js ends a drag of its own there
+    tev(w, item, 'touchmove', [[80, 302]]); w.eval('drg_cur = null'); tev(w, item, 'touchend', []);
+    check(!folded() && side.style.transform === '', `${tag}: #6693 a held project dragged to the left never moves the panel`);
     w.eval('sideFold(false)');
     // the drawer (task open = side-rail)
     width(w, 940); w.eval(`openDetail(${d.querySelector('#view .trow')?.dataset.id || 0})`); await sleep(300);
@@ -54,6 +75,17 @@ async function jsd(user, L, tag, mobile) {
     swipe(w, item, -30); check(open(), `${tag}: drawer: a short swipe keeps it open`);
     swipe(w, item, 0, 90); check(open(), `${tag}: drawer: vertical scrolling keeps it open`);
     swipe(w, item, -120); check(!open(), `${tag}: drawer: a swipe > 1/3 closes it`);
+    // 2.1408.0 (#6693): the swipe to the right on the page opens the drawer, the scrim follows the finger
+    const top = d.querySelector('#top'), scrim = d.querySelector('#scrim');
+    swipe(w, top, 150, 0, false, 8); check(!open(), `${tag}: #6693 drawer: a start at the edge opens nothing`);
+    tev(w, top, 'touchstart', [[200, 300]]); tev(w, top, 'touchmove', [[335, 302]]);
+    check(side.style.visibility === 'visible' && !scrim.classList.contains('hidden') && scrim.style.opacity === '0.5', `${tag}: #6693 drawer: it follows the finger, the scrim half (${scrim.style.opacity})`);
+    tev(w, top, 'touchcancel', []); check(!open() && scrim.classList.contains('hidden') && scrim.style.opacity === '' && side.style.visibility === '', `${tag}: #6693 drawer: the system takes the touch - back, no scrim`);
+    swipe(w, top, 120); check(open() && scrim.style.opacity === '', `${tag}: #6693 drawer: a swipe to the right > 1/3 on the head bar opens it`);
+    swipe(w, top, 120); check(open(), `${tag}: #6693 drawer: open already - nothing happens`);
+    w.eval('closeSide()');
+    const row = d.querySelector('#view .trow');
+    if (row && mobile) { swipe(w, row, 150); check(!open(), `${tag}: #6693 a swipe to the right on a task row is the row's (done), it opens no drawer`); }
   }
   check(!errs.length, `${tag}: no script errors ` + errs.join(' | ')); errs.splice(0);
   w.close();
