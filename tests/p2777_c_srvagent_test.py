@@ -70,6 +70,9 @@ def listed(s, aid):
     return next((a for a in s.get(B + "/api/agents").json().get("agents") or [] if a["id"] == aid), None)
 
 
+check(Bo.patch(B + f"/api/orgs/{ORG}", json={"server_agents": True}).ok, "setup: bob switches the Kalmido AI on")  # 2.1409.0 (#6363): the Kalmido AI is off in a new organisation
+
+
 # ================================================================ a new team agent without a project: the plans wait
 r = Bo.post(B + f"/api/orgs/{ORG}/server-agents", json={"username": "teamki", "display_name": "Team KI"})
 check(r.status_code == 201, f"bob (organisation admin) creates a team agent {r.status_code} {r.text[:200]}")

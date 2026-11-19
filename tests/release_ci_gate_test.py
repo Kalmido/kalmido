@@ -12,7 +12,9 @@ FULL run of the workflow CI on the tagged commit (tools/ci_gate.py). Without a s
   (a hard shard, a hard suite by name or group, a suite in no group, a red shard without a named suite, a hard job, a scanner
   step of Lint), cancelled or the push stage = still no image; the soft red parts go into the notes of the weekly release.
 - 2.940.0 (#5600): a CANCELLED full run is judged like a red one (v2.883 / v2.897 / v2.902 had every hard part green, a newer
-  push cut the rest): soft parts cut = go, a hard shard / hard job / Lint scanner cut = no image."""
+  push cut the rest): soft parts cut = go, a hard shard / hard job / Lint scanner cut = no image.
+- #6893: a tag on a commit the merge queue landed has only its merge_group run (stage queue) and the landing push (stage none):
+  the green check "Merge queue gate" of the merge_group run = image, the none run alone = no image."""
 import importlib.util
 import os
 import re
@@ -146,6 +148,73 @@ rc = main_rc([[tagrun]], FULL, same=[trun(2, "def456", "T2")])
 check(rc == 1, "main: a green run of another tree does not count (rc %s)" % rc)
 rc = main_rc([[]], FULL, "--no-run-min", "60", tree="T1", same=[trun(2, "def456", "T1")])
 check(rc == 0, "main: no run of the tag yet, but the same tree is green = go (rc %s)" % rc)
+
+# ------------------------------------------------------------------ #6893: a tag on a commit the merge queue landed
+# Its only runs: the merge_group run of that commit (stage queue, required check "Merge queue gate") and the landing push
+# (stage none: no shards). The green gate of the merge_group run = green for the image; the none run alone = no image.
+QUEUE = ["Shard plan (stage, suite times of the last runs)", "Test suites 1/4 queue hart (API, UI, security)", "Lint", "Merge queue gate"]
+NONE = ["Shard plan (stage, suite times of the last runs)", "Lint"]
+
+
+def ev(i, event, status="completed", conclusion="success"):
+    return dict(run(i, status, conclusion), event=event)
+
+
+def gates(d):
+    return lambda rid: d.get(rid)
+
+
+check(gate.stage(QUEUE) == "?" and gate.stage(NONE) == "?", "#6893: neither the queue nor the none stage is a release stage by name")
+res, txt = gate.decide([ev(8, "push")], jobs_of({8: NONE}), None, gates({}))
+check(res == "red", "#6893: only the landing push (stage none) = no image (%s, %s)" % (res, txt))
+res, txt = gate.decide([ev(8, "push"), ev(9, "merge_group")], jobs_of({8: NONE, 9: QUEUE}), None, gates({9: "success"}))
+check(res == "green" and "Merge queue gate" in txt and "9" in txt, "#6893: merge_group run with a green 'Merge queue gate' = image (%s, %s)" % (res, txt))
+res, _ = gate.decide([ev(8, "push"), ev(9, "merge_group", conclusion="failure")], jobs_of({8: NONE, 9: QUEUE}), None, gates({9: "success"}))
+check(res == "green", "#6893: a merge_group run red only in soft suites, its gate green = image (%s)" % res)
+res, _ = gate.decide([ev(8, "push"), ev(9, "merge_group", conclusion="failure")], jobs_of({8: NONE, 9: QUEUE}), None, gates({9: "failure"}))
+check(res == "red", "#6893: the gate red = no image (%s)" % res)
+res, _ = gate.decide([ev(8, "push"), ev(9, "merge_group", "in_progress")], jobs_of({8: NONE, 9: QUEUE}), None, gates({9: None}))
+check(res == "wait", "#6893: the merge_group run still running, no gate result yet = wait (%s)" % res)
+res, _ = gate.decide([ev(9, "push")], jobs_of({9: QUEUE}), None, gates({9: "success"}))
+check(res == "red", "#6893: a gate job counts only in a merge_group run (%s)" % res)
+res, _ = gate.decide([ev(9, "merge_group")], jobs_of({9: QUEUE}))
+check(res == "red", "#6893: without gate_of (old callers) nothing changes (%s)" % res)
+res, txt = gate.decide_tree("red", "x", [trun(2, "def456", "T1", event="merge_group")], jobs_of({2: QUEUE}), gates({2: "success"}))
+check(res == "green" and "same tree" in txt, "#6893: a green merge_group run of the same tree = go (%s, %s)" % (res, txt))
+check(gate.same_tree([trun(2, "def456", "T1", event="merge_group")], "T1", "abc123", "owner/repo") != [],
+      "#6893: same_tree takes merge_group runs (they test the very commit they land)")
+
+
+def fake_queue_api(path):
+    if "/jobs" in path:
+        rid = re.search(r"/runs/(\d+)/jobs", path).group(1)
+        if rid == "9":
+            return {"jobs": [{"name": n, "conclusion": "success"} for n in QUEUE]}
+        return {"jobs": [{"name": n, "conclusion": "success"} for n in NONE]}
+    if "status=success" in path:
+        return {"workflow_runs": []}
+    if "/git/commits/" in path:
+        return {"tree": {"sha": ""}}
+    return {"workflow_runs": QRUNS}
+
+
+QRUNS = [ev(8, "push")]
+old_api = gate.api
+gate.api = fake_queue_api
+_argv, _env = sys.argv, dict(os.environ)
+sys.argv = ["ci_gate.py", "--sha", "abc123", "--poll-s", "0", "--timeout-min", "0"]
+os.environ["GITHUB_REPOSITORY"] = "owner/repo"
+try:
+    rc_none = gate.main()
+    QRUNS = [ev(8, "push"), ev(9, "merge_group")]
+    rc_queue = gate.main()
+finally:
+    sys.argv = _argv
+    os.environ.clear()
+    os.environ.update(_env)
+    gate.api = old_api
+check(rc_none == 1, "#6893: main - only the none run of the landing push = no image (rc %s)" % rc_none)
+check(rc_queue == 0, "#6893: main - the merge_group run with its gate green = image (rc %s)" % rc_queue)
 
 check(re.search(r"^on:\n(?:  .*\n)*  workflow_dispatch:", rel, re.M) is not None, "#4905: release.yml can be re-run on a tag (workflow_dispatch)")
 check("if: startsWith(github.ref, 'refs/tags/v')" in gtxt, "#4905: a dispatch on a branch is skipped (only refs/tags/v...)")

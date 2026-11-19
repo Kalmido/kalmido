@@ -237,5 +237,29 @@ dbx("INSERT INTO mail_counts(k,day,n) VALUES(?,?,50) ON CONFLICT(k) DO UPDATE SE
 p = anon.post(B + "/f/" + tok, data={"subject": "Day limit", "email": "day@example.com", "stamp": sts.pop()})
 check(p.ok and "/p/" in p.text and "We have also sent" not in p.text and task_by("Day limit"), "#1866: over the form's daily mails: the report is kept, no mail")
 
+# #7124 (review F4 of job/5425): the files from before 2.1391.0 are marked once at the start (core/oncesteps.py migr_outside7124):
+# a form's file stored with its task and a file on a comment without an account; a file a person added later and a file on a
+# task of their own stay theirs
+if att:
+    T = t[0]
+    check((dbx("SELECT tt_id FROM tasks WHERE id=?", (T,))[0][0] or "").startswith("origin:form:"), "#7124: the form's task carries origin:form:")
+    dbx("UPDATE attachments SET outside=0 WHERE id=?", (att[0][0],))  # as a row from before 2.1391.0
+    kc = dbx("INSERT INTO obj_comments(kind,ref_id,user_id,ext_name,body) VALUES('task',?,NULL,'Eve','reply') RETURNING id", (T,))[0][0]
+    a_late = dbx("INSERT INTO attachments(task_id,name,path,created_at,user_id) SELECT id,'later.txt','x/later.txt',"
+                 "created_at + INTERVAL '2 days',1 FROM tasks WHERE id=? RETURNING id", (T,))[0][0]
+    a_kc = dbx("INSERT INTO attachments(task_id,comment_id,name,path,created_at,user_id) VALUES(?,?,'reply.pdf','x/reply.pdf',"
+               "CURRENT_TIMESTAMP,1) RETURNING id", (T, kc))[0][0]
+    own = A.post(B + "/api/tasks", json={"title": "Own task", "list_id": PL}).json()["id"]
+    a_own = dbx("INSERT INTO attachments(task_id,name,path,created_at,user_id) VALUES(?,'own.txt','x/own.txt',CURRENT_TIMESTAMP,1) RETURNING id",
+                (own,))[0][0]
+    dbx("DELETE FROM settings WHERE key='migr_outside7124'")
+    r = subprocess.run(["bash", os.path.join(N, "start.sh"), DATA], env=dict(env, KEEP="1"), capture_output=True, text=True)
+    check(r.returncode == 0, "#7124: restart " + r.stdout[-300:] + r.stderr[-300:])
+    o = dict(dbx("SELECT id, outside FROM attachments WHERE id IN (?,?,?,?)", (att[0][0], a_late, a_kc, a_own)))
+    check(o.get(att[0][0]) == 1 and o.get(a_kc) == 1 and o.get(a_late) == 0 and o.get(a_own) == 0,
+          f"#7124: the form's old file and the file of a comment without an account marked, a later file and an own task's file not {o}")
+    ta = {x["id"]: x for x in sess("alice").get(B + f"/api/tasks/{T}").json().get("attachments") or []}
+    check(ta.get(att[0][0], {}).get("outside") is True and "by" not in ta.get(att[0][0], {}), f"#7124: the old form file in the task: from outside, no uploader {ta}")
+
 print(f"{OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)

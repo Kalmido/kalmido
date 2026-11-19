@@ -53,7 +53,8 @@ from ..accounts.session import me
 from ..accounts.supportgrant import sga_is_support  # 2.557.0 (2nd review)
 from .srvstarter import SRV_DAY_LIMIT_DEFAULT, SRV_DEFAULT_INSTRUCTIONS, SRV_DEFAULT_MODEL, SRV_FLOWS, srv_day_cap, srv_hosted  # 2.1308.0 (#6568): + hosted, ceiling; 2.557.0: the bridge of the parts is gone; 2.638.0 (#4714): + the day limit
 from ..accounts.login import seal, unseal
-from ..accounts.orgs import is_org_admin
+from ..accounts.orgs import is_org_admin, ORG_SWITCH_WATCH  # 2.1409.0 (#6363): + the watch of the organisation's switch
+from ..notify.alerts import aa_org_switch  # 2.1409.0 (#6363)
 from ..agents.core import agent_row, need_person, RUNTIME_MODEL_MAX, RUNTIME_MODEL_RE
 from ..agents.admin import need_agent_admin
 from .srvweb import srv_flow_web, srv_flow_web_in  # 2.571.0 D (#4676)
@@ -76,6 +77,42 @@ def srv_defaults():
 
 def srv_off(c):
     return gsetting(c, SRV_SWITCH) == "1"
+
+
+# 2.1409.0 (#6363, decision 16.11.2026 variant B): in an organisation the Kalmido AI works only after its admin switched it on
+# (orgs.srv_agents, default off, PATCH /api/orgs/<id> {server_agents}): before that no content of the organisation goes to the
+# model provider. An agent works in exactly one workspace (agents.org_id, agents/admin.py _agent_ws_check; core/access.py: an
+# agent's organisations are only its own), so its workspace decides: routes 403 SRV_ORG_OFF, runs end before the provider call.
+SRV_ORG_OFF = "org_server_agents_off"
+SRV_ORG_OFF_TEXT = N_("The Kalmido AI is switched off in this organisation. An admin of the organisation can switch it on (Settings > Organisation > People).")
+
+
+def srv_org_on(c, oid):
+    """May the Kalmido AI work with the content of organisation oid? None (the private area, a server without organisations), a
+    person's hidden office (orgs.personal_of: their own) or an organisation that is gone = yes; else its switch."""
+    if not oid:
+        return True
+    with system_ctx(c):  # one switch of the organisation (the callers checked who asks)
+        r = c.execute("SELECT srv_agents, personal_of FROM orgs WHERE id=?", (oid,)).fetchone()
+    return r is None or r["personal_of"] is not None or bool(r["srv_agents"])
+
+
+def srv_org_blocked(c, a):
+    """True when server agent row a works in an organisation whose switch is off."""
+    return bool(a) and not srv_org_on(c, a["org_id"])
+
+
+def srv_org_refuse():
+    return jsonify(error=SRV_ORG_OFF, message=tr(SRV_ORG_OFF_TEXT)), 403
+
+
+def _srv_org_switched(c, oid, name, on):
+    """PATCH /api/orgs/<id> {server_agents} changed the switch (accounts/orgs.py ORG_SWITCH_WATCH): a security alert to the server's
+    admins, like the server switch (core/instance.py aa_switch)."""
+    aa_org_switch(g.user, name, "org_server_agents", on)
+
+
+ORG_SWITCH_WATCH["server_agents"] = _srv_org_switched
 
 
 # ---------------------------------------------------------------- providers
@@ -275,6 +312,7 @@ def srv_dict(c, a, row=None):
             "instructions": row["instructions"] if row else "", "has_key": bool(row and row["key_sealed"]),
             "key_hint": "",  # 2.1322.0 (#6560 7): no part of the key is shown any more (kept for older clients)
             "enabled_instance": not srv_off(c), "default_model": dm, "default_instructions": tr(di),  # 2.557.0: in the person's language
+            "enabled_org": not srv_org_blocked(c, a),  # 2.1409.0 (#6363): the switch of the agent's organisation
             "server": bool(row) and (a["provider"] or "") == SRV_PROVIDER,
             "flow_models": srv_flow_models(row),  # 2.565.0 D (#4674)
             "flow_web": srv_flow_web(row),  # 2.571.0 D (#4676)
@@ -300,6 +338,8 @@ def srv_put(aid):
     b = body()
     if not isinstance(b, dict):
         return err(tr("The body must be a JSON object"))
+    if srv_org_blocked(c, a) and b != {"delete_key": True}:  # 2.1409.0 (#6363): only deleting the key while its organisation is off
+        return srv_org_refuse()
     unknown = sorted(k for k in b if k not in ("provider", "model", "instructions", "api_key", "delete_key", "flow_models", "flow_web",
                                                "day_limit"))  # 2.638.0 (#4714)
     if unknown:
@@ -433,11 +473,13 @@ def srv_pick_default(ms):
 @app.get("/api/agents/<int:aid>/server/models")
 def srv_models_get(aid):
     c = db()
-    srv_need(c, aid)
+    a = srv_need(c, aid)
     if sga_is_support(c):  # 2nd review 2.557.0: a support session never spends the customer's key at the provider
         raise Denied(404)
     if srv_off(c):  # review 2.557.0: switched off = no call to the provider with the owner's key either
         return jsonify(error="server_agents_off", message=tr("Server agents are switched off on this server")), 403
+    if srv_org_blocked(c, a):  # 2.1409.0 (#6363): nor while its organisation has it off
+        return srv_org_refuse()
     try:
         ms = srv_models(c, aid)
     except ProviderError as e:

@@ -61,13 +61,14 @@ AA_WD_WHAT = {"section": N_("a whole watchdog part"), "settings of user": N_("ac
               "digest of user": N_("daily digests"),
               "collab push": N_("collaboration pushes"), "time entry": N_("time tracking"), "tick": N_("the watchdog loop")}
 AA_SWITCH_LABEL = {"collab_all": N_("Collaboration for everyone"), "time_all": N_("Time tracking for everyone"),
-                   "update_check": N_("Check daily for a new version"), "aa_on": N_("Admin alerts"),
+                   "update_check": N_("Check for a new version every 6 hours"), "aa_on": N_("Admin alerts"),
                    "twofa_required": N_("Require two-factor authentication for built-in sign-ins"),
                    "passkey_login": N_("Allow signing in with a passkey without the password"),
                    "oidc_autocreate": N_("Create accounts on the first OIDC sign-in"), "bk_on": N_("Automatic backups"),
                    "public_links": N_("Public links to projects"),
                    "mcp_remote": N_("Hosted MCP access"),  # 2.488.0 (#3363)
-                   "server_agents": N_("Server agents (run on this server with their own API key)")}  # 2.557.0 (#4670)
+                   "server_agents": N_("Server agents (run on this server with their own API key)"),  # 2.557.0 (#4670)
+                   "org_server_agents": N_("Kalmido AI in this organisation")}  # 2.1409.0 (#6363): aa_org_switch
 _AA_LOCK = threading.Lock()
 _AA = {"q": [], "b": {}, "int": {}, "disk_at": 0.0, "qc_at": 0.0, "storage": {}, "qc": {}}
 
@@ -542,6 +543,13 @@ def aa_switch(c, admin, key, value, cfg=None):
         aa_emit(c, cfg, "security", k, N_("{0} set “{1}” to {2}."), args)
     else:
         aa_now("security", k, N_("{0} set “{1}” to {2}."), args)
+
+
+def aa_org_switch(admin, org_name, key, value):
+    """2.1409.0 (#6363): security alert for a changed switch of an organisation (its admin changed it), like aa_switch with the
+    organisation's name: AA_SWITCH_LABEL[key]."""
+    args = [admin["username"], {"t": AA_SWITCH_LABEL[key]}, org_name, {"t": N_("on|switch") if value else N_("off|switch")}]
+    aa_now("security", f"orgswitch:{key}:{int(bool(value))}:{int(time.time())}", N_("{0} set “{1}” in the organisation {2} to {3}."), args)
 
 
 def _rls_state():
