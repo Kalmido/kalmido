@@ -6758,6 +6758,8 @@ button.lnph:hover{border-color:var(--accent)}
 .ppcard{display:flex;flex-direction:column;gap:.125rem;padding:.5rem .625rem;border:1px solid var(--line2);border-radius:var(--radius);background:var(--bg);cursor:pointer;min-height:2.75rem;user-select:none;transition:transform .15s ease,opacity .15s ease}
 .ppcard:hover,.ppcard:focus-visible{border-color:var(--accent)}
 .ppcard.dragging{opacity:.5}
+/* #7390: the rows of the tab shown last wait dimmed until the new tab's list is there (render.js tabh_held) */
+.tabheld{opacity:.5;pointer-events:none}
 .ppcard.warn{border-left:.1875rem solid var(--danger,#c0392b)}
 @media (max-width:767px){
   .ppseg{display:flex;overflow-x:auto}
