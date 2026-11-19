@@ -19,7 +19,7 @@ function wpState(md, j = md._wp) {
 async function wpDraw(md) {
   const box = $('#s-wp', md); if (!box || !S.webpush?.enabled) return;
   let j;
-  try { j = await api('GET', '/api/push/subs'); } catch { box.innerHTML = `<div class="muted">${tr('Offline: only works again with a connection')}</div>`; return; }
+  try { j = await api('GET', '/api/push/subs'); } catch { box.innerHTML = `<div class="muted">${tr('Only available online.')}</div>`; return; }
   md._wp = j; S.webpush.devices = j.subs.length;
   const sub = await wpSub(), mine = sub && j.subs.find(x => x.endpoint === sub.endpoint);
   const hint = t => `<div class="shint">${t}</div>`;
@@ -1824,7 +1824,7 @@ async function sh_pubKind(md, el, fromHist) {
   try {
     let j; try { j = await rawFetch('PATCH', '/api/admin/settings', {public_links_off: off}); } catch (x) {
       if (x.data?.reauth_needed) { if (!await reauthFresh(x.data)) throw x; j = await api('PATCH', '/api/admin/settings', {public_links_off: off}); } else {  // 2.611.0 (#4019)
-      if (!x.data?.password_needed) { toast(x instanceof Offline ? tr('Offline: only works again with a connection') : x.message); throw x; }
+      if (!x.data?.password_needed) { toast(x instanceof Offline ? tr('Only available online.') : x.message); throw x; }
       const p = await pwPrompt(tr('Confirm with your password')); if (!p) throw x;
       j = await api('PATCH', '/api/admin/settings', {public_links_off: off, password: p.password}); }
     }
@@ -1850,7 +1850,7 @@ async function adminSwitch(md, el, fromHist) {
     const pw = ['twofa_required', 'passkey_login', 'oidc_autocreate', 'public_links', 'mcp_remote'].includes(key);  // 2.488.0 (#3363): + mcp_remote
     let j; try { j = await (pw ? rawFetch : api)('PATCH', '/api/admin/settings', {[key]: on}); } catch (x) {
       if (pw && x.data?.reauth_needed) { if (!await reauthFresh(x.data)) throw x; j = await api('PATCH', '/api/admin/settings', {[key]: on}); } else {  // 2.611.0 (#4019)
-      if (!pw || !x.data?.password_needed) { if (pw) toast(x instanceof Offline ? tr('Offline: only works again with a connection') : x.message); throw x; }
+      if (!pw || !x.data?.password_needed) { if (pw) toast(x instanceof Offline ? tr('Only available online.') : x.message); throw x; }
       const p = await pwPrompt(tr('Confirm with your password')); if (!p) throw x;
       j = await api('PATCH', '/api/admin/settings', {[key]: on, password: p.password}); }
     }

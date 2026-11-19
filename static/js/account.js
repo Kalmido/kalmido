@@ -577,7 +577,7 @@ document.addEventListener('change', async e => {
     const ask = id === 's-signup' || id === 's-spriv' || id === 's-cinv';  // 2.1191.0 (#4550): switching it on asks for the password
     let j; try { j = await (ask ? rawFetch : api)('PATCH', '/api/admin/settings', b); } catch (x) {  // 2.360.0 A (#2496): the mode asks for the password
       if (ask && x.data?.reauth_needed) { if (!await reauthFresh(x.data)) throw x; j = await api('PATCH', '/api/admin/settings', b); } else {  // 2.611.0 (#4019)
-      if (!x.data?.password_needed) { if (ask) toast(x instanceof Offline ? tr('Offline: only works again with a connection') : x.message); throw x; }
+      if (!x.data?.password_needed) { if (ask) toast(x instanceof Offline ? tr('Only available online.') : x.message); throw x; }
       const p = await pwPrompt(tr('Confirm with your password')); if (!p) throw x;
       j = await api('PATCH', '/api/admin/settings', {...b, password: p.password}); }
     }

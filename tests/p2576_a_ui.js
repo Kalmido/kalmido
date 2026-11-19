@@ -122,7 +122,7 @@ const spy = w => {
   // 2.1174.0 (#6120): the dialog only steps aside while it saves and comes back as it was (the same one, no new one): waited
   // for on the said error (the toast) and the dialog shown again
   const toasts = []; { const t0 = w.toast; w.toast = (...a) => { toasts.push(String(a[0])); return t0(...a); }; }
-  // 2.1221.0 (#6245): the offline toast reads 'Only available online.' since #6189 (was 'Offline: only works again ...')
+  // 2.1221.0 (#6245): the offline toast reads 'Only available online.' since #6189 (the old offline sentence is gone, #6196)
   const back = () => until(() => { const m = d.querySelector('.modal.ctmodal'); return toasts.some(t => /Offline|Only available online/.test(t)) && m && m.style.display !== 'none' && !m._saving && m; });
   w.__offline = true;
   click(w, md.querySelector('[data-ctm2="save"]'));

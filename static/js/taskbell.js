@@ -54,7 +54,7 @@ function tbl_paint(tid) {
 }
 async function tbl_req(method, url, body) {
   try { return await rawFetch(method, url, body); } catch (e) {
-    toast(e instanceof Offline ? tr('Offline: only works again with a connection') : e.message || tr('Error'));
+    toast(e instanceof Offline ? tr('Only available online.') : e.message || tr('Error'));
     throw e;
   }
 }
@@ -74,7 +74,7 @@ const tbl_set = (tid, level, until = null) => tbl_change(tid, level === 'urgent'
 
 async function tbl_menu(anchor, tid) {
   const j = await tbl_load(tid);
-  if (!j) { toast(tr('Offline: only works again with a connection')); return; }
+  if (!j) { toast(tr('Only available online.')); return; }
   const m = j.mine, lv = m.level, foreign = lv === 'urgent' && m.set_by && m.set_by !== S.me?.id;
   const items = [isMobile() ? null : {head: tr('Notifications for this task')},  // a phone sheet has it as its title
     {label: tr('As the project'), icon: 'bell', on: lv === 'list', title: tr('Follows the project bell and Settings > Notifications'), fn: () => tbl_set(tid, 'list')},

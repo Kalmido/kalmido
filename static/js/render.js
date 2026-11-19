@@ -2174,7 +2174,7 @@ function qInsert(i, ins) {
 }
 document.addEventListener('mousedown', e => { if (e.target.closest?.('.qhc')) e.preventDefault(); });  // the field keeps the focus (and the phone its keyboard)
 function quickFiles(inp) {
-  if (!OUT.online) { toast(tr('Offline: only works again with a connection')); return; }
+  if (!OUT.online) { toast(tr('Only available online.')); return; }
   let f = $('#qfile');
   if (!f) { f = document.createElement('input'); f.type = 'file'; f.multiple = true; f.id = 'qfile'; f.hidden = true; f.tabIndex = -1; f.setAttribute('aria-hidden', 'true'); document.body.appendChild(f); }
   f.value = '';
