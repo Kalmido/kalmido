@@ -359,6 +359,8 @@ check(A.patch(B + f"/api/orgs/{GORG}", json={"server_agents": True}).ok, "F4: on
 st = until(lambda: (lambda r: r if len(r) == 2 else None)(dbx("SELECT state FROM admin_alerts WHERE key=? ORDER BY id", (K1,))), 15)
 check(st == [("sent",), ("sent",)], f"F4: on - off - on: the 'on' differs from the last delivered 'off' and goes out within the cooldown ({st})")
 check(A.patch(B + f"/api/orgs/{GORG}", json={"server_agents": False}).ok, "F4: the 6th change of the hour")
+st = until(lambda: (lambda r: r if len(r) == 3 else None)(dbx("SELECT state FROM admin_alerts WHERE key=? ORDER BY id", (K0,))), 15)
+check(st == [("capped",), ("sent",), ("sent",)], f"F4: its alert went out before the next section ({st})")
 r = A.patch(B + f"/api/orgs/{GORG}", json={"server_agents": True})
 on = next((o for o in A.get(B + "/api/orgs").json()["orgs"] if o["id"] == GORG), {}).get("server_agents")
 check(r.status_code == 429 and on is False, f"F4: the 7th change of the hour is braked (6 per organisation and person) ({r.status_code} {on})")
