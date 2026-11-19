@@ -54,7 +54,7 @@ RUNNING = ("starting", "running", "paused")
 
 DEFAULTS = {
     "lists": [],              # names or ids of the lists to work off (required)
-    "places": 1,              # jobs of the dispatcher at once
+    "places": 4,              # 2.1383.0 (#5199): the starter's own ceiling; the places themselves = max_parallel (places_of)
     "interval_min": 10,       # minutes between two ticks
     "job_timeout_h": 6,
     "size_field": "Size",     # a field of the list with S / M / L (the first letter counts); a list tag S / M / L works too
@@ -115,6 +115,7 @@ RETIRED = {"worktree": "every job of the dispatcher has its own working copy (br
 BRIEF_DECISION_RX = r"(?m)^[ \t>-]*\*\*([^*\n]{3,})\*\*"
 BRIEF_WHERE_WORDS = r"(?:where|locations|files|fundstellen|emplacements|fichiers|ubicaciones|archivos|posizioni|vindplaatsen|bestanden)"
 BRIEF_WHERE_RX = (r"(?im)^(?:[ \t>*-]*\**\s*" + BRIEF_WHERE_WORDS + r"\s*\**\s*:|[ \t]*#{1,6}[ \t]*" + BRIEF_WHERE_WORDS + r"[ \t:]*$)")
+SLOTS_FULL_RC = 4  # 2.1383.0 (#5199): agent_job.py start exits with it on 409 slots_full (nothing started)
 ID_RE = re.compile(r"(?<![Jj]ob )(?<![\w/])#(\d{1,9})\b")
 # 2.1394.0 (#6176): a file a task names -- only paths ("mcp/agent_dispatch.py:223", "app.py"), never words of a sentence: a
 # path has a folder or a source file ending; links are left out
@@ -193,6 +194,17 @@ def load_config(project_dir):
     if not str(cfg["check_cmd"]).strip():  # 2.1368.0 (#7028): no build without the project's check
         return cfg, "no check_cmd (KALMIDO_DISPATCH_CHECK_CMD in the runner's env file; a job ends only after the project's check)"
     return cfg, ""
+
+
+def places_of(agent, cfg):
+    """2.1383.0 (#5199): the dispatcher's places come from ONE source, the agent's work style in Kalmido (GET /api/v1/agent
+    work_style.max_parallel, Settings > Agents > (agent) > Work style), capped by the starter's own ceiling (places).
+    max_parallel 0 (no limit set) or a server without it = one place. (places, source) -- source "work style" or "default"."""
+    mp = ((agent or {}).get("work_style") or {}).get("max_parallel")
+    cap = max(1, int(cfg["places"]))
+    if isinstance(mp, int) and not isinstance(mp, bool) and mp > 0:
+        return min(mp, cap), "work style"
+    return 1, "default"
 
 
 def mode_of(agent):
@@ -701,7 +713,10 @@ def start_job(bundle, brief, cfg, env, state_dir):
     except (OSError, subprocess.SubprocessError) as ex:
         return None, type(ex).__name__
     m = re.search(r"Job #(\d+)", p.stdout or "")
-    return (int(m.group(1)) if m else None), " ".join((p.stdout or p.stderr or "").split())[:160]
+    msg = " ".join((p.stdout or p.stderr or "").split())[:160]
+    if not m and p.returncode == SLOTS_FULL_RC:  # 2.1383.0 (#5199): 409 slots_full -- all places of the work style are taken
+        return None, "slots_full: " + msg
+    return (int(m.group(1)) if m else None), msg
 
 
 # ---- 2.1368.0 (#7028): the end of a job -- the check, then a pull request with an approval card
@@ -919,7 +934,9 @@ class Dispatcher:
         if int(cfg["stau_max"]) > 0 and jam > int(cfg["stau_max"]):
             res["brakes"].append(f"{jam} built tasks not landed yet (stau_max {int(cfg['stau_max'])})")
         running = [jid for jid in self.reg["jobs"] if (jobs.get(str(jid)) or {}).get("state") in RUNNING]
-        free = int(cfg["places"]) - len(running)
+        places, src = places_of(agent, cfg)  # 2.1383.0 (#5199): from max_parallel of the work style, capped by places
+        res["places"] = places
+        free = places - len(running)
         if free > 0 and not res["brakes"]:
             bundle = cut_bundle(tasks, states, cfg, fids)
             if bundle:
@@ -941,6 +958,11 @@ class Dispatcher:
                         res["started"] = {"tasks": ids, "job": jid}
                         self.save()  # 2.1368.0 (#5198): the started job is in the state before any further write of the round
                         w(f"started job #{jid} for " + " ".join(f"#{i}" for i in ids))
+                    elif msg.startswith("slots_full"):
+                        # 2.1383.0 (#5199): Kalmido refused it (409 slots_full, jobs started elsewhere hold the places):
+                        # only the next build job waits, closing and the guard went on; the next tick tries again
+                        log("job not started: all places of the work style are taken (409 slots_full)")
+                        res["brakes"].append("places taken")
                     else:
                         log(f"job not started: {msg}")
                         res["brakes"].append("job not started")

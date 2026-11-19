@@ -3241,7 +3241,8 @@ mode; `KALMIDO_DISPATCH=off|dry|on` on the computer outranks the switch). No mod
    *stuck*. A running job with no progress line for `stale_h` hours, a stuck task, a one-way task and a branch outside
    `close_ref` for `branch_max_d` days are findings, each told **once** in the person's chat,
 4. close the built tasks: a comment naming the commit, then complete (never a task tagged `keep`),
-5. if a place is free (`places`, default 1) and no brake holds, cut the next bundle and start ONE job with
+5. if a place is free (2.1383.0: `max_parallel` of the agent's work style, capped by `places`, default 4;
+   409 `slots_full` holds only the next build job) and no brake holds, cut the next bundle and start ONE job with
    `agent_job.py start --worktree` (2.1368.0: always its own working copy, branch `job/<id>`). The bundle is the first ready task in priority order
    (`first_tags`, then `title_classes`, then the task's priority, due date, id). With a `group_field` value, all ready tasks of
    that group go together. Otherwise more tasks follow while their sizes fit (`size_field` S / M / L or a list tag S / M / L
@@ -3262,7 +3263,13 @@ day report names the waiting tasks with their blockers, the `--dry-run` output a
 for a commit and a person opened again keeps its bundle: it is *held*, not closed again and not bundled again, and the
 person is told once in the chat. A new commit naming it closes it as usual. Its tries (`max_tries`) also stay when a task
 is closed and opened again.
-**Brief required** (2.1383.0, `brief_required`, default off): when on, a task is *ready* only with a brief - a bold
+**Places** (2.1406.0): the number of jobs at once comes from ONE source, *Max parallel* of the agent's work style in
+Kalmido (`work_style.max_parallel` of `GET /api/v1/agent`), capped by the starter's own ceiling `places` (default 4).
+`max_parallel` 0 (no limit) or an older server = one place. When Kalmido refuses the start with 409 `slots_full` (jobs
+started elsewhere hold the places; `agent_job.py start` then exits with 4), only that next build job waits - closing,
+the guard and every chat run go on, and the next round tries again.
+
+**Brief required** (2.1406.0, `brief_required`, default off): when on, a task is *ready* only with a brief - a bold
 decision line in its description (`**Decision: ...**`), a section *Where* (a line `Where:` / `Fundstellen:` or a heading
 `## Where`, naming the files or places to change) and a size set in `size_field` or as a list tag S / M / L (`size_default`
 does not count). Any other task waits as *needs a brief*; the chat names it once with what is missing. A job then never has

@@ -1055,7 +1055,9 @@ def cmd_start(argv):
         kj = api.req("POST", "/agent/jobs", body)
     except RuntimeError as e:
         print(refused(str(e)) or "the Kalmido job could not be created: " + str(e)[:200])  # 2.392.0 A (#3367)
-        return 1
+        # 2.1383.0 (#5199): exit 4 = 409 slots_full (all places of the work style taken): the dispatcher holds its next build
+        # job until a place is free; nothing else stops
+        return 4 if "HTTP 409" in str(e) and '"slots_full"' in str(e) else 1
     jid = int(kj["id"])
     su = kj.get("user_id")
     if key and tp is None and isinstance(su, int) and not isinstance(su, bool):
