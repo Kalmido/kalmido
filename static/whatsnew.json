@@ -1,6 +1,28 @@
 {
  "versions": [
   {
+   "version": "2.1426.0",
+   "date": "2026-11-19",
+   "items": [
+    {
+     "de": "Die Kalmido-KI arbeitet in einer Organisation nur, wenn ein Admin sie in den Einstellungen der Organisation einschaltet.",
+     "en": "The Kalmido AI works in an organisation only once an admin switches it on in the organisation settings."
+    },
+    {
+     "de": "Wenn ein Export der Organisation oder deines Büros fertig ist oder fehlschlägt, bekommst du eine Neuigkeit.",
+     "en": "When an export of your organisation or office is ready or fails, you get a News item."
+    },
+    {
+     "de": "Beim Umzug einer Organisation lädt deren Admin fehlende Personen direkt aus der Import-Vorschau ein; die Vorschau zeigt, wer gefunden wurde.",
+     "en": "When moving an organisation, its admin invites missing people right from the import preview, which shows who was found."
+    },
+    {
+     "de": "Zusammengeführte Kunden und Kontakte behalten ihre Verknüpfungen, Rückgängig stellt sie wieder her.",
+     "en": "Merged clients and contacts keep their links, and undo restores them."
+    }
+   ]
+  },
+  {
    "version": "2.1420.0",
    "date": "2026-11-19",
    "items": [
@@ -1275,16 +1297,6 @@
     {
      "de": "Beim Umzug deines Kontos kommen deine eigenen Ticket-Typen und Feldvorlagen jetzt mit.",
      "en": "Moving your account now takes your own ticket types and field templates along."
-    }
-   ]
-  },
-  {
-   "version": "2.994.0",
-   "date": "2026-11-11",
-   "items": [
-    {
-     "de": "Projekte der Branche Film & Video haben einen Reiter „Call Sheets“ mit allen Call Sheets und legen neue direkt an.",
-     "en": "Film & Video projects have a \"Call sheets\" tab listing every call sheet and creating new ones right there."
     }
    ]
   }
