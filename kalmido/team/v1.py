@@ -161,7 +161,7 @@ def pkgc_spec(paths, schemas, op, ok, errs, ref, pid, nul, page, q):
                      "without = new; is_default marks the default, else the first). 2.269.0 (#3017): missing ones stay, "
                      "PATCH deletes only the ids in contacts_removed"},
         "note": {"type": "string"}, "rate": num, "budget_h": num, "budget_amount": num,
-        "org_id": nul("integer", description="One of your organisations (default: your first)"), "archived": {"type": "boolean"},
+        "org_id": nul("integer", description="One of your organisations (default: the chosen / only one where Clients is on for you, else private; several such workspaces = 400 code ws_choose with the list)"), "archived": {"type": "boolean"},
         "parent_id": nul("integer", description="#7292: make it a location of this main client (same workspace, one level: the main "
                          "client is no location and this client has no locations itself; null = none)")}}
     cup = {**cin, "properties": {**cin["properties"],  # 2.269.0 C (#3017)

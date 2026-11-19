@@ -50,6 +50,8 @@ const setVal = (w, el, v) => { el.value = v; el.dispatchEvent(new w.Event('input
   setVal(w, md.querySelector('#clb-address_extra'), 'c/o Empfang');
   setVal(w, md.querySelector('#clb-zip'), '8001');
   setVal(w, md.querySelector('#clb-city'), 'Zürich');
+  // (#7298): under "All workspaces" with Clients on in Private and Alpha the new client asks for its workspace
+  if (md.querySelector('#cl-ws')) md.querySelector('#cl-ws').value = 'org:' + ORG;
   md.querySelector('[data-m="save"]').click();
   const C3 = await until(async () => (await call('GET', '/api/clients')).clients.find(c => c.display_name === 'Foo Schweiz'));
   check(C3 && C3.name === 'Foo AG' && C3.billing.address_extra === 'c/o Empfang' && C3.billing.street === 'Bahnhofstrasse 3', 'saved: display name, extra line, street ' + JSON.stringify(C3?.billing || {}).slice(0, 160));

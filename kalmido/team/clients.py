@@ -16,7 +16,8 @@ from ..accounts.orgroles import need_org_write
 from ..core.access import Denied, MANAGE_ROLES, list_role, live_sql, need_feat, tvis, vis_sql, feat_has
 from ..core.errors import BadInput
 from ..core.numtext import server_num
-from ..accounts.orgs import INSTANCE_ENV, user_orgs, is_org_admin, ws_chosen_org  # 2.369.5 (#2517): pulled up from functions
+from ..accounts.orgs import INSTANCE_ENV, user_orgs, is_org_admin, ws_chosen_org, _orgs_w, _org_name  # (#2517): pulled up from functions; (#7298): + _orgs_w, _org_name
+from ..accounts.modcards import mod_ws_on  # (#7298)
 from ..accounts.orgroles import user_orgs_full, is_write_request  # 2.369.5 (#2517): pulled up from functions
 from ..personal.timetrack import time_report  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.supportgrant import sga_org_foreign
@@ -514,10 +515,33 @@ def client_get(cid):
     return jsonify(d)
 
 
+CL_WS_CHOOSE = N_("Clients are switched off for you in {0}. Select the workspace for the new client: {1}.")
+CL_WS_NONE = N_("Clients are switched off for you in every workspace you may add clients to.")
+
+
+def cl_ws_default(c, uid, oid):
+    """(#7298): the workspace of a new client the request did not name. The default (ws_chosen_org: the chosen /
+    only organisation, else Private) only while Clients is on for me there (accounts/modcards.py mod_ws_on, the twin of
+    areas.js mod_spaces): a client in a workspace where the module is off vanishes from the list under "All workspaces".
+    Else the only workspace (Private or an organisation I may add to) where it is on; with several a 400 that names them
+    (code ws_choose, workspaces [{org_id, name}]) - never silently. Agents keep their own workspace; alone (no
+    organisation) nothing changes."""
+    if (g.user["kind"] or "user") == "agent" or not user_orgs(c, uid) or mod_ws_on(c, uid, oid, "office", "clients"):
+        return oid
+    ok = [w for w in [None, *_orgs_w(c, uid)] if not sga_org_foreign(c, w) and mod_ws_on(c, uid, w, "office", "clients")]
+    if len(ok) == 1:
+        return ok[0]
+    if not ok:
+        raise Denied(400, tr(CL_WS_NONE), data={"code": "ws_choose", "workspaces": []})
+    ws = [{"org_id": w, "name": _org_name(c, w)} for w in ok]
+    raise Denied(400, tr(CL_WS_CHOOSE, _org_name(c, oid), ", ".join(x["name"] for x in ws)), data={"code": "ws_choose", "workspaces": ws})
+
+
 @app.post("/api/clients")
 def client_create():
     """{name, icon?, color?, contact?, contacts?, email?, phone?, address?, note?, rate?, budget_h?, budget_amount?, org_id?} -> 201.
-    org_id: one of my organisations (default: the chosen / only one, else private). contacts (2.40.0): [{name, role?, email?, phone?, is_default?}]."""
+    org_id: one of my organisations (default: the chosen / only one, else private; #7298: only where Clients is on
+    for me, else the only such workspace, else a 400 naming them). contacts (2.40.0): [{name, role?, email?, phone?, is_default?}]."""
     c = db()
     uid = me()
     _gate(c)
@@ -526,6 +550,7 @@ def client_create():
         f["org_id"] = ws_chosen_org(c, uid)
         if sga_org_foreign(c, f["org_id"]):  # 2.538.0 (#4365): a support session's new client lands privately
             f["org_id"] = None
+        f["org_id"] = cl_ws_default(c, uid, f["org_id"])  # (#7298): never where Clients is off for me
     cl_bill_strip(c, uid, f.get("org_id"), f)  # (#2735)
     cl_parent_check(c, uid, None, cl_area({"org_id": f.get("org_id"), "created_by": uid}), f.get("parent_id"))  # #7292
     ts = iso(now_utc())

@@ -29,7 +29,7 @@ from ..core.pg import insert_id, write_lock
 from ..core.schema import USER_DEFAULTS
 from .orgs import is_org_admin, user_orgs
 from .session import me
-from .wsareas import WSA_KEY_RE, _req_org, wsa_file_ok
+from .wsareas import WSA_KEY_RE, _req_org, wsa_file_ok, wsa_org_off
 
 # the modules a card can hold: every module of Settings > Modules (family/family.py PM_FULL = the client's FEATS, in that
 # order) + the documents. A copy: accounts is a layer below the areas (tools/check_layers.py); tests/p2575_a_api_test.py
@@ -155,6 +155,29 @@ def mc_private_office_off(c, uid):
     except (ValueError, AttributeError):
         return False
     return isinstance(off, list) and "office" in off
+
+
+def mod_ws_on(c, uid, oid, area, feat):
+    """(#7298): is module feat (area = its area of WSA_AREAS, None for one without) on for person uid in workspace
+    oid (None = Private)? The server's twin of areas.js mod_spaces / mod_entryOn (docs/dev/kern.md, #6722): off when the
+    organisation's admins switched the area off (orgs.areas_off), when I switched the area off there (ws_areas_off) or the
+    module (ws_mods_off), or when it is outside my card's cap. For what lands somewhere without the person naming the
+    workspace: it must never land where the list under "All workspaces" hides it."""
+    key = "org:%d" % oid if oid else "private"
+    st = usettings(c, uid)
+
+    def off(name):
+        try:
+            v = json.loads(st.get(name) or "{}").get(key) or []
+        except (ValueError, AttributeError):
+            return []
+        return v if isinstance(v, list) else []
+    if area and (area in off("ws_areas_off") or (oid and area in wsa_org_off(c, oid))):
+        return False
+    if feat in off("ws_mods_off"):
+        return False
+    cap = mc_cap(c, uid, oid) if oid else None
+    return cap is None or feat not in mc_mods() or feat in cap
 
 
 def mc_check(c, uid, oid, mod):
