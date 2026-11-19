@@ -116,8 +116,15 @@ out({"type": "result", "subtype": "success", "is_error": False, "result": "All b
 ''')
 os.chmod(FAKE, os.stat(FAKE).st_mode | stat.S_IEXEC)
 EV = os.path.join(TMP, "ev.jsonl")
+# (#7217): a team agent starts a run only with a request token of the run's real events (#6668): Alice really asks the agent,
+# and ev.jsonl carries that event as GET /agent/events gives it (with its seq) - the rule "no run without a request token" stays
+check(A.post(B + f"/api/agents/{AID}/chat", json={"body": "How are the builds?"}).ok, "launcher: set-up: Alice asks the agent")
+ev = [e for e in requests.get(B + "/api/v1/agent/events", params={"since": 0, "limit": 500}, headers=AH).json().get("data") or []
+      if e.get("event") == "chat" and ((e.get("data") or {}).get("message") or {}).get("body") == "How are the builds?"]
+check(len(ev) == 1 and isinstance(ev[0].get("seq"), int), "launcher: set-up: the chat event with its seq " + json.dumps(ev)[:300])
 with open(EV, "w") as f:
-    f.write(json.dumps({"event": "chat", "data": {"user": {"id": ALICE, "name": "Alice"}, "message": {"id": 1, "body": "How are the builds?"}}}) + "\n")
+    f.write(json.dumps(ev[0] if ev else {"event": "chat", "data": {"user": {"id": ALICE, "name": "Alice"},
+                                                                   "message": {"id": 1, "body": "How are the builds?"}}}) + "\n")
 before = max(m["id"] for m in A.get(B + f"/api/agents/{AID}/chat?limit=30").json()["messages"])
 env = {**os.environ, "KALMIDO_URL": B, "KALMIDO_TOKEN": TOKEN, "KALMIDO_APPROVAL_CHECK": "0"}
 r = subprocess.run([sys.executable, os.path.join(MCP, "agent_run.py"), "--state", os.path.join(TMP, "st"), "--once-event", EV, "--", FAKE],
