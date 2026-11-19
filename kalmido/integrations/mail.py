@@ -315,7 +315,9 @@ def mail_target(c, msg):
 # A delivery report comes back to the envelope sender (the instance address, or a workspace's own mailbox): mail_bounce_take
 # finds the Message-ID of the mail it reports on and hands it to the areas that keep one (mail_bounce_hooks); a report no
 # area knows is counted for the instance admins' alert (kind "integration", key "bounce"); the areas: mail_bounce_hooks.
-_DSN_MID_RE = re.compile(r"^\s*Message-ID:\s*(<[^<>\s]{1,290}>)", re.I | re.M)
+# [ \t] not \s: with re.M a \s* runs over line ends and many blank lines make the search quadratic (reader F1 of job/5778)
+_DSN_MID_RE = re.compile(r"^[ \t]*Message-ID:[ \t]*(<[^<>\s]{1,290}>)", re.I | re.M)
+_DSN_SCAN = 65536  # the part of a returned header block or text a Message-ID is looked for in (it sits near the top)
 _DSN_CODE_RE = re.compile(r"\b([245])\.(\d{1,3})\.(\d{1,3})\b")
 
 
@@ -335,13 +337,14 @@ def _dsn_fields(part):
 def mail_bounce(msg):
     """A delivery report -> {mid, code, failed}, else None. mid = the Message-ID of the mail it reports on (from the returned
     message or its headers, else the report's own In-Reply-To), code = the status of the first failed recipient ('5.1.1',
-    '' unknown), failed = a recipient failed for good (Action failed); a report only of a delay or a delivery is not.
+    '' unknown), failed = a recipient failed for good (Action failed); a report only of a delay or a delivery is not;
+    dsn = it has a delivery-status part (a real report, not only a mailer-daemon's text or another report).
     A mailer-daemon's plain text report (no delivery-status part) counts as failed with the Message-ID found in its text."""
     if mail_auto(msg) != "report":
         return None
     if msg.get_content_type() == "multipart/report" and str(msg.get_param("report-type") or "").lower() not in (
             "delivery-status", "global-delivery-status"):
-        return {"mid": "", "code": "", "failed": False}  # a read receipt (disposition-notification) or another report: no bounce
+        return {"mid": "", "code": "", "failed": False, "dsn": False}  # a read receipt (disposition-notification) or another report: no bounce
     mid, code, failed, dsn = "", "", False, False
     for part in msg.walk():
         ct = part.get_content_type()
@@ -363,7 +366,7 @@ def mail_bounce(msg):
                 head = part.get_content()
             except (ValueError, LookupError, TypeError, AttributeError, KeyError):  # unreadable headers: the Message-ID is looked for elsewhere
                 head = ""
-            m = _DSN_MID_RE.search(head if isinstance(head, str) else "")
+            m = _DSN_MID_RE.search(head[:_DSN_SCAN] if isinstance(head, str) else "")
             mid = m.group(1) if m else ""
     if not mid:
         mid = str(msg.get("In-Reply-To", "") or "").strip()
@@ -371,12 +374,12 @@ def mail_bounce(msg):
         failed = True
         text, _files = mail_text(msg, 200_000)
         if not mid:
-            m = _DSN_MID_RE.search(text)
+            m = _DSN_MID_RE.search(text[:_DSN_SCAN])
             mid = m.group(1) if m else ""
-        m = _DSN_CODE_RE.search(text)
+        m = _DSN_CODE_RE.search(text[:_DSN_SCAN])
         code = ".".join(m.groups()) if m and m.group(1) == "5" else ""
     mid = mid if re.fullmatch(r"<[^<>\s]{1,290}>", mid or "") else ""
-    return {"mid": mid, "code": code, "failed": failed}
+    return {"mid": mid, "code": code, "failed": failed, "dsn": dsn}
 
 
 def mail_bounce_hooks():
@@ -392,7 +395,8 @@ def mail_bounce_hooks():
 def mail_bounce_take(c, msg, scope=None):
     """None = msg is no delivery report (the importers go on). scope None = the instance mailbox (any mail sent through the
     instance's server): a report is always handled (True): its mail marked by the area that keeps its Message-ID, or counted for
-    the instance admins when none does; a report of a delay only or a read receipt is dropped. scope (org id or None, ws) = a
+    the instance admins when none does (only a report with a delivery-status part); a report of a delay only is dropped; a
+    read receipt or a mailer-daemon text that marked nothing goes on to the importers (None). scope (org id or None, ws) = a
     workspace's own mailbox: True when it marked a mail Kalmido sent (the report is not filed), else False (the report of a mail
     the people sent from their own mail program: filed as before, never counted for the instance). Commits what it marked."""
     b = mail_bounce(msg)
@@ -410,7 +414,12 @@ def mail_bounce_take(c, msg, scope=None):
         if hit:
             c.commit()
         return hit
-    if b["failed"] and not hit:
+    if hit:
+        c.commit()
+        return True
+    if not b["dsn"]:  # a read receipt, an abuse report, a text from a postmaster address: the importers decide (reader F4 of job/5778)
+        return None
+    if b["failed"]:  # only a real delivery report counts for the alarm, never a mail that only looks like one
         print("mail: a bounce without its sent mail", flush=True)  # no address, no subject
         aa_count("integration", "bounce", "instance")
     c.commit()

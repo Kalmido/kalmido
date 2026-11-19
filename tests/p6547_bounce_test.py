@@ -128,7 +128,7 @@ kt.proved()
 S1 = {"dsn": dsn("<orig1@example.test>"), "dsn2": dsn("<orig2@example.test>", headers=False, status="5.7.1"),
       "delay": dsn("<orig3@example.test>", action="delayed", status="4.4.1")}
 r1 = py("S1 = " + repr(S1) + r'''
-import json, email
+import json, email, time
 from email import policy
 from kalmido.integrations import mail as M
 def m(s):
@@ -145,16 +145,18 @@ mdn = m('From: kim@example.com\nContent-Type: multipart/report; report-type=disp
 print(json.dumps({"auto": [M.mail_auto(x) for x in (person, ooo, ooo2, news_, gen, no, daemon, dsn)],
                   "b": [M.mail_bounce(x) for x in (person, dsn, dsn2, delay, mdn, daemon)],
                   "why": [M.mail_bounce_why(x, lg="en") for x in ("5.1.1", "5.2.2", "5.7.1", "5.4.4", "5.3.0", "")],
+                  "slow": (lambda t0: (M.mail_bounce(m(S1["dsn"].replace("Content-Type: text/rfc822-headers\n\n", "Content-Type: text/rfc822-headers\n\n" + "\r\n " * 20000, 1))), time.monotonic() - t0)[1])(time.monotonic()),
                   "hdr": [str(M.mail_message("x@example.com", "s", "t").get("Auto-Submitted")), str(M.mail_message("x@example.com", "s", "t", auto=False).get("Auto-Submitted"))]}))
 ''')
+check(isinstance(r1.get("slow"), (int, float)) and r1["slow"] < 2, f"1: 20,000 blank header lines are read in linear time (reader F1 of job/5778) {r1.get('slow')}")
 check(r1.get("auto") == ["", "reply", "reply", "auto", "auto", "", "report", "report"], f"1: mail_auto {r1.get('auto')}")
 b = r1.get("b") or [None] * 6
 check(b[0] is None, f"1: a person's mail is no report {b[0]}")
-check(b[1] == {"mid": "<orig1@example.test>", "code": "5.1.1", "failed": True}, f"1: DSN with text/rfc822-headers {b[1]}")
-check(b[2] == {"mid": "<orig2@example.test>", "code": "5.7.1", "failed": True}, f"1: DSN with message/rfc822 {b[2]}")
+check(b[1] == {"mid": "<orig1@example.test>", "code": "5.1.1", "failed": True, "dsn": True}, f"1: DSN with text/rfc822-headers {b[1]}")
+check(b[2] == {"mid": "<orig2@example.test>", "code": "5.7.1", "failed": True, "dsn": True}, f"1: DSN with message/rfc822 {b[2]}")
 check(b[3] and b[3]["mid"] == "<orig3@example.test>" and not b[3]["failed"], f"1: a delay is not failed {b[3]}")
-check(b[4] == {"mid": "", "code": "", "failed": False}, f"1: a read receipt is no bounce {b[4]}")
-check(b[5] == {"mid": "<q1@example.test>", "code": "5.2.2", "failed": True}, f"1: a mailer-daemon text report {b[5]}")
+check(b[4] == {"mid": "", "code": "", "failed": False, "dsn": False}, f"1: a read receipt is no bounce {b[4]}")
+check(b[5] == {"mid": "<q1@example.test>", "code": "5.2.2", "failed": True, "dsn": False}, f"1: a mailer-daemon text report {b[5]}")
 check(r1.get("why") == ["the address does not exist (5.1.1)", "the mailbox is full (5.2.2)",
                         "the receiving server refused the e-mail (sender check or spam filter) (5.7.1)",
                         "the domain of the address takes no e-mail (5.4.4)", "the receiving server returned it (5.3.0)",
@@ -227,7 +229,9 @@ j = mail_in(dsn(mid, action="delayed", status="4.4.1"))
 check(j.get("drop") and A.get(B + f"{D}/{DA}").json().get("mail", {}).get("state") == "sent", f"4: a delay changes nothing, dropped {j}")
 j = mail_in('From: kunde@example.com\nTo: kalmido@example.test\nMessage-ID: <mdn1@example.com>\nContent-Type: multipart/report; report-type=disposition-notification; boundary="X"\n\n'
             '--X\nContent-Type: text/plain\n\nRead\n--X\nContent-Type: message/disposition-notification\n\nDisposition: manual-action/MDN-sent-manually; displayed\n--X--\n')
-check(j.get("drop") and j.get("unmatched") == 0, f"4: a read receipt is dropped, not counted {j}")
+check(j.get("unmatched") == 0, f"4: a read receipt is not counted (the importers decide, reader F4 of job/5778) {j}")
+j = mail_in("From: postmaster@example.com\nTo: kalmido@example.test\nMessage-ID: <pm1@example.com>\nSubject: Abuse report\n\nSomething about <nobody@example.test>\n")
+check(j.get("unmatched") == 0, f"4: a postmaster's text without a delivery-status part is never counted for the alert {j}")
 j = mail_in(dsn("<nobody-knows@example.test>"))
 check(j.get("drop") and j.get("unmatched") == 1, f"4: a report no mail matches: dropped and counted for the alert {j}")
 
@@ -307,5 +311,31 @@ check(r8.get("other_ws") is False and r8.get("own_ws") is True and r8.get("insta
 check(r8.get("rows") == [["bounced", "Not delivered: the address does not exist (5.1.1)"], ["bounced", "Not delivered: the receiving server returned it"]],
       f"8: hub: send_state bounced, the reason as the note {r8.get('rows')}")
 check(len(news(FID, "mail_bounced_hub")) == 2, f"8: hub: the sender hears it {news(FID, 'mail_bounced_hub')}")
+
+# ---------------------------------------------------------------- 9. a workspace's own mailbox marks only its own office (reader F3 of job/5778)
+r9 = py(r'''
+import json
+from kalmido.core.db import connect
+from kalmido.core.pg import system_ctx
+from kalmido.office.mailstate import oms_bounce, oms_in_scope
+from kalmido.office.lettermail import ltm_bounce
+c = connect()
+out = {}
+try:
+    with system_ctx(c):
+        oid, mid = c.execute("SELECT org_id, mail_msg_id FROM office_docs WHERE id=?", (%(da)d,)).fetchone()
+        out["own"] = oms_in_scope(c, oid, (oid, "o%%d" %% oid))
+        out["inst"] = oms_in_scope(c, oid, None)
+        out["other_org"] = oms_in_scope(c, oid, (999999, "o999999"))
+        out["person"] = oms_in_scope(c, oid, (None, "u%(fid)d"))
+        out["doc_other"] = oms_bounce(c, mid, "5.1.1", (999999, "o999999"))
+        out["letter_other"] = ltm_bounce(c, mid, "5.1.1", (999999, "o999999"))
+    c.rollback()
+finally:
+    c.close()
+print(json.dumps(out))
+''' % {"da": DA, "fid": FID})
+check(r9.get("own") is True and r9.get("inst") is True and r9.get("other_org") is False and r9.get("person") is False, f"9: scope of a report {r9}")
+check(r9.get("doc_other") is False and r9.get("letter_other") is False, f"9: another organisation's mailbox never marks this office's document or letter {r9}")
 
 sys.exit(kt.done("p6547_bounce"))

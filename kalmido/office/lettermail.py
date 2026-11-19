@@ -261,9 +261,12 @@ def ltm_send_post(lid):
 # ---------------------------------------------------------------- the answer comes back
 def ltm_bounce(c, mid, code, scope):
     """(#6547, integrations/mail.py mail_bounce_hooks): the letters mailed with Message-ID mid came back: mail_state 'bounced'
-    with the reason's code and the time, a line in the office log, and the person who sent it hears it (News + push). Any
-    mailbox (scope): the Message-ID is known only to the sender and the recipient. True when one was found."""
-    rows = c.execute("SELECT id, org_id, letter_date, mail_state, created_by FROM office_letters WHERE msg_id=?", (mid,)).fetchall()
+    with the reason's code and the time, a line in the office log, and the person who sent it hears it (News + push). The
+    instance mailbox: any (the Message-ID is known only to the sender and the recipient); a workspace's own: its office's only.
+    True when one was found."""
+    from .mailstate import oms_in_scope
+    rows = [r for r in c.execute("SELECT id, org_id, letter_date, mail_state, created_by FROM office_letters WHERE msg_id=?", (mid,)).fetchall()
+            if oms_in_scope(c, r["org_id"], scope)]  # a workspace's own mailbox: only its own office's letters (reader F3 of job/5778)
     for r in rows:
         c.execute("UPDATE office_letters SET mail_state='bounced', mail_why=?, mail_at=? WHERE id=?", (code or "?", iso(now_utc()), r["id"]))
         if r["mail_state"] == "bounced":
