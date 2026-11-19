@@ -338,7 +338,10 @@ def split_link(title, content=""):
 
 def save_attachment_bytes(c, tid, name, mime, data, owner=None, anon=False):
     """2.1337.0 (#6651): anon = the file came from a source a stranger can fill (a public form, a mail): its text recognition
-    gets the shorter clock (files/textscan.py ts_mark_anon)."""
+    gets the shorter clock (files/textscan.py ts_mark_anon).
+    #6531: -> None when the file was filed, else why it was left out: "quota" (the storage is full), "virus" (the virus
+    scanner refused it), "lock" (the list is encrypted in the browser), "denied" (the space refused it). A file left out
+    never goes silently: mail_files_save / att_skip_note make it a note on the task and a News item for the owner."""
     from ..tasks.attachments import safe_name
     from ..notify.alerts import aa_count, aa_oserr
     from ..admin.hosting import quota_fits
@@ -347,7 +350,7 @@ def save_attachment_bytes(c, tid, name, mime, data, owner=None, anon=False):
     from ..collab.liste2efile import le2f_plain_skip
     if le2f_plain_skip(c, tid):  # 2.64.2 B (#1817): no plain file in a list with the lock
         print("share / mail file skipped: list encrypted in the browser", flush=True)
-        return
+        return "lock"
     who = c.execute("SELECT created_by FROM tasks WHERE id=?", (tid,)).fetchone()
     who = who[0] if who else None
     if owner is not None:  # 2.63.0 (#1513): a form's file without an account counts against the list owner's storage
@@ -358,10 +361,10 @@ def save_attachment_bytes(c, tid, name, mime, data, owner=None, anon=False):
         data, mime, info = up_check(c, name, data, mime, who, org, "att")
     except UploadRefused as e:
         print("share / mail file skipped:", e, flush=True)
-        return
+        return "virus"
     if not quota_fits(c, who, len(data)):  # 2.24.0 (#910): storage full -> the task comes without the file (never an error)
         print("share / mail file skipped: storage quota of user", who, "reached", flush=True)
-        return
+        return "quota"
     rel = os.path.join(str(tid), f"{uuid.uuid4().hex[:12]}-{name}")
     try:
         os.makedirs(os.path.join(ATT_DIR, str(tid)), exist_ok=True)
@@ -378,11 +381,68 @@ def save_attachment_bytes(c, tid, name, mime, data, owner=None, anon=False):
             os.remove(os.path.join(ATT_DIR, rel))
         except OSError:
             pass
-        return
+        return "denied"
     # 2.1391.0 (#6906): outside = the name came from a mail / a public form (user_id only says whose storage it counts against)
     aid = insert_id(c, "INSERT INTO attachments(task_id,name,mime,size,path,created_at,user_id,outside) VALUES(?,?,?,?,?,?,?,?)",
                     (tid, name, mime, len(data), rel, iso(now_utc()), who, 1 if anon else 0))
     up_after_store(c, "att", aid, org, {**(info or {}), "anon": True} if anon else info)  # 2.1337.0 (#6651)
+    return None
+
+
+# #6531: why a file was left out, in the words of the note on the task (core/pages.py save_attachment_bytes)
+ATT_SKIP_WHY = {"quota": N_("the storage is full"), "virus": N_("the virus scanner refused it"),
+                "lock": N_("the list is encrypted in the browser"), "denied": N_("it was refused")}
+
+
+def mail_files_save(c, tid, files, cap, owner=None, rename=None):
+    """#6531: the files of a mail (or a form) as files of task tid -> (whole, skipped, top). whole = every file was filed
+    (False: more than cap files, one too large, one not written, or one left out: the mail stays in the mailbox, MailKept);
+    skipped = [(name, why)] of the files save_attachment_bytes left out (att_skip_note writes them on the task);
+    top = the highest file id of the task before (a reply's caller hangs the new files on its comment: id > top)."""
+    top = c.execute("SELECT COALESCE(MAX(id),0) FROM attachments WHERE task_id=?", (tid,)).fetchone()[0]
+    whole, skipped = len(files) <= cap, []
+    for name, mime, data in files[:cap]:
+        if 0 < len(data) <= MAX_FILE_MB * 1024 * 1024:
+            try:
+                why = save_attachment_bytes(c, tid, rename(name) if rename else name, mime, data, owner=owner, anon=True)  # (#6651): from outside
+            except OSError:
+                whole = False
+                break
+            if why:
+                skipped.append((name, why))
+                whole = False
+        elif data:
+            whole = False
+    return whole, skipped, top
+
+
+def att_skip_note(c, tid, skipped, owner=None, lg=None):
+    """#6531: the files left out of task tid as a visible note -> the text ("" when none); the owner (whose storage the
+    files count against: owner, else the task's creator) gets a News item "attskip" (row "limits", on by default). The
+    caller puts the text into the task's description or the reply's comment and commits."""
+    if not skipped:
+        return ""
+    who = owner
+    if who is None:
+        r = c.execute("SELECT created_by FROM tasks WHERE id=?", (tid,)).fetchone()
+        who = r[0] if r else None
+    lg = lg or (lang(c, who) if who else "en")
+    text = "\n".join("— " + tr("File not filed: {0} ({1})", n, tr(ATT_SKIP_WHY.get(w, ATT_SKIP_WHY["denied"]), lg=lg), lg=lg)
+                     for n, w in skipped)
+    if who:  # (s given: about the person's own storage, also without the collaboration module, like "ptlimit")
+        from ..collab.news import news_add
+        from ..core.db import usettings
+        news_add(c, who, "attskip", task_id=tid, actor=0, s=usettings(c, who),
+                 data={"names": [n[:120] for n, _w in skipped[:5]], "n": len(skipped), "why": skipped[0][1]})
+    return text
+
+
+def att_skip_task(c, tid, skipped, owner=None):
+    """#6531: att_skip_note's text appended to the description of task tid (a task made from a mail / a form)."""
+    text = att_skip_note(c, tid, skipped, owner)
+    if text:
+        r = c.execute("SELECT content FROM tasks WHERE id=?", (tid,)).fetchone()
+        c.execute("UPDATE tasks SET content=? WHERE id=?", (((r[0] if r else "") or "").rstrip() + "\n\n" + text, tid))
 
 
 def h6a_share_origin_ok():

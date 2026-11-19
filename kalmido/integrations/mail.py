@@ -16,7 +16,7 @@ import time
 from datetime import date, timedelta
 from flask import g, jsonify, request
 
-from ..core.config import app, APP_NAME, MAX_FILE_MB, PUBLIC_URL
+from ..core.config import app, APP_NAME, PUBLIC_URL
 from ..core.pg import system_ctx, table_exists
 from ..tasks.repo import task_insert  # 2.1358.0 (#6825): the one way into tasks
 from ..core.i18n import browser_lang, lang, md_plain, tr, trn
@@ -27,7 +27,7 @@ from ..accounts.session import GATE, me
 from ..accounts.mailtok import mtk_new, mtk_plain, mtk_where  # 2.674.0 (#4382 finding 5)
 from ..accounts.bgjobs import bgj_fn
 from ..core.access import list_role, need_list, vis_sql, WRITE_ROLES, list_state_sql
-from ..core.pages import new_inbox_task, save_attachment_bytes, split_link, valid_url
+from ..core.pages import att_skip_task, mail_files_save, new_inbox_task, split_link, valid_url
 from ..tasks.validation import as_int, log_act
 from ..collab.news import news_unread
 from ..collab.integfail import integ_backoff_s, integ_tell  # 2.1269 (#6386), 2.1333.0 (#6545)
@@ -401,16 +401,8 @@ def _mail_import(c, raw, pre=None):
         MAIL_TASK_HOOK["keep"](c, tid, mid, email.utils.parseaddr(sender)[1].strip().lower(), "src")  # 2.393.2 F: review 2
     if eml is not None:
         files = [((subj[:60].replace("/", "-").strip() or "mail") + ".eml", "message/rfc822", eml)] + files
-    whole = len(files) <= 20
-    for name, mime, data in files[:20]:
-        if 0 < len(data) <= MAX_FILE_MB * 1024 * 1024:
-            try:
-                save_attachment_bytes(c, tid, name, mime, data, anon=True)  # 2.1337.0 (#6651): from a mail
-            except OSError:
-                whole = False
-                break
-        elif data:
-            whole = False
+    whole, skipped, _top = mail_files_save(c, tid, files, 20)  # #6531: a file left out keeps the mail and is noted
+    att_skip_task(c, tid, skipped)
     bump(c)
     c.commit()
     return tid if whole else MailKept(tid)

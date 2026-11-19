@@ -547,13 +547,17 @@ def docs_mail_import(c, msg, raw, pre=None):
             if dest:
                 fixed["folder"] = str(dest)
         budget = (lambda kind, n=1: ml_budget(c, r["token"], kind, n)) if r else None
-        cut = []
+        cut, left = [], []
         first, _made = _docs_mail_into(c, msg, raw, uid, org, sort=sort, letter=letter, budget=budget, pre=pre,
-                                       meta_add=fixed, parent_id=dest, cut=cut)
+                                       meta_add=fixed, parent_id=dest, cut=cut, left=left)
+        if left:  # #6531: a file the storage refused (full, virus) never goes silently: News for the person, the mail stays
+            from ..collab.news import news_add
+            from ..core.db import usettings
+            news_add(c, uid, "attskip", actor=0, s=usettings(c, uid), data={"names": [n[:120] for n, _k in left[:5]], "n": len(left), "why": left[0][1]})
     c.commit()
     if first:
         docs_kick()
-    if first and cut:  # 2.1281.0 (#6425): the budget of one mail left files out: the mail stays in the mailbox (not deleted)
+    if first and (cut or left):  # 2.1281.0 (#6425): the budget of one mail left files out: the mail stays in the mailbox (not deleted)
         return DocsMailKept(first)
     return first
 
@@ -564,7 +568,7 @@ def _mail_mid(msg, raw):
 
 
 def _docs_mail_into(c, msg, raw, uid, org, sort=None, letter=None, budget=None, pre=None, take_files=True, take_mail=False,
-                    meta_add=None, parent_id=None, source="mail", why=None, cut=None):
+                    meta_add=None, parent_id=None, source="mail", why=None, cut=None, left=None):
     """2.581.0 (#4804): the one documents input of a mail (pulled out of docs_mail_import, unchanged for the document address):
     its files (ZIP / winmail unpacked, e-invoice XML, images as files), else its invoice links, else the mail itself; the same
     bytes / the same ext_id already in the workspace are linked, not stored twice. Called inside system_ctx; the caller commits.
@@ -573,8 +577,10 @@ def _docs_mail_into(c, msg, raw, uid, org, sort=None, letter=None, budget=None, 
     too; meta_add = given fields for every document (tags, sender); parent_id = a target folder (fs_put checks uid's right);
     source = doc_meta.source ("mail", "mailbox"); why = a list that gets the kind of every refusal ("ValueError", "Denied",
     "QuotaExceeded"; 2.636.0 #4853); cut = a list that gets an entry for every file the budget of one mail left out
-    (2.1281.0 #6425, _mail_parts). -> (first node id or 0, [node ids])."""
+    (2.1281.0 #6425, _mail_parts); left = a list that gets (name, "quota" / "virus" / "denied") for every file the
+    storage refused (#6531: the caller keeps the mail and tells the owner). -> (first node id or 0, [node ids])."""
     from ..admin.hosting import QuotaExceeded
+    from ..files.upsafe import UploadRefused
     _toks, mail_text, ei_is = _mail_toks(msg)
     mid = _mail_mid(msg, raw)
     add = dict(meta_add or {})
@@ -590,6 +596,10 @@ def _docs_mail_into(c, msg, raw, uid, org, sort=None, letter=None, budget=None, 
             print("docs: mail document refused", type(e).__name__, flush=True)
             if why is not None:
                 why.append(type(e).__name__)
+            kind = "quota" if isinstance(e, QuotaExceeded) else "virus" if isinstance(e, UploadRefused) else \
+                "denied" if isinstance(e, Denied) else None  # (a ValueError of the file itself: unreadable, no document)
+            if left is not None and kind:
+                left.append((name, kind))
             return 0
     _text, files = mail_text(msg, att_images=True)
     made, cand, eml_done = [], False, False

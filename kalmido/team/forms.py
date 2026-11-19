@@ -30,7 +30,7 @@ from ..accounts.orgroles import user_orgs_full  # 2.369.5 (#2517): pulled up fro
 from ..tasks.dependencies import newtask_events  # 2.369.5 (#2517): pulled up from functions
 from ..collab.liste2eguard import LE2B_OFF_MSG, le2b_list_locked  # 2.369.5 (#2517): pulled up from functions
 from ..tasks.attachments import safe_name, unexec_name  # 2.369.5 (#2517): pulled up from functions
-from ..core.pages import save_attachment_bytes  # 2.369.5 (#2517): pulled up from functions
+from ..core.pages import att_skip_task, save_attachment_bytes  # 2.369.5 (#2517): pulled up from functions
 from ..lists.public import PUB_ACTOR  # 2.369.5 (#2517): pulled up from functions
 
 
@@ -523,12 +523,16 @@ def form_send(token):
     tid = task_insert(c, uid, lid, section_id=sec, title=subject, content=content, ts=ts, ttype=f["ttype"] or "")  # 2.1358.0 (#6825): on top (sort TOP)
     task_mark_origin(c, tid, "form")  # 2.1269.0 (#6431): text from outside, on the task before the tidy / added events
     c.execute("UPDATE forms SET count=count+1, last_at=? WHERE id=?", (ts, f["id"]))
+    fowner, skipped = None if uid else f["l_owner"], []
     if upload:
-        save_attachment_bytes(c, tid, *upload, owner=None if uid else f["l_owner"], anon=True)  # 2.1337.0 (#6651): a public form
+        if why := save_attachment_bytes(c, tid, *upload, owner=fowner, anon=True):  # 2.1337.0 (#6651): a public form
+            skipped.append((upload[0], why))
     if qs:  # 2.98.0 B (#1954): the answers for the evaluation, the files as attachments (sealed, scanned, counted)
         fq_entry_save(c, tid, f, cid, sender if g.user or name else "", email if not g.user else "", answers, typed)
         for up in q_ups:
-            save_attachment_bytes(c, tid, *up, owner=None if uid else f["l_owner"], anon=True)  # 2.1337.0 (#6651)
+            if why := save_attachment_bytes(c, tid, *up, owner=fowner, anon=True):  # 2.1337.0 (#6651)
+                skipped.append((up[0], why))
+    att_skip_task(c, tid, skipped, owner=fowner)  # #6531: a file left out is a note on the task and News for its owner
     status_url = ""
     if portal:  # 2.63.0 (#1513): the report becomes a ticket with a status link (team/portal.py)
         from .portal import pt_create, pt_mail_url, pt_status_url

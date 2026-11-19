@@ -336,6 +336,9 @@ function newsText(it, U) {
     case 'usage': return aiuNewsText(d);  // 2.1.1 (#326)
     case 'proposal': return tr('{0} has a proposal for you: {1}', d.assistant ? q(tr('Assistant')) : who, q(d.title || ''));  // 2.3.0; 2.75.0 (#1411): the built-in assistant has no person
     case 'upscan': return tr('The virus scanner found {0} in your file {1}. The file is locked.', esc(d.sig || '?'), q(d.name || ''));  // 2.61.0 (#1818)
+    case 'attskip': return trn('{0} file was not filed ({1}): {2}', '{0} files were not filed ({1}): {2}', d.n || 1,
+      esc(({quota: tr('the storage is full'), virus: tr('the virus scanner refused it'), lock: tr('the list is encrypted in the browser')})[d.why] || tr('it was refused')),
+      (d.names || []).map(n => q(n)).join(', '));  // #6531: core/pages.py att_skip_note, the mail stays in the mailbox
     case 'filereq': { const d = it.data || {}; return trn('{0} file arrived through {1}', '{0} files arrived through {1}', d.n || 1, q(d.title || '')) + (d.name ? ' · ' + q(d.name) : ''); }  // 2.122.0 A (#2097)
     case 'integfail': return esc(d.text || '') + (d.what === 'mailbox' || d.what === 'git' || d.what === 'hookin' ? ' ' + esc(tr('Check the connection in the settings, or remove it.')) : '');  // 2.1111.0 (#5963): the way to the solution  // 2.367.3 (#2971): written in the person's language by the server (collab/integfail.py)
     case 'fetcherr': return tr('Receipt fetcher {0}: {1}', q(d.portal || ''), esc(d.error || ''));  // 2.425.0 C (#3453): docfetch.js
