@@ -27,7 +27,7 @@ from .acctimport import umz_legacy_aad  # 2.362.0 (#3090)
 from ..life.rss import _norm, RSS_MAX_FEEDS  # 2.455.0 (#3469)
 from ..lists.rules import RUL_ACTIONS, RUL_DAYS_MAX, RUL_LIST_MAX, RUL_NAME_MAX, RUL_PRIO, RUL_TEXT_MAX, RUL_TRIGGERS  # 2.455.0 (#3469)
 from ..lists.rules import RUL_ACT_MAX, rul_due_off  # 2.637.0 (#4768)
-from .acctimport import umz_mentions  # 2.362.4 (#3100)
+from .acctimport import umz_mentions, umz_task_refs  # 2.362.4 (#3100); 2.1444 (#6584): umz_task_refs
 from ..core.orgcrypt import FIELDS  # 2.363.4 (#3127)
 from ..hub.hubmail import hbm_seal  # 2.363.4 (#3127)
 from ..hub.hubmail import _index  # 2.369.5 (#2517): pulled up from functions
@@ -189,8 +189,8 @@ def _chat_file(c, run, src, d, ctx):
 def _msg(c, run, src, d, ctx):
     if _txt(src.get("enc"), 10):
         run.warning(N_("Chat messages encrypted in the browser were imported as they are: they open with the keys of their channel."))
-    elif d.get("body"):  # 2.362.4 (#3100)
-        d["body"] = umz_mentions(d["body"], run.names, ctx.who)
+    elif d.get("body"):  # 2.362.4 (#3100); 2.1444 (#6584): + the task references (#123 is a link in the chat too)
+        d["body"] = umz_task_refs(umz_mentions(d["body"], run.names, ctx.who), lambda o: run.m("tasks", o))
     return d
 
 
@@ -944,11 +944,18 @@ def _playbook(c, run, src, d, ctx):
     return d
 
 
+def _note(c, run, src, d, ctx):
+    """2.1444 (#6584): a project note's task references (the one rewriter of the account import, acctimport.umz_task_refs)."""
+    if d.get("body"):
+        d["body"] = umz_task_refs(d["body"], lambda o: run.m("tasks", o))
+    return d
+
+
 SPECS = [
     OiT("organisation.json", "orgs", space=(), rid=False, enc=False, prep=_org),
     # lists
     OiT("lists/notes.json", "notes", refs={"list_id": "lists"}, need=("list_id",), people={"created_by": "null", "updated_by": "null"},
-        space=(), label=N_("Project notes")),
+        space=(), label=N_("Project notes"), prep=_note),
     OiT("lists/notepads.json", "list_notepads", refs={"list_id": "lists"}, need=("list_id",),
         people={"created_by": "null", "updated_by": "null"}, space=(), label=N_("Notepads")),
     OiT("lists/forms.json", "forms", refs={"list_id": "lists", "section_id": "sections"}, need=("list_id",), people={"created_by": "null"},

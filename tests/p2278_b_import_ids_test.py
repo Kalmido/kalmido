@@ -9,6 +9,10 @@ names every row it leaves out. Invented names only (example.com).
    payment and the reaction of the person not ticked are named once with their number; the trash stays behind silently
  - a person without organisation (freelancer, P4) moves a billed time entry by account export / import: it stays billed
    (not billable, billing date kept, no invoice: the account export has none), the open one stays open
+ - 2.1444 (#6584): task references in both imports: #<old> in a description (also to a task made later), a comment, a project
+   note and a team chat message gets the new number; a number of a task outside the file stays text without a link
+   (#<WORD JOINER><n>); "Job #n" and `#n` in code stay; in a knowledge page only [[#<old>]] gets the new number, a bare
+   "#12" / "#<old>" stays as written (#4947) and [[#<foreign>|label]] becomes "label (#<foreign>)"
 Starts its OWN container (start.sh) with KALMIDO_SECRET_KEY (P2278B_NOSTART=1 = the server already runs like that).
 usage: p2278_b_import_ids_test.py <datadir>"""
 # freelancer-matrix: own
@@ -163,6 +167,23 @@ CT = ok(A.post(B + f"/api/tasks/{TT}/comments", json={"body": "Notiz"}), "commen
 ok(Bo.post(B + f"/api/comments/{CT}/reactions", json={"emoji": "up", "on": True}), "bob reacts")
 ok(A.delete(B + f"/api/tasks/{TT}"), "into the trash")
 
+# ---------------------------------------------------------------- 2.1444 (#6584): task references in the texts
+WJ = "\u2060"  # the word joiner of a reference to a task outside the file
+A.patch(B + "/api/settings", json={"workspace": f"org:{ORGB}"})
+LB = ok(A.post(B + "/api/lists", json={"name": "Fremd Liste", "org_id": ORGB}), "a list of beta")["id"]
+FTK = ok(A.post(B + "/api/tasks", json={"title": "Fremd Aufgabe", "list_id": LB}), "a task of beta (not in the export)")["id"]
+A.patch(B + "/api/settings", json={"workspace": f"org:{ORG}"})
+R1 = ok(A.post(B + "/api/tasks", json={"title": "Ref Ziel", "list_id": LO}), "reference target")["id"]
+R2 = ok(A.post(B + "/api/tasks", json={"title": "Ref Quelle", "list_id": LO}), "reference source")["id"]
+R3 = ok(A.post(B + "/api/tasks", json={"title": "Ref Spaeter", "list_id": LO}), "a task made after the source")["id"]
+ok(A.patch(B + f"/api/tasks/{R2}", json={"content": f"siehe #{R1} und #{R3}, fremd #{FTK}, Job #{R1}, `#{R1}`"}), "description with references")
+ok(A.post(B + f"/api/tasks/{R2}/comments", json={"body": f"Antwort zu #{R1}, fremd #{FTK}"}), "comment with references")
+ok(A.post(B + f"/api/lists/{LO}/notes", json={"title": "Ref Notiz", "body": f"Notiz zu #{R3} und #{FTK}"}), "project note with references")
+ok(A.post(B + f"/api/team/rooms/{RID}/messages", json={"body": f"Bitte #{R1} ansehen, nicht #{FTK}"}), "chat message with references")
+ok(A.post(B + "/api/wiki/pages", json={"space": f"org:{ORG}", "path": "Ref Seite",
+                                       "body": f"Raum #12, Einstellung #{R1}, Link [[#{R1}]], fremd [[#{FTK}|Alt]] und [[#{FTK}]]"}),
+   "knowledge page with references", (200, 201))
+
 # ---------------------------------------------------------------- export, import into the empty organisation
 r = A.post(B + f"/api/orgs/{ORG}/export")
 check(r.status_code == 202, f"organisation export started {r.text[:120]}")
@@ -222,6 +243,23 @@ check(W.get("Entries of people who were not selected were not imported: Team cha
 check(not [k for k in W if "entry it belongs to is missing" in k and ("Reactions" in k or "History" in k)],
       f"the trash stays behind without a warning {W}")
 check(one("SELECT COUNT(*) FROM office_payments WHERE org_id=?", (ORG3,)) == 0, "no payment without its document")
+# 2.1444 (#6584): the references of the organisation import
+nt = {r["title"]: r["id"] for r in dbx("SELECT id, title FROM tasks WHERE list_id=?", (NL,))}
+N1, N2, N3 = nt.get("Ref Ziel"), nt.get("Ref Quelle"), nt.get("Ref Spaeter")
+check(N1 and N2 and N3 and N1 != R1, f"the reference tasks came along with new numbers {nt}")
+desc = A.get(B + f"/api/tasks/{N2}").json().get("content")
+check(desc == f"siehe #{N1} und #{N3}, fremd #{WJ}{FTK}, Job #{R1}, `#{R1}`",
+      f"#6584: description: new numbers (also of a task made later), a foreign one without link, Job and code stay {desc!r}")
+cm = [r["body"] for r in dbx("SELECT body FROM obj_comments WHERE kind='task' AND ref_id=?", (N2,))]
+check(cm == [f"Antwort zu #{N1}, fremd #{WJ}{FTK}"], f"#6584: comment {cm!r}")
+nb = [r["body"] for r in dbx("SELECT body FROM notes WHERE list_id=? AND title='Ref Notiz'", (NL,))]
+check(nb == [f"Notiz zu #{N3} und #{WJ}{FTK}"], f"#6584: project note {nb!r}")
+check(by.get(f"Bitte #{R1} ansehen, nicht #{FTK}") is None and f"Bitte #{N1} ansehen, nicht #{WJ}{FTK}" in
+      {r["body"] for r in dbx("SELECT body FROM tchat_msgs WHERE room_id=?", (NR,))}, "#6584: team chat message")
+WP = one("SELECT id FROM wiki_pages WHERE org_id=? AND path LIKE ?", (ORG3, "%Ref Seite"))
+wb = A.get(B + f"/api/wiki/pages/{WP}").json().get("body") if WP else None
+check(wb == f"Raum #12, Einstellung #{R1}, Link [[#{N1}]], fremd Alt (#{FTK}) und #{FTK}",
+      f"#6584: knowledge page: only [[#n]] rewritten, bare #12 / #{R1} stay text (#4947), foreign links become text {wb!r}")
 
 # the user name never finds what the admin could not see anyway: a malformed / unknown name = the same answer
 iid2 = upload(A, OX)
@@ -238,6 +276,11 @@ FL = ok(Fr.post(B + "/api/lists", json={"name": "Frei Projekt"}), "freelancer li
 ok(Fr.patch(B + f"/api/lists/{FL}", json={"time_tracking": True}), "time tracking")
 F1 = ok(Fr.post(B + "/api/time/entries", json={"list_id": FL, "start": "2026-10-12T09:00", "minutes": 20}), "billed entry").get("id")
 ok(Fr.post(B + "/api/time/entries", json={"list_id": FL, "start": "2026-10-12T11:00", "minutes": 40}), "open entry")
+FR1 = ok(Fr.post(B + "/api/tasks", json={"title": "Frei Ziel", "list_id": FL}), "freelancer: reference target")["id"]
+FR2 = ok(Fr.post(B + "/api/tasks", json={"title": "Frei Quelle", "list_id": FL, "content": f"zu #{FR1}, fremd #{FTK}"}), "freelancer: source")["id"]
+ok(Fr.post(B + f"/api/tasks/{FR2}/comments", json={"body": f"erledigt mit #{FR1}"}), "freelancer: comment with a reference")
+ok(Fr.post(B + "/api/wiki/pages", json={"space": "private", "path": "Frei Seite", "body": f"Raum #12 und [[#{FR1}]]"}),
+   "freelancer: a private knowledge page", (200, 201))
 dbx("UPDATE time_entries SET billed_doc_id=?, billed_at=? WHERE id=?", (987654321, "2026-10-15T10:00:00+00:00", F1))
 r = Fr.post(B + "/api/account/export")
 check(r.status_code == 202, f"account export started {r.text[:120]}")
@@ -259,6 +302,15 @@ check(fe.get(1200, {}).get("billable") == 0 and (fe.get(1200, {}).get("billed_at
 check(fe.get(2400, {}).get("billable") == 1 and not fe.get(2400, {}).get("billed_at"), f"freelancer: the open entry stays open {fe.get(2400)}")
 check(warns(j).get("Billed time entries without their invoice were imported as not billable") == 1, f"freelancer: warning {warns(j)}")
 check(not dbx("SELECT 1 FROM org_members WHERE user_id IN (?,?)", (FID, GID)), "freelancer: still in no organisation")
+gt = {r["title"]: r["id"] for r in dbx("SELECT id, title FROM tasks WHERE created_by=? AND title LIKE 'Frei %'", (GID,))}
+G1, G2 = gt.get("Frei Ziel"), gt.get("Frei Quelle")
+gd = Gr.get(B + f"/api/tasks/{G2}").json().get("content") if G2 else None
+check(G1 and G1 != FR1 and gd == f"zu #{G1}, fremd #{WJ}{FTK}", f"#6584 freelancer: description {gd!r} {gt}")
+gc = [r["body"] for r in dbx("SELECT body FROM obj_comments WHERE kind='task' AND ref_id=?", (G2,))]
+check(gc == [f"erledigt mit #{G1}"], f"#6584 freelancer: comment {gc!r}")
+GP = one("SELECT id FROM wiki_pages WHERE owner_id=? AND path LIKE ?", (GID, "%Frei Seite"))
+gw = Gr.get(B + f"/api/wiki/pages/{GP}").json().get("body") if GP else None
+check(gw == f"Raum #12 und [[#{G1}]]", f"#6584 freelancer: private knowledge page {gw!r}")
 
 if FAILS:
     ct = os.environ.get("KALMIDO_TEST_CONTAINER", "kalmido-test")

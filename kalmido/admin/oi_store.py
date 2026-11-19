@@ -32,7 +32,7 @@ from ..core.db import iso, now_utc  # 2.362.0 (#3131)
 from ..files.store import FS_DIR, fs_read  # 2.369.5 (#2517): pulled up from functions
 from .orgexport import _safe_part  # 2.369.5 (#2517): pulled up from functions
 from ..videos.review import vdr_parse  # 2.369.5 (#2517): pulled up from functions
-from .acctimport import umz_cols  # 2.369.5 (#2517): pulled up from functions
+from .acctimport import umz_cols, umz_task_refs  # 2.369.5 (#2517): pulled up from functions; 2.1444 (#6584): umz_task_refs
 from ..wiki.wkhist import wkh_seal, WKH_KIND, WKH_VCTX  # 2.369.5 (#2517): pulled up from functions; 2.958.0 (#5281): + WKH_KIND
 from ..wiki.pages import wiki_set_links  # 2.369.5 (#2517): pulled up from functions
 from ..wiki.wksearch import wks_index  # 2.369.5 (#2517): pulled up from functions
@@ -50,7 +50,6 @@ _SH_KIND = {"c": "sheet_cells", "x": "sheet_cells", "col": "sheet_columns", "p":
 _WK_NODE = re.compile(r"/api/files/nodes/(\d{1,15})/content\b")
 _WK_FILE = re.compile(r"/api/wiki/files/(\d{1,15})\b")
 _WK_REF = re.compile(r"(\[\[\s*(datei|tabelle)\s*:\s*)(\d{1,15})(\s*[\]|])", re.I)
-_WK_TASK = re.compile(r"(?<![\w&/#])#(\d{1,12})\b")
 _CF_KEY = re.compile(r"cf\d{1,18}")
 
 
@@ -766,7 +765,7 @@ def _body(run, text):
     text = _WK_FILE.sub(lambda m: f"/api/wiki/files/{run.m('wiki_files', m.group(1)) or 0}", text)
     text = _WK_REF.sub(lambda m: f"{m.group(1)}{run.m('fs_nodes' if m.group(2).lower() == 'datei' else 'sheets', m.group(3)) or 0}{m.group(4)}",
                        text)
-    return _WK_TASK.sub(lambda m: f"#{run.m('tasks', m.group(1))}" if run.m("tasks", m.group(1)) else m.group(0), text)
+    return umz_task_refs(text, lambda o: run.m("tasks", o), wiki=True)  # 2.1444 (#6584): only [[#123]] (#4947), not a bare #123
 
 
 def _finish_wiki(c, run, oi):

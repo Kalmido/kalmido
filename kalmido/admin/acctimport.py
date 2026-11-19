@@ -38,6 +38,7 @@ from flask import g, jsonify, request
 
 from ..core.config import app, ATT_DIR, MAX_FILE_MB, PUBLIC_URL
 from ..core.config import USERNAME_RE  # 2.278.0 B (#3094)
+from ..wiki.pages import WIKI_TASK_RE  # 2.1444 (#6584): the one link form of a task in a knowledge page
 from ..accounts.orgs import visible_people as umz_visible  # 2.278.0 B (#3094)
 from ..core.serializers import unlink_files  # 2.464.0 (#3865)
 from ..api.common import hit_limit, import_upload_rate  # 2.585.0 (#4350, review 2); 2.1282.0 (#6426)
@@ -1360,6 +1361,44 @@ def umz_mentions(text, names, who):
     return UMZ_MENTION_RE.sub(sub, text)
 
 
+# 2.1444 (#6584): task references in the texts of an account / organisation import -- the one rewriter of every text field.
+# Only the forms that are a link get a new number: in tasks, comments and project notes a bare #123 (static/js/chat.js
+# mdTaskRefs: not after a letter, digit, & / or #, not "job #12", not inside code or a link); in knowledge pages only [[#123]]
+# / [[#123|label]] (wiki/pages.py WIKI_TASK_RE, #4947: a bare #123 there is text and stays as it is). A number of a task that
+# came along becomes its new number; any other one stays readable as text but is no link any more (it would name whoever has
+# that number on this server): #<WORD JOINER>123 in a text, the plain text "#123" (or "label (#123)") in a page.
+UMZ_TREF_RE = re.compile(r"(\b[Jj][Oo][Bb] ?#?\d{1,9}\b)|(?<![&\w/#])#(\d{1,9})\b")
+UMZ_TREF_KEEP = re.compile(r"```.*?(?:```|\Z)|`[^`\n]*`|\[[^\]\n]*\]\([^)\n]*\)|<a\b.*?</a>|<[^>\n]*>", re.S | re.I)
+UMZ_TREF_OFF = "\u2060"  # WORD JOINER: invisible, no line break; the link pattern sees no digit after the #
+
+
+def umz_task_refs(text, new_id, wiki=False):
+    """text with its task references rewritten: new_id(old number) -> the number of the task that came along, or None."""
+    if not isinstance(text, str) or "#" not in text:
+        return text
+    if wiki:
+        def page(m):
+            n = new_id(m.group(1))
+            if n:
+                return m.group(0).replace("#" + m.group(1), f"#{n}", 1)
+            label = m.group(0)[len(m.group(1)) + 3:-2].lstrip("|").strip()
+            return f"{label} (#{m.group(1)})" if label else f"#{m.group(1)}"
+        return WIKI_TASK_RE.sub(page, text)
+
+    def ref(m):
+        if m.group(1):
+            return m.group(0)
+        n = new_id(m.group(2))
+        return f"#{n}" if n else "#" + UMZ_TREF_OFF + m.group(2)
+    out, at = [], 0
+    for k in UMZ_TREF_KEEP.finditer(text):
+        out.append(UMZ_TREF_RE.sub(ref, text[at:k.start()]))
+        out.append(k.group(0))
+        at = k.end()
+    out.append(UMZ_TREF_RE.sub(ref, text[at:]))
+    return "".join(out)
+
+
 def umz_filter_rules(run, v, who):
     """2.362.4 (#3100): the rules of a saved filter (static/js filterMatch) with the ids of this server -> JSON text. An id that
     did not come along goes; None when a category loses all its ids: an empty category means "everything", the filter would
@@ -1924,6 +1963,11 @@ def umz_write(c, run, uid, man, zf, files, data, people):
             continue
         c.execute("UPDATE tasks SET parent_id=? WHERE id=?", (p, tid))
         run.count("subtasks")
+    for t, tid, lid in rows:  # 2.1444 (#6584): #123 in a description -> the new number (every task of the file is in now)
+        old = _txt(t.get("content"), CONTENT_MAX)
+        new = umz_task_refs(old, lambda o: run.m("tasks", o))
+        if new != old:
+            c.execute("UPDATE tasks SET content=? WHERE id=?", (new, tid))
     # what hangs on a task
     for r in data.get("task_deps", []):
         a, b = run.m("tasks", r.get("task_id")), run.m("tasks", r.get("blocker_id"))
@@ -1974,6 +2018,8 @@ def umz_write(c, run, uid, man, zf, files, data, people):
         if not lid or lid == inbox or r.get("deleted_at") or run.there("notes", r.get("id")):
             continue
         d = umz_row(c, "notes", r, {"list_id": lid, "created_by": uid, "updated_by": uid}, ts)
+        if d and d.get("body"):  # 2.1444 (#6584)
+            d["body"] = umz_task_refs(d["body"], lambda o: run.m("tasks", o))
         nid = umz_insert(c, "notes", d) if d else None
         if nid:
             run.put("notes", r.get("id"), nid)
@@ -2004,8 +2050,8 @@ def umz_write(c, run, uid, man, zf, files, data, people):
         # 2.972.0 (#5272): into the core's table (kind task); the file keeps the old columns (portal, rule_name -> extra)
         d = umz_row(c, "obj_comments", r, {"kind": "task", "ref_id": tid, "user_id": au, "ext_name": ext,
                                             "parent_id": run.m("comments", r.get("reply_to")), "extra": umz_cmt_extra(r)}, ts)
-        if d and d.get("body"):  # 2.362.4 (#3100)
-            d["body"] = umz_mentions(d["body"], names, who)
+        if d and d.get("body"):  # 2.362.4 (#3100); 2.1444 (#6584): + the task references
+            d["body"] = umz_task_refs(umz_mentions(d["body"], names, who), lambda o: run.m("tasks", o))
         nid = umz_insert(c, "obj_comments", d) if d else None
         if nid:
             run.put("comments", r.get("id"), nid)
