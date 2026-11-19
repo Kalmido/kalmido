@@ -314,6 +314,9 @@ iid, pv = opened(Dv, OX, RK)
 r = Dv.post(B + f"/api/account/import/{iid}/run", json={"target": GAMMA, "people": {EH("gina@example.com"): {"invite": True, "email": "gina@example.com"}}, "again": True})
 check(r.status_code == 429 and not one("SELECT 1 FROM users WHERE lower(email)='gina@example.com'"),
       f"#6580 (reader F1): the day's invitations used up -> 429, nothing starts {r.status_code} {r.text[:160]}")
+check("invitations are left" in r.json().get("error", ""), f"#6580 (reader F7): the message names what is left {r.text[:200]}")
+r = Dv.post(B + f"/api/account/import/{iid}/run", json={"target": GAMMA, "people": {EH("gina@example.com"): {"invite": True}}, "again": True})
+check(r.status_code == 429, f"#6580 (reader F6): an invitation without a typed address (the file's own) counts as well {r.status_code} {r.text[:160]}")
 Dv.delete(B + f"/api/account/import/{iid}")
 
 # ---------------------------------------------------------------- P4: a person without organisation, into the private workspace

@@ -19426,6 +19426,7 @@
   "Invite the missing people first and let them accept, then import: for people not found here, assignments stay empty, comments keep only the name and their times are not taken over.": "Primero invita a las personas que faltan y deja que acepten, luego importa: para las personas no encontradas aquí, las asignaciones quedan vacías, los comentarios conservan solo el nombre y sus tiempos no se importan.",
   "not found here": "no encontrada aquí",
   "An invited person joins once they accept; your projects are shared with them then. Somebody who already has an account on this server that you cannot see may not hear of the invitation: tell them yourself.": "Una persona invitada se une cuando acepta; entonces se comparten tus proyectos con ella. Quien ya tenga una cuenta en este servidor que no puedes ver puede no enterarse de la invitación: díselo tú.",
+  "The import would invite {0} people by e-mail, {1} invitations are left for you today (at most {2} a day). Tick fewer now and invite the rest tomorrow.": "La importación invitaría a {0} personas por correo; hoy te quedan {1} invitaciones (como máximo {2} al día). Marca menos ahora e invita al resto mañana.",
   "Rights profile": "Perfil de permisos",
   "Deny rules only": "Solo reglas de bloqueo",
   "Hardened (Kalmido tools only)": "Reforzado (solo herramientas de Kalmido)",

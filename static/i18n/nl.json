@@ -19426,6 +19426,7 @@
   "Invite the missing people first and let them accept, then import: for people not found here, assignments stay empty, comments keep only the name and their times are not taken over.": "Nodig eerst de ontbrekende mensen uit en laat ze accepteren, importeer dan: bij mensen die hier niet gevonden worden, blijven toewijzingen leeg, houden opmerkingen alleen de naam en komen hun tijden niet mee.",
   "not found here": "hier niet gevonden",
   "An invited person joins once they accept; your projects are shared with them then. Somebody who already has an account on this server that you cannot see may not hear of the invitation: tell them yourself.": "Een uitgenodigde persoon doet mee zodra die accepteert; dan worden je projecten met die persoon gedeeld. Wie hier al een account heeft dat jij niet kunt zien, hoort misschien niets van de uitnodiging: laat het zelf weten.",
+  "The import would invite {0} people by e-mail, {1} invitations are left for you today (at most {2} a day). Tick fewer now and invite the rest tomorrow.": "De import zou {0} mensen per e-mail uitnodigen, je hebt vandaag nog {1} uitnodigingen over (hoogstens {2} per dag). Vink nu minder aan en nodig de rest morgen uit.",
   "Rights profile": "Rechtenprofiel",
   "Deny rules only": "Alleen blokkeerregels",
   "Hardened (Kalmido tools only)": "Gehard (alleen Kalmido-tools)",
