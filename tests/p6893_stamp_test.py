@@ -178,6 +178,24 @@ g("checkout", "-q", "--", ".")
 check(st.main(["2.13.0", "--root", T, "--changelog-only"]) == 2, "--changelog-only without the tag = refused")
 check(g("status", "--porcelain").strip() == "", "refused runs left the tree clean")
 
+# reader F2 of job/5551: a later tag on another line (a hotfix v2.11.1 of the older version, tagged after v2.12.0) is no
+# ancestor of v2.12.0 - stamping 2.12.0 again (release.yml and the weekly release apart) gives the same bytes as before
+g("checkout", "-q", "--", ".")
+g("checkout", "-q", "v2.12.0")
+st.stamp(T, "2.12.0", log=lambda *_: None)
+ref = {f: get(f) for f in ("CHANGELOG.md", "static/whatsnew.json")}
+g("checkout", "-q", "--", ".")
+g("checkout", "-q", "-b", "hotfix", "v2.11.0")
+put("changelog.d/400.md", "Package 2.11.1 (hotfix).\n\n### Fixed\n- hotfix (#14)\n<!-- neu -->\n- de: Heiss | en: Hot\n")
+g("add", "-A")
+g("commit", "-qm", "#14: hotfix", date="2026-11-15T09:00:00Z")
+g("tag", "v2.11.1")
+g("checkout", "-q", "v2.12.0")
+st.stamp(T, "2.12.0", log=lambda *_: None)
+check({f: get(f) for f in ref} == ref and "hotfix" not in get("CHANGELOG.md"),
+      "F2: a later hotfix tag that is no ancestor of the version changes nothing the version is stamped with")
+g("checkout", "-q", "--", ".")
+
 shutil.rmtree(T, ignore_errors=True)
 shutil.rmtree(T2, ignore_errors=True)
 
