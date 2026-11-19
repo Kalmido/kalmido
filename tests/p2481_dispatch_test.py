@@ -752,12 +752,12 @@ check(ad.classify(tb, {"done": {}, "branch": {}}, {}, {"jobs": {}}, dict(ad.DEFA
 check(ad.cut_bundle(tb, stb, cfgb, {(9, "size"): "77"}) == [tb[0]], "#4062: a needs_brief task is never in a bundle")
 TASKS[:] = tb
 JOBS.clear()
-state3b = os.path.join(proj, ".state3b")
-os.makedirs(state3b)
+st7041_3 = os.path.join(proj, ".st7041_3")
+os.makedirs(st7041_3)
 with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
     json.dump({"lists": ["Backlog"], "report_at": "", "brief_required": True}, f)
 h = Host("on")
-h.state_dir = state3b
+h.state_dir = st7041_3
 d = ad.Dispatcher(h, proj)
 n = len(STARTS)
 res = d.tick(force=True)
@@ -779,12 +779,12 @@ check(ad.places_of({"work_style": {"max_parallel": 3}}, c4) == (3, "work style")
       and ad.places_of({"work_style": {"max_parallel": True}}, c4) == (1, "default"), "#5199: max_parallel capped by places")
 TASKS[:] = [task(531, "One", "L"), task(532, "Two", "L"), task(533, "Three", "L")]
 JOBS.clear()
-state4b = os.path.join(proj, ".state4b")
-os.makedirs(state4b)
+st7041_4 = os.path.join(proj, ".st7041_4")
+os.makedirs(st7041_4)
 with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
     json.dump({"lists": ["Backlog"], "report_at": ""}, f)
 h = Host("on")
-h.state_dir = state4b
+h.state_dir = st7041_4
 h.agent["work_style"] = {"max_parallel": 2}
 d = ad.Dispatcher(h, proj)
 n = len(STARTS)
@@ -839,19 +839,19 @@ for k in ad.OVERRIDE_SWITCHES:  # no switch of a safeguard without its log line:
 check("self.log_overrides()" in src and "def log_overrides" in src, "#4064: the runner logs the overrides when it starts")
 TASKS[:] = [task(601, "Six", "S")]
 JOBS.clear()
-state5b = os.path.join(proj, ".state5b")
-os.makedirs(state5b)
+st7041_5 = os.path.join(proj, ".st7041_5")
+os.makedirs(st7041_5)
 with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
     json.dump({"lists": ["Backlog"], "report_at": ""}, f)
 h = Host("on")
-h.state_dir = state5b
+h.state_dir = st7041_5
 d = ad.Dispatcher(h, proj)
 d.tick(force=True)
 d.tick(force=True)
 check([x[1] for x in d.reg["overrides"]] == ["KALMIDO_PERM_RELAY=0 (no permission questions in the chat)"], f"#4064: counted once per start: {d.reg['overrides']}")
-open(os.path.join(state5b, ad.STOP_FILE), "w").close()
+open(os.path.join(st7041_5, ad.STOP_FILE), "w").close()
 d.tick(force=True)
-os.remove(os.path.join(state5b, ad.STOP_FILE))
+os.remove(os.path.join(st7041_5, ad.STOP_FILE))
 with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
     json.dump({"lists": ["Backlog"], "report_at": "00:00"}, f)
 d.tick(force=True)
@@ -868,12 +868,12 @@ os.environ.pop("KALMIDO_PERM_RELAY")
 # overrides (each over 7 days)
 TASKS[:] = [task(701, "Seven"), task(702, "Left open"), task(703, "Built late")]
 JOBS.clear()
-state6b = os.path.join(proj, ".state6b")
-os.makedirs(state6b)
+st7041_6 = os.path.join(proj, ".st7041_6")
+os.makedirs(st7041_6)
 with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
     json.dump({"lists": ["Backlog"], "report_at": ""}, f)
 h = Host("on")
-h.state_dir = state6b
+h.state_dir = st7041_6
 d = ad.Dispatcher(h, proj)
 d.reg["jobs"] = {"801": {"tasks": [702], "at": time.time()}, "802": {"tasks": [703], "at": time.time()}}
 JOBS.update({"801": {"state": "done"}, "802": {"state": "failed"}})
