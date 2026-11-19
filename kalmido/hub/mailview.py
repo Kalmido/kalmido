@@ -342,7 +342,7 @@ def mh_of(c, m):
     if not n or (n["org_id"] or None) != (m["org_id"] or None) or (n["size"] or 0) > MH_EML_MAX:
         return None
     try:
-        raw = fs_read(c, n["id"])
+        raw = fs_read(c, n["id"], eml_ok=True)  # 2.1412.0 (#7140): the mail's own view (addresses blacked out for a support session)
         if not raw or len(raw) > MH_EML_MAX:
             return None
         src, cids = mh_parts(raw)
