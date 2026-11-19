@@ -104,6 +104,7 @@ const txt = el => (el?.textContent || '').replace(/\s+/g, ' ').trim();
 
   // 2.1412.0 (#6227 N3): the session ends in the middle of an upload: the rest "Signed out" in the list, the end as usual
   w.eval(`(() => { const r0 = window.__r0; let n = 0; window.rawFetch = (m, u, b) => /files\\/upload/.test(String(u)) && ++n === 2 ? Promise.reject(new Error('auth')) : r0(m, u, b); return 1; })()`);
+  w.eval('S.maxFileMb = 0.00002');  // again: a reload of the state in between brings the server's limit back
   await w.eval(`ab_upload([new File(['Teil 1'], 'abm-1.txt', {type: 'text/plain'}), new File(['Teil 2'], 'abm-2.txt', {type: 'text/plain'})], null)`);
   w.eval('window.rawFetch = window.__r0');
   w.eval(`S.maxFileMb = ${JSON.stringify(mb0)}`);
