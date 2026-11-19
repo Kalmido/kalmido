@@ -1,3 +1,4 @@
+// @ts-check
 /* Kalmido web client: THE grip to resize (#7293, docs/dev/kern.md "Resizing: the one grip"). Loaded on demand (module grip,
    static/js/lazyload.js): grip_col / grip_row / grip_corner have stand-ins there, so a start file may call them before the
    module is in - the stand-in loads it and resolves to the handle (`const g = await grip_col(el, {...})` works always).
@@ -19,16 +20,19 @@
 
 const GRIP_KEY_RE = /^[a-z0-9][a-z0-9_-]*$/i;
 const GRIP_STEP = {rem: 1, px: 16, '%': 2}, GRIP_ROUND = {rem: 0.25, px: 1, '%': 0.5};
+/** @type {Set<any>} */
 const GRIP_LIVE = new Set();  // the handles of grips in the page (refreshed on a resize of the window; tests read it)
 const grip_rem = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
 const grip_fn = (x, ...a) => typeof x === 'function' ? x(...a) : x;
 const grip_off = o => (typeof isMobile === 'function' ? isMobile() : innerWidth < 768) || !!grip_fn(o.off);
 
 // ---- storage: the stored value (null = the default), a legacy key taken over once
+/** @param {string} k */
 function grip_lsRaw(k) { try { const v = localStorage.getItem(k); return v == null ? undefined : JSON.parse(v); } catch { return undefined; } }
 // an old key: 'kalmido.*' or {key, raw: true} = the key as it is; else a key of LS (tasks.<key>)
 const grip_legSpecs = o => (Array.isArray(o.legacy) ? o.legacy : o.legacy ? [o.legacy] : []).map(s => typeof s === 'string' ? {key: s} : s);
 const grip_legRaw = s => s.raw || s.key.startsWith('kalmido.');
+/** @param {any} o @param {(v: any) => boolean} ok @returns {any} */
 function grip_read(o, ok) {
   let v = o.load ? o.load() : LS.get('grip:' + o.key, undefined);
   if (v !== undefined) return ok(v) ? v : null;
@@ -44,6 +48,7 @@ function grip_read(o, ok) {
   }
   return null;
 }
+/** @param {any} o @param {any} v */
 function grip_write(o, v) {
   if (o.save) { o.save(v); return; }
   if (v == null) LS.del('grip:' + o.key); else LS.set('grip:' + o.key, v);
@@ -51,6 +56,7 @@ function grip_write(o, v) {
 
 // ---- the drag: a cover over the page carries the cursor (no ::after on body, #3304), body.pgdrag rests the watchers that fit
 // bars to a width (core.js dragRest) and runs them once on release
+/** @param {HTMLElement} g @param {string} cls */
 function grip_dragOn(g, cls) {
   const c = document.createElement('div'); c.className = 'gcover ' + cls; document.body.appendChild(c);
   g.classList.add('drag'); document.body.classList.add('pgdrag', 'gdrag');
@@ -60,6 +66,7 @@ function grip_dragOn(g, cls) {
   };
 }
 // press, drag, release on a grip; a press without moving is a tap: two within 400 ms = the default, one alone = the menu
+/** @param {HTMLElement} g @param {any} h @param {(e: PointerEvent) => any} start */
 function grip_wire(g, h, start) {
   let last = 0, mt = 0;
   const onDown = e => {
@@ -87,6 +94,7 @@ function grip_wire(g, h, start) {
   return () => { clearTimeout(mt); g.removeEventListener('pointerdown', onDown); g.removeEventListener('dblclick', onDbl); };
 }
 const grip_say = t => { if (typeof announce === 'function') announce(t); };
+/** @param {HTMLElement} g @param {any} o @param {string} label @param {number} now @param {number} min @param {number} max @param {string} text */
 function grip_aria(g, o, label, now, min, max, text) {
   g.setAttribute('role', 'separator'); if (g.tabIndex < 0) g.tabIndex = 0;
   g.setAttribute('aria-label', label); if (o.tip !== false) g.title = label;
@@ -95,19 +103,23 @@ function grip_aria(g, o, label, now, min, max, text) {
   g.setAttribute('aria-valuetext', text);
 }
 const grip_unitText = (v, u) => u === 'rem' ? tr('{0} rem', String(v)) : v + ' ' + u;
+/** @param {any} o @param {string} what @returns {any} */
 function grip_key(o, what) {
   if (!o || !GRIP_KEY_RE.test(String(o.key || ''))) throw new Error(what + ': opts.key must be letters, digits, - or _ (it names --g-<key> and grip:<key>)');
   return {unit: 'rem', ...o};
 }
 
 // ---- the line grips: grip_col (axis x) and grip_row (axis y)
+/** @param {any} el @param {any} opts */
 function grip_col(el, opts) { return grip_line(el, 'x', grip_key(opts, 'grip_col')); }
+/** @param {any} el @param {any} opts */
 function grip_row(el, opts) { return grip_line(el, 'y', grip_key(opts, 'grip_row')); }
 /** opts: key (required), min / max / def (a number or a function, in unit), unit 'rem' (default) | 'px' | '%' (of the scope's
  *  size), edge 'end' (default: the panel lies before the grip, left / above it; dragging right / down makes it bigger) or
  *  'start' (the panel lies after the grip), panel (element or function; default the grip's neighbour on that side), scope /
  *  dragScope (where the variable lives / lives during a drag), step, round, label, legacy, load / save, onChange(v), off(),
- *  menu: false (no menu on a tap), tip: false (no title). */
+ *  menu: false (no menu on a tap), tip: false (no title).
+ * @param {any} el @param {string} axis @param {any} o */
 function grip_line(el, axis, o) {
   if (el._grip) el._grip.destroy();
   const X = axis === 'x', vn = '--g-' + o.key, sgn = o.edge === 'start' ? -1 : 1;
@@ -186,7 +198,8 @@ function grip_line(el, axis, o) {
  *  hanging right-aligned under a button grows to the left: 'bl'), mode 'dialog' (a centred card: both edges move, the grip
  *  follows the pointer at twice the speed), fit: true (never taller than its content, #4993: needs `height:
  *  var(--g-<key>-h, …)` in the window's CSS), grip (an own grip element instead of the module's), scope / dragScope, step,
- *  label, legacy, load / save, onChange(v), off(), menu: false, tip: false. The value: {w, h} in unit, null = the default. */
+ *  label, legacy, load / save, onChange(v), off(), menu: false, tip: false. The value: {w, h} in unit, null = the default.
+ * @param {any} win @param {any} opts */
 function grip_corner(win, opts) {
   const o = {at: 'br', ...grip_key(opts, 'grip_corner')};
   if (win._grip) win._grip.destroy();
