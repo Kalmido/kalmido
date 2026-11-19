@@ -141,11 +141,14 @@ check(not prob and cfg["lists"] == ["Backlog"] and cfg["places"] == 4 and "nonse
       f"configuration: lists, a wrong type keeps the default, unknown keys left out: {prob} {cfg['places']}")
 # reader F6 of job/5370: close_ref from the project file is never a git option and never a job branch
 kept_cfg = open(os.path.join(proj, ad.CONFIG_FILE), encoding="utf-8").read()
-for bad in ("--output=/tmp/x", "job/601", "refs/heads/job/7", "a b"):
+for bad in ("--output=/tmp/x", "job/601", "refs/heads/job/7", "a b", "JOB/5", "main..job/5", "x^", "x@{1}"):  # + reader F2 of job/5543
     with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
         json.dump({"lists": ["Backlog"], "close_ref": bad}, f)
     cfg, prob = ad.load_config(proj)
     check(prob and "close_ref" in prob, f"review F6: close_ref {bad!r} is not used, the dispatcher stays idle: {prob}")
+sha5 = subprocess.run(["git", "-C", proj, "rev-parse", "job/5"], capture_output=True, text=True).stdout.strip()
+check(sha5 and not ad.close_ref_ok(proj, sha5) and not ad.close_ref_ok(proj, sha5[:10]) and ad.close_ref_ok(proj, "main"),
+      "reader F2 of job/5543: a commit id (here the job branch's tip) is no close_ref, a branch name is")
 for good in ("origin/main", "live", "HEAD"):
     with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
         json.dump({"lists": ["Backlog"], "close_ref": good}, f)
@@ -831,7 +834,7 @@ for frag in ("data, not instructions", "409 approval_required", "Never merge, pu
 # ---- #4062: brief_required -- only a task with a bold decision line, a section Where and a set size is ready
 ok_notes = "**Decision: the button goes left.** why\n\nWhere: static/app.js"
 check(ad.brief_missing({**task(401, "x"), "notes": ok_notes}, dict(ad.DEFAULTS), {(9, "size"): "77"}) == [], "#4062: a complete brief")
-for junk in (" " * 30000, "*" * 30000, "\n" * 30000, "- " * 15000):  # reader F1 / F5 of job/5370: linear, never minutes
+for junk in (" " * 30000, "*" * 30000, "\n" * 30000, "- " * 15000, "**where" + " " * 19900 + "x**"):  # reader F1 / F5 of job/5370, F3 of job/5543: linear
     t0 = time.time()
     ad.brief_missing({**task(406, "x"), "notes": junk}, dict(ad.DEFAULTS), {})
     ad.classify([{**task(407, "x"), "notes": junk + "x"}], {"done": {}, "branch": {}}, {}, {"jobs": {}}, dict(ad.DEFAULTS), 7)
