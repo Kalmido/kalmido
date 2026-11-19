@@ -19563,6 +19563,8 @@
   "I was interrupted and could not finish your request. Please send it again.": "J’ai été interrompu et je n’ai pas pu terminer ta demande. Merci de l’envoyer à nouveau.",
   "Archives downloaded before open only with the earlier key, never with the new one: keep the earlier key with them or create a new export afterwards.": "Les archives téléchargées avant ne s’ouvrent qu’avec l’ancienne clé, jamais avec la nouvelle : garde l’ancienne clé avec elles ou crée ensuite un nouvel export.",
   "Width of the list": "Largeur de la liste",
+  "Nothing changes here: drop onto a task of your own order or onto an own section.": "Rien ne change ici : dépose les tâches sur une tâche de ton propre ordre ou sur une section personnelle.",
+  "“Recently assigned” takes no tasks: drop them into another section.": "« Attribuées récemment » n’accepte pas de tâches : dépose-les dans une autre section.",
   "Kalmido connects Google calendars read-only": "Kalmido connecte les agendas Google en lecture seule",
   "Add a colleague at the same company": "Créer un collègue de la même entreprise",
   "The main client does not exist or you cannot see it": "Le client principal n’existe pas ou tu ne peux pas le voir",

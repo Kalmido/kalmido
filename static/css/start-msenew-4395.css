@@ -1,3 +1,5 @@
 /* 2.569.0 (#4395): My tasks, own sections: "New section" under the last one (a start file: app.css does not grow) */
 #view .msenew{display:flex;align-items:center;gap:.375rem;margin:.5rem 0 .25rem;padding:.5rem;min-height:2.75rem;color:var(--muted)}
 #view .msenew:hover{color:var(--text)}
+/* 2.1444 (#7344): a drop target while tasks are dragged (dragmulti.js dropAt kind "new"): the name is asked on the drop */
+#view .msenew.drop{color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent);box-shadow:inset 0 0 0 1px var(--accent);border-radius:var(--r-s)}

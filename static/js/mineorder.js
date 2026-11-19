@@ -41,37 +41,107 @@ async function moSave(ids, secs) {  // 2.569.0 (#4395): secs = {task id: own sec
     if (r?.order_kept) { toast(tr(MO_KEPT)); await load(); render(); }
   } catch { if (S.mineBase === send) S.mineBase = seen; /* api() showed it; the server never confirmed this order; offline it waits in the outbox */ }
 }
-// dnd.js dropTask0: a drop onto a row of "My tasks" -> true when handled here (never a change of tasks.sort)
-const moDrop = (t, row, after) => moDropMany([t.id], row, after);
-// 2.1389.0 (#6959): a selection dragged onto a row of "My tasks" (dragmulti.js dgDrop) moves as a whole, in the selection's
-// order, in one moSave (as one task did); grouped by project into another group = all of them into that project
-async function moDropMany(ids, row, after) {
-  if (!moActive() || !row) return false;
-  const target = S.tasks.get(+row.dataset.id);
-  if (!target || ids.includes(target.id)) return true;
-  const all = moAll().map(x => x.id), mv = ids.filter(i => all.includes(i));
-  if (!mv.length || !all.includes(target.id)) return true;  // e.g. "From your lists, without a date": no own order there
-  if (mseOn()) return mseDropMany(mv, row.closest('.group')?.querySelector('.ghead[data-key^="ms:"]'), target.id, after);  // 2.569.0 (#4395)
-  const keep = new Set(mv), out = all.filter(x => !keep.has(x));
-  out.splice(out.indexOf(target.id) + (after ? 1 : 0), 0, ...mv);
-  const away = mv.filter(i => S.tasks.get(i)?.list_id !== target.list_id);
-  if (moView() === 'lists' && away.length) {  // grouped: into another group = into that list
-    if (!canEditList(target.list_id)) { roToast(); return true; }
-    if (mv.length === 1) {
-      const t = S.tasks.get(mv[0]);
-      if (tlkHits(t, {list_id: target.list_id})) { tlkToast(t); render(); return true; }  // a locked task keeps its list
-      if (!await mv_ask([t.id], listById(target.list_id))) return true;  // 2.455.0 (#3848)
-      S.mineOrder = Object.fromEntries(out.map((id, i) => [id, i]));
-      try { await patchUndoable(t.id, {list_id: target.list_id, section_id: null}, tr('Moved to {0}', lname(listById(target.list_id)))); } catch { return true; }
-    } else {
-      if (!await mv_ask(away, listById(target.list_id))) return true;  // 2.455.0 (#3848)
-      S.mineOrder = Object.fromEntries(out.map((id, i) => [id, i]));
-      await dgToList(away, target.list_id);  // dragmulti.js: one batch, one Undo (read-only ones are skipped and named)
-    }
+// ---- 2.1444 (#7344): the adapter of "My tasks" for the drop core (dragmulti.js DROP_ADAPTERS): one way for a drag of one task
+// and of a selection (dnd.js, dragmulti.js), the menu "Move to section…" and "New section" (mseMoveTo, mseMoveToNew).
+// A place: {sid} an own section (null = without one), {lid} a project of "Grouped by project", tid / after = before / after that
+// task (tid in the selection = the selection at its place), none = on top of the section. Gone: moDrop, moDropMany, mseDrop,
+// mseDropMany, mseDropHead (they were three ways, audit #5731).
+const MO_NOPLACE = N_('Nothing changes here: drop onto a task of your own order or onto an own section.');
+const MO_RECENT = N_('“Recently assigned” takes no tasks: drop them into another section.');
+const MO_KEYS_OFF = /^(pinned|kb:|mt:|tm:)/;  // groups of My tasks without an own place: Pinned, Unassigned in your projects, hidden projects
+function moWhere(tgt, ids = []) {
+  if (moBoard() && tgt.kind !== 'row') return null;  // the board's columns: mineboard.js (step 2 of the core, #7344 F6)
+  if (tgt.kind === 'new') return mseOn() ? {fresh: true} : null;
+  const lists = moView() === 'lists';
+  if (tgt.kind === 'head') {
+    const k = tgt.key || '';
+    if (k.startsWith('ms:') && mseOn()) { const s = mseList().find(x => x.id === +k.slice(3)); return !s ? {no: true} : s.kind === 'recent' ? {no: tr(MO_RECENT)} : {sid: s.id}; }
+    if (lists && /^l:\d+$/.test(k)) { const r = tgt.el.closest('.group')?.querySelector('.trow'); return {lid: +k.slice(2), tid: r ? +r.dataset.id : null, after: false}; }
+    return {no: tr(MO_NOPLACE)};
   }
-  await moSave(out);
-  return true;
+  const t = S.tasks.get(tgt.tid);
+  if (!t) return {no: true};
+  if (ids.length === 1 && ids[0] === t.id) return {no: true};  // onto itself
+  if (MO_KEYS_OFF.test(tgt.gkey)) return {no: tr(MO_NOPLACE)};
+  if (t.parent_id && !moAll().some(x => x.id === t.id)) return {sub: true, row: tgt.row, after: tgt.after};  // a subtask's row: beside it under its parent (the project's way)
+  if (lists) return {lid: t.list_id, tid: t.id, after: tgt.after};
+  if (!mseOn()) return {tid: t.id, after: tgt.after};
+  const sid = tgt.gkey.startsWith('ms:') ? +tgt.gkey.slice(3) : null, s = sid && mseList().find(x => x.id === sid);
+  if (s?.kind === 'recent') return {no: tr(MO_RECENT)};
+  return {sid: s ? s.id : null, tid: t.id, after: tgt.after};
 }
+// a task of the view that is not in the own order yet but goes in when it is dropped there: a subtask comes out of its parent
+// (#6436: it fills its empty date / priority from the parent), a task nobody has ("Unassigned in your projects", #1219; with
+// collaboration only) is assigned to me (decision on #7344) - both in the same step as the new place
+const moNeedsMe = t => collab() && !mineAssigned(t);
+const moCanTake = t => !!t && !t.context && canEdit(t) && (!!t.parent_id || (moNeedsMe(t) && kbSoloList(listById(t.list_id))));
+const moSnap = ids => ({ids: moIds(S.mineOrder || {}), secs: Object.fromEntries(ids.map(id => [id, S.mineSecs?.tasks?.[id] ?? null]))});
+async function moBack(s) { await moSave(s.ids, s.secs); return {}; }
+// the order with the moved tasks (put, in this order) at the place w
+function moFlat(put, w) {
+  const mv = new Set(put), keep = w.tid != null && mv.has(w.tid) ? w.tid : null, base = moAll().filter(y => !mv.has(y.id) || y.id === keep);
+  let flat = base.map(y => y.id);
+  if (mseOn()) {  // own sections: the shown ones in their order ("Recently assigned" keeps no place)
+    const x = mseCtx(); flat = [];
+    for (const o of x.own) flat.push(...base.filter(y => mseOf(y, x) === o.id).map(y => y.id));
+    flat.push(...base.filter(y => mseOf(y, x) === null).map(y => y.id));
+  }
+  if (keep != null) { flat.splice(flat.indexOf(keep), 1, ...put); return flat; }
+  let at = w.tid != null && flat.includes(w.tid) ? flat.indexOf(w.tid) + (w.after ? 1 : 0) : -1;
+  if (at < 0 && w.sid != null) { const x = mseCtx(), first = base.find(y => !mv.has(y.id) && mseOf(y, x) === w.sid); at = first ? flat.indexOf(first.id) : flat.length; }
+  if (at < 0) at = 0;
+  flat.splice(at, 0, ...put);
+  return flat;
+}
+// the whole gesture: out of a parent, assigned to me, into another project ("Grouped by project"), then the own order and
+// section - one step of the history (histGroup: the tasks' batch on the server, the own order as this device's own part)
+async function moPut(ids, w) {
+  if (w.sub) return dgBlock(ids, w.row, w.after, true);
+  ids = dgRoots([...new Set(ids)].filter(i => S.tasks.get(i)));
+  const lid = w.lid ?? null, l = lid != null ? listById(lid) : null;
+  const away = l ? ids.filter(i => S.tasks.get(i).list_id !== lid) : [];
+  if (away.length && !canEditList(lid)) { roToast(); return; }
+  if (away.length && !await mv_ask(away, l)) return;  // 2.455.0 (#3848)
+  return histGroup(async () => {
+    if (LS.get('sort2.' + S.route.key, null)) LS.del('sort2.' + S.route.key);  // a column's sort hid the own order: a drop shows it again (as a project's manual drop)
+    const mine = new Set(moAll().map(x => x.id)), items = {}, put = [], ro = [], out = [];
+    let subs = 0, mes = 0;
+    for (const id of ids) {
+      const t = S.tasks.get(id), it = {};
+      if (!mine.has(id)) {
+        if (!moCanTake(t)) { (t && !t.context && !canEdit(t) ? ro : out).push(id); continue; }
+        if (t.parent_id) { it.parent_id = null; subs++; }
+        if (moNeedsMe(t)) { it.assignee_id = S.me.id; mes++; }
+      }
+      if (away.includes(id)) {
+        if (!canEdit(t)) { ro.push(id); continue; }
+        Object.assign(it, {list_id: lid, section_id: null}, t.parent_id ? {parent_id: null} : {});
+      }
+      if (Object.keys(it).length) items[id] = it;
+      put.push(id);
+    }
+    if (!put.length) { toast([ro.length ? trn('{0} task skipped (read-only)', '{0} tasks skipped (read-only)', ro.length) : '', out.length ? tr(MO_NOPLACE) : ''].filter(Boolean).join(' · ') || tr('Nothing to move')); return; }
+    const n = put.length, lab = w.sid != null ? trn('{0} task moved to section {1}', '{0} tasks moved to section {1}', n, mseName(mseList().find(x => x.id === w.sid) || {})) : away.length ? trn('Moved {0} task to {1}', 'Moved {0} tasks to {1}', n, lname(l)) : trn('{0} task moved', '{0} tasks moved', n);
+    let dt = [], fail = 0;
+    if (Object.keys(items).length) {
+      const r = await dgApply(items, lab, [], {quiet: true});
+      if (!r) return;  // api() said why; nothing moved
+      dt = r.dt;
+      const kept = new Set([...(r.j?.skipped || []), ...(r.j?.conflicts || []).map(c => c.id)]);
+      const ni = Object.keys(items).length;
+      fail = Math.max(put.filter(i => kept.has(i)).length, ni - (r.j?.count ?? ni));  // locked, changed elsewhere, refused: named, kept where they were
+      for (const i of kept) if (put.includes(i)) put.splice(put.indexOf(i), 1);
+    }
+    const was = moSnap(put);
+    await moSave(moFlat(put, w), w.sid !== undefined && mseOn() ? Object.fromEntries(put.map(id => [id, w.sid])) : null);
+    const now = moSnap(put), e = histAdd({label: lab, undo: () => moBack(was), redo: () => moBack(now)});
+    const msg = [lab, mes ? tr('Assigned to me') : '', subs ? trn('{0} subtask is now standalone', '{0} subtasks are now standalone', subs) : '',
+      fail ? trn('{0} task not changed', '{0} tasks not changed', fail) : '', ro.length ? trn('{0} task skipped (read-only)', '{0} tasks skipped (read-only)', ro.length) : '',
+      out.length ? tr(MO_NOPLACE) : ''].filter(Boolean).join(' · ');
+    if (!dtToast(msg, dt)) offerUndo(msg, e);  // 2.1271.0 (#6436): "Don't adopt"; the Undo of the whole step stays in the history
+  });
+}
+if (typeof DROP_ADAPTERS !== 'undefined') DROP_ADAPTERS.push({name: 'mine', on: moActive, where: moWhere, put: (ids, w) => w.fresh ? mseMoveToNew(ids) : moPut(ids, w)});
 // the grey subtitle "List › Section" (render.js taskRow, own order only)
 function moSubHtml(t) {
   const l = listById(t.list_id); if (!l) return '';
@@ -215,28 +285,14 @@ function mseGroups(arr) {
 }
 // render.js: the "…" of an own section in its head; the button "New section" under the last one
 const mseHeadHtml = g => g.mosec && g.mosec.kind !== 'recent' ? `<button data-rowmenu="mosec" type="button" class="iconbtn gact" data-mse-menu="${g.mosec.id}" title="${esc(tr('More') + ': ' + g.name)}" aria-label="${esc(tr('More') + ': ' + g.name)}">${ic('dots', 's')}</button>` : '';
-const mseAddHtml = () => mseOn() ? `<button type="button" class="linkbtn msenew" data-mse-add="1">${ic('plus', 's')}<span>${esc(tr('New section'))}</span></button>` : '';
-// a drop into an own section (moDrop: onto a row of it; dnd.js: onto its head = on top of it). Only the tasks shown in own
-// sections are sent (with their places); "Recently assigned" takes nothing.
-const mseDrop = (t, head, targetId = null, after = false) => mseDropMany([t.id], head, targetId, after);
-// 2.1389.0 (#6959): the whole selection (dragmulti.js dgDrop), in its order
-async function mseDropMany(ids, head, targetId = null, after = false) {
-  const sid = head ? +head.dataset.key.slice(3) : NaN;
-  await mseMoveTo(ids, sid, targetId, after);
-  return true;
-}
-// 2.1365.0 (#6962): tasks (ids, in this order) into own section sid in one moSave - before / after targetId, else on top of it
-// (where its first task stands; an empty one = at the end). mseDrop and "Move to section…" of the task menu go this way.
+const mseAddHtml = () => mseOn() ? `<button type="button" class="linkbtn msenew" data-mse-add="1" data-dropnew="1">${ic('plus', 's')}<span>${esc(tr('New section'))}</span></button>` : '';
+// 2.1365.0 (#6962): tasks (ids, in this order) into own section sid - before / after targetId, else on top of it (where its first
+// task stands; an empty one = at the end). "Move to section…" of the task menu and of the multi panel; 2.1444 (#7344): the
+// drop core's way (moPut: a subtask comes out, a task nobody has is assigned to me, one step of the history)
 async function mseMoveTo(ids, sid, targetId = null, after = false) {
   const s = mseList().find(x => x.id === sid);
   if (!s || s.kind === 'recent' || !ids.length) return false;
-  const x = mseCtx(), mv = new Set(ids), all = moAll().filter(y => !mv.has(y.id)), flat = [];
-  for (const o of x.own) flat.push(...all.filter(y => mseOf(y, x) === o.id).map(y => y.id));
-  flat.push(...all.filter(y => mseOf(y, x) === null).map(y => y.id));
-  let at = targetId != null && flat.includes(targetId) ? flat.indexOf(targetId) + (after ? 1 : 0) : -1;
-  if (at < 0) { const first = all.find(y => mseOf(y, x) === sid); at = first ? flat.indexOf(first.id) : flat.length; }
-  flat.splice(at, 0, ...ids);
-  await moSave(flat, Object.fromEntries(ids.map(id => [id, sid])));
+  await moPut(ids, {sid, tid: targetId, after});
   return true;
 }
 // 2.1365.0 (#6962): in "My tasks" with own sections (a row of the view, not the task panel) "Move to section…" offers the own
@@ -245,7 +301,7 @@ async function mseMoveTo(ids, sid, targetId = null, after = false) {
 function mseMenuHere(anchor, ts) {
   if (!mseOn() || anchor?.closest?.('#detail') || !ts.length) return false;
   const mine = new Set(moAll().map(y => y.id));
-  return ts.every(t => mine.has(t.id));
+  return ts.every(t => mine.has(t.id) || moCanTake(t));  // 2.1444 (#7344): also subtasks and "Unassigned in your projects" (they come along)
 }
 function mseSecPicker(anchor, ids, done = () => {}) {  // done: before the move (the multi panel marks its field changed)
   const x = mseCtx(), ts = ids.map(id => S.tasks.get(id)).filter(Boolean), cur = new Set(ts.map(t => mseOf(t, x)));
@@ -263,7 +319,6 @@ function mseMenuItems(anchor, ids, proj) {  // proj = the project's own picker (
   return [{label: tr('Move to section…'), icon: 'columns', next: 1, fn: () => mseSecPicker(anchor, ids)},
     ...(proj && l ? [{label: tr('Move to section of {0}…', lname(l)), icon: 'folder', next: 1, fn: proj}] : [])];
 }
-const mseDropHead = async (t, el) => { const h = moActive() && mseOn() && el.closest?.('#view .ghead[data-key^="ms:"]'); return h ? mseDrop(t, h) : false; };
 async function mseCall(method, url, b) {
   try { const j = await api(method, url, b); if (j?.mine_sections) S.mineSecs = {...mseKeepFold(j.mine_sections), ...(OUT.q.some(e => e.url === '/api/tasks/mine-order') ? {tasks: S.mineSecs.tasks} : {})}; if (j?.order_kept) toast(tr('The sections were changed on another device: that order stays.')); render(); return j; }
   catch (e) { if (e?.status === 409 || e?.status === 404) { await load(); render(); } return null; }  // api() showed the reason; the current state instead of an old one
