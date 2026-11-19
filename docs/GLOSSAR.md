@@ -991,6 +991,7 @@ The start-up module.
 - `static/js/ftsearch.js` (`fts`) - The command palette's group "
 - `static/js/git.js` (`snip`) - Git integration of project lists
 - `static/js/gitrepo.js` - The repository editor of a project list / folder, moved out of git.js and loaded when the list dialog or the folder settings open it
+- `static/js/grip.js` (`grip`) - The one grip to resize (shared core, #7293): grip_col / grip_row / grip_corner for columns, dividers and the corner of a floating window; the size is the CSS variable --g-<key>, stored per device under grip:<key> or through load / save hooks
 - `static/js/habitdlg.js` - The dialog of a habit (habitModal: new / edit, reminders, delete); loaded on demand (2.1238.0 #4280, was in habits.js)
 - `static/js/habits.js` (`mx`) - The Eisenhower matrix, habits and the pomodoro timer
 - `static/js/helpview.js` (`hv`) - The page "Help": the how-to topics per area, their search, one topic (GET /api/help, helpuser.py; 2.1086.0)
