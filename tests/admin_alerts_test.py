@@ -323,9 +323,12 @@ clear()
 check(patch({"max_hour": 1}).ok, "max 1 alert per hour")
 switch("collab_all", False)
 switch("collab_all", True)
-# 2.192.0 B (#2513): wait for the capped row instead of 2.5 s
-it = until(lambda: (lambda i: i if i and i[0]["state"] == "capped" else None)(alerts()["items"]), 15) or alerts()["items"]
-check(not admin_msgs() and it[0]["state"] == "capped" and it[0]["delivered"] is False, f"over the hourly cap: listed, not sent: {it[:1]}")
+# 2.192.0 B (#2513): wait for the capped rows instead of 2.5 s. (#7104): wait for BOTH (off, then on): the two alerts can reach two
+# ticks (watchdog / flush loop); waiting for the newest row only let the "on" arrive after the switch to summary mode (3 queued alerts)
+it = until(lambda: (lambda i: i if [(x["state"], x["message"][-4:]) for x in i[:2]] == [("capped", " on."), ("capped", "off.")] else None)(
+    alerts()["items"]), 15) or alerts()["items"]
+check(not admin_msgs() and [(x["state"], x["delivered"]) for x in it[:2]] == [("capped", False)] * 2,
+      f"over the hourly cap: both listed, not sent: {[(x['state'], x['message']) for x in it[:2]]}")
 r = A.post(B + "/api/admin/alerts/test")
 check(r.json()["ok"] is True and len(admin_msgs()) == 2, "the test alert ignores the cap (both admins)")
 
