@@ -20,8 +20,8 @@ Since 2.1380 (#6826) a version updates only a database that last ran **2.1000.0 
 column steps every such database has behind it are gone from the code. A database that last ran an older version (or one
 from before 2.149 without a version stamp) is refused at the start with a line starting `FATAL: this database`, and the
 container stops with exit code 3; nothing is changed. A backup from such a version is refused by *Check* and *Restore* the
-same way. The way through: update to a version 2.1000.x (or any newer one older than 2.1380) first, start it once, then
-update to the current version (a backup made there restores here). A new, empty database is not affected. The limit is
+same way. The way through: update to 2.1001.0 (the first release from the limit on; there was no 2.1000.x) or any
+newer one older than 2.1380 first, start it once, then update to the current version (a backup made there restores here). A new, empty database is not affected. The limit is
 `MIN_FROM` in `kalmido/core/db.py`; a release that raises it says so here.
 
 ## Versions that need a step

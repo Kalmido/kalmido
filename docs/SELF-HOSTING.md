@@ -504,7 +504,7 @@ deleted from `docker-compose.yml`, which every update restored). Needs Docker Co
 Kalmido runs on PostgreSQL since 2.37. The tool that moved the data of an older install out of the SQLite file
 `data/tasks.db` (`migrate-sqlite`) is gone (#5304): this version neither reads nor moves such a file, and an install with
 an empty PostgreSQL database next to old data refuses to start. If you still run 2.36 or older, update to 2.37.0 first and
-follow the upgrade notes of that version (it moves the data by itself), then update to a 2.1000.x version and start it
+follow the upgrade notes of that version (it moves the data by itself), then update to 2.1001.0 (or a newer version older than 2.1380) and start it
 once, then to the current version ([oldest version to update from](UPGRADING.md#oldest-version-to-update-from-21000)).
 
 ## Backup and encryption
@@ -2213,7 +2213,7 @@ stay blocked until you allow them.
   its first start with it.
 - **Oldest version to update from (2.1380.0, #6826).** A database that last ran a version older than 2.1000.0 (or one
   without a version stamp, from before 2.149) refuses to start, and a backup of such a version is refused by the check
-  and the restore; nothing is changed. Update to a 2.1000.x version first, start it once, then update on: see
+  and the restore; nothing is changed. Update to 2.1001.0 (or a newer version older than 2.1380) first, start it once, then update on: see
   [Oldest version to update from](UPGRADING.md#oldest-version-to-update-from-21000).
 - **Format limits (2.359.3, #2896).** The guard also knows the [format limits](UPGRADING.md#format-limits-going-back): an
   image below the limit of its database refuses to start and names the step, even as the one step back.

@@ -19203,7 +19203,7 @@
   "You do not see the project of this quotation": "Je ziet het project van deze offerte niet",
   "Only the project's owner or admins see everyone's times": "Alleen de eigenaar of beheerders van het project zien ieders tijden",
   "The tracked times changed meanwhile; open the post-calculation again": "De geregistreerde tijden zijn intussen gewijzigd; open de nacalculatie opnieuw",
-  "The backup was made with Kalmido {0}; this server only takes data from Kalmido {1} or newer. Restore it on Kalmido {2}.x first (or a newer version older than this one), then make a new backup there.": "De back-up is gemaakt met Kalmido {0}; deze server neemt alleen gegevens over vanaf Kalmido {1}. Zet hem eerst terug op Kalmido {2}.x (of een nieuwere versie die ouder is dan deze) en maak daar een nieuwe back-up.",
+  "The backup was made with Kalmido {0}; this server only takes data from Kalmido {1} or newer. Restore it on Kalmido {2} first (or a newer version older than this one), then make a new backup there.": "De back-up is gemaakt met Kalmido {0}; deze server neemt alleen gegevens over vanaf Kalmido {1}. Zet hem eerst terug op Kalmido {2} (of een nieuwere versie die ouder is dan deze) en maak daar een nieuwe back-up.",
   "The account this access belongs to is locked": "Het account waar deze toegang bij hoort, is geblokkeerd",
   "The date {0} lies in an earlier year.": "De datum {0} ligt in een eerder jaar.",
   "Set the date to today": "Datum op vandaag zetten",
