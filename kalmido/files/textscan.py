@@ -40,7 +40,7 @@ from ..core.env import env_bool
 from ..core.orgcrypt import oc_read_file  # 2.149.0 G (#2517): pulled up from functions
 from .fslock import fl_is_locked  # 2.353.0 A (#2758)
 from .fsviews import fsv_drop  # 2.429.0 (#3580)
-from ..docs.ocr import OCR_ANON_S, ocr_anon_tired, ocr_charge, ocr_tired, ocr_ws_sql  # (#6951): + the anonymous share; 2.1337.0 (#6651): the hour budget, the anonymous clock
+from ..docs.ocr import OCR_ANON_S, ocr_anon_tired, ocr_charge, ocr_tired, ocr_ws_sql  # (#6951): + the anonymous share; (#6651): the hour budget, the anonymous clock
 
 KINDS = ("att", "list", "fs")
 COL = {"att": "att_id", "list": "list_file_id", "fs": "node_id"}
@@ -368,7 +368,7 @@ def _process(c, row):
     else:  # 2.1337.0 (#6651): a file from an anonymous source (ts_mark_anon) gets the shorter clock
         r = doc_text(ref["name"], mime, data, doc_s=OCR_ANON_S if row.get("anon") else None)
     if r.get("error") != "busy":
-        ocr_charge(row["ws"], time.monotonic() - t0, anon=bool(row.get("anon")))  # 2.1337.0 (#6651): the workspace's hour budget (#6951: + the anonymous share)
+        ocr_charge(row["ws"], time.monotonic() - t0, anon=bool(row.get("anon")))  # (#6651): the workspace's hour budget (#6951: + the anonymous share)
     if r.get("error") == "busy":
         c.execute("UPDATE file_text SET state='wait', tries=GREATEST(tries-1, 0), updated_at=? WHERE id=?", (_now(), fid))
         return

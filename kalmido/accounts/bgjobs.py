@@ -228,7 +228,7 @@ def bgj_add(kind, *args, org_id=None, user_id=None, delay=0.0, once=False, lock=
             with mv_strict() if strict else _no_ctx():  # (#6951): as a row would run
                 if kind in BGJ_NO_GATE:
                     return BGJ_FNS[kind](*args)
-                with GATE.work():  # 2.370.3 (#2760): the fallback goes through the maintenance gate like a row (gated_thread before)
+                with GATE.work():  # (#2760): the fallback goes through the maintenance gate like a row (gated_thread before)
                     return BGJ_FNS[kind](*args)
         threading.Thread(target=late, daemon=True, name="bgjobs-direct").start()
         return None

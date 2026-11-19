@@ -27,7 +27,7 @@ from ..office.lettermail import ltm_token_space  # 2.312.0 C (#3265)
 from ..files.fslock import fl_is_locked  # 2.353.0 (#2769)
 from .maillink import ML_TAG, ml_budget, ml_collect, ml_links, ml_mail_name  # 2.424.0 B (#3450)
 from .mailaddr import dmn_dest  # 2.577.0 C (#4466)
-from .ocr import ocr_anon_tired, ocr_tired, ocr_ws_sql  # (#6951): + the anonymous share; 2.1337.0 (#6651): the workspaces' hour budget of recognition
+from .ocr import ocr_anon_tired, ocr_tired, ocr_ws_sql  # (#6951): + the anonymous share; (#6651): the workspaces' hour budget of recognition
 
 IDLE = 5             # s the queue sleeps when there is nothing to do (a new document wakes it at once)
 SCAN_EVERY = max(1, int(os.environ.get("KALMIDO_DOCS_SCAN_S", "60") or 60))  # s between two looks into the inbox folders
