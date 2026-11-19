@@ -2641,10 +2641,24 @@ class UmzQuota(UmzBad):
     """The target's storage does not take the files (the start refuses, a run rolls back): the text names what is missing."""
 
 
+# Review F2 (job/5521): the office files that count for their uploader all the same (admin/hosting.py _user_bytes:
+# office_meal_files / office_contract_files, #2316) -- their names in the export (admin/oi_office.py _p_meal_file /
+# _p_contract_file). Check and count must say the same.
+UMZ_OFFICE_COUNTED_RE = re.compile(r"(?:meal|contract)\d{1,12}-[0-9a-f]{16}\.[a-z]{2,4}")
+
+
+def umz_counts(path):
+    """Whether the archive file at path counts against the storage once imported: every file below files/, but of the
+    office files (files/office/: documents, receipts, the archive; they count for nobody, #6537, decision of 17.11.2026)
+    only entertainment receipts and contract files."""
+    if not path.startswith("files/"):
+        return False
+    return not path.startswith("files/office/") or bool(UMZ_OFFICE_COUNTED_RE.fullmatch(path.rsplit("/", 1)[-1]))
+
+
 def umz_need(files):
-    """The bytes the files of the archive will count against the storage once imported (their unpacked sizes). Office files
-    (files/office/: documents, receipts, the archive) count for nobody (#6537, decision of 17.11.2026)."""
-    return sum(zi.file_size for p, (zi, _s) in files.items() if p.startswith("files/") and not p.startswith("files/office/"))
+    """The bytes the files of the archive will count against the storage once imported (their unpacked sizes, umz_counts)."""
+    return sum(zi.file_size for p, (zi, _s) in files.items() if umz_counts(p))
 
 
 def umz_room_at(c, uid, org, need, extra=0):
@@ -2737,7 +2751,7 @@ def umz_check(uid, iid, can_invite):
                 ids[umz_pid(p)] = hit["id"] if hit else None
         c.rollback()
         facts = pv.pop("office_facts", None)  # 2.1316.0 (#6577): for the start's check, not for the client
-        _set(uid, iid, state="preview", preview=pv, export_id=pv["export_id"], src=pv["src"], office_facts=facts, need=need, people_ids=ids)
+        _set(uid, iid, state="preview", preview=pv, export_id=pv["export_id"], src=pv["src"], office_facts=facts, need=need, people_ids=ids, people_salt=umz_salt(man))
     except UmzBad as e:
         _set(uid, iid, state="invalid", error=[e.text, *e.args_])
         try:
@@ -3335,19 +3349,32 @@ def umz_undo_plan_get(iid):
 def umz_invites(c, uid, st, org, picks, can_invite):
     """2.1402.0 (#6579): the people an organisation export's run invites into the target org (umz_share: a found account not
     a member yet, ticked "share"; a missing one ticked "invite" with an address, by an instance admin) -- they join its storage
-    pool once they accept. 0 into the private space and for an account export (it invites nobody into an organisation)."""
+    pool once they accept. 0 into the private space and for an account export (it invites nobody into an organisation).
+    Review F1 (job/5521): counted like umz_share acts and like quota_info's pool counts -- distinct accounts (many keys
+    with one user name are one seat), never an agent or an account with a quota of its own (it never joins the pool), an
+    invitation only for an address whose hash is the key's (else umz_share invites nobody), distinct addresses."""
     if org is None or (st.get("preview") or {}).get("kind") != "org":
         return 0
-    ids, n = st.get("people_ids") or {}, 0
+    ids, salt = st.get("people_ids") or {}, st.get("people_salt")
+    accounts, mails = set(), set()
     for k, v in picks.items():
-        if k not in ids:
+        if k not in ids or not isinstance(v, dict):
             continue
         hid = ids[k] or ((umz_find_login(c, uid, v.get("login")) or {"id": None})["id"] if v.get("login") else None)
         if hid:
-            n += bool(v.get("share") and not umz_in_org(c, org, hid))
-        else:
-            n += bool(v.get("invite") and can_invite and v.get("email"))
-    return n
+            if v.get("share"):
+                accounts.add(hid)
+        elif v.get("invite") and can_invite:
+            em = _email(v.get("email"))
+            if em and umz_email_hash(em, salt) == k:
+                mails.add(em.strip().lower())
+    if accounts:
+        q = ",".join("?" * len(accounts))
+        with system_ctx(c):  # structure: which of them would count in the pool (quota_info's members)
+            pooled = {r[0] for r in c.execute(f"SELECT id FROM users WHERE id IN ({q}) AND COALESCE(kind,'user')!='agent' "
+                                              "AND storage_quota_mb IS NULL", list(accounts))}
+        accounts = {a for a in pooled if not umz_in_org(c, org, a)}
+    return len(accounts) + len(mails)
 
 
 @app.post("/api/account/import/<iid>/run")
