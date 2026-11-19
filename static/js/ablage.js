@@ -240,7 +240,7 @@ function ab_panelHtml() {
   const withColl = (s, it) => it && [...it.map(node), ...collNodes(s)];
   // #7389: a workspace (Private / an organisation) is the core's workspace node (sbb_treeHtml wso: symbol, stripe, arrow, open);
   // "Shared with me" and the trash are no workspace and keep their own symbol, without folders
-  const spaceNode = s => real.includes(s) ? {k: 'ab:s:' + s, name: ab_spaceName(s), go: ab_home(s) /* 2.540.0 (#4575) */, on: cur === s, wso: s, battrs: `data-absp="${esc(s)}"`,
+  const spaceNode = s => real.includes(s) ? {k: 'ab:s:' + s, name: ab_spaceName(s), go: ab_home(s) /* (#4575) */, on: cur === s, wso: s, battrs: `data-absp="${esc(s)}"`,
     has: AB.pt['s:' + s]?.items ? AB.pt['s:' + s].items.length > 0 || !!AB.pt['s:' + s]?.coll?.length : null, here: !!path.length && AB.data?.space === s, sub: () => withColl(s, ab_ptGet('s:' + s))}
     : {k: 'ab:s:' + s, name: ab_spaceName(s), go: ab_home(s), on: cur === s, icon: s === 'shared' ? 'users' : s === 'trash' ? 'trash' : 'folder', battrs: `data-absp="${esc(s)}"`, kids: false};
   // 2.752.0 (#4887): ONE tree (the documents' own tree with the same folders again is gone); below it "All documents", "To

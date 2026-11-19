@@ -141,7 +141,7 @@ const cgs_pzDraw = rafThrottle(() => {
   if (p.week) {
     if (!p.week.isConnected && !cgs_rehook(p)) { cgs_pzEnd(); return; }  // drawn anew meanwhile (a live update): the session goes on in the new grid
     const z = uiZ(), want = p.H0 * p.ky, H = Math.max(CAL_HMIN * z, Math.min(CAL_HMAX * z, want)), over = want / H;
-    // 2.290.0 A (#3144): the days without steps: the columns are 1/nf wide (calview.js). #7388: on the grid prepared once
+    // (#3144) the days without steps: the columns are 1/nf wide (calview.js). #7388: on the grid prepared once
     // (cgs_prep), never drawn anew while a day comes or goes
     const wantN = p.n0 / p.kx, nf = Math.max(1, Math.min(CAL_DMAX, wantN)), overD = wantN / nf;
     if (p.dz || Math.abs(nf - p.n0) > .05) {  // the days change only once the fingers left the dead zone (p.dz: since then)
@@ -205,10 +205,10 @@ function cgs_pzEnd() {
     const v = Math.round(p.H / uiZ());
     if (v !== calHourH()) LS.set('calHourH', v);
     if (live && p.dz) cgs_setDays(p);  // #7388: only when the days changed (a pinch up / down keeps them)
-    if (p.week.isConnected || live) { S.viewStale = false; renderView(); }  // the blocks get their px again (the scroll position is kept)
+    if (p.week.isConnected || live) renderView();  // the blocks get their px again (the scroll position is kept); a held live update follows by itself (core.js S.viewStale)
     return;
   }
-  if (held && !cgs_leafing()) { S.viewStale = false; renderView(); return; }
+  if (held && !cgs_leafing()) { if (S.viewStale) viewSafeRender(); else renderView(); return; }
   p.box.classList.remove('cgs-arm');
   p.box.style.transition = 'transform .18s ease-out'; p.box.style.transform = '';
   setTimeout(() => { p.box.style.transition = ''; p.box.style.transformOrigin = ''; }, 200);
