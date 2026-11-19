@@ -677,12 +677,13 @@ def ids_of(subject):
 
 
 def evidence_of(repo, cfg, now=None, skip=()):
-    """{done: {tid: sha}, branch: {tid: (branch, age_s)}, ok}: commits of close_ref name built tasks; commits of the job
-    branches (job/*) outside close_ref name tasks built but not landed. 2.1368.0 (#7028): a branch in skip (its check was
-    red) names nothing -- its tasks go back to the list. 2.1394.0 (#6176): branch_files = {branch: files it changes}
-    with same_file on (every job has its own branch since #7028)."""
+    """{done: {tid: sha}, branch: {tid: (branch, age_s)}, built_at: {tid: epoch}, ok}: commits of close_ref name built tasks;
+    commits of the job branches (job/*) outside close_ref name tasks built but not landed. 2.1368.0 (#7028): a branch in skip
+    (its check was red) names nothing -- its tasks go back to the list. 2.1394.0 (#6176): branch_files = {branch: files it
+    changes} with same_file on (every job has its own branch since #7028). #4061: built_at = the author time of the
+    commit that built it (it survives a merge or a rebase into close_ref)."""
     now = now or time.time()
-    out = {"done": {}, "branch": {}, "branch_files": {}, "ok": False}
+    out = {"done": {}, "branch": {}, "branch_files": {}, "built_at": {}, "ok": False}
     if cfg["fetch"]:
         ok, why = push_url_ok(cfg, repo)  # reader F2 (2.1400): the fetch goes only to the fixed address, like the push
         if ok:
@@ -690,14 +691,17 @@ def evidence_of(repo, cfg, now=None, skip=()):
         else:
             log_once("no fetch: " + why)
     ref = cfg["close_ref"] or "HEAD"
-    rc, txt = git(repo, "log", "--format=%h\t%s", "-n", "5000", ref)
+    rc, txt = git(repo, "log", "--format=%h\t%at\t%s", "-n", "5000", ref)
     if rc != 0:
         return out
     out["ok"] = True
     for ln in txt.splitlines():
-        sha, _, subj = ln.partition("\t")
+        sha, _, rest = ln.partition("\t")
+        at, _, subj = rest.partition("\t")
         for tid in ids_of(subj):
-            out["done"].setdefault(tid, sha)
+            if tid not in out["done"]:
+                out["done"][tid] = sha
+                out["built_at"][tid] = float(at) if at.isdigit() else None
     rc, txt = git(repo, "for-each-ref", "--format=%(refname:short)", "refs/heads/job/")
     for br in (txt.split() if rc == 0 else []):
         if br in skip:
@@ -1022,7 +1026,8 @@ class Dispatcher:
         self.project_dir = project_dir or os.getcwd()
         self.state_path = os.path.join(host.state_dir, STATE_FILE)
         self.reg = load_json(self.state_path, {})
-        for k, v in (("jobs", {}), ("tries", {}), ("told", {}), ("counted", []), ("closed", {}), ("started", 0), ("red", []), ("bundles", {}), ("overrides", [])):
+        for k, v in (("jobs", {}), ("tries", {}), ("told", {}), ("counted", []), ("closed", {}), ("started", 0), ("red", []), ("bundles", {}), ("overrides", []),
+                     ("lead", []), ("ended", [])):
             self.reg.setdefault(k, v)
         self.last = 0.0
         self.seen_overrides = set()  # #4064: counted once per run of the runner (= per start)
@@ -1045,6 +1050,21 @@ class Dispatcher:
                 log("overridden: " + what)
             self.reg["overrides"].append([int(now), what])
         self.reg["overrides"] = [x for x in self.reg["overrides"] if now - float(x[0]) < OVERRIDE_KEEP_S][-500:]
+
+    def metrics(self, now, days=7):
+        """#4061: the three numbers of the day report over the last days: (median hours from built to closed or
+        None, tasks closed), (jobs ended with open tasks, jobs ended), (overrides, their names)."""
+        keep = now - 30 * 86400
+        for k in ("lead", "ended"):
+            self.reg[k] = [x for x in self.reg.get(k) or [] if float(x[0]) >= keep][-2000:]
+        since = now - days * 86400
+        hours = sorted(float(x[1]) for x in self.reg["lead"] if float(x[0]) >= since)
+        med = None
+        if hours:
+            m = len(hours) // 2
+            med = hours[m] if len(hours) % 2 else (hours[m - 1] + hours[m]) / 2
+        ended = [bool(x[1]) for x in self.reg["ended"] if float(x[0]) >= since]
+        return (med, len(hours)), (sum(ended), len(ended)), self.override_count(now, days)
 
     def override_count(self, now, days=7):
         """#4064: (count, distinct names) of the overrides of the last days."""
@@ -1161,7 +1181,7 @@ class Dispatcher:
             res["problem"] = "no git repository (or close_ref unknown) in the project folder"
             log(res["problem"])
             return res
-        self.guard(jobs, cfg, now, res, ev, w)
+        self.guard(jobs, cfg, now, res, ev, w, {int(t["id"]) for t in tasks})
         owner = self.owner()
         deps = read_deps(self.host.api, tasks)  # 2.1394.0 (#5200): the dependency field of the blocked tasks
         states = classify(tasks, ev, jobs, self.reg, cfg, owner, deps, fids)
@@ -1186,6 +1206,9 @@ class Dispatcher:
                     api.req("POST", f"/tasks/{tid}/complete")))
                 if ok:
                     res["closed"].append(tid)
+                    at = ev["built_at"].get(tid)
+                    if not dry and at:  # #4061: hours from built (the commit) to closed (seen in close_ref)
+                        self.reg["lead"].append([int(now), round(max(0.0, now - at) / 3600, 2)])
                     if not dry:  # 2.1394.0 (#5201): remembered, so a reopen of this task does not close or bundle it again
                         self.reg["closed"][str(tid)] = str(sha)
                         while len(self.reg["closed"]) > 2000:
@@ -1256,10 +1279,12 @@ class Dispatcher:
         self.save()
         return res
 
-    def guard(self, jobs, cfg, now, res, ev=None, w=None):
+    def guard(self, jobs, cfg, now, res, ev=None, w=None, open_ids=None):
         """Jobs of the dispatcher: an ended one first lands (2.1368.0, #7028: check, then pull request + card, see land), then
         counts one try for each of its tasks still open -- not built in close_ref, not on a green branch (once); a running one
-        without a progress line for stale_h hours is a finding. Jobs gone from this host (removed state folder) count as ended."""
+        without a progress line for stale_h hours is a finding. Jobs gone from this host (removed state folder) count as ended.
+        #4061: an ended job is noted with whether it left a task open (still open in the list and built neither in
+        close_ref nor on a branch) -- the day report's share of jobs that ended with open tasks."""
         ev = ev or {"done": {}, "branch": {}}
         for jid, e in list(self.reg["jobs"].items()):
             if w is not None and e.get("read") and not e.get("carded"):  # 2.1413.0 (#7032)
@@ -1294,6 +1319,10 @@ class Dispatcher:
                         api = self.host.api
                         text = self.say("dispatch_rebundled", int(cfg["max_tries"]))
                         w(f"#{tid} back to the list", lambda tid=tid, text=text: api.req("POST", f"/tasks/{int(tid)}/comments", {"body": text}))
+                if open_ids is not None:
+                    built = set((ev or {}).get("done") or {}) | set((ev or {}).get("branch") or {})
+                    left = any(int(t) in open_ids and int(t) not in built for t in e.get("tasks") or [])
+                    self.reg["ended"].append([int(now), left])
             if now - float(e.get("at") or now) > 30 * 86400:
                 self.reg["jobs"].pop(jid, None)
 
@@ -1462,9 +1491,10 @@ class Dispatcher:
         lines.append(", ".join(f"{self.say('dispatch_state_' + s)} {counts[s]}" for s in STATES if counts.get(s)) or self.say("dispatch_nothing"))
         if res["brakes"]:
             lines.append(self.say("dispatch_brakes", ", ".join(res["brakes"])))
-        n, names = self.override_count(now)  # #4064: every override of a safeguard, counted
-        if n:
-            lines.append(self.say("dispatch_overrides", n, ", ".join(names)))
+        (med, n_lead), (n_open, n_ended), (n_over, names) = self.metrics(now)  # #4061: three numbers, 7 days
+        lines.append(self.say("dispatch_lead", "-" if med is None else (f"{med:.1f}".rstrip("0").rstrip(".")), n_lead, cfg["close_ref"] or "HEAD"))
+        lines.append(self.say("dispatch_open_end", n_open, n_ended, round(100 * n_open / n_ended) if n_ended else 0))
+        lines.append(self.say("dispatch_overrides", n_over, (" - " + ", ".join(names)) if names else ""))  # #4064
         if res.get("skipped"):  # 2.1308.0 (#6523)
             lines.append(self.say("dispatch_skipped", " ".join(f"#{t}" for t in sorted(res["skipped"]))))
         if res.get("waiting"):  # 2.1394.0 (#5200)
