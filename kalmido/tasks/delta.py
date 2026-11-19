@@ -23,10 +23,10 @@ from flask import has_request_context, jsonify, request
 from ..core.config import app, APP_VERSION
 from ..core.db import appver_parse, db, gset, gsetting, iso, now_utc, trigger_ensure, usettings
 from ..accounts.session import me
-from ..core.access import joined_lists_sql, plists, time_all, token_lists, tvis, vis_sql, wr_sql  # 2.149.0 G (#2517): pulled up from functions
-from ..core.serializers import load_tasks, td_extra, td_lean, td_mode  # 2.149.0 G (#2517): pulled up from functions; 2.575.0 B (#3966): + td_lean; 2.1117.0 (#6023): + td_mode, td_extra
+from ..core.access import joined_lists_sql, plists, time_all, token_lists, tvis, vis_sql, wr_sql  # (#2517 G): pulled up from functions
+from ..core.serializers import load_tasks, td_extra, td_lean, td_mode  # (#2517 G): pulled up from functions; 2.575.0 B (#3966): + td_lean; 2.1117.0 (#6023): + td_mode, td_extra
 from ..core.pg import st_ids  # 2.369.2 (#3136)
-from ..core.state import ev_links, ev_sig, lz_counts, lz_ids_arg, lz_tree, st_where  # 2.149.0 G (#2517): pulled up from functions
+from ..core.state import ev_links, ev_sig, lz_counts, lz_ids_arg, lz_tree, st_where  # (#2517 G): pulled up from functions
 from ..core.pg import system_ctx  # 2.369.5 (#2517): pulled up from functions
 from ..tasks.mineorder import mt_mine_hidden, vw_mine_order, vw_mine_sections  # 2.369.5 (#2517): pulled up from functions; 2.569.0 (#4395): + sections
 
