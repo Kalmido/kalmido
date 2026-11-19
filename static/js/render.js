@@ -1528,10 +1528,10 @@ async function assignMenu(anchor, id) {
   const set = uid => { if ((t.assignee_id || null) !== uid || t.assignee_group_id) { patchTask(id, {assignee_id: uid, ...(t.assignee_group_id ? {assignee_group_id: null} : {})}); ab2_warnAssign(uid, t); } };  // 2.50.0 (#1195): warn when away
   const setG = gid => { if (t.assignee_group_id !== gid) patchTask(id, {assignee_group_id: gid, ...(t.assignee_id ? {assignee_id: null} : {})}); };
   const cur = t.assignee_id ? personName(t.list_id, t.assignee_id) || personNameAny(t.assignee_id) : '';
-  const gs = listGroups(t.list_id);
+  const gs = asgGroups([t]);  // 2.1444.0 (#7347): the one source (core.js asgPeople / asgGroups)
   menu(anchor, [...take, ...(take.length ? ['-'] : []), ...(t.assignee_id ? [{label: tr('Show {0}', cur || '?'), icon: 'user', cls: 'mshow', fn: () => personCard(anchor, t.assignee_id)}, '-'] : []),  // 2.7.2 (#418)
     {label: tr('Nobody'), icon: 'x', on: !t.assignee_id && !t.assignee_group_id, fn: () => set(null)}, '-',
-    ...[...listPeople(listById(t.list_id)), ...o3a_ovPeople(listById(t.list_id))].filter(p => listById(t.list_id)?.agents_open !== false || !(p.agent || agentById(p.user_id)) || p.user_id === t.assignee_id).map(p => ({label: p.name + (S.me && p.user_id === S.me.id ? ' ' + tr('(me)') : '') + (p.role === 'participant' ? ' · ' + tr('Participant') : p.role === 'view' ? ' · ' + tr('Read-only') : p.role === 'reader' ? ' · ' + tr('Not joined') : ''),
+    ...asgPeople([t]).map(p => ({label: p.name + (S.me && p.user_id === S.me.id ? ' ' + tr('(me)') : '') + (p.role === 'participant' ? ' · ' + tr('Participant') : p.role === 'view' ? ' · ' + tr('Read-only') : p.role === 'reader' ? ' · ' + tr('Not joined') : ''),
       ...ac_mi(p.user_id), on: p.user_id === t.assignee_id, fn: () => set(p.user_id)})),  // 2.47.1 (#1721): + the person's colour
     ...(gs.length ? ['-', ...gs.map(g => ({label: g.name + ' · ' + tr('Group'), icon: 'users', on: g.group_id === t.assignee_group_id, fn: () => setG(g.group_id)}))] : [])], null, null, tr('Assign'));  // 2.354.0 C (#3013): the sheet gets a heading
 }

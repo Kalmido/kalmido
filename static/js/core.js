@@ -357,6 +357,31 @@ const canAssign = t => !!t && collab() && canEditList(t.list_id);
 const isOwner = l => !l || !l.role || l.role === 'owner';
 const hasSharing = () => collab() && S.lists.some(l => l.shared);
 const listPeople = l => !l ? [] : [{user_id: l.owner_id, name: l.owner_name || S.me?.display_name || '', role: 'owner'}, ...(l.members || [])];
+// 2.1444.0 (#7347): who can be assigned - ONE source and ONE condition for the task menu, the detail chip and the multi panel.
+// The people: the project's (owner + members) + the organisation's who may edit it without joining (orgvis.js o3a, loaded on
+// demand); an agent only where the project opens it (or it is the assignee already); several tasks = the people in ALL their
+// projects. The groups likewise. Rights stay canAssign; the server (check_assignee) stays the truth.
+function asgPeople(ts) {
+  let ps = null;
+  for (const lid of new Set(ts.map(t => t.list_id))) {
+    const l = listById(lid), cur = new Set(ts.filter(t => t.list_id === lid).map(t => t.assignee_id));
+    const xs = [...listPeople(l), ...o3a_ovPeople(l)].filter(p => l?.agents_open !== false || !(p.agent || agentById(p.user_id)) || cur.has(p.user_id));
+    ps = ps ? ps.filter(p => xs.some(x => x.user_id === p.user_id)) : xs;
+  }
+  return ps || [];
+}
+function asgGroups(ts) {
+  let gs = null;
+  for (const lid of new Set(ts.map(t => t.list_id))) { const xs = listById(lid)?.groups || []; gs = gs ? gs.filter(g => xs.some(x => x.group_id === g.group_id)) : xs; }
+  return gs || [];
+}
+// the field shows wherever collaboration is on, the project type has "Assignee" (props.js) and the person has collaborators
+// (hasPeers, #3036: alone no team entries) - shared or not, an own project too ("me" can be assigned); an assigned task always.
+// Whether it can be used is canAssign (locked otherwise), whether someone fits all is asgPeople.
+const asgOn = ts => collab() && ts.length > 0 && ts.every(t => t && t.id > 0 && !t.context && pz_show(t, 'who', t.assignee_id || t.assignee_group_id))
+  && (hasPeers() || ts.some(t => t.assignee_id || t.assignee_group_id));
+// the organisations' people are loaded once when one of the projects needs them (then redraw)
+const asgNeedOrgs = ts => ts.some(t => o3a_ovAssignable(listById(t.list_id)));
 const personName = (lid, uid) => listPeople(listById(lid)).find(p => p.user_id === uid)?.name || (uid && o3a_ovAssignable(listById(lid)) ? o3a_name(uid) : '');  // 2.83.0 (#1725): + assigned without joining
 const initials = n => String(n || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase() || '?';
 // 1.9.0 profile pictures: S.avatars = {user id: URL} (me + everybody sharing a list with me, from /api/state; the News

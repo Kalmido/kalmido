@@ -134,7 +134,7 @@ const addD = (s, n) => { const [y, m, d] = s.split('-').map(Number); const x = n
   check(det.querySelector('#d-title') && det.querySelector('#d-content')?.getAttribute('placeholder') === 'Description', 'item: title and description (2.7.2)');
   check(det.querySelector('#d-sub') && det.querySelector('[data-act="crumb-menu"][data-k="list"]') && det.querySelector('[data-act="date"]') && det.querySelector('[data-act="prio"]'),
     'full task: subtasks, list, date, priority (2.7.2)');
-  check(!det.querySelector('.dwho'), 'not shared: no assignee');
+  check(!!det.querySelector('.dwho') === w.eval('hasPeers()'), '2.1444.0 (#7347): not shared: the assignee chip all the same when the person has collaborators (core.js asgOn; alone none, #3036)');
   const m0 = (await st()).tasks.find(t => t.id === milk);
   check(m0.tags.includes('dairy') && m0.url === 'https://example.org/milk' && m0.content === 'the good one', 'the data stays (tags, link, note)');
   click(w, det.querySelector('[data-act="task-menu"]')); await settle(w);
