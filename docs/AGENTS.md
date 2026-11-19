@@ -1260,7 +1260,10 @@ the server marks as from outside (`untrusted`, `origin`), gets `"untrusted": tru
 account is not trusted (a task's `updated_by: null` = a hand without a person, data too). An object that names no author
 stays as it is. `fields=compact` of `GET /api/v1/tasks` carries `created_by`, `updated_by` and `by_creator` (and `origin` /
 `untrusted` when set) for it. A fenced text the agent writes back (an edited note, a copied
-title) loses its fence lines on the way in when the field is exactly one fence; a fence quoted inside a longer text stays.
+title) loses its fence lines on the way in when the field is exactly one fence; a fence quoted inside a longer text stays,
+and so does a field of two fences glued together (since 2.1425.0). Limit for notes and wiki pages: their `updated_by` is
+the last account that wrote the row, so another account's text on a note or page of the owner is not fenced once the
+owner pins it or moves its folder; until notes and pages keep the writer of their text, treat such text with care.
 
 One task (`GET /api/v1/tasks/{id}`, MCP `get_task`, and the answer of a change) has
 `"snippets": [{id, lang, path, line, code, by, updated_at}]` (`[]` = none); task lists (`list_tasks`, search, subtasks)
