@@ -5057,9 +5057,10 @@ body.msel #view .qdock{visibility:hidden}
 .wsbar .wsemo{font-size:var(--fs-b);line-height:1}
 @media (pointer:coarse){ .wsbar{min-height:2.75rem;width:2.75rem} }
 .wschip{display:inline-flex;align-items:center;gap:.3125rem;padding:.25rem .625rem;border-radius:var(--radius);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);font-size:var(--fs-m);border:1px solid transparent;cursor:pointer;flex:none;white-space:nowrap;max-width:12rem}
-.wschip span{overflow:hidden;text-overflow:ellipsis}
+.wschip .wsname{overflow:hidden;text-overflow:ellipsis}
 .wschip:hover{border-color:color-mix(in srgb,var(--accent) 45%,transparent)}
-@media (max-width:599px){ .wschip span{display:none} .wschip{padding:.25rem .4375rem} }
+/* #7210: on the phone only the name goes, the organisation's letter / symbol (.orgini, .wsemo are spans too) stays */
+@media (max-width:599px){ .wschip .wsname{display:none} .wschip{padding:.25rem .4375rem} }
 .wsorg summary{display:flex;align-items:center;gap:.5rem;cursor:pointer;min-height:2.25rem}
 .wsorg .mrow select{max-width:7rem}
 /* 2.409.0 (#3490): the areas an organisation's members see (areas.js wsa_orgPaneDraw), the groups per workspace in Settings > Modules */
