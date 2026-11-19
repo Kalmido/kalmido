@@ -442,8 +442,9 @@ def _fence_task(api, task):
     # code snippets (each by its own author), the file names; and the title and description of a task that came from outside
     # Kalmido (origin mail / form / git ..., untrusted from the API: created_by is then the owner of the address)
     origin = task.get("origin") if task.get("untrusted") else None
-    foreign = task.get("created_by") not in ids or bool(origin)
-    who = f"outside Kalmido: {_defuse(' '.join(str(origin).split()))[:40]}" if origin else f"account {task.get('created_by')}"
+    foreign = task.get("created_by") not in ids or bool(origin) or _rewritten(ids, task)
+    who = (f"outside Kalmido: {_defuse(' '.join(str(origin).split()))[:40]}" if origin
+           else _writer(task) if task.get("created_by") in ids and _rewritten(ids, task) else f"account {task.get('created_by')}")
     if foreign:
         for f in ("title", "notes"):
             if isinstance(task.get(f), str) and task[f]:
@@ -457,9 +458,10 @@ def _fence_task(api, task):
         if not isinstance(sub, dict):
             continue
         sorigin = sub.get("origin") if sub.get("untrusted") else None
-        if foreign or sub.get("created_by") not in ids or sorigin:
-            swho = (f"outside Kalmido: {_defuse(' '.join(str(sorigin).split()))[:40]}" if sorigin
-                    else f"account {sub['created_by']}" if not foreign and sub.get("created_by") is not None else who)
+        if foreign or sub.get("created_by") not in ids or sorigin or _rewritten(ids, sub):
+            swho = (f"outside Kalmido: {_defuse(' '.join(str(sorigin).split()))[:40]}" if sorigin else who if foreign
+                    else f"account {sub['created_by']}" if sub.get("created_by") not in ids and sub.get("created_by") is not None
+                    else _writer(sub) if _rewritten(ids, sub) else who)
             for f in ("title", "notes"):
                 if isinstance(sub.get(f), str) and sub[f]:
                     sub[f] = _data_fence(sub[f], swho)
@@ -498,6 +500,19 @@ def _fence_task(api, task):
         _fence_files(ids, k.get("attachments"), who)  # 2.1391.0 (#6906, review F3): the files of a fenced comment, too
         k["untrusted"] = True
     return task
+
+
+def _rewritten(ids, task):
+    """#7124 (review F6 of job/5425): another hand wrote the title or the description last -- updated_by (API 2.1375.0) is set
+    and not a trusted account; null there = a hand without a person (webhook, public link, CalDAV, rule, sync). A server
+    before 2.1375.0 sends no updated_by: judged by created_by alone, as before."""
+    return "updated_by" in task and task.get("updated_by") not in ids
+
+
+def _writer(task):
+    """Who the fence names for a text another hand rewrote (_rewritten)."""
+    ub = task.get("updated_by")
+    return f"account {ub}" if ub is not None else "outside Kalmido: a webhook, a link or a sync"
 
 
 def _fence_files(ids, files, who=None):
