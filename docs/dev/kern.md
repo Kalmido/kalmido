@@ -890,8 +890,12 @@ person's own link (only that person reads it), `extra` = what an area keeps on t
   (`part_kind(obj_link, trash_prune=True)`); `olnk_purge_ids` deletes for good with the undo steps (an office that moves).
   The office trash of the letter links (kind `oletlink`, 2.905.0) is gone.
 - A link dies with its object: the trigger `kalmido_olnk_gone('<kind>')` on `tasks`, `events`, `hub_mails`, `contacts`,
-  `office_letters`, `fs_nodes` and `office_equipment` deletes the links of a row deleted for good (the old tables' ON DELETE
-  CASCADE); a contact merge moves them to the target (`contacts/merge.py ctm_links`).
+  `office_letters`, `fs_nodes` and `office_equipment` (5271_b: also `clients`, `wiki_pages`, `sheets`) deletes the links of a row
+  deleted for good (the old tables' ON DELETE CASCADE). A merge moves them first (2.1426.0, #6288): `core/merges.py
+  mg_olnk_move(c, kind, from_ids, to_id)` takes both directions to the target (a double falls together, a live row wins over
+  one in the trash, a link between the merged records goes) and records the step; `mg_undo_refs` puts it back. Contacts and
+  clients call it; a new merge of a kind with links calls it too. `MG_GONE` names every such delete trigger on a merged table
+  (test `p6288_a_merge_links_test.py`).
 - Export: the files keep their old names and columns (`hub/mail_links.json`, `books/contact_tasks.json`,
   `office/letter_links.json`, `letters/letter-links.csv` of the retention export; `admin/orgexport.py ox_link_row`); the imports
   write into `obj_links`. A person's device links stay in the account export (`device_links`).
