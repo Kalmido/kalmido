@@ -81,13 +81,13 @@ RET_ENV = {"trash": "KALMIDO_TRASH_DAYS", "logs": "KALMIDO_LOG_DAYS", "backups":
            "files": "KALMIDO_ORPHAN_DAYS", "chat": "KALMIDO_CHAT_KEEP_DAYS"}
 # Legal retention in Germany (section 147 AO, section 257 HGB, section 14b UStG): receipts 8 years (since 2025), books 10
 RET_LEGAL_YEARS = {"receipt": 8, "book": 10, "logbook": 8, "letter": 6}  # 2.184.0 A (#2628): sent business letters (section 257 HGB)
-# 2.1413.0 (#6361, decision of 18.10.2026): the period of a finalised office document by its kind -- invoices and credit notes
+# (#6361, decision of 18.10.2026): the period of a finalised office document by its kind -- invoices and credit notes
 # are receipts (8), offers, reminders and delivery notes business letters (6); a kind not named here counts as a book (10, the careful side)
 RET_DOC_KINDS = {"invoice": "receipt", "credit": "receipt", "offer": "letter", "reminder": "letter", "delivery": "letter"}
 
 
 def ret_doc_kind(doc_kind):
-    """2.1413.0 (#6361): the legal kind (receipt, letter, book) of an office document of kind doc_kind (office_docs.kind)."""
+    """(#6361): the legal kind (receipt, letter, book) of an office document of kind doc_kind (office_docs.kind)."""
     return RET_DOC_KINDS.get(str(doc_kind or ""), "book")
 # 2.545.0 (#4595, decision of 04.11.2026): the periods kept are the law plus a buffer the operator sets (never below the law)
 RET_BUFFER_ENV = "KALMIDO_RETENTION_BUFFER_YEARS"

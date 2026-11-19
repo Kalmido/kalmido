@@ -38,7 +38,7 @@ from ..core.db import connect, iso
 from ..core.env import env_int  # 2.370.3 (#2760)
 from ..core.db import db_log_err  # 2.239.0 B (#2888): no values of database errors in the log
 from ..core.pg import system_ctx
-from ..core.movelock import mv_strict, mv_strict_now  # 2.1413.0 (#6951): a row runs as strict as the request that added it
+from ..core.movelock import mv_strict, mv_strict_now  # (#6951): a row runs as strict as the request that added it
 from ..core.pgbus import bus_on, bus_send  # 2.622.0 (#3891)
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -69,7 +69,7 @@ _TOKEN = f"{os.getpid()}-{os.urandom(3).hex()}"  # the process in started_by (nu
 
 BGJ_NO_GATE = set()  # 2.370.2 (#2779): kinds of bgj_fn(gate=False)
 BGJ_LONG = set()     # 2.370.3 (#2760): kinds of bgj_fn(long=True)
-BGJ_FREE = set()     # 2.1413.0 (#6951, reader F4): kinds of bgj_fn(free=True) - never strict
+BGJ_FREE = set()     # (#6951, reader F4): kinds of bgj_fn(free=True) - never strict
 _CUR = threading.local()  # 2.370.3 (#2760): the row the current thread runs (bgj_current)
 
 
@@ -82,7 +82,7 @@ def _now():
 def bgj_fn(kind, tries=BGJ_TRIES, gate=True, long=False, free=False):
     """Registers the function of a kind (decorator); it gets the arguments bgj_add was given. tries: runs at most (1 for
     work that must not happen twice, e.g. a mail: a lost run is then failed, not repeated). gate: see the top. long: an
-    export / import (2.370.3, #2760): its own slots, never in the way of the short rows. free (2.1413.0, #6951 reader F4):
+    export / import (2.370.3, #2760): its own slots, never in the way of the short rows. free (#6951 reader F4):
     its rows never run strict - a record the lock must not swallow (the support access log of a moving organisation)."""
     def deco(fn):
         BGJ_FNS[kind] = fn
@@ -163,7 +163,7 @@ def bgj_add(kind, *args, org_id=None, user_id=None, delay=0.0, once=False, lock=
     nothing runs. progress: the row's first progress (dict, bgj_state)."""
     if kind not in BGJ_FNS:
         raise KeyError(kind)
-    strict = kind not in BGJ_FREE and mv_strict_now()  # 2.1413.0 (#6951): asked before the queue's own connection (system context) is open
+    strict = kind not in BGJ_FREE and mv_strict_now()  # (#6951): asked before the queue's own connection (system context) is open
     c = None
     refused = []
     try:
@@ -203,10 +203,10 @@ def bgj_add(kind, *args, org_id=None, user_id=None, delay=0.0, once=False, lock=
 
         def late():
             time.sleep(delay)
-            with mv_strict() if strict else _no_ctx():  # 2.1413.0 (#6951): as a row would run
+            with mv_strict() if strict else _no_ctx():  # (#6951): as a row would run
                 if kind in BGJ_NO_GATE:
                     return BGJ_FNS[kind](*args)
-                with GATE.work():  # 2.370.3 (#2760): the fallback goes through the maintenance gate like a row (gated_thread before)
+                with GATE.work():  # (#2760): the fallback goes through the maintenance gate like a row (gated_thread before)
                     return BGJ_FNS[kind](*args)
         threading.Thread(target=late, daemon=True, name="bgjobs-direct").start()
         return None
@@ -356,7 +356,7 @@ def _no_ctx():
 
 def _run(rid, kind, args, run, strict=False):
     """One row in a thread of its own, through the maintenance gate (2.370.2, #2779): a restore never runs next to it.
-    2.1413.0 (#6951): strict = a writing request without mv_allow added it: the lock of a moving organisation holds for its work
+    (#6951): strict = a writing request without mv_allow added it: the lock of a moving organisation holds for its work
     (core/movelock.py mv_strict) as it held for the request - emptying a big trash never deletes a moving organisation's tasks."""
     with mv_strict() if strict else _no_ctx():
         if kind in BGJ_NO_GATE:

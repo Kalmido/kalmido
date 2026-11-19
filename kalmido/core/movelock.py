@@ -15,7 +15,7 @@ What passes (the transaction-local switch app.move_ok = '1', set by core/pg.py w
   organisation must never fail for all of them because of one;
 - the few writes of a request a move allows (mv_allow): starting / downloading the export, ending the move, deleting the
   organisation (instance admin), the retention export;
-- 2.1413.0 (#6951): a queue row (accounts/bgjobs.py) runs as strict as the request that added it - a writing request without
+- (#6951): a queue row (accounts/bgjobs.py) runs as strict as the request that added it - a writing request without
   mv_allow (emptying a big trash: "trash:empty") gets its row run inside mv_strict, the export's row (added after mv_allow) not;
 - a session that never set app.move_ok (psql, the test suites' own access, pg_dump / pg_restore) and the database's own
   reference actions (pg_trigger_depth() > 1: deleting the organisation takes its rows along).
@@ -94,7 +94,7 @@ def mv_ok_now():
 def mv_strict(c=None):
     """Background work on connection c that must not write into a moving organisation (the incoming mail, whose target only the
     importers know): inside the block the lock holds as for a writing request, also in the request contexts the importers open.
-    2.1413.0 (#6951): c None = the work opens its own connections (a queue row a writing request added, accounts/bgjobs.py)."""
+    (#6951): c None = the work opens its own connections (a queue row a writing request added, accounts/bgjobs.py)."""
     _TL.strict = getattr(_TL, "strict", 0) + 1
     if c is not None:
         c._db_ctx = None  # the running transaction takes it with its next statement
@@ -107,7 +107,7 @@ def mv_strict(c=None):
 
 
 def mv_strict_now():
-    """2.1413.0 (#6951): would a write now meet the lock (a writing request without mv_allow, or inside mv_strict)? A queue row
+    """(#6951): would a write now meet the lock (a writing request without mv_allow, or inside mv_strict)? A queue row
     added now keeps that (bg_jobs.strict): the background work a request starts never writes more than the request itself."""
     return not mv_ok_now()
 

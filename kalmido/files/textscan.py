@@ -40,7 +40,7 @@ from ..core.env import env_bool
 from ..core.orgcrypt import oc_read_file  # 2.149.0 G (#2517): pulled up from functions
 from .fslock import fl_is_locked  # 2.353.0 A (#2758)
 from .fsviews import fsv_drop  # 2.429.0 (#3580)
-from ..docs.ocr import OCR_ANON_S, ocr_anon_tired, ocr_charge, ocr_tired, ocr_ws_sql  # 2.1413.0 (#6951): + the anonymous share; 2.1337.0 (#6651): the hour budget, the anonymous clock
+from ..docs.ocr import OCR_ANON_S, ocr_anon_tired, ocr_charge, ocr_tired, ocr_ws_sql  # (#6951): + the anonymous share; (#6651): the hour budget, the anonymous clock
 
 KINDS = ("att", "list", "fs")
 COL = {"att": "att_id", "list": "list_file_id", "fs": "node_id"}
@@ -284,7 +284,7 @@ def ts_run_once():
             # 2.1283.0 (#6427): one workspace after the other (one not served lately first, then the one served longest
             # ago), no longer ORDER BY id over all of them: a pile of files of one (a public form takes six a minute) never
             # holds up the others. 2.1337.0 (#6651): a workspace whose hour budget is used up (docs/ocr.py ocr_tired) waits
-            # 2.1413.0 (#6951): an anonymous file waits too while its workspace's anonymous share is used up (docs/ocr.py ocr_anon_tired)
+            # (#6951): an anonymous file waits too while its workspace's anonymous share is used up (docs/ocr.py ocr_anon_tired)
             r = c.execute("""UPDATE file_text SET state='run', tries=tries+1, updated_at=? WHERE id=(
                                SELECT id FROM file_text WHERE state='wait' AND ws <> ALL(CAST(? AS TEXT[]))
                                AND NOT (anon=1 AND ws = ANY(CAST(? AS TEXT[])))
@@ -368,7 +368,7 @@ def _process(c, row):
     else:  # 2.1337.0 (#6651): a file from an anonymous source (ts_mark_anon) gets the shorter clock
         r = doc_text(ref["name"], mime, data, doc_s=OCR_ANON_S if row.get("anon") else None)
     if r.get("error") != "busy":
-        ocr_charge(row["ws"], time.monotonic() - t0, anon=bool(row.get("anon")))  # 2.1337.0 (#6651): the workspace's hour budget (2.1413.0 #6951: + the anonymous share)
+        ocr_charge(row["ws"], time.monotonic() - t0, anon=bool(row.get("anon")))  # (#6651): the workspace's hour budget (#6951: + the anonymous share)
     if r.get("error") == "busy":
         c.execute("UPDATE file_text SET state='wait', tries=GREATEST(tries-1, 0), updated_at=? WHERE id=?", (_now(), fid))
         return
