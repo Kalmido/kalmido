@@ -878,7 +878,8 @@ chat messages of one person that arrive together: one run). It does what a hoste
   description someone else changed last, until you change it yourself; 2.1389.0: never a copy, a saved chat message or a
   `Rest:` task), and comments
   of others reach the job only as data. 2.1406.0: with `"brief_required": true` it builds only tasks with a brief (a bold
-  decision line, a section *Where* and a size); the rest waits as *needs a brief*. Start with *Dry run*: it only
+  decision line, a section *Where* and a size); the rest waits as *needs a brief*. How many jobs run at once is *Max
+  parallel* of the agent's work style (capped by `places` in the file, default 4). Start with *Dry run*: it only
   reports what it would do. Details and every key: [AGENTS.md](AGENTS.md#working-a-list-off-24810).
 - **Long work as a job** (2.44.0, [`mcp/agent_job.py`](../mcp/agent_job.py)): work that takes more than about ten minutes (a release
   build, an audit, a full test run) the agent starts with `"<python>" "<mcp>/agent_job.py" start --title "..." [--worktree] -` (the brief on
