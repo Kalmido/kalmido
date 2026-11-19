@@ -282,7 +282,7 @@ IMP = A.post(B + "/api/evcals", json={"name": "Google"}).json()
 r = A.post(B + f"/api/evcals/{IMP['id']}/import?dry=1", files={"file": ("cal.ics", GOOGLE, "text/calendar")})
 check(r.ok and r.json()["created"] == 3 and not A.get(B + "/api/events?from=2026-11-01&to=2026-11-30&calendar_id=%d" % IMP["id"]).json()["items"], f"dry run: counts only {r.text[:200]}")
 r = A.post(B + f"/api/evcals/{IMP['id']}/import", files={"file": ("cal.ics", GOOGLE, "text/calendar")})
-check(r.ok and r.json() == {"created": 3, "updated": 0, "skipped": 0, "errors": 0}, f"imported: 3 events {r.text[:200]}")
+check(r.ok and r.json() == {"created": 3, "updated": 0, "skipped": 0, "errors": 0, "total": 3, "warnings": []}, f"imported: 3 events {r.text[:200]}")  # #6588: + total, warnings
 r = A.post(B + f"/api/evcals/{IMP['id']}/import", files={"file": ("cal.ics", GOOGLE, "text/calendar")})
 check(r.ok and r.json()["created"] == 0 and r.json()["updated"] == 3, "imported twice: updated, no doubles")
 o = occs(A, date(2026, 11, 1), date(2026, 12, 31), IMP["id"])

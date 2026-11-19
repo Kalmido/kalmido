@@ -959,12 +959,27 @@ function evImport(c, done, file) {  // 2.143.0 C (#2154): file = an .ics shared 
       const r = await fetch(`/api/evcals/${c.id}/import`, {method: 'POST', body: fd, headers: {'X-Requested-With': 'kalmido'}, credentials: 'same-origin'});
       const j = await r.json();
       if (!r.ok) { toast(errText(j.error || '', tr('Import failed'))); return; }  // 2.1212.0 (#6159): what failed, the server's text in brackets
-      toast(tr('Imported: {0} new, {1} updated', j.created, j.updated) + (j.errors ? ' · ' + trn('{0} not readable', '{0} not readable', j.errors) : '') + (j.kept_newer ? ' · ' + trn('{0} event not overwritten, it is newer here', '{0} events not overwritten, they are newer here', j.kept_newer) : ''), null, 6000);
+      const msg = tr('Imported: {0} new, {1} updated', j.created, j.updated) + (j.errors ? ' · ' + trn('{0} not readable', '{0} not readable', j.errors) : '') + (j.kept_newer ? ' · ' + trn('{0} event not overwritten, it is newer here', '{0} events not overwritten, they are newer here', j.kept_newer) : '');
+      if (j.limit || (j.warnings || []).length) evImpReport(j, msg); else toast(msg, null, 6000);  // #6588: what did not come in as it was, named
       done();
     } catch (x) { toast(errText(x, tr('Import failed'))); }
   };
   if (file) return inp.onchange();  // 2.143.0 C2 (#2154): awaitable, several shared files go one after another
   inp.click();
+}
+// #6588: the report of an import that lost something: the cap per import ("5000 of 7312 events imported") and the events not
+// kept as they came (a repeat rule / extra dates not supported, unreadable) with their titles -- never only a number
+function evImpReport(j, msg) {
+  const w = j.warnings || [], more = j.warnings_more || 0;
+  const li = w.map(x => `<li><b>${esc(x.title || tr('(no title)'))}</b> <span class="muted">${esc(x.reason)}</span></li>`).join('')
+    + (more ? `<li class="muted">${esc(trn('and {0} more', 'and {0} more', more))}</li>` : '');
+  const md = modal(`<div class="lhdr"><h3>${esc(tr('Import finished'))}</h3><span class="spacer"></span><button type="button" class="iconbtn" data-eir="close" aria-label="${esc(tr('Close'))}">${ic('x')}</button></div>
+    <p>${esc(msg)}</p>
+    ${j.limit ? `<div class="shint keep" role="alert">${ic('alert', 's')} ${esc(tr('{0} of {1} events imported: at most {2} per import. Split the file to import the rest.', j.total - j.skipped, j.total, j.limit))}</div>` : ''}
+    ${li ? `<p>${esc(trn('{0} event was not imported as it is in the file:', '{0} events were not imported as they are in the file:', w.length + more))}</p><ul class="impwarn">${/*html-ok*/ li /* #6588: the items are built with esc() above */}</ul>` : ''}
+    <div class="foot"><span class="spacer"></span><button type="button" class="btn pri" data-eir="close">${esc(tr('OK'))}</button></div>`);
+  md.addEventListener('click', e => { if (e.target.closest('[data-eir="close"]')) md.remove(); });
+  return md;
 }
 // "Calendar & contacts on the phone": the addresses and the steps for iPhone, Android (DAVx5) and Thunderbird
 function davGuide() {

@@ -8,7 +8,7 @@ import icalendar
 from flask import jsonify, request
 
 from ..core.config import app, APP_NAME, APP_VERSION, TZ
-from ..core.i18n import tr
+from ..core.i18n import N_, tr
 from ..core.db import bump, db, err, now_utc, parse_iso
 from ..accounts.session import me
 from ..core.access import collab_all, need_feat
@@ -32,6 +32,11 @@ EV_SINGLE = {"UID", "DTSTAMP", "CREATED", "LAST-MODIFIED", "SEQUENCE", "SUMMARY"
 EXTRA_MAX = 16000
 IMPORT_MAX_BYTES = 10 * 1024 * 1024
 IMPORT_MAX_EVENTS = 5000
+IMPORT_MAX_WARN = 200  # #6588: the named warnings of one import (the rest only counted, warnings_more)
+IW_RRULE = N_("Its repeat rule is not supported: imported as a single event")
+IW_RRULE2 = N_("It has a second repeat rule: only the first one is imported")
+IW_RDATE = N_("Its extra dates (RDATE) are not supported: only the regular dates are imported")
+IW_BAD = N_("The event could not be read and was not imported")
 _VTZ = {}
 PS_ICS = {"needs-action": "NEEDS-ACTION", "accepted": "ACCEPTED", "declined": "DECLINED", "tentative": "TENTATIVE"}
 PS_IN = {v: k for k, v in PS_ICS.items()}
@@ -326,8 +331,9 @@ def _att_in(line):
             "role": "opt" if p.get("ROLE", "").upper() == "OPT-PARTICIPANT" else "req", "kuser": p.get("X-KALMIDO-USER")}
 
 
-def _read_group(comps, raws, mi):
-    """One series: master index mi (None = only changed occurrences arrived: the first one stands for the series)."""
+def _read_group(comps, raws, mi, warn=None):
+    """One series: master index mi (None = only changed occurrences arrived: the first one stands for the series).
+    warn: a list that gets the reasons (IW_*, untranslated) of what the file says but Kalmido cannot keep as such (#6588)."""
     first = comps[mi if mi is not None else 0]
     rw = raws[mi if mi is not None else 0]
     uid_ = str(first.get("UID") or "").strip()[:250]
@@ -382,6 +388,8 @@ def _read_group(comps, raws, mi):
                 v["rrule"] = rule
             else:
                 keep.append(line)
+                if warn is not None:  # #6588: never silently a single event (kept as it came, sent back as it came)
+                    warn.append(IW_RRULE2 if v["rrule"] else IW_RRULE)
         elif name == "EXDATE":
             p = _params(line)
             for x in val.split(","):
@@ -413,6 +421,8 @@ def _read_group(comps, raws, mi):
                 keep.append(line)  # an outside organiser stays; Kalmido's own one is written again
         elif name not in EV_MAPPED:
             keep.append(line)
+            if name == "RDATE" and warn is not None and IW_RDATE not in warn:  # #6588
+                warn.append(IW_RDATE)
     if mi is None:
         keep = [x for x in keep if _prop_name(x) != "RECURRENCE-ID"]
     v["exdates"] = ",".join(sorted(set(ex)))
@@ -631,7 +641,7 @@ def _ics_ov_merge(old, v, here_newer, master_kept):
 
 # ---- ICS import (a file, e.g. an export of another calendar) into one calendar
 def import_ics(c, uid, cal_id, raw, dry=False):
-    """-> {created, updated, skipped, errors}. The same UID in that calendar is updated (importing twice changes nothing).
+    """-> {created, updated, skipped, errors, total, warnings[, limit, warnings_more]} (#6588). The same UID in that calendar is updated (importing twice changes nothing).
     2.273.0 C (#3048): an event changed here after the file's LAST-MODIFIED stays as it is (counted in kept_newer, only when
     there is one); a file event without attendees leaves the stored attendees."""
     if len(raw) > IMPORT_MAX_BYTES:
@@ -658,22 +668,35 @@ def import_ics(c, uid, cal_id, raw, dry=False):
     groups = {}
     for i, comp in enumerate(comps):
         groups.setdefault(str(comp.get("UID") or f"noid-{i}").strip()[:250], []).append(i)
-    res = {"created": 0, "updated": 0, "skipped": 0, "errors": 0}
+    # #6588: nothing is lost silently -- total = the events of the file, limit = the cap when it cut the rest off (skipped),
+    # warnings = [{title, reason}] of the events not kept as they came (a repeat rule / extra dates not supported, unreadable)
+    res = {"created": 0, "updated": 0, "skipped": 0, "errors": 0, "total": len(groups), "warnings": []}
+
+    def warn(comp, reasons):
+        for why in reasons:
+            if len(res["warnings"]) < IMPORT_MAX_WARN:
+                res["warnings"].append({"title": str(comp.get("SUMMARY") or "").strip()[:200], "reason": tr(why)})
+            else:
+                res["warnings_more"] = res.get("warnings_more", 0) + 1
     for n, (u_, idx) in enumerate(groups.items()):
         if n >= IMPORT_MAX_EVENTS:
             res["skipped"] += len(groups) - n
+            res["limit"] = IMPORT_MAX_EVENTS
             break
         cs, rs = [comps[i] for i in idx], [raws[i] for i in idx]
         ms = [j for j, x in enumerate(cs) if x.get("RECURRENCE-ID") is None]
+        w = []
         try:
             if u_.startswith("noid-"):
                 cs[0]["UID"] = icalendar.vText(f"import-{hashlib.sha1(str(cs[0].to_ical()).encode(), usedforsecurity=False).hexdigest()[:20]}")
-            v = _read_group(cs, rs, ms[0] if len(ms) == 1 else None)
+            v = _read_group(cs, rs, ms[0] if len(ms) == 1 else None, warn=w)
             if u_.startswith("noid-"):
                 v["uid"] = str(cs[0]["UID"])
         except (EvError, ValueError, TypeError, KeyError, AttributeError, OverflowError):
             res["errors"] += 1
+            warn(cs[ms[0]] if len(ms) == 1 else cs[0], [IW_BAD])
             continue
+        warn(cs[ms[0]] if len(ms) == 1 else cs[0], w)
         old = c.execute("SELECT * FROM events WHERE cal_id=? AND uid=? AND deleted_at IS NULL", (cal_id, v["uid"])).fetchone()
         if old and not dry:  # 2.657.0 (#5052): the update by UID from the row as it is now, locked: every other writer takes it
             # FOR UPDATE under ev_lock (events/model.py), so it waits for this import and this import for it. The row lock only
