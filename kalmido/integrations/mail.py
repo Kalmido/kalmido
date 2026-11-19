@@ -930,13 +930,16 @@ def _sec_mail_send(to, subject, text, html_body, images=None, inv=None):
         mail_bg_failed("security", e, (lambda x=e: _inv_failed(inv, to, x)) if inv else None)
         return
     if inv:
-        c = connect()
-        try:
-            with system_ctx(c):  # the invitation of a new account, outside a request
-                c.execute("UPDATE user_invites SET sent_at=? WHERE user_id=? AND token_hash=? AND used_at IS NULL", (iso(now_utc()), inv[0], inv[1]))
-            c.commit()
-        finally:
-            c.close()
+        try:  # the mail is out: a failing note of it never makes the row raise (the queue would send it again)
+            c = connect()
+            try:
+                with system_ctx(c):  # the invitation of a new account, outside a request
+                    c.execute("UPDATE user_invites SET sent_at=? WHERE user_id=? AND token_hash=? AND used_at IS NULL", (iso(now_utc()), inv[0], inv[1]))
+                c.commit()
+            finally:
+                c.close()
+        except DbError as e:
+            print("security mail: sent, its sent_at not noted:", type(e).__name__, flush=True)
 
 
 def _inv_failed(inv, to, e):
