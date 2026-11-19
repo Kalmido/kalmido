@@ -120,7 +120,7 @@ tl = A.get(B + f"/api/tasks/{T}/timeline").json()
 check(not [a for a in tl.get("activity", []) if a["kind"].startswith("paperless")], "timeline: no Paperless entries")
 us = A.get(B + "/api/users").json()["users"]
 check(all("paperless_access" not in u for u in us), "users list: no Paperless flag")
-ex = A.get(B + "/api/export.json")
+ex = su_get(A, B + "/api/export.json")
 check(ex.ok and "paperless" not in ex.json() and "paperless_links" not in ex.json() and "Salary slip" not in ex.text, "export: no Paperless data")
 check(not [a for a in ex.json()["activity"] if a["kind"] == "paperless" and a["data"] != "{}"], "export: old activity without document data")
 tok = A.post(B + "/api/me/tokens", json={"name": "c", "scopes": ["read"]}).json().get("token")

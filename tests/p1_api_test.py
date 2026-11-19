@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Package 1 API tests: ICS feed, undo, completed_by, templates, statistics, manifest shortcuts.
 Runs against the TEST container (:3048 built-in login, :3041 proxy port), fresh DB in DATA."""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import json, os, re, dbx, sys, time
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -207,7 +208,7 @@ check(insec and insec[0]["due"] == D(2) and insec[0]["section_id"] == [s["id"] f
 check(len([x for x in st2["templates"] if x["kind"] == "list"]) == 1 and "data" not in st2["templates"][0], "state carries the light template list")
 check(A.delete(B + f"/api/templates/{lj['id']}").ok and not any(x["id"] == lj["id"] for x in A.get(B + "/api/templates").json()["templates"]), "template delete")
 check(Bb.delete(B + f"/api/templates/{tj['id']}").status_code == 404, "bob cannot delete alice's template")
-check("templates" in A.get(B + "/api/export.json").json(), "export contains templates")
+check("templates" in su_get(A, B + "/api/export.json").json(), "export contains templates")
 
 # ===================================================================== ICS
 check(A.get(B + "/api/ical").json()["url"] is None, "no feed link until created")

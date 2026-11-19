@@ -3,6 +3,7 @@
 unblock push + News, trash / restore, undo, recurring, batch), project status (permissions, News, history),
 progress numbers on seeded data, custom fields (CRUD per type, validation, permissions, values, moves, member
 removal, search, activity, export, templates, recurring copies)."""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import json, os, dbx, sys, time
 from datetime import date, timedelta
 import requests
@@ -434,10 +435,10 @@ with db() as c:
 check(A.delete(B + f"/api/fields/{FN['id']}").status_code == 404, "deleted field: 404")
 
 # ================= export
-ex = A.get(B + "/api/export.json").json()
+ex = su_get(A, B + "/api/export.json").json()
 check(ex["list_fields"] and ex["task_field_values"] and ex["task_deps"] and ex["list_status"], "export: fields, values, dependencies, status history")
 check(all(f["list_id"] in {l["id"] for l in ex["lists"]} for f in ex["list_fields"]), "export: only fields of my lists")
-exb = Bb.get(B + "/api/export.json").json()
+exb = su_get(Bb, B + "/api/export.json").json()
 check(not any(f["list_id"] == W for f in exb["list_fields"]), "bob's export: not alice's fields")
 
 # ================= user delete: person values

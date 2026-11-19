@@ -5,6 +5,7 @@ start-up AND after restoring an old backup that still holds such rows; the compa
 ms / milestone_id validation (top level, no subtasks, same list, moves / deleting for good / turning it off clear the link, the trash keeps it); rights;
 activity lines; agent events; v1 fields + filters + OpenAPI; export, list templates; burndown + release notes data; the MCP
 tool get_milestone."""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import importlib.util
 import json
 import os
@@ -266,7 +267,7 @@ check(seen[-1][2][0].get("milestone") == "true" and seen[-1][2][0].get("mileston
 check("milestone" in mcp.TASK_FIELDS and "milestone_id" in mcp.TASK_FIELDS, "MCP: create / update_task know the fields")
 
 # ================================================================== export, templates
-ex = A.get(B + "/api/export.json").json()
+ex = su_get(A, B + "/api/export.json").json()
 et = {t["id"]: t for t in ex["tasks"]}
 check(et[MS_B]["ms"] == 1 and et[T1["id"]]["milestone_id"] == MS_B, "export: ms + milestone_id")
 A.post(B + f"/api/tasks/{T1['id']}/reopen")

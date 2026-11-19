@@ -12,6 +12,7 @@
    \\\\server\\share paths; javascript: / data: / text stay refused (also through the agent API)
 tenant-matrix: org
 usage: p2350_c_api_test.py <datadir>"""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import json
 import os
 import dbx as dbxm  # 2.37.0: the suite has its own dbx() helper
@@ -190,7 +191,7 @@ acts = [x["action"] for x in log]
 # 2.102.0 (#1988): the delete is "trash", the restore after it "undelete"
 check(acts[:3] == ["owner", "undelete", "trash"] and "archive" in acts and "restore" in acts and log[0]["by"] == "Alice" and log[0]["to"] == "Carol"
       and log[1]["list_name"] == "Bob Team" and log[1]["owner"] == "Bob", "#1101: the history, newest first " + json.dumps(log[:3]))
-ex = A.get(B + "/api/export.json").json()
+ex = su_get(A, B + "/api/export.json").json()
 check(len(ex.get("org_list_actions", [])) == len(log), "#1101: the account export holds my actions as an organisation admin")
 
 # ================================================================== #186 file links

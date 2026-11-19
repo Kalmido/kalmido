@@ -230,7 +230,7 @@ am = (json.loads(za.read("data/mailbox.json")) or [{}])[0] if "data/mailbox.json
 check(am.get("imap_host") == "imap.example.com" and am.get("imap_user") == "team@example.com" and am.get("from_name") == "Alice privat"
       and "secret" not in am, f"#2410: server, user, sender, no secret {am}")
 check(PW_PRIV.encode() not in b"".join(za.read(n) for n in za.namelist()), "#2410: no password anywhere in the account export")
-j0 = A.get(B + "/api/export.json")
+j0 = su_get(A, B + "/api/export.json")
 check(j0.ok and PW_PRIV not in j0.text and "imap.example.com" in j0.text, "#2410: the JSON export has it too, without the password")
 iid = opened(A, EXP)
 j = run(A, iid, ORG4)

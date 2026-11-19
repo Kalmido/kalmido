@@ -12,6 +12,7 @@
    `deployed` (and not for a list it has no access to)
 tenant-matrix: list
 usage: p260_d_api_test.py <datadir>"""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import os
 import subprocess
 import sys
@@ -202,7 +203,7 @@ A.post(B + f"/api/envs/{oid}/deploy", json={"version": "1.0"})
 check(not [e for e in ag("GET", "/agent/events", params={"since": seq}).json().get("data", []) if e["event"] == "deployed"], "no `deployed` for a list the agent has no access to")
 
 # ================================================================== My data holds the environments, never a token
-ex = A.get(B + "/api/export.json").json()
+ex = su_get(A, B + "/api/export.json").json()
 check(len(ex.get("list_envs", [])) >= 2 and "token_hash" not in str(ex.get("list_envs")), "the export has the environments without the token hash")
 
 print(f"p260_d_api: {OKS[0]} ok, {len(FAILS)} failed")

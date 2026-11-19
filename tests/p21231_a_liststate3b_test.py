@@ -15,6 +15,7 @@ limit; the trigger kalmido_list_state reads archived_at since. Invented names.
  - archiving / restoring through the route as a person without an organisation still works (the whole table agrees)
 freelancer-matrix: tasks (a person without an organisation keeps her archived projects through the move)
 usage: p21231_a_liststate3b_test.py <datadir>"""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import json
 import os
 import sys
@@ -110,7 +111,7 @@ r = Fr.patch(B + f"/api/lists/{P5}", json={"archived": True})
 check(r.ok and row(P5) == ("archived", True, False), f"into the archive through the route {r.status_code} {row(P5)}")
 
 # ---------------------------------------------------------------- "my data" keeps the key archived
-ex = Fr.get(B + "/api/export.json")
+ex = su_get(Fr, B + "/api/export.json")
 el = {x["id"]: x for x in (ex.json().get("lists", []) if ex.ok else [])}
 check(el.get(P5, {}).get("archived") == 1 and el.get(P1, {}).get("archived") == 0 and el.get(P5, {}).get("name") == "Example Kitchen Shelves",
       f"my data: archived from the marker, with the name {ex.status_code} {[(k, v.get('archived')) for k, v in el.items()][:6]}")

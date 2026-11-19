@@ -12,6 +12,7 @@
    address books, contacts, groups, templates, CalDAV / CardDAV, the calendar feed, webhooks, export, attachments, chat
    files, forms, clients, statistics, public links, comments, folders, day plan / roadmap / occurrences
 usage: p2300_tenant_test.py <datadir>      (a fresh container; the suite restarts it itself with other settings)"""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import os
 import dbx as dbxm  # 2.37.0: the suite has its own dbx() helper
 import subprocess
@@ -363,6 +364,7 @@ for name, s in (("carol", Ca), ("dave", Da)):
     # tenant: GET /api/folders/props
     # tenant: GET /api/folders/people
     # tenant: GET /api/export.json
+    # tenant: POST /api/export.json
     # tenant: GET /api/stats
     # tenant: GET /api/dayplan
     # tenant: GET /api/roadmap
@@ -370,7 +372,7 @@ for name, s in (("carol", Ca), ("dave", Da)):
     hidden(s.get(B + "/api/folders/props?folder=Proj"), f"matrix {name}: folder settings are only the own folder's")
     hidden(s.get(B + "/api/folders/people?folder=Proj"), f"matrix {name}: folder people are only the own folder's")
     # aggregates: export, statistics, feed, day plan, roadmap, occurrences, tags
-    hidden(s.get(B + "/api/export.json"), f"matrix {name}: export")
+    hidden(su_get(s, B + "/api/export.json"), f"matrix {name}: export")  # 2.1444 (#6586): behind the step-up (POST + ticket)
     hidden(s.get(B + "/api/stats"), f"matrix {name}: statistics")
     hidden(s.get(B + "/api/dayplan"), f"matrix {name}: day plan")
     hidden(s.get(B + "/api/roadmap"), f"matrix {name}: roadmap")

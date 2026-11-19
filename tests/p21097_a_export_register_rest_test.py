@@ -160,7 +160,7 @@ dbx("INSERT INTO obj_tag_links(tag_id, kind, obj_id) VALUES(?, 'task', ?)", (tg[
 dbx("INSERT INTO obj_follow(kind, ref_id, user_id, mode, created_at) VALUES('task',?,?,'watch',?)", (FT, FID, TS))
 dbx("INSERT INTO obj_notif_cap(kind, ref_id, user_id, tpl) VALUES('list', ?, 0, 'work')", (FL,))
 
-ej = ok(Fr.get(B + "/api/export.json"), "freelancer: export.json")
+ej = ok(su_get(Fr, B + "/api/export.json"), "freelancer: export.json")
 check([c.get("body") for c in ej.get("comments") or []] == ["Frei Kommentar"], f"export.json: the own comment {ej.get('comments')}")
 check([t.get("tag") for t in ej.get("task_tags") or []] == ["frei-tag"], f"export.json: the personal tag in task_tags' columns {ej.get('task_tags')}")
 check([(n.get("list_id"), n.get("tpl")) for n in ej.get("list_notif") or []] == [(FL, "work")], f"export.json: the project's notification setting {ej.get('list_notif')}")

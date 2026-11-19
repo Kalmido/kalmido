@@ -11,6 +11,7 @@
  - route scan: every route with an <int:...> id answers a person outside with a refusal, never content
 tenant-matrix: lists, tasks, comments, attachments, calendars, events, address books, contacts, search, approvals, agents
 usage: p2362_a_api_test.py <datadir>      (a fresh container; the suite restarts it itself with other settings)"""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import glob
 import json
 import os
@@ -162,7 +163,7 @@ def sees_nothing(u, what):
     check(s.get(B + f"/api/contacts/{CTA}").status_code == 404, f"{what}: contact 404")
     r = s.get(B + "/api/search?kind=messages", params={"q": MARK})
     check(MARK not in r.text, f"{what}: search shows nothing ({r.status_code})")
-    check(s.get(B + "/api/export.json").ok and MARK not in s.get(B + "/api/export.json").text, f"{what}: own export without Alpha content")
+    check(su_get(s, B + "/api/export.json").ok and MARK not in su_get(s, B + "/api/export.json").text, f"{what}: own export without Alpha content")
     check(s.post(B + f"/api/comments/0/decide", json={"decision": "approve"}).status_code == 404, f"{what}: unknown comment 404")
 
 

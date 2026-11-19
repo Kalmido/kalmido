@@ -27,6 +27,7 @@ of an organisation wraps its key, key renewal on the command line, step-up + New
  - a person without an organisation (freelancer-matrix: orgcrypt) reaches the recovery key of the own personal office
    (organisation id 0 in the route), a person without a personal office gets 404
 usage: p2138_c_api_test.py <datadir>      (P2138C_NOSTART=1 = the server already runs with a KALMIDO_SECRET_KEY)"""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import base64
 import hashlib
 import hmac
@@ -268,7 +269,7 @@ def part_a(A):
     check(K.get(B + "/api/me").json().get("drop_token_set") is False, "/api/me: a child shows no token")
 
     # ================================================================== exports
-    ex = A.get(B + "/api/export.json")
+    ex = su_get(A, B + "/api/export.json")
     check(ex.ok and T2 not in ex.text and sha(T2) not in ex.text and "drop_token_hash" not in ex.text and "ical_token_hash" not in ex.text,
           "export.json: neither token nor hash")
     p = in_app("from kalmido.admin.orgexport import OX_SECRET_COLS as S\nprint(int({'drop_token_hash', 'ical_token_hash'} <= S))")

@@ -18,6 +18,7 @@
    task / project templates since #5476); a template is deleted for good by the core's trash run (obj_trash_tick, trash_prune +
    obj_on_purge: its file copies, its undo rows), no longer by files/trashpurge.py
 usage: p2905_c_tplkind_api_test.py <datadir>      (P2905C_NOSTART=1: a running server on KALMIDO_TEST_PORT)"""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import json
 import os
 import subprocess
@@ -276,7 +277,7 @@ check(Fr.post(B + "/api/section-templates", json={"name": "x", "sections": ["X"]
 check(Fr.post(B + f"/api/lists/{LF}/sections/from-template", json={"template_id": FT}).status_code == 404, "freelancer: not Alpha's template (404)")
 
 # ================================================================== the account export
-ex = A.get(B + "/api/export.json").json().get("templates", [])
+ex = su_get(A, B + "/api/export.json").json().get("templates", [])
 check(any(x.get("kind") == "sections" and x.get("name") == "Film private" for x in ex), f"export: the own section templates come along {[x.get('name') for x in ex]}")
 
 sys.exit(done("p2817_c_tplkind_api"))

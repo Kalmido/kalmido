@@ -8,6 +8,7 @@ freelancer-matrix: own
  - alice's export.json: no webhook address (url_hint only), no server-side setting (ntfy_topic)
  - people.json: email_hash is HMAC-SHA256 with the file's people_salt, never the plain SHA-256 of the address; the
    import still finds the person by it (preview found) and names the salt for the client's address check
+ - 2.1444 (#6586): export.json only after the step-up (ticket once, per person), the v1 token way unchanged, the size bound
  - a person without an organisation gets the account export as before (own comment, the new tables empty)
 usage: p2239_a_export_test.py <datadir>      (a fresh server: run_all.sh "fresh")"""
 import hashlib
@@ -15,6 +16,7 @@ import hmac
 import io
 import json
 import os
+import subprocess
 import sys
 import time
 import zipfile
@@ -28,6 +30,7 @@ from kt import FAILS, OKS, check, su_get  # noqa: E402
 
 B = "http://127.0.0.1:" + os.environ.get("KALMIDO_TEST_PORT", "3048")
 H = {"X-Requested-With": "kalmido"}
+CT = os.environ.get("KALMIDO_TEST_CONTAINER", "kalmido-test")
 
 
 def EH(email):  # the unkeyed form of older files
@@ -111,13 +114,47 @@ check(any("lists you can no longer see" in x for x in MAN.get("not_included", []
 WHU = "https://hooks.example.com/services/T000/Hookpfad2239"
 check(A.post(B + "/api/me/webhooks", json={"name": "Hook", "url": WHU, "events": ["task.created"]}).status_code == 201, "setup: a webhook")
 check(A.patch(B + f"/api/users/{ALICE}", json={"ntfy_topic": "topic2239a"}).ok, "setup: ntfy topic (admin)")
-EJ = A.get(B + "/api/export.json")
+EJ = su_get(A, B + "/api/export.json")
 check(EJ.ok and WHU not in EJ.text and "Hookpfad2239" not in EJ.text, "#2882: export.json without the webhook address")
 ej = EJ.json() if EJ.ok else {}
 check(any(x.get("url_hint") and "url" not in x for x in ej.get("webhooks", [])), "#2882: export.json names the webhook by url_hint")
 check("topic2239a" not in EJ.text and not any(x.get("key") == "ntfy_topic" for x in ej.get("settings", [])),
       "#2882: export.json without server-side settings")
 check(any(t["id"] == OT for t in ej.get("tasks", [])), "export.json keeps the own tasks")
+# 2.1444 (#6586): export.json behind the same step-up as the ZIP download (stepup_download: POST -> ticket, GET ?t=); a fresh
+# session (a confirmed step-up holds a few minutes per session, as for the ZIP)
+A2 = login(B, "alice")
+r = A2.get(B + "/api/export.json")
+check(r.status_code == 403 and r.json().get("need") == "password" and "tasks" not in r.text, f"#6586: export.json without the step-up refused ({r.status_code} {r.text[:100]})")
+r = A2.post(B + "/api/export.json", json={})
+check(r.status_code == 403 and r.json().get("need") == "password" and "ticket" not in r.json(), f"#6586: the POST asks for the password ({r.status_code})")
+r = A2.post(B + "/api/export.json", json={"password": "wrong-password"})
+check(r.status_code in (401, 403) and "ticket" not in r.text, f"#6586: a wrong password gives no ticket ({r.status_code})")
+tk = A2.post(B + "/api/export.json", json={"password": "password123"}).json().get("ticket", "")
+r = A2.get(B + "/api/export.json", params={"t": tk})
+check(r.ok and r.headers.get("Cache-Control") == "no-store" and any(t["id"] == OT for t in r.json().get("tasks", [])), f"#6586: with the ticket: the file ({r.status_code})")
+check(A2.get(B + "/api/export.json", params={"t": tk}).status_code == 403, "#6586: a ticket works once")
+tk2 = A2.post(B + "/api/export.json", json={}).json().get("ticket", "")  # the step-up of this session holds: no second password
+check(tk2 and Bo.get(B + "/api/export.json", params={"t": tk2}).status_code == 403, "#6586: alice's ticket opens nothing for bob")
+# the token way GET /api/v1/export keeps its scopes (no step-up): a token with "account" exports, one without it does not
+tka = A.post(B + "/api/me/tokens", json={"name": "exp", "scopes": ["read", "export", "account"]}).json().get("token", "")
+tkr = A.post(B + "/api/me/tokens", json={"name": "exp-noacct", "scopes": ["read", "export"]}).json().get("token", "")
+r = requests.get(B + "/api/v1/export", headers={"Authorization": f"Bearer {tka}"})
+check(r.ok and any(t["id"] == OT for t in r.json().get("tasks", [])), f"#6586: the v1 token with account still exports ({r.status_code} {r.text[:120]})")
+check(requests.get(B + "/api/v1/export", headers={"Authorization": f"Bearer {tkr}"}).status_code == 403, "#6586: the v1 token with export but without account: 403 as before")
+# the size bound: ej_dump stops as soon as the text passes the limit (in the app, a tiny limit)
+for _ in range(4):  # "import app" runs init_db next to the server: now and then a Postgres deadlock of this helper (calendars_test)
+    r = subprocess.run(["docker", "exec", "-w", "/app", "-e", "TASKS_WATCHDOG=0", CT, "python", "-c",
+                        "import app\nfrom kalmido.accounts.settings import ej_dump, EjTooBig\n"
+                        "rows = ({'n': i, 't': 'x' * 50} for i in range(10 ** 6))\n"
+                        "try:\n    ej_dump([('tasks', rows)], 5000); print('no')\nexcept EjTooBig:\n    print('big', next(rows)['n'] < 200)\n"
+                        "import json; print(json.loads(ej_dump([('a', iter([{'x': 1}, {'y': 'ü'}])), ('b', []), ('u', {'id': 1})], 5000)))"],
+                       capture_output=True, text=True)
+    if "deadlock detected" not in r.stderr:
+        break
+    time.sleep(2)
+check(r.stdout.split("\n")[:2] == ["big True", "{'a': [{'x': 1}, {'y': 'ü'}], 'b': [], 'u': {'id': 1}}"],
+      f"#6586: ej_dump stops at the limit and writes valid JSON ({r.stdout[-200:]} {r.stderr[-300:]})")
 EXP, MAN, D = export_of(A)
 salt = MAN.get("people_salt") or ""
 pb = [p for p in D.get("people", []) if p.get("user_id") == UID["bob"]]
@@ -153,7 +190,7 @@ check(any(x["body"] == "Own note zq85" for x in D.get("comments", [])) and any(t
       "freelancer: the own list, task and comment are in the export as before")
 check(D.get("written_comments") == [] and D.get("other_tasks") == [] and len(MAN.get("people_salt") or "") == 32,
       "freelancer: the new parts are there (nothing outside the own lists)")
-check(F.get(B + "/api/export.json").ok, "freelancer: export.json")
+check(su_get(F, B + "/api/export.json").ok, "freelancer: export.json")
 
 print(f"p2239_a_export: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)

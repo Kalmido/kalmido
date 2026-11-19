@@ -1045,7 +1045,7 @@ function settingsModal(focus) {
       <div id="s-imp-out"></div>
       <div class="members" id="s-imp-hist"></div>
       <h4 id="s-exp-h">${tr('Export')}</h4>${''/* 2.555.0 C (#4664): no row label of the same name */}
-      <div class="row" role="group" aria-labelledby="s-exp-h"><a class="btn sm" href="/api/export.json" download>${ic('download', 's')} ${tr('Download JSON')}</a><a class="btn sm" href="/api/export/todoist.zip" download>${ic('download', 's')} ${tr('Todoist CSV')}</a><a class="btn sm" href="/api/export/markdown.zip" download>${ic('download', 's')} ${tr('Markdown')}</a></div>
+      <div class="row" role="group" aria-labelledby="s-exp-h"><a class="btn sm" href="/api/export.json" download data-sudl>${''/* 2.1444 (#6586): the step-up first (orgcrypt.js) */}${ic('download', 's')} ${tr('Download JSON')}</a><a class="btn sm" href="/api/export/todoist.zip" download>${ic('download', 's')} ${tr('Todoist CSV')}</a><a class="btn sm" href="/api/export/markdown.zip" download>${ic('download', 's')} ${tr('Markdown')}</a></div>
       ${/*html-ok*/ hint(tr('One file per project in a ZIP: Todoist CSV for the import of Todoist, Markdown as checklists for any notes app. Only the projects you own go in: projects shared with you and projects locked with a password stay out, a list in the ZIP names them.'))}${''/* 2.1324.0 (#6589) */}
       <h4 id="s-pmeta-h">${tr('Photos')}</h4><div class="row">${chk('s-pmeta', s.photo_meta_strip !== '0', tr('Remove location data from photos'))}</div>
       ${hint(tr('Also removes camera details and capture time. In an organisation its admins decide.') + ' ' + tr('Switched off, photos keep their location, also for anyone who opens them through a public link or a shared knowledge page.'))}

@@ -10,6 +10,7 @@
    same answer, the setting travels in /api/state); a hidden subscription sends nothing
  - another person's settings are untouched
 usage: p2361_a_api_test.py <datadir>"""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import json
 import os
 import dbx as dbxm  # 2.37.0: the suite has its own dbx() helper
@@ -196,7 +197,7 @@ check({e["title"] for e in j2["events"]} == titles, "the Today switch changes no
 check(json.loads(A.get(B + "/api/state").json()["settings"]["today_cals_hidden"]) == sorted([f"e:{C_OWN}", f"s:{S_WORK}"]), "the Today switch travels with the state")
 A.patch(B + "/api/settings", json={"today_cals_hidden": []})
 # the account export carries the new settings
-r = A.get(B + "/api/export.json")
+r = su_get(A, B + "/api/export.json")
 check(r.ok and "plan_cals_off" in r.text and "today_cals_hidden" in r.text, f"account export carries the new settings ({r.status_code})")
 
 print(f"p2361_a_api: {OKS[0]} ok, {len(FAILS)} failed")

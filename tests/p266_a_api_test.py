@@ -11,6 +11,7 @@
  - 2.80.0 (#1885): undo also links a client's contact person of another workspace (hidden by row-level security) and one
    that did not fit the target's book again; no answer shows their content
 usage: p266_a_api_test.py <datadir>"""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import os
 import re
 import subprocess
@@ -206,7 +207,7 @@ st1, TOK1 = dsync(TOK)
 check(st1.get(H2[0]) == "404", "#1835: CardDAV sync reports the merged card as gone " + str(st1))
 check(H1[0] in st1 and st1[H1[0]] not in ("404", "") and st1[H1[0]] != st0.get(H1[0]), "#1835: ... and the target as changed (new ETag)")
 check(dav.get(COLL + H2[0]).status_code == 404, "#1835: GET of the merged card: 404")
-ex = Bo.get(B + "/api/export.json").json()
+ex = su_get(Bo, B + "/api/export.json").json()
 mr = ex.get("merge_runs", [])
 check(len(mr) == 1 and "snapshot" not in mr[0], "#1835: the data export lists the merge without the snapshot")
 

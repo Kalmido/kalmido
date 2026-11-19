@@ -151,9 +151,9 @@ check(not DA["polls"] and not DA["appt_bookings"] and not DA["form_entries"], "n
 
 # ================================================================== 5 export log (before 4: A's lists from above)
 logn = lambda: dbx("SELECT COUNT(*) FROM org_list_log WHERE action='export' AND list_id=?", (OL,))[0][0]  # noqa: E731
-check(A.get(B + "/api/export.json").ok and A.get(B + "/api/export.json").ok and logn() == 1, f"one row per person, list and day however often {logn()}")
+check(su_get(A, B + "/api/export.json").ok and su_get(A, B + "/api/export.json").ok and logn() == 1, f"one row per person, list and day however often {logn()}")
 dbx("UPDATE org_list_log SET created_at='2026-01-01T10:00:00+00:00' WHERE action='export' AND list_id=? RETURNING id", (OL,))
-A.get(B + "/api/export.json")
+su_get(A, B + "/api/export.json")
 check(logn() == 2, f"another day: a new row {logn()}")
 
 # ================================================================== 4 public pages

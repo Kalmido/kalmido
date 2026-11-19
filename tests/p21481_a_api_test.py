@@ -17,6 +17,7 @@ freelancer-matrix: own
  - #2490 a mention of an account the writer may not see becomes '@?'; adding an unseen account to a channel names nobody;
    sharing a table by address answers the same without a share list; no support address = none (not an admin's)
 usage: p21481_a_api_test.py <datadir>      (P21481A_NOSTART=1: a running server on KALMIDO_TEST_PORT, no start.sh)"""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import os
 import subprocess
 import sys
@@ -185,7 +186,7 @@ r = Ca.patch(B + f"/api/envs/{EID}", json={"hook": "on"})
 HOOK = (r.json().get("url") or "").split("/api/hooks/deploy/", 1)[-1] if r.ok else ""
 check(HOOK and requests.post(B + "/api/hooks/deploy/" + HOOK, json={"version": "1.0"}).status_code == 201, "setup: the deploy webhook works " + r.text[:200])
 check(Ca.post(B + f"/api/lists/{P}/notepads", json={"title": "Pad", "body": "carol wrote"}).ok, "setup: a notepad")
-check(any(x["list_id"] == P for x in Ca.get(B + "/api/export.json").json()["list_notepads"]), "setup: the notepad is in carol's export")
+check(any(x["list_id"] == P for x in su_get(Ca, B + "/api/export.json").json()["list_notepads"]), "setup: the notepad is in carol's export")
 # carol is removed from the organisation: her lists go to bob
 r = Bo.delete(B + f"/api/orgs/{ORG}/members/{CAROL}")
 check(r.ok and r.json().get("transferred", 0) >= 3, "removed: the lists go to the admin " + r.text[:200])
@@ -201,7 +202,7 @@ check(any(x["action"] == "owner" and x["list_id"] == U for x in Bo.get(B + f"/ap
       "the handover of an unshared list is in the admins' history")
 un = [x for x in news_of(Ca, "unshare") if (x.get("data") or {}).get("org")]
 check(un and (un[0]["data"].get("lists") or 0) >= 3 and un[0]["data"].get("to") == "Bob", "the removed person is told where the lists went " + str(un[:1]))
-check(not any(x["list_id"] == P for x in Ca.get(B + "/api/export.json").json()["list_notepads"]), "the export: no notepad of a list one no longer sees")
+check(not any(x["list_id"] == P for x in su_get(Ca, B + "/api/export.json").json()["list_notepads"]), "the export: no notepad of a list one no longer sees")
 # a voluntary hand-over: a list owner gives a list to a member
 Q = Bo.post(B + "/api/lists", json={"name": "Bob handover", "org_id": ORG}).json()["id"]
 Bo.put(B + f"/api/lists/{Q}/members", json={"user_id": DAVE, "role": "edit"})

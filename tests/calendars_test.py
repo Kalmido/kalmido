@@ -9,6 +9,7 @@ rate limits, settings, export, cascade on user delete, and KALMIDO_CALENDARS=0.
 Starts its OWN test containers (start.sh) with a fake ICS / CalDAV server inside (stub_calendar.py) and host names that
 resolve to internal addresses (--add-host). Leaves the main container running for calendars_ui.js (ids in cal_ids.json).
 usage: calendars_test.py <datadir>"""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import json
 import os
 import dbx as dbxm  # 2.37.0: the suite has its own dbx() helper
@@ -407,7 +408,7 @@ check(codes.count(429) >= 2 and codes[0] == 200, f"manual refresh rate-limited p
 check(A.patch(B + "/api/settings", json={"cal_today": "0"}).ok and A.get(B + "/api/state").json()["settings"]["cal_today"] == "0", "setting cal_today")
 check(A.patch(B + "/api/settings", json={"cal_today": "maybe"}).status_code == 400, "cal_today validated")
 A.patch(B + "/api/settings", json={"cal_today": "1"})
-ex = A.get(B + "/api/export.json").json()
+ex = su_get(A, B + "/api/export.json").json()
 cs = ex.get("calendar_subscriptions", [])
 check(len(cs) == 5 and all("url" not in x and "password" not in x for x in cs) and "secret-pw" not in json.dumps(ex), "export: subscriptions without secrets")
 r = A.delete(B + f"/api/calendars/{fid}")

@@ -165,7 +165,10 @@ check(any(x["id"] == IDS["list"] for x in st.get("lists", [])) and not any(x["id
       "tasks: the state has the own list, not the organisation's")
 check(not any(x.get("id") == OT for x in st.get("tasks", [])), "tasks: no task of the organisation")
 ok(F.get(B + "/api/tasks", params={"q": "trailer"}), "tasks: search")
-ok(F.get(B + "/api/export.json"), "tasks: the export")
+# 2.1444 (#6586): the export of my data behind the step-up: without it refused, POST with the password -> a ticket, GET with it
+check(F.get(B + "/api/export.json").status_code == 403, "tasks: the export without the step-up is refused")
+tk = ok(F.post(B + "/api/export.json", json={"password": PASSWORD}), "tasks: the export's step-up").get("ticket", "")
+ok(F.get(B + "/api/export.json", params={"t": tk}), "tasks: the export with the ticket")
 ok(F.put(B + f"/api/lists/{IDS['list']}/public-link", json={}), "lists: a public link of the private list", (200, 201))
 ok(F.post(B + f"/api/lists/{IDS['list']}/signoffs", json={}), "lists: an approval link of the private list (its owner)", (200, 201))
 

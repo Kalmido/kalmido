@@ -16,6 +16,7 @@ tenant-matrix: budget, list, template, aggregate
  - another person: 404 on every restore and nothing in their trash view; a read-only member of the budget: 403
 Regression: before 2.567 every one of these deletes removed the row at once (the restore routes did not exist).
 usage: p2567_a_trash_test.py <datadir>"""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import os
 import subprocess
 from datetime import datetime, timedelta, timezone
@@ -160,7 +161,7 @@ check(T not in [x["id"] for x in Fr.get(B + "/api/state").json().get("templates"
 check(Fr.post(B + f"/api/templates/{T}/apply", json={}).status_code == 404, "… it cannot be used")
 check(("template", T) in parts(Fr) and ("template", T) not in parts(St), "… the trash view names it (only its person's)")
 check(St.post(B + f"/api/templates/{T}/restore").status_code == 404, "another person cannot restore it (404)")
-ex = Fr.get(B + "/api/export.json")
+ex = su_get(Fr, B + "/api/export.json")
 check(ex.ok and T not in [x["id"] for x in ex.json().get("templates", [])]
       and E4 not in [e["id"] for x in ex.json().get("budget", []) for e in x["entries"]],
       f"the person's export leaves out what is in the trash {ex.status_code} {ex.text[:200]}")

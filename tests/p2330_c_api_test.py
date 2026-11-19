@@ -13,6 +13,7 @@
  - #834: GET /api/admin/client-ip (admins): the address the server sees, private, the warning when many accounts sign in
    from one private address (the test setup IS that case: every request comes through the docker gateway) + server log
 usage: p2330_c_api_test.py <datadir>"""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import json
 import os
 import dbx as dbxm  # 2.37.0: the suite has its own dbx() helper
@@ -255,7 +256,7 @@ check(not any("notif" in c for c in cols) and not any("notif" in r[1] for r in d
       "rollback: lists / list_members unchanged")
 # 2.981.0 (#5287): list_notif went into the core's obj_notif_cap (one-way, docs/UPGRADING.md); the account export keeps its columns
 check([r[1] for r in dbx("PRAGMA table_info(login_ips)")] == ["ip", "user_id", "at"], "rollback: only new tables")
-r = A.get(B + "/api/export.json")
+r = su_get(A, B + "/api/export.json")
 exp = r.json() if r.ok else {}
 check("list_notif" in exp and "folder_notif" in exp, "#927: the account export carries the templates")
 

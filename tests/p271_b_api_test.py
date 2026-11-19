@@ -17,6 +17,7 @@
  - a freelancer without organisation links between private lists
 tenant-matrix: tasklink
 usage: p271_b_api_test.py <datadir>"""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import os
 import re
 import subprocess
@@ -152,7 +153,7 @@ check(Da.get(B + f"/api/tasks/{T}").status_code == 404, "#1459: dave GET by id 4
 check(Da.get(B + f"/api/tasks/{T}/timeline").status_code == 404, "#1459: dave timeline 404")
 r = Da.get(B + "/api/tasks", params={"scope": "search", "q": "zq7"})
 check(TITLE not in r.text, "#1459: dave's search does not find it")
-check(TITLE not in Da.get(B + "/api/export.json").text and "Comment zq7" not in Da.get(B + "/api/export.json").text, "#1459: dave's export")
+check(TITLE not in su_get(Da, B + "/api/export.json").text and "Comment zq7" not in su_get(Da, B + "/api/export.json").text, "#1459: dave's export")
 check(task_in(Gi, T) is None, "#1459: gina (participant of O2) does not get it")
 feed = re.sub(r"^https?://[^/]+", "", Da.post(B + "/api/ical", json={"action": "rotate"}).json().get("url") or "")  # 2.138.0 (#1907): the feed link is only in the answer of create / rotate
 if feed:
@@ -236,7 +237,7 @@ check(codes[:9] == [200] * 9 and codes[9] == 400, "#1459: at most 10 further lis
 for x in many:
     Bo.delete(B + f"/api/tasks/{T}/links/{x}")
 check(links(T) == [O2], "#1459: back to one further list")
-ex = Bo.get(B + "/api/export.json").json()
+ex = su_get(Bo, B + "/api/export.json").json()
 check(sum(1 for t in ex.get("tasks", []) if t.get("id") == T) == 1, "#1459: bob's export has it once")
 
 # ================================================================== agents (API v1)

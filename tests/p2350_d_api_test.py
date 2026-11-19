@@ -8,6 +8,7 @@
    a repeating task's done copy keeps them, the account export, a backup with snippets verifies and restores, OpenAPI
    (schema + path), the MCP tools add_snippet / update_task against the real server
 usage: p2350_d_api_test.py <datadir>"""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import json
 import os
 import dbx as dbxm  # 2.37.0: the suite has its own dbx() helper
@@ -184,7 +185,7 @@ TRP = A.post(B + "/api/tasks", json={"title": "Weekly check", "list_id": SW, "du
 check(A.post(B + f"/api/tasks/{TRP}/complete").ok, "setup: a repeating task completed")
 done = dbx("SELECT snippets FROM tasks WHERE title='Weekly check' AND status=2")
 check(done and "make check" in done[0][0], "#1095: the done copy of a repeating task keeps its snippets")
-ex = A.get(B + "/api/export.json").json()
+ex = su_get(A, B + "/api/export.json").json()
 check(any(t["id"] == T and "def login" in (t.get("snippets") or "") for t in ex["tasks"]), "#1095: the account export carries them")
 
 # ---- OpenAPI

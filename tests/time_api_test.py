@@ -3,6 +3,7 @@
 replays), focus -> entries without double counting, manual CRUD + permissions / IDOR, report totals on a
 seeded dataset (week / month boundaries, DST, entries crossing midnight), rounding, amounts, CSV, triggers,
 watchdog reminder / auto-stop, export, user delete, module off."""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import csv, io, json, os, dbx, sys, time
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -338,7 +339,7 @@ check('filename="stundennachweis-2026-09-14-2026-09-20.csv"' in r.headers["conte
 C.patch(B + "/api/settings", json={"lang": "en"})
 
 # ================= export JSON, user delete
-ex = C.get(B + "/api/export.json").json()
+ex = su_get(C, B + "/api/export.json").json()
 check(len(ex["time_entries"]) == 11 and all(e["user_id"] == ids["carol"] for e in ex["time_entries"]), f"JSON export: own time entries ({len(ex['time_entries'])})")
 check(any(l.get("rate") == 100 for l in ex["lists"]), "JSON export: list rate")
 dave = A.post(B + "/api/users", json={"username": "dave", "display_name": "Dave", "password": "password123"}).json()["id"]

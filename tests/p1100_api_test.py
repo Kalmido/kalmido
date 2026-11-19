@@ -12,6 +12,7 @@ context parent. Members dialog rules: admins manage members and roles, nobody ch
 Existing roles keep their meaning (edit = Member, view = Viewer; nothing to migrate).
 Starts its OWN test container (start.sh) with the webhook stub inside.
 usage: p1100_api_test.py <datadir>"""
+from kt import su_get  # 2.1444 (#6586): export.json behind the step-up (POST + ticket); before the code below (E402)
 import csv
 import io
 import json
@@ -277,7 +278,7 @@ check(P.post(B + "/api/templates", json={"list_id": L}).status_code == 403, "no 
 check(P.post(B + "/api/templates", json={"task_id": T2}).status_code == 404, "no template of the context parent")
 tp = P.post(B + "/api/templates", json={"task_id": T1})
 check(tp.ok and "HIDDEN" not in tp.text, "template of own task")
-ex = P.get(B + "/api/export.json").text
+ex = su_get(P, B + "/api/export.json").text
 check(not any(t["list_id"] == L for t in json.loads(ex)["tasks"]) and "HIDDEN" not in ex and "Secret" not in ex, "export: lists I own only")
 check(P.get(B + f"/api/lists/{L}/public-link").status_code == 403, "public link: participant 403")
 check(Bo.put(B + f"/api/lists/{L}/public-link", json={"mode": "view"}).status_code == 403, "public link stays owner-only (admin 403)")
