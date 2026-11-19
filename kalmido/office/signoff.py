@@ -712,7 +712,7 @@ def sig_page(c, r, token, lg, error=None, code=200):
     else:
         head = sig_offer_html(c, r, lg, token) if r["kind"] == "offer" else sig_list_html(c, r, lg)
     agb = ""
-    if r["kind"] == "document":  # 2.113.2 (#2253): the terms next to the PDF
+    if r["kind"] == "document":  # (#2253): the terms next to the PDF
         from .terms import agb_sig_html
         head += agb_sig_html(c, r, lg, token, SIG_PREFIX)
     elif r["kind"] == "offer":  # #7338: the quotation's PDF carries the terms pages: a sentence at the acceptance, no own button

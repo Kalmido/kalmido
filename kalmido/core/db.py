@@ -742,7 +742,7 @@ def skfp_fresh_blockers(c, limit=5):
                 if len(out) < limit and t not in out and t in have \
                         and c.execute(f"SELECT 1 FROM {qi(t, SKFP_FRESH_TABLES)} WHERE {where} LIMIT 1").fetchone():
                     out.append(t)
-    except Exception as e:  # noqa: BLE001 -- cannot tell: never take another key on data that may be sealed
+    except DbError as e:  # cannot tell: never take another key on data that may be sealed
         c.execute("ROLLBACK TO SAVEPOINT skfp_fresh")
         c.execute("RELEASE SAVEPOINT skfp_fresh")
         print("skfp: the check for a fresh database failed:", type(e).__name__, flush=True)
