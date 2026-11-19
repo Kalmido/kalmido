@@ -145,7 +145,7 @@ def v1_office_invoice_draft_post():
             _put_items(c, oid, r, items, False, flags)
         n = len(items)
     c.execute("UPDATE office_docs SET agent_id=?, list_id=COALESCE(list_id, ?) WHERE id=? AND org_id=?", (aid, lid, did, oid))
-    _v1_ref_keep(c, did, ref)  # 2.1396.0 (#6701): + the request's hash (the same ref with another body: 409 ref_conflict)
+    _v1_ref_keep(c, did, ref)  # (#6701): + the request's hash (the same ref with another body: 409 ref_conflict)
     recalc(c, oid, did)
     ofx_log(c, oid, "create", doc_id=did, detail={"kind": "invoice", "from": "time" if ft else "agent", "positions": n})
     out = {"doc": _doc_v1(c, oid, doc_row(c, oid, did)), "missing": ofv_missing(c, oid, did)}

@@ -177,9 +177,9 @@ def isc_text_check(field, v):
     e-mail address). A VAT ID: its own characters (ISC_VAT_RE) and no web address."""
     if not v:
         return ""
-    if any(unicodedata.category(ch) in ("Cf", "Me") or ch in ISC_INVISIBLE for ch in v):  # 2.1396.0 (#6701, review F3): invisible / direction marks hide what is printed
+    if any(unicodedata.category(ch) in ("Cf", "Me") or ch in ISC_INVISIBLE for ch in v):  # (#6701, review F3): invisible / direction marks hide what is printed
         raise _bad(field, tr("{0}: no invisible characters", field))
-    w = unicodedata.normalize("NFKC", v)  # 2.1396.0 (#6701): full-width letters and dots count as the plain ones
+    w = unicodedata.normalize("NFKC", v)  # (#6701): full-width letters and dots count as the plain ones
     if field == "vat_id":
         if not ISC_VAT_RE.fullmatch(v.replace(" ", "").upper()) or isc_has_web(v):
             raise _bad(field, tr("{0}: letters, digits and + * . - only", field))
@@ -316,15 +316,28 @@ def isc_hold(old, iss_id, changed, new, flags):
     return json.dumps(h, ensure_ascii=False)
 
 
-def _limit(c, iss, what, retry=3600, text=ISC_LIMIT_CLIENTS):
-    """429 limit_reached; the admins hear of it once a day (no pause: a busy day is no attack)."""
+def isc_notice(c, label, fn):
+    """Run fn(c) (a notice / log line of a refusal) and commit; a failure is rolled back and printed, the refusal stands.
+    The one place of this catch for the issuer routes (issdocs.py uses it too)."""
     try:
-        if _iss_once(c, iss, f"limit:{what}"):
-            iss_tell(c, iss["org_id"], iss, "issuer_limit", text)
+        fn(c)
         c.commit()
     except Exception as e:  # noqa: BLE001 -- the refusal stands without its notice
         c.rollback()
-        print("issuer limit notice failed:", type(e).__name__, flush=True)
+        print(f"issuer {label} notice failed:", type(e).__name__, flush=True)
+
+
+def isc_limit_tell(c, iss, what, text):
+    """The admins hear of a reached limit once a day (no pause: a busy day is no attack)."""
+    def tell(c):
+        if _iss_once(c, iss, f"limit:{what}"):
+            iss_tell(c, iss["org_id"], iss, "issuer_limit", text)
+    isc_notice(c, "limit", tell)
+
+
+def _limit(c, iss, what, retry=3600, text=ISC_LIMIT_CLIENTS):
+    """429 limit_reached (isc_limit_tell)."""
+    isc_limit_tell(c, iss, what, text)
     return _fail(429, tr("The invoice issuer reached its limit of {0}", tr(text)), "limit_reached", {"Retry-After": str(retry)})
 
 
@@ -458,7 +471,7 @@ def isc_put(ref):
     if seen.get("held"):
         _tell(c, iss, new)
     from .issdocs import isd_client_changed
-    isd_client_changed(c, iss["id"], r["id"], fp_before)  # 2.1396.0 (#6701): its drafts' preview follows the key's own change of the client
+    isd_client_changed(c, iss["id"], r["id"], fp_before)  # (#6701): its drafts' preview follows the key's own change of the client
     c.commit()
     new = isc_row(c, iss, ref)
     return jsonify(isc_public(new, flags=_flags_of(new)))

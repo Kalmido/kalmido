@@ -110,7 +110,7 @@ def fk_third_country(client, home):
     return bool(cc) and cc != h and cc not in FK_EU
 
 
-# 2.1396.0 (#6701): territories outside the EU's VAT area (or with rules of their own) that have no country code of their own:
+# (#6701): territories outside the EU's VAT area (or with rules of their own) that have no country code of their own:
 # country -> postcode prefixes (the review of 17.11.2026, also in docs/API.md). An invoice issuer's draft to such an address
 # carries the flag vat_territory and waits for a person; Kalmido derives no VAT case from a postcode, the person decides.
 FK_VAT_TERRITORIES = {

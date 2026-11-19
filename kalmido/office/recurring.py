@@ -175,7 +175,7 @@ def rin_template_ok(c, oid, tid):
         raise BadInput(tr("A cancelled invoice cannot be repeated"))
     if r["trial"]:  # 2.144.10 A (#2576): a series is real business
         raise Denied(409, tr("A trial invoice cannot be repeated; create a real invoice for a series"))
-    if "issuer_id" in r.keys() and r["issuer_id"]:  # 2.1396.0 (#6701): a series would run past the issuer's key and its limits
+    if "issuer_id" in r.keys() and r["issuer_id"]:  # (#6701): a series would run past the issuer's key and its limits
         raise Denied(409, tr("An invoice of an invoice issuer cannot be repeated; create an invoice of your own for a series"))
     return r
 

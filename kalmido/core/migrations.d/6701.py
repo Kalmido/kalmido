@@ -1,4 +1,4 @@
-"""2.1396.0 (#6701): the invoice drafts of an invoice issuer (office/issdocs.py). office_docs.issuer_id = the issuer (office_issuers)
+"""(#6701): the invoice drafts of an invoice issuer (office/issdocs.py). office_docs.issuer_id = the issuer (office_issuers)
 whose key made the draft (kept for good; a correction a person makes of it inherits it, a copy never), issuer_wish = what the
 outside system asked for along with it (payment, sending, due date, bank account, its VAT and business checks, the sums it
 expected): an unconfirmed statement, sealed as one text with the area's key (core/orgcrypt.py FIELDS), never printed; issuer_rev =

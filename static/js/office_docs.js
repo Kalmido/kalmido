@@ -57,7 +57,7 @@ const OFD_RAW = [['optional', N_('optional (shown, not counted)')], ['included',
 const ofdLang = d => ['', 'de', undefined, null].includes((d || OFD.doc)?.lang) ? 'de' : 'en';
 const ofdNumEn = d => (d || OFD.doc)?.lang === 'en';
 // money and quantities in the DOCUMENT's language and currency (not the person's locale): 1.234,56 € / €1,234.50 / $1,234.50
-// 2.1396.0 (#6701): a document an invoice issuer's key made: who made it, and what the outside system said along with it -- only
+// (#6701): a document an invoice issuer's key made: who made it, and what the outside system said along with it -- only
 // shown, as unconfirmed statements (a person books, sends and checks the VAT case with the usual buttons; nothing is applied)
 const OFD_ISS_PAY = {transfer: N_('Bank transfer'), cash: N_('Cash'), card: N_('Card'), direct_debit: N_('Direct debit'), paypal: N_('PayPal'),
   online: N_('Online'), other: N_('Other|payment')};
@@ -322,7 +322,7 @@ function ofdListHtml() {
   // 2.46.1 (#1637): an empty offer list shows its one big button below the text, not a second one up here
   const noTop = k === 'offer' && rows && !rows.length && !q && !OFD.status && !OFD.trial;
   const bar = kinds + `${rows?.length ? hintOnce('ofclp', tr('Hold a row to see what you can do with it.')) : ''}<div class="ofcbar ofdbar"><div class="ctsearch">${ic('search', 's')}<input id="ofd-q" type="search" value="${esc(OFD.q)}" placeholder="${esc(tr('Search'))}" aria-label="${esc(tr('Search documents'))}" autocomplete="off" enterkeyhint="search"></div>
-    <select id="ofd-status" aria-label="${esc(tr('Status'))}"><option value="">${tr('All|status')}</option>${sts.map(([v, n]) => `<option value="${v}" ${OFD.status === v ? 'selected' : ''}>${tr(n)}</option>`).join('')}</select>${ofd_fltHtml()}${tri_filterHtml()}${/*html-ok*/ ofd_srcHtml(k) /* built from esc() */}${lst_sortBtn(ofd_listKey(k))}<span class="spacer"></span>${ofcAdmin('offers') && ofd_canNew() /* 2.1238.0 (#6161) */ ? `<button type="button" class="btn sm" data-ofd="trash" title="${esc(tr('Trash'))}" aria-label="${esc(tr('Trash'))}">${ic('trash', 's')}</button>` : ''}${/*html-ok*/ noTop || !ofd_canNew() /* 2.1238.0 (#6161, Stufe 3): a reader adds nothing */ ? '' : newBtn}</div>${tri_barHtml()}`;
+    <select id="ofd-status" aria-label="${esc(tr('Status'))}"><option value="">${tr('All|status')}</option>${sts.map(([v, n]) => `<option value="${v}" ${OFD.status === v ? 'selected' : ''}>${tr(n)}</option>`).join('')}</select>${ofd_fltHtml()}${tri_filterHtml()}${/*html-ok*/ ofd_srcHtml(k) /* built from esc() */}${lst_sortBtn(ofd_listKey(k))}<span class="spacer"></span>${ofcAdmin('offers') && ofd_canNew() /* (#6161) */ ? `<button type="button" class="btn sm" data-ofd="trash" title="${esc(tr('Trash'))}" aria-label="${esc(tr('Trash'))}">${ic('trash', 's')}</button>` : ''}${/*html-ok*/ noTop || !ofd_canNew() /* (#6161, Stufe 3): a reader adds nothing */ ? '' : newBtn}</div>${tri_barHtml()}`;
   if (!rows) return bar + loadingHtml('big');
   if (OFD.err && !rows.length) return bar + ofcFail(OFD.err, () => { OFD.err = ''; OFD.list = null; ofdLoadList(true); });  // 2.1076.0 (#5450)
   const hit = r => !q || [r.number, r.recipient_name, r.project_title, r.project_ref, r.order_ref /* #6945 */].some(v => (v || '').toLowerCase().includes(q));
@@ -332,7 +332,7 @@ function ofdListHtml() {
     invoice: N_('No invoices yet. Make one from a quotation, from time entries or start empty.'),
     credit: N_('No credit notes yet. A credit note is made from a finalised invoice.'), reminder: N_('No payment reminders yet. Select open invoices in the invoice list.'),
     delivery: N_('No delivery notes yet. From a quotation, an invoice or empty – without prices.')};  // 2.120.0 D (#2089)
-  if (!list.length) return bar + (q || OFD.status || OFD.trial || ofd_srcQs() || ofd_grpQs() ? ofcNoHit() : emptyState({icon: 'receipt', title: tr(emptyTxt[k]), action: k === 'offer' && ofd_canNew() ? `<div class="eacts"><button class="btn pri" data-ofd="new">${ic('plus', 's')}<span>${tr('New quotation')}</span></button></div>` : ''})) + more;  // 2.1076.0 (#5450)
+  if (!list.length) return bar + (q || OFD.status || OFD.trial || ofd_srcQs() || ofd_grpQs() ? ofcNoHit() : emptyState({icon: 'receipt', title: tr(emptyTxt[k]), action: k === 'offer' && ofd_canNew() ? `<div class="eacts"><button class="btn pri" data-ofd="new">${ic('plus', 's')}<span>${tr('New quotation')}</span></button></div>` : ''})) + more;  // (#5450)
   // 2.40.0 (#1368 point 9): settled reminders (all their invoices paid or cancelled) below the open ones
   const grp = k === 'reminder' && list.some(r => r.settled) && list.some(r => !r.settled);
   if (k === 'reminder') list.sort((a, b) => (a.settled ? 1 : 0) - (b.settled ? 1 : 0));
@@ -1036,7 +1036,7 @@ addEventListener('fdw-sent', e => {
 async function ofdChange0(e) {
   const t = e.target;
   if (t.id === 'ofd-trial') { OFD.trial = t.value; LS.set('ofdTrial', t.value); OFD.list = null; ofdLoadList(true); return; }  // 2.144.10 C (#2576)
-  if (t.id === 'ofd-src') { OFD.src = t.value; OFD.list = null; ofdLoadList(true); return; }  // 2.1396.0 (#6701)
+  if (t.id === 'ofd-src') { OFD.src = t.value; OFD.list = null; ofdLoadList(true); return; }  // (#6701)
   if (t.dataset.oflt && !S.route.id) { OFD.flt[t.dataset.oflt] = t.value; OFD.list = null; ofdLoadList(true); return; }  // 2.351.0 A (#3312)
   if (t.id === 'ofd-status' && !OFD.doc) { OFD.status = t.value; OFD.list = null; ofdLoadList(true); return; }
   if (t.id === 'ofd-status' && OFD.doc && S.route.id !== OFD.doc.id) { OFD.status = t.value; OFD.list = null; ofdLoadList(true); return; }
@@ -1313,7 +1313,7 @@ async function ofdCreate(body) {
 // has the filter "All / Real only / Trial only" and the line "N trial documents". Off (the default): none of it; existing
 // trial documents keep their tag. "Delete all trial documents" sits in the test mode section of the settings.
 const TRI = {count: null, office: null};
-// 2.1396.0 (#6701): the invoice list's filter "number range / made by an invoice issuer" (only when the office has extra ranges
+// (#6701): the invoice list's filter "number range / made by an invoice issuer" (only when the office has extra ranges
 // or issuers; one select: the main range, a range, all drafts of issuers, one issuer)
 const ofd_srcQs = () => { const v = (OFD.kind === 'invoice' || OFD.kind === 'credit') ? OFD.src || '' : ''; const [k, id] = v.split(':');
   return k === 'range' ? `&range=${encodeURIComponent(id)}` : k === 'issuer' ? `&issuer=${encodeURIComponent(id)}` : ''; };
@@ -1327,7 +1327,7 @@ function ofd_srcHtml(k) {
   return `<select id="ofd-src" aria-label="${esc(tr('Number range or invoice issuer'))}">${/*html-ok*/ opts.join('')}</select>`;  // the options: o() escapes value and name
 }
 function tri_meta(j) {
-  OFD.ranges = j.ranges || []; OFD.issuers = j.issuers || [];  // 2.1396.0 (#6701)
+  OFD.ranges = j.ranges || []; OFD.issuers = j.issuers || [];  // (#6701)
   if (j.first) OFD.first = j.first;
   OFD.office = j.office_id ?? j.org_id ?? OFD.office;
   OFD.trialCount = +j.trial_count || 0;

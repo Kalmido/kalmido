@@ -161,7 +161,7 @@ def ofk_trash(c, uid, kind, rid, checked=False):
     (not for a kind registered with step=False, see ofk_register).
     2.1005.0 (#5415): checked=True = a way of its own checked the rights already (a table's offer step or an agent's proposal
     taken back: office/docs.py odoc_trash): the core's role of the row is 'manage' for this one call."""
-    if uid is None and checked:  # 2.1396.0 (#6701): no person (an invoice issuer withdraws its draft): no person's undo step; a person restores it
+    if uid is None and checked:  # (#6701): no person (an invoice issuer withdraws its draft): no person's undo step; a person restores it
         return obj_trash(c, None, kind, rid, step=False, checked=True)
     tok = _CHECKED.set((kind, int(rid))) if checked else None
     try:
