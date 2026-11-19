@@ -338,7 +338,10 @@ def split_link(title, content=""):
 
 def save_attachment_bytes(c, tid, name, mime, data, owner=None, anon=False):
     """2.1337.0 (#6651): anon = the file came from a source a stranger can fill (a public form, a mail): its text recognition
-    gets the shorter clock (files/textscan.py ts_mark_anon)."""
+    gets the shorter clock (files/textscan.py ts_mark_anon).
+    #6531: -> None when the file was filed, else why it was left out: "quota" (the storage is full), "virus" (the virus
+    scanner refused it), "lock" (the list is encrypted in the browser), "denied" (the space refused it). A file left out
+    never goes silently: collab/attskip.py makes it a note on the task and a News item for the owner."""
     from ..tasks.attachments import safe_name
     from ..notify.alerts import aa_count, aa_oserr
     from ..admin.hosting import quota_fits
@@ -347,7 +350,7 @@ def save_attachment_bytes(c, tid, name, mime, data, owner=None, anon=False):
     from ..collab.liste2efile import le2f_plain_skip
     if le2f_plain_skip(c, tid):  # 2.64.2 B (#1817): no plain file in a list with the lock
         print("share / mail file skipped: list encrypted in the browser", flush=True)
-        return
+        return "lock"
     who = c.execute("SELECT created_by FROM tasks WHERE id=?", (tid,)).fetchone()
     who = who[0] if who else None
     if owner is not None:  # 2.63.0 (#1513): a form's file without an account counts against the list owner's storage
@@ -358,10 +361,10 @@ def save_attachment_bytes(c, tid, name, mime, data, owner=None, anon=False):
         data, mime, info = up_check(c, name, data, mime, who, org, "att")
     except UploadRefused as e:
         print("share / mail file skipped:", e, flush=True)
-        return
+        return "virus"
     if not quota_fits(c, who, len(data)):  # 2.24.0 (#910): storage full -> the task comes without the file (never an error)
         print("share / mail file skipped: storage quota of user", who, "reached", flush=True)
-        return
+        return "quota"
     rel = os.path.join(str(tid), f"{uuid.uuid4().hex[:12]}-{name}")
     try:
         os.makedirs(os.path.join(ATT_DIR, str(tid)), exist_ok=True)
@@ -378,11 +381,12 @@ def save_attachment_bytes(c, tid, name, mime, data, owner=None, anon=False):
             os.remove(os.path.join(ATT_DIR, rel))
         except OSError:
             pass
-        return
+        return "denied"
     # 2.1391.0 (#6906): outside = the name came from a mail / a public form (user_id only says whose storage it counts against)
     aid = insert_id(c, "INSERT INTO attachments(task_id,name,mime,size,path,created_at,user_id,outside) VALUES(?,?,?,?,?,?,?,?)",
                     (tid, name, mime, len(data), rel, iso(now_utc()), who, 1 if anon else 0))
     up_after_store(c, "att", aid, org, {**(info or {}), "anon": True} if anon else info)  # 2.1337.0 (#6651)
+    return None
 
 
 def h6a_share_origin_ok():

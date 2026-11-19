@@ -29,6 +29,7 @@ from ..core.objcomments import OCM_TS, ocm_add  # 2.972.0 (#5272)
 from ..accounts.session import _token_hash
 from ..accounts.login import auth_key, seal, unseal
 from ..accounts.bgjobs import bgj_add, bgj_fn
+from ..accounts.mailfail import MAIL_RETRY, mail_bg_failed  # (#6385)
 from ..tasks.watchers import wat_users  # 2.473.0 (#3357)
 from ..core.access import acx_anon_bind, need_task, task_visible  # 2.149.0 G (#2517): pulled up from functions
 from ..api.common import hit_budget, hit_limit  # 2.149.0 G (#2517): pulled up from functions
@@ -419,13 +420,13 @@ def pt_notify_on(token):
 
 # ---- the portal: a sign-in link by mail (one-time, PT_LOGIN_TTL), then a cookie for /portal (signed, PT_COOKIE_DAYS days)
 # that lists every ticket of the same address in the same space. The request always gets the same answer.
-@bgj_fn("mail:portal", tries=1)
+@bgj_fn("mail:portal", tries=1, retry=MAIL_RETRY)
 def _pt_mail_bg(to, subject, text, html_body, unsub=None):
     from ..integrations.mail import mail_send
     try:
         mail_send(to, subject, text, html_body, from_name=APP_NAME, unsub=unsub)  # 2.367.5 (#2975): unsub on the answers only
     except Exception as ex:  # noqa: BLE001  (nobody waits for this; the reporter can ask again)
-        print("portal mail failed:", type(ex).__name__, flush=True)
+        mail_bg_failed("portal", ex)  # (#6385): a passing failure of the mail server is tried again
 
 
 def _pt_mail_html(lines, url, button, foot="", subject=""):

@@ -25,6 +25,7 @@ const lpBusy = () => editing() || lpFormBusy() || lpHold();
 S.lpPend = new Set(); S.lpUnk = false;
 function lpChanged(a) {
   const p = S.lpA; S.lpA = a || null;
+  if (a && p && a.undo !== p.undo) histSrvSoon();  // (#6344): a new step of the person: the ← tooltip names it (undo.js)
   if (!a || !p || S.lpOff) { S.lpUnk = true; return null; }
   for (const k of Object.keys(a)) if (a[k] !== p[k] && !(k === 'self' && lpOwnSelf(p[k], a[k]))) S.lpPend.add(k);
   return S.lpUnk ? null : [...S.lpPend];

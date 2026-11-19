@@ -39,17 +39,18 @@ import secrets
 
 from flask import jsonify
 
-from ..core.config import app, APP_NAME, MAX_FILE_MB
+from ..core.config import app, APP_NAME
 from ..core.db import body, bump, db, err, iso, now_utc, test_seconds
 from ..core.i18n import lang, tr
 from ..core.pg import system_ctx
 from ..tasks.repo import task_insert  # 2.1358.0 (#6825): the one way into tasks
 from ..core.objcomments import ocm_add  # 2.972.0 (#5272)
 from ..core.access import Denied, MANAGE_ROLES, need_list, task_visible
-from ..core.pages import save_attachment_bytes
+from ..collab.attskip import att_skip_cut, att_skip_note, att_skip_task, mail_files_save  # #6531
 from ..accounts.session import _token_hash, me
 from ..accounts.mailtok import mtk_new, mtk_plain  # 2.674.0 (#4382 finding 5)
 from ..accounts.bgjobs import bgj_add, bgj_fn
+from ..accounts.mailfail import MAIL_RETRY, mail_bg_failed  # (#6385)
 from ..api.common import hit_limit
 from ..collab.comments import collab_user
 from ..collab.integfail import integ_tell  # 2.1322.0 (#6560 3)
@@ -169,22 +170,10 @@ def _keep(c, tid, mid, kind):
         c.execute("INSERT INTO task_mail(task_id,msg_id,sender,kind,created_at) VALUES(?,?,?,?,?)", (tid, mid, "", kind, iso(now_utc())))
 
 
-def _files(c, tid, files, owner, top_comment=None):
-    """The mail's files as files of task tid (the usual checks in save_attachment_bytes); -> False when one was too large / not stored."""
-    whole = len(files) <= RQ_FILES
-    top = c.execute("SELECT COALESCE(MAX(id),0) FROM attachments WHERE task_id=?", (tid,)).fetchone()[0]
-    for name, mime, data in files[:RQ_FILES]:
-        if 0 < len(data) <= MAX_FILE_MB * 1024 * 1024:
-            try:
-                save_attachment_bytes(c, tid, unexec_name(name), mime, data, owner=owner, anon=True)  # 2.1337.0 (#6651): from a mail
-            except OSError:
-                whole = False
-                break
-        elif data:
-            whole = False
-    if top_comment:
-        c.execute("UPDATE attachments SET comment_id=? WHERE task_id=? AND id>?", (top_comment, tid, top))
-    return whole
+def _files(c, tid, files, owner):
+    """The mail's files as files of task tid (the usual checks in save_attachment_bytes) -> (whole, skipped, top) of
+    collab/attskip.py mail_files_save (#6531: a file left out keeps the mail in the mailbox and is noted)."""
+    return mail_files_save(c, tid, files, RQ_FILES, owner=owner, rename=unexec_name)
 
 
 def rq_comment(c, msg, mid, p, l, verified):
@@ -199,8 +188,10 @@ def rq_comment(c, msg, mid, p, l, verified):
         return 0
     name = (p["name"] or "").strip() or email.utils.parseaddr(str(msg.get("From", "")))[0].strip()[:120] or tr("Client", lg=lg)
     tid = p["task_id"]
-    cid = ocm_add(c, "task", tid, None, (text or "—")[:P.PT_CMT_MAX], ext_name=name[:120], extra={"portal": True, "source": "mail"})  # 2.972.0 (#5272); 2.1269.0 (#6431): source mail (origin for agents)
-    whole = _files(c, tid, files, l["owner_id"], top_comment=cid)
+    whole, skipped, top = _files(c, tid, files, l["owner_id"])
+    note = att_skip_note(c, tid, skipped, owner=l["owner_id"], lg=lg)  # #6531: the reporter reads it too (a file to send again)
+    cid = ocm_add(c, "task", tid, None, att_skip_cut(text or "—", note, P.PT_CMT_MAX), ext_name=name[:120], extra={"portal": True, "source": "mail"})  # (#5272); (#6431): source mail (origin for agents)
+    c.execute("UPDATE attachments SET comment_id=? WHERE task_id=? AND id>?", (cid, tid, top))
     _keep(c, tid, mid, "in")
     t = c.execute("SELECT t.*, l.owner_id AS l_owner FROM tasks t JOIN lists l ON l.id=t.list_id WHERE t.id=?", (tid,)).fetchone()
     people = ({t["l_owner"], t["created_by"], t["assignee_id"]} | wat_users(c, tid)) - {None}
@@ -237,7 +228,8 @@ def rq_new(c, msg, mid, l, sender, verified, auto, hint=""):
     ptid, ptok = P.pt_create(c, tid, {"id": lid, "org_id": l["org_id"], "owner_id": l["owner_id"]}, None, name, sender)
     c.execute("UPDATE portal_tickets SET via='mail', unverified=?, lang=? WHERE id=?", (0 if verified else 1, lg, ptid))
     _keep(c, tid, mid, "src")
-    whole = _files(c, tid, files, l["owner_id"])
+    whole, skipped, _top = _files(c, tid, files, l["owner_id"])
+    att_skip_task(c, tid, skipped, owner=l["owner_id"])  # #6531: a file left out is a note on the task and News for the owner
     log_act(c, tid, "created", {"portal": 1, "mail": 1})
     M.agent_added_events(c, tid, source="mail", info={"portal": True})
     bump(c)
@@ -310,7 +302,7 @@ def rq_limit_tell(c, lst):
     integ_tell(c, uids, "reqmail", lst["name"] or f"#{lst['id']}", click=f"l/{lst['id']}", list=lst["id"])
 
 
-@bgj_fn("mail:reqmail", tries=1)
+@bgj_fn("mail:reqmail", tries=1, retry=MAIL_RETRY)
 def rq_mail_bg(to, subject, text, html_body, unsub, reply_to, msg_id, refs, auto):
     """The background part: one mail of a mail ticket (confirmation / answer) with its thread headers."""
     try:
@@ -324,7 +316,7 @@ def rq_mail_bg(to, subject, text, html_body, unsub, reply_to, msg_id, refs, auto
             m["Auto-Submitted"] = "auto-replied"  # RFC 3834: an answering machine on the other side stays quiet
         M.mail_deliver(m)
     except Exception as ex:  # noqa: BLE001  (nobody waits for this; the status page has everything)
-        print("request mail failed:", type(ex).__name__, flush=True)  # no addresses in the log
+        mail_bg_failed("request", ex)  # (#6385): a passing failure of the mail server is tried again; no addresses in the log
 
 
 def rq_mail_out(c, p, em, subj, text, html_body, stop):

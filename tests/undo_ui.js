@@ -6,7 +6,12 @@
 // the trash guard, and the history menu (right-click / long-press) that jumps several steps.
 // 2.905.0 (#5255): the task steps are the server's (Ctrl+Z = the person's newest step of any device, a step the server has
 // is not queued offline); sections / list settings keep this device's own steps.
-const {boot, errs, sleep, B, login} = require('./boot');
+// 2.1436.0 (#6344): the arrow / Ctrl+Z take a step of elsewhere only within 2 minutes - the steps of the setup (written over
+// the API before the window opens) are dated back, so they are older steps of elsewhere: ← with nothing of here opens the list.
+const {execFileSync} = require('child_process');
+const path = require('path');
+const {boot, errs, sleep, B, login, TEST_DATA} = require('./boot');
+const sql = (q, a = []) => JSON.parse(execFileSync('python3', [path.join(__dirname, 'dbx.py'), TEST_DATA, q, JSON.stringify(a)]).toString() || '[]');
 const F = []; let ok = 0;
 const check = (c, what) => { if (c) ok++; else { F.push(what); console.log('FAIL:', what); } };
 const H = {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'};
@@ -32,6 +37,7 @@ const addD = (s, n) => { const [y, m, d] = s.split('-').map(Number); const x = n
   const t1 = await mk('Pay invoice', WORK), t2 = await mk('Call bank', WORK), t3 = await mk('Order paper', WORK);
   const s1 = await mk('Plan trip', SH, {priority: 1}), s2 = await mk('Book hotel', SH);
   const FLD = (await call('POST', `/api/lists/${SH}/fields`, {name: 'Budget', type: 'text'})).id;
+  sql("UPDATE undo_groups SET created_at = created_at - interval '10 minutes'");  // 2.1436.0 (#6344): the setup is no fresh step of elsewhere
 
   let w = await boot({user: 'alice', hash: 'l/' + WORK}); let d = w.document;
   const btn = dir => d.querySelector(`#top [data-act="hist-${dir}"]`);

@@ -84,8 +84,11 @@ def ua8_admin_dicts(c, rows):
                                WHERE p.kid_id IN ({q}) AND NOT u.disabled ORDER BY p.parent_id""", ids):
         parents.setdefault(k, []).append(p)
     nw = now_utc()
-    invite = {r[0]: ("invited" if parse_iso(r[1]) > nw else "expired")
-              for r in c.execute(f"SELECT user_id, expires_at FROM user_invites WHERE used_at IS NULL AND user_id IN ({q})", ids)}
+    invite, unsent = {}, set()
+    for r in c.execute(f"SELECT user_id, expires_at, kind, sent_at FROM user_invites WHERE used_at IS NULL AND user_id IN ({q})", ids):
+        invite[r[0]] = "invited" if parse_iso(r[1]) > nw else "expired"
+        if invite[r[0]] == "invited" and r[2] != "login" and not r[3]:  # (#6385): like invite.py invite_unsent
+            unsent.add(r[0])
     orgs, ag_org, nlists = {}, {}, {}
     with system_ctx(c):  # the same reads as users._admin_struct: ids and a count (structure, no content)
         for uid, oid in c.execute(f"SELECT user_id, org_id FROM org_members WHERE user_id IN ({q}) ORDER BY org_id", ids):
@@ -125,7 +128,7 @@ def ua8_admin_dicts(c, rows):
                     "has_password": bool(u["password_hash"]), "proxy_login": u["proxy_login"] or "",
                     "created_at": u["created_at"], **({"ntfy_topic": topic.get(uid, USER_DEFAULTS.get("ntfy_topic", ""))} if uid == me() else {}),  # 2.306.0 C (#2889): no foreign topics
                     "email": u["email"] or "", "twofa": tf, "oidc_linked": bool(u["oidc_subject"]),
-                    "parents": parents.get(uid, []) if u["kid"] else [], "invite": invite.get(uid),
+                    "parents": parents.get(uid, []) if u["kid"] else [], "invite": invite.get(uid), "invite_unsent": uid in unsent,
                     "signup": u["signup"] or "", "kid": bool(u["kid"]), **st,
                     "storage": {"used": used.get(uid, 0), "quota_mb": u["storage_quota_mb"]}, **_delete_hold(u)})  # 2.1298.0 (#6395)
         if hosted_:  # 2.539.0 (#4374): like user_admin_dict -- a client's account (apart) reduced, an open support access named

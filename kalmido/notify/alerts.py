@@ -462,6 +462,12 @@ def _aa_integrations(c, cfg, ints, now):
                          [s["n"], s["err"]])
         elif s["n"] >= AA_FAIL_ROW and name == "ntfy":
             st = aa_emit(c, cfg, "integration", "ntfy:" + s["err"], N_("{0} ntfy pushes in a row failed ({1})."), [s["n"], s["err"]])
+        elif s["n"] >= AA_FAIL_ROW and name == "smtp":  # (#6385): every mail through the instance's SMTP (mail_deliver)
+            st = aa_emit(c, cfg, "integration", "smtp:" + s["err"], N_("{0} e-mails in a row could not be sent: the e-mail server fails ({1})."),
+                         [s["n"], s["err"]])
+        elif s["n"] >= AA_FAIL_ROW and name == "mail":  # (#6385): the fetch of the mail import (integrations/mail.py mail_loop)
+            st = aa_emit(c, cfg, "integration", "mail:" + s["err"], N_("{0} fetches of the e-mail import in a row failed ({1})."),
+                         [s["n"], s["err"]])
         elif s["n"] >= AA_FAIL_ROW and name.startswith("webpush:"):
             st = aa_emit(c, cfg, "integration", name + ":" + s["err"], N_("{0} Web Push deliveries in a row failed at {1} ({2})."),
                          [s["n"], name[8:], s["err"]])

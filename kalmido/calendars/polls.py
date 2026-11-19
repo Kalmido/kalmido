@@ -37,7 +37,8 @@ from ..core.i18n import browser_lang, LANGS, N_, lang, short_day, tr
 from ..core.db import body, bump, db, err, iso, iso_ms, now_utc
 from ..accounts.session import _accept_lang, _token_hash, me, rate_ip
 from ..accounts.login import auth_key, seal, unseal
-from ..accounts.bgjobs import bgj_add, bgj_fn
+from ..accounts.bgjobs import bgj_add, bgj_again, bgj_fn
+from ..accounts.mailfail import MAIL_RETRY, mail_bg_list  # (#6385)
 from ..accounts.orgout import oo_denied, oo_into_note, org_out, org_out_ok  # 2.361.2 B (#2923)
 from ..core.access import Denied, acx_anon_bind, acx_org_ok, need_feat
 from ..core.errors import BadInput
@@ -637,7 +638,7 @@ def tpo_when(start, end, zone_name, lg):
     return (f"{wd}, {short_day(s.date(), lg, year=True)} {s:%H:%M}–" + (f"{e:%H:%M}" if same else f"{short_day(e.date(), lg, year=True)} {e:%H:%M}"))
 
 
-@bgj_fn("mail:polls", tries=1)
+@bgj_fn("mail:polls", tries=1, retry=MAIL_RETRY)
 def tpo_mail(rcpts, r, o, who, lg):
     """The background part: one invitation per voter with an address, the event attached as .ics."""
     from ..integrations.mail import mail_send
@@ -646,19 +647,20 @@ def tpo_mail(rcpts, r, o, who, lg):
          "start": wall(o["start"]).replace(tzinfo=z), "end": wall(o["end"]).replace(tzinfo=z), "tz": r["tz"] or getattr(TZ, "key", "UTC")}
     ics = cdw_new_ics(f, f"poll-{r['id']}-{o['id']}@kalmido").encode()
     olg = lg
-    for name, addr, *voter in rcpts:  # 2.448.0 (#3765): the reader's language; a vote without one (older, or a queued pair) the owner's
-        lg = voter[0] if voter and voter[0] in LANGS else olg
-        when = tpo_when(o["start"], o["end"], r["tz"], lg) + f" ({f['tz']})"
-        text = "\n\n".join(x for x in (tr("Hello {0},", name, lg=lg),
-                                       tr("{0} has selected a time for “{1}”:", who or tr("Someone", lg=lg), r["title"], lg=lg) + "\n" + when
-                                       + (("\n" + r["location"]) if r["location"] else ""),
-                                       tr("The event is attached: open it to add it to your calendar.", lg=lg),
-                                       tr("You get this e-mail because you entered this address when you voted. If that was not you, you can ignore it.", lg=lg)) if x)
-        try:
-            mail_send(addr, tr("Date set: {0}", r["title"], lg=lg), text, from_name=APP_NAME,
-                      attachments=[("invite.ics", ics, "text/calendar")])
-        except Exception as x:  # noqa: BLE001  (nobody waits for this; the app showed the result)
-            print("poll invitation mail failed:", type(x).__name__, flush=True)
+
+    def one(rc):  # (#6385): a passing failure of the mail server is tried again; the voters who got theirs never twice
+        name, addr, *voter = rc
+        vlg = voter[0] if voter and voter[0] in LANGS else olg  # (#3765): the reader's language; a vote without one (older, or a queued pair) the owner's
+        when = tpo_when(o["start"], o["end"], r["tz"], vlg) + f" ({f['tz']})"
+        text = "\n\n".join(x for x in (tr("Hello {0},", name, lg=vlg),
+                                        tr("{0} has selected a time for “{1}”:", who or tr("Someone", lg=vlg), r["title"], lg=vlg) + "\n" + when
+                                        + (("\n" + r["location"]) if r["location"] else ""),
+                                        tr("The event is attached: open it to add it to your calendar.", lg=vlg),
+                                        tr("You get this e-mail because you entered this address when you voted. If that was not you, you can ignore it.", lg=vlg)) if x)
+        mail_send(addr, tr("Date set: {0}", r["title"], lg=vlg), text, from_name=APP_NAME,
+                  attachments=[("invite.ics", ics, "text/calendar")])
+    # nobody waits for it: the app showed the result
+    mail_bg_list("poll invitation", [list(x) for x in rcpts], one, lambda rest: bgj_again(rest, r, o, who, olg, delay=30.0))
 
 
 @app.post("/api/polls/<int:pid>/reopen")

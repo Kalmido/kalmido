@@ -287,6 +287,21 @@ j = py("import json, app\nfrom kalmido.accounts.supportgrant import sga_may_writ
        f"print(json.dumps({{'w': [sga_may_write('{MA}'), sga_may_write('{MA}/a1/renew'), sga_may_write('/api/docs/1/tags')]}}))")
 check(j.get("w") == [False, False, True], f"a support session writes no address (contents yes) {j}")
 
+# ---- #6531 (reader finding F6): a file of a documents mail the storage refuses never goes silently: frida gets a News item
+# without a task that /api/news shows (before: no News at all, then dropped by the feed for want of a task), the mail is not
+# taken (0: it stays in the mailbox)
+L6531 = Fr.post(B + "/api/lists", json={"name": "Speicher voll"}).json()["id"]
+check(A.patch(B + f"/api/users/{FRIDA}", json={"storage_quota_mb": 1}).ok, "#6531 setup: frida has 1 MB of storage")
+kt.dbx("UPDATE lists SET icon='u:abcdefgh', icon_size=? WHERE id=?", (2 * 1024 * 1024, L6531))  # her storage is full
+r = deliver(NEW, "Speicher")
+check(r == 0, f"#6531: the only file refused -> nothing taken in, the mail stays in the mailbox ({r!r})")
+it = Fr.get(B + "/api/news").json()
+hit = [x for x in it.get("items") or [] if x.get("kind") == "attskip"]
+check(len(hit) == 1 and hit[0].get("task_id") is None and "auszug-" in (hit[0].get("data") or {}).get("name", "")
+      and (hit[0].get("data") or {}).get("why") == "quota", f"#6531 F6: the News item of the documents mail is in her feed {hit}")
+kt.dbx("UPDATE lists SET icon=NULL, icon_size=NULL WHERE id=?", (L6531,))
+check(A.patch(B + f"/api/users/{FRIDA}", json={"storage_quota_mb": None}).ok, "#6531: no limit again")
+
 # ---- delete
 check(Fr.delete(B + f"/api/docs/mail-addresses/{AID}").ok and [a["id"] for a in named(Fr)] == [], "frida deletes her named address")
 check(deliver(NEW) is None, "deleted: no document address any more")

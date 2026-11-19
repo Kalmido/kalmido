@@ -1033,6 +1033,7 @@ API_ONLY = {  # REST routes on purpose without an MCP tool (reason)
     "GET /issuer/docs/{}": "2.1427.0 (#6701): only for invoice issuer keys (their own key kind, an outside invoicing system); never agents",
     "GET /issuer/docs/by-ref/{}": "2.1427.0 (#6701): only for invoice issuer keys (their own key kind, an outside invoicing system); never agents",
     "GET /issuer/docs/{}/pdf": "2.1427.0 (#6701): only for invoice issuer keys (their own key kind, an outside invoicing system); never agents",
+    "GET /issuer/docs/{}/file": "#6818: only for invoice issuer keys (their own key kind, an outside invoicing system); never agents",
     "POST /issuer/docs/{}/withdraw": "2.1427.0 (#6701): only for invoice issuer keys (their own key kind, an outside invoicing system); never agents",
     "GET /fetcher/recipes": "2.1188.0 (#6152): the central recipes, only for receipt fetcher keys (a helper program); never agents",
     "GET /lists/{}/notify-template": "2.33.0 (#927): the owner's notification ceiling of a list; agents get no pushes, it is read by scripts",

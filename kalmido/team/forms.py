@@ -20,6 +20,7 @@ from ..core.db import body, bump, db, err, iso, now_utc
 from ..accounts.session import _accept_lang, _token_hash, me, rate_ip
 from ..accounts.login import auth_key, seal, unseal
 from ..accounts.bgjobs import bgj_add, bgj_fn
+from ..accounts.mailfail import MAIL_RETRY, mail_bg_failed  # (#6385)
 from ..core.access import acx_anon_bind, Denied, list_role, MANAGE_ROLES, need_feat, need_list, list_state_sql, feat_has
 from ..tasks.validation import log_act
 from ..core.errors import BadInput
@@ -31,6 +32,7 @@ from ..tasks.dependencies import newtask_events  # 2.369.5 (#2517): pulled up fr
 from ..collab.liste2eguard import LE2B_OFF_MSG, le2b_list_locked  # 2.369.5 (#2517): pulled up from functions
 from ..tasks.attachments import safe_name, unexec_name  # 2.369.5 (#2517): pulled up from functions
 from ..core.pages import save_attachment_bytes  # 2.369.5 (#2517): pulled up from functions
+from ..collab.attskip import att_skip_task  # #6531
 from ..lists.public import PUB_ACTOR  # 2.369.5 (#2517): pulled up from functions
 
 
@@ -523,12 +525,16 @@ def form_send(token):
     tid = task_insert(c, uid, lid, section_id=sec, title=subject, content=content, ts=ts, ttype=f["ttype"] or "")  # 2.1358.0 (#6825): on top (sort TOP)
     task_mark_origin(c, tid, "form")  # 2.1269.0 (#6431): text from outside, on the task before the tidy / added events
     c.execute("UPDATE forms SET count=count+1, last_at=? WHERE id=?", (ts, f["id"]))
+    fowner, skipped = None if uid else f["l_owner"], []
     if upload:
-        save_attachment_bytes(c, tid, *upload, owner=None if uid else f["l_owner"], anon=True)  # 2.1337.0 (#6651): a public form
+        if why := save_attachment_bytes(c, tid, *upload, owner=fowner, anon=True):  # (#6651): a public form
+            skipped.append((upload[0], why))
     if qs:  # 2.98.0 B (#1954): the answers for the evaluation, the files as attachments (sealed, scanned, counted)
         fq_entry_save(c, tid, f, cid, sender if g.user or name else "", email if not g.user else "", answers, typed)
         for up in q_ups:
-            save_attachment_bytes(c, tid, *up, owner=None if uid else f["l_owner"], anon=True)  # 2.1337.0 (#6651)
+            if why := save_attachment_bytes(c, tid, *up, owner=fowner, anon=True):  # (#6651)
+                skipped.append((up[0], why))
+    att_skip_task(c, tid, skipped, owner=fowner)  # #6531: a file left out is a note on the task and News for its owner
     status_url = ""
     if portal:  # 2.63.0 (#1513): the report becomes a ticket with a status link (team/portal.py)
         from .portal import pt_create, pt_mail_url, pt_status_url
@@ -598,11 +604,11 @@ def frm_mail_text(form_title, subject, url, lg):
     return tr("Your report: {0}", subject, lg=lg), text
 
 
-@bgj_fn("mail:forms", tries=1)
+@bgj_fn("mail:forms", tries=1, retry=MAIL_RETRY)
 def frm_mail(to, subject, text):
     """The background part: talks to the mail server after the page has gone out."""
     from ..integrations.mail import mail_send
     try:
         mail_send(to, subject, text, from_name=APP_NAME)
     except Exception as x:  # noqa: BLE001  (nobody waits for this; the thank-you page showed the link)
-        print("form confirmation mail failed:", type(x).__name__, flush=True)
+        mail_bg_failed("form confirmation", x)  # (#6385): a passing failure of the mail server is tried again
