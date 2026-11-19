@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # kalmido-suite: nodata
-"""2.1408.0 (#6831) tools/check_globals.py: the coupling of the web client's global scope only shrinks.
+"""(#6831) tools/check_globals.py: the coupling of the web client's global scope only shrinks.
  1. the tool on the web client as it is: the numbers (no base: nothing compared, exit 0); its selftest is green
  2. writes of S: S.key = / +=  / ??= / ++ / delete and a member of it (S.key.x =, S.key[i] =) are writes; reading, a call,
     comparing (==, <=, >=), x.S.key and optional chaining are not

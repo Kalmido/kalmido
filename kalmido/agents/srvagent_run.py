@@ -66,11 +66,11 @@ SRV_WAIT_NOTE_S = 25       # 2.1292.0 (#6569): s of waiting for a place before t
 SRV_WAIT_TEXT = N_("All places for server agents are busy right now. I start as soon as one is free.")
 SRV_LOST_S = SRV_CALL_S + 120  # a run without a beat for this long was lost (its process is gone)
 SRV_LOST_TEXT = N_("The server agent was interrupted")  # agent_runs.error of a lost run (srvweb.srvweb_state reads it)
-# 2.1408.0 (#6388): what the person whose request a lost / stopped run worked on reads in the chat (its events are taken: no second
+# (#6388): what the person whose request a lost / stopped run worked on reads in the chat (its events are taken: no second
 # run on its own, the cost brake stays)
 SRV_INTR_TEXT = N_("I was interrupted (the server restarted) and could not finish your request. Please send it again.")
-_LIVE = {}            # 2.1408.0 (#6388): run id -> agent id of the runs of this process
-_TOLD = set()         # 2.1408.0 (#6388): runs whose person was told at the stop (their own end says nothing more)
+_LIVE = {}            # (#6388): run id -> agent id of the runs of this process
+_TOLD = set()         # (#6388): runs whose person was told at the stop (their own end says nothing more)
 _LIVE_LOCK = threading.Lock()
 SRV_EVENTS = 20            # events one run reads at most (the rest: the next run)
 SRV_RESULT_MAX = 40000     # characters of one tool result for the model
@@ -151,7 +151,7 @@ def srv_run_job(aid, again=0):
         got = _claim(c, aid, out=out)
     finally:
         c.close()
-    _lost_say(out.get("lost"))  # 2.1408.0 (#6388)
+    _lost_say(out.get("lost"))  # (#6388)
     if got == "busy":
         if out.get("note"):  # 2.1292.0 (#6569): the people waiting for this agent hear it once
             _wait_say(aid, out["note"])
@@ -171,7 +171,7 @@ def srv_run_job(aid, again=0):
             more = _claim(c, aid, probe=True, out=o2)
         finally:
             c.close()
-        _lost_say(o2.get("lost"))  # 2.1408.0 (#6388)
+        _lost_say(o2.get("lost"))  # (#6388)
         if more:
             _add(aid, 0.0)
         _nudge()  # 2.1292.0 (#6569): a place is free - the waiting rows look now (_turn decides whose it is), not up to SRV_BUSY_S later
@@ -255,7 +255,7 @@ def _wait_note(c, aid, row, first):
 
 def _wait_say(aid, who, text=SRV_WAIT_TEXT):
     """2.1292.0 (#6569): the wait note in the chat of each person in who (their language), through the agent's own chat like an
-    answer (a token for this note only). 2.1408.0 (#6388): text = another note (SRV_INTR_TEXT)."""
+    answer (a token for this note only). (#6388): text = another note (SRV_INTR_TEXT)."""
     tok = None
     try:
         mod = mcpr_module()
@@ -273,7 +273,7 @@ def _wait_say(aid, who, text=SRV_WAIT_TEXT):
 
 
 def _lost_say(lost):
-    """2.1408.0 (#6388): lost = [(agent id, person)] of runs taken for lost: each person hears once that the request was
+    """(#6388): lost = [(agent id, person)] of runs taken for lost: each person hears once that the request was
     interrupted and should be sent again (SRV_INTR_TEXT)."""
     by = {}
     for aid, uid in lost or ():
@@ -284,7 +284,7 @@ def _lost_say(lost):
 
 
 def srv_on_stop():
-    """2.1408.0 (#6388), a hook of the process's stop (bgjobs BGJ_ON_STOP): the runs of this process end as interrupted and the
+    """(#6388), a hook of the process's stop (bgjobs BGJ_ON_STOP): the runs of this process end as interrupted and the
     person each worked for is told at once (before, the run's queue row was failed 'stopped' without a word and the person
     waited for an answer that never came). The run notices its row at its next look and ends without a second note."""
     with _LIVE_LOCK:
@@ -328,7 +328,7 @@ def _claim(c, aid, probe=False, out=None):
         now = now_utc()
         gone = c.execute("""UPDATE agent_runs SET state='failed', ended=?, error=? WHERE state='run' AND (beat_at IS NULL OR beat_at<?)
                             RETURNING agent_id, asked_by""", (iso(now), SRV_LOST_TEXT, iso(now - timedelta(seconds=SRV_LOST_S)))).fetchall()
-        if out is not None and gone:  # 2.1408.0 (#6388): their people hear it (_lost_say, after the commit)
+        if out is not None and gone:  # (#6388): their people hear it (_lost_say, after the commit)
             out["lost"] = [(r[0], r[1]) for r in gone if r[1]]
         a, row = agent_row(c, aid), srv_row(c, aid)
         if not a or not row or (a["provider"] or "") != SRV_PROVIDER or not agent_active(a) or srv_off(c) or not row["key_sealed"]:
@@ -424,7 +424,7 @@ def _run(aid, rid):
     tok, state, text, asker = None, "done", "", None
     lang = "en"
     with _LIVE_LOCK:
-        _LIVE[rid] = aid  # 2.1408.0 (#6388): srv_on_stop
+        _LIVE[rid] = aid  # (#6388): srv_on_stop
     try:
         mod = mcpr_module()
         if mod is None:
@@ -516,7 +516,7 @@ def _run(aid, rid):
             told = rid in _TOLD
             _TOLD.discard(rid)
         try:
-            _finish(aid, rid, tok, state, text, None if told else asker, lang)  # 2.1408.0 (#6388): told at the stop already
+            _finish(aid, rid, tok, state, text, None if told else asker, lang)  # (#6388): told at the stop already
         except Exception as e:  # noqa: BLE001
             print("server agent", aid, "run", rid, "end:", type(e).__name__, flush=True)
 

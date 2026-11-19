@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""2.1408.0 (#6831): a ratchet on the coupling of the web client's shared global scope (architecture review #2522, point 6).
+"""(#6831): a ratchet on the coupling of the web client's shared global scope (architecture review #2522, point 6).
 
 The classic scripts static/i18n.js + static/js/*.js share ONE global scope (tools/eslint_globals.py), and the app state
 S (static/js/core.js `const S = {...}`) is written from many files. Two measures, each compared with a base revision
@@ -116,14 +116,16 @@ def collect(rev=None):
     """The measures of the working tree, or of revision rev (git show)."""
     if rev is None:
         files = EG.FILES
-        read = lambda rel: open(os.path.join(ROOT, rel), encoding="utf-8").read()  # noqa: E731
+        def read(rel):
+            with open(os.path.join(ROOT, rel), encoding="utf-8") as fh:
+                return fh.read()
     else:
         ls = subprocess.run(["git", "-C", ROOT, "ls-tree", "--name-only", rev, "static/js/"], capture_output=True, text=True)
         if ls.returncode:
             raise RuntimeError(ls.stderr.strip() or "git ls-tree failed")
         files = ["static/i18n.js"] + sorted(x for x in ls.stdout.split() if x.endswith(".js") and x.count("/") == 2)
-        read = lambda rel: subprocess.run(["git", "-C", ROOT, "show", f"{rev}:{rel}"], capture_output=True, text=True,  # noqa: E731
-                                          check=True).stdout
+        def read(rel):
+            return subprocess.run(["git", "-C", ROOT, "show", f"{rev}:{rel}"], capture_output=True, text=True, check=True).stdout
     return measure({rel: read(rel) for rel in files})
 
 

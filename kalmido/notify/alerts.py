@@ -25,7 +25,7 @@ from ..notify.push import (
 )
 from ..core.env import env_bool
 from ..core.rls import STATE  # 2.149.0 G (#2517): pulled up from functions
-from ..accounts.bgjobs import bgj_trouble  # 2.1408.0 (#6388)
+from ..accounts.bgjobs import bgj_trouble  # (#6388)
 
 
 # ---------------------------------------------------------------- admin alerts (ntfy, admins only)
@@ -517,7 +517,7 @@ def aa_flush_loop():
             print("admin alerts flush:", type(e).__name__, e, flush=True)
 
 
-# 2.1408.0 (#6388): failed and long-waiting rows of the queue bg_jobs (accounts/bgjobs.py) were seen by nobody
+# (#6388): failed and long-waiting rows of the queue bg_jobs (accounts/bgjobs.py) were seen by nobody
 AA_BG_FAILED = _env_int("KALMIDO_BG_ALARM_FAILED", 10)  # more rows failed within an hour = an alert
 AA_BG_WAIT_S = 900   # the oldest due row waits longer = an alert (is the worker running?)
 AA_BG_EVERY = 300    # s between two looks
@@ -525,7 +525,7 @@ _AA["bg_at"] = 0.0
 
 
 def aa_bgjobs(c, force=False):
-    """2.1408.0 (#6388), a section of the watchdog (notify/push.py): an admin alert (kind storage; the same key waits out the
+    """(#6388), a section of the watchdog (notify/push.py): an admin alert (kind storage; the same key waits out the
     cooldown) when more than AA_BG_FAILED rows of the queue failed in the last hour or the oldest due row waits longer than
     AA_BG_WAIT_S - numbers and kind names only. Every AA_BG_EVERY s; returns the numbers (None between two looks)."""
     now = time.monotonic()
