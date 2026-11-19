@@ -19564,9 +19564,5 @@
   "No level selected yet - works as before, but writing where more people read and a message to a person outside its circle need an approval card.": "Nog geen niveau gekozen - werkt zoals voorheen, maar schrijven waar meer mensen lezen en een bericht aan iemand buiten de eigen kring hebben een goedkeuringskaart nodig.",
   "I was interrupted and could not finish your request. Please send it again.": "Ik werd onderbroken en kon je verzoek niet afmaken. Stuur het alsjeblieft opnieuw.",
   "Archives downloaded before open only with the earlier key, never with the new one: keep the earlier key with them or create a new export afterwards.": "Archieven die je eerder hebt gedownload, openen alleen met de vorige sleutel, nooit met de nieuwe: bewaar de vorige sleutel erbij of maak daarna een nieuwe export.",
-  "Width of the list": "Breedte van de lijst",
-  "Select the workspace…": "Kies de werkruimte…",
-  "Select the workspace for the new client.": "Kies de werkruimte voor de nieuwe klant.",
-  "Clients are switched off for you in {0}. Select the workspace for the new client: {1}.": "Klanten zijn voor jou uitgeschakeld in {0}. Kies de werkruimte voor de nieuwe klant: {1}.",
-  "Clients are switched off for you in every workspace you may add clients to.": "Klanten zijn voor jou uitgeschakeld in elke werkruimte waarin je klanten mag toevoegen."
+  "Width of the list": "Breedte van de lijst"
 }

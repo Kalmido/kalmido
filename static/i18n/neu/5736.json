@@ -1,0 +1,32 @@
+{
+  "de": {
+    "Select the workspace…": "Arbeitsbereich auswählen …",
+    "Select the workspace for the new client.": "Wähle den Arbeitsbereich für den neuen Kunden.",
+    "Clients are switched off for you in {0}. Select the workspace for the new client: {1}.": "Kunden sind für dich in {0} ausgeschaltet. Wähle den Arbeitsbereich für den neuen Kunden: {1}.",
+    "Clients are switched off for you in every workspace you may add clients to.": "Kunden sind für dich in jedem Arbeitsbereich ausgeschaltet, in dem du Kunden anlegen darfst."
+  },
+  "es": {
+    "Select the workspace…": "Elige el espacio de trabajo…",
+    "Select the workspace for the new client.": "Elige el espacio de trabajo para el nuevo cliente.",
+    "Clients are switched off for you in {0}. Select the workspace for the new client: {1}.": "Los clientes están desactivados para ti en {0}. Elige el espacio de trabajo para el nuevo cliente: {1}.",
+    "Clients are switched off for you in every workspace you may add clients to.": "Los clientes están desactivados para ti en todos los espacios de trabajo en los que puedes añadir clientes."
+  },
+  "fr": {
+    "Select the workspace…": "Choisis l’espace de travail…",
+    "Select the workspace for the new client.": "Choisis l’espace de travail du nouveau client.",
+    "Clients are switched off for you in {0}. Select the workspace for the new client: {1}.": "Les clients sont désactivés pour toi dans {0}. Choisis l’espace de travail du nouveau client : {1}.",
+    "Clients are switched off for you in every workspace you may add clients to.": "Les clients sont désactivés pour toi dans tous les espaces de travail où tu peux ajouter des clients."
+  },
+  "it": {
+    "Select the workspace…": "Scegli l’area di lavoro…",
+    "Select the workspace for the new client.": "Scegli l’area di lavoro per il nuovo cliente.",
+    "Clients are switched off for you in {0}. Select the workspace for the new client: {1}.": "I clienti sono disattivati per te in {0}. Scegli l’area di lavoro per il nuovo cliente: {1}.",
+    "Clients are switched off for you in every workspace you may add clients to.": "I clienti sono disattivati per te in tutte le aree di lavoro in cui puoi aggiungere clienti."
+  },
+  "nl": {
+    "Select the workspace…": "Kies de werkruimte…",
+    "Select the workspace for the new client.": "Kies de werkruimte voor de nieuwe klant.",
+    "Clients are switched off for you in {0}. Select the workspace for the new client: {1}.": "Klanten zijn voor jou uitgeschakeld in {0}. Kies de werkruimte voor de nieuwe klant: {1}.",
+    "Clients are switched off for you in every workspace you may add clients to.": "Klanten zijn voor jou uitgeschakeld in elke werkruimte waarin je klanten mag toevoegen."
+  }
+}
