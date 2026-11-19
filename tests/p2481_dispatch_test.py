@@ -693,5 +693,47 @@ aj = load("agent_job")
 check("return 4 if \"HTTP 409\" in str(e) and '\"slots_full\"' in str(e)" in open(os.path.join(MCP, "agent_job.py"), encoding="utf-8").read()
       and ad.SLOTS_FULL_RC == 4, "#5199: agent_job.py start exits 4 on 409 slots_full, the dispatcher reads it")
 
+# ---- 2.1383.0 (#4064): every override of a safeguard is logged at the start and counted in the day report
+for k in list(ad.OVERRIDE_SWITCHES) + ["KALMIDO_DISPATCH"]:
+    os.environ.pop(k, None)
+check(ad.overrides({"runtime": {"dispatch": "on"}}) == [], "#4064: nothing overridden by default")
+os.environ["KALMIDO_PERM_RELAY"] = "0"
+os.environ["KALMIDO_DISPATCH"] = "on"
+check(ad.overrides({"runtime": {"dispatch": ""}}) == ["KALMIDO_PERM_RELAY=0 (no permission questions in the chat)", "KALMIDO_DISPATCH=on (Kalmido: off)"],
+      f"#4064: a switch of a safeguard and the dispatcher on against Kalmido: {ad.overrides({})}")
+os.environ["KALMIDO_DISPATCH"] = "off"
+check(ad.overrides({"runtime": {"dispatch": "on"}}) == ["KALMIDO_PERM_RELAY=0 (no permission questions in the chat)"],
+      "#4064: KALMIDO_DISPATCH stricter than Kalmido is no override")
+os.environ.pop("KALMIDO_DISPATCH")
+for k in ad.OVERRIDE_SWITCHES:  # no switch of a safeguard without its log line: the runner reads each one, and logs them at its start
+    check(f'os.environ.get("{k}"' in src, f"#4064: the runner reads {k}")
+check("self.log_overrides()" in src and "def log_overrides" in src, "#4064: the runner logs the overrides when it starts")
+TASKS[:] = [task(601, "Six", "S")]
+JOBS.clear()
+state5 = os.path.join(proj, ".state5")
+os.makedirs(state5)
+with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
+    json.dump({"lists": ["Backlog"], "report_at": ""}, f)
+h = Host("on")
+h.state_dir = state5
+d = ad.Dispatcher(h, proj)
+d.tick(force=True)
+d.tick(force=True)
+check([x[1] for x in d.reg["overrides"]] == ["KALMIDO_PERM_RELAY=0 (no permission questions in the chat)"], f"#4064: counted once per start: {d.reg['overrides']}")
+open(os.path.join(state5, ad.STOP_FILE), "w").close()
+d.tick(force=True)
+os.remove(os.path.join(state5, ad.STOP_FILE))
+with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
+    json.dump({"lists": ["Backlog"], "report_at": "00:00"}, f)
+d.tick(force=True)
+check([x[1] for x in d.reg["overrides"]][1:] == ["stop file removed"], f"#4064: a removed stop file counts: {d.reg['overrides']}")
+rep_ = [t for _, t in h.api.chats if "day report" in t]
+check(rep_ and "Overridden (7 days): 2 - KALMIDO_PERM_RELAY=0, stop file removed" in rep_[-1], f"#4064: the day report counts them: {rep_}")
+d2 = ad.Dispatcher(h, proj)  # a new start of the runner counts again
+d2.tick(force=True)
+check(len(d2.reg["overrides"]) == 3, f"#4064: a new start counts again: {d2.reg['overrides']}")
+check(ar.say("dispatch_overrides", "de", 2, "x") == "Übersteuert (7 Tage): 2 - x" and len(ar.TEXTS["dispatch_overrides"]) == 6, "#4064: six languages")
+os.environ.pop("KALMIDO_PERM_RELAY")
+
 print(f"p2481_dispatch: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)
