@@ -9,7 +9,8 @@ places of today runs through the tasks named per rule, not through this check.
 
 Rules (RULES below; sharp = a rise is red, otherwise a notice until the task that brings the right way is done):
   env            os.environ / os.getenv in the server code outside kalmido/core/env.py                    (#7156)
-  version-mark   a version mark "2.<n>[.<n>] (#<n>)" in kalmido/ and the client code: the history is in git  (#7156)
+  version-mark   a version mark "2.<n>[.<n>] (#<n>)" in kalmido/ and the client code, notice only: the total
+                 moves with every package merged meanwhile; red is an ADDED line with a mark (tools/pr_lint.py marks) (#7156)
   mcp-dup        a top-level function / class name defined in two starter files mcp/*.py                  (#7151)
   mcp-fence      a call of _data_fence() in the starter files: the fence belongs into handle() once        (#7151)
   starter-secret alternatives of the SECRET_* name patterns of the starter: a name check is no wall          (#7149)
@@ -174,7 +175,7 @@ RULES = {
             "a variable read by hand has its own default and its own parsing: a non-number crashes at import, the defaults "
             "stand twice and drift (#7156)",
             "env_str / env_int / env_bool of kalmido/core/env.py, the variable declared in its VARS"),
-    "version-mark": (count_version, True,
+    "version-mark": (count_version, False,
                      "the history is in git; version marks are 5 to 10 % of the lines and a source of merge conflicts (#7156)",
                      "a comment says what holds and why, without '2.<n> (#<id>)'; the task belongs into the commit subject"),
     "mcp-dup": (count_mcp_dup, True,

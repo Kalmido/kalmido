@@ -21,11 +21,15 @@ merge queue gets the same checks here, as a CI step on the commits of the change
               stood in a fragment at the base may move into the big file (folding the fragments in).
               2.1216.0 (#6231): a build job does not move its texts itself, the release tooling's merge queue does it for
               every replayed commit (a job's own move commit met the queue's fragment as an add/add conflict).
+  marks       an added line of the server or client code (app.py, kalmido/, static/js, static/*.js) carries no version mark
+              "2.<n>[.<n>] (#<n>)" (#7143, rule 12c of audit #5501): the history is in git, a comment says what holds and
+              why. Only the lines the change adds count, so the marks of today and those of packages merged meanwhile never
+              make an entry red; tools/check_rules.py keeps the total as a notice.
   oneway      the one-way rules (destructive SQL, a schema version bump, a migration step that deletes, a sign-in route
               added / removed, the registration modes changed): a note (GitHub warning annotation), never red - a one-way
               step is a note while the switch "einbahn_braucht_ja" of the release tooling is off; --strict makes it red.
 
-  python3 tools/pr_lint.py --base BASE [--head HEAD] [--only subject,changelog,privacy,i18n,oneway] [--strict] [--repo DIR]
+  python3 tools/pr_lint.py --base BASE [--head HEAD] [--only subject,changelog,privacy,i18n,marks,oneway] [--strict] [--repo DIR]
 Exit 0 clean (notes allowed), 1 a check failed (listed), 2 usage / git error. Python standard library only.
 """
 from __future__ import annotations
@@ -39,7 +43,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = [ROOT]  # --repo (the self test runs on a temporary repository)
-CHECKS = ("subject", "changelog", "privacy", "i18n", "oneway")
+CHECKS = ("subject", "changelog", "privacy", "i18n", "marks", "oneway")
 
 # subjects the release tooling writes itself (kalmido-livezug.py): the version commit, the README / changelog fold, a job's
 # changelog fragment, a job number; a revert keeps the subject of the reverted commit in quotes
@@ -209,6 +213,24 @@ def check_i18n(base: str, head: str, files) -> list[str]:
     return hits
 
 
+# the same pattern as VERSION in tools/check_rules.py (the test compares them); this file runs alone from the base commit
+MARK = re.compile(r"\b2\.\d+(?:\.\d+)?(?:\s+[A-Z]\d?)?\s*\(#\d+\)")
+MARK_CODE = re.compile(r"^(?:app\.py|kalmido/.+\.py|static/js/.+\.js|static/[^/]+\.js)$")
+
+
+def check_marks(files) -> list[str]:
+    hits = []
+    for path, side in sorted(files.items()):
+        if not MARK_CODE.match(path):
+            continue
+        n = sum(1 for text in side["+"] if MARK.search(text))
+        if n:
+            hits.append(f"{path}: {n} added line(s) with a version mark '2.<n> (#<id>)' - Why: the history is in git, the marks "
+                        f"are 5 to 10 % of the lines and a source of merge conflicts. Instead: the comment says what holds and "
+                        f"why, the task stands in the commit subject; a moved line loses its old mark. Do not suppress it.")
+    return hits
+
+
 def check_oneway(files) -> list[str]:
     hits = []
     for r in ONEWAY:
@@ -268,6 +290,8 @@ def main(argv=None) -> int:
             except RuntimeError as e:
                 print(f"pr_lint: {e}", file=sys.stderr)
                 return 2
+        elif c == "marks":
+            hits = check_marks(files)
         else:
             hits = check_oneway(files)
             for h in hits:
