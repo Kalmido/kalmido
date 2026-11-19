@@ -1662,7 +1662,9 @@ TOOLS += [
     ("unshare_event_calendar", "2.21.0: stop sharing a calendar (owner) or leave one shared with you.", _obj({"calendar_id": S_ID, "user_id": S_ID}, ["calendar_id", "user_id"]),
      lambda api, a: api.call("DELETE", f"/event-calendars/{int(a['calendar_id'])}/members/{int(a['user_id'])}")),
     ("import_ics", "2.21.0: import the text of an .ics file into a calendar (the same UID is updated: no doubles); dry_run only counts. "
-     "2.273.0: an event changed here after the file's LAST-MODIFIED stays (kept_newer); an event without ATTENDEE keeps its attendees.",
+     "2.273.0: an event changed here after the file's LAST-MODIFIED stays (kept_newer); an event without ATTENDEE keeps its attendees. "
+     "#6588: total = the file's events, limit when more than 5000 were cut off (skipped); warnings [{title, reason}] = events "
+     "not kept as in the file (a repeat rule or RDATE not supported, unreadable).",
      _obj({"calendar_id": S_ID, "ics": {"type": "string"}, "dry_run": {"type": "boolean"}}, ["calendar_id", "ics"]),
      lambda api, a: api.call("POST", f"/event-calendars/{int(a['calendar_id'])}/import", body=_pick(a, ("ics", "dry_run")))),
     ("export_ics", "2.21.0: a calendar as ICS text.", _obj({"calendar_id": S_ID}, ["calendar_id"]),
