@@ -76,7 +76,11 @@ recurring events (RRULE, RDATE, EXDATE, moved or cancelled occurrences, time zon
 `sync-token` changed (plus once a day, as the window moves). A download may be at most 10 MB, a calendar keeps at most
 5,000 occurrences (the ones closest to today), rules below daily (hourly, every minute) are not expanded, and nothing
 is ever written back to a calendar. Each calendar shows its last sync and error; after five failed syncs in a row the
-admins get an *Integration problems* alert (subscription id, user and error class only).
+admins get an *Integration problems* alert (subscription id, user and error class only). A calendar that could not be
+fetched for more than a day is marked as out of date: a warning sign with "Not updated since …" at its events, in the
+event window, under *Calendars* and on the booking page settings, and its owner gets one notification (*Integrations*
+in the notification settings). Its last events stay and still count as busy for the booking page, free / busy and the
+day plan, so nothing is booked twice while it is away.
 
 **Security:** the link (for Google a secret address) and the CalDAV password are stored encrypted (AES-GCM with a
 key derived from a random server secret in the database) and are never sent back to the browser, nor logged; a
