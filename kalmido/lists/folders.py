@@ -252,7 +252,8 @@ def need_folder_write(c, uid, folder):
     """#6607: 403 when a write on uid's folder (with its subfolders) would reach something uid may not change: a list there
     with owner_id=uid whose role is no longer "owner" (read-only in its organisation ...), or a folder node in the tree of
     an organisation where uid's role does not write (need_org_write). The folder's sharing, settings, agents, Playbook,
-    notification template, repositories and dissolving ask this first; renaming / ordering the own sidebar does not."""
+    notification template, repositories, dissolving and renaming / moving the folder (a new path puts its projects under
+    other folder settings) ask this first; ordering the own sidebar does not."""
     from ..accounts.orgroles import need_org_write
     from ..lists.lffolder import lf_folder_nodes
     if not folder:

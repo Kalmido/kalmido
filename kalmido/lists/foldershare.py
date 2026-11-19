@@ -337,10 +337,11 @@ def sh_pub_put():
         f = _folder_arg()
     except _Bad as e:
         return err(str(e))
-    need_folder_write(c, me(), f)  # #6607
     on = b.get("on")
     if not isinstance(on, bool) or ("notes" in b and not isinstance(b["notes"], bool)):
         return err(tr("Invalid value: {0}", "on"))
+    if on:
+        need_folder_write(c, me(), f)  # #6607: switching off reaches only the lists owned by role (_pub_rows -> folder_lists)
     if on and not public_links_on(c, "lists"):
         return err(tr("Public links are switched off on this server"), 409)
     created = removed = 0
