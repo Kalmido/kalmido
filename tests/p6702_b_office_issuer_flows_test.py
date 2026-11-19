@@ -53,12 +53,13 @@ summary = json.load(open(os.path.join(out, "summary.json"), encoding="utf-8")) i
 steps = summary.get("steps") or []
 bad = [s_ for s_ in steps if not s_["ok"] and "mail" not in s_["step"]]
 check(steps and not bad, f"run: every step ok but the mail (no mail server in the container) {bad}")
-for want in ("draft de", "draft at", "draft ch", "the same request again", "409 ref_conflict", "hold mark", "client_changed",
+for want in ("draft de", "draft at", "draft ch", "the same request again", "409 ref_conflict", "hold mark", "shows the hold mark",
              "de: finalised", "at: finalised", "ch: finalised", "de: number VT", "de: the archived pdf"):
     check(any(want in s_["step"] and s_["ok"] for s_ in steps), f"run: the step {want!r}")
 check(any(f.endswith(".pdf") for f in os.listdir(out)), "the archived PDFs are written")
 r2 = tool("run", "--out", out + "2")
-check(r2.returncode in (0, 1) and "client test:account:de as before" in r2.stdout, "a second run takes the clients as they are (expect_updated_at)")
+check(r2.returncode in (0, 1) and "client test:account:de as before" in r2.stdout,
+      "a second run takes the clients as they are (expect_updated_at); its files may meet the key's 10 a minute")
 
 # a live key never runs: the tool reads the environment from the server, a forged file changes nothing
 with open(KEYF, "w", encoding="utf-8") as f:
