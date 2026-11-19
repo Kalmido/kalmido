@@ -19,8 +19,8 @@ tenant-matrix: office  freelancer-matrix: office
  - 2.1365.0 (#6795): the income statement (GET /books/euer) and the key figures read the credit notes of the office once:
    their statements stay the same (at most +2) for 6 more paid invoices (was one query per paid invoice), organisation and
    personal office
- - #6401: decrypting / encrypting 13 sealed bank bookings in one transaction reads the org key row and the switch
-   org_encrypt once each (was once per row and field); oc_forget and a rollback read the key row anew
+ - #6401: decrypting 13 sealed bank bookings in one transaction reads the org key row once (was once per row and field);
+   sealing reads it fresh per value and the switch org_encrypt once; oc_forget and a rollback read the key row anew
  - 2.1315.0 (#6403): rc_receipts has the indexes ix6403_rc_receipts_ws / ix6403_rc_receipts_billed and the lookups by ws /
    billed_doc_id use them (EXPLAIN, sequential scans off)
 usage: p2546_4186_office_perf_test.py <datadir>"""
@@ -335,22 +335,28 @@ def counting(sql, *a, **k):
     return ex(sql, *a, **k)
 c.execute = counting
 out = [oc_dec_fields(c, {ORG}, "office_bank_tx", r) for r in rows]
+one = dict(n)
 for r in rows:
     oc_enc_fields(c, {ORG}, "office_bank_tx", {{"counterpart": "x", "purpose": "y"}})
-one = dict(n)
+enc = dict(n)
+n["keys"] = 1
 oc_forget({ORG})
 oc_dec_fields(c, {ORG}, "office_bank_tx", rows[0])
 after_forget = n["keys"]
 c.rollback()
 oc_dec_fields(c, {ORG}, "office_bank_tx", rows[0])
-print(json.dumps({{"rows": len(rows), "sealed": sum(oc_is_enc(r["counterpart"]) for r in rows), "one": one,
+print(json.dumps({{"rows": len(rows), "sealed": sum(oc_is_enc(r["counterpart"]) for r in rows), "one": one, "enc": enc,
                   "after_forget": after_forget, "after_rollback": n["keys"],
                   "names": sorted(d["counterpart"] for d in out if d["counterpart"].startswith("Laden"))}}))
 """
 res = last_json(in_app(CODE))
-print(f"PERF #6401: org_keys reads for {res.get('rows')} sealed bookings decrypted + encrypted once each: {res.get('one')}", flush=True)
+print(f"PERF #6401: org_keys reads for {res.get('rows')} sealed bookings decrypted: {res.get('one')}, then encrypted: {res.get('enc')}", flush=True)
 check(res.get("rows", 0) >= 13 and res.get("sealed") == res.get("rows"), f"#6401: the bookings are sealed at rest {res}")
-check(res.get("one") == {"keys": 1, "switch": 1}, f"#6401: the org key row and the switch are read once for all rows {res}")
+check(res.get("one") == {"keys": 1, "switch": 0}, f"#6401: decrypting all rows reads the org key row once {res}")
+# review F5 (job/5560): sealing reads the key row fresh (a key another process rotated is never used for a new value); the
+# switch org_encrypt is read once
+check(res.get("enc", {}).get("switch") == 1 and res.get("enc", {}).get("keys") == 1 + res.get("rows", 0),
+      f"#6401: sealing reads the key row fresh per value, the switch once {res}")
 check(res.get("after_forget") == 2 and res.get("after_rollback") == 3, f"#6401: oc_forget and a rollback read the key row anew {res}")
 check(res.get("names") == sorted(f"Laden {k}" for k in range(12)), f"#6401: the values decrypt to the plain ones {res}")
 

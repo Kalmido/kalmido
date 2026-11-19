@@ -424,7 +424,9 @@ def oc_key(c, org_id, create=True):
     the account key of person -org_id (same rules)."""
     if not SECRET_KEY or not org_id:
         return None
-    r = _row(c, org_id)
+    # #6401: reading takes the transaction's memo; sealing (create=True, the callers that encrypt) reads the row fresh, so a
+    # key another process rotated meanwhile is never used for a new value (review F5 of job/5560)
+    r = _row(c, org_id) if not create else _row_db(c, org_id)
     if r is None:
         if not create:
             return None
