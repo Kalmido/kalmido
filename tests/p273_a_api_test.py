@@ -248,6 +248,10 @@ check(gone(ta), "the source lies in the trash here (restorable)")
 r = A.post(B + "/api/servers/move", json={"from": {"server": SID, "task": nid}, "to": {"server": 0, "list_id": None}})
 check(r.ok and r.json()["task"]["server"] == 0, f"move over there -> here {r.text[:300]}")
 back = r.json()["task"]["id"]
+# 2.1405.0 (#7112, reader F2 of job/5407): the copy onto this server carries no origin mark (servers.py _dst_create
+# task_no_origin), while the task alice wrote herself has it
+check(dbx("SELECT origin FROM tasks WHERE id=?", (ta,)) == [("person",)] and dbx("SELECT origin FROM tasks WHERE id=?", (back,)) == [(None,)],
+      f"#7112: the copy here has no origin 'person' {dbx('SELECT id, origin FROM tasks WHERE id IN (?,?)', (ta, back))}")
 cp = dbx("SELECT title, content, list_id FROM tasks WHERE id=?", (back,))
 check(cp and list(cp[0]) == ["Move me", "Moved note", la] and gone(nid)
       and [x[0] for x in dbx("SELECT title FROM tasks WHERE parent_id=? AND deleted_at IS NULL", (back,))] == ["Sub open"],
