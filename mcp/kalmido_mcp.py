@@ -1952,6 +1952,9 @@ TOOLS += [
            "sort_mode": {"type": "string"}, "group_field": {"type": ["string", "integer", "null"]},  # 2.144.0 (#2414)
            "ticket_key": {"type": ["string", "null"], "description": "2.390.0: the project's ticket key APP (2-6 capitals / digits, a letter "
                           "first; owner / project admins; \"\" / null = none): its tasks get keys like APP-12"},
+           "po_number": {"type": ["string", "null"], "description": "#6945: the client's PO number of the project (at most 80 characters; "
+                         "owner / project admins; \"\" / null = none). New documents of the project take it as their order reference "
+                         "(order_ref), drafts without an own one follow a change; finalised documents never change"},
            "expect_updated_at": {"type": "string", "description": "2.657.0: the project's updated_at of list_lists / get_list; required "
                                  "(400 version_required without it). Changed since = 409 conflict with error.current: read it again, then decide"}},
           ["list_id", "expect_updated_at"]),

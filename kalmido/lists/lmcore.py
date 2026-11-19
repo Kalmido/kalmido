@@ -54,7 +54,7 @@ from .lists import member_set
 from .listtrash import otr_can, otr_core_purge, otr_keep  # 2.936.0 (#5364): the kind list's retention hooks; #5491: otr_can
 
 LMC_KIND = "list"
-LMC_HIST = ("columns", "col_sums", "kpis", "props", "ticket_tpl", "agent_members")  # the settings with a history
+LMC_HIST = ("columns", "col_sums", "kpis", "props", "ticket_tpl", "agent_members", "po_number")  # the settings with a history (#6945: po_number)
 _ROLE = {"owner": "manage", "admin": "manage", "edit": "edit", "view": "view"}  # participants: none (tvis decides per task)
 
 
@@ -211,7 +211,7 @@ def _on_revoke(c, uid, org, reason, role=None):
 
 
 _COLS = {"columns": "col_cfg", "col_sums": "tb_sums", "kpis": "fx_kpis", "props": "props", "ticket_tpl": "ticket_tpl",
-         "agent_members": "agent_members"}  # the field of the API -> its column of lists
+         "agent_members": "agent_members", "po_number": "po_number"}  # the field of the API -> its column of lists
 
 
 def lmc_snap(c, lid, keys=LMC_HIST):

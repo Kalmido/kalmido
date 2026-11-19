@@ -329,7 +329,7 @@ function palAll() {
   }
   if (S.me?.kind !== 'agent') hlp_palItems(add);  // 2.1086.0 (#5820); 2.1102.0 (#5955): after the views, the Inbox stays the first view
   // lists, filters, tags
-  for (const l of S.lists.filter(x => !x.archived && !x.is_inbox && !life_store(x) && inWs(x))) add('l:' + l.id, 'list', lname(l), 'list', () => go('l/' + l.id), {sw: cssColor(lp_col(l)), img: liconOk(l.icon) ? l.icon : '', lic: l, ...(l.folder ? {sub: fDisp(l.folder)} : {})});
+  for (const l of S.lists.filter(x => !x.archived && !x.is_inbox && !life_store(x) && inWs(x))) add('l:' + l.id, 'list', lname(l), 'list', () => go('l/' + l.id), {sw: cssColor(lp_col(l)), img: liconOk(l.icon) ? l.icon : '', lic: l, ...(l.folder || l.po_number ? {sub: [l.folder ? fDisp(l.folder) : '', l.po_number ? 'PO ' + l.po_number : ''].filter(Boolean).join(' · ')} : {}), ...(l.po_number ? {kw: l.po_number} : {})});  // #6945: found by its PO number
   for (const f of folderNames()) add('folder:' + f, 'folder', fDisp(f), 'folder', () => go('folder/' + encodeURIComponent(f)));  // 2.4.0 (#361)
   for (const f of S.filters) add('f:' + f.id, 'filter', f.name, 'filter', () => go('f/' + f.id));
   for (const g of Object.keys(counts().tags).sort(cmpText)) add('tag:' + g, 'tag', '#' + g, 'tag', () => go('tag/' + encodeURIComponent(g)));

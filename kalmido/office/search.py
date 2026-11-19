@@ -90,21 +90,22 @@ def bs_office_hits(c, uid, q):
             out.append({"kind": "client", "id": r["id"], "label": r["name"] or "…", "sub": sub or r["customer_no"] or "",
                         "go": f"client/{int(r['id'])}"})
     # documents: the columns the document list searches (odoc_list ?q=); the recipient JSON only by its values; 2.1005.0 (#5415): not the trash
-    rows = c.execute(f"""SELECT d.id, d.kind, d.number, d.project_title, d.project_ref, d.recipient, d.date, cl.name AS client_name
+    rows = c.execute(f"""SELECT d.id, d.kind, d.number, d.project_title, d.project_ref, d.order_ref, d.recipient, d.date, cl.name AS client_name
             FROM office_docs d LEFT JOIN clients cl ON cl.id=d.client_id
             WHERE d.org_id=? AND {live_sql('d')} AND (d.number ILIKE ? ESCAPE '\\' OR d.project_title ILIKE ? ESCAPE '\\' OR d.project_ref ILIKE ? ESCAPE '\\'
-                OR CAST(d.recipient AS text) ILIKE ? ESCAPE '\\' OR cl.name ILIKE ? ESCAPE '\\')
+                OR CAST(d.recipient AS text) ILIKE ? ESCAPE '\\' OR cl.name ILIKE ? ESCAPE '\\' OR d.order_ref ILIKE ? ESCAPE '\\')
             ORDER BY (lower(d.number) LIKE ? ESCAPE '\\') DESC, d.date DESC, d.id DESC LIMIT {BS_LIMIT * 6} -- pg-ok: both sides lower-cased""",
-                     (oid, like, like, like, like, like, f"{like_escape(low)}%")).fetchall()
+                     (oid, like, like, like, like, like, like, f"{like_escape(low)}%")).fetchall()
     n = 0
     for r in rows:
         rec = _rec(r["recipient"])
         who = r["client_name"] or rec.get("name") or ""
-        vals = [r["number"], r["project_title"], r["project_ref"], r["client_name"]] + [v for v in rec.values() if isinstance(v, str)]
+        po = r["order_ref"] or ""
+        vals = [r["number"], r["project_title"], r["project_ref"], r["client_name"], po] + [v for v in rec.values() if isinstance(v, str)]
         if not any(cf in (v or "").casefold() for v in vals):
             continue  # only a key of the recipient JSON matched ("name", "street" …)
-        out.append({"kind": r["kind"], "id": r["id"], "label": r["number"] or r["project_title"] or "…",
-                    "sub": " · ".join(x for x in (who, r["project_title"] if r["number"] else "") if x),
+        out.append({"kind": r["kind"], "id": r["id"], "label": r["number"] or r["project_title"] or "…",  # #6945: a PO hit names it ("PO 4711")
+                    "sub": " · ".join(x for x in (who, r["project_title"] if r["number"] else "", f"PO {po}" if po and cf in po.casefold() else "") if x),
                     "go": f"office/offers/{int(r['id'])}"})
         n += 1
         if n >= BS_LIMIT:

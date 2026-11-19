@@ -27,6 +27,7 @@ from ..core.conflict import ccf_check, kern_version_seed, take_version  # 2.657.
 from ..core.db import iso_ms  # 2.657.0 (#5052)
 from ..core.pg import write_lock  # 2.657.0 (#5052)
 from ..core.retention import ret_trash_days  # 2.550.0 (#4528)
+from .projpo import ppo_clean, ppo_drafts  # #6945
 from ..api.common import v1_call, V1Error  # 2.149.0 G (#2517): pulled up from functions
 
 
@@ -556,6 +557,18 @@ def list_apply(c, lid, b):
         except BadInput as e:
             return err(str(e))
         b = {k: v for k, v in b.items() if k != "ticket_key"}
+    if "po_number" in b:  # #6945: the project's PO number (owner / list admins; '' / null = none); its drafts follow (lists/projpo.py)
+        if role not in MANAGE_ROLES:
+            return err(tr("Only the owner and project admins can change this setting"), 403)
+        try:
+            po = ppo_clean(b["po_number"])
+        except BadInput as e:
+            return err(str(e))
+        po0 = c.execute("SELECT po_number FROM lists WHERE id=?", (lid,)).fetchone()["po_number"] or ""
+        if po != po0:
+            c.execute("UPDATE lists SET po_number=? WHERE id=?", (po, lid))
+            ppo_drafts(c, lid, po0, po)
+        b = {k: v for k, v in b.items() if k != "po_number"}
     if "tap_done" in b:  # 2.46.4 (#1751): "Tap does not open details" (owner / list admins; 0 / 1)
         if role not in MANAGE_ROLES:
             return err(tr("Only the owner and project admins can change this setting"), 403)

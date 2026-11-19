@@ -340,6 +340,8 @@ def openapi_spec():
             "tickets": {"type": "boolean", "description": "Ticket types bug / feature / task on (2.4.0)"},
             "ticket_key": nul("string", description="2.390.0: the project's ticket key (2-6 capitals / digits, a letter first, unique per workspace); "
                               "its tasks get keys like APP-12 (field key of a task); null = none"),
+            "po_number": {"type": "string", "description": "#6945: the client's PO number of the project (\"\" = none); the order reference "
+                          "(order_ref, BT-13 of e-invoices) of the project's documents"},
             "time_tracking": {"type": "boolean", "description": "2.41.0 (#1471): time tracking on for this project (any type; owner). Default for a new project: its folder's setting, else on when the creator has the module Time on (2.489.0); new time entries need it; tracked time stays visible when it is switched off"},
             "mail_guests": {"type": "boolean", "description": "2.395.0 (#3380): guests of the project (participant / view) read its filed e-mails (GET /mails); default off, set by the owner / a project admin in the app. Edit roles always read them"},
             "two_eyes": {"type": "boolean", "description": "2.574.0 (#3376): integrate / deploy / merge requests need the approval of two "
@@ -410,6 +412,9 @@ def openapi_spec():
                                   "when its settings changed meanwhile; also as the header If-Match); required for agent accounts: 400 version_required"},
             "ticket_key": nul("string", description="2.390.0: the project's ticket key APP (owner / project admins; null / \"\" = none). "
                               "The tasks get running numbers (APP-1, APP-2, ... in the order they were made), old keys keep finding their tasks"),
+            "po_number": nul("string", maxLength=80, description="#6945: the client's PO number (owner / project admins; null / \"\" = none). "
+                             "New documents of the project take it as their order reference (order_ref); drafts without an own value follow "
+                             "a change, finalised documents never change. A document's order_ref set while the project has none becomes its PO number"),
             "org_id": nul("integer", description="2.28.0: the project's workspace (the owner; 409 while people / agents in it do not fit, for family / Home & life projects and the inbox)"),
             "client_id": nul("integer", description="2.23.0: the client of the project (owner / project admins; a client you see); null = none"),
             "life": nul("string", enum=["contracts", "home", "health", "travel", "reading", "budget", None], description="2.22.0: what the project is for in "
