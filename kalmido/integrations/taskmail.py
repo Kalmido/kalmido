@@ -188,7 +188,7 @@ def tmr_comment(c, msg, mid, tid, sender, uid):
     whole, skipped, top = mail_files_save(c, tid, files, TMR_FILES)  # #6531: a file left out keeps the mail and is noted
     note = att_skip_note(c, tid, skipped, lg=lg)
     cid = ocm_add(c, "task", tid, uid, (body[:10000 - len(note) - 2] + "\n\n" + note) if note else body[:10000],
-                  ext_name=None if uid else (name or sender)[:120])  # 2.972.0 (#5272)
+                  ext_name=None if uid else (name or sender)[:120])  # (#5272)
     c.execute("UPDATE attachments SET comment_id=? WHERE task_id=? AND id>?", (cid, tid, top))
     tmr_keep(c, tid, mid, sender, "in")
     rcpt = {t["l_owner"], t["created_by"], t["assignee_id"]} | {r[0] for r in c.execute(

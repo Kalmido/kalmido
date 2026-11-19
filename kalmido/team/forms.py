@@ -526,12 +526,12 @@ def form_send(token):
     c.execute("UPDATE forms SET count=count+1, last_at=? WHERE id=?", (ts, f["id"]))
     fowner, skipped = None if uid else f["l_owner"], []
     if upload:
-        if why := save_attachment_bytes(c, tid, *upload, owner=fowner, anon=True):  # 2.1337.0 (#6651): a public form
+        if why := save_attachment_bytes(c, tid, *upload, owner=fowner, anon=True):  # (#6651): a public form
             skipped.append((upload[0], why))
     if qs:  # 2.98.0 B (#1954): the answers for the evaluation, the files as attachments (sealed, scanned, counted)
         fq_entry_save(c, tid, f, cid, sender if g.user or name else "", email if not g.user else "", answers, typed)
         for up in q_ups:
-            if why := save_attachment_bytes(c, tid, *up, owner=fowner, anon=True):  # 2.1337.0 (#6651)
+            if why := save_attachment_bytes(c, tid, *up, owner=fowner, anon=True):  # (#6651)
                 skipped.append((up[0], why))
     att_skip_task(c, tid, skipped, owner=fowner)  # #6531: a file left out is a note on the task and News for its owner
     status_url = ""

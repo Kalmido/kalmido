@@ -557,7 +557,7 @@ def docs_mail_import(c, msg, raw, pre=None):
     c.commit()
     if first:
         docs_kick()
-    if first and (cut or left):  # 2.1281.0 (#6425): the budget of one mail left files out: the mail stays in the mailbox (not deleted)
+    if first and (cut or left):  # (#6425): the budget of one mail left files out: the mail stays in the mailbox (not deleted)
         return DocsMailKept(first)
     return first
 

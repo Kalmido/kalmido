@@ -292,7 +292,7 @@ MAIL_DROP = _MailDrop()
 
 
 class _MailLater:
-    """2.1322.0 (#6560 3): an importer's answer "not now" (a limit was reached): its attempt waits without using one up.
+    """(#6560 3): an importer's answer "not now" (a limit was reached): its attempt waits without using one up.
     #6874: the mail stays read in the mailbox (never fetched again in every round); its attempt is 'later' with the moment
     it is due (wait seconds on, mail_later(wait); MAIL_LATER = the next round), and mail_fetch takes at most
     MAIL_LATER_ROUND due ones per round, after the new mails."""
@@ -451,7 +451,7 @@ def mail_seen_key(raw, u):
 
 
 def mail_try_open_uids(box):
-    """2.1269 (#6386): the UIDs of box with an attempt that was not finished (the round after a cut-off, a restart, a failure).
+    """(#6386): the UIDs of box with an attempt that was not finished (the round after a cut-off, a restart, a failure).
     #6874: then at most MAIL_LATER_ROUND of the mails put back for later (state 'later') whose moment has come, oldest first."""
     c = connect()
     try:
@@ -495,7 +495,7 @@ def mail_try_done(c, box, key, n):
 
 
 def mail_try_later(c, box, key, n, wait=0):
-    """2.1322.0 (#6560 3): attempt n was put back by its importer (MAIL_LATER, a limit): it waits and does not count (the
+    """(#6560 3): attempt n was put back by its importer (MAIL_LATER, a limit): it waits and does not count (the
     attempts are for imports that break, not for waiting). 'done' too: mail_try_done marked it in the importer's
     transaction, and an importer may commit before it answers (hub/hubmail.py hbm_mail_import does).
     #6874: state 'later', seen_at = the moment it is due (wait seconds on): mail_try_open_uids hands it out from then on."""
@@ -584,7 +584,7 @@ def mail_fetch(M, folder, importer, max_bytes=None, box="", delete=False, prefet
     if box:  # 2.1269 (#6386): the open attempts after the new mails (one that breaks the connection never holds the new ones up)
         with GATE.bg():
             again = mail_try_open_uids(box)
-        # 2.1322.0 (#6560 3): the open attempts and the due mails put back for later (MAIL_LATER, #6874: at most
+        # (#6560 3): the open attempts and the due mails put back for later (MAIL_LATER, #6874: at most
         # MAIL_LATER_ROUND) go behind the new mails: a flood waiting for its limit never holds up the other mails of the mailbox
         new = [u for u in new if u not in set(again)]
     try:  # 2.1269 (#6386): the notice also when the round breaks off later (each given-up mail counts once)
@@ -650,7 +650,7 @@ def mail_fetch(M, folder, importer, max_bytes=None, box="", delete=False, prefet
                     if box and not mail_try_done(c, box, key, tries):  # another process took the attempt over
                         c.rollback()
                     elif isinstance(res := (importer(c, raw, pre) if prefetch else importer(c, raw)), _MailLater):
-                        c.rollback()  # 2.1322.0 (#6560 3): not now - the attempt waits and is not counted
+                        c.rollback()  # (#6560 3): not now - the attempt waits and is not counted
                         later = True
                         if box:
                             mail_try_later(c, box, key, tries, res.wait)
@@ -689,7 +689,7 @@ def mail_fetch(M, folder, importer, max_bytes=None, box="", delete=False, prefet
                         gave += mail_try_failed(box, key, tries)
                 except Exception as e:  # noqa: BLE001 -- no database: the attempt stays open, the next round counts it
                     print("mail: attempt not noted:", type(e).__name__, flush=True)
-            if later:  # 2.1322.0 (#6560 3): in the mailbox for a later round; #6874: read (its attempt brings it back when due)
+            if later:  # (#6560 3): in the mailbox for a later round; #6874: read (its attempt brings it back when due)
                 if not box:  # (no attempts kept: unseen again, the next round's search finds it)
                     M.uid("STORE", u, "-FLAGS", "(\\Seen)")
                 continue
