@@ -1,0 +1,62 @@
+{
+  "de": {
+    "Private or with an organisation?": "Privat oder mit einer Organisation?",
+    "Kalmido keeps your private things and the work of an organisation (a company, a team, an association) apart. You can add one later too: Settings > Organisation.": "Kalmido hält deine privaten Sachen und die Arbeit einer Organisation (Firma, Team, Verein) getrennt. Du kannst sie auch später anlegen: Einstellungen > Organisation.",
+    "Just for me, privately": "Nur für mich, privat",
+    "Everything stays in your private workspace.": "Alles bleibt in deinem privaten Arbeitsbereich.",
+    "For my organisation": "Für meine Organisation",
+    "You become its admin and can invite people.": "Du wirst ihr Admin und kannst Personen einladen.",
+    "Two next steps for your organisation:": "Zwei nächste Schritte für deine Organisation:",
+    "Enter the organisation’s details": "Daten der Organisation eintragen",
+    "Name and symbol; with the office also address, tax numbers and bank details.": "Name und Symbol; mit dem Büro auch Adresse, Steuernummern und Bankverbindung.",
+    "Colleagues get an e-mail and join with their own account.": "Kolleginnen und Kollegen bekommen eine E-Mail und treten mit ihrem eigenen Konto bei."
+  },
+  "es": {
+    "Private or with an organisation?": "¿Privado o con una organización?",
+    "Kalmido keeps your private things and the work of an organisation (a company, a team, an association) apart. You can add one later too: Settings > Organisation.": "Kalmido mantiene separadas tus cosas privadas y el trabajo de una organización (una empresa, un equipo, una asociación). También puedes añadirla más tarde: Ajustes > Organización.",
+    "Just for me, privately": "Solo para mí, en privado",
+    "Everything stays in your private workspace.": "Todo se queda en tu espacio de trabajo privado.",
+    "For my organisation": "Para mi organización",
+    "You become its admin and can invite people.": "Serás su administrador y podrás invitar a personas.",
+    "Two next steps for your organisation:": "Dos próximos pasos para tu organización:",
+    "Enter the organisation’s details": "Introducir los datos de la organización",
+    "Name and symbol; with the office also address, tax numbers and bank details.": "Nombre y símbolo; con la oficina también dirección, números fiscales y datos bancarios.",
+    "Colleagues get an e-mail and join with their own account.": "Tus compañeros reciben un correo y se unen con su propia cuenta."
+  },
+  "fr": {
+    "Private or with an organisation?": "Privé ou avec une organisation ?",
+    "Kalmido keeps your private things and the work of an organisation (a company, a team, an association) apart. You can add one later too: Settings > Organisation.": "Kalmido sépare tes affaires privées du travail d’une organisation (une entreprise, une équipe, une association). Tu peux aussi l’ajouter plus tard : Paramètres > Organisation.",
+    "Just for me, privately": "Juste pour moi, en privé",
+    "Everything stays in your private workspace.": "Tout reste dans ton espace de travail privé.",
+    "For my organisation": "Pour mon organisation",
+    "You become its admin and can invite people.": "Tu en deviens l’administrateur et peux inviter des personnes.",
+    "Two next steps for your organisation:": "Deux prochaines étapes pour ton organisation :",
+    "Enter the organisation’s details": "Saisir les données de l’organisation",
+    "Name and symbol; with the office also address, tax numbers and bank details.": "Nom et symbole ; avec le bureau aussi l’adresse, les numéros fiscaux et les coordonnées bancaires.",
+    "Colleagues get an e-mail and join with their own account.": "Tes collègues reçoivent un e-mail et rejoignent avec leur propre compte."
+  },
+  "it": {
+    "Private or with an organisation?": "Privato o con un’organizzazione?",
+    "Kalmido keeps your private things and the work of an organisation (a company, a team, an association) apart. You can add one later too: Settings > Organisation.": "Kalmido tiene separate le tue cose private e il lavoro di un’organizzazione (un’azienda, un team, un’associazione). Puoi aggiungerla anche più tardi: Impostazioni > Organizzazione.",
+    "Just for me, privately": "Solo per me, in privato",
+    "Everything stays in your private workspace.": "Tutto resta nel tuo spazio di lavoro privato.",
+    "For my organisation": "Per la mia organizzazione",
+    "You become its admin and can invite people.": "Ne diventi l’amministratore e puoi invitare persone.",
+    "Two next steps for your organisation:": "Due prossimi passi per la tua organizzazione:",
+    "Enter the organisation’s details": "Inserire i dati dell’organizzazione",
+    "Name and symbol; with the office also address, tax numbers and bank details.": "Nome e simbolo; con l’ufficio anche indirizzo, numeri fiscali e coordinate bancarie.",
+    "Colleagues get an e-mail and join with their own account.": "I colleghi ricevono un’e-mail e si uniscono con il proprio account."
+  },
+  "nl": {
+    "Private or with an organisation?": "Privé of met een organisatie?",
+    "Kalmido keeps your private things and the work of an organisation (a company, a team, an association) apart. You can add one later too: Settings > Organisation.": "Kalmido houdt je privézaken en het werk van een organisatie (een bedrijf, een team, een vereniging) gescheiden. Je kunt er ook later een toevoegen: Instellingen > Organisatie.",
+    "Just for me, privately": "Alleen voor mij, privé",
+    "Everything stays in your private workspace.": "Alles blijft in je privéwerkruimte.",
+    "For my organisation": "Voor mijn organisatie",
+    "You become its admin and can invite people.": "Je wordt de beheerder en kunt mensen uitnodigen.",
+    "Two next steps for your organisation:": "Twee volgende stappen voor je organisatie:",
+    "Enter the organisation’s details": "Gegevens van de organisatie invullen",
+    "Name and symbol; with the office also address, tax numbers and bank details.": "Naam en symbool; met het kantoor ook adres, belastingnummers en bankgegevens.",
+    "Colleagues get an e-mail and join with their own account.": "Collega’s krijgen een e-mail en doen mee met hun eigen account."
+  }
+}
