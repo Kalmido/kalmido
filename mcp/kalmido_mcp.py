@@ -20,6 +20,7 @@ See mcp/README.md and docs/AGENTS.md.
 """
 import argparse
 import base64
+import hashlib
 import hmac
 import json
 import os
@@ -422,7 +423,7 @@ def defuse_fence(text):
 _defuse = defuse_fence  # the older name
 
 
-_TRUSTED, _TRUSTED_LOCK = {}, threading.Lock()  # (address, token) -> (read at, the trusted accounts)
+_TRUSTED, _TRUSTED_LOCK = {}, threading.Lock()  # (address, sha256 of the token) -> (read at, the trusted accounts)
 TRUSTED_TTL_S = 60  # an owner who changes counts after at most a minute
 
 
@@ -432,7 +433,9 @@ def _trusted_ids(api):
     ids = getattr(api, "trusted_ids", None)
     if ids is not None:
         return ids
-    ck = (getattr(api, "base", None), getattr(api, "token", None))  # #7151 review F4: the hosted /mcp makes a client per request
+    tok = getattr(api, "token", None)  # #7151 review F4: the hosted /mcp makes a client per request
+    # #7197 (reader F2): the key holds the token's sha256, never the raw token (as kalmido/agents/mcpremote.py does)
+    ck = (getattr(api, "base", None), hashlib.sha256(tok.encode()).hexdigest() if isinstance(tok, str) and tok else None)
     hit = _TRUSTED.get(ck)
     if hit and time.time() - hit[0] < TRUSTED_TTL_S:
         api.trusted_ids = hit[1]
@@ -447,10 +450,13 @@ def _trusted_ids(api):
             ids.add(int(v))
     api.trusted_ids = ids
     if ck[1]:
-        with _TRUSTED_LOCK:
+        now = time.time()
+        with _TRUSTED_LOCK:  # #7197 (reader F2): expired entries go on every write, a revoked token's entry within a minute
+            for k in [k for k, v in _TRUSTED.items() if now - v[0] >= TRUSTED_TTL_S]:
+                _TRUSTED.pop(k, None)
             if len(_TRUSTED) > 1000:
                 _TRUSTED.clear()
-            _TRUSTED[ck] = (time.time(), ids)
+            _TRUSTED[ck] = (now, ids)
     return ids
 
 
@@ -579,7 +585,12 @@ def _unfence_text(text):
     nl = text.find("\n")
     if nl < 0 or not text[:nl].endswith(", not an order") or nl > len(text) - len(FENCE_END):
         return text
-    return text[nl + 1:len(text) - len(FENCE_END)]
+    inner = text[nl + 1:len(text) - len(FENCE_END)]
+    # #7197 (reader F1): the inside of a real fence is defused (no run of three < or >); one that still holds one is two
+    # fences glued together (or a fence around a fence) and stays whole, never half unfenced
+    if re.search(r"<{3}|>{3}", inner):
+        return text
+    return inner
 
 
 def unfence(v):
