@@ -11,7 +11,7 @@ to the organisation's log (org_list_log, actions move_on / move_off: Projects of
 
 GET    /api/orgs/<org id>/moving   every member: {moving, since?, by_name?, why?}
 POST   /api/orgs/<org id>/moving   an admin: {confirm: the organisation's name, why?} -> starts it (409 when it runs already)
-DELETE /api/orgs/<org id>/moving   an admin: ends it -> {moving: false, paused: [series ids]}; 2.1413.0 (#6951): an instance admin
+DELETE /api/orgs/<org id>/moving   an admin: ends it -> {moving: false, paused: [series ids]}; (#6951): an instance admin
                                    too when the organisation has no active admin of its own (else 409; org log move_off with
                                    instance_admin), so no organisation stays read only
 People only (agents 403); app only (APP_ONLY "* /api/orgs" in tests/parity_test.py)."""
@@ -85,7 +85,7 @@ def org_moving_start(oid):
 
 
 def _need_ender(c, oid):
-    """2.1413.0 (#6951, Fable review of job/5128): an admin of the organisation ends the move - or an instance admin (a person),
+    """(#6951, Fable review of job/5128): an admin of the organisation ends the move - or an instance admin (a person),
     but only when the organisation has no active admin of its own any more (org_own_admin), so it never stays read only
     without one; while it has one, the move stays its decision (also hosted: never past the client, op_foreign_org).
     True when it is the instance admin's way."""
@@ -115,7 +115,7 @@ def org_moving_end(oid):
         c.execute("UPDATE orgs SET moving_at=NULL, moving_by=NULL, moving_by_name='', moving_why='' WHERE id=?", (int(oid),))
     paused = mv_series_pause(c, oid)
     detail = dict({"paused": len(paused)} if paused else {}, **({"instance_admin": True} if inst else {}))
-    if inst:  # 2.1413.0 (#6951): in the organisation's log as well, written as system (the instance admin need not be a member)
+    if inst:  # (#6951): in the organisation's log as well, written as system (the instance admin need not be a member)
         with system_ctx(c):
             _log(c, oid, "move_off", detail)
     else:

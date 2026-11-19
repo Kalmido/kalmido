@@ -24,7 +24,7 @@ from datetime import date, timedelta
 from dateutil.relativedelta import relativedelta
 from flask import jsonify, request
 
-from ..core.movelock import mv_sql  # 2.1413.0 (#6951)
+from ..core.movelock import mv_sql  # (#6951)
 from ..core.config import PUBLIC_URL, app
 from ..core.db import body, bump, db, iso, local_now, now_utc, write_lock
 from ..core.retention import ret_on, ret_report, ret_trash_cut  # 2.272.0 F (#3026, review M4)
@@ -411,7 +411,7 @@ def agr_get_all():
     """Office admin. ?archived=1 also the archived ones -> {items, doc_ws (the documents space for the picker / upload:
     private | org:<id>), lists (where the deadline task can go), currency}."""
     c, uid, oid = _ctx()
-    # 2.1413.0 (#6951): a reading request lets the lock of a moving organisation through (core/movelock.py) - its trash waits
+    # (#6951): a reading request lets the lock of a moving organisation through (core/movelock.py) - its trash waits
     # (asked in the statement itself: no cache of another process can be behind a move that just ended)
     gone = [r[0] for r in c.execute(f"SELECT id FROM office_agreements WHERE org_id=? AND archived=? AND updated_at<? AND {mv_sql()}",
                                    (oid, AGR_DELETED, ret_trash_cut()))] if ret_on("trash") else []
