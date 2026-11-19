@@ -19423,5 +19423,19 @@
   "Effort for review jobs": "Inspanning voor reviewjobs",
   "Organisation settings": "Organisatie-instellingen",
   "An organisation is set up by the admin of this server. An organisation’s admin can then invite you by e-mail.": "Een organisatie wordt aangemaakt door de beheerder van deze server. De beheerders van de organisatie kunnen je daarna per e-mail uitnodigen.",
-  "The organisation “{0}” is set up": "De organisatie „{0}” is aangemaakt"
+  "The organisation “{0}” is set up": "De organisatie „{0}” is aangemaakt",
+  "Still missing before finalising:": "Voor het vastleggen ontbreekt nog:",
+  "Note before finalising:": "Let op voor het vastleggen:",
+  "To the settings": "Naar de instellingen",
+  "To the field": "Naar het veld",
+  "Check again": "Opnieuw controleren",
+  "Set up your office": "Je kantoor inrichten",
+  "What your quotations and invoices need as sender. Each field saves itself.": "Wat je offertes en facturen als afzender nodig hebben. Elk veld slaat zichzelf op.",
+  "Name and address of the sender": "Naam en adres van de afzender",
+  "Tax and small business": "Belasting en kleineondernemersregeling",
+  "Tax number or VAT ID": "Belastingnummer of btw-id",
+  "The IBAN printed on your invoices": "De IBAN die op je facturen staat",
+  "Coming from another program? Then enter the next number here": "Kom je van een ander programma? Vul hier dan het volgende nummer in",
+  "Logo / letterhead": "Logo / briefhoofd",
+  "Your logo on every document (optional)": "Je logo op elk document (optioneel)"
 }

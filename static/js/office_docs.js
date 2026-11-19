@@ -507,7 +507,7 @@ function ofdEditorHtml() {
   const langNote = ln.length ? `<div class="ofdlnote" role="status">${ic('info', 's')}<span>${tr('Language changed. Default texts were translated; these stayed as they were:')}<br>${ln.map(esc).join('<br>')}</span><button type="button" class="ib" data-ofd="ln-x" aria-label="${esc(tr('Close'))}">${ic('x', 's')}</button></div>` : '';
   const gaps = !ln.length && !lk ? d.lang_gaps || [] : [];  // 2.460.0 (#3767)
   const gapNote = gaps.length ? `<div class="ofdlnote" role="status">${ic('info', 's')}<span>${tr('Some of your own texts are missing in this language:')}<br>${gaps.map(esc).join('<br>')}</span></div>` : '';
-  return `${head}${banner}${/*html-ok*/ vf ? '' : oil_refsHtml(d) /* the reference lines sit in the head under the finalised note, not between two boxes; a folder view (vf) has no links into the master data */}${/*html-ok*/ ofe_note(d) /* 2.1064.0 (#5818) */}${kind === 'invoice' && typeof rinBox === 'function' ? rinBox(d) : '' /* 2.91.0 A (#1923) */}${typeof oa_docBanner === 'function' ? oa_docBanner(d) : ''}${ofd_cfBar(d) /* 2.269.0 A (#3012) */}${langNote}${gapNote}${/*html-ok*/ typeof sg_box === 'function' && !rd /* 2.1238.0 (#6161): the approval links are steps */ ? sg_box(d) : ''}${typeof pep_box === 'function' ? pep_box(d) : '' /* 2.154.0 B (#1960) */}${typeof pol_box === 'function' ? pol_box(d) : '' /* 2.469.0 (#3459) */}<div class="ofdeditor${kind === 'delivery' ? ' ofdls' : ''}" data-fg="ofd:${d.id}" data-fg-live><fieldset class="ofdfs" ${ro ? 'disabled' : ''}>${headSec}</fieldset>${!vf && typeof dpj_rowHtml === 'function' ? dpj_rowHtml(d) : '' /* 2.168.0 A (#2665): outside the locked fieldset; 2.356.0 C (#3005): below the head (client first) */}<fieldset class="ofdfs" ${ro ? 'disabled' : ''}>${`<section class="ofdsec open"><h3>${kind === 'reminder' ? tr('Reminded invoices') : tr('Positions')}</h3>${items}${auto}${totals}</section>${!vf && typeof tpPartsHtml === 'function' ? tpPartsHtml(d, adm) : ''}` /* 2.113.0 (#2248): parts open in place in "Parts" */}${kind === 'reminder' || kind === 'delivery' ? '' : kind === 'offer' || oil_hasRights(d) ? rightsSec : ro ? '' : `<button type="button" class="btn sm oil_rtadd" data-ofd="rights-add">${ic('plus', 's')}<span>${tr('Transfer of rights')}</span></button>` /* 2.356.0 C (#3005): an invoice shows it once it has rights */}${textsSec}${/*html-ok*/ kind === 'reminder' || (rd && !fields.length) ? '' : fieldsSec}</fieldset>${kind === 'offer' && typeof cf8_box === 'function' ? cf8_box(d) : '' /* 2.88.0 (#1915) */}${/*html-ok*/ ofdFeeHtml(d, adm && !rd)}${paySec}${logSec}</div>`;  // 2.50.0 (#1200): sg_box = the approval link of a sent quotation
+  return `${head}${banner}${/*html-ok*/ vf ? '' : oil_refsHtml(d) /* the reference lines sit in the head under the finalised note, not between two boxes; a folder view (vf) has no links into the master data */}${/*html-ok*/ ofe_note(d) /* (#5818) */}${kind === 'invoice' && typeof rinBox === 'function' ? rinBox(d) : '' /* (#1923) */}${typeof oa_docBanner === 'function' ? oa_docBanner(d) : ''}${ofd_cfBar(d) /* (#3012) */}${/*html-ok*/ ofd_missBox(d, ro || rd || vf) /* (#6529): escaped inside */}${langNote}${gapNote}${/*html-ok*/ typeof sg_box === 'function' && !rd /* (#6161): the approval links are steps */ ? sg_box(d) : ''}${typeof pep_box === 'function' ? pep_box(d) : '' /* (#1960) */}${typeof pol_box === 'function' ? pol_box(d) : '' /* (#3459) */}<div class="ofdeditor${kind === 'delivery' ? ' ofdls' : ''}" data-fg="ofd:${d.id}" data-fg-live><fieldset class="ofdfs" ${ro ? 'disabled' : ''}>${headSec}</fieldset>${!vf && typeof dpj_rowHtml === 'function' ? dpj_rowHtml(d) : '' /* (#2665): outside the locked fieldset; (#3005): below the head (client first) */}<fieldset class="ofdfs" ${ro ? 'disabled' : ''}>${`<section class="ofdsec open"><h3>${kind === 'reminder' ? tr('Reminded invoices') : tr('Positions')}</h3>${items}${auto}${totals}</section>${!vf && typeof tpPartsHtml === 'function' ? tpPartsHtml(d, adm) : ''}` /* (#2248): parts open in place in "Parts" */}${kind === 'reminder' || kind === 'delivery' ? '' : kind === 'offer' || oil_hasRights(d) ? rightsSec : ro ? '' : `<button type="button" class="btn sm oil_rtadd" data-ofd="rights-add">${ic('plus', 's')}<span>${tr('Transfer of rights')}</span></button>` /* (#3005): an invoice shows it once it has rights */}${textsSec}${/*html-ok*/ kind === 'reminder' || (rd && !fields.length) ? '' : fieldsSec}</fieldset>${kind === 'offer' && typeof cf8_box === 'function' ? cf8_box(d) : '' /* (#1915) */}${/*html-ok*/ ofdFeeHtml(d, adm && !rd)}${paySec}${logSec}</div>`;  // (#1200): sg_box = the approval link of a sent quotation
 }
 // 2.38.0 (#1021, F1): the invoices a reminder lists (read-only rows), the payments of an invoice
 function ofdRefsHtml(d, t) {
@@ -877,6 +877,7 @@ async function ofdPdfAskGo(d, dl) {
   const pv = d.kind === 'invoice' && !d.trial ? await rawFetch('GET', `/api/office/docs/${d.id}/number-preview`).catch(() => null) : null;  // 2.1345.0 (#6532): first
   const v = await ofdPdfAsk(pv); if (!v) return;
   if (v === 'final') {
+    if (await ofd_missGate(d)) return;  // (#6529)
     const j = await ofdSave('POST', `/api/office/docs/${d.id}/finalize`, {}); if (!j) return;  // the server's checks: the error stays as toast
     toast(tr('Finalised as {0}', j.number || '')); d = {...d, ...j};
   }
@@ -933,6 +934,42 @@ async function ofd_save1(method, url, body, src) {
   finally { OFD.saving--; OFD.log = null; ofdDraw(); OFD.list = null; }
 }
 // 2.269.0 A (#3012): the conflict bar (no merging, decision 23.10.2026): "Reload" shows the stored state, the own unsaved change is named
+// (#6529): what finalising still misses (GET of the document: missing [{key, text, level}], blocks from the server's
+// check, hints that leave finalising open) as one list above the editor; each line leads to its place: a field of the document,
+// the client, or Settings > Company & office with that part open (office.js BIZ_AT). The server's check stays the truth.
+const OFD_MISS_DOC = {date: 'date', service_period: 'service_from', due_date: 'payment_days', fx_rate: 'fx_rate', vat_note: 'vat_note', small_note: 'vat_note', small_vat: 'vat_mode',
+  skonto: 'skonto_days', recipient_name: 'recipient_name', recipient_street: 'recipient_street', recipient_zip: 'recipient_zip', recipient_city: 'recipient_city', recipient_country: 'recipient_country-q'};
+const OFD_MISS_SET = {company_name: 'co-name', company_address: 'co-street', company_tax: 'co-tax', company_iban: 'co-iban', company_country: 'co-country', company_vat_id: 'co-vat',
+  company_contact: 'co-phone', exempt_reason: 'exempt', einvoice: 'einv', first: 'numbers'};
+const OFD_MISS_CL = ['client_country', 'client_vat_id', 'client_buyer_reference', 'client_email', 'recipient_address', 'recipient_name'];
+const ofd_missBlocks = d => (d.missing || []).filter(m => m.level === 'block');
+function ofd_missBox(d, off) {
+  const ms = off || d.locked ? [] : d.missing || []; if (!ms.length) return '';
+  const row = m => `<li data-miss="${esc(m.key)}"><span>${esc(m.text)}</span> <button type="button" class="linkbtn" data-ofd="miss-go" data-k="${esc(m.key)}">${esc(OFD_MISS_SET[m.key] ? tr('To the settings') : d.client_id && OFD_MISS_CL.includes(m.key) ? tr('To the client') : tr('To the field'))}</button></li>`;
+  const bl = ms.filter(m => m.level === 'block'), wn = ms.filter(m => m.level !== 'block');
+  return `<div class="ofdlnote ofdmiss" role="status" id="ofd-miss">${ic('info', 's')}<span>${bl.length ? `<b>${esc(tr('Still missing before finalising:'))}</b><ul class="ofdmissl">${/*html-ok*/ bl.map(row).join('') /* row escapes every value */}</ul>` : ''}`
+    + `${wn.length ? `<b>${esc(tr('Note before finalising:'))}</b><ul class="ofdmissl ofdmissw">${/*html-ok*/ wn.map(row).join('') /* row escapes every value */}</ul>` : ''}</span><button type="button" class="btn sm" data-ofd="miss-re">${esc(tr('Check again'))}</button></div>`;
+}
+async function ofd_missGo(d, k) {
+  if (OFD_MISS_SET[k]) { settingsModal('biz-' + OFD_MISS_SET[k]); return; }
+  if (d.client_id && OFD_MISS_CL.includes(k)) { await cdn_editClient(d); return; }
+  const id = OFD_MISS_DOC[k] || (k === 'recipient_address' ? 'recipient_lines' : '');
+  const el = (id && $('#ofd-' + id)) || (k === 'positions' || k === 'reminder_refs' ? $('.ofdeditor .ofdits, .ofdeditor .ofdrefs, .ofdeditor .ofdsec.open') : null) || $('#ofd-client_id') || $('.ofdeditor');
+  if (!el) return;
+  for (let det = el.closest('details'); det; det = det.parentElement?.closest('details')) det.open = true;  // "More details" / a folded section
+  const r = el.closest('.row') || el;
+  r.scrollIntoView?.({block: 'center'}); r.classList.add('sflash'); setTimeout(() => r.classList.remove('sflash'), 1600);  // sprung-ok: the person asked for this field
+  const f = el.type === 'hidden' ? $$('[data-dpfor]').find(x => x.dataset.dpfor === el.id) : el;  // a date: its button
+  if (f?.matches('input, select, textarea, button')) f.focus({preventScroll: true});
+}
+// before the finalise dialog: the current list (the settings or the client may have changed meanwhile); blocks = the list shows, no dialog
+async function ofd_missGate(d) {
+  try { const f = await rawFetch('GET', `/api/office/docs/${d.id}`); if (f && OFD.doc && f.id === OFD.doc.id) { OFD.doc.missing = f.missing; d.missing = f.missing; } } catch { /* the server's check at finalising says it */ }
+  if (!ofd_missBlocks(d).length) return false;
+  ofdDraw();
+  const box = $('#ofd-miss'); if (box) { box.scrollIntoView?.({block: 'center'}); box.classList.add('sflash'); setTimeout(() => box.classList.remove('sflash'), 1600); }  // sprung-ok: the person pressed Finalise
+  return true;
+}
 const ofd_cfBar = d => OFD.conflict && OFD.conflict.id === d.id ? `<div class="ofdlnote ofdcf" role="alert">${ic('info', 's')}<span><b>${esc(tr('Changed in the meantime'))}</b><br>${esc(tr('Someone else saved this document in the meantime. Your last change was not saved; reload to see the current version.'))}</span><button type="button" class="btn sm" data-ofd="cf-reload">${esc(tr('Reload'))}</button></div>` : '';
 function ofd_cfReload() {
   const cf = OFD.conflict; OFD.conflict = null;
@@ -1169,7 +1206,10 @@ async function ofdClick(e) {
   if (a === 'fee') { const j = await ofdSave('POST', `/api/office/docs/${d.id}/fee`, {state: b.dataset.st || ''}); if (j) savedTick('.ofdfeeinfo > span'); return; }  // 2.298.0 A1 (#3186): the quiet tick
   if (a === 'it-disc') { d.items.push({kind: 'discount', title: '', detail: '', qty: 1, unit: 'flat', rate: 0, tax: 'standard', raw_fee: 0, producing: 0, intext: 'intern', cost: 0, discountable: 1}); await ofdPutItems(); $(`${sc}.ofdits [data-i="${d.items.length - 1}"][data-k="rate"]`)?.focus(); return; }
   if (a === 'number') { const j = await ofdSave('POST', `/api/office/docs/${d.id}/number`, {}); if (j) { d.number = j.number; ofdDraw(); } return; }
+  if (a === 'miss-go') { await ofd_missGo(d, b.dataset.k || ''); return; }  // (#6529)
+  if (a === 'miss-re') { await ofdLoadDoc(d.id, true); return; }
   if (a === 'finalize') {
+    if (await ofd_missGate(d)) return;  // (#6529): the dialog opens only when nothing blocks
     // 2.431.0 B (#3605): the dialog names the number it gets (its own one, else the next of the scheme, only looked at); no preview = as before
     const pv = await rawFetch('GET', `/api/office/docs/${d.id}/number-preview`).catch(() => null);
     const fin = tr('Number, positions, sums, sender and tax rates are frozen. Afterwards it can only be duplicated.');

@@ -45,6 +45,7 @@ r = A.post(B + "/api/admin/orgs", json={"name": "Other Example", "admin_id": CAR
 check(r is not None and r.status_code == 201, f"setup: another organisation {getattr(r, 'status_code', None)}")
 ORG2 = r.json()["id"] if r is not None and r.ok else None
 A.patch(B + "/api/settings", json={"workspace": f"org:{ORG}"})
+assert A.put(B + "/api/office/settings", json={"company_fields": {"name": "Studio Beispiel", "street": "Hafenstraße 12", "zip": "20457", "city": "Hamburg", "country": "DE"}}).ok  # 2.1416.0 (#6530): a quotation is finalised only with its sender's name and address
 Bo.patch(B + "/api/settings", json={"workspace": f"org:{ORG}"})
 if ORG2:
     Ca.patch(B + "/api/settings", json={"workspace": f"org:{ORG2}"})

@@ -43,6 +43,7 @@ const absOk = async (w, d) => { const b = await until(() => d.querySelector('.mo
   const me = (await call('GET', '/api/state')).me.id;
   const ORG = (await call('POST', '/api/admin/orgs', {name: 'Alpha', admin_id: me})).id;
   await call('PATCH', '/api/settings', {workspace: `org:${ORG}`});
+  await call('PUT', '/api/office/settings', {company_fields: {name: 'Studio Beispiel', street: 'Hafenstraße 12', zip: '20457', city: 'Hamburg', country: 'DE'}});  // 2.1416.0 (#6530): a quotation is finalised only with its sender's name and address
   await call('POST', '/api/office/services', {name_de: 'Kamera', category: 'Video', sort: 30, daily_rate: 700});
   await call('POST', '/api/office/services', {name_de: 'Schnitt', category: 'Video', sort: 70, hourly_rate: 90, unit: 'hour'});
   let w, d;

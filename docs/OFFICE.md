@@ -2395,6 +2395,23 @@ date or payment days, and the VAT note for documents without VAT. Then the numbe
 becomes `issued`, the snapshot is stored like for quotations and the PDF/A-3 + e-invoice XML are written (see
 "E-invoices").
 
+*Since 2.1416 (#6529, #6530).* The same check comes with the draft: `GET /api/office/docs/<id>` of an unlocked draft carries
+`missing` = `[{key, text, level}]` - `level` `block` for each line the finalising would refuse (`invoices.inv_missing_keyed`,
+a fixed `key` per line such as `company_address`, `service_period`, `client_vat_id`, `recipient_street`), `warn` for a hint
+that leaves finalising open (`einvoice`: the e-invoice duty, #6482; `first`: the first real invoice, #6532). The editor shows
+the list above the document, every line with its way (a field of the document, the client, or Settings > Company & office at
+that field); **Finalise** reads the list again and opens its dialog only when nothing blocks. The server's check at finalising
+stays the truth. A quotation needs its sender: finalising it without the company's name and address answers `400` with
+the same list (no tax number, bank or period). An organisation's office has its company name preset from the
+organisation's name (`ledger.ofx_company`, kept with the first save); a personal office stays without one. Agents get
+`missing_keys` next to `missing` (`POST /api/v1/office/invoices`).
+
+While the company's name, address, tax number / VAT ID or IBAN is missing, the office (start, quotations & invoices) shows
+the card **Set up your office** to whoever changes the settings: five rows with a tick - company, tax and small business,
+bank, numbers ("Coming from another program? Then enter the next number here"), logo / letterhead - each leads into
+Settings > Company & office at its field. **Hide** keeps it away for that person and office (the setting `trial_hint_seen`,
+`"<office id>:setup"`).
+
 Numbers: one series per organisation and kind - settings `invoice_scheme` (`RE-{yyyy}-{seq:03}`), `credit_scheme`
 (`RK-{yyyy}-{seq:03}` since 2.431, before `GS-`; base pack `CN-`), `reminder_scheme` (`MA-{yyyy}-{seq:03}`); a draft has
 no number, the number comes with finalising
