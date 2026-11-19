@@ -104,8 +104,11 @@ const OFM_ITEMS = [
   {key: 'time', go: 'office/time', icon: 'clock', name: N_('Times to bill'), group: 'sell', on: () => ofm_ofc() && !!ofm_lv()}];
 // admin of the office shown: from the office's settings once loaded, before that the last answer for this workspace (LS),
 // so the contacts / clients pages need not load the office. The server checks every admin route on its own.
-const ofm_ws = () => `${S.me?.id || ''}:${typeof wsCur === 'function' ? wsCur() : 'all'}`;  // per person and workspace
-const OFM_ASKED = new Set();  // workspaces whose role was read in this session
+// 2.1437.0 (#7297 c): per person and OFFICE AREA (core.js ofc_spCur: the chosen workspace, under "All" the area open there), so
+// "All > Alpha" and "Alpha" share one menu; was per workspace (under 'uid:org:N' nothing yet = the admin points gone)
+const ofm_area = () => (typeof ofc_spCur === 'function' ? ofc_spCur() : '') || 'all';
+const ofm_ws = () => `${S.me?.id || ''}:${ofm_area()}`;
+const OFM_ASKED = new Set();  // areas whose role was read in this session (a failed read may ask again after a while)
 function ofm_adm() {
   if (typeof OFC !== 'undefined' && OFC.info) return OFC.info.role === 'admin';
   const ws = ofm_ws();
@@ -113,11 +116,14 @@ function ofm_adm() {
   // leaves the menu as it is); the office itself reads it with its settings (ofcInfo)
   if ((typeof OFC === 'undefined' || !OFC.info) && officeOn() && !OFM_ASKED.has(ws)) {  // 2.152.2 (#2632): also while the office script is there without its settings yet
     OFM_ASKED.add(ws);
-    rawFetch('GET', '/api/office/settings').then(j => {
+    // 2.1437.0 (#7297 c): the request names the area of its key (never the server's saved setting: an answer for the old
+    // workspace stored under the new key gave a member admin points or took them from an admin)
+    const sp = ofm_area();
+    rawFetch('GET', '/api/office/settings', undefined, undefined, sp === 'all' ? '' : sp).then(j => {
       if (!j || ofm_ws() !== ws) return;
       const seen = () => ofm_adm() + JSON.stringify([ofm_lv(), ofm_used(), ofm_offList()]), was = seen(); ofm_admSeen(j.role === 'admin', j.rights, j.used, j.settings?.menu_off);
       if (was !== seen() && mg_areaOf(S.route.mod)?.[0] === 'office') renderView();
-    }, () => {});
+    }, () => { setTimeout(() => OFM_ASKED.delete(ws), 30000); });  // 2.1437.0 (#7297 c): not "never again in this session"
   }
   return !!(LS.get('ofmAdm', {}) || {})[ws];
 }
@@ -462,8 +468,7 @@ const o3a_hidRow = h => { const m = /data-go="(\w+)/.exec(h); return !!m && o3a_
 function o3a_toPrivate(mod) {
   if (!o3a_hid(mod)) return;
   const from = wsCur();
-  S.settings.workspace = 'private'; LS.set('ws', 'private');
-  api('PATCH', '/api/settings', {workspace: 'private'}).catch(() => {});
+  ws_save(ws_hold('private'), from);  // 2.1437.0 (#7297): held over a state load, taken back with a note when not saved
   ws_autoNote(from);  // 2.484.0 (#3950): a short note with "Back"
 }
 // ---- 2.152.2 (#2622): sidebar B on a computer. Left a narrow bar of the areas (icon, small word below), next to it ONE

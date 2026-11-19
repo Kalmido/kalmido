@@ -278,8 +278,11 @@ function pb_wsFollow() {
 }
 function pb_wsChanged(saving) {
   OFC.pbWait = !!saving;
-  if (saving) { pb_reset(true); OFC.ws = ofc_wsKey(); }
-  else ofcDraw();
+  if (saving) { pb_reset(true); OFC.ws = ofc_wsKey(); return; }
+  // 2.1437.0 (#7297 d): what failed meanwhile (the office's settings, the documents' list) loads again instead of keeping its error
+  OFC.infoErr = null;
+  if (typeof OFD !== 'undefined' && OFD.err && !OFD.doc && !OFD.list?.length) { OFD.list = null; OFD.err = ''; }
+  ofcDraw();
 }
 // the empty personal office of a person with organisations points to the offices of these organisations
 function pb_hintHtml() {
@@ -714,7 +717,7 @@ async function pb_move() {
   if (!await askConfirm(tr('Move your private office into “{0}”?', name), tr('Turns this private office into a new organisation with you as its admin: documents, numbers, settings, master data and your private clients go with it. This cannot be undone.'), {ok: tr('Move'), danger: true})) return;
   try {
     const j = await api('POST', '/api/office/move', {name, confirm: true});
-    await refreshMe(); S.workspaces = true; S.settings.workspace = 'org:' + j.org_id; LS.set('ws', S.settings.workspace);
+    await refreshMe(); S.workspaces = true; ws_save(ws_hold('org:' + j.org_id), null);  // 2.1437.0 (#7297): saved too (was only local: the next state load went back)
     pb_reset(true); OFC.ws = typeof wsCur === 'function' ? wsCur() : ''; render();
     toast(tr('The organisation “{0}” now holds your office', j.name));
   } catch (x) { ofcErr(x); }
@@ -741,7 +744,7 @@ async function pb_transfer() {
   if (!yes || !pv?.ok) return;
   try {
     const j = await api('POST', '/api/office/move/org', {org, confirm: true});
-    await refreshMe(); S.settings.workspace = 'org:' + j.org_id; LS.set('ws', S.settings.workspace);
+    await refreshMe(); ws_save(ws_hold('org:' + j.org_id), null);  // 2.1437.0 (#7297): saved too (was only local)
     pb_reset(true); OFC.ws = typeof wsCur === 'function' ? wsCur() : ''; render();
     // 2.1327.0 (#6591): the check of the organisation's hash chain after the move, in the toast and at the access log
     const k = j.chain; if (k) OFC.chain = k;

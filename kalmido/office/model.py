@@ -259,8 +259,12 @@ def office_space(orgs, ws):
     ("" / all) -- the header's area: "private" or "org:<id>" of one of the person's own organisations orgs (exactly what the
     setting workspace may hold, so the header can do nothing the setting cannot). Another value = 400 instead of silently
     some other office (a change meant for an organisation the person left never lands elsewhere). Agents and API tokens:
-    no header (as before, their own setting)."""
-    if ws not in ("", "all") or not has_request_context() or g.get("auth_via") == "token":
+    no header (as before, their own setting).
+    2.1437.0 (#7297): the header wins under a chosen workspace too -- the app names the office's area with EVERY office
+    request (core.js ofc_spHdr), so a setting the server never got (a failed PATCH, the split view's right half that sends
+    none, miniwin.js MW_GUARD) or one another tab changed meanwhile cannot open another office or "Choose a workspace".
+    Checked the same way: only "private" or one of the person's own organisations, anything else stays refused."""
+    if not has_request_context() or g.get("auth_via") == "token":
         return ws
     u = getattr(g, "user", None)
     if u is not None and "kind" in u.keys() and u["kind"] == "agent":
@@ -278,7 +282,7 @@ def office_space(orgs, ws):
 
 def office_where(c, uid):
     """2.187.0 (#2476): (office area id, uid's role there) -- the first half of office_org without the role checks.
-    2.577.0 (#4638): under "All workspaces" the request's own area (office_space)."""
+    2.577.0 (#4638): under "All workspaces" the request's own area (office_space); 2.1437.0 (#7297): under any workspace."""
     orgs = user_orgs(c, uid)
     ws = office_space(orgs, (usettings(c, uid).get("workspace") or "").strip())
     m = re.fullmatch(r"org:(\d{1,9})", ws)

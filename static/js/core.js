@@ -676,7 +676,11 @@ async function docsAll(url, f = rawFetch) {
 // office.js ofc_allOvr) - its area goes with every office request too (the server never guesses between several offices)
 const ofc_spOpen = () => S.route?.mod !== 'office' || typeof wsCur !== 'function' || wsCur() !== 'all' ? ''
   : S.route.wsp || (typeof ofc_spaces === 'function' && ofc_spaces().length === 1 ? ofc_spaces()[0] : '');
-const ofc_spHdr = url => /^\/api\/(office\/|docs[/?])/.test(String(url || '')) ? ofc_spOpen() : '';  // 2.654.0 (#4823): + /api/docs/ (docs/area.py ar_office: receipts sorted into the open office)
+// 2.1437.0 (#7297): under a chosen workspace its area goes along too, with EVERY office request (whatever page asks, e.g. the
+// office menu's role from #clients): the office never depends on the saved setting the server got (a failed or late PATCH,
+// the split view's right half that sends none, miniwin.js MW_GUARD); the server checks the membership (office_space)
+const ofc_spCur = () => typeof wsCur !== 'function' ? '' : wsCur() !== 'all' ? wsCur() : ofc_spOpen();
+const ofc_spHdr = url => /^\/api\/(office\/|docs[/?])/.test(String(url || '')) ? ofc_spCur() : '';  // 2.654.0 (#4823): + /api/docs/ (docs/area.py ar_office: receipts sorted into the open office)
 // 2.577.0 (#4638, review): links, window.open, images and pdfView cannot send the header: the same area as ?_osp= (once);
 // raw fetch() calls outside rawFetch0 go through ofc_spFetch (header); any <a href="/api/office/..."> gets it on its click
 const ofc_spUrl = url => { const u = String(url || ''), sp = ofc_spHdr(u); return sp && !/[?&]_osp=/.test(u) ? `${u}${u.includes('?') ? '&' : '?'}_osp=${encodeURIComponent(sp)}` : u; };
@@ -1564,6 +1568,7 @@ function applyState(j, w0) {  // w0: S.wseq when its GET /api/state started (ld_
   if (S.booted && (j.settings.lang || 'en') !== I18N.code) i18nLoad(j.settings.lang).then(ok => { if (ok) render(); });
   for (const p of OPT_DONE) { if ((w0 != null && p.end <= w0) || Date.now() - p.at > 120000) OPT_DONE.delete(p); else p.put(); }  // 2.607.0 (#4901)
   for (const p of OPT) p.put();  // 2.41.2 (#1501): own changes still on the way stay on top of a state fetched meanwhile
+  if (typeof ws_gone === 'function') ws_gone();  // 2.1437.0 (#7297): a workspace really gone = switched with a note, never silently
   if (typeof le2eState === 'function') le2eState();  // 2.64.1 (#1817): locked lists, ciphers of the offline cache
 }
 // 2.41.2 (#1501): optimistic writes. A click shows at once: put() changes the local state and returns how to take it back,
