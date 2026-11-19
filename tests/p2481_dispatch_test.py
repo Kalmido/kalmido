@@ -654,9 +654,9 @@ check(ad.brief_missing({**task(403, "x", size="", tags=["S"]), "notes": "- **Do 
       "#4062: a list tag S is a size, a heading Fundstellen is the section")
 cfgb = dict(ad.DEFAULTS, brief_required=True)
 tb = [{**task(404, "Briefed"), "notes": ok_notes}, task(405, "Bare", notes="just do it")]
-stb = ad.classify(tb, {"done": {}, "branch": {}}, {}, {"jobs": {}}, cfgb, 7, {(9, "size"): "77"})
+stb = ad.classify(tb, {"done": {}, "branch": {}}, {}, {"jobs": {}}, cfgb, 7, field_ids={(9, "size"): "77"})
 check(stb == {404: "ready", 405: "needs_brief"}, f"#4062: brief_required on: without a brief needs_brief: {stb}")
-check(ad.classify(tb, {"done": {}, "branch": {}}, {}, {"jobs": {}}, dict(ad.DEFAULTS), 7, {(9, "size"): "77"}) == {404: "ready", 405: "ready"},
+check(ad.classify(tb, {"done": {}, "branch": {}}, {}, {"jobs": {}}, dict(ad.DEFAULTS), 7, field_ids={(9, "size"): "77"}) == {404: "ready", 405: "ready"},
       "#4062: off by default, every task as before")
 check(ad.cut_bundle(tb, stb, cfgb, {(9, "size"): "77"}) == [tb[0]], "#4062: a needs_brief task is never in a bundle")
 TASKS[:] = tb
