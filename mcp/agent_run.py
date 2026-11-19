@@ -85,7 +85,7 @@ import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # #7151: the helpers the starter's modules share (one copy each): secrets masking, chat parts, the API transport, processes
-from agent_common import (CHAT_CHUNK, REDACTED, RETRY_429_S, SECRET_RES, Api as ApiBase, ApiError, chunks,  # noqa: E402,F401
+from agent_common import (CHAT_CHUNK, REDACTED, RETRY_429_S, SECRET_RES, Api as ApiBase, ApiError, chunks,  # noqa: E402,F401 -- after the path line above; re-exported
                           defuse_fence, kill_tree, redact)
 try:  # 2.44.0 B (#1443 #1445 #1447): outbox, jobs, task bundling live in a module of their own; without it all works as before
     import agent_extras

@@ -3612,7 +3612,9 @@ def handle(api, msg):
             return _result(i, {"content": [{"type": "text", "text": e.message}], "isError": True})
         try:
             out = fence_result(api, out, name)  # #7151: the one data fence of every result
-        except Exception:  # noqa: BLE001 -- review F1: a shape the fence does not know never ends the server: all of it is data
+        except (TypeError, ValueError, AttributeError, KeyError, IndexError, RecursionError, ApiError) as e:
+            # review F1: a shape the fence does not know never ends the server: all of it is data
+            print(f"kalmido-mcp: fence of {name} fell back to one data fence: {type(e).__name__}", file=sys.stderr)
             out = {"untrusted": True, "data": _data_fence(json.dumps(out, ensure_ascii=False, default=str), "an unknown author")}
         content = [{"type": "text", "text": json.dumps(out, ensure_ascii=False, indent=1)}]
         if name in ("get_attachment", "read_attachment", "wiki_read_file") and isinstance(out, dict) and out.get("base64") and str(out.get("mime", "")).startswith("image/"):

@@ -73,7 +73,7 @@ import uuid
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 # #7151: the helpers the starter's modules share (one copy each; the job runner's redact now has every pattern)
-from agent_common import Api as ApiBase, ApiError, chunks, defuse_fence, env_credentials, kill_tree, multipart, redact, write_json  # noqa: E402,F401
+from agent_common import Api as ApiBase, ApiError, chunks, defuse_fence, env_credentials, kill_tree, multipart, redact, write_json  # noqa: E402,F401 -- after the path line above; re-exported for the starter's modules
 OPEN_STATES = ("starting", "running", "paused")
 MAX_RESUMES = 3
 STEP_GAP_S = 5.0
