@@ -18,6 +18,7 @@ from ..core.i18n import N_, tr
 from ..core.pg import write_lock
 from ..core.undoareas import UA_RENAMED, ua_plain
 from ..core.undodiff import ug_diff_add, undo_diff_reg, undo_person
+from .folders import need_folder_write
 from .lists import FOLDER_DEPTH, FOLDER_SEP, folder_under
 from .sections import _folder_paths, folder_rename_do
 
@@ -40,6 +41,7 @@ def fpu_run(c, uid, rid, data, redo):
     src, dst = (data.get("old"), data.get("new")) if redo else (data.get("new"), data.get("old"))
     if not isinstance(src, str) or not isinstance(dst, str) or not src or not dst or folder_under(dst, src):
         raise Denied(409, tr(FPU_GONE))
+    need_folder_write(c, uid, src)  # #6607: as the route
     write_lock(c, f"usettings-{int(uid)}")  # as the route
     paths = _folder_paths(c, uid)
     if src not in paths or any(p == dst or folder_under(p, dst) for p in paths):

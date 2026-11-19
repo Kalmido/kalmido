@@ -181,6 +181,8 @@ def folder_rename():
         return err(tr("A folder cannot go into itself"))
     c = db()
     uid = me()
+    from .folders import need_folder_write
+    need_folder_write(c, uid, old)  # #6607: a new path puts the folder's projects under other folder settings (Playbook ...)
     write_lock(c, f"usettings-{int(uid)}")  # 2.269.0 B (#3014): folder order / closed folders read-change-write like PATCH /api/settings
     # 2.352.0 A (#2748): any depth up to FOLDER_DEPTH (was: a folder with subfolders never became a subfolder)
     below = max([p.count(FOLDER_SEP) - old.count(FOLDER_SEP) for p in _folder_paths(c, uid) if folder_under(p, old)] or [0])

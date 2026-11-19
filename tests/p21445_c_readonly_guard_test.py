@@ -7,8 +7,10 @@ and not through the next route somebody forgets. Invented names only, addresses 
    2 POST /api/tasks/purge-done: the lists Rita still has owner_id on but only reads (read-only now) are left alone, also with
      others=true; the admin clears the done tasks of her own list
    3 the folder ways (props, agents, owner, public links, people, groups, Playbook, notification template, repositories,
-     dissolving, folder-reset of a list): 403 while the folder holds a project she only reads; GET public-links names no link
-     of it any more; renaming the own sidebar folder stays (EXEMPT)
+     dissolving, renaming / moving the folder, folder-reset of a list): 403 while the folder holds a project she only reads;
+     GET public-links names no link of it any more. Reader job/5762 F1: renaming "Work" under her private folder with its own
+     Playbook would have put the organisation's project under that Playbook -> 403, the project's path stays. F2: switching
+     the public links OFF answers 200 but touches only lists she owns by role (her read-only project keeps its link)
    4 POST /api/lists/<id>/join: read-only joins no organisation-wide project (no member row); a member joins
    5 PATCH /api/office/agents/<id>: an office group with "settings: manage" no longer lifts the read-only role; the admin switches
    6 PATCH /api/clients/<id> {org_id: null}: the member who created the client gets 403 with the "Ask an admin" request, after
@@ -40,8 +42,8 @@ SCOPE = re.compile(r"^(POST|PUT|PATCH|DELETE) /api/(clients|lists/\{\}|tasks|fol
 # route -> (reason, call it?): what a read-only member may still do there (own marks, own settings). Nothing that changes an
 # object of the organisation for the others.
 EXEMPT = {
-    "POST /api/folders/rename": ("the own sidebar: renaming / nesting the own folder moves no share and changes no project for "
-                                 "the others (not called: it would move her project's path)", False),
+    "PUT /api/folders/public-links": ("switching off touches only the lists owned by role (none here: her read-only project "
+                                      "keeps its link - rows check below); switching on is refused (way 3)", True),
     "PATCH /api/lists/{}": ("field by field (list_apply): unknown keys are dropped (web_fields), every field of the project "
                             "itself needs the write role - the rows check below proves nothing changed", True),
     "PUT /api/lists/{}/favorite": ("the own favourites (a setting of the person)", True),
@@ -156,6 +158,10 @@ def diff(a, b):
 
 
 # ================================================================ the six ways, one by one
+LM = ok(Ri.post(B + "/api/lists", json={"name": "Rita's notes", "folder": "Mine"}), "Rita's private project in her folder Mine")["id"]
+# reader job/5762 F1, step 1: a Playbook on her own private folder (allowed: only her private project in it)
+r = Ri.put(B + "/api/folders/playbook", json={"folder": "Mine", "text": "Guard playbook"})
+check(r.ok, f"way 3: her own private folder's Playbook stays hers ({r.status_code} {r.text[:120]})")
 S0 = snap()
 # 1 clients, several at once
 for body in ({"ids": [CA, CR], "action": "archive"}, {"ids": [CA], "action": "set", "rate": 5}, {"ids": [CR], "action": "delete"},
@@ -173,15 +179,28 @@ for m, p, body in (("PUT", "/api/folders/props", {**F, "props": {"hide_done": Tr
                    ("PUT", "/api/folders/agents", {**F, "agent_id": AG}),
                    ("DELETE", "/api/folders/agents", {**F, "agent_id": AG}),
                    ("POST", "/api/folders/owner", {**F, "user_id": BOB}),
-                   ("PUT", "/api/folders/public-links", {**F, "on": False}),
+                   ("PUT", "/api/folders/public-links", {**F, "on": True}),
                    ("PUT", "/api/folders/people", {**F, "user_id": BOB, "role": "admin"}),
                    ("DELETE", "/api/folders/people", {**F, "user_id": BOB, "remove": True}),
                    ("PUT", "/api/folders/playbook", {**F, "text": "Guard"}),
                    ("PUT", "/api/folders/notify-template", {**F, "tpl": "all"}),
                    ("POST", "/api/folders/delete", {"name": "Work"}),
+                   ("POST", "/api/folders/rename", {"old": "Work", "new": "Renamed"}),
+                   ("POST", "/api/folders/rename", {"old": "Work", "new": "Mine/Work"}),
                    ("POST", f"/api/lists/{L2}/folder-reset", {})):
     r = Ri.request(m, B + p, json=body)
     check(r.status_code == 403, f"way 3: read-only, {m} {p} -> 403 ({r.status_code} {r.text[:120]})")
+# reader job/5762 F1, the two steps: a Playbook on her own private folder "Mine" (set up before the snapshot), then "Work"
+# moved into it -- refused, the organisation's project stays where it was
+r = Ri.post(B + "/api/folders/rename", json={"old": "Work", "new": "Mine/Work"})
+check(r.status_code == 403 and dbx("SELECT folder FROM lists WHERE id=?", (L2,))[0][0] == "Work",
+      f"way 3: the folder with her read-only project does not move under her Playbook ({r.status_code} {r.text[:120]})")
+check(Ri.post(B + "/api/folders/rename", json={"old": "Mine", "new": "Mine 2"}).ok
+      and Ri.post(B + "/api/folders/rename", json={"old": "Mine 2", "new": "Mine"}).ok, "way 3: her own private folder renames freely")
+# reader job/5762 F2: switching the public links off is a taking back -- 200, her read-only project keeps its link (not hers to change)
+r = Ri.put(B + "/api/folders/public-links", json={**F, "on": False})
+check(r.ok and r.json().get("removed") == 0 and dbx("SELECT 1 FROM public_links WHERE list_id=?", (L2,)),
+      f"way 3: links off touches only her own lists ({r.status_code} {r.text[:120]})")
 r = Ri.get(B + "/api/folders/public-links", params=F)
 check(r.ok and not any(x.get("link") for x in r.json().get("lists", [])), f"way 3: the folder's GET names no link of her read-only project {r.text[:160]}")
 # 4 join
@@ -213,6 +232,7 @@ SPECIAL = {
     "POST /api/tasks/purge-done": [{}, {"others": True}],
     "POST /api/tasks/reorder": [{"ids": [T2D, T2]}, {"list_id": L2, "ids": [T2D, T2]}],
     "POST /api/folders/delete": [{"name": "Work"}],
+    "POST /api/folders/rename": [{"old": "Work", "new": "Renamed"}, {"old": "Work", "new": "Mine/Work"}],
     "DELETE /api/folders/groups/{}": [],
 }
 
