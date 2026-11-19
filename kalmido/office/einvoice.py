@@ -316,7 +316,7 @@ def _abs_full(m):
 
 
 def _line_allowance(ln):
-    """2.1042.0 (#5815): (amount, basis, percent) of a position's own discount (calc.inv_calc: allowance = list_net - net), or
+    """(#5815): (amount, basis, percent) of a position's own discount (calc.inv_calc: allowance = list_net - net), or
     None. Only for a positive line whose price x quantity gives the list amount, so BT-131 = BT-129 x BT-146 - BT-136 holds."""
     try:
         a, b, p = _d(ln.get("allowance")), _d(ln.get("list_net")), _d(ln.get("discount_pct"))
@@ -330,7 +330,7 @@ def _line_allowance(ln):
 def _ein_lines(m, cat):
     """[(line dict, n, net, pct, qty, price, charge)] of the positions; price and quantity agree with the net amount
     (PEPPOL-EN16931-R120: net = quantity x price + line charges - line allowances, rounded to cents).
-    2.523.0 (#4082): a price that does not fit with two places gets four, then six places (a foreign currency with
+    (#4082): a price that does not fit with two places gets four, then six places (a foreign currency with
     sub-cent prices: 1,000 minutes x 0.125 EUR x rate 1.085 = 0.135625 USD). When even six places do not fit, the
     quantity stays as on the PDF, the price is net / qty with four places and the rounding gap goes as a line charge
     (charge > 0) or line allowance (charge < 0) -- before 2.523.0 such a line fell back to quantity 1."""
@@ -356,7 +356,7 @@ def _ein_lines(m, cat):
         lac = _line_allowance(ln)
         if (lac and qty > 0 and rate == rate.quantize(Decimal("0.000001")) and (qty * rate).quantize(Q2, rounding=ROUND_HALF_UP) == lac[1]
                 and lac[1] - lac[0] == net):  # a price of more than six places would be cut when written (_uprice): fitted below
-            out.append((ln, n, net, pct, qty, rate, -lac[0]))  # 2.1042.0 (#5815): the position's own discount, a line allowance
+            out.append((ln, n, net, pct, qty, rate, -lac[0]))  # (#5815): the position's own discount, a line allowance
             continue
         # a given rate with more than six places would be cut when written (_uprice), so it is fitted like an odd one
         if rate != rate.quantize(Decimal("0.000001")) or (qty * rate).quantize(Q2, rounding=ROUND_HALF_UP) != net:
@@ -385,7 +385,7 @@ def _uprice(rate):
 
 
 def ein_values(model):
-    """2.1407 (#7155): the EN 16931 values of a print model, computed once for both syntaxes; ein_build (CII) and
+    """(#7155): the EN 16931 values of a print model, computed once for both syntaxes; ein_build (CII) and
     ein_ubl_build (UBL) only write them. A rule about what the invoice says (tax category, breakdown, payment means,
     terms, notes, parties, line price / quantity / allowance, totals) belongs here, never into one of the writers; the
     writers only decide where and how a value stands in their syntax. Returns a dict:
@@ -407,24 +407,24 @@ def ein_values(model):
     novat, cat, excode = _doc_cat(m)  # 2.296.0 B (#3173)
     v = {"m": m, "lang": lang, "kind": kind, "credit": kind == "credit", "pay": pay, "novat": novat, "cat": cat, "excode": excode,
          "cur": str(m.get("currency") or "EUR").upper(),
-         "hcur": str(tot.get("home") or "EUR").upper(),  # 2.189.0 (#2475): the home currency (BT-6)
+         "hcur": str(tot.get("home") or "EUR").upper(),  # (#2475): the home currency (BT-6)
          "home": _country(sf.get("country"), "DE"),
          "buyer_ref": str(rc.get("buyer_reference") or "").strip()}
 
     notes = [str(x) for x in (m.get("vat_note_text") or (tot.get("vat_note") if novat else ""), m.get("project_title") and
-             tr(EIN_WORDS["project"], " ".join(str(m["project_title"]).split()), lg=lang)) if x and str(x).strip()]  # 2.431.0 B (#3594): the subject on one line
+             tr(EIN_WORDS["project"], " ".join(str(m["project_title"]).split()), lg=lang)) if x and str(x).strip()]  # (#3594): the subject on one line
     if novat and not m.get("vat_note_text"):
         notes.insert(0, _exempt(m, lang))
     v["notes"] = notes[:4] + ([abs_note] if abs_note else [])
-    v["line_notes"], v["text_notes"] = _text_notes(m, lang)  # 2.1359.0 (#6482): intro, rights, closing and trailing text lines (BT-22)
+    v["line_notes"], v["text_notes"] = _text_notes(m, lang)  # (#6482): intro, rights, closing and trailing text lines (BT-22)
 
-    sname = " ".join(str(sf.get("name") or (m.get("company") or {}).get("name") or "").split())  # 2.99.0 D (#2188): BT-27 on one line
-    novid = {"vat_id": ""} if cat == "O" else {}  # 2.296.0 B (#3173): BR-O-02 no VAT ids
-    v["seller_name"], v["seller"], v["seller_id"] = sname, {**sf, "line2": sf.get("address_extra") or "", **novid}, _seller_id(m, cat)  # BT-36; 2.357.0 (#3218): BT-29
+    sname = " ".join(str(sf.get("name") or (m.get("company") or {}).get("name") or "").split())  # (#2188): BT-27 on one line
+    novid = {"vat_id": ""} if cat == "O" else {}  # (#3173): BR-O-02 no VAT ids
+    v["seller_name"], v["seller"], v["seller_id"] = sname, {**sf, "line2": sf.get("address_extra") or "", **novid}, _seller_id(m, cat)  # BT-36; (#3218): BT-29
     v["seller_contact"] = ({"name": sf.get("managing_directors") or sname, "phone": sf.get("phone"), "email": sf.get("email")}
                            if (sf.get("phone") or sf.get("email")) else None)  # BG-6 (XRechnung BR-DE-2: the seller contact is mandatory)
     rfields = {"street": rc.get("street"), "zip": rc.get("zip"), "city": rc.get("city"), "country": rc.get("country"), "vat_id": rc.get("vat_id"), **novid}
-    if rc.get("extra"):  # 2.97.0 B (#1951): the client's extra address line (BT-51)
+    if rc.get("extra"):  # (#1951): the client's extra address line (BT-51)
         rfields["line2"] = rc["extra"]
     if not rfields["street"] and not rfields["city"]:  # only free address lines (2.40.0 #1368: see fd_split_address)
         lines = [str(x) for x in (rc.get("lines") or []) if str(x).strip() and str(x).strip() not in (str(rc.get("name") or "").strip(), str(rc.get("name_extra") or "").strip())]
@@ -433,32 +433,32 @@ def ein_values(model):
             sp.pop("country", None)
         rfields.update(sp)
     v["buyer"] = rfields
-    v["buyer_name"] = " - ".join(x for x in (str(rc.get("name") or "").strip(), str(rc.get("name_extra") or "").strip()) if x)  # 2.99.0 D (#2188): BT-44 + the name addition
-    v["buyer_contact"] = rc.get("contact") if isinstance(rc.get("contact"), dict) else None  # 2.40.0 (#1380): BG-9
+    v["buyer_name"] = " - ".join(x for x in (str(rc.get("name") or "").strip(), str(rc.get("name_extra") or "").strip()) if x)  # (#2188): BT-44 + the name addition
+    v["buyer_contact"] = rc.get("contact") if isinstance(rc.get("contact"), dict) else None  # (#1380): BG-9
     v["buyer_email"] = rc.get("email_invoice")
     v["customer_no"] = str(rc.get("customer_no") or "").strip()
-    # 2.355.0 C (#2844): BR-IC-12 the deliver-to address (BG-15, BT-80; XRechnung BR-DE-10/11 city + postcode) = the client's
+    # (#2844): BR-IC-12 the deliver-to address (BG-15, BT-80; XRechnung BR-DE-10/11 city + postcode) = the client's
     v["ship_to"] = {k: rfields.get(k) for k in ("zip", "street", "city", "country")} if cat == "K" else None
 
     v["iban"] = str(pay.get("iban") or sf.get("iban") or "").replace(" ", "")
     v["bic"] = str(pay.get("bic") or sf.get("bic") or "").replace(" ", "")
     v["means"] = "58" if v["iban"] else "30"
     v["bank_name"] = str(sf.get("bank_name") or "")[:70]
-    if pay.get("skonto_bt20"):  # 2.120.0 A (#2087): the XRechnung cash discount line (BT-20), the printed text before it
+    if pay.get("skonto_bt20"):  # (#2087): the XRechnung cash discount line (BT-20), the printed text before it
         first = str(pay.get("text") or "").split("\n")[0][:400]
         v["terms"] = (first + "\n" if first else "") + pay["skonto_bt20"]
     else:
         v["terms"] = str(pay["text"])[:500] if pay.get("text") else ""
-    # 2.40.0 (#1368): a credit note is not "payable on receipt"; BR-CO-25 still wants terms
+    # (#1368): a credit note is not "payable on receipt"; BR-CO-25 still wants terms
     v["terms_default"] = tr(EIN_WORDS["refund"] if kind == "credit" else EIN_WORDS["now"], lg=lang)
 
     out, by_rate = [], {}
     for ln, n, net, pct, qty, rate, charge in _ein_lines(m, cat):
-        lcat = _line_cat(cat, pct, ln.get("tax"))  # 2.296.0 B (#3169): the category per line (2.357.0 #3217: Z by the tax key)
+        lcat = _line_cat(cat, pct, ln.get("tax"))  # (#3169): the category per line (2.357.0 #3217: Z by the tax key)
         lac = _line_allowance(ln) if charge < 0 else None
-        allowance = lac if lac and -charge == lac[0] else None  # 2.1042.0 (#5815): the position's own discount (BG-27 with percent and basis)
+        allowance = lac if lac and -charge == lac[0] else None  # (#5815): the position's own discount (BG-27 with percent and basis)
         out.append({"ln": ln, "id": str(ln.get("pos") or n), "n": n, "net": net, "pct": pct, "qty": qty, "price": rate,
-                    "charge": Decimal("0") if allowance else charge,  # 2.523.0 (#4082): else the rounding gap of a sub-cent price
+                    "charge": Decimal("0") if allowance else charge,  # (#4082): else the rounding gap of a sub-cent price
                     "allowance": allowance, "cat": lcat, "unit": UNIT_CODES.get(str(ln.get("unit") or ""), "C62"),
                     "name": str(ln.get("title") or "")[:200] or ("Position " + str(n))})
         by_rate[(lcat, pct)] = by_rate.get((lcat, pct), Decimal("0")) + net
@@ -467,21 +467,21 @@ def ein_values(model):
 
     tax_lines = [tl for tl in (tot.get("tax_lines") or []) if isinstance(tl, dict)]
     bd, tax_sum = [], Decimal("0")
-    for lcat, pct in (sorted(by_rate) if by_rate else [(cat, Decimal("0"))]):  # 2.296.0 B (#3169): one breakdown per category and rate (BR-CO-18)
+    for lcat, pct in (sorted(by_rate) if by_rate else [(cat, Decimal("0"))]):  # (#3169): one breakdown per category and rate (BR-CO-18)
         base = by_rate.get((lcat, pct), Decimal("0"))
         given = next((tl for tl in tax_lines if _d(tl.get("pct")) == pct), None)
         amount = _d(given.get("amount")).quantize(Q2, rounding=ROUND_HALF_UP) if given else (base * pct / 100).quantize(Q2, rounding=ROUND_HALF_UP)
         if lcat != "S":
             amount = Decimal("0")
         bd.append({"cat": lcat, "pct": pct, "base": base, "amount": amount,
-                   "reason": "" if lcat in ("S", "Z") else _reason(m, lang, cat, lcat),  # 2.357.0 (#3217): BR-Z-10 no exemption reason for zero rated
+                   "reason": "" if lcat in ("S", "Z") else _reason(m, lang, cat, lcat),  # (#3217): BR-Z-10 no exemption reason for zero rated
                    "code": excode if lcat == cat else ""})
         tax_sum += amount
     v["breakdown"], v["tax_sum"] = bd, tax_sum
     v["tax_home"] = tot.get("tax_eur") if tot.get("tax_eur") not in (None, "") else tax_sum  # BT-111
     gross = tot.get("gross") if tot.get("gross") not in (None, "") else v["line_sum"] + tax_sum
     v["gross"] = _d(gross).quantize(Q2, rounding=ROUND_HALF_UP)
-    # 2.502.0 (#4079): BT-113 of a finalised document is fixed like its PDF: no payments of today, only the progress invoices
+    # (#4079): BT-113 of a finalised document is fixed like its PDF: no payments of today, only the progress invoices
     v["paid"] = prepaid if kind == "invoice" else Decimal("0")
     return v
 
@@ -490,7 +490,7 @@ def ein_build(model, fmt="zugferd"):
     """The CII XML (bytes, UTF-8) from the print model of an invoice / credit note (see the module text for the keys used:
     kind, number, date, lang, currency, order_ref, service_from/to, due_date, sender_fields, recipient, lines, totals,
     cancels, payment, vat_mode, vat_note_key). fmt: zugferd (EN 16931 profile) or xrechnung (BT-10 buyer reference
-    mandatory -> BadInput with the reason). 2.1407 (#7155): writes the values of ein_values in the CII order."""
+    mandatory -> BadInput with the reason). (#7155): writes the values of ein_values in the CII order."""
     fmt = fmt if fmt in EIN_FORMATS else "zugferd"
     v = ein_values(model)
     m, cur, hcur, home = v["m"], v["cur"], v["hcur"], v["home"]
@@ -505,7 +505,7 @@ def ein_build(model, fmt="zugferd"):
     _e(_e(ctx, "ram:GuidelineSpecifiedDocumentContextParameter"), "ram:ID", EIN_PROFILE[fmt])
     doc = _e(root, "rsm:ExchangedDocument")
     _e(doc, "ram:ID", m.get("number") or "")
-    _e(doc, "ram:TypeCode", "381" if v["credit"] else (m.get("type_code") or "380"))  # 2.120.0 A (#2087): 326 progress invoice
+    _e(doc, "ram:TypeCode", "381" if v["credit"] else (m.get("type_code") or "380"))  # (#2087): 326 progress invoice
     _date_el(doc, "ram:IssueDateTime", m.get("date"))
     for n in v["notes"] + v["text_notes"]:  # one IncludedNote per text
         _e(_e(doc, "ram:IncludedNote"), "ram:Content", n)
@@ -517,7 +517,7 @@ def ein_build(model, fmt="zugferd"):
         li = _e(tx, "ram:IncludedSupplyChainTradeLineItem")
         ald = _e(li, "ram:AssociatedDocumentLineDocument")
         _e(ald, "ram:LineID", x["id"])
-        if id(ln) in v["line_notes"]:  # 2.1359.0 (#6482): the heading / text lines above this position (BT-127)
+        if id(ln) in v["line_notes"]:  # (#6482): the heading / text lines above this position (BT-127)
             _e(_e(ald, "ram:IncludedNote"), "ram:Content", v["line_notes"][id(ln)])
         pr = _e(li, "ram:SpecifiedTradeProduct")
         _e(pr, "ram:Name", x["name"])
@@ -532,7 +532,7 @@ def ein_build(model, fmt="zugferd"):
         if x["cat"] != "O":  # BR-O-05: no rate for "not subject to VAT"
             _e(t, "ram:RateApplicablePercent", _pct(x["pct"]))
         lac, charge = x["allowance"], x["charge"]
-        if lac:  # 2.1042.0 (#5815): the position's own discount as a line allowance (BG-27: BT-136 .. BT-140, schema order before BG-30's sum)
+        if lac:  # (#5815): the position's own discount as a line allowance (BG-27: BT-136 .. BT-140, schema order before BG-30's sum)
             ac = _e(st, "ram:SpecifiedTradeAllowanceCharge")
             _e(_e(ac, "ram:ChargeIndicator"), "udt:Indicator", "false")
             _e(ac, "ram:CalculationPercent", _pct(lac[2]))
@@ -577,7 +577,7 @@ def ein_build(model, fmt="zugferd"):
         t = _e(se, "ram:ApplicableTradeTax")
         _e(t, "ram:CalculatedAmount", _m(b["amount"]))
         _e(t, "ram:TypeCode", "VAT")
-        if b["cat"] not in ("S", "Z"):  # 2.357.0 (#3217): BR-Z-10 no exemption reason for zero rated
+        if b["cat"] not in ("S", "Z"):  # (#3217): BR-Z-10 no exemption reason for zero rated
             _e(t, "ram:ExemptionReason", b["reason"])
         _e(t, "ram:BasisAmount", _m(b["base"]))
         _e(t, "ram:CategoryCode", b["cat"])
@@ -817,7 +817,7 @@ def ein_check_block(xml_bytes):
 
 # ---------------------------------------------------------------- 2.154.0 B (#1960): UBL 2.1 (Peppol BIS Billing 3.0)
 # The same print model as OASIS UBL 2.1 Invoice / CreditNote: Peppol BIS Billing 3.0 (the Peppol network), the XRechnung
-# 3.0 UBL syntax (German public buyers, also through Peppol) or plain EN 16931. 2.1407 (#7155): like ein_build only a writer
+# 3.0 UBL syntax (German public buyers, also through Peppol) or plain EN 16931. (#7155): like ein_build only a writer
 # of ein_values (tax category by vat_note, discount lines as a negative quantity, BT-111 ...); a rule goes there, not here.
 # EndpointID (BT-34 / BT-49): the Peppol ids "<scheme>:<id>" when given, else the e-mail (scheme EM).
 UBL_PROFILES = {"peppol": "urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0",
@@ -897,7 +897,7 @@ def _ubl_party(parent, tag, name, f, home, endpoint=None, email=None, contact=No
 def ein_ubl_build(model, profile="peppol", sender_id="", receiver_id=""):
     """The UBL 2.1 XML (bytes, UTF-8) of an invoice / credit note print model. profile: peppol (Peppol BIS Billing 3.0),
     xrechnung (XRechnung 3.0 UBL: BT-10 mandatory -> BadInput) or en16931. sender_id / receiver_id: Peppol ids
-    "<scheme>:<id>" (BT-34 / BT-49); empty = the e-mail addresses (scheme EM). 2.1407 (#7155): writes the values of
+    "<scheme>:<id>" (BT-34 / BT-49); empty = the e-mail addresses (scheme EM). (#7155): writes the values of
     ein_values in the UBL order."""
     profile = profile if profile in UBL_PROFILES else "peppol"
     v = ein_values(model)
@@ -973,7 +973,7 @@ def ein_ubl_build(model, profile="peppol", sender_id="", receiver_id=""):
         tc = _u(st, "cac:TaxCategory")
         _u(tc, "cbc:ID", b["cat"])
         _u(tc, "cbc:Percent", _pct(b["pct"]))  # BT-119 0 for O as well (XRechnung BR-DE-14 wants it; only the line rate BT-152 goes, BR-O-05)
-        if b["cat"] not in ("S", "Z"):  # 2.357.0 (#3217): BR-Z-10
+        if b["cat"] not in ("S", "Z"):  # (#3217): BR-Z-10
             _ut(tc, "cbc:TaxExemptionReasonCode", b["code"])
             _u(tc, "cbc:TaxExemptionReason", b["reason"])
         _u(_u(tc, "cac:TaxScheme"), "cbc:ID", "VAT")
@@ -991,12 +991,12 @@ def ein_ubl_build(model, profile="peppol", sender_id="", receiver_id=""):
         ln = x["ln"]
         li = _u(root, "cac:CreditNoteLine" if credit else "cac:InvoiceLine")
         _u(li, "cbc:ID", x["id"])
-        if id(ln) in v["line_notes"]:  # 2.1359.0 (#6482): the heading / text lines above this position (BT-127, one note per line)
+        if id(ln) in v["line_notes"]:  # (#6482): the heading / text lines above this position (BT-127, one note per line)
             _u(li, "cbc:Note", v["line_notes"][id(ln)])
         _u(li, "cbc:CreditedQuantity" if credit else "cbc:InvoicedQuantity", _qty(x["qty"]), unitCode=x["unit"])
         _u(li, "cbc:LineExtensionAmount", _m(x["net"]), currencyID=cur)
         lac, charge = x["allowance"], x["charge"]
-        if lac:  # 2.1042.0 (#5815): the position's own discount (BG-27 with its percent and basis)
+        if lac:  # (#5815): the position's own discount (BG-27 with its percent and basis)
             ac = _u(li, "cac:AllowanceCharge")
             _u(ac, "cbc:ChargeIndicator", "false")
             _u(ac, "cbc:AllowanceChargeReasonCode", "95")
@@ -1013,7 +1013,7 @@ def ein_ubl_build(model, profile="peppol", sender_id="", receiver_id=""):
         _ut(it, "cbc:Description", str(ln.get("detail") or "")[:1000])
         _u(it, "cbc:Name", x["name"])
         tc = _u(it, "cac:ClassifiedTaxCategory")
-        _u(tc, "cbc:ID", x["cat"])  # 2.296.0 B (#3169), 2.357.0 (#3217)
+        _u(tc, "cbc:ID", x["cat"])  # (#3169), (#3217)
         if x["cat"] != "O":
             _u(tc, "cbc:Percent", _pct(x["pct"]))
         _u(_u(tc, "cac:TaxScheme"), "cbc:ID", "VAT")
