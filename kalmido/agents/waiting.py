@@ -171,8 +171,12 @@ def _reviews(s):
 
 
 def _blocked(s):
+    """#7284: only what the person can settle herself - a task with a waiting mark (waiting_at) as the briefing has it, a task with
+    an open dependency only when it is assigned to her. An unassigned task of her lists that only waits on another task stays out
+    (the daily briefing, brief_blocked, keeps it). One rule for every account."""
+    rows = [r for r in brief_blocked(s.c, s.uid, s.ql, s.vis) if r["waiting_at"] or r["assignee_id"] == s.uid]
     return [_item("blocked", r["id"], r["title"], r["waiting_at"], r, reason="waiting" if r["waiting_at"] else "blocked", open_blockers=r["open_blockers"])
-            for r in brief_blocked(s.c, s.uid, s.ql, s.vis)[:WAIT_MAX]]
+            for r in rows[:WAIT_MAX]]
 
 
 def _irreversible(s):
