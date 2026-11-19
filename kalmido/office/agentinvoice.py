@@ -25,10 +25,10 @@ from ..core.i18n import N_, tr
 from ..core.access import Denied
 from ..core.errors import BadInput
 from ..api.common import v1_err, v1_view
-from .agentdocs import _doc_v1, _flag_notify, _iid, _json, _list_ok, _log_doc, _notify, _v1_ref, _v1ctx, ofa_agent_ok, ofa_items
+from .agentdocs import _doc_v1, _flag_notify, _iid, _json, _list_ok, _log_doc, _notify, _v1_ref, _v1_ref_keep, _v1ctx, ofa_agent_ok, ofa_items
 from .calc import calc_tax_day
 from .docs import _date, _put_items, _text, doc_create, doc_items, doc_row, pt_text, recalc
-from .invoices import inv_from_time, inv_missing, ofi_ref_keep
+from .invoices import inv_from_time, inv_missing
 from .ledger import ofx_log
 from .model import TEXT_MAX, office_settings
 from .packs import office_pack_for
@@ -145,7 +145,7 @@ def v1_office_invoice_draft_post():
             _put_items(c, oid, r, items, False, flags)
         n = len(items)
     c.execute("UPDATE office_docs SET agent_id=?, list_id=COALESCE(list_id, ?) WHERE id=? AND org_id=?", (aid, lid, did, oid))
-    ofi_ref_keep(c, did, ref)
+    _v1_ref_keep(c, did, ref)  # (#6701): + the request's hash (the same ref with another body: 409 ref_conflict)
     recalc(c, oid, did)
     ofx_log(c, oid, "create", doc_id=did, detail={"kind": "invoice", "from": "time" if ft else "agent", "positions": n})
     out = {"doc": _doc_v1(c, oid, doc_row(c, oid, did)), "missing": ofv_missing(c, oid, did)}

@@ -57,6 +57,30 @@ const OFD_RAW = [['optional', N_('optional (shown, not counted)')], ['included',
 const ofdLang = d => ['', 'de', undefined, null].includes((d || OFD.doc)?.lang) ? 'de' : 'en';
 const ofdNumEn = d => (d || OFD.doc)?.lang === 'en';
 // money and quantities in the DOCUMENT's language and currency (not the person's locale): 1.234,56 € / €1,234.50 / $1,234.50
+// (#6701): a document an invoice issuer's key made: who made it, and what the outside system said along with it -- only
+// shown, as unconfirmed statements (a person books, sends and checks the VAT case with the usual buttons; nothing is applied)
+const OFD_ISS_PAY = {transfer: N_('Bank transfer'), cash: N_('Cash'), card: N_('Card'), direct_debit: N_('Direct debit'), paypal: N_('PayPal'),
+  online: N_('Online'), other: N_('Other|payment')};
+function ofdIssuerNote(d) {
+  if (!d || !d.issuer) return '';
+  const iw = d.issuer_wish || {}, w = iw.wish || {}, li = [];
+  const day = v => { const m = /^(\d{4})-(\d\d)-(\d\d)$/.exec(v || ''); return m ? fmtDateNum(new Date(+m[1], +m[2] - 1, +m[3])) : String(v || ''); };
+  if (w.paid) li.push(tr('Paid {0} on {1} by {2}', ofdMoney(w.paid.amount, d), day(w.paid.date), tr(OFD_ISS_PAY[w.paid.method] || w.paid.method))
+    + (w.paid.online_ref ? ` · ${tr('reference of the payment provider: {0}', w.paid.online_ref)}` : ''));
+  if (w.send) li.push(tr('Sending wished'));
+  if (w.due_date) li.push(tr('Due on {0}', day(w.due_date)));
+  else if (w.due_days != null) li.push(tr('Payment terms of {0} days', w.due_days));
+  if (w.payee) li.push(tr('Bank account allowed for the issuer: #{0}', w.payee));
+  if (w.reference) li.push(tr('Payment reference: {0}', w.reference));
+  if (iw.vat_check) li.push(tr('VAT ID check of the outside system (no proof): {0}', Object.entries(iw.vat_check).map(([k, v]) => `${k} ${v}`).join(', ')));
+  if (iw.business_check) li.push(tr('Business check of the outside system (no proof): {0}', Object.entries(iw.business_check).map(([k, v]) => `${k} ${v}`).join(', ')));
+  const fl = iw.flags || [];
+  if (fl.includes('over_limit')) li.push(tr('Over a limit of the issuer: check it before you finalise'));
+  if (fl.includes('vat_territory')) li.push(tr('The address lies in a territory with VAT rules of its own (e.g. Büsingen, Heligoland, the Canary Islands): check the VAT case'));
+  const head = tr('Made by the invoice issuer {0}', d.issuer.name) + (iw.client_ref ? ` · ${iw.client_ref}` : '');
+  return `<div class="cdnmiss ofdiss" role="status" data-issuer="${esc(String(d.issuer.id))}">${ic('info', 's')} <b>${esc(head)}</b>${li.length
+    ? `<br><span class="muted">${esc(tr('Unconfirmed statements of the outside system (nothing is booked or sent from them):'))}</span><ul>${li.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}</div>`;
+}
 // 2.368.0 C (#2983): through curMoney in the document's language (like calc.fmt_money on the PDF: "1 234,50 €" in French)
 const OFD_LOCS = ['de', 'en', 'fr', 'es', 'it', 'nl'];
 function ofdMoney(n, d) {
@@ -90,7 +114,7 @@ const ofdSvcName = (s, d) => ofcOwn(s, 'name', ofdTl(d));
 // ---- loading
 // 2.358.0 B (#3302): a switch of kind / filter while a list loads is no longer dropped: the answer of the old one is thrown
 // away and the list loaded again (before: the offers stayed under "Invoices" after a quick click on the kind)
-const ofdListUrl = () => `/api/office/docs?kind=${OFD.kind}${OFD.status ? '&status=' + OFD.status : ''}${OFD.trial ? '&trial=' + OFD.trial : ''}${ofd_grpQs()}${ofd_sortQs()}${OFD.listQ ? '&q=' + encodeURIComponent(OFD.listQ) : ''}`;
+const ofdListUrl = () => `/api/office/docs?kind=${OFD.kind}${OFD.status ? '&status=' + OFD.status : ''}${OFD.trial ? '&trial=' + OFD.trial : ''}${ofd_srcQs()}${ofd_grpQs()}${ofd_sortQs()}${OFD.listQ ? '&q=' + encodeURIComponent(OFD.listQ) : ''}`;
 // 2.458.0 (#3839): a list the server cuts at 500 is sorted there too (docs.py odoc_list), the newest first is its own order
 const ofd_sortQs = () => { const s = lst_sort(ofd_listKey(OFD.kind)); return s.k === 'date' && s.d === 'desc' ? '' : `&sort=${s.k}&dir=${s.d}`; };
 // 2.369.0 A (#3200): the list comes in pages; another sorting than newest first needs the rows, so it takes the largest page
@@ -298,7 +322,7 @@ function ofdListHtml() {
   // 2.46.1 (#1637): an empty offer list shows its one big button below the text, not a second one up here
   const noTop = k === 'offer' && rows && !rows.length && !q && !OFD.status && !OFD.trial;
   const bar = kinds + `${rows?.length ? hintOnce('ofclp', tr('Hold a row to see what you can do with it.')) : ''}<div class="ofcbar ofdbar"><div class="ctsearch">${ic('search', 's')}<input id="ofd-q" type="search" value="${esc(OFD.q)}" placeholder="${esc(tr('Search'))}" aria-label="${esc(tr('Search documents'))}" autocomplete="off" enterkeyhint="search"></div>
-    <select id="ofd-status" aria-label="${esc(tr('Status'))}"><option value="">${tr('All|status')}</option>${sts.map(([v, n]) => `<option value="${v}" ${OFD.status === v ? 'selected' : ''}>${tr(n)}</option>`).join('')}</select>${ofd_fltHtml()}${tri_filterHtml()}${lst_sortBtn(ofd_listKey(k))}<span class="spacer"></span>${ofcAdmin('offers') && ofd_canNew() /* 2.1238.0 (#6161) */ ? `<button type="button" class="btn sm" data-ofd="trash" title="${esc(tr('Trash'))}" aria-label="${esc(tr('Trash'))}">${ic('trash', 's')}</button>` : ''}${/*html-ok*/ noTop || !ofd_canNew() /* 2.1238.0 (#6161, Stufe 3): a reader adds nothing */ ? '' : newBtn}</div>${tri_barHtml()}`;
+    <select id="ofd-status" aria-label="${esc(tr('Status'))}"><option value="">${tr('All|status')}</option>${sts.map(([v, n]) => `<option value="${v}" ${OFD.status === v ? 'selected' : ''}>${tr(n)}</option>`).join('')}</select>${ofd_fltHtml()}${tri_filterHtml()}${/*html-ok*/ ofd_srcHtml(k) /* built from esc() */}${lst_sortBtn(ofd_listKey(k))}<span class="spacer"></span>${ofcAdmin('offers') && ofd_canNew() /* (#6161) */ ? `<button type="button" class="btn sm" data-ofd="trash" title="${esc(tr('Trash'))}" aria-label="${esc(tr('Trash'))}">${ic('trash', 's')}</button>` : ''}${/*html-ok*/ noTop || !ofd_canNew() /* (#6161, Stufe 3): a reader adds nothing */ ? '' : newBtn}</div>${tri_barHtml()}`;
   if (!rows) return bar + loadingHtml('big');
   if (OFD.err && !rows.length) return bar + ofcFail(OFD.err, () => { OFD.err = ''; OFD.list = null; ofdLoadList(true); });  // 2.1076.0 (#5450)
   const hit = r => !q || [r.number, r.recipient_name, r.project_title, r.project_ref, r.order_ref /* #6945 */].some(v => (v || '').toLowerCase().includes(q));
@@ -308,7 +332,7 @@ function ofdListHtml() {
     invoice: N_('No invoices yet. Make one from a quotation, from time entries or start empty.'),
     credit: N_('No credit notes yet. A credit note is made from a finalised invoice.'), reminder: N_('No payment reminders yet. Select open invoices in the invoice list.'),
     delivery: N_('No delivery notes yet. From a quotation, an invoice or empty – without prices.')};  // 2.120.0 D (#2089)
-  if (!list.length) return bar + (q || OFD.status || OFD.trial || ofd_grpQs() ? ofcNoHit() : emptyState({icon: 'receipt', title: tr(emptyTxt[k]), action: k === 'offer' && ofd_canNew() ? `<div class="eacts"><button class="btn pri" data-ofd="new">${ic('plus', 's')}<span>${tr('New quotation')}</span></button></div>` : ''})) + more;  // 2.1076.0 (#5450)
+  if (!list.length) return bar + (q || OFD.status || OFD.trial || ofd_srcQs() || ofd_grpQs() ? ofcNoHit() : emptyState({icon: 'receipt', title: tr(emptyTxt[k]), action: k === 'offer' && ofd_canNew() ? `<div class="eacts"><button class="btn pri" data-ofd="new">${ic('plus', 's')}<span>${tr('New quotation')}</span></button></div>` : ''})) + more;  // (#5450)
   // 2.40.0 (#1368 point 9): settled reminders (all their invoices paid or cancelled) below the open ones
   const grp = k === 'reminder' && list.some(r => r.settled) && list.some(r => !r.settled);
   if (k === 'reminder') list.sort((a, b) => (a.settled ? 1 : 0) - (b.settled ? 1 : 0));
@@ -443,7 +467,7 @@ function ofdEditorHtml() {
     : `<button type="button" class="btn sm ofdpdf" data-ofd="pdf-ask" aria-label="${esc(tr('Open PDF'))}" title="${esc(tr('Open PDF'))}">${ic('pdf', 's')}<span class="ofdpdft">${tr('Preview')}</span></button>
     <button type="button" class="btn sm ofddl" data-ofd="pdf-ask" data-dl="1" aria-label="${esc(tr('Download PDF'))}" title="${esc(tr('Download PDF'))}">${ic('download', 's')}<span class="ofdpdft">${tr('Download')}</span></button>`}
     <button type="button" class="btn sm" data-ofd="more" aria-haspopup="menu" aria-label="${esc(tr('More'))}">${ic('dots', 's')}</button></span></div>`;  // 2.356.0 C (#3004): "…" never wraps alone into a line of its own
-  const invFields = inv && kind !== 'reminder' ? `
+  const invFields = inv && kind !== 'reminder' ? `${ofdIssuerNote(d)}
     ${d.dup_times_from && !lk ? `<p class="cdnmiss" role="status">${ic('info', 's')} ${esc(tr('Copy of {0}: the hours of that invoice are already billed. This copy binds no times.', d.dup_times_from))}</p>` : ''}
     ${ofd_poF(d)}
     ${kind === 'invoice' ? ofdF('payment_days', tr('Payment terms'), `<span class="lacts">${ofdIn('payment_days', d.payment_days ?? '', {num: true, max: 3})}<span class="muted">${tr('days')}</span></span>`) : ''}
@@ -1012,6 +1036,7 @@ addEventListener('fdw-sent', e => {
 async function ofdChange0(e) {
   const t = e.target;
   if (t.id === 'ofd-trial') { OFD.trial = t.value; LS.set('ofdTrial', t.value); OFD.list = null; ofdLoadList(true); return; }  // 2.144.10 C (#2576)
+  if (t.id === 'ofd-src') { OFD.src = t.value; OFD.list = null; ofdLoadList(true); return; }  // (#6701)
   if (t.dataset.oflt && !S.route.id) { OFD.flt[t.dataset.oflt] = t.value; OFD.list = null; ofdLoadList(true); return; }  // 2.351.0 A (#3312)
   if (t.id === 'ofd-status' && !OFD.doc) { OFD.status = t.value; OFD.list = null; ofdLoadList(true); return; }
   if (t.id === 'ofd-status' && OFD.doc && S.route.id !== OFD.doc.id) { OFD.status = t.value; OFD.list = null; ofdLoadList(true); return; }
@@ -1288,7 +1313,21 @@ async function ofdCreate(body) {
 // has the filter "All / Real only / Trial only" and the line "N trial documents". Off (the default): none of it; existing
 // trial documents keep their tag. "Delete all trial documents" sits in the test mode section of the settings.
 const TRI = {count: null, office: null};
+// (#6701): the invoice list's filter "number range / made by an invoice issuer" (only when the office has extra ranges
+// or issuers; one select: the main range, a range, all drafts of issuers, one issuer)
+const ofd_srcQs = () => { const v = (OFD.kind === 'invoice' || OFD.kind === 'credit') ? OFD.src || '' : ''; const [k, id] = v.split(':');
+  return k === 'range' ? `&range=${encodeURIComponent(id)}` : k === 'issuer' ? `&issuer=${encodeURIComponent(id)}` : ''; };
+function ofd_srcHtml(k) {
+  const rg = OFD.ranges || [], is = OFD.issuers || [];
+  if ((k !== 'invoice' && k !== 'credit') || (!rg.length && !is.length)) return '';
+  const o = (v, n) => '<option value="' + esc(v) + '"' + (OFD.src === v ? ' selected' : '') + '>' + esc(n) + '</option>';  // both escaped here
+  const opts = [o('', tr('All ranges'))];
+  if (rg.length) opts.push(o('range:main', tr('Main range')), ...rg.map(r => o('range:' + r.id, tr('Range {0}', r.code))));
+  if (is.length) opts.push(o('issuer:any', tr('From invoice issuers')), ...is.map(x => o('issuer:' + x.id, tr('From the issuer {0}', x.name))));
+  return `<select id="ofd-src" aria-label="${esc(tr('Number range or invoice issuer'))}">${/*html-ok*/ opts.join('')}</select>`;  // the options: o() escapes value and name
+}
 function tri_meta(j) {
+  OFD.ranges = j.ranges || []; OFD.issuers = j.issuers || [];  // (#6701)
   if (j.first) OFD.first = j.first;
   OFD.office = j.office_id ?? j.org_id ?? OFD.office;
   OFD.trialCount = +j.trial_count || 0;

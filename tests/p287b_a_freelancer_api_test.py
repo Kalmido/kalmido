@@ -44,6 +44,11 @@ ALLOW = {
     "GET /api/v1/issuer": "a personal token is no invoice issuer key",
     # 2.1384.0 (#6700): the same (p6700_office_issuer_clients_test.py calls it with the key of a personal office)
     "GET /api/v1/issuer/clients/by-ref/{}": "a personal token is no invoice issuer key",
+    # 2.1417.0 (#6701): the same (p6701_office_issuer_invoices_test.py calls them with the key of a personal office)
+    "GET /api/v1/issuer/docs": "a personal token is no invoice issuer key",
+    "GET /api/v1/issuer/docs/{}": "a personal token is no invoice issuer key",
+    "GET /api/v1/issuer/docs/by-ref/{}": "a personal token is no invoice issuer key",
+    "GET /api/v1/issuer/docs/{}/pdf": "a personal token is no invoice issuer key",
 }
 # 2.421.0 A (#2936): route -> (status, why) of a 4xx other than 401 / 403 that is right for the freelancer, too (every other
 # 4xx of the sweep fails like a 403; an exception whose status does not come any more fails as stale)
@@ -133,6 +138,7 @@ FID, F = freelancer(B, A)
 IDS = {"objkind": "objprobe"}  # 2.558.0 (#4709): the kind for the shared core's routes (SUBST)
 IDS["dispojob"] = "nojob"  # 2.855.0 (#1956): a shoot day of the disposition (a job, no number): none in the sweep
 IDS["issref"] = "acct:1"  # 2.1384.0 (#6700): an invoice issuer's external_ref (the personal token gets 403, ALLOW)
+IDS["issdoc"] = 1  # 2.1417.0 (#6701): an invoice issuer's document id (the personal token gets 403, ALLOW)
 
 # ================================================================== tasks + lists in the private workspace
 # freelancer-matrix: tasks, lists
@@ -388,6 +394,7 @@ SUBST = [
     (r"/api/v1/agent/objects/$", "objkind"), (r"/api/v1/agent/objects/objprobe/$", "list"),
     (r"/api/team/dispo/callsheet/$", "dispojob"),  # 2.855.0 (#1956)
     (r"/issuer/clients/by-ref/$", "issref"),  # 2.1384.0 (#6700)
+    (r"/issuer/docs/by-ref/$", "issref"), (r"/issuer/docs/$", "issdoc"),  # 2.1417.0 (#6701)
     (r"/api/team/dispo/callsheet/[^/]+/photo/$", "contact"),  # 2.993.0 (#5650): the logo of a contact on the call sheet
     # 2.421.0 A (#2936): own objects of the setup above; file ids of other stores than the file store: none (skipped)
     (r"/me/webhooks/$", "webhook"),  # 2.391.0 (#3362)
