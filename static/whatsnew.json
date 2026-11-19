@@ -1,6 +1,60 @@
 {
  "versions": [
   {
+   "version": "2.1415.0",
+   "date": "2026-11-19",
+   "items": [
+    {
+     "de": "Bei der Agenten-Einrichtung gibt es das Rechte-Profil „Programmier-Agent“.",
+     "en": "The agent setup offers the rights profile \"Programming agent\"."
+    },
+    {
+     "de": "Projektseite wirkt ruhiger: halbe Kacheln stehen in zwei Spalten, leere Kacheln zeigen Titel und Hinweis in einer Zeile.",
+     "en": "The project page looks calmer: half tiles stand in two columns, empty tiles show title and hint on one line."
+    },
+    {
+     "de": "Angebot: „Ersetzt …“ und die anderen Verweise stehen oben unter dem Festgeschrieben-Hinweis.",
+     "en": "Quotation: \"Replaces …\" and the other references sit at the top under the finalised note."
+    },
+    {
+     "de": "Kundenliste und Büro-Zahlen laden schneller.",
+     "en": "The client list and the office figures load faster."
+    },
+    {
+     "de": "Import: Kalmido prüft vor dem Start, ob der Speicher der Ziel-Organisation reicht - entweder kommt alles oder nichts.",
+     "en": "Import: Kalmido checks before the start whether the target organisation's storage suffices - either everything arrives or nothing."
+    },
+    {
+     "de": "Nachkalkulation: Stundenpositionen bleiben auch mit Cent-Ausgleich nach Zeit.",
+     "en": "Post-calculation: hour positions stay by time even with a rounding adjustment."
+    },
+    {
+     "de": "Projekte haben eine PO-Nummer, die Angebote und Rechnungen des Projekts übernehmen.",
+     "en": "Projects have a PO number that the project's quotations and invoices take over."
+    },
+    {
+     "de": "Die PO-Nummer steht im vorgeschlagenen Mail-Betreff und ist in der Suche findbar.",
+     "en": "The PO number is in the suggested mail subject and can be found in the search."
+    },
+    {
+     "de": "Termin-Einladungen per E-Mail gehen nur von einer bestätigten Adresse raus; nach dem Speichern steht da, wenn Gäste wegen einer Tagesgrenze keine Mail bekamen.",
+     "en": "Event invitations by e-mail go out only from a confirmed address; after saving you are told when guests got no mail because of a daily limit."
+    },
+    {
+     "de": "Beim Hinzufügen eines Agenten auf dem Kalmido-Server steht jetzt, wohin seine Inhalte gehen (Anbieter und Adresse).",
+     "en": "Adding an agent on the Kalmido server now says where its content goes (provider and address)."
+    },
+    {
+     "de": "Die eingeklappte Seitenleiste öffnest du auf Touch-Geräten mit einem Wisch nach rechts.",
+     "en": "On touch devices a swipe to the right opens the folded sidebar."
+    },
+    {
+     "de": "Unterbricht ein Neustart deinen Server-Agenten, sagt er dir im Chat Bescheid.",
+     "en": "If a restart interrupts your server agent, it tells you in the chat."
+    }
+   ]
+  },
+  {
    "version": "2.1412.0",
    "date": "2026-11-19",
    "items": [
@@ -1231,36 +1285,6 @@
     {
      "de": "Auf dem Call Sheet wählst du Kunde und Agentur jetzt aus deinen Kontakten, die Agentur merkt sich das Projekt.",
      "en": "On the call sheet you now pick client and agency from your contacts, and the project remembers the agency."
-    }
-   ]
-  },
-  {
-   "version": "2.974.0",
-   "date": "2026-11-11",
-   "items": [
-    {
-     "de": "Die Zurück-Taste am Handy geht in Threads, Papierkörben, Karten und Reisen eine Ansicht zurück, statt die Seite zu verlassen.",
-     "en": "The Back key on your phone now goes one view back in threads, trashes, cards and trips instead of leaving the page."
-    },
-    {
-     "de": "Zurück beendet am Handy zuerst eine laufende Auswahl und bleibt auf der Seite.",
-     "en": "On your phone, Back now ends a running selection first and keeps you on the page."
-    },
-    {
-     "de": "In der Dokument-Ansicht lassen sich PDF-Seiten per Ziehen umsortieren.",
-     "en": "In the document view you can reorder PDF pages by dragging them."
-    },
-    {
-     "de": "Mehrere PDFs lassen sich über „Mehr“ zu einem Dokument zusammenfügen.",
-     "en": "Several PDFs can be merged into one document via \"More\"."
-    },
-    {
-     "de": "Agenten können melden lassen, wenn sich ihre Aufgaben ändern (Arbeitsweise).",
-     "en": "Agents can be told when their tasks change (work style)."
-    },
-    {
-     "de": "In den Agenten-Einstellungen kannst du ein Modell für deine Nachrichten und Entscheidungen und ein günstigeres für Routine wählen.",
-     "en": "In the agent settings you can pick one model for your messages and decisions and a cheaper one for routine."
     }
    ]
   }
