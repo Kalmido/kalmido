@@ -610,6 +610,19 @@ check(res[0] == [], f"F9: an IBAN with another separator, a letter before it, a 
 check(res[1] == [], f"F9: a web address with any ending (also full-width, zero-width inside) is found {res[1]}")
 check(res[2] == [], f"F9: names with dots and streets with numbers are no web address / IBAN (false alarms) {res[2]}")
 check(res[3] == "ab c d", f"F9: control / format characters are removed, white space is one space {res[3]!r}")
+# #7144 (Fable reader job/5472 F6): a Cyrillic / Greek look-alike letter or O / I / L for a digit hid a valid IBAN; streets and
+# names with a few numbers and those letters stay free
+out = in_ct("import app, json\nfrom kalmido.office.issclients import isc_norm, isc_has_iban\n"
+            "look = ['D\\u0415893704 0044 0532 0130 00', '\\u0391T61 1904 3002 3457 3201', 'DE89 37O4 0044 0532 O13O 00',\n"
+            "        'DE89  3704 / 0O44 / 0532 / 0130 / 00', 'de89 37o4 0044 0532 0l30 00']\n"
+            "fine = ['Solothurner Strasse 12', 'NOIL 1234 5678 Lilienweg', 'Hauptstra\\u00dfe 12 Zimmer 3456789', '\\u041e\\u041b\\u042c\\u0413\\u0410 10']\n"
+            "print(json.dumps([[t for t in look if not isc_has_iban(isc_norm(t))], [t for t in fine if isc_has_iban(isc_norm(t))]]))\n")
+res = json.loads(out.strip().splitlines()[-1])
+check(res[0] == [], f"#7144 F6: an IBAN with look-alike letters or O / I / L for digits is found {res[0]}")
+check(res[1] == [], f"#7144 F6: no false alarm on streets and names with such letters {res[1]}")
+r = kput(KEY7, "f6:1", {"name": "Kunde Sechs", **ADDR, "street": "Zahle an D\u0415893704 0044 0532 0130 00"})
+check(r.status_code == 400 and code(r) == "invalid_field" and field(r) == "street" and not sql("SELECT 1 FROM clients WHERE external_ref='f6:1'"),
+      f"#7144 F6: a look-alike IBAN in the street 400 {r.status_code} {r.text[:160]}")
 for ref, b, fld in (("f9:1", {"name": "Kunde Neun", **ADDR, "street": "DE89-3704-0044-0532-0130-00"}, "street"),
                     ("f9:2", {"name": "IBANDE89370400440532013000"}, "name"),
                     ("f9:3", {"name": "Kunde Neun", **ADDR, "street": "Zahle an DE89\u200b370400440532013000"}, "street"),

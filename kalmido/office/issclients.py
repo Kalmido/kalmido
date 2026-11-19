@@ -114,14 +114,35 @@ def isc_norm(v):
     return re.sub(r" {2,}", " ", v).strip()
 
 
+# #7144 (Fable reader job/5472 F6): Cyrillic / Greek letters that print like Latin ones (NFKC keeps them) count as those
+ISC_LOOKALIKE = str.maketrans(dict(zip(
+    "\u0410\u0412\u0415\u041a\u041c\u041d\u041e\u0420\u0421\u0422\u0425\u0423\u0406\u0408\u0405\u051a\u051c"
+    "\u0430\u0435\u043e\u0440\u0441\u0445\u0443\u0456\u0458\u0455\u04bb\u0501\u051b\u051d\u043a"
+    "\u0391\u0392\u0395\u0396\u0397\u0399\u039a\u039c\u039d\u039f\u03a1\u03a4\u03a5\u03a7"
+    "\u03bf\u03bd\u03b9\u03ba\u03b1",
+    "ABEKMHOPCTXYIJSQW" "aeopcxyijshdqwk" "ABEZHIKMNOPTYX" "ovika")))
+# and in a second look O / I / L for 0 / 1 / 1 -- only in a stretch that has at least ISC_FOLD_DIGITS real digits (an address
+# with a few house numbers stays out of it)
+ISC_DIGITLIKE = str.maketrans("OIL", "011")
+ISC_FOLD_DIGITS = 10
+
+
 def isc_has_iban(v):
-    """An IBAN form (ISC_IBAN_RE) or a valid IBAN in the letters and digits of v (any separator, anything before it)."""
+    """An IBAN form (ISC_IBAN_RE) or a valid IBAN in the letters and digits of v (any separator, anything before it; #7144:
+    Cyrillic / Greek look-alike letters, O / I / L for digits)."""
+    v = v.translate(ISC_LOOKALIKE)
     if any(sum(ch.isdigit() for ch in m.group(0)) >= 8 for m in ISC_IBAN_RE.finditer(v)):
         return True
     s = re.sub(r"[^A-Z0-9]", "", v.upper())
+    f = s.translate(ISC_DIGITLIKE)
     for i in range(len(s) - 14):
         n = ISC_IBAN_LEN.get(s[i:i + 2])
-        if n and s[i + 2:i + 4].isdigit() and i + n <= len(s) and _iban_ok(s[i:i + n]):
+        if not n or i + n > len(s):
+            continue
+        if s[i + 2:i + 4].isdigit() and _iban_ok(s[i:i + n]):
+            return True
+        w = s[i:i + 2] + f[i + 2:i + n]
+        if w != s[i:i + n] and w[2:4].isdigit() and sum(ch.isdigit() for ch in s[i:i + n]) >= ISC_FOLD_DIGITS and _iban_ok(w):
             return True
     return False
 
