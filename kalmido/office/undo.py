@@ -54,8 +54,8 @@ def _md_scope(kind):
 
 
 # 2.190.0 R (#2496): a number drawn since stays on undo and never makes it fail; cached sums never make it fail either
-DOC_KEEP = {"office_docs": {"number"}}
-DOC_NOFP = {"office_docs": {"number", "totals"}, "office_doc_parts": {"totals"}}  # the parts' sums too (recalc after each undo)
+DOC_KEEP = {"office_docs": {"number", "mail_state", "mail_at"}}  # (#6820): the mail's delivery state is no step of the editor
+DOC_NOFP = {"office_docs": {"number", "totals", "mail_state", "mail_at"}, "office_doc_parts": {"totals"}}  # the parts' sums too (recalc after each undo)
 OUN_KINDS = {"doc": "office_doc", "client": "client", "letter": "office_letter", **{k: f"office_md_{k}" for k in MD}}  # route kind -> core kind
 ow_kind("office_doc", "office_docs", scope=_doc_scope, keep=DOC_KEEP, nofp=DOC_NOFP, label=oub_label_doc)  # 2.747.0 (#5252): labels
 ow_kind("client", "clients", scope=lambda ref, oid: [("clients", "id=?", (ref,), False), ("office_client_contacts", "client_id=?", (ref,), True)],

@@ -5,12 +5,13 @@
 freelancer-matrix: office (the calculator and the PDF know no organisation; the API suite p6816_zwischensumme_api_test runs the
 quotation, its parts and its invoice as a person without an organisation)
  - office_calc: a line {kind: subtotal, items: 1} = items_net ("Zwischensumme" / "Subtotal") right before the first line after the
-   positions (producing, a surcharge, included raw data, the discount); with a surcharge and a discount only once (before the
+   positions (a surcharge, included raw data, the discount; producing counts as a position since #7291); with a surcharge and a discount only once (before the
    surcharge); only a discount: before it; nothing after the positions (or only the raw data option): none; with the sections'
    subtotals on: after the last section's one; the sums (net, tax, gross, discount) the same
  - the discount's explanation always names its base (the discountable positions): "5 % auf die rabattfähigen Positionen
    (1.200,00 €)", "Fester Betrag auf die rabattfähigen Positionen (…)", English likewise
- - a quotation sent before (doc["sub_legacy"], docs._sub_legacy): no subtotal, the explanation without its base; else it_sub = 1
+ - a quotation sent before (doc["sub_legacy"], docs._sub_legacy): no subtotal, the explanation without its base; else it_sub = 2
+   (2.1435.0, #7291: the producing line counts like a position; p7291_producing_sub_test)
  - inv_calc: before a trailing discount position or a markup position from a quotation (sur_pct) the sum of the positions
    above; a discount between positions or a final invoice's deductions (abs_tax): none
  - the PDF: the row "Zwischensumme" bold between the last position and the surcharge, a short rule above its amount; with
@@ -77,7 +78,21 @@ t = calc.office_calc({**DOC, "lang": "en", "discount_pct": 5, "markup_pct": 10},
 dl = [x for x in t["lines"] if x["kind"] == "discount"][0]
 check(subs(t)[0]["label"] == "Subtotal" and dl["detail"] == "5 % on the discountable positions (€13,000.00)", f"English: {subs(t)} {dl['detail']}")
 t = calc.office_calc({**DOC, "producing_on": 1, "prod_quotient": 1, "producing_rate": 100}, [it("Dreh", 2, 1000, producing=1)], PACK)
-check(kinds(t) == ["item", "subtotal", "producing"] and subs(t)[0]["total"] == 2000, f"producing: before it {kinds(t)}")
+check(kinds(t) == ["item", "producing"] and not subs(t), f"(#7291): producing alone counts like a position, no subtotal {kinds(t)}")
+PRD = {**DOC, "producing_on": 1, "prod_quotient": 1, "producing_rate": 100}
+t = calc.office_calc({**PRD, "discount_pct": 5}, [it("Dreh", 2, 1000, producing=1)], PACK)
+check(kinds(t) == ["item", "producing", "subtotal", "discount"] and subs(t)[0]["total"] == 2200 and t["discount"] == 100 and t["net"] == 2100,
+      f"#7291: with a discount the subtotal after producing = positions + producing, the discount on the positions only {kinds(t)} {subs(t)}")
+t = calc.office_calc({**PRD, "markup_pct": 10, "discount_pct": 5}, [it("Dreh", 2, 1000, producing=1, in_markup=1)], PACK)
+check(kinds(t) == ["item", "producing", "subtotal", "surcharge", "discount"] and subs(t)[0]["total"] == 2200 and t.get("it_sub") == 2,
+      f"#7291: surcharge + discount: once, after producing {kinds(t)}")
+t = calc.office_calc({**PRD, "raw_mode": "included", "raw_factor": 0.25}, [it("Dreh", 2, 1000, producing=1, raw_fee=1)], PACK)
+check(not subs(t), f"#7291: producing + included raw data, no surcharge / discount: none {kinds(t)}")
+lg = calc.office_calc({**PRD, "discount_pct": 5, "prod_sub_legacy": 1}, [it("Dreh", 2, 1000, producing=1)], PACK)
+check(kinds(lg) == ["item", "subtotal", "producing", "discount"] and subs(lg)[0]["total"] == 2000 and lg.get("it_sub") == 1,
+      f"#7291: a quotation sent with the rule of #6816 (prod_sub_legacy): before producing, = items_net, it_sub 1 {kinds(lg)} {subs(lg)}")
+lg = calc.office_calc({**PRD, "prod_sub_legacy": 1}, [it("Dreh", 2, 1000, producing=1)], PACK)
+check(kinds(lg) == ["item", "subtotal", "producing"], f"#7291: ... also with producing alone {kinds(lg)}")
 t = calc.office_calc({**DOC, "raw_mode": "optional", "raw_factor": 0.25}, [it("Dreh", 2, 1000, raw_fee=1)], PACK)
 check(not subs(t), f"only the raw data option: none {kinds(t)}")
 t = calc.office_calc({**DOC, "raw_mode": "included", "raw_factor": 0.25}, [it("Dreh", 2, 1000, raw_fee=1)], PACK)
@@ -99,7 +114,7 @@ check(not subs(lg) and "it_sub" not in lg and dl["detail"] == "5 % auf die rabat
       f"a quotation sent before (sub_legacy): its lines as sent {kinds(lg)} {dl['detail']}")
 lg = calc.office_calc({**DOC, "lang": "en", "discount_amount": 500, "sub_legacy": 1}, ITS, PACK)
 check([x["detail"] for x in lg["lines"] if x["kind"] == "discount"] == ["Fixed amount on the discountable positions"], "... the fixed amount too")
-check(calc.office_calc({**DOC, "discount_pct": 5}, ITS, PACK).get("it_sub") == 1, "a new computation says it_sub")
+check(calc.office_calc({**DOC, "discount_pct": 5}, ITS, PACK).get("it_sub") == 2, "a new computation says it_sub 2 (#7291)")
 off = calc.office_calc({**DOC, "markup_pct": 10, "discount_pct": 5}, SEC, PACK)
 check(all(t[k] == off[k] for k in ("net", "gross", "tax_lines", "discount", "items_net")), "the sums do not depend on it")
 

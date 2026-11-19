@@ -623,6 +623,7 @@ Office & finance: quotations, invoices, bank, books, tax, DATEV, e-invoices, let
 - `kalmido/office/datevzip.py` (`dz`) - The receipts go to the tax advisor together with the bookings, as with DATEV Unternehmen online
 - `kalmido/office/delivery.py` (`ls`) - Delivery notes / proofs of service (office_docs kind "delivery")
 - `kalmido/office/doclang.py` (`doc`) - Office & finance 2.40.0: switching the language (or the reminder level)
+- `kalmido/office/docpay.py` - the payment block of an invoice, chosen when a person finalises it and frozen with the sender snapshot (ledger.ofx_finalize, sender["pay"...
 - `kalmido/office/docproject.py` (`dpj`) - Quotations, invoices and credit notes bound to a project (office_docs.list_id)
 - `kalmido/office/docref.py` (`ofd`) - Quotations and invoices (office_docs)
 - `kalmido/office/docs.py` (`odoc`) - Office & finance, part C: quotations (documents of kind "offer")
@@ -660,6 +661,7 @@ Office & finance: quotations, invoices, bank, books, tax, DATEV, e-invoices, let
 - `kalmido/office/letters.py` (`lt`) - Letters of an office area ("Korrespondenz")
 - `kalmido/office/logbook.py` (`lb`) - The logbook: vehicles, drives, change log, year report, mileage allowance into the EUeR (filled by part B)
 - `kalmido/office/mailsig.py` (`ofm`) - What a person adds to the office
+- `kalmido/office/mailstate.py` (`oms`) - The delivery state of a document's e-mail -- office_docs.mail_state / mail_at (migrations.d/6820.py)
 - `kalmido/office/mealpay.py` (`mp`) - An entertainment receipt as the proof of its payment
 - `kalmido/office/mealpdf.py` (`bw`) - The PDFs of the entertainment receipts (office/meals.py)
 - `kalmido/office/meals.py` (`bw`) - Entertainment receipts (Bewirtungsbelege, section 4 (5) no. 2 EStG)

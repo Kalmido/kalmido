@@ -399,7 +399,7 @@ def tp_doc_totals(c, oid, r, items, pack, eur=False, home=None, part_items=None)
             tax_lines.append({"rate_key": tk, "pct": _num(rates[tk]), "base": _num(base[tk]), "amount": _num(amt),
                               "label": label(pack, lang, "tax_" + tk, pct=fmt_qty(rates[tk], lang))})
     if not _flag(doc.get("sub_legacy")):  # 2.1327.0 (#6816): the net of the positions and part lines (a quotation sent before: none)
-        calc_items_sub(lines, items_net, pack, lang, currency)
+        calc_items_sub(lines, items_net, pack, lang, currency, prod_legacy=doc.get("prod_sub_legacy"))  # (#7291): + producing
     if _flag(doc.get("subtotals")):  # 2.1041.0 (#5816): the title page's sections with the amounts of their part lines
         calc_subtotals(lines, pack, lang, currency)
     out = dict(t)

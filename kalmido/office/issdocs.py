@@ -73,11 +73,13 @@ from ..core.ratedb import rate_hit
 from ..notify.alerts import fx2_mask_ip
 from .calc import TAX_KEYS, INV_VAT_NOTES, calc_tax_day, dec, money
 from .countries import fk_vat_territory
+from .girocode import gcq_rf, gcq_rf_ok
 from .docs import _j, _put_items, doc_create, doc_items, doc_row, odoc_trash, recalc
 from .invoices import inv_missing, inv_paid_map, inv_state
 from .packs import office_pack_for
 from .pdfweb import _file_response, _render, epdf_name, epdf_out
 from .isshold import ihd_load
+from .mailstate import oms_public  # (#6820)
 from .issclients import ISC_REF_RE, isc_body, isc_gone, isc_limit_tell, isc_notice, isc_row, isc_text_check
 from .issuers import ISS_ROUTES, _iss_me, _iss_once, _iss_read_logged, _iss_refuse, iss_log, iss_tell
 from .model import UNITS, office_settings, pb_owner
@@ -113,7 +115,8 @@ ISD_CLIENT_COLS = ("name", "name_extra", "contact", "address", "street", "addres
 # of any printed field (free fields, rights, date, discounts, a position's switches) ends the preview
 ISD_DOC_SKIP = frozenset(("id", "org_id", "number", "status", "totals", "created_at", "created_by", "updated_at", "updated_by", "rev",
                           "issuer_id", "issuer_wish", "issuer_rev", "ref_sha256", "client_ref", "sent_at", "deleted_at", "deleted_by",
-                          "trash_refs", "locked_at", "locked_by", "agent_id", "cashflow"))
+                          "trash_refs", "locked_at", "locked_by", "agent_id", "cashflow",
+                          "mail_state", "mail_at"))  # (#6820): the mail's delivery state is no edit
 ISD_ITEM_SKIP = frozenset(("id", "doc_id", "org_id", "sort", "agent_flag", "created_at", "updated_at", "updated_by", "rev", "net",
                            "tax_pct", "tax_amount", "cost_enc", "deleted_at", "deleted_by"))
 
@@ -320,6 +323,8 @@ def _wish(w):
     if w.get("reference") is not None:
         if not isinstance(w["reference"], str) or not ISD_REF_RE.fullmatch(w["reference"]):
             raise _bad("wish.reference", tr("reference: up to 35 of A-Z, 0-9 and -"))
+        if w["reference"].startswith("RF") and gcq_rf(w["reference"]) and not gcq_rf_ok(w["reference"]):  # (#6819): ISO 11649, mod 97
+            raise _bad("wish.reference", tr("reference: the check digits of this RF reference are wrong"))
         out["reference"] = w["reference"]
     if w.get("due_days") is not None and w.get("due_date") is not None:
         raise _bad("wish.due_date", tr("due_days or due_date, not both"))
@@ -425,6 +430,11 @@ def isd_office_view(c, oid, r):
     out["issuer_wish"] = {k: w.get(k) for k in ("wish", "vat_check", "business_check", "flags", "client_ref", "vat_note") if w.get(k) not in (None, "", [], {})} or None
     if out["issuer_wish"] and r["status"] == "draft" and r["client_id"]:
         out["issuer_wish"]["flags"] = isd_flags(c, oid, r, w)
+    if out["issuer_wish"] and (w.get("wish") or {}).get("payee"):  # (#6819): the reviewer sees the account's name and holder
+        from .docpay import dpy_payee
+        p = dpy_payee(c, oid, r) or {}
+        out["issuer_wish"]["payee"] = {"label": p.get("label") or "", "holder": p.get("holder") or "", "iban_end": (p.get("iban") or "")[-4:],
+                                       "ref_only": bool(p.get("ref_only")), "removed": bool(p.get("removed"))}
     return out
 
 
@@ -481,6 +491,7 @@ def isd_public(c, iss, r, ref=None, origin=None, pm=None):
            "totals": {"net": str(money(dec(t.get("net") or 0))), "tax": str(money(dec(t.get("tax") or t.get("tax_total") or 0))),
                       "gross": str(money(dec(t.get("gross") or 0))), "currency": r["currency"]},
            "corrects_doc_id": r["cancels_id"] if r["kind"] == "credit" else None, "payments": pays,
+           "mail": isd_mail(r),  # (#6820): the delivery state of its e-mail, never the address or an error text
            "updated_at": _ts(r["updated_at"])}
     if r["status"] == "draft" and not trashed and r["issuer_id"] == iss["id"]:
         r = oc_dec_fields(c, oid, "office_docs", r)
@@ -489,6 +500,12 @@ def isd_public(c, iss, r, ref=None, origin=None, pm=None):
         out["missing"] = [tr(*m) for m in inv_missing(c, oid, r, s, pack, doc_items(c, r["id"], oid))]  # ISS_REUSED
         out["flags"] = isd_flags(c, oid, r, isd_wish_of(c, oid, r))
     return out
+
+
+def isd_mail(r):
+    """(#6820): {state: none | sent | failed | bounced, at: ISO time or null} of document row r (office/mailstate.py)."""
+    m = oms_public(r)
+    return {"state": m["state"], "at": _ts(r["mail_at"]) if "mail_at" in r.keys() and r["mail_at"] else None}
 
 
 def _doc(c, iss, did, live=False):
@@ -639,6 +656,8 @@ def _make(c, iss, oid, cl, norm, rows):
     elif not s.get("small_business"):
         h["vat_mode"] = "vat"
     did = doc_create(c, oid, None, h, False, number=False)
+    if norm["wish"].get("due_days") is not None:  # (#6819): the payment days the issuer asked for (a person may change them; due_date: docpay.dpy_due_apply)
+        c.execute("UPDATE office_docs SET payment_days=? WHERE id=? AND org_id=?", (int(norm["wish"]["due_days"]), did, oid))
     r = doc_row(c, oid, did)
     items = [{"kind": "service", "title": x["text"], "detail": x["detail"], "qty": str(x["qty"]), "unit": x["unit"], "rate": str(x["rate"]),
               "tax": x["tax"], "discountable": 0, "in_handling": 0, "in_markup": 0} for x in rows]
@@ -843,6 +862,9 @@ def isd_spec(paths, op, ok, errs):
         "payments": {"type": "array", "items": {"type": "object", "properties": {"date": {"type": "string"}, "amount": money_, "method": {"type": "string"}}}},
         "missing": {"type": "array", "items": {"type": "string"}, "description": "Drafts: what finalising still needs"},
         "flags": {"type": "array", "items": {"type": "string", "enum": ["over_limit", "client_new", "client_changed", "vat_territory"]}},
+        "mail": {"type": "object", "description": "The delivery state of the document's e-mail: sent / failed when Kalmido handed it to the mail server, bounced when a person marked it as not delivered (no address, no error text)",
+                 "properties": {"state": {"type": "string", "enum": ["none", "sent", "failed", "bounced"]},
+                                "at": {"type": "string", "format": "date-time", "nullable": True}}},
         "updated_at": {"type": "string", "format": "date-time"}}}
     item = {"type": "object", "additionalProperties": False, "required": ["text", "rate"], "properties": {
         "text": {"type": "string", "maxLength": ISD_TITLE_MAX}, "detail": {"type": "string", "maxLength": ISD_DETAIL_MAX},

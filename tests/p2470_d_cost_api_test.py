@@ -90,11 +90,11 @@ j = A.put(B + f"{D}/{Q1['id']}/items", json={"items": [{"kind": "service", "serv
 check([x["kind"] for x in j["totals"]["lines"]] == ["item"] and j["totals"]["net"] == 6000 and j["items"][0]["producing"] == 1 and j["items"][0]["raw_fee"] == 1,
       f"#1645 off: no automatic line, the flags of the service are kept {[x['kind'] for x in j['totals']['lines']]} {j['items'][0].get('producing')}")
 j = A.patch(B + f"{D}/{Q1['id']}", json={"producing_on": 1}).json()
-# 2.1387.0 (#7082): since #6816 a subtotal of the positions stands before the producing line (display only)
-check(j["producing_on"] == 1 and [x["kind"] for x in j["totals"]["lines"]] == ["item", "subtotal", "producing"] and j["totals"]["net"] == 7200,
+# (#7291): producing counts like a position: no subtotal without a surcharge / discount (since #6816 one stood before it)
+check(j["producing_on"] == 1 and [x["kind"] for x in j["totals"]["lines"]] == ["item", "producing"] and j["totals"]["net"] == 7200,
       f"#1645 default off, quotation on: producing 2 days x 600 {j['totals']['net']}")
 j = A.patch(B + f"{D}/{Q1['id']}", json={"raw_mode": "optional"}).json()
-check([x["kind"] for x in j["totals"]["lines"]] == ["item", "subtotal", "producing", "raw"] and j["totals"]["net_incl_raw"] == 8700, "#1645: raw data switched on in the quotation " + str(j["totals"].get("net_incl_raw")))
+check([x["kind"] for x in j["totals"]["lines"]] == ["item", "producing", "raw"] and j["totals"]["net_incl_raw"] == 8700, "#1645: raw data switched on in the quotation " + str(j["totals"].get("net_incl_raw")))
 j = A.patch(B + f"{D}/{Q1['id']}", json={"contract_id": CTR}).json()
 check(j["raw_mode"] == "included", "#1645: the framework contract presets raw data although the default is off " + j["raw_mode"])
 r = A.post(B + f"{D}/{Q1['id']}/invoice")

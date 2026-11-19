@@ -52,6 +52,8 @@ MARKS = {
     "cashflow": "the share in the own cash flow plan, never printed",
     "list_id": "the project it belongs to inside Kalmido, never printed",
     "reminder_fee_state": "a reminder's fee waived / paid (the document stays, invoices.py fd_fee_post)",
+    "mail_state": "(#6820): the delivery state of its e-mail (sent / failed / bounced), never printed",
+    "mail_at": "(#6820): when that state changed",
 }
 
 KS = {"project_title": "Changed", "intro": "Changed", "closing": "Changed", "number": "HACK-1", "date": "2026-01-02",
@@ -85,6 +87,8 @@ ROUTES = {
     "POST /api/office/docs/{}/send": ("allowed", "the mail sends the stored files; the status sent is a mark (no mail server here: 409)",
                                       [{"to": "rechnung@example.com", "subject": "Changed", "text": "Changed"}]),
     "POST /api/office/docs/{}/datev": ("allowed", "the DATEV copy sends the stored files; datev_sent_at is a mark (no mail server here: 409)", [{}]),
+    # (#6820): a person marks the mail as not delivered (a bounce); never mailed here: 409, else mail_state is a mark
+    "POST /api/office/docs/{}/mail-bounced": ("allowed", "the delivery state of its e-mail is a mark (MARKS), never printed", [{}, {"bounced": False}]),
     "POST /api/office/docs/{}/fee": ("refused", "only a reminder's fee", [{"state": "waived"}]),
     "POST /api/office/docs/{}/project": ("allowed", "the project inside Kalmido (list_id) is a mark, never printed", [{"list_id": None}]),
     "POST /api/office/docs/{}/cashflow": ("refused", "the cash flow share is planning of quotations (an invoice: 400); on a finalised quotation it "

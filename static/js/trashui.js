@@ -6,7 +6,8 @@
    files (detail.js, events.js, projects.js), "Delete completed" (render.js) and a checklist's "Clear done" (events.js). */
 'use strict';
 // 2.272.0 D (#3029): deleting clients from the list's selection (clientpage.js ms_clAct): the dialog names what points at them
-async function ms_clDel(ids) {
+async function ms_clDel(ids, asked) {
+  if (!asked && typeof ms_clWithSites === 'function') ids = await ms_clWithSites(ids, n => trn('Move its {0} location to the trash too?', 'Move its {0} locations to the trash too?', n), tr('Them too'));  // #7292
   const u = await api('GET', `/api/clients/usage?ids=${ids.join(',')}`).catch(() => null);  // 2.272.0 D (#3029): what points at them
   if (!await askConfirm(trn('Delete {0} client?', 'Delete {0} clients?', ids.length), cl_delText(u, ids.length), {ok: tr('Delete'), danger: true})) return;
   let j; try { j = await ms_clSend({action: 'delete', ids}); } catch (x) { toast(x.message || ''); return; }

@@ -12,6 +12,20 @@ function cl_iconPickHtml(cur) {
   const old = cur && !cur.startsWith('ic:') ? `<button type="button" class="avopt on" data-clico="${esc(cur)}" aria-pressed="true" aria-label="${esc(cur)}"><span class="semo" aria-hidden="true">${esc(cur)}</span></button>` : '';
   return `<input type="hidden" id="cl-icon" value="${esc(cur)}"><div class="lipick clico" role="group" aria-labelledby="cl-icon-l"><button type="button" class="avopt none ${cur ? '' : 'on'}" data-clico="" aria-pressed="${!cur}" title="${esc(tr('No icon'))}" aria-label="${esc(tr('No icon'))}">${ic('ban', 's')}</button>${old}${CL_ICONS.map(k => `<button type="button" class="avopt ${cur === 'ic:' + k ? 'on' : ''}" data-clico="ic:${k}" aria-pressed="${cur === 'ic:' + k}" aria-label="${k}">${ic(k)}</button>`).join('')}</div>`;
 }
+// #7292: "Belongs to (main client)": a client of the same workspace that is no location itself (one level); a main client with
+// locations of its own shows how many instead (it cannot become a location). o.parent_id: "Add location" on the main client's card
+function cl_parentHtml(c, o) {
+  const all = S.clients || [], kids = c ? all.filter(x => x.parent_id === c.id).length : 0;
+  if (kids) return `<div class="row"><span class="rlab">${tr('Belongs to (main client)')}</span><span class="muted">${esc(trn('Main client of {0} location', 'Main client of {0} locations', kids))}</span></div>`;
+  const ws = typeof wsCur === 'function' ? wsCur() : 'all';
+  const org = c ? c.org_id ?? null : 'org_id' in o ? o.org_id ?? null : ws === 'private' ? null : ws.startsWith('org:') ? +ws.slice(4) : undefined;
+  const cur = c ? c.parent_id || null : o.parent_id || null;
+  const ps = all.filter(x => x.id === cur || (x.id !== c?.id && !x.parent_id && !x.archived && (org === undefined || (x.org_id ?? null) === org)))
+    .sort((a, b) => cdn_label(a).localeCompare(cdn_label(b)));
+  if (!ps.length) return '';
+  return `<div class="row"><label for="cl-parent">${tr('Belongs to (main client)')}</label><select id="cl-parent" aria-describedby="cl-parent-h"><option value="">${tr('none')}</option>${ps.map(x => `<option value="${esc(String(x.id))}" ${x.id === cur ? 'selected' : ''}>${esc(cdn_label(x))}</option>`).join('')}</select></div>
+    <div class="shint lhint" id="cl-parent-h">${tr('A location: its own address and documents, its hours and amounts also count for the main client.')}</div>`;
+}
 function clientModal(c, o = {}) {  // 2.80.0 (#1842): o.org_id (the office's area, null = private), o.stay (no jump to the client)
   if (c && typeof loadModule === 'function') loadModule('ofundo').catch(() => {});  // 2.111.0 A (#2233): "Saved · Undo" after the save
   // 2.218.0 C (#2804): a new client starts short (name, e-mail, city); the rest sits under "More details" (values stay while it folds)
@@ -30,7 +44,7 @@ function clientModal(c, o = {}) {  // 2.80.0 (#1842): o.org_id (the office's are
   const sc = typeof officeOn === 'function' && officeOn() ? `<div class="row"><label for="cl-sc">${tr('Short code')}</label><input id="cl-sc" maxlength="6" value="${esc(c?.short_code || '')}" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="${esc(cl_autoCode(c?.name || ''))}" aria-describedby="cl-sc-h"></div>
     <div class="shint lhint" id="cl-sc-h">${tr('In numbers as {kuerzel}, e.g. 673_TNP_R. Empty = the first three letters of the name.')}</div>` : '';
   const ico = `<div class="row"><label id="cl-icon-l">${tr('Symbol')}</label>${cl_iconPickHtml(c?.icon || '')}</div>`;
-  const rest = `${ico}
+  const rest = `${/*html-ok*/ cl_parentHtml(c, o) /* #7292: escaped inside */}${ico}
     <div class="row clkrow"><label>${tr('Contact persons')}</label><div class="clk" id="cl-contacts"></div></div>
     ${short ? '' : em + emi}
     <div class="row"><label for="cl-phone">${tr('Phone')}</label><input id="cl-phone" type="tel" maxlength="60" value="${esc(c?.phone || '')}" autocomplete="tel"></div>
@@ -43,7 +57,7 @@ function clientModal(c, o = {}) {  // 2.80.0 (#1842): o.org_id (the office's are
   /** @type {any} */
   const md = modal(`<h3>${c ? tr('Edit client') : tr('New client')}</h3>
     ${nm}
-    ${o.quick ? `${nx}${addr}` : short ? `${em}${emi}${city}<details class="clmore" id="cl-more"><summary>${ic('chev', 's fcar')}<span>${tr('More details')}</span></summary>${nx}${dn}${sc}${rest}</details>` : `${nx}${dn}${sc}${rest}`}
+    ${o.quick ? `${nx}${addr}` : short ? `${em}${emi}${city}<details class="clmore" id="cl-more" ${o.parent_id ? 'open' : ''}><summary>${ic('chev', 's fcar')}<span>${tr('More details')}</span></summary>${nx}${dn}${sc}${rest}</details>` : `${nx}${dn}${sc}${rest}`}
     <div class="aerr" role="alert"></div>
     <div class="foot ${short ? 'clfoot' : ''}">${c?.can_delete ? `<button class="btn danger" data-m="del">${tr('Delete')}</button>` : ''}<span class="spacer"></span><button class="btn" data-m="close">${tr('Cancel')}</button><button class="btn pri" data-m="save">${c ? tr('Save') : tr('Add')}</button></div>`);
   md.classList.add('cldlg');
@@ -66,6 +80,11 @@ function clientModal(c, o = {}) {  // 2.80.0 (#1842): o.org_id (the office's are
       if (b.dataset.m === 'del') {
         // 2.152.0 C (#2168): a client used in quotations / invoices / contracts is archived instead (the answer says so)
         // 2.272.0 D (#3029): the dialog names what points at it (server: foreign-key catalogue); deleting = the clients' trash
+        // #7292: a main client asks about its locations first; with them it goes the way of the selection bar (one step back)
+        if (typeof ms_clWithSites === 'function') {
+          const ids = await ms_clWithSites([c.id], n => trn('Move its {0} location to the trash too?', 'Move its {0} locations to the trash too?', n), tr('Them too'));
+          if (ids.length > 1) { md.remove(); await loadModule('trashui'); await ms_clDel(ids, true); return; }
+        }
         const u = await api('GET', `/api/clients/usage?ids=${c.id}`).catch(() => null);
         // 2.223.3 B (#2878): a client finalised documents keep can be anonymised instead (its own button, confirmed again)
         let anon = false;
@@ -87,6 +106,7 @@ function clientModal(c, o = {}) {  // 2.80.0 (#1842): o.org_id (the office's are
         phone: v('#cl-phone'), display_name: v('#cl-dname'), note: v('#cl-note')};  // 2.99.0 D (#2188): + name_extra
       if ($('#cl-sc', md)) body.short_code = v('#cl-sc').trim().toUpperCase();  // 2.433.0 (#3604)
       if (!c && 'org_id' in o) body.org_id = o.org_id;
+      if ($('#cl-parent', md)) body.parent_id = +v('#cl-parent') || null;  // #7292
       if (!o.quick && md._clkRm?.length) body.contacts_removed = md._clkRm.slice();  // only these are deleted (missing ones stay)
       if ($('#cl-rate', md)) Object.assign(body, {rate: num($('#cl-rate', md).value), budget_h: num($('#cl-bh', md).value), budget_amount: num($('#cl-ba', md).value)});
       if ($('#cl-arch', md)) body.archived = $('#cl-arch', md).checked;
@@ -129,7 +149,7 @@ function cl_fdPut(md, v) {
 // 2.269.0 C (#3017): someone else saved the client in between -- a bar instead of overwriting; "Reload" opens the dialog with
 // the saved state (the own input of this dialog is not saved, the bar says so)
 // 2.576.0 (#4764): the input of client field k in dialog md (for the merge bar's marks)
-const CL_IDS = {name: 'cl-name', name_extra: 'cl-nx', icon: 'cl-icon', email: 'cl-email', phone: 'cl-phone', display_name: 'cl-dname', note: 'cl-note', short_code: 'cl-sc', rate: 'cl-rate', budget_h: 'cl-bh', budget_amount: 'cl-ba', archived: 'cl-arch'};
+const CL_IDS = {name: 'cl-name', name_extra: 'cl-nx', icon: 'cl-icon', email: 'cl-email', phone: 'cl-phone', display_name: 'cl-dname', note: 'cl-note', short_code: 'cl-sc', rate: 'cl-rate', budget_h: 'cl-bh', budget_amount: 'cl-ba', archived: 'cl-arch', parent_id: 'cl-parent'};
 const cl_field = (md, k) => (CL_IDS[k] && $('#' + CL_IDS[k], md)) || md.querySelector(`[data-clb="${CSS.escape(k)}"]`);
 // 2.40.0 (#1380): the contact persons of a client in its dialog -- name, function / department, e-mail, phone; one is the
 // default (it fills "contact" and the attention line of new documents). Saved with the client as the whole list.

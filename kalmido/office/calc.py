@@ -628,8 +628,10 @@ def office_calc(doc, items, pack=None):
     if any(x.get("opt") for x in lines):  # 2.1041.0 (#5814): only then (the totals of every other document stay as they were)
         out["opt_note"] = label(pack, lang, "opt_note")
     if not _flag(doc.get("sub_legacy")):  # 2.1327.0 (#6816): a quotation sent before keeps its lines (docs._sub_legacy)
-        calc_items_sub(lines, items_net, pack, lang, currency)  # before the sections' subtotals (they close before it)
-        out["it_sub"] = 1  # computed with the positions' subtotal and the discount's base (docs._sub_legacy reads it)
+        calc_items_sub(lines, items_net, pack, lang, currency, prod_legacy=doc.get("prod_sub_legacy"))  # before the sections' subtotals (they close before it)
+        # computed with the positions' subtotal and the discount's base (docs._sub_legacy reads it); 2 = (#7291): with
+        # producing as a position before it (docs._prod_sub_legacy reads it), 1 = the rule of #6816 a quotation sent with it keeps
+        out["it_sub"] = 1 if _flag(doc.get("prod_sub_legacy")) else 2
     if _flag(doc.get("subtotals")):  # 2.1041.0 (#5816)
         calc_subtotals(lines, pack, lang, currency)
     return out
@@ -646,14 +648,21 @@ def calc_disc_detail(pack, lang, currency, amt_on, pct, base, legacy=False):
     return s.replace(" ({base})", "").replace("({base})", "").strip() if _flag(legacy) else s
 
 
-def calc_items_sub(lines, total, pack, lang, currency):
-    """2.1327.0 (#6816): inserts a line {kind: subtotal, items: 1, label, total, total_text} = total (the net of the positions,
-    items_net) right before the first line the calculation adds after the positions (producing, a surcharge, included raw
-    data or the discount), when a producing, surcharge or discount line follows; else none (no switch). Display only: no sum
-    changes; one line, none between surcharge and discount (the discount is computed on the positions only)."""
-    at = next((i for i, x in enumerate(lines) if x.get("kind") in CALC_AFTER and not (x.get("kind") == "raw" and x.get("optional"))), None)
-    if at is None or not any(x.get("kind") in ("producing", "surcharge", "discount") for x in lines[at:]):
+def calc_items_sub(lines, total, pack, lang, currency, prod_legacy=False):
+    """(#6816): inserts a line {kind: subtotal, items: 1, label, total, total_text} right before the first line the
+    calculation adds after the positions that is no position itself. Display only: no sum changes; one line, none between
+    surcharge and discount (the discount is computed on the positions only).
+    (#7291): the producing line counts like a position: the subtotal stands before the first surcharge, the included
+    raw data or the discount, when a surcharge or discount line follows, and is total (items_net) + producing; producing alone
+    gives none. prod_legacy (a quotation sent with the rule of #6816, docs._prod_sub_legacy): before the producing line too,
+    = total, when a producing, surcharge or discount line follows."""
+    after = CALC_AFTER if _flag(prod_legacy) else CALC_AFTER[1:]
+    trig = ("producing", "surcharge", "discount") if _flag(prod_legacy) else ("surcharge", "discount")
+    at = next((i for i, x in enumerate(lines) if x.get("kind") in after and not (x.get("kind") == "raw" and x.get("optional"))), None)
+    if at is None or not any(x.get("kind") in trig for x in lines[at:]):
         return lines
+    if not _flag(prod_legacy):
+        total = dec(total) + sum((dec(x.get("total")) for x in lines[:at] if x.get("kind") == "producing"), Decimal(0))
     lines.insert(at, {"kind": "subtotal", "items": 1, "title": "", "label": label(pack, lang, "subtotal"), "total": _num(dec(total)),
                       "total_text": fmt_money(dec(total), lang, currency)})
     return lines

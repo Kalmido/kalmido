@@ -78,6 +78,27 @@ async function ms_clLive() {
 }
 const ms_clShown = () => (MSC.items || []).filter(c => (MSC.arch || !c.archived) && (!MSC.q.trim() || [c.name, c.name_extra, c.display_name, c.label, c.contact, c.email, c.phone, c.note, c.billing?.customer_no]
   .some(v => (v || '').toLowerCase().includes(MSC.q.trim().toLowerCase()))) && dsb_clPass(c));  // 2.154.0 C (#2192): + the data protection filter
+// #7292: the list with every location right under its main client (both shown: indented, _site = the main client's label; a
+// location whose main client is filtered out stands on its own); its row shows its own part of "main client · location"
+function ms_clTree(items) {
+  const by = new Map(items.map(c => [c.id, c])), kids = new Map();
+  for (const c of items) if (c.parent_id && by.has(c.parent_id)) kids.set(c.parent_id, [...kids.get(c.parent_id) || [], c]);
+  const out = [];
+  for (const c of items) {
+    if (c.parent_id && by.has(c.parent_id)) continue;
+    out.push(c);
+    for (const k of kids.get(c.id) || []) out.push({...k, _site: cdn_label(c)});
+  }
+  return out;
+}
+const ms_clOwn = c => { const l = cdn_label(c), p = c._site ? c._site + ' · ' : ''; return p && l.startsWith(p) ? l.slice(p.length) : l; };
+// #7292: archiving / deleting a main client asks about its locations; "Only the main client" (and Esc) leaves them as they are
+async function ms_clWithSites(ids, title, okText, keep = () => true) {
+  const kids = (S.clients || []).filter(x => ids.includes(x.parent_id) && !ids.includes(x.id) && keep(x));
+  if (!kids.length) return ids;
+  const yes = await askConfirm(title(kids.length), tr('Locations: {0}', kids.map(cdn_label).join(', ')), {ok: okText, cancel: tr('Only the main client')});
+  return yes ? [...ids, ...kids.map(x => x.id)] : ids;
+}
 const ms_clAv = (c, big) => `<span class="avatar ctav mscav ${big ? 'big' : ''}" style="${cssColor(c.color) ? '--cc:' + cssColor(c.color) : ''}" aria-hidden="true">${c.icon ? clSymHtml(c.icon, big ? '' : 's') : ic('brief', big ? '' : 's')}</span>`;
 const ms_tag = (kind) => kind === 'client' ? `<span class="mstag mstag-cl">${ic('brief', 's')}${tr('Client')}</span>` : `<span class="mstag">${ic('user', 's')}${tr('Contact')}</span>`;
 
@@ -118,28 +139,43 @@ function ms_clView() {
     <label class="chkl"><input type="checkbox" id="mscl-arch" ${MSC.arch ? 'checked' : ''}> ${tr('Archived')}</label><label class="chkl"><input type="checkbox" id="mscl-trash" ${MSC.trash ? 'checked' : ''}> ${tr('Trash')}</label>${dsb_clFilter()}<span class="spacer"></span>${typeof hbm_hubBtn === 'function' ? hbm_hubBtn() : ''}
     ${(MSC.items || []).length && !MSC.trash ? `<button class="iconbtn ${MSC.pick ? 'on' : ''}" data-mscl="pick" aria-pressed="${!!MSC.pick}" aria-label="${esc(tr(MSC.pick ? 'End selection' : 'Select'))}" title="${esc(tr(MSC.pick ? 'End selection' : 'Select'))}">${ic('select')}</button>` : ''}
     <button class="btn sm pri" data-act="client-new">${ic('plus', 's')}<span class="cdl">${tr('New client')}</span></button></div>`;
-  const items = MSC.items === null ? null : ms_clShown();
+  const items = MSC.items === null ? null : ms_clTree(ms_clShown());  // #7292: locations under their main client
   const list = MSC.trash ? ms_clTrashHtml() : items === null ? `<div class="muted ctempty">${tr('Loading…')}</div>`
     : !MSC.items.length ? `<div class="empty nempty eact msclempty">${ic('brief')}<span>${tr('Clients are everyone you write quotations and invoices for: companies or private people.')}</span><button class="btn pri" data-act="client-new">${ic('plus', 's')} ${tr('New client')}</button>${feat('contacts') ? `<a class="btn" href="#contacts">${ic('users', 's')} ${tr('Contacts')}</a>` : ''}${oim_link('master', true)}</div>`
     : !items.length ? `<div class="empty">${ic('brief')}${tr('No client matches.')}</div>`
-    : `<ul class="ctlist" role="list" aria-label="${esc(tr('Clients'))}">${items.map(c => `<li><button type="button"${/*html-ok*/ wso_row(c) /* 2.1254.0 (#6180) */} class="ctrow ${c.id === id ? 'on' : ''} ${MSC.pick?.has(c.id) ? 'picked' : ''} ${c.archived ? 'msarch' : ''}" data-clopen="${c.id}" ${MSC.pick ? `aria-pressed="${MSC.pick.has(c.id)}"` : `aria-current="${c.id === id}"`}>${MSC.pick ? `<span class="ctchk ${MSC.pick.has(c.id) ? 'on' : ''}" aria-hidden="true">${MSC.pick.has(c.id) ? ic('check', 's') : ''}</span>` : ''}${ms_clAv(c)}<span class="ctn"><b>${esc(cdn_label(c))}</b><small class="muted">${esc([cdn_label(c) !== c.name ? c.name : '', c.archived ? tr('archived') : '', c.contact, c.email].filter(Boolean).join(' · '))}</small>${/*html-ok*/ wso_origin(c, 'ctorg') /* 2.1254.0 (#6180): "All": the origin */}</span>${c.budget && c.budget.level !== 'none' ? `<i class="msbud lv-${c.budget.level}" title="${esc(tr(BUDGET_TXT[c.budget.level]))}"></i>` : ''}</button></li>`).join('')}</ul>`;
+    : `<ul class="ctlist" role="list" aria-label="${esc(tr('Clients'))}">${items.map(c => `<li><button type="button"${/*html-ok*/ wso_row(c) /* (#6180) */} class="ctrow ${c.id === id ? 'on' : ''} ${MSC.pick?.has(c.id) ? 'picked' : ''} ${c.archived ? 'msarch' : ''} ${c._site ? 'clsite' : ''}" data-clopen="${c.id}" ${MSC.pick ? `aria-pressed="${MSC.pick.has(c.id)}"` : `aria-current="${c.id === id}"`}>${MSC.pick ? `<span class="ctchk ${MSC.pick.has(c.id) ? 'on' : ''}" aria-hidden="true">${MSC.pick.has(c.id) ? ic('check', 's') : ''}</span>` : ''}${ms_clAv(c)}<span class="ctn"><b>${c._site ? `<span class="sr">${esc(tr('Location of {0}:', c._site))} </span>` : ''}${esc(c._site ? ms_clOwn(c) : cdn_label(c))}</b><small class="muted">${esc([cdn_label(c) !== c.name ? c.name : '', c.archived ? tr('archived') : '', c.contact, c.email].filter(Boolean).join(' · '))}</small>${/*html-ok*/ wso_origin(c, 'ctorg') /* (#6180): "All": the origin */}</span>${c.budget && c.budget.level !== 'none' ? `<i class="msbud lv-${c.budget.level}" title="${esc(tr(BUDGET_TXT[c.budget.level]))}"></i>` : ''}</button></li>`).join('')}</ul>`;
   return MSC.html = `<div class="ctview msclients ${id ? 'withcard' : ''} ${MSC.pick ? 'ctpicking' : ''}">${mob && id ? '' : head}${MSC.pick && !(mob && id) ? ms_clBar() : ''}${mob && id ? '' : bar}<div class="ctcols lsd2 lsdfill">${mob && id ? '' : `<div class="ctlistw lsdl">${list}${MSC.items?.length && !MSC.pick ? oim_link('master') : ''}</div>`}${card}</div></div>`;
 }
 // 2.435.0 A (#3600): the blocks of the client card like the blocks of a list: the office admin switches blocks off for the
 // office (office setting client_blocks_off, sent with the client: blocks_off), each person shows / hides the others for
 // themselves (the view builder) and folds them open / closed -- kept per person in the opts of view_clients, alike for every
 // client. Open by default: details, contact persons, open invoices (and the note); the others closed, with their number.
-const MSC_OPEN = ['details', 'persons', 'invoices', 'note'];
+const MSC_OPEN = ['details', 'persons', 'invoices', 'note', 'sites'];  // #7292: + a main client's locations
 const ms_clOff = () => new Set(CLV.data && !CLV.data.error ? CLV.data.blocks_off || [] : []);
 const ms_clOpen = k => !!lyOpt('clients', k, 'open', MSC_OPEN.includes(k));
 const ms_clFold = (k, html, n) => lyFold('clients', k, html, n, ms_clOpen(k), 'data-mscl="fold"');  // 2.666.0 D (#3624): the shared fold (dashboard.js)
 function ms_clFoldAll(c, ks, inv, parts) {
   const st = c.stats || {}, num = {persons: ks.length, invoices: inv.length, month: st.month_seconds ? fmtHours(st.month_seconds) : null,
-    lists: (c.per_list || []).length, tickets: (c.tickets || []).length, gendocs: MSC.gd?.id === c.id ? MSC.gd.docs?.length : null,
+    lists: (c.per_list || []).length, sites: (c.sites || []).length || null, tickets: (c.tickets || []).length, gendocs: MSC.gd?.id === c.id ? MSC.gd.docs?.length : null,
     letters: MSC.lt?.id === c.id ? MSC.lt.letters?.length : null, privacy: DSB.cl?.id === c.id ? DSB.cl.sheets?.length : null};
   const off = ms_clOff(), out = {};
   for (const [k, h] of Object.entries(parts)) if (!off.has(k)) out[k] = ms_clFold(k, h, num[k]);
   return out;
+}
+// #7292: the block "Locations" of a main client: the figures of all together (own + every location: hours, amounts, budget)
+// and one row per location (a link to it) with its own figures; "Add location" makes a new client that belongs to this one
+function ms_clSitesHtml(c) {
+  const ss = c.sites || [], g = c.group; if (!ss.length || !g) return '';
+  const st = g.stats || {}, mon = st.month;
+  const row = (x, own) => `<tr><td>${own ? `<b>${esc(tr('Main client'))}</b>` : `<a href="#client/${esc(String(x.id))}">${esc(cdn_label(x))}</a>${x.archived ? ` <span class="rotag">${tr('Archived')}</span>` : ''}`}</td><td class="n">${esc(hmm(x.stats?.month_seconds || 0))}</td><td class="n">${esc(hmm(x.stats?.seconds || 0))}</td><td class="n">${x.stats?.amount ? esc(fmtMoney(x.stats.amount)) : ''}</td></tr>`;
+  return `<section class="stcard clsites"><div class="sthead"><h3>${tr('All locations together')}</h3></div>
+    <div class="sttiles"><div><b>${esc(hmm(st.month_seconds || 0))}</b><span>${esc(monthLabel(mon))}</span><small>${st.month_amount ? esc(fmtMoney(st.month_amount)) : ''}</small></div>
+      <div><b>${esc(hmm(st.seconds || 0))}</b><span>${tr('in total')}</span><small>${st.amount ? esc(fmtMoney(st.amount)) : ''}</small></div>
+      <div><b>${esc(String(ss.length + 1))}</b><span>${tr('Main client and locations')}</span><small></small></div></div>
+    ${/*html-ok*/ budgetBar(g) /* clients.js: escaped inside */}
+    <table class="ttable cltable"><thead><tr><th>${tr('Client')}</th><th class="n">${esc(monthLabel(mon))}</th><th class="n">${tr('in total')}</th><th class="n">${tr('Amount')}</th></tr></thead>
+      <tbody>${/*html-ok*/ row(c, true) + ss.map(x => row(x)).join('') /* rows escaped inside */}</tbody></table>
+    <div class="clacts"><button type="button" class="btn sm" data-mscl="siteadd">${ic('plus', 's')} ${tr('Add location')}</button></div></section>`;
 }
 function ms_clCard(c) {
   const b = c.billing || {}, cur = S.settings.time_currency || '€';  // 2.368.0 C (#2983): amounts through curMoney (i18n.js)
@@ -150,7 +186,7 @@ function ms_clCard(c) {
   const inv = (MSC.inv || []).filter(x => x.client_id === c.id && x.open > 0 && !['draft', 'cancelled'].includes(x.status));
   const ks = (c.contacts || []).filter(k => k.name);
   return `<article class="ctcard msclcard" aria-labelledby="mscl-h" data-ck="${c.id}"${/*html-ok*/ wso_row(c) /* 2.1254.0 (#6180) */}>
-    <div class="cthead">${lsd_one() ? `<button class="iconbtn" data-mscl="back" aria-label="${esc(tr('Back'))}">${ic('back')}</button>` : ''}${ms_clAv(c, true)}<div class="cthn"><h3 id="mscl-h">${esc(cdn_label(c))}</h3>${cdn_label(c) !== c.name ? `<small class="muted cdnlegal">${esc(c.name)}</small>` : ''}<div class="mstags">${ms_tag('client')}${c.archived ? `<span class="rotag">${tr('Archived')}</span>` : ''}${c.org_name ? `<span class="muted">${esc(c.org_name)}</span>` : ''}</div></div>
+    <div class="cthead">${lsd_one() ? `<button class="iconbtn" data-mscl="back" aria-label="${esc(tr('Back'))}">${ic('back')}</button>` : ''}${ms_clAv(c, true)}<div class="cthn"><h3 id="mscl-h">${esc(cdn_label(c))}</h3>${cdn_label(c) !== c.name ? `<small class="muted cdnlegal">${esc(c.name)}</small>` : ''}<div class="mstags">${ms_tag('client')}${c.archived ? `<span class="rotag">${tr('Archived')}</span>` : ''}${c.org_name ? `<span class="muted">${esc(c.org_name)}</span>` : ''}${c.parent_id && clientById(c.parent_id) ? `<span class="muted clparent">${ic('mappin', 's')} ${tr('Location of')} <a href="#client/${esc(String(c.parent_id))}">${esc(cdn_label(clientById(c.parent_id)))}</a></span>` : ''}</div></div>
       <span class="ctacts"><button class="btn sm" data-act="client-edit" data-id="${c.id}">${ic('edit', 's')} ${tr('Edit')}</button><button class="iconbtn" data-mscl="cmenu" aria-haspopup="menu" aria-label="${esc(tr('More'))}" title="${esc(tr('More'))}">${ic('dots')}</button></span></div>${/*html-ok*/ ihd_cardHtml(c) /* 2.1384.0 (#6700): escaped inside */}
     <div class="mscly msclstats cldetail">${S.ly.view === 'clients' ? '' : `<div class="lybar"><span class="spacer"></span>${lyCustomBtn('clients')}</div>`}${lyHtml('clients', ms_clFoldAll(c, ks, inv, {  // 2.55.0 (#1067): the card's sections are blocks of the view builder
       details: `<div class="ctfields">
@@ -173,6 +209,7 @@ function ms_clCard(c) {
       tickets: typeof ptl_clientHtml === 'function' ? ptl_clientHtml(c) : '',  // 2.63.0 B (#1513): the client's reports
       gendocs: ms_clGdHtml(c),  // 2.93.0 A (#1927): the documents made from templates (office admins)
       letters: ms_clLtHtml(c),  // 2.153.0 (#2028); 2.435.0 A (#3600): a block of its own
+      sites: ms_clSitesHtml(c),  // #7292
       ...clientDetailParts(c)}))}${clm_histHtml(c)}${typeof hbm_clientHtml === 'function' ? hbm_clientHtml(c) : ''}${typeof vdr_clientHtml === 'function' ? vdr_clientHtml(c) : ''}${''/* 2.99.1 A (#1959): video sign-offs */}</div>
   </article>`;
 }
@@ -332,6 +369,7 @@ document.addEventListener('click', e => {
   if (k === 'pick') { MSC.pick = MSC.pick ? null : new Set(); MSC.last = null; ms_clDraw(); }
   else if (k === 'trest' || k === 'tpurge') ms_clTrashAct(k, +b.dataset.id);  // 2.272.0 D (#3029)
   else if (k === 'back') navUp('clients');  // 2.743.0 (#5235)
+  else if (k === 'siteadd' && CLV.data?.id) clientModal(null, {org_id: CLV.data.org_id ?? null, parent_id: CLV.data.id});  // #7292
   else if (k === 'fold') {  // 2.435.0 A (#3600): fold a block open / closed (kept per person)
     const bk = b.dataset.k; lyOptSet('clients', bk, 'open', !ms_clOpen(bk)); ms_clDraw();
     setTimeout(() => $(`#view [data-mscl="fold"][data-k="${bk}"]`)?.focus({preventScroll: true}), 0);
@@ -339,11 +377,14 @@ document.addEventListener('click', e => {
   else if (k === 'cmenu' && CLV.data?.id) {
     const c = CLV.data;
     menu(b, [{label: c.archived ? tr('Restore') : tr('Archive'), icon: c.archived ? 'undo' : 'archive', fn: async () => {
-      let j; try { j = await ms_clSend({action: c.archived ? 'unarchive' : 'archive', ids: [c.id]}); } catch (x) { toast(x.message || ''); return; }
+      // #7292: a main client asks whether its locations go into the archive too
+      const ids = c.archived ? [c.id] : await ms_clWithSites([c.id], n => trn('Archive its {0} location too?', 'Archive its {0} locations too?', n), tr('Archive them too'), x => !x.archived);
+      let j; try { j = await ms_clSend({action: c.archived ? 'unarchive' : 'archive', ids}); } catch (x) { toast(x.message || ''); return; }
       await ms_clAfter();
-      const msg = c.archived ? trn('{0} client restored', '{0} clients restored', 1) : trn('{0} client archived', '{0} clients archived', 1);
-      if (j.changed) ms_hist(msg, msg, async () => { await ms_clSend({action: 'restore', items: j.undo}); await ms_clAfter(); }, async () => { await ms_clSend({action: c.archived ? 'unarchive' : 'archive', ids: [c.id]}); await ms_clAfter(); });
-    }}, ofm_can(c.org_id ?? null) ? {label: tr('Move to another workspace…'), icon: 'brief', fn: () => ofm_clients([c.id])} : null,  // 2.97.0 C (#2049)
+      const msg = c.archived ? trn('{0} client restored', '{0} clients restored', ids.length) : trn('{0} client archived', '{0} clients archived', ids.length);
+      if (j.changed) ms_hist(msg, msg, async () => { await ms_clSend({action: 'restore', items: j.undo}); await ms_clAfter(); }, async () => { await ms_clSend({action: c.archived ? 'unarchive' : 'archive', ids}); await ms_clAfter(); });
+    }},
+    !c.parent_id && !c.archived ? {label: tr('Add location'), icon: 'mappin', fn: () => clientModal(null, {org_id: c.org_id ?? null, parent_id: c.id})} : null,  // #7292 ofm_can(c.org_id ?? null) ? {label: tr('Move to another workspace…'), icon: 'brief', fn: () => ofm_clients([c.id])} : null,  // (#2049)
     typeof tpo_on === 'function' && tpo_on() ? {label: tr('Find a date…'), icon: 'users', fn: () => tpo_forClient(c)} : null,  // 2.98.0 A (#1953)
     formsOn() && !S.me?.kid ? {label: tr('Copy questionnaire link for this client'), icon: 'copy', fn: () => fq_clientLink(c, b)} : null,  // 2.102.0 C (#2201)
     kp_menuItem(c)]);  // 2.120.0 B (#2088)

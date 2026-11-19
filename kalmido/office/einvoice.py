@@ -443,7 +443,19 @@ def ein_values(model):
     v["iban"] = str(pay.get("iban") or sf.get("iban") or "").replace(" ", "")
     v["bic"] = str(pay.get("bic") or sf.get("bic") or "").replace(" ", "")
     v["means"] = "58" if v["iban"] else "30"
+    v["means_text"] = ""
     v["bank_name"] = str(sf.get("bank_name") or "")[:70]
+    v["remit"] = str(pay.get("remit") or "")[:140]  # (#6819): BT-83 of an invoice issuer's bank account (office/docpay.py)
+    if pay.get("holder"):
+        v["bank_name"] = str(pay["holder"])[:70]  # BT-85: the holder of that account (banks check the name against the IBAN)
+    paid_ = pay.get("paid") if isinstance(pay.get("paid"), dict) else None
+    if paid_:  # (#6819): issued as paid (office/docpay.py): no bank account, the means of the payment -- card 48, cash 10,
+        # else ZZZ with the text; never 30 / 58 without an IBAN (BR-61). XRechnung: a card code wants the card's details (BR-DE-24, BG-18): text
+        code = {"card": "48", "cash": "10"}.get(paid_.get("method"), "ZZZ")
+        if code == "48" and str(m.get("einvoice_format") or "") == "xrechnung":
+            code = "ZZZ"
+        v["iban"], v["bic"], v["remit"] = "", "", ""
+        v["means"], v["means_text"] = code, str(paid_.get("text") or "")[:500]
     if pay.get("skonto_bt20"):  # (#2087): the XRechnung cash discount line (BT-20), the printed text before it
         first = str(pay.get("text") or "").split("\n")[0][:400]
         v["terms"] = (first + "\n" if first else "") + pay["skonto_bt20"]
@@ -483,6 +495,8 @@ def ein_values(model):
     v["gross"] = _d(gross).quantize(Q2, rounding=ROUND_HALF_UP)
     # (#4079): BT-113 of a finalised document is fixed like its PDF: no payments of today, only the progress invoices
     v["paid"] = prepaid if kind == "invoice" else Decimal("0")
+    if kind == "invoice" and paid_:  # (#6819): the payment confirmed when finalising is part of the frozen document
+        v["paid"] = _d(paid_.get("amount")).quantize(Q2, rounding=ROUND_HALF_UP)
     return v
 
 
@@ -560,12 +574,14 @@ def ein_build(model, fmt="zugferd"):
     if v["ship_to"]:
         _address(_e(_e(dl, "ram:ShipToTradeParty"), "ram:PostalTradeAddress"), v["ship_to"], home)
     se = _e(tx, "ram:ApplicableHeaderTradeSettlement")
+    if v["remit"]:
+        _e(se, "ram:PaymentReference", v["remit"])  # (#6819): BT-83 (before the currencies in the CII order)
     if cur != hcur:
         _e(se, "ram:TaxCurrencyCode", hcur)
     _e(se, "ram:InvoiceCurrencyCode", cur)
     pm = _e(se, "ram:SpecifiedTradeSettlementPaymentMeans")
     _e(pm, "ram:TypeCode", v["means"])
-    _e(pm, "ram:Information", "SEPA" if v["iban"] else tr(EIN_WORDS["transfer"], lg=v["lang"]))
+    _e(pm, "ram:Information", v["means_text"] or ("SEPA" if v["iban"] else tr(EIN_WORDS["transfer"], lg=v["lang"])))
     if v["iban"]:
         acc = _e(pm, "ram:PayeePartyCreditorFinancialAccount")
         _e(acc, "ram:IBANID", v["iban"])
@@ -951,9 +967,10 @@ def ein_ubl_build(model, profile="peppol", sender_id="", receiver_id=""):
         _u(_u(sa, "cac:Country"), "cbc:IdentificationCode", _country(v["ship_to"].get("country"), home))
 
     pm = _u(root, "cac:PaymentMeans")
-    _u(pm, "cbc:PaymentMeansCode", v["means"])
+    _u(pm, "cbc:PaymentMeansCode", v["means"], name=v["means_text"] or None)  # (#6819): BT-82 of an invoice issued as paid
     if credit and _udate(m.get("due_date")):
         _u(pm, "cbc:PaymentDueDate", _udate(m.get("due_date")))
+    _ut(pm, "cbc:PaymentID", v["remit"])  # (#6819): BT-83
     if v["iban"]:
         acc = _u(pm, "cac:PayeeFinancialAccount")
         _u(acc, "cbc:ID", v["iban"])

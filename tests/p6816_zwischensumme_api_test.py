@@ -12,6 +12,9 @@ organisation's office (its admin). Invented companies, people and figures only.
  - the invoice from the quotation (parts_mode full): the subtotal before its markup position, the same net as the quotation
  - a quotation sent before (cached totals without "it_sub", status sent): its print model keeps the lines it was sent with (no
    subtotal, the discount's explanation without its base); a draft from before set to sent is computed once more and takes them
+ - (#7291): producing counts like a position (no subtotal with producing alone; with a discount / surcharge the
+   subtotal after producing = positions + producing, also on a title page with parts); a quotation sent with it_sub 1 keeps
+   the subtotal before producing, a draft from before set to sent takes the new lines
 usage: p6816_zwischensumme_api_test.py <datadir>"""
 import io
 import os
@@ -79,9 +82,72 @@ def legacy(S, who):
     ODR = offer("Rabatt Entwurf alt")
     dbx("UPDATE office_docs SET totals=(totals::jsonb - 'it_sub')::text WHERE id=?", (ODR,))
     ok(S.post(B + f"{D}/{ODR}/status", json={"status": "sent"}).ok, "the draft from before set to sent")
-    ok(dbx("SELECT (totals::jsonb ->> 'it_sub') FROM office_docs WHERE id=?", (ODR,))[0][0] == "1", "sent: its totals now say it_sub")
+    ok(dbx("SELECT (totals::jsonb ->> 'it_sub') FROM office_docs WHERE id=?", (ODR,))[0][0] == "2", "sent: its totals now say it_sub 2 (#7291)")
     rd = S.get(B + f"{D}/{ODR}/render").json()
     ok(len(subs(rd.get("lines"))) == 1, f"sent: it keeps the subtotal {kinds(rd.get('lines'))}")
+
+
+def prod(S, who):
+    """(#7291): the producing line counts like a position: no subtotal without a surcharge / discount; with one it
+    stands after producing and is the positions + producing; on the title page of a quotation with parts likewise. A quotation
+    sent with the rule of #6816 (cached totals it_sub 1) keeps the subtotal before producing; a draft from before set to sent
+    is computed once more (it_sub 2)."""
+    def ok(cond, what):
+        check(cond, f"producing {who}: {what}")
+
+    def offer(title, **kw):
+        r = S.post(B + D, json={"project_title": title, "raw_mode": "none", **kw})
+        assert r.status_code == 201, r.text
+        did = r.json()["id"]
+        ok(S.patch(B + f"{D}/{did}", json={"producing_on": 1, "prod_quotient": 1, "producing_rate": 100}).ok, "producing on")
+        r = S.put(B + f"{D}/{did}/items", json={"items": [{"title": "Kamera", "qty": 2, "rate": 1000, "unit": "day", "producing": 1}]})
+        ok(r.ok, "the position " + r.text[:160])
+        return did
+
+    O1 = offer("Producing ohne Rabatt")
+    t = S.get(B + f"{D}/{O1}").json().get("totals") or {}
+    ok(kinds(t.get("lines")) == ["item", "producing"] and t.get("producing_total") == 200 and t.get("it_sub") == 2,
+       f"producing alone: no subtotal {kinds(t.get('lines'))} {t.get('producing_total')} {t.get('it_sub')}")
+    ok(S.patch(B + f"{D}/{O1}", json={"discount_pct": 5}).ok, "discount 5 %")
+    t = S.get(B + f"{D}/{O1}").json().get("totals") or {}
+    s = subs(t.get("lines"))
+    ok(kinds(t.get("lines")) == ["item", "producing", "subtotal", "discount"] and s and s[0]["total"] == 2200 and s[0].get("total_text") == "2.200,00 €",
+       f"with a discount: producing before the subtotal = positions + producing {kinds(t.get('lines'))} {s}")
+    ok(t.get("net") == 2100 and t.get("discount") == 100, f"the sums as before: discount on the positions only {t.get('net')} {t.get('discount')}")
+    rd = S.get(B + f"{D}/{O1}/render").json()
+    ok(kinds(rd.get("lines")) == ["item", "producing", "subtotal", "discount"], f"print model likewise {kinds(rd.get('lines'))}")
+    txt = pdf_text(S, O1)
+    if txt is not None:
+        ok("Zwischensumme 2.200,00 €" in txt and txt.index("Producing") < txt.index("Zwischensumme"), "PDF: Producing before the subtotal "
+           + txt[:700].replace("\n", " | "))
+    # sent with the rule of #6816: keeps the subtotal before producing
+    dbx("UPDATE office_docs SET totals=jsonb_set(totals::jsonb, '{it_sub}', '1')::text, status='sent' WHERE id=?", (O1,))
+    rd = S.get(B + f"{D}/{O1}/render").json()
+    s = subs(rd.get("lines"))
+    ok(kinds(rd.get("lines")) == ["item", "subtotal", "producing", "discount"] and s and s[0]["total"] == 2000,
+       f"sent with #6816: its lines as sent {kinds(rd.get('lines'))} {s}")
+    O2 = offer("Producing Entwurf alt", discount_pct=5)
+    dbx("UPDATE office_docs SET totals=jsonb_set(totals::jsonb, '{it_sub}', '1')::text WHERE id=?", (O2,))
+    ok(S.post(B + f"{D}/{O2}/status", json={"status": "sent"}).ok, "the draft from before set to sent")
+    ok(dbx("SELECT (totals::jsonb ->> 'it_sub') FROM office_docs WHERE id=?", (O2,))[0][0] == "2", "sent: computed once more, it_sub 2")
+    rd = S.get(B + f"{D}/{O2}/render").json()
+    ok(kinds(rd.get("lines")) == ["item", "producing", "subtotal", "discount"], f"sent: the new lines {kinds(rd.get('lines'))}")
+    # a quotation with parts: the title page's producing before the subtotal
+    O3 = offer("Producing mit Teil")
+    r = S.post(B + f"{D}/{O3}/parts", json={"kind": "items", "title": "Modul P"})
+    ok(r.status_code in (200, 201), "part created " + r.text[:160])
+    PP = (r.json().get("part") or {}).get("id")
+    ok(S.put(B + f"{D}/{O3}/parts/{PP}/items", json={"items": [{"title": "Schnitt", "qty": 1, "rate": 500, "unit": "day"}]}).ok, "part: its position")
+    d = S.get(B + f"{D}/{O3}").json()
+    title = [{k: x.get(k) for k in ("id", "kind", "title", "qty", "unit", "rate", "producing", "ref_part_id")} for x in d.get("items") or []]
+    ok(S.put(B + f"{D}/{O3}/items", json={"items": title, "parts_known": [PP]}).ok, "title page with the part line")
+    t = S.get(B + f"{D}/{O3}").json().get("totals") or {}
+    ok("subtotal" not in kinds(t.get("lines")) and "producing" in kinds(t.get("lines")), f"parts, no discount: no subtotal {kinds(t.get('lines'))}")
+    ok(S.patch(B + f"{D}/{O3}", json={"markup_pct": 10}).ok, "surcharge 10 %")
+    t = S.get(B + f"{D}/{O3}").json().get("totals") or {}
+    k, s = kinds(t.get("lines")), subs(t.get("lines"))
+    ok(k[-3:] == ["producing", "subtotal", "surcharge"] and s and s[0]["total"] == 2700 == t.get("items_net") + t.get("producing_total"),
+       f"parts: producing, the subtotal = positions + part + producing, the surcharge {k} {s} {t.get('items_net')} {t.get('producing_total')}")
 
 
 def run(S, who):
@@ -187,5 +253,7 @@ run(Fr, "freelancer")
 run(A, "organisation")
 legacy(Fr, "freelancer")
 legacy(A, "organisation")
+prod(Fr, "freelancer")
+prod(A, "organisation")
 print(f"p6816_zwischensumme_api: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)

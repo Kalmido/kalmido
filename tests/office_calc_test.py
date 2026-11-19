@@ -57,8 +57,8 @@ check(r["tax_lines"] == [{"rate_key": "standard", "pct": 19, "base": 20380, "amo
 check(r["gross"] == 24252.2, f"KV02: gross 24252.20, got {r['gross']}")
 check(r["vat_note"] == "Alle Preise zuzüglich 19 % MwSt.", "KV02: the offer's VAT note (DE) names only 19 %")  # 2.114.4 (#2274)
 kinds = [l["kind"] for l in r["lines"]]
-# 2.1327.0 (#6816): the positions' subtotal before Producing (the first line after the positions)
-check(kinds == ["item"] * 12 + ["subtotal", "producing", "raw"], f"KV02: 12 positions, the subtotal, then Producing and the raw data option: {kinds}")
+# (#7291): Producing counts like a position, no subtotal without a surcharge / discount (#6816 had one before Producing)
+check(kinds == ["item"] * 12 + ["producing", "raw"], f"KV02: 12 positions, then Producing and the raw data option, no subtotal: {kinds}")
 raw = r["lines"][-1]
 check(raw["optional"] and raw["title"] == "Optional: Bereitstellung der Rohdaten" and raw["total"] == 3422.5, f"KV02: the optional raw data line {raw}")
 prod = r["lines"][-2]

@@ -740,6 +740,7 @@ a person converts it. You never delete a deal, make its quotation or project, or
 Clients are managed by people (2.370.4): for you `list_clients` is empty, and `create_client`, `update_client`,
 `delete_client` and `bulk_clients` (also `untrash` out of the trash) answer `403`. The office area's clients you read with
 `list_office_data`; deleting or restoring a client you leave to the person.
+A client's locations (#7292) are clients of their own with `parent_id` = the main client; documents name the location.
 
 ### Invoice series and subscriptions (2.483.0)
 

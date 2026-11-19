@@ -369,7 +369,7 @@ LY.stats = {key: 'view_stats', title: () => tr('Customise statistics'), blocks: 
 const LY_CL_BLOCKS = [['details', N_('Details'), 'brief', 'full'], ['persons', N_('Contact persons'), 'users', 'full'],
   ['invoices', N_('Open invoices'), 'receipt', 'full'], ['month', N_('Time tracking'), 'clock', 'full'], ['lists', N_('Projects'), 'list', 'full'], ['note', N_('Note'), 'edit', 'full'],
   ['tickets', N_('Client reports'), 'megaphone', 'full'], ['gendocs', N_('Letters & contracts'), 'file', 'full'], ['letters', N_('Letters'), 'mail', 'full'],
-  ['privacy', N_('Data protection'), 'shield', 'full']];  // 2.489.0 (#2664): gendocs = Letters & contracts; 2.63.0 B (#1513); 2.93.0 A (#1927): gendocs; 2.154.0 C (#2192): privacy
+  ['privacy', N_('Data protection'), 'shield', 'full'], ['sites', N_('Locations'), 'mappin', 'full']];  // #7292: a main client's locations  // (#2664): gendocs = Letters & contracts; (#1513); (#1927): gendocs; (#2192): privacy
 LY.clients = {key: 'view_clients', title: () => tr('Customise the client card'), blocks: () => LY_CL_BLOCKS.filter(b => !(typeof ms_clOff === 'function' && ms_clOff().has(b[0])))};
 // 2.666.0 D (#3624): a block of a card that folds open / closed at its title (the client card 2.435.0 #3600, the contact card):
 // attr = the button's data attribute of the view's own click (data-mscl="fold" / data-ct="fold"), n = the number in the title

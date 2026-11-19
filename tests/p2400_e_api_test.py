@@ -158,8 +158,8 @@ check(r.ok and r.json()["settings"]["producing_on"] == 1 and r.json()["settings"
 Q2 = A.post(B + D, json={"project_title": "Film 2", "client_id": CL, "producing_on": 1}).json()  # 2.113.1 (#2251): the office setting no longer switches producing on for a new quotation (only a pack option does); the document does
 j = A.put(B + f"{D}/{Q2['id']}/items", json={"items": [{"kind": "service", "service_id": SV, "qty": 6}]}).json()
 kinds = [x["kind"] for x in j["totals"]["lines"]]
-# 2.1387.0 (#6041): since #6816 a subtotal of the positions stands before the producing line (display only)
-check(Q2.get("raw_mode") == "optional" and kinds == ["item", "subtotal", "producing", "raw"] and j["totals"]["net"] == 7200,
+# (#7291): producing counts like a position: no subtotal without a surcharge / discount (since #6816 one stood before it)
+check(Q2.get("raw_mode") == "optional" and kinds == ["item", "producing", "raw"] and j["totals"]["net"] == 7200,
       f"#1379 on: producing 2 days x 600 + raw data option as before {kinds} {j['totals']['net']}")
 j = A.patch(B + f"{D}/{Q2['id']}", json={"contract_id": CTR}).json()
 check(j.get("raw_mode") == "included", "#1379 on: the contract presets raw data included")

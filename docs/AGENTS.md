@@ -1559,6 +1559,11 @@ sees no clients there (`list_clients` answers an empty list, `get_client` `404`)
 deleting, moving into the trash, `bulk_clients` with `untrash` - answers `403` (*Only people can manage clients*). The
 clients of the office area reach an agent read-only through `list_office_data`. Ask the person to delete or restore a client.
 
+**Locations of a client (#7292).** A client with several locations (e.g. offices in two cities) is a main client plus one
+client per location: `parent_id` names the main client (`create_client` / `update_client`; `null` removes it). One level only,
+the main client in the same workspace (else `400`). Documents keep choosing one client, the location; `get_client` of a
+main client adds `sites` (its locations with their figures) and `group` (hours, amounts and budget of all together).
+
 Example `reaction`:
 
 ```json

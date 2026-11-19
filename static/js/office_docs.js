@@ -70,7 +70,9 @@ function ofdIssuerNote(d) {
   if (w.send) li.push(tr('Sending wished'));
   if (w.due_date) li.push(tr('Due on {0}', day(w.due_date)));
   else if (w.due_days != null) li.push(tr('Payment terms of {0} days', w.due_days));
-  if (w.payee) li.push(tr('Bank account allowed for the issuer: #{0}', w.payee));
+  const pe = iw.payee;  // (#6819): the account's name and holder (it stands on the invoice when it is not issued as paid)
+  if (w.payee) li.push(pe && !pe.removed ? tr('Bank account on the invoice: {0} ({1}, IBAN ending {2})', pe.label || `#${w.payee}`, pe.holder, pe.iban_end)
+    + (pe.ref_only ? ` · ${tr('only with the payment reference')}` : '') : tr('Bank account allowed for the issuer: #{0}', w.payee));
   if (w.reference) li.push(tr('Payment reference: {0}', w.reference));
   if (iw.vat_check) li.push(tr('VAT ID check of the outside system (no proof): {0}', Object.entries(iw.vat_check).map(([k, v]) => `${k} ${v}`).join(', ')));
   if (iw.business_check) li.push(tr('Business check of the outside system (no proof): {0}', Object.entries(iw.business_check).map(([k, v]) => `${k} ${v}`).join(', ')));
@@ -313,7 +315,8 @@ function ofdListHtml() {
   const rows = OFD.list, k = OFD.kind, inv = k === 'invoice' || k === 'credit';
   const q = OFD.q.trim().toLowerCase();
   if (k === 'archive') return `<div class="seg ofdkinds" role="tablist" aria-label="${esc(tr('Document kind'))}">${ofd_kinds().map(([v, n]) => `<button type="button" role="tab" data-ofd="kind" data-kind="${v}" aria-selected="${v === k}" class="${v === k ? 'on' : ''}">${tr(n)}</button>`).join('')}</div><div class="ofcbar ofdbar"><div class="ctsearch">${ic('search', 's')}<input id="ofd-q" type="search" value="${esc(OFD.q)}" placeholder="${esc(tr('Search'))}" aria-label="${esc(tr('Search documents'))}" autocomplete="off" enterkeyhint="search"></div>${lst_sortBtn(ofd_listKey(k))}</div>` + (typeof oimArchiveListHtml === 'function' ? oimArchiveListHtml(q) : '');
-  const sts = k === 'offer' ? OFD_STATUS : (k === 'invoice' ? ['open', 'draft', 'issued', 'sent', 'partial', 'overdue', 'paid', 'cancelled'] : OFD_INV_STATUS[k]).map(v => [v, OFD_STATE[v]]);  // 2.356.0 D (#3007): + the open items
+  const sts = [...(k === 'offer' ? OFD_STATUS : (k === 'invoice' ? ['open', 'draft', 'issued', 'sent', 'partial', 'overdue', 'paid', 'cancelled'] : OFD_INV_STATUS[k]).map(v => [v, OFD_STATE[v]])),  // (#3007): + the open items
+    ['mail_failed', N_('Delivery failed')]];  // (#6820): refused by the mail server or marked as not delivered
   const newBtn = k === 'offer' ? `<button class="btn pri" data-ofd="new">${ic('plus', 's')}<span>${tr('New quotation')}</span></button>`  // 2.417.0 C (#3445): one button again (the test mode decides)
     : k === 'invoice' ? `${typeof dx_btn === 'function' && ofcFeat('books.datev') ? dx_btn() : ''}<button class="btn" data-ofd="remind">${ic('clock', 's')}<span>${tr('Create payment reminder')}</span></button><button class="btn pri" data-ofd="new-inv" aria-haspopup="menu">${ic('plus', 's')}<span>${tr('New invoice')}</span></button>`
     : k === 'reminder' ? `<button class="btn pri" data-ofd="remind">${ic('plus', 's')}<span>${tr('Create payment reminder')}</span></button>`
@@ -338,7 +341,7 @@ function ofdListHtml() {
   if (k === 'reminder') list.sort((a, b) => (a.settled ? 1 : 0) - (b.settled ? 1 : 0));
   const feeTxt = r => +r.fee_open > 0 ? `<small class="ofdfee">${esc(k === 'reminder' ? tr('fee open: {0}', r.fee_open_text || r.fee_open) : tr('reminder fee open: {0}', r.fee_open_text || r.fee_open))}</small>` : '';
   return bar + (k === 'invoice' && typeof oa_ppBox === 'function' ? oa_ppBox() : '') + (k === 'invoice' && typeof rinListHtml === 'function' ? rinListHtml() : '') /* 2.91.0 A (#1923) */ + (typeof dun_listHint === 'function' ? dun_listHint(k) : '') /* 2.147.1 B (#2054) */ + `<ul class="ofclist ofdlist" role="list">${list.map((r, i) => `${grp && r.settled && !list[i - 1]?.settled ? `<li class="ofdgrp muted" role="presentation">${tr('Settled')}</li>` : ''}<li class="ofdli"${isTouch() ? ' data-ofdmv="1"' /* 2.633.0 (#4964): a finger by drag.js (office_tree.js) */ : ' draggable="true"' /* 2.351.0 A (#2823): onto a folder of the panel */}><button type="button" class="ofcrow ofdrow st-${r.state || r.status}" data-ofd="open" data-id="${r.id}">
-    <span class="ofcn"><b>${r.locked ? `<span class="ofdlk" title="${esc(tr('Finalised'))}">${ic('lock', 's')}</span>` : ''}${esc(r.number || (r.locked ? tr('(no number)') : ofdKindName(r.kind || k, true)) /* 2.947.0 (#5454): a draft names its kind, not "(no number)" */)}${r.recipient_name ? ` · ${esc(r.recipient_name)}` : ''}${typeof dun_rowTag === 'function' ? dun_rowTag(r) : '' /* 2.147.1 B (#2054) */}${/*html-ok*/ ofe_rowTag(r) /* 2.1064.0 (#5818) */}${tri_tag(r) /* 2.144.10 C (#2576) */}${/*html-ok*/ ofd_marks(r) /* 2.1289.0 (#6481): tags built with esc() */}</b><small class="muted">${ofd_stTag(r, 'ofdst') /* 2.543.0 (#4473): phones: the status in the meta line */}${esc([r.project_title, r.date ? fmtDateLoc(r.date) : '', inv && r.due_date && !['paid', 'cancelled'].includes(r.state) ? tr('due {0}', fmtDateLoc(r.due_date)) : ''].filter(Boolean).join(' · '))}</small>${k === 'invoice' && typeof rinRowTag === 'function' ? rinRowTag(r) : ''}${k === 'invoice' && r.inv_type ? `<small class="rin-tag abs-tag">${esc(absKindName(r))}</small>` : ''}</span>
+    <span class="ofcn"><b>${r.locked ? `<span class="ofdlk" title="${esc(tr('Finalised'))}">${ic('lock', 's')}</span>` : ''}${esc(r.number || (r.locked ? tr('(no number)') : ofdKindName(r.kind || k, true)) /* (#5454): a draft names its kind, not "(no number)" */)}${r.recipient_name ? ` · ${esc(r.recipient_name)}` : ''}${typeof dun_rowTag === 'function' ? dun_rowTag(r) : '' /* (#2054) */}${/*html-ok*/ ofe_rowTag(r) /* (#5818) */}${/*html-ok*/ oms_rowTag(r) /* (#6820) */}${tri_tag(r) /* (#2576) */}${/*html-ok*/ ofd_marks(r) /* (#6481): tags built with esc() */}</b><small class="muted">${ofd_stTag(r, 'ofdst') /* (#4473): phones: the status in the meta line */}${esc([r.project_title, r.date ? fmtDateLoc(r.date) : '', inv && r.due_date && !['paid', 'cancelled'].includes(r.state) ? tr('due {0}', fmtDateLoc(r.due_date)) : ''].filter(Boolean).join(' · '))}</small>${k === 'invoice' && typeof rinRowTag === 'function' ? rinRowTag(r) : ''}${k === 'invoice' && r.inv_type ? `<small class="rin-tag abs-tag">${esc(absKindName(r))}</small>` : ''}</span>
     <span class="ofdsum"><b>${esc(k === 'delivery' ? '' : inv ? r.gross_text : r.net_text)}</b>${k === 'delivery' ? '' : `<small class="muted oil_amt">${inv && r.net !== r.gross ? `<span class="ofdlong">${esc(tr('gross, net {0}', r.net_text))}</span><span class="ofdshort">${esc(tr('gross'))}</span>` : esc(inv ? tr('gross') : tr('net'))}</small>` /* 2.356.0 C (#3003): which amount the row shows; 2.543.0 (#4473): phones only "gross" */}${inv && r.open && !['draft', 'paid', 'cancelled'].includes(r.state) && r.open !== r.gross ? `<small class="muted">${esc(tr('open: {0}', r.open_text || r.open))}</small>` : ''}${feeTxt(r)}${ofd_stTag(r, 'ofdsr')}</span></button><button data-rowmenu="ofdrow" type="button" class="iconbtn ofdrmore" data-ofd="rowmore" data-id="${r.id}" aria-haspopup="menu" aria-label="${esc(tr('More'))}" title="${esc(tr('More'))}">${ic('dots', 's')}</button></li>`).join('')}</ul>` + more;
 }
 
@@ -346,6 +349,28 @@ function ofdListHtml() {
 // marks it "expired"; the editor shows a note with the three answers of the bell's entry: extend (a new date, no new version),
 // follow up (the send dialog with a follow-up text), mark as declined
 const ofe_rowTag = r => r.expired ? `<small class="rotag ofe-exp">${esc(tr('expired'))}</small>` : '';
+// (#6820): the delivery state of the document's e-mail (server: office/mailstate.py): failed = the mail server refused it,
+// bounced = a person marked it as not delivered; the list's tag, the editor's note, the menu's mark and its way back
+const oms_bad = d => ['failed', 'bounced'].includes(d?.mail?.state);
+const oms_rowTag = r => oms_bad(r) ? `<small class="rotag oms-tag">${esc(tr('Delivery failed'))}</small>` : '';
+function oms_note(d) {
+  if (!oms_bad(d)) return '';
+  const when = d.mail.at ? fmtStamp(new Date(d.mail.at)) : '';
+  const txt = d.mail.state === 'failed' ? tr('The e-mail server refused the e-mail ({0}). The document has not been sent.', when)
+    : tr('Marked as not delivered ({0}): check the e-mail address and send it again.', when);
+  return `<div class="ofdlnote oms-note" role="status">${ic('alert', 's')}<span>${esc(txt)}</span></div>`;
+}
+// the menu: "Delivery failed" on a mailed document (the server also knows the ones mailed before 2.1435.0), "Delivered after all" back
+function oms_menuItem(d, rw) {
+  const st = d.mail?.state || 'none';
+  if (!rw || d.trial || !(st === 'sent' || st === 'bounced' || (st === 'none' && d.sent_at))) return null;
+  const on = st !== 'bounced';
+  return {label: on ? tr('Delivery failed') : tr('Delivered after all'), icon: on ? 'alert' : 'undo', fn: async () => {
+    try { const j = await rawFetch('POST', `/api/office/docs/${d.id}/mail-bounced`, {bounced: on}); OFD.list = null; OFD.log = null;
+      if (OFD.doc?.id === d.id) { OFD.doc = {...OFD.doc, ...j}; ofdDraw(); } else ofdLoadList(true);
+      toast(on ? tr('Marked as not delivered') : tr('Marked as delivered')); } catch (x) { ofcErr(x); }
+  }};
+}
 function ofe_note(d) {
   const x = d.kind === 'offer' && d.status === 'sent' ? d.offer_exp : null; if (!x) return '';
   const when = fmtDate(x.until), txt = x.state === 'gone' ? tr('Valid until {0} - expired without an answer.', when) : +x.days > 0 ? trn('Valid until {1} - expires in {0} day.', 'Valid until {1} - expires in {0} days.', +x.days, when) : tr('Valid until {0} - expires today.', when);
@@ -531,7 +556,7 @@ function ofdEditorHtml() {
   const langNote = ln.length ? `<div class="ofdlnote" role="status">${ic('info', 's')}<span>${tr('Language changed. Default texts were translated; these stayed as they were:')}<br>${ln.map(esc).join('<br>')}</span><button type="button" class="ib" data-ofd="ln-x" aria-label="${esc(tr('Close'))}">${ic('x', 's')}</button></div>` : '';
   const gaps = !ln.length && !lk ? d.lang_gaps || [] : [];  // 2.460.0 (#3767)
   const gapNote = gaps.length ? `<div class="ofdlnote" role="status">${ic('info', 's')}<span>${tr('Some of your own texts are missing in this language:')}<br>${gaps.map(esc).join('<br>')}</span></div>` : '';
-  return `${head}${banner}${/*html-ok*/ vf ? '' : oil_refsHtml(d) /* the reference lines sit in the head under the finalised note, not between two boxes; a folder view (vf) has no links into the master data */}${/*html-ok*/ ofe_note(d) /* (#5818) */}${kind === 'invoice' && typeof rinBox === 'function' ? rinBox(d) : '' /* (#1923) */}${typeof oa_docBanner === 'function' ? oa_docBanner(d) : ''}${ofd_cfBar(d) /* (#3012) */}${/*html-ok*/ ofd_missBox(d, ro || rd || vf) /* (#6529): escaped inside */}${langNote}${gapNote}${/*html-ok*/ typeof sg_box === 'function' && !rd /* (#6161): the approval links are steps */ ? sg_box(d) : ''}${typeof pep_box === 'function' ? pep_box(d) : '' /* (#1960) */}${typeof pol_box === 'function' ? pol_box(d) : '' /* (#3459) */}<div class="ofdeditor${kind === 'delivery' ? ' ofdls' : ''}" data-fg="ofd:${d.id}" data-fg-live><fieldset class="ofdfs" ${ro ? 'disabled' : ''}>${headSec}</fieldset>${!vf && typeof dpj_rowHtml === 'function' ? dpj_rowHtml(d) : '' /* (#2665): outside the locked fieldset; (#3005): below the head (client first) */}<fieldset class="ofdfs" ${ro ? 'disabled' : ''}>${`<section class="ofdsec open"><h3>${kind === 'reminder' ? tr('Reminded invoices') : tr('Positions')}</h3>${items}${auto}${totals}</section>${!vf && typeof tpPartsHtml === 'function' ? tpPartsHtml(d, adm) : ''}` /* (#2248): parts open in place in "Parts" */}${kind === 'reminder' || kind === 'delivery' ? '' : kind === 'offer' || oil_hasRights(d) ? rightsSec : ro ? '' : `<button type="button" class="btn sm oil_rtadd" data-ofd="rights-add">${ic('plus', 's')}<span>${tr('Transfer of rights')}</span></button>` /* (#3005): an invoice shows it once it has rights */}${textsSec}${/*html-ok*/ kind === 'reminder' || (rd && !fields.length) ? '' : fieldsSec}</fieldset>${kind === 'offer' && typeof cf8_box === 'function' ? cf8_box(d) : '' /* (#1915) */}${/*html-ok*/ ofdFeeHtml(d, adm && !rd)}${paySec}${logSec}</div>`;  // (#1200): sg_box = the approval link of a sent quotation
+  return `${head}${banner}${/*html-ok*/ vf ? '' : oil_refsHtml(d) /* the reference lines sit in the head under the finalised note, not between two boxes; a folder view (vf) has no links into the master data */}${/*html-ok*/ ofe_note(d) /* (#5818) */}${/*html-ok*/ oms_note(d) /* (#6820) */}${kind === 'invoice' && typeof rinBox === 'function' ? rinBox(d) : '' /* (#1923) */}${typeof oa_docBanner === 'function' ? oa_docBanner(d) : ''}${ofd_cfBar(d) /* (#3012) */}${/*html-ok*/ ofd_missBox(d, ro || rd || vf) /* (#6529): escaped inside */}${langNote}${gapNote}${/*html-ok*/ typeof sg_box === 'function' && !rd /* (#6161): the approval links are steps */ ? sg_box(d) : ''}${typeof pep_box === 'function' ? pep_box(d) : '' /* (#1960) */}${typeof pol_box === 'function' ? pol_box(d) : '' /* (#3459) */}<div class="ofdeditor${kind === 'delivery' ? ' ofdls' : ''}" data-fg="ofd:${d.id}" data-fg-live><fieldset class="ofdfs" ${ro ? 'disabled' : ''}>${headSec}</fieldset>${!vf && typeof dpj_rowHtml === 'function' ? dpj_rowHtml(d) : '' /* (#2665): outside the locked fieldset; (#3005): below the head (client first) */}<fieldset class="ofdfs" ${ro ? 'disabled' : ''}>${`<section class="ofdsec open"><h3>${kind === 'reminder' ? tr('Reminded invoices') : tr('Positions')}</h3>${items}${auto}${totals}</section>${!vf && typeof tpPartsHtml === 'function' ? tpPartsHtml(d, adm) : ''}` /* (#2248): parts open in place in "Parts" */}${kind === 'reminder' || kind === 'delivery' ? '' : kind === 'offer' || oil_hasRights(d) ? rightsSec : ro ? '' : `<button type="button" class="btn sm oil_rtadd" data-ofd="rights-add">${ic('plus', 's')}<span>${tr('Transfer of rights')}</span></button>` /* (#3005): an invoice shows it once it has rights */}${textsSec}${/*html-ok*/ kind === 'reminder' || (rd && !fields.length) ? '' : fieldsSec}</fieldset>${kind === 'offer' && typeof cf8_box === 'function' ? cf8_box(d) : '' /* (#1915) */}${/*html-ok*/ ofdFeeHtml(d, adm && !rd)}${paySec}${logSec}</div>`;  // (#1200): sg_box = the approval link of a sent quotation
 }
 // 2.38.0 (#1021, F1): the invoices a reminder lists (read-only rows), the payments of an invoice
 function ofdRefsHtml(d, t) {
@@ -817,7 +842,7 @@ async function oil_post(d, b) {
 const OFD_ACTIONS = {valid_until: N_('validity extended'), /* 2.1064.0 (#5818) */ create: N_('created'), update: N_('changed'), items: N_('positions changed'), number: N_('number set'), status: N_('status changed'),
   finalize: N_('finalised'), unlock: N_('finalising undone'), duplicate: N_('created as a copy'), cashflow: N_('cash flow choice changed'), delete: N_('deleted'), open: N_('opened'), pdf: N_('PDF opened'), render: N_('preview opened'),
   export: N_('exported'), import: N_('imported'), archive: N_('archived'), upload: N_('uploaded'),
-  payment: N_('payment recorded'), payment_delete: N_('payment reversed'), send: N_('sent by e-mail'), datev: N_('sent to the DATEV inbox'), undo: N_('import undone'), reminder_fee: N_('reminder fee waived / paid / open again / cancelled'), recovery_key: N_('recovery key shown'),
+  payment: N_('payment recorded'), payment_delete: N_('payment reversed'), send: N_('sent by e-mail'), mail_failed: N_('e-mail refused by the e-mail server'), mail_bounced: N_('marked as not delivered'), /* (#6820) */ datev: N_('sent to the DATEV inbox'), undo: N_('import undone'), reminder_fee: N_('reminder fee waived / paid / open again / cancelled'), recovery_key: N_('recovery key shown'),
   chain_broken: N_('hash chain broken here (daily check)'), /* 2.1309.0 (#6467) */ chain_moved: N_('joined the hash chain of this office (moved in)'), /* 2.1327.0 (#6591) */ num_range: N_('number range changed'), /* 2.1365.0 (#6698) */ agent_read: N_('read (agent)'), agent_write: N_('drafted (agent)'), from_sheet: N_('created from a table'), restore: N_('restored|office log')};  // 2.113.2 (#2253): + restore  // 2.89.0 (#1916, D): + from_sheet  // 2.51.0 A (#1348)  // 2.42.0 (#828): + recovery_key  // 2.39.1 (#1182): + undo; 2.40.0 (#1368): + reminder_fee
 const ofdActText = (a, x) => a !== 'reprice' ? tr(OFD_ACTIONS[a] || a) : x?.detail?.pct != null ? tr('prices changed by {0} %', fmtNum(x.detail.pct, 2)) : tr('prices changed');  // 2.1041.0 (#5812): the repricing names its percentage
 const ofdWhen = iso => { const d = new Date(iso); return isNaN(+d) ? iso || '' : fmtStamp(d); };  // 2.368.0 B (#2982)
@@ -1152,6 +1177,7 @@ function ofdMoreItems(d, inList) {
       !inList ? null : {label: tr('Preview (PDF)'), icon: 'eye', fn: () => ofdPdfOpen(d, false)},  // 2.40.0 (#1364): the PDF, not the JSON print model; 2.138.2 A (#2393): a list row opens marked; 2.380.0 A (#3410): a draft opens at once, too; 2.356.0 C (#3005): the editor has its Preview button, the menu no second one
       !inList ? null : {label: tr('Download PDF'), icon: 'download', fn: () => d.status === 'draft' && !d.locked ? ofdPdfAskGo(d, true) : ofdPdfOpen(d, true)},  // 2.435.0 B (#3618)
       !inList || !rw || !ofdCanSend(d) || d.trial ? null : {label: tr('Send by e-mail…'), icon: 'send', fn: async () => { try { ofdSendDialog(d.timesheet_ok === undefined ? await api('GET', `/api/office/docs/${d.id}`) : d); } catch (x) { ofcErr(x); } }},  // 2.435.0 B (#3618): the list row may lack fields, load the whole document first
+      oms_menuItem(d, rw),  // (#6820): a bounce in the mailbox
       ...(rw && typeof ls_moreItems === 'function' ? ls_moreItems(d, inList) : []),  // 2.120.0 D (#2089); 2.1238.0 (#6161): not for a reader
       ofdIsInv(d) && d.kind !== 'reminder' && d.kind !== 'delivery' && d.locked && (ofcFeat('docs.einvoice') || d.xml_sha256) ? {label: tr('E-invoice XML'), icon: 'download', fn: () => window.open(ofc_spUrl(`/api/office/docs/${d.id}/xml`), '_blank', 'noopener')} : null,
       ...(typeof pep_moreItems === 'function' ? pep_moreItems(d).filter(x => rw || x.icon === 'download') : []),  // 2.1238.0 (#6161): a reader keeps the UBL download  // 2.154.0 B (#1960): send over Peppol, UBL
@@ -1250,22 +1276,25 @@ async function ofdClick(e) {
     // 2.1384.0 (#6700): the client's data from an invoice issuer, not checked yet: the dialog lists them, the tick confirms them
     const hold = pv?.client_hold || null, holdHtml = hold && typeof ihd_dlgHtml === 'function' ? ihd_dlgHtml(hold) : '';
     const holdWire = md => { const cb = $('#ofd-ihd-ok', md); if (cb) cb.addEventListener('change', () => { fin2.hold = cb.checked; }); };
-    const finBody = extra => ({...extra, ...(past && fin2.today ? {to_today: true} : {}), ...(hold && fin2.hold ? {client_hold_ok: hold.at} : {})});
+    // (#6819): "Issue as paid" (invoices, who may record payments): no bank account, no GiroCode, no due date; the payment
+    // is booked with the finalising. An invoice issuer's payment statement stands beside it unconfirmed and fills the fields
+    const paidHtml = ofd_finPaidHtml(d), paidWire = md => ofd_finPaidWire(md, fin2);
+    const finBody = extra => ({...extra, ...(past && fin2.today ? {to_today: true} : {}), ...(hold && fin2.hold ? {client_hold_ok: hold.at} : {}), ...(fin2.paidRead?.() ? {as_paid: fin2.paidRead()} : {})});
     const noHtml = pv?.number ? `<p class="ofdfinno">${/*html-ok*/ /* escaped inside */ esc(tr('Will be finalised as {0}', '\u0000')).replace('\u0000', `<b>${esc((past ? pv.number_today : pv.number) || '')}</b>`)}</p><p>${esc(fin)}</p>` : '';
     if (ofd_finHand(d)) {  // 2.1289.0 (#6481 N3, S3): a number of your own only here, given with the finalising (office admins)
       let md0 = null, j = null;
-      const html = (noHtml || `<p>${esc(fin)}</p>`) + pastHtml + first + warnHtml + holdHtml + `<details class="ofdfinhand"><summary>${esc(tr('Number of your own (optional)'))}</summary>`
+      const html = (noHtml || `<p>${esc(fin)}</p>`) + pastHtml + first + warnHtml + holdHtml + paidHtml + `<details class="ofdfinhand"><summary>${esc(tr('Number of your own (optional)'))}</summary>`
         + ofdF('fin-no', tr('Number'), `<input id="ofd-fin-no" maxlength="80" autocomplete="off" spellcheck="false" placeholder="${esc(pv?.number || '')}">`)
         + ofdF('fin-why', tr('Reason (needed when numbers are skipped)'), `<input id="ofd-fin-why" maxlength="300">`) + '</details>';
-      const ok = await askDialog({title: tr('Finalise this document?'), html, ok: tr('Finalise'), after: md => { md0 = md; pastWire(md); holdWire(md); if (first) ofd_firstWire(md); },
+      const ok = await askDialog({title: tr('Finalise this document?'), html, ok: tr('Finalise'), after: md => { md0 = md; pastWire(md); holdWire(md); paidWire(md); if (first) ofd_firstWire(md); },
         submit: async () => { if (hold && !fin2.hold) { toast(tr('Confirm the client data from the invoice issuer first')); return false; }  // 2.1384.0 (#6700): the dialog stays for the tick
           const no = ($('#ofd-fin-no', md0)?.value || '').trim(), why = ($('#ofd-fin-why', md0)?.value || '').trim();
           j = await ofdSave('POST', `/api/office/docs/${d.id}/finalize`, finBody(no ? {number: no, reason: why} : {})); return !!j || OFD.conflict?.id === d.id; }});  // 2.1317.0 (#6331): a conflict closes the dialog, the bar says it
       if (ok && j) toast(tr('Finalised as {0}', j.number || ''));
       return;
     }
-    if (!await askConfirm(tr('Finalise this document?'), fin, {ok: tr('Finalise'), ...(noHtml || first || warnHtml || pastHtml || holdHtml ? {html: (noHtml || `<p>${esc(fin)}</p>`) + pastHtml + first + warnHtml + holdHtml} : {}),
-      ...(first || past || hold ? {after: md => { pastWire(md); holdWire(md); if (first) ofd_firstWire(md); }} : {})})) return;
+    if (!await askConfirm(tr('Finalise this document?'), fin, {ok: tr('Finalise'), ...(noHtml || first || warnHtml || pastHtml || holdHtml || paidHtml ? {html: (noHtml || `<p>${esc(fin)}</p>`) + pastHtml + first + warnHtml + holdHtml + paidHtml} : {}),
+      ...(first || past || hold || paidHtml ? {after: md => { pastWire(md); holdWire(md); paidWire(md); if (first) ofd_firstWire(md); }} : {})})) return;
     if (hold && !fin2.hold) { toast(tr('Confirm the client data from the invoice issuer first')); return; }  // 2.1384.0 (#6700)
     const j = await ofdSave('POST', `/api/office/docs/${d.id}/finalize`, finBody({})); if (j) toast(tr('Finalised as {0}', j.number || ''));
     return;
@@ -1293,6 +1322,27 @@ async function ofdClick(e) {
   if (a === 'client-edit') { await cdn_editClient(d); return; }
   if (a === 'fld-add') { d.fields = [...(d.fields || []), {name: '', value: ''}]; OFD.open.fields = true; ofdDraw(); setTimeout(() => $(`#ofd-fields [data-fld="${d.fields.length - 1}"][data-k="name"]`)?.focus(), 0); return; }
   if (a === 'fld-del') { d.fields.splice(+b.dataset.i, 1); await ofdPatch({fields: d.fields}); return; }
+}
+// (#6819): "Issue as paid" in the finalise dialog: an invoice with an amount, only for who may record payments (the server
+// checks it: 403). Unticked = as before. An invoice issuer's payment statement (wish.paid) is named as unconfirmed and fills date
+// and method; the person ticks it for this one document (no batch, nothing automatic: #1146)
+function ofd_finPaidHtml(d) {
+  if (d.kind !== 'invoice' || d.trial || !(typeof ofcAdmin === 'function' && ofcAdmin()) || !(+(d.totals || {}).gross > 0)) return '';
+  const w = (d.issuer_wish || {}).wish || {}, p = w.paid || null, t = today();
+  const day = p && /^\d{4}-\d\d-\d\d$/.test(p.date || '') && p.date <= t ? p.date : t;
+  const meth = p && OFD_ISS_PAY[p.method] ? p.method : 'transfer';
+  const said = p ? `<p class="muted ofdfinpaidw">${esc(tr('Statement of the invoice issuer (unconfirmed): paid {0} on {1} by {2}', ofdMoney(p.amount, d), fmtDate(p.date), tr(OFD_ISS_PAY[p.method] || p.method)))}</p>`
+    + (Math.abs((+p.amount || 0) - (+(d.totals || {}).gross || 0)) > 0.004 ? `<p class="ofdwarn" role="status">${esc(tr('The amount differs from the gross of this invoice: issued as paid, the full gross is booked.'))}</p>` : '') : '';
+  return `<div class="ofdfinpaid"><label class="chkl"><input type="checkbox" id="ofd-fin-paid"> ${esc(tr('Issue as paid'))}</label>${/*html-ok*/ said /* built above, every value through esc() */}`
+    + `<div class="ofdfinpaidf" hidden><p class="muted">${esc(tr('The invoice says when and how it was paid, without bank account, GiroCode or due date. The payment of the full amount is booked with it.'))}</p>`
+    + ofdF('fin-pdate', tr('Paid on'), dateIn('ofd-fin-pdate', day, {label: tr('Paid on'), clear: false, max: t}))
+    + ofdF('fin-pmeth', tr('Method'), ofcSel('ofd-fin-pmeth', meth, Object.entries(OFD_ISS_PAY).map(([v, n]) => [v, tr(n)]))) + '</div></div>';
+}
+function ofd_finPaidWire(md, fin2) {
+  const cb = $('#ofd-fin-paid', md); if (!cb) return;
+  const box = $('.ofdfinpaidf', md);  // read when sent (the date picker writes its hidden field without an event of its own)
+  fin2.paidRead = () => cb.checked ? {date: $('#ofd-fin-pdate', md)?.value || today(), method: $('#ofd-fin-pmeth', md)?.value || 'transfer'} : null;
+  cb.addEventListener('change', () => { if (box) box.hidden = !cb.checked; });
 }
 // 2.1289.0 (#6481 N3, S3): an invoice / correction without a number takes a number of your own in the finalise dialog (office admins, as the number pen before)
 const ofd_finHand = d => ['invoice', 'credit'].includes(d.kind) && !d.trial && !d.number && !d.range_id && typeof ofcAdmin === 'function' && ofcAdmin();  // 2.1365.0 (#6698): never in an additional range

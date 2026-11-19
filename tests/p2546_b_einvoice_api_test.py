@@ -14,6 +14,8 @@ minimum number of these files (MIN_FILES) so that a case lost here cannot pass a
  - each: finalised with a number, the own check (einvoice.ein_check) finds nothing, the PDF is PDF/A-3 (ZUGFeRD: with the
    XML embedded; XRechnung: without), the tax lines of the XML are the ones of the case (19 / 7, AE 0)
  - 2.1042.0 (#5815): an invoice from a quotation with a position's own discount and a fixed amount off (XRechnung)
+ - (#6819): "Issue as paid" -- by card as ZUGFeRD (payment means 48), by PayPal as XRechnung (ZZZ with the text):
+   no IBAN, prepaid = gross, amount due 0
  - the files: tests/.data/einvoice/real-<case>.pdf / .xml (the data dir of the server is another one: start.sh wipes it)
 usage: p2546_b_einvoice_api_test.py <datadir>      (P2546E_NOSTART=1 / KMT_NOSTART=1: a running server)"""
 import importlib.util
@@ -72,7 +74,7 @@ def office(S, who):
 ITEMS = [{"title": "Filmherstellung", "qty": 3, "unit": "day", "rate": 1000}, {"title": "Begleitbuch", "qty": 10, "unit": "piece", "rate": 12.5, "tax": "reduced"}]
 
 
-def make(S, who, name, client, fmt, items, **head):
+def make(S, who, name, client, fmt, items, fin=None, **head):
     """An invoice through the routes, finalised; its stored files into OUT -> (id, xml bytes)."""
     body = {"kind": "invoice", "project_title": "Imagefilm 2026", "client_id": client, "order_ref": "PO-77", "service_from": "2026-05-01",
             "service_to": "2026-05-31", "date": "2026-05-08", "payment_days": 14, "einvoice_format": fmt, **head}
@@ -81,11 +83,11 @@ def make(S, who, name, client, fmt, items, **head):
     did = r.json()["id"]
     r = S.put(B + f"{D}/{did}/items", json={"items": items})
     check(r.ok, f"{who} {name}: its positions " + r.text[:160])
-    return did, finalise(S, who, name, did, fmt)
+    return did, finalise(S, who, name, did, fmt, fin)
 
 
-def finalise(S, who, name, did, fmt):
-    r = S.post(B + f"{D}/{did}/finalize")
+def finalise(S, who, name, did, fmt, fin=None):
+    r = S.post(B + f"{D}/{did}/finalize", json=fin or {})
     check(r.ok and r.json().get("number"), f"{who} {name}: finalised with a number " + r.text[:160])
     pdf, xml = S.get(B + f"{D}/{did}/pdf"), S.get(B + f"{D}/{did}/xml")
     check(pdf.ok and pdf.content.startswith(b"%PDF-") and b"<pdfaid:part>3</pdfaid:part>" in pdf.content, f"{who} {name}: the stored PDF is PDF/A-3")
@@ -167,6 +169,15 @@ if r.status_code == 201:
     gross = text(x, AG + "ram:SpecifiedTradeSettlementHeaderMonetarySummation/ram:GrandTotalAmount")
     check(tax_lines(x) == [("S", 7.0), ("S", 19.0)] and gross == "2638.43" and b"<ram:ActualAmount>200.00</ram:ActualAmount>" in x,
           f"08: 19 % and 7 %, the line allowance 200.00, gross 2638.43 ({gross}) {tax_lines(x)}")
+
+# (#6819): issued as paid -- no bank account, the gross prepaid, nothing due; the means of the payment
+MS = AG + "ram:SpecifiedTradeSettlementHeaderMonetarySummation/"
+for name, fmt, meth, code in (("09-paid-card-zugferd", "zugferd", "card", "48"), ("10-paid-paypal-xrechnung", "xrechnung", "paypal", "ZZZ")):
+    _, x = make(A, "org", name, CL["de"], fmt, ITEMS, fin={"as_paid": {"date": "2026-05-08", "method": meth}})
+    check(text(x, AG + "ram:SpecifiedTradeSettlementPaymentMeans/ram:TypeCode") == code and b"IBANID" not in x
+          and text(x, MS + "ram:TotalPrepaidAmount") == text(x, MS + "ram:GrandTotalAmount") and text(x, MS + "ram:DuePayableAmount") == "0.00"
+          and text(x, AG + "ram:SpecifiedTradePaymentTerms/ram:DueDateDateTime/udt:DateTimeString") is None,
+          f"{name}: means {code}, no IBAN, prepaid = gross, due 0, no due date {text(x, AG + 'ram:SpecifiedTradeSettlementPaymentMeans/ram:TypeCode')}")
 
 # ---------------------------------------------------------------- a person without an organisation
 FC = office(F, "freelancer")
