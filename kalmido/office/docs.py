@@ -44,6 +44,7 @@ from .invoices import ofi_ref_doc, ofi_ref_keep  # 2.269.0 D (#3046)
 from .invoices import inv_credit_pack, inv_refund_open  # 2.354.0 D (#2837, #2838)
 from .invoices import inv_number_year, inv_pay_add  # 2.355.0 A (#2839, #2847)
 from .invoices import inv_manual_seq  # 2.1289.0 (#6481 N2)
+from .invoices import inv_missing_public  # (#6529)
 from .invoices import inv_mail_subject  # #6945
 
 DOC_KINDS = ("offer",) + INV_KINDS + ("delivery",)  # 2.120.0 D (#2089): delivery notes / proofs of service (office/delivery.py); 2.38.0 (#1021, F1): invoices, credit notes, reminders live in office/invoices.py
@@ -629,6 +630,8 @@ def doc_public(c, oid, r, admin, items=True):
     d["locked"] = locked
     if items and not locked:  # 2.460.0 (#3767): own texts missing in the document's language
         d["lang_gaps"] = fd_lang_gaps(c, oid, r, d.get("items") or [])
+    if items and not locked and r["status"] == "draft":  # (#6529): the list above "Finalise" (blocks and hints, each with its key)
+        d["missing"] = inv_missing_public(c, oid, r, d.get("items") or [])
     d["locked_by_name"] = locked_by_name
     d["can_edit"] = not locked and r["status"] != "sent" and ofd_role_edit(c, oid)  # 2.38.0: sent documents are locked as well; 2.1238.0 (#6161, Stufe 3): + the role
     d["can_unlock"] = bool(admin) and locked and not bga_offer_block(c, oid, r)  # 2.114.2 A (#2263): back to a draft

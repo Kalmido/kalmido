@@ -285,6 +285,7 @@ check(A.put(B + O + "/settings", json={"pack": "AT"}).ok, "Alpha chooses AT")
 st = A.get(B + O + "/settings").json()
 check(st["pack"]["code"] == "AT" and st["pack"]["tax"]["standard"] == 20, f"settings: the pack AT ({st['pack'].get('code')})")
 S1 = A.post(B + O + "/services", json={"name_de": "Schnitt", "name_en": "Editing", "category": "Video", "daily_rate": 1000}).json()["id"]
+check(A.put(B + O + "/settings", json={"company_fields": {"name": "Studio Beispiel", "street": "Hafenstraße 12", "zip": "20457", "city": "Hamburg", "country": "DE"}}).ok, "the sender")  # 2.1416.0 (#6530): a quotation is finalised only with its sender's name and address
 DOC = A.post(B + D, json={"project_title": "Imagefilm"}).json()["id"]
 r = A.put(B + f"{D}/{DOC}/items", json={"items": [{"service_id": S1, "qty": 1}]})
 check(r.ok and r.json()["totals"]["net"] == 1000 and r.json()["totals"]["gross"] == 1200, f"AT: 20 % VAT ({r.json().get('totals') if r.ok else r.text[:200]})")

@@ -36,7 +36,7 @@ from ..core.orgcrypt import oc_dec_fields, oc_enc, oc_enc_fields, oc_json_store,
 from ..core.access import Denied
 from ..core.errors import BadInput, DeniedKey
 from .model import ofx_release  # noqa: F401  2.542.0 (#4598): moved to model, chain needs it at module level
-from .model import doc_range_id, ofx_name1, ofx_name_clean, ofx_name_lines, office_role, office_settings, pb_cl_sql
+from .model import doc_range_id, ofx_name1, ofx_name_clean, ofx_name_lines, ofx_org_name, office_role, office_settings, pb_cl_sql
 from .packs import office_pack_for
 from .doclang import doc_lg, doc_pack
 from .rights import ofr_admin_or
@@ -186,8 +186,11 @@ def ofx_company(c, oid):
     r = c.execute("SELECT * FROM office_company WHERE org_id=?", (oid,)).fetchone()
     r = oc_dec_fields(c, oid, "office_company", r) if r else None  # 2.42.0 (#828): bank / tax fields encrypted at rest
     out = {k: (r[k] if r and k in r.keys() else "") or "" for k in COMPANY_COLS}
+    free = office_settings(c, oid).get("company") or {}
     if not any(out[k] for k in ("street", "zip", "city")):  # 2.99.0 D (#2188): the old free address lines, read into the fields
-        out.update(ofx_company_from_free(out, (office_settings(c, oid).get("company") or {}).get("lines") or []))
+        out.update(ofx_company_from_free(out, free.get("lines") or []))
+    if not out["name"] and not str(free.get("name") or "").strip():  # (#6530): an organisation's office is preset with its
+        out["name"] = ofx_org_name(c, oid)  # name (the settings show it, the first save keeps it); a personal office stays empty
     from .bankacc import BKA_BANK, bka_default
     acc = bka_default(c, oid)  # 2.470.0 (#3596): the default bank account goes before the company's own fields (print, payment, GiroCode)
     if acc:
@@ -429,6 +432,9 @@ def ofx_finalize(c, oid, uid, did, manual=None, reason="", to_today=False, hold_
         r = doc_row(c, oid, did)
         from .periodlock import period_need_open
         period_need_open(c, oid, r["date"])  # 2.148.0 A (#2471): no new booking in a locked month
+    else:  # (#6530): a quotation only with its sender's name and address (the same list as an invoice's, 400)
+        from .invoices import inv_offer_before_finalize
+        inv_offer_before_finalize(c, oid, r, s)
     if manual is not None and manual != r["number"]:  # 2.1289.0 (#6481 N3, S3)
         if r["number"]:
             raise DeniedKey(409, N_("This draft already has the number {0}"), r["number"])

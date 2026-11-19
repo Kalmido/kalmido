@@ -12,6 +12,8 @@ of static/js/**/*.js that holds markup (the template reader of tools/check_trh.p
   marked ${/*html-ok*/ expr} = HTML on purpose (built elsewhere from esc()); say in a comment why
   else   reported as a finding. Old findings are the baseline (tools/innerhtml_baseline.json, "file|expression" -> count,
          no line numbers); a NEW one is red. The baseline only ever shrinks: --update rewrites it (never adds).
+  key    the expression without its comments (/* */ and //, outside strings, templates and regex literals) and with its
+         white space folded (key()), so editing or removing a comment next to an old finding is no new finding (#7173).
 
 usage: python3 tools/check_innerhtml.py [-v] [--update] [--selftest]      exit 1 on a new finding (a fixed one only shows as a note)
 Standard library only.
@@ -92,6 +94,97 @@ def safe(a):
     return False
 
 
+_RX_BEFORE = set("(,=:[!&|?{};+-*%<>~^")  # a '/' after one of these (or at the start / after return) opens a regex literal
+
+
+def _skip_regex(a, j):
+    """a[j] == '/' opening a regex literal -> the index after its closing '/' and flags (a line end stops it)."""
+    k, cls, n = j + 1, False, len(a)
+    while k < n and a[k] != "\n":
+        c = a[k]
+        if c == "\\":
+            k += 2
+            continue
+        if c == "[":
+            cls = True
+        elif c == "]":
+            cls = False
+        elif c == "/" and not cls:
+            k += 1
+            while k < n and (a[k].isalnum() or a[k] in "_$"):
+                k += 1
+            return k
+        k += 1
+    return k
+
+
+def _uncomment(a, j=0, in_expr=False):
+    """a from j without its comments -> (text, end). Strings, regex literals and the literal parts of templates stay as
+    they are; the ${ } of a template is code again. in_expr: stop at the '}' that closes the ${ (end = its index)."""
+    out, depth, n = [], 0, len(a)
+    while j < n:
+        c = a[j]
+        if c in "'\"":
+            m = re.compile(c + r"(?:[^" + c + r"\\\n]|\\.)*" + c).match(a, j)
+            e = m.end() if m else j + 1
+            out.append(a[j:e])
+            j = e
+            continue
+        if c == "`":  # literal parts verbatim, every ${ } through _uncomment again
+            k = j + 1
+            out.append("`")
+            while k < n and a[k] != "`":
+                if a[k] == "\\":
+                    out.append(a[k:k + 2])
+                    k += 2
+                elif a.startswith("${", k):
+                    t, k = _uncomment(a, k + 2, True)
+                    out.append("${" + t + a[k:k + 1])  # the closing } (none when the text ends inside the ${)
+                    k += 1
+                else:
+                    out.append(a[k])
+                    k += 1
+            out.append(a[k:k + 1])  # the closing ` (none when the text ends inside the template)
+            j = k + 1
+            continue
+        if a.startswith(MARK, j):  # the mark is no comment to drop
+            out.append(MARK)
+            j += len(MARK)
+            continue
+        if a.startswith("/*", j):
+            e = a.find("*/", j + 2)
+            j = n if e < 0 else e + 2
+            out.append(" ")
+            continue
+        if a.startswith("//", j):
+            e = a.find("\n", j)
+            j = n if e < 0 else e
+            out.append(" ")
+            continue
+        if c == "/":
+            prev = "".join(out).rstrip()
+            if not prev or prev[-1] in _RX_BEFORE or re.search(r"\b(return|typeof|case|in|of|void)$", prev):
+                e = _skip_regex(a, j)
+                out.append(a[j:e])
+                j = e
+                continue
+        if c in "([{":
+            depth += 1
+        elif c in ")]}":
+            if in_expr and c == "}" and depth == 0:
+                return "".join(out), j
+            depth -= 1
+        out.append(c)
+        j += 1
+    return "".join(out), j
+
+
+def key(a):
+    """The baseline text of an expression: its comments out (outside strings, templates, regex literals), white space
+    folded. A changed comment next to an old finding keeps the key; the mark /*html-ok*/ is kept."""
+    return re.sub(r"\s+", " ", _uncomment(a)[0]).strip()
+
+
 def scan(src):
     """-> [(line, expression)] of the unsafe ${} in every markup template."""
     tpls = T.templates(src)
@@ -102,7 +195,7 @@ def scan(src):
             end = _expr_end(src, e)
             a = src[e:end]
             if not safe(a):
-                yield src.count("\n", 0, e) + 1, re.sub(r"\s+", " ", a).strip()
+                yield src.count("\n", 0, e) + 1, key(a)
 
 
 def _expr_end(src, e):

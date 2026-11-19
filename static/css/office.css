@@ -1489,3 +1489,5 @@ details.bnkmiss1:not([open]){font-size:var(--fs-xs)}
 .opc .opc-diff.up{color:var(--warn, inherit)}
 .opc .opc-warn{color:var(--warn, inherit)}
 .opc .opc-time .opc-act{font-weight:600}
+.ofdmissl{margin:.25rem 0 .5rem;padding-left:1.125rem}.ofdmissl li{margin:.125rem 0}.ofdmiss>.btn{flex:none}  /* 2.1416.0 (#6529): the list of missing details above the editor */
+.ofsu{margin:0 0 1rem}.ofsu .ofsur{display:flex;align-items:center;gap:.5rem}.ofsu .ofsur .dwb{flex:1;min-width:0}.ofsu .ofsuok .dwb>svg{color:var(--ok)}  /* 2.1416.0 (#6530): the card "Set up your office" */

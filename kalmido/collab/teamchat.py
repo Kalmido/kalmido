@@ -49,6 +49,7 @@ from ..core.objseen import osn_drop
 # mentions). Needs collaboration on (instance switch); the person's module "collab" off = no team chat.
 TCHAT_MAX, TCHAT_PAGE = 8000, 50
 TCHAT_RATE = 60  # 2.281.0 B (#3117): messages per person and minute (each one costs pushes and badge counts for the room)
+TCHAT_MENTION_SCAN = 500  # #6400: the newest unread main messages of a room the @mention test of the room list reads (the count stays exact)
 TCX_KINDS = ("channel", "group")  # 2.113.1 (#2059): rooms with their own members (collab/teamchan.py)
 
 
@@ -332,13 +333,17 @@ def tchat_rooms(c, uid, create=False, full=True):
 def _tchat_room_counts(c, ids, uid):
     """2.149.0 C (#2507): what tchat_rooms needs per room in four statements for all rooms (was four to five per room):
     ({room: newest main message}, {room: (last read id, muted)}, {room: (unread main messages of others, a message after
-    my read mark @mentions me)}, {room: tth_unread()}). Same conditions as the per-room queries before."""
+    my read mark @mentions me)}, {room: tth_unread()}). Same conditions as the per-room queries before.
+    #6400: no statement reads all messages of a room any more - the newest main message is one step down the index
+    tchat_msgs_room (room_id, id) per room, a room whose newest id (tchat_room_sig.max_id, kept by a trigger, #4183) is not
+    above my read mark has nothing unread and is not read at all, and the @mention test reads only the newest
+    TCHAT_MENTION_SCAN unread main messages of a room (the count stays exact)."""
     ids = sorted({int(i) for i in ids})
     if not ids:
         return {}, {}, {}, {}
     lasts = {r["room_id"]: r for r in c.execute(
-        f"SELECT DISTINCT ON (room_id) * FROM tchat_msgs WHERE room_id = ANY(CAST(? AS BIGINT[])) AND {live_sql()} "
-        "AND thread_of IS NULL ORDER BY room_id, id DESC", (ids,))}
+        f"""SELECT m.* FROM unnest(CAST(? AS BIGINT[])) x(id) CROSS JOIN LATERAL (SELECT * FROM tchat_msgs
+           WHERE room_id=x.id AND {live_sql()} AND thread_of IS NULL ORDER BY id DESC LIMIT 1) m""", (ids,))}
     # 2.981.0 (#5286): the read marks / mutes / threads taken part in are rows of the core's obj_seen / obj_follow
     reads = {r[0]: (r[1], bool(r[2])) for r in c.execute(
         """SELECT x.id, COALESCE(s.seen_id,0), f.user_id IS NOT NULL FROM unnest(CAST(? AS BIGINT[])) x(id)
@@ -346,11 +351,18 @@ def _tchat_room_counts(c, ids, uid):
            LEFT JOIN obj_follow f ON f.kind='tchat' AND f.ref_id=x.id AND f.user_id=? AND f.mode='mute'
            WHERE s.user_id IS NOT NULL OR f.user_id IS NOT NULL""", (ids, uid, uid))}
     pat = f"%<@{uid}>%"
+    # a room without a counter row yet (no change since #4183) is counted like before
     unr = {r[0]: (r[1], bool(r[2])) for r in c.execute(
-        f"""SELECT m.room_id, COUNT(*) FILTER (WHERE COALESCE(m.user_id,0)!=?), bool_or(m.body ILIKE ?) FROM tchat_msgs m
-           LEFT JOIN obj_seen d ON d.kind='tchat' AND d.ref_id=m.room_id AND d.user_id=?
-           WHERE m.room_id = ANY(CAST(? AS BIGINT[])) AND m.id>COALESCE(d.seen_id,0) AND {live_sql("m")} AND m.thread_of IS NULL
-           GROUP BY m.room_id""", (uid, pat, uid, ids))}
+        f"""SELECT x.id,
+             (SELECT COUNT(*) FROM tchat_msgs m WHERE m.room_id=x.id AND m.id>x.seen AND {live_sql("m")}
+               AND m.thread_of IS NULL AND COALESCE(m.user_id,0)!=?),
+             EXISTS (SELECT 1 FROM (SELECT m.body FROM tchat_msgs m WHERE m.room_id=x.id AND m.id>x.seen AND {live_sql("m")}
+               AND m.thread_of IS NULL ORDER BY m.id DESC LIMIT ?) b WHERE b.body ILIKE ?)
+           FROM (SELECT u.id, COALESCE(d.seen_id,0) AS seen FROM unnest(CAST(? AS BIGINT[])) u(id)
+                 LEFT JOIN obj_seen d ON d.kind='tchat' AND d.ref_id=u.id AND d.user_id=?
+                 LEFT JOIN tchat_room_sig g ON g.room_id=u.id
+                 WHERE g.room_id IS NULL OR g.max_id > COALESCE(d.seen_id,0)) x""",
+        (uid, TCHAT_MENTION_SCAN, pat, ids, uid))}
     thr = {r[0]: (r[1], bool(r[2])) for r in c.execute(
         f"""SELECT m.room_id, COUNT(*), COALESCE(SUM(CASE WHEN m.body ILIKE ? THEN 1 ELSE 0 END),0) FROM tchat_msgs m
            JOIN obj_follow w ON w.kind='tchat_thread' AND w.ref_id=m.thread_of AND w.user_id=? AND w.mode='watch'

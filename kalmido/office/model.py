@@ -340,6 +340,20 @@ def pb_owner(c, oid):
     return cache[oid]
 
 
+def ofx_org_name(c, oid):
+    """(#6530): the name of organisation oid, the preset of its office's company name (ledger.ofx_company); "" for a
+    personal office (an account's display name is often a nickname, no sender)."""
+    if not oid or pb_owner(c, oid) is not None:
+        return ""
+    q = "SELECT name FROM orgs WHERE id=?"
+    if rls_org_open(c, oid):
+        r = c.execute(q, (oid,)).fetchone()
+    else:
+        with system_ctx(c):
+            r = c.execute(q, (oid,)).fetchone()
+    return " ".join(str(r[0] or "").split())[:200] if r else ""
+
+
 def pb_personal(c, uid, create=True):
     """The id of uid's personal office: a hidden orgs row (personal_of = uid, no members) that shows nowhere as an
     organisation; made on the first use (create=False: None while there is none). The owner's access context carries it

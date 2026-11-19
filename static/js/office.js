@@ -222,12 +222,44 @@ function viewOffice() {
   if (OFC.info && !OFC.infoErr && (['services', 'texts'].includes(tab) || S.route.tab === 'rights')) body = ofr_backHtml(tab) + body;  // 2.470.0 (#3596): the way back into Settings (was the tabs General | Templates)
   const och = OFC.info && !OFC.infoErr && typeof ocf_chooseHtml === 'function' ? ocf_chooseHtml() : '';  // 2.147.0 (#2462): the country of a new office
   if (och) body = och + (ofcDocTab(tab) && !body ? '<div class="pboffers"></div>' : body);  // (the quotations fill .pboffers below it)
+  const osu = OFC.info && !OFC.infoErr && !och && !S.route.id && (tab === 'start' || ofcDocTab(tab)) ? ofsu_html() : '';  // (#6530): the card "Set up your office"
+  if (osu) body = osu + (ofcDocTab(tab) && !body ? '<div class="pboffers"></div>' : body);
   const ro = ['readonly', 'accounting'].includes(OFC.info?.role)  // 2.143.0 A (#2151): reads only (create / delete hidden in app.css)
     || (!!ofr_grp() && !!ofr_area(tab) && ['none', 'view'].includes(ofr_lvOf(ofr_area(tab))) && !(tab === 'receipts' && OFC.info?.submit));  // 2.356.0 D (#3129): hands in  // 2.187.0 A (#2476): the group's level of this area
   // 2.147.2 A (#2500): the role words here, not oinvRoleSel (settings module): a direct start of the office threw and stayed on "Loading…"
   const html = `<div class="dash office" data-ofctab="${tab}"${ro ? ' data-ofcro="1"' : ''}>${OFC.info && typeof tri_stripHtml === 'function' ? tri_stripHtml() : '' /* 2.417.0 C (#3445): the test mode strip */}<div class="ofchead">${/*html-ok*/ OFC.info && !(typeof ofd_phoneDoc === 'function' && ofd_phoneDoc()) /* 2.936.0 (#5448): an open document on a phone: its head only; ofc_headHtml escapes */ ? ofc_headHtml(ro) : ''}</div><div class="ofcbody"${ofcDocTab(tab) && !body ? ' data-fl-fill' : ''}>${body}</div></div>`;
   if (ofcDocTab(tab) && OFC.info && typeof ofdOffersTab === 'function') setTimeout(() => { const el = $('.office .ofcbody .pboffers') || $('.office .ofcbody'); if (el && ofcTab() === tab) ofdOffersTab(el); }, 0);  // 2.47.3 (#1360): below the hint
   return html;
+}
+// ---- (#6530): the card "Set up your office" on top of the office (start, quotations & invoices) while the company's
+// name, address, tax number / VAT ID or IBAN is missing: five rows with a tick, each leads into Settings > Company & office
+// (every field saves itself there, no wizard). Who changes the settings sees it; hidden for good per person and office with
+// the existing setting of dismissed office hints (trial_hint_seen, "<office>:setup"). The same for a personal office (P4).
+const ofsu_key = () => `${OFC.info.org_id}:setup`;
+// the setting comes as JSON text from /api/state, an answer of PATCH /api/settings may carry the list itself
+const ofsu_seen = () => { const v = S.settings?.trial_hint_seen; if (Array.isArray(v)) return v; try { const o = JSON.parse(v || '[]'); return Array.isArray(o) ? o : []; } catch { return []; } };
+const ofsu_hidden = () => ofsu_seen().includes(ofsu_key());
+function ofsu_rows() {
+  const cf = OFC.info.company_fields || {}, s = OFC.info.settings || {}, co = s.company || {};
+  return [['co-name', 'building', tr('Company'), tr('Name and address of the sender'), !!((cf.name || co.name) && cf.street && cf.zip && cf.city)],
+    ['co-tax', 'receipt', tr('Tax and small business'), tr('Tax number or VAT ID'), !!(cf.tax_number || cf.vat_id), ['small', tr('Small business')]],
+    ['co-iban', 'wallet', tr('Bank'), tr('The IBAN printed on your invoices'), !!cf.iban],
+    ['numbers', 'list', tr('Numbers'), tr('Coming from another program? Then enter the next number here'), !!OFC.info.used?.invoice],
+    ['logo', 'file', tr('Logo / letterhead'), tr('Your logo on every document (optional)'), !!s.logo]];
+}
+function ofsu_html() {
+  if (!ofcAdmin('settings') || ofsu_hidden()) return '';
+  const rows = ofsu_rows(); if (rows.slice(0, 3).every(r => r[4])) return '';  // name + address, tax, IBAN there: the card goes
+  const li = ([k, icon, t, sub, done, more]) => `<li class="ofsur${done ? ' ofsuok' : ''}" data-ofsu-row="${esc(k)}"><button type="button" class="dwb" data-setgo="biz-${esc(k)}">${ic(done ? 'check' : icon, 's')}<span class="dwt"><b>${esc(t)}</b> <span class="muted">${esc(sub)}</span></span><span class="sr-only">${esc(done ? tr('done') : tr('still open'))}</span></button>${more ? `<button type="button" class="linkbtn" data-setgo="biz-${esc(more[0])}">${esc(more[1])}</button>` : ''}</li>`;
+  return `<section class="dcard dfirst ofsu" aria-labelledby="ofsu-h"><h3 id="ofsu-h">${ic('building', 's')}<span>${esc(tr('Set up your office'))}</span><span class="spacer"></span><button type="button" class="iconbtn" data-ofc="setup-hide" aria-label="${esc(tr('Hide'))}" title="${esc(tr('Hide'))}">${ic('x', 's')}</button></h3>
+    <p class="muted">${esc(tr('What your quotations and invoices need as sender. Each field saves itself.'))}</p><ol class="dwl dfsteps">${/*html-ok*/ rows.map(li).join('') /* li escapes every value */}</ol></section>`;
+}
+// "Hide" (the office's click handler below): away at once, kept per person and office
+async function ofsu_hide(b) {
+  const k = ofsu_key();
+  S.settings.trial_hint_seen = JSON.stringify([...ofsu_seen().filter(x => x !== k), k]);
+  b.closest('.ofsu')?.remove();
+  try { await api('PATCH', '/api/settings', {set_delta: {trial_hint_seen: {add: [k]}}}); } catch { /* api() said it; the local copy holds until the next load */ }
 }
 // ---- 2.47.3 (#1360): the office follows the workspace switch ("Private" = the person's own office, an organisation's =
 // its office). wsSet (workspace.js) calls pb_wsChanged(true) before saving the setting and pb_wsChanged(false) after it,
@@ -1032,10 +1064,14 @@ function biz_lvl(root) {
 }
 // 2.365.2 D (#2789): settingsModal('biz-<part>') (settings.js sets S.bizJump) scrolls once to the part's heading or to one of
 // these places, with the soft ring of the settings search
-const BIZ_AT = {peppol: '#pep-set', agents: '#os-agents-read', datev: '.dxset'};
+const BIZ_AT = {peppol: '#pep-set', agents: '#os-agents-read', datev: '.dxset',
+  // 2.1416.0 (#6529, #6530): the fields the list of missing details and the card "Set up your office" lead to (the group of each: BIZ_GRP)
+  'co-name': '#os-name', 'co-street': '#osc-street', 'co-tax': '#osc-tax_number', 'co-vat': '#osc-vat_id', 'co-country': '#osc-country-q', 'co-phone': '#osc-phone',
+  'co-iban': '#osc-iban, .bkaset', 'exempt': '#os-exempt', 'einv': '#os-einv', 'small': '#os-small', 'numbers': '#os-inv-scheme', 'logo': '#os-logo, .ofclogo'};
+const BIZ_GRP = {'co-iban': 'tax', exempt: 'docs', einv: 'docs', small: 'docs', numbers: 'docs', peppol: 'docs', agents: 'access', datev: 'data'};
 function biz_jump(box) {
   const k = S.bizJump; S.bizJump = null;
-  const at = () => $(BIZ_AT[k] || '#s-biz-' + k, box) || $('#s-biz-' + (k === 'peppol' ? 'docs' : k === 'agents' ? 'access' : k === 'datev' ? 'data' : k), box);
+  const at = () => $(BIZ_AT[k] || '#s-biz-' + k, box) || $('#s-biz-' + (BIZ_GRP[k] || (k.startsWith('co-') || k === 'logo' ? 'company' : k)), box);
   setTimeout(() => {
     const el = at(), r = el && (el.closest('.row, details, h3, h4, h5') || el); if (!r) return;
     for (let det = r.closest('details'); det; det = det.parentElement?.closest('details')) det.open = true;
@@ -1245,6 +1281,7 @@ document.addEventListener('click', async e => {
     const p0 = inp.selectionStart ?? inp.value.length, p1 = inp.selectionEnd ?? p0, t = b.dataset.bb;
     inp.value = inp.value.slice(0, p0) + t + inp.value.slice(p1); inp.focus(); inp.setSelectionRange(p0 + t.length, p0 + t.length); inp.dispatchEvent(new Event('input', {bubbles: true})); }
   else if (a === 'logo-del') { e.preventDefault(); try { await api('DELETE', '/api/office/logo'); await ofcInfo(true); toast(tr('Removed')); } catch (x) { ofcErr(x); } }
+  else if (a === 'setup-hide') { e.preventDefault(); if (OFC.info) await ofsu_hide(b); }  // (#6530)
   else if (a === 'name-take') { e.preventDefault(); const el = $('#os-name'); if (el) { ost_save(el); b.closest('.ofcnamesug')?.remove(); } }  // 2.356.0 D (#3006): the organisation's name as the company name
 });
 document.addEventListener('submit', e => { const f = e.target.closest?.('#ofc-set'); if (!f) return; e.preventDefault(); if (OFC.info?.role === 'admin') ofcSaveSettings(f); });

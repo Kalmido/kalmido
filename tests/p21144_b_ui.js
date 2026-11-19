@@ -32,6 +32,7 @@ const FEAT = 'cal,comments,collab,office,clients,docs,files';
   check(((await call(CF, 'GET', '/api/state')).me?.workspaces || []).length === 0, 'frida is in no organisation');
 
   const prep = async (ck, who) => {
+    await call(ck, 'PUT', '/api/office/settings', {company_fields: {name: 'Studio Beispiel', street: 'Hafenstraße 12', zip: '20457', city: 'Hamburg', country: 'DE'}});  // 2.1416.0 (#6530): a quotation is finalised only with its sender's name and address
     const cl = await call(ck, 'POST', '/api/clients', {name: 'Example Media Ltd', street: 'Harbour Road 1', zip: '20457', city: 'Hamburg', country: 'DE'});
     const q = await call(ck, 'POST', '/api/office/docs', {kind: 'offer', project_title: 'Image film', client_id: cl.id, items: [{title: 'Concept', qty: 1, rate: 800}]});
     const f = await call(ck, 'POST', '/api/office/docs', {kind: 'offer', project_title: 'Frozen film', client_id: cl.id, items: [{title: 'Edit', qty: 1, rate: 500}]});

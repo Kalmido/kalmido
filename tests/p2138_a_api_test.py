@@ -75,6 +75,7 @@ Ca.patch(B + "/api/settings", json={"workspace": f"org:{ORG2}"})
 
 
 def run(S, who):
+    check(S.put(B + "/api/office/settings", json={"company_fields": {"name": "Studio Beispiel", "street": "Hafenstraße 12", "zip": "20457", "city": "Hamburg", "country": "DE"}}).ok, f"{who}: the sender")  # 2.1416.0 (#6530): a quotation is finalised only with its sender's name and address
     r = S.post(B + D, json={"kind": "offer", "lang": "en", "project_title": "Campaign", "items": [svc("Concept", 1, 800)]})
     check(r.status_code == 201, f"{who}: a quotation {r.status_code} {r.text[:200]}")
     doc = r.json()

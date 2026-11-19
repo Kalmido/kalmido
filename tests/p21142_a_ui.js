@@ -24,6 +24,7 @@ const FEAT = 'clients,office';
   await call('POST', '/api/admin/setup', {org_name: 'Example Studio', lang: 'en', collab_all: true, modules: ['comments']});
   const ORG = (await call('GET', '/api/state')).me.workspaces[0].id;
   await call('PATCH', '/api/settings', {lang: 'en', tour: 'done', features: FEAT, workspace: 'org:' + ORG});
+  await call('PUT', '/api/office/settings', {company_fields: {name: 'Studio Beispiel', street: 'Hafenstraße 12', zip: '20457', city: 'Hamburg', country: 'DE'}});  // 2.1416.0 (#6530): a quotation is finalised only with its sender's name and address
   const C = await call('POST', '/api/clients', {name: 'Example Client AG', org_id: ORG});
   const mk = async title => {
     const q = await call('POST', '/api/office/docs', {project_title: title, client_id: C.id});

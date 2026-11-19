@@ -358,12 +358,12 @@ def clean_setting(k, v):
         if not isinstance(o, list) or not 0 < len(o) <= len(VIEW_COLS) or not all(isinstance(x, str) and x in VIEW_COLS for x in o):
             raise bad
         return json.dumps(list(dict.fromkeys(o)))
-    if k == "trial_hint_seen":  # 2.144.10 (#2576): ["<org id>:offer" | "<org id>:invoice", ...]
+    if k == "trial_hint_seen":  # (#2576): ["<org id>:offer" | "<org id>:invoice", ...]; (#6530): + "<org id>:setup" (the card "Set up your office")
         try:
             o = json.loads(sv or "[]")  # a JSON string like wgstd_hide (lists are refused above)
         except ValueError:
             raise bad from None
-        if not isinstance(o, list) or len(o) > 200 or not all(isinstance(x, str) and re.fullmatch(r"\d{1,12}:(offer|invoice)", x) for x in o):
+        if not isinstance(o, list) or len(o) > 200 or not all(isinstance(x, str) and re.fullmatch(r"\d{1,12}:(offer|invoice|setup)", x) for x in o):
             raise bad
         return json.dumps(list(dict.fromkeys(o)))
     if k == "trial_mode":  # 2.417.0 C (#3445): ["<org id>", ...] - the test mode of the office, per person and office
