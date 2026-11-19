@@ -92,11 +92,29 @@ def oms_sent_id(c, oid, did, sent):
         c.execute("UPDATE office_docs SET mail_msg_id=? WHERE id=? AND org_id=?", (mid, int(did), int(oid)))
 
 
+def oms_in_scope(c, oid, scope):
+    """(#6547, reader F3 of job/5778): does office oid belong to the mailbox a delivery report came in through? scope None = the
+    instance mailbox (any office: the Message-ID is known only to the sender and the recipient); (org, ws) = a workspace's own
+    mailbox: an organisation's -> only its office, a person's ("u<id>") -> only that person's personal office."""
+    if scope is None:
+        return True
+    org, ws = scope
+    if org:
+        return int(oid) == int(org)
+    ws = str(ws or "")
+    if not ws.startswith("u") or not ws[1:].isdigit():
+        return False
+    r = c.execute("SELECT personal_of FROM orgs WHERE id=?", (int(oid),)).fetchone()
+    return bool(r) and r[0] is not None and int(r[0]) == int(ws[1:])
+
+
 def oms_bounce(c, mid, code, scope):
     """(#6547, integrations/mail.py mail_bounce_hooks): the documents whose last mail had Message-ID mid came back: state
-    bounced (by Kalmido, the reason's code in mail_why) and the person who sent it hears it. Any mailbox (scope): the Message-ID
-    is known only to the sender and the recipient. True when one was found."""
-    rows = c.execute("SELECT id, org_id, kind, number, mail_state FROM office_docs WHERE mail_msg_id=?", (mid,)).fetchall()
+    bounced (by Kalmido, the reason's code in mail_why) and the person who sent it hears it. The instance mailbox: the Message-ID
+    is known only to the sender and the recipient; a workspace's own mailbox only marks its own office's (oms_in_scope).
+    True when one was found."""
+    rows = [r for r in c.execute("SELECT id, org_id, kind, number, mail_state FROM office_docs WHERE mail_msg_id=?", (mid,)).fetchall()
+            if oms_in_scope(c, r["org_id"], scope)]
     for r in rows:
         oid, did = r["org_id"], r["id"]
         oms_set(c, oid, did, "bounced")
