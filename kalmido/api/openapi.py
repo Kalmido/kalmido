@@ -124,7 +124,7 @@ def openapi_spec():
     task_props = {
         "id": {"type": "integer"}, "list_id": {"type": "integer"}, "section_id": nul("integer"), "parent_id": nul("integer"),
         # 2.1269.0 (#6431): title and notes come from outside Kalmido (only then present)
-        "origin": {"type": "string", "enum": ["mail", "form", "errors", "webhook", "git", "member"], "description": "2.126.0 / 2.1269.0 (#6431): where the "
+        "origin": {"type": "string", "enum": ["mail", "form", "errors", "webhook", "git", "member"], "description": "(#1978, #6431): where the "
                    "title and notes come from when they come from outside Kalmido (an e-mail, a form, an error report, the inbound webhook, "
                    "a GitHub / GitLab issue); (#6455): member only in the events task_added / tasks_added / tidy (a person who may "
                    "not address the agent wrote it); "
