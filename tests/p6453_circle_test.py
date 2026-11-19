@@ -300,11 +300,11 @@ card(requests.patch(V + f"/tasks/{T_MV}", headers=H, json={"parent_id": T_SH, "e
      "wider", "G1 B: PATCH {parent_id: a task of the shared project}")
 card(requests.post(V + f"/tasks/{T_MV}/move", headers=H, json={"parent_id": T_SH}), "wider", "G1 B: move {parent_id}")
 check(kt.dbx("SELECT list_id, parent_id FROM tasks WHERE id=?", (T_MV,))[0] == (PRIV, None), "... the task stayed where it was")
-kt.dbx("UPDATE agents SET control='' WHERE user_id=?", (FA,))  # an agent from before the levels: only safety.move_gate stands
+kt.dbx("UPDATE agents SET control='' WHERE user_id=?", (FA,))  # an agent from before the levels: "free" for the circles (#7142)
 for r, why in ((requests.post(V + f"/tasks/{T_MV}/move", headers=H, json={"parent_id": T_SH}), "move"),
                (requests.patch(V + f"/tasks/{T_MV}", headers=H, json={"parent_id": T_SH, "expect_updated_at": upd(H, T_MV)}), "PATCH")):
-    check(r.status_code == 202 and kt.dbx("SELECT list_id FROM tasks WHERE id=?", (T_MV,))[0][0] == PRIV,
-          f"G1: no level, {why} by parent into the shared project waits for approval ({r.status_code} {r.text[:160]})")
+    card(r, "wider", f"G1: no level, {why} by parent into the shared project (2.1418.0, #7142: the circle rule's card)")
+    check(kt.dbx("SELECT list_id FROM tasks WHERE id=?", (T_MV,))[0][0] == PRIV, f"G1: no level, {why}: ... the task stayed private")
 # 2.1284.0 (#6453, Fable reader #4945 F1): a body naming a parent in the private project AND list_id = the shared one, with a
 # _prev that makes apply_update drop the parent as a conflict: the task went to list_id while the gate only looked at the
 # parent's project. Every project the body names is a target now (safety.move_dst), with no level and on "free"
@@ -317,7 +317,7 @@ for lvl in ("", "free"):
     T_PV = task(PRIV, f"Prev trick {lvl or 'no level'}")
     r = requests.patch(V + f"/tasks/{T_PV}", headers=H, json={"parent_id": T_PP, "list_id": SHARED,
                                                                "_prev": {"parent_id": T_SH, "list_id": PRIV}})
-    ok = (r.status_code == 202) if not lvl else (r.status_code == 409 and err(r).get("code") == "approval_required")
+    ok = r.status_code == 409 and err(r).get("code") == "approval_required" and (lvl or err(r).get("circle") == "wider")  # #7142
     check(ok and kt.dbx("SELECT list_id FROM tasks WHERE id=?", (T_PV,))[0][0] == PRIV,
           f"#4945 F1 ({lvl or 'no level'}): parent private + list_id shared + _prev dropping the parent waits, the task stays private ({r.status_code} {r.text[:200]})")
 ctl(FA, {"level": "routine"})
@@ -775,5 +775,63 @@ except (ValueError, IndexError):
 check(sorted(j.get("old") or []) == [str(FID), str(FID)] and sorted(j.get("fresh") or []) == sorted([wide, str(FID)]) and j.get("n", 0) >= 1,
       f"#6971 F1: a circle 2.1284 filled with the day of the update is reset and narrowed (otto came after the approval); "
       f"an approval after that start keeps its circle: {j}")
+
+# ================================================================== 2.1418.0 (#7142): an agent without a chosen control level
+# Decision of #6863: such an agent counts as "free" for the circle rule -- every step as before without a card (a one-way
+# step too), but a write into a wider / public circle and a message to a person outside it need a card; its status text
+# and progress line are empty for a person who does not read every source. A fresh agent: no answer kept by wk_mute /
+# st_mute from the cases above (WK_MUTE_TTL). Each red without the fix.
+r = A.post(B + "/api/admin/agents", json={"username": "legacybot", "display_name": "Legacy", "scopes": SCOPES + ["structure", "delete"], "org_id": ORG})
+assert r.status_code in (200, 201), r.text
+LA, HL = r.json()["id"], {"Authorization": "Bearer " + r.json()["token"]}
+kt.dbx("UPDATE agents SET control='' WHERE user_id=?", (LA,))  # as the test containers make them (KALMIDO_AGENT_CONTROL_NEW=legacy)
+# its own two projects (one agent per project): alice's alone and one open to the organisation (bob reads it)
+L_OWN = A.post(B + "/api/lists", json={"name": "Alice only (legacy)", "kind": "project", "org_id": ORG}).json()["id"]
+L_ALL = A.post(B + "/api/lists", json={"name": "For everyone (legacy)", "kind": "project", "org_id": ORG}).json()["id"]
+assert A.patch(B + f"/api/lists/{L_ALL}", json={"org_visibility": "org"}).ok
+assert A.put(B + f"/api/lists/{L_ALL}/members", json={"user_id": BOB, "role": "admin"}).ok  # bob reaches the agent there (as G12)
+for x in (L_OWN, L_ALL):
+    r = A.put(B + f"/api/lists/{x}/members", json={"user_id": LA, "role": "edit"})
+    assert r.ok, r.text
+K_OWN = A.post(B + "/api/tasks", json={"title": "Alice's (legacy)", "list_id": L_OWN}).json()["id"]
+K_ALL = A.post(B + "/api/tasks", json={"title": "Everyone's (legacy)", "list_id": L_ALL}).json()["id"]
+free(comment(HL, K_OWN, "from the open project"), "#7142: no level, into the project only alice reads")
+K_GO = A.post(B + "/api/tasks", json={"title": "To delete", "list_id": L_OWN}).json()["id"]
+r = requests.delete(V + f"/tasks/{K_GO}", headers=HL)
+check(r.status_code in (200, 204), f"#7142: no level, a one-way step inside the circle: as before, no card ({r.status_code} {r.text[:200]})")
+K_GO2 = A.post(B + "/api/tasks", json={"title": "To delete too", "list_id": L_ALL}).json()["id"]
+r = requests.delete(V + f"/tasks/{K_GO2}", headers=HL)
+check(r.status_code in (200, 204), f"#7142: no level, a deletion in the wider project carries no words: as before ({r.status_code} {r.text[:200]})")
+e = card(comment(HL, K_ALL, "from alice's own project"), "wider", "#7142: no level, into the project everyone in the organisation reads")
+check(not kt.dbx("SELECT 1 FROM obj_comments WHERE kind='task' AND ref_id=? AND user_id=?", (K_ALL, LA)),
+      "#7142: ... nothing was written")
+r = requests.post(V + f"/agent/chats/{ALICE}", headers=HL, json={"approval": {"title": "Comment", "what": "x", "step": {
+    "method": "POST", "path": f"/api/v1/tasks/{K_ALL}/comments", "body": {"body": "from alice's own project"}}}})
+check(r.status_code == 201, f"#7142: the card to alice ({r.status_code} {r.text[:200]})")
+M_LA = r.json().get("id") if r.ok else None
+check(mark(M_LA) == "wider", f"#7142: ... marked 'wider' by the server ({mark(M_LA)})")
+assert A.post(B + f"/api/agents/{LA}/chat/{M_LA}/choice", json=apv_body(A, B, f"chat:{M_LA}", "yes")).ok
+check(run(HL, M_LA).status_code == 201, "#7142: after alice's Yes the comment goes")
+card(requests.post(V + f"/agent/chats/{BOB}", headers=HL, json={"body": "words from alice's own project"}), "wider",
+     "#7142: no level, a message to a person who does not read all it reads")
+check(not kt.dbx("SELECT 1 FROM agent_chat WHERE agent_id=? AND user_id=?", (LA, BOB)), "#7142: ... nothing was written")
+check(requests.post(V + f"/agent/chats/{ALICE}", headers=HL, json={"body": "to alice"}).status_code == 201,
+      "#7142: no level, a message to a person who reads everything: free")
+r = requests.put(V + "/agent/status", headers=HL, json={"status": "working", "text": "reading alice's private notes"})
+assert r.ok, r.text
+lseen = lambda s: next((x for x in s.get(B + "/api/agents").json().get("agents", []) if x["id"] == LA), {})  # noqa: E731
+check(lseen(BS).get("status") == "working" and lseen(BS).get("status_text") == "",
+      f"#7142: no level, bob sees that the team agent works, not its status text {lseen(BS).get('status_text')!r}")
+check(lseen(A).get("status_text") == "reading alice's private notes", f"#7142: ... alice reads it {lseen(A).get('status_text')!r}")
+r = requests.post(V + f"/tasks/{K_ALL}/working", headers=HL, json={"text": "copying alice's notes"})
+j = r.json() if r.ok else {}
+check(r.status_code == 201 and (j.get("working") or {}).get("text") == "" and j.get("text_shown") is False,
+      f"#7142: no level, the progress line in the wider project is not shown ({r.status_code} {r.text[:200]})")
+# p2300_agentsafe_api: a new project of the agent itself (no folder, no family) is read by nobody but the agent -- also a team
+# agent's in its organisation (lists.list_created adds people only through a folder); in a folder: not nameable = a card
+r = requests.post(V + "/lists", headers=HL, json={"name": "Legacy board", "org_id": ORG})
+check(r.status_code == 201, f"#7142: no level, a team agent's new project of its own: free ({r.status_code} {r.text[:200]})")
+card(requests.post(V + "/lists", headers=HL, json={"name": "Legacy in a folder", "org_id": ORG, "folder": "Office"}), "wider",
+     "#7142: no level, a new project in a folder (its people unnamed, more than one source)")
 
 sys.exit(done("p6453_circle"))

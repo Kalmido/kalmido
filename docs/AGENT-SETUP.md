@@ -127,7 +127,8 @@ as well; the two web rules you may take out of `settings.local.json` again if th
 once whether this computer's key should work only from its current internet address (`--ip-rule current` / `-IpRule current`
 answers without the question, `off` skips it, or name IPs / networks; Enter or no terminal = no rule). Kalmido stores the
 rule on that computer's key only and never makes it wider than the agent's own address rule. Take it only with a fixed
-address: when the address changes, the agent cannot reach Kalmido until you change the rule (*Settings > Agents >* the agent).
+address: when the address changes, the agent cannot reach Kalmido until you change the rule (*Settings > Agents >* the agent:
+*Remove address rule* at the computer in *Set up on a computer* gives its key the agent's own rule again, none = any address).
 
 2.1400 (#7115): the dialog also offers a *Rights profile* for Claude Code (`--profile hardened|standard|dev` /
 `-RightsProfile hardened|standard|dev`; the rules are in [`mcp/agent_profiles.json`](../mcp/agent_profiles.json), a starter
@@ -334,7 +335,9 @@ Run the commands as a user with sudo unless a step says *as the agent user* (`su
    A team agent also asks before it writes in the chat to a person who does not read everything it reads, and only a
    person who reads all its places can say Yes to such a card.
    An agent made before 2.235.0 has no level and works without
-   this check until one is picked. The rules in step 6 already tell the agent to keep to its level.
+   the level's checks until one is picked; without a chosen control level the circle rule counts it as "free"
+   (2.1418.0): every step as before, but writing into a wider or public circle and a message to a person outside it
+   need a card. The rules in step 6 already tell the agent to keep to its level.
 
 ### 2. A Linux user without sudo
 

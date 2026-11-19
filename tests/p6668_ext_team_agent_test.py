@@ -937,6 +937,13 @@ r = ask([SC])
 check(r.ok and dbx("SELECT allowed_ips FROM api_tokens WHERE user_id=? AND asked_by=?", (XT, uid["carl"])) == [("",)],
       "(k) R3 F2: without a rule of its own the agent's rule (none) as before")
 RC = r.json().get("token") or "" if r.ok else ""
+# #7114 (reader #5427 F3): "Remove address rule" (machine_ip_reset) takes only a computer's key, never a request token
+RQID = (dbx("SELECT id FROM api_tokens WHERE user_id=? AND asked_by=?", (XT, uid["carl"])) or [(0,)])[0][0]
+dbx("UPDATE api_tokens SET allowed_ips='0.0.0.0/0,::/0' WHERE id=?", (RQID,))
+r = A.patch(B + f"/api/admin/agents/{XT}", json={"machine_ip_reset": RQID})
+check(r.status_code == 404 and dbx("SELECT allowed_ips FROM api_tokens WHERE id=?", (RQID,)) == [("0.0.0.0/0,::/0",)],
+      f"#7114 F3: machine_ip_reset refuses a request token (404) and leaves its rule {r.status_code}")
+dbx("UPDATE api_tokens SET allowed_ips='' WHERE id=?", (RQID,))
 
 # ---- review R3 F3: every order event must be one the person may give; another event of hers carries none along
 # Without the fix (any()) carl's order in project two (he is no member there: no order) came with a token as soon as one
@@ -980,7 +987,9 @@ r = Bo.post(B + "/api/filters", json={"name": "Team view R3", "list_id": X1, "ru
 check(r.ok, f"(e) R3 F4: bob saves a shared view of project one {r.status_code} {r.text[:160]}")
 VW = r.json().get("id")
 r = requests.patch(V + f"/filters/{VW}", headers=XH, json={"name": "Hijacked"}, timeout=30)
-check(r.status_code == 403 and "request-token" in r.text, f"(e) R3 F4: its own token renames no shared view {r.status_code} {r.text[:160]}")
+# 2.1418.0 (#7142): without a control level the circle rule holds first -- a shared view of a project whose readers the gate
+# does not name is a card ("wider"); without the card the route's own 403 follows (lists/sections.py need_filter)
+check(r.status_code == 409 and err(r).get("circle") == "wider", f"(e) R3 F4: its own token renames no shared view {r.status_code} {r.text[:160]}")
 r = requests.delete(V + f"/filters/{VW}", headers=XH, timeout=30)
 check(r.status_code == 403, f"(e) R3 F4: its own token deletes no shared view (this agent lacks the scope delete too) {r.status_code} {r.text[:160]}")
 check(dbx("SELECT name FROM filters WHERE id=?", (VW,)) == [("Team view R3",)], "(e) R3 F4: the shared view is unchanged")
@@ -1037,10 +1046,25 @@ check(r.ok and "Open stork task" in r.text and "Secret crane budget" not in r.te
 # 2.1386.0 (#6668): since 2.1284.0 (#6453, review G13) a Yes to a write into a wider circle (project one is read by more
 # people than project two) counts only from a person who reads every place the agent reads: carl (project one only) is
 # refused, bob (both projects) approves and the step runs with the agent's own token.
-m = requests.post(V + f"/agent/chats/{uid['carl']}", headers=XH, json={"approval": {"title": "Comment for Rita?", "step": STEP}}, timeout=30)
-check(m.status_code == 201, f"(e) its own token sends the card (its channel) {m.status_code} {m.text[:200]}")
-MID = m.json().get("id")
-check(Ca.post(B + f"/api/agents/{XT}/chat/{MID}/choice", json=apv_body(Ca, B, f"chat:{MID}", "yes")).ok, "(e) carl says Yes")
+# 2.1418.0 (#7142): the agent has no control level and counts as "free" for the circle rule: a card to a person who does not
+# read every place it reads is itself a message into a wider circle (409, review G12). Such a card goes to bob (reads both
+# projects) and the Yes is written as the other person's (as tests/p6453_circle_test.py G13): the run checks whose Yes it is.
+
+
+def card_as(who, title, step, why):
+    r = requests.post(V + f"/agent/chats/{uid[who]}", headers=XH, json={"approval": {"title": title, "step": step}}, timeout=30)
+    check(r.status_code == 409 and err(r).get("circle") == "wider" and err(r).get("step") == "meta",
+          f"{why}: a card to {who} (does not read every place of the agent) is a message into a wider circle {r.status_code} {r.text[:200]}")
+    m = requests.post(V + f"/agent/chats/{uid['bob']}", headers=XH, json={"approval": {"title": title, "step": step}}, timeout=30)
+    check(m.status_code == 201, f"{why}: its own token sends the card (its channel) {m.status_code} {m.text[:200]}")
+    mid = m.json().get("id")
+    from datetime import datetime, timezone
+    dbx("UPDATE agent_chat SET choice=? WHERE id=?", (json.dumps({"ids": ["yes"], "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                                                                  "user_id": uid[who]}), mid))
+    return mid
+
+
+MID = card_as("carl", "Comment for Rita?", STEP, "(e)")
 r = requests.post(V + f"/agent/approvals/{MID}/run", headers=XH, timeout=60)
 check(r.status_code == 409 and err(r).get("code") == "approval_invalid" and err(r).get("reason") == "approver_rights",
       f"(e) carl's Yes runs nothing in the wider circle (#6453: he does not read project two) {r.status_code} {r.text[:300]}")
@@ -1054,11 +1078,8 @@ check(r.status_code == 201 and dbx("SELECT COUNT(*) FROM obj_comments WHERE kind
 
 # ---- (i) review F3: the step of a card with the own token always checks the person who said Yes (no control level chosen)
 # Without the fix a Yes of a reader ran with the agent's whole reach (a card's step is always a change: approval.step).
-m = requests.post(V + f"/agent/chats/{uid['rita']}", headers=XH, json={"approval": {"title": "Comment by Rita's Yes?", "step":
-                  {"method": "POST", "path": f"/api/v1/tasks/{TX}/comments", "body": {"body": "RITA-SAID-YES"}}}}, timeout=30)
-check(m.status_code == 201, f"(i) a card to rita {m.status_code} {m.text[:200]}")
-check(Ri.post(B + f"/api/agents/{XT}/chat/{m.json().get('id')}/choice", json=apv_body(Ri, B, f"chat:{m.json().get('id')}", "yes")).ok, "(i) rita (reads only) says Yes")
-r = requests.post(V + f"/agent/approvals/{m.json().get('id')}/run", headers=XH, timeout=60)
+MID = card_as("rita", "Comment by Rita's Yes?", {"method": "POST", "path": f"/api/v1/tasks/{TX}/comments", "body": {"body": "RITA-SAID-YES"}}, "(i)")
+r = requests.post(V + f"/agent/approvals/{MID}/run", headers=XH, timeout=60)
 check(r.status_code == 409 and err(r).get("reason") in ("approver_rights", None) and err(r).get("code") == "approval_invalid",
       f"(i) the reader's Yes runs no change in project one {r.status_code} {r.text[:200]}")
 check(not dbx("SELECT 1 FROM obj_comments WHERE kind='task' AND ref_id=? AND body='RITA-SAID-YES'", (TX,)), "(i) ... nothing written")
@@ -1083,10 +1104,7 @@ REN = {"method": "POST", "path": "/api/v1/folders/rename", "body": {"old": "F697
 r = requests.post(V + "/folders/rename", headers=hdr(RC), json=REN["body"], timeout=30)
 check(r.status_code == 403 and err(r).get("code") == "run_closed",
       f"(p) F5: carl's request token: POST /folders/rename is 403 run_closed {r.status_code} {r.text[:200]}")
-m = requests.post(V + f"/agent/chats/{uid['carl']}", headers=XH, json={"approval": {"title": "Rename the folder?", "step": REN}}, timeout=30)
-check(m.status_code == 201, f"(p) F5: a card with the step POST /folders/rename to carl {m.status_code} {m.text[:200]}")
-MID = m.json().get("id")
-check(Ca.post(B + f"/api/agents/{XT}/chat/{MID}/choice", json=apv_body(Ca, B, f"chat:{MID}", "yes")).ok, "(p) F5: carl says Yes")
+MID = card_as("carl", "Rename the folder?", REN, "(p) F5")
 r = requests.post(V + f"/agent/approvals/{MID}/run", headers=XH, timeout=60)
 check(r.status_code == 403 and err(r).get("code") == "run_closed",
       f"(p) F5: the card's step with the own token is 403 run_closed for carl's Yes, as his request token {r.status_code} {r.text[:300]}")

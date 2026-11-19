@@ -4,7 +4,7 @@
 //   reload the values are there; the four fixed one-way steps are ticked and locked; "After the deadline" only with a deadline
 // - the goal field only on "Free run with a goal"
 // - the history lists the agent's decision; Undo takes it back (the task goes to the trash)
-// - an agent from before 2.235.0 shows "No level selected yet - works as before."
+// - an agent from before 2.235.0 shows "No level selected yet - works as before, but ..." (2.1418.0, #7142: the circle rule holds)
 // - 2.235.0 A2 (#2891): the approval card shows its step (bound method, path, body), one-way and the recommendation
 // - the same for a person without an organisation (freelancer-matrix: agents)
 const path = require('path');

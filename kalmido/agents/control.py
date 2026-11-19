@@ -460,7 +460,7 @@ def ctl_gate():
     c = db()
     a = agent_row(c, g.user["id"])
     d = ctl_get(a)
-    web, nolevel = None, False
+    web, nolevel, legacy = None, False, False
     if a is not None and (a["provider"] or "") == "kalmido-server":  # 2.571.0 D (#4676): a server agent's run with web access is on
         from .srvweb import srvweb_state
         web = srvweb_state(c, a["user_id"])
@@ -471,11 +471,16 @@ def ctl_gate():
         d = {**(d or CTL_DEFAULTS), "level": "approve_all", "projects": {}}  # team agent per request: always the card's check
         g.ctl_force_for = True  # (ctl_claim) and the rights of the person who said Yes -- also with no control level chosen
     if d is None and web is None:
-        if a is None or a["owner_id"] or not act_for(a["user_id"]):
-            return None  # no level chosen: works as before
-        # 2.1287.0 (#6454): a team agent's run for a person, no level chosen: free where that person writes themselves
-        # (as before), an approval card for everything in a project they only read (nolevel below)
-        d, nolevel = {**CTL_DEFAULTS, "level": "free", "projects": {}}, True
+        if a is None:
+            return None
+        if a["owner_id"] or not act_for(a["user_id"]):
+            # 2.1418.0 (#7142, decision of #6863): no level chosen: every step as before (no card, no history line), but the
+            # circle rule as on "free" -- a write into a wider / public circle, a message or job to a person outside it = a card
+            d, legacy = {**CTL_DEFAULTS, "level": "free", "projects": {}}, True
+        else:
+            # 2.1287.0 (#6454): a team agent's run for a person, no level chosen: free where that person writes themselves
+            # (as before), an approval card for everything in a project they only read (nolevel below)
+            d, nolevel = {**CTL_DEFAULTS, "level": "free", "projects": {}}, True
     if web is not None:  # decision 05.11.2026: with the web, every change by card - whatever the level (also none chosen)
         d = {**(d or CTL_DEFAULTS), "level": "approve_all", "projects": {}}
     path = ctl_rule_path(request.url_rule)
@@ -503,13 +508,17 @@ def ctl_gate():
     if unknown and a["owner_id"]:  # 2.235.0 A2 (#2891): a place the gate cannot check the owner's rights for: at most routine
         level = ctl_min(level, "routine")
     lid = lids[0] if len(lids) == 1 else None
-    ok = (step == "routine" and level in ("routine", "free")) or (step == "change" and level == "free")
+    ok = legacy or (step == "routine" and level in ("routine", "free")) or (step == "change" and level == "free")
     circle = person  # review G12: the agent's own channel is free on every level -- but not towards a wider circle
     if person:
         ok = False
+    elif legacy and (request.method == "DELETE" or step == "one_way"):
+        return None  # 2.1418.0 (#7142): no level chosen -- a deletion carries no words into a circle: as before
     elif ok:  # 2.1284.0 (#6453): free only towards the same or a smaller circle of people; a wider or public target = a card
         circle = circle_of(c, a, request.method, path, request.view_args or {}, b, lids)
         ok = not circle
+    if ok and legacy:
+        return None  # 2.1418.0 (#7142): no level chosen and inside the circle: as before 2.235.0
     mid = None
     if not ok:
         hdr = request.headers.get(CTL_HEADER, "").strip()

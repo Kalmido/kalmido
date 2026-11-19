@@ -67,6 +67,7 @@ const WS_VIEWS = {
   'static/js/notesall.js': 'draw',            // 2.398.0 (#3405): the notes of the shown workspace's projects + the private list Notes (nt_inWs while drawing)
   'static/js/stats.js': 'draw',               // 2.398.0 (#3406): the statistics of the shown workspace (?space=), loads again when it changed (S.st.sp)
   'static/js/tagsview.js': 'draw',
+  'static/js/time.js': 'draw',               // (#6722) under All workspaces the time report leaves out the workspaces with Time tracking off (tv_wsLists builds the query from the shown workspace on each load)
   'static/js/sheets.js': 'draw',              // 2.89.1 (#1916): the tables overview filtered by the workspace while drawing
   'static/js/office_tree.js': 'draw',       // 2.351.0 (#3312): the office panel's area trees of the shown workspace (wsCur while drawing; was office_docs.js)
   'static/js/favtiles.js': 'draw',

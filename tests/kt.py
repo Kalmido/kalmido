@@ -146,6 +146,29 @@ def apv_body(s, base, src, ids=("yes",), url=None, **kw):
     return {"choice_ids": ids, **({"desc_proof": p} if p and "yes" in ids else {})}
 
 
+def circle_yes(r, h, aid, s, v, to, base=B):
+    """2.1418.0 (#7142, decision of #6863): an agent without a chosen control level counts as "free" for the circle rule
+    (agents/circle.py): its write into a wider / public circle answers 409 approval_required with circle. For a suite whose
+    agent (token headers h, id aid) really writes across circles: the card to person `to` (session s; must read every place
+    of the agent), their Yes, the step run from the card (POST /agent/approvals/ID/run) -> the step's own answer. Any other
+    answer r comes back unchanged; a card that cannot be made fails loudly (never a silent pass)."""
+    import requests  # here, not at the top (see sess)
+    try:
+        e = (r.json() or {}).get("error") or {}
+    except ValueError:
+        return r
+    if r.status_code != 409 or not isinstance(e, dict) or e.get("code") != "approval_required" or not e.get("circle"):
+        return r
+    ap = e.get("approval") or {}
+    st = {k: ap[k] for k in ("method", "path", "body", "if_match") if k in ap}
+    m = requests.post(v + f"/agent/chats/{to}", headers=h, json={"approval": {"title": "Write there", "what": "Write there", "step": st}})
+    assert m.status_code == 201, f"circle_yes: the card {m.status_code} {m.text[:300]}"
+    mid = m.json()["id"]
+    y = s.post(base + f"/api/agents/{aid}/chat/{mid}/choice", json=apv_body(s, base, f"chat:{mid}", "yes"))
+    assert y.ok, f"circle_yes: the Yes {y.status_code} {y.text[:300]}"
+    return requests.post(v + f"/agent/approvals/{mid}/run", headers=h)
+
+
 def dbx(sql, args=(), data=None):
     """Rows of a query in the suite's database (tests/dbx.py, the data dir names it)."""
     c = _dbx.connect(os.path.join(data or DATA, "tasks.db"))

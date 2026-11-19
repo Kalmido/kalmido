@@ -635,6 +635,7 @@
       tomorrow: {date: addDays(t0, 1), plan: [], events: 0, count: 0}}; });  // 2.80.1: the review card needs tomorrow (CI after 17:00)
   // the simulated agent
   on('GET', '/api/agents', () => ({agents: [agentOut()]}));
+  on('GET', '/api/agent-rules', () => ({rules: T().unknown}));  // the agents' rules text lives in the server's mcp/CLAUDE.template.md; the demo names that it is only in one's own Kalmido
   on('GET', '/api/agents/jobs', q => ({jobs: DB.jobs.filter(j => q.get('state') !== 'open' || ['running', 'waiting'].includes(j.state)).map(jobOut).reverse()}));
   on('POST', '/api/agents/jobs/(\\d+)/action', (q, b, id) => { const j = DB.jobs.find(x => x.id === +id) || gone(); if (['done', 'failed', 'stopped'].includes(j.state)) bad('Already finished'); jobAction(j, b.action); return {ok: true, job: jobOut(j)}; });
   on('GET', '/api/agents/(\\d+)/chat', () => { for (const m of DB.chat) m.read = 1; return {agent: agentOut(), messages: DB.chat.map(m => ({...m})), now: new Date().toISOString()}; });

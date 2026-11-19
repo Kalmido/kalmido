@@ -776,6 +776,8 @@ def spawn_run(j, extra=None):
             raise OSError("no request token for the job's person")
         env.pop("KALMIDO_TOKEN", None)
         env["KALMIDO_ENV_FILE"] = f
+    elif env.get("KALMIDO_ENV_FILE"):  # #7051 (Fable reader N1): the job's process reads the token from the file (Api), so a
+        env.pop("KALMIDO_TOKEN", None)  # token in the runner's environment stays out of its environment, which the model could read
     p = subprocess.Popen([sys.executable, os.path.abspath(__file__), "_run", str(int(j["id"]))] + list(extra or []), env=env, **kw)
     j["runner_pid"] = p.pid
     save(j)

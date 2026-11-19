@@ -186,8 +186,14 @@ Bo.post(B + f"/api/tasks/{TB}/comments", json={"body": "<@1> can you look?"})
 Bo.patch(B + f"/api/tasks/{TB}", json={"assignee_id": 1})
 A.post(B + f"/api/tasks/{TB}/comments", json={"body": "sure"})
 Bo.post(B + f"/api/tasks/{TB}/comments", json={"body": "thanks (a reply)"})
-requests.post(V + f"/tasks/{TB}/comments", headers=CLH, json={"body": "<@1> agent mention"})
-requests.post(V + f"/tasks/{TW}/comments", headers=CLH, json={"body": "agent activity"})
+# 2.1418.0 (#7142): the agent has no control level (tests/start.sh: legacy) and counts as "free" for the circle rule: it reads
+# alice's lists of share-all that bob does not, so its comments into Work (bob reads it) need the circle's card first --
+# alice reads everything, says Yes, the comment runs from the card; the bell counts it as before (#1943)
+for tid, body in ((TB, "<@1> agent mention"), (TW, "agent activity")):
+    r = requests.post(V + f"/tasks/{tid}/comments", headers=CLH, json={"body": body})
+    check(r.status_code == 409 and (r.json().get("error") or {}).get("circle") == "wider", "#7142: an agent without a level, a comment into a wider circle: the card " + r.text[:160])
+    r = kt.circle_yes(r, CLH, CL, A, V, 1, base=B)
+    check(r.status_code == 201, f"#7142: ... after alice's Yes the comment is written ({r.status_code} {r.text[:160]})")
 Bo.post(B + f"/api/tasks/{TW}/complete")
 nj = A.get(B + "/api/news").json()
 by = {}

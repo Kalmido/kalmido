@@ -151,7 +151,9 @@ r = requests.post(V + "/agent/proposals", headers=ROH, json={"list_id": W, "titl
 check(r.status_code == 403, f"read-only agent: no proposal ({r.status_code})")
 r = requests.put(V + "/agent/status", headers=ROH, json={"status": "working", "text": "Reading"})
 check(r.status_code != 403, f"read-only agent: its status stays open ({r.status_code} {r.text[:120]})")
-r = requests.post(V + f"/agent/chats/1", headers=CLH, json={"body": "Hello"})
+# 2.1418.0 (#7142): the agent has no control level and counts as "free" for the circle rule: alice does not read Bob's list,
+# so a message to her is a card -- bob reads every place of the agent
+r = requests.post(V + f"/agent/chats/{BOB}", headers=CLH, json={"body": "Hello"})
 check(r.status_code in (200, 201), f"an agent with comments posts as before ({r.status_code} {r.text[:150]})")
 # 2.190.0 R (#2496): also a route with its own scope (sheet-tasks) refuses a read-only token
 r = A.post(B + "/api/admin/agents", json={"scopes": ["read", "sheets:read"], "username": "sheetreader", "display_name": "Sheet reader"})
@@ -220,6 +222,16 @@ r = requests.post(V + "/tasks/batch", headers=CLH, json={"ids": tws + tys, "acti
 check(r.status_code == 409, f"a batch over Work and Bob's (nobody manages both): 409 ({r.status_code} {r.text[:150]})")
 check(all(x[0] == 0 for x in dbx(f"SELECT status FROM tasks WHERE id IN ({','.join(map(str, tws + tys))})")), "nothing changed")
 r = requests.post(V + "/tasks/batch", headers=CLH, json={"ids": tws + [task(A, W, f"w{i}") for i in range(6, 10)], "action": "complete"})
+# 2.1418.0 (#7142): Work is read by alice, who does not read Bob's list of the agent: the circle's card first, bob's Yes
+check(r.status_code == 409 and (r.json().get("error") or {}).get("circle") == "wider", f"#7142: the circle's card first ({r.status_code} {r.text[:150]})")
+
+
+def bob_yes(r):
+    from kt import circle_yes  # here: a new import at the top would be one more E402 of the suite
+    return circle_yes(r, CLH, CL, Bo, V, BOB, base=B)
+
+
+r = bob_yes(r)
 check(r.status_code == 202, f"a batch in one project waits for approval as before ({r.status_code})")
 
 # ================================================================ #2561 opening a project to the organisation: bridge check

@@ -170,6 +170,36 @@ p = ar.subprocess.run([sys.executable, os.path.join(MCP, "agent_run.py"), "--gua
     capture_output=True, text=True, env=dict(os.environ), timeout=30)
 out = json.loads(p.stdout or "{}").get("hookSpecificOutput") or {}
 check(out.get("permissionDecision") == "deny" and "env file" in out.get("permissionDecisionReason", ""), f"the guard hook denies it: {p.stdout[:200]}")
+# #7051 (Fable reader N1): the launcher .sh starts the core without the token; the job's own process (_run) gets none either
+check('exec env -u KALMIDO_TOKEN "$PY" "$RUNNER" --launch' in lsh, "N1: agent_launcher.sh hands no token to the core")
+spawned = {}
+
+
+class FakePopen:
+    def __init__(self, argv, env=None, **kw):
+        spawned.update(env or {})
+        self.pid = 4711
+
+
+_popen, aj.STATE_DIR = aj.subprocess.Popen, os.path.join(tmp, "jstate")
+os.makedirs(aj.job_dir(3))
+os.environ.update(KALMIDO_URL=URL, KALMIDO_TOKEN=TOKEN, KALMIDO_ENV_FILE=envf)
+aj.subprocess.Popen = FakePopen
+try:
+    aj.spawn_run({"id": 3, "cwd": tmp})
+finally:
+    aj.subprocess.Popen = _popen
+check(spawned.get("KALMIDO_ENV_FILE") == envf and "KALMIDO_TOKEN" not in spawned, "N1: spawn_run starts the job's process without the token")
+# #7051 (Fable reader N2): redact knows the exact value from the env file, also one without the abk_ shape
+plain = "plain7051" + "k" * 12
+envf2 = os.path.join(tmp, "plain.env")
+with open(envf2, "w", encoding="utf-8") as f:
+    f.write(f"KALMIDO_URL={URL}\nKALMIDO_TOKEN={plain}\n")
+_keep = os.environ.pop("KALMIDO_TOKEN"), os.environ.pop("KALMIDO_URL")
+os.environ["KALMIDO_ENV_FILE"] = envf2
+check(plain not in aj.redact(f"out: {plain} end"), "N2: redact blanks the token value read from the env file")
+os.environ["KALMIDO_TOKEN"], os.environ["KALMIDO_URL"] = _keep
+os.environ["KALMIDO_ENV_FILE"] = envf
 src = open(os.path.join(MCP, "agent_job.py"), encoding="utf-8").read()
 check('env.pop("KALMIDO_TOKEN", None)' in src.split("def cmd_run", 1)[1].split("subprocess.Popen", 1)[0], "a job's model process starts without the token")
 sys.exit(done("p6457_token_scope"))
