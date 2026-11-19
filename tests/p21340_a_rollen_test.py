@@ -120,7 +120,7 @@ check(Ax.get(B + f"/api/files/nodes/{RECEIPT}/content").ok, "F3: accounting read
 check(Ax.get(B + f"/api/files/nodes/{CONTRACT}/content").status_code in (403, 404), "F3: ... and not the contract next to it")
 check(A.get(B + "/api/files", params={"parent": SUB}).ok and CONTRACT in listed(A), "F3: the admin sees everything as before")
 # reader F1 of job/5543: the API v1 lists a folder's children by the same rule (a token of the accounting person)
-r = Ax.post(B + "/api/me/tokens", json={"name": "acc", "scopes": ["read"]})
+r = Ax.post(B + "/api/me/tokens", json={"name": "acc", "scopes": ["read", "files:read"]})
 check(r.status_code == 201, f"setup: accounting makes a read token {r.status_code} {r.text[:120]}")
 VH = {"Authorization": "Bearer " + (r.json().get("token") or "" if r.status_code == 201 else "")}
 r = requests.get(B + "/api/v1/files", params={"parent_id": SUB}, headers=VH)
