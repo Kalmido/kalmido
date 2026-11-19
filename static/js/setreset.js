@@ -11,8 +11,8 @@
 // the values this device keeps for itself (localStorage tasks.*): the appearance (LOOK_KEYS, dialogs.js) and the folds,
 // view modes and remembered filters of this device; never the language, the sign-in, the cache or the offline queue
 const RS_LOCAL = ['lookLocal', 'sideGroups', 'sideFold', 'sideOpenG', 'collapsed', 'sbbOpen', 'sbbFold', 'sbbUnfold', 'mdOpen', 'rings',
-  'vmode', 'agband', 'tabbar', 'chatFloat', 'chatPos', 'calMode', 'tvMode', 'statsMode', 'timeScope', 'timePeriod', 'newsFilter',
-  'newsKind', 'jobsFilter'];  // 2.1183.0 (#6178): favgripX (#6082) gone with the grip
+  'vmode', 'agband', 'tabbar', 'chatFloat', 'chatPos', 'chatSize', 'calMode', 'tvMode', 'statsMode', 'timeScope', 'timePeriod', 'newsFilter',
+  'newsKind', 'jobsFilter'];  // #7289: chatSize = the floating chat's size; 2.1183.0 (#6178): favgripX (#6082) gone with the grip
 const RS_LOCAL_PRE = ['pw.', 'sort2.', 'lst.sort.', 'fcols.', 'lcw.'];
 const RS_UNDO = 'tasks.rsUndoLocal', RS_TOAST = 'tasks.rsToast';
 
