@@ -221,6 +221,8 @@ r = undo(Ca, "client", CL, T7, "redo")
 check(r.status_code == 404, f"carol on bob's organisation client: 404 ({r.status_code})")
 # moved to the private workspace in between (a step itself): the move is not undone by a copy
 check(Bo.patch(B + f"/api/clients/{CL}", json={"name": "Moved Studio"}, headers=U(T8)).ok, "bob: a step")
+r = Bo.post(B + f"/api/orgs/{ORG}/out-requests", json={"kind": "clients", "id": CL})  # #6607: out of the organisation only released
+check(r.ok and A.post(B + f"/api/orgs/{ORG}/out-requests/{r.json().get('id')}", json={"decision": "approve"}).ok, "setup: an admin releases bob's client " + r.text[:160])
 check(Bo.patch(B + f"/api/clients/{CL}", json={"org_id": None}, headers=U(T8)).ok, "bob moves the client into his private workspace (step)")
 r = undo(Bo, "client", CL, T8, "undo")
 check(r.status_code == 409 and Bo.get(B + f"/api/clients/{CL}").json().get("org_id") is None, f"undo of a move: 409, it stays private ({r.status_code} {r.text[:200]})")
