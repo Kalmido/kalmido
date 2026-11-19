@@ -1106,7 +1106,8 @@ relies on the session).
   (see the section on the server key).
 - **Import** (2.73; every area since 2.139.1): see [Moving from and to app.kalmido.com](#moving-from-and-to-appkalmidocom) -- an
   admin of an organisation on the other server uploads the archive under *Settings > Data* and opens it with the recovery
-  key. Best into a new, empty organisation. Since 2.139.1 the whole organisation moves: projects and tasks, office (master
+  key. Best into a new, empty organisation -- and invite its members there first and let them accept before you import
+  (2.1424.0): only people found on this server keep their assignments, comments and times. Since 2.139.1 the whole organisation moves: projects and tasks, office (master
   data, documents with items and stored PDFs, payments, series, cash book, trips, meals, contracts, archive, bank data,
   logbook; finalised invoices stay finalised with their numbers), clients, file store with all versions, documents,
   knowledge pages, tables, video sign-offs, team chat, absences, vacation accounts, bookings, filed e-mails, newsletter
@@ -1133,6 +1134,10 @@ the household budget, for one). Agents and API tokens cannot do this; it is a pe
    key derived from `KALMIDO_SECRET_KEY` and readable only by the server, mode 0600); *Download* gives you the plain ZIP,
    *Delete now* removes it at once. The download asks for the same second step as showing a recovery key.
 2. **Set up the other server** (this guide) and sign in there (or ask its admin for an account).
+   **Then invite the people first, before the import** (for an organisation: all its members, *Settings > Organisation >
+   Invite by e-mail*) and let them accept. The import can only give assignments, comment authors and times to people it
+   finds on this server; for everybody else they stay empty or become plain names, and inviting them later does not bring
+   them back (2.1424.0).
 3. **Import.** *Settings > Data > Import from a Kalmido export*: the file is uploaded in pieces (large exports work),
    checked (every checksum, format and version) and shown as a preview: the counts, the projects with their folders, the
    people of your lists and whether an account with the same e-mail address exists here. Choose the target -- your
@@ -1142,10 +1147,16 @@ the household budget, for one). Agents and API tokens cannot do this; it is a pe
    or one in a month locked since, stops the undo with a note, nothing is removed then).
 4. **People.** Your projects are shared with a person found by e-mail only when you tick them in the preview (an address on
    another server can belong to somebody else here). The file names the people of your lists only by a hash of their address, so
-   the preview shows their name and the account found here, never an address. A server admin can also invite people that
-   are missing (an account with an invitation link by e-mail): type their address in the preview -- it must match the
-   hash in the file, otherwise nobody is invited; everybody else invites them later as usual. Assignments to people that
-   are not taken over stay empty; comments of such people keep their name.
+   the preview shows their name and the account found here, never an address -- every person of the file with *found* or
+   *not found here*, and how many of them were found. People that are missing can be invited from the preview: type their
+   address -- it must match the hash in the file, otherwise nobody is invited. Into an organisation its admin invites them
+   (2.1424.0; before, only a server admin could), the normal way of *Settings > Organisation > Invite by e-mail*: a new
+   address gets an account with an invitation link by e-mail, the person joins only by accepting (with the role confirmed
+   in the preview), the ticked projects are shared then; the day's limit of invitations and the e-mail budget apply, and a
+   person who already has an account here that the admin may not see is invited the same quiet way as from the member
+   settings (the admin learns nothing about the address; tell the person yourself). Into the private space only a server
+   admin invites (a new account of the server). Assignments to people that are not taken over stay empty; comments of such
+   people keep their name.
 
 **Storage (all or nothing, 2.1402.0):** the upload itself counts for nobody. Before the preview and again at the start the import
 adds up what the files of the export need and compares it with the storage of the chosen target: your own storage for the private

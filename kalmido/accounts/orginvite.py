@@ -164,7 +164,6 @@ def org_invites_get(oid):
 def org_invite_new(oid):
     """{email, role?: member | admin, name?, lang?}: a new account for an address without one (invited like an existing
     account, invitation mail; the link in the answer), or -- the address has an account -- added like PUT /members {email}."""
-    from ..accounts.signup import _username
     c, b = db(), body()
     _need(c, oid)
     role = b.get("role", "member")
@@ -194,24 +193,9 @@ def org_invite_new(oid):
         ojn_neutral_drop(c, oid, email)  # 2.985.0 (#4922): the address has an account (again): its row stands for it now
         c.commit()
         return jsonify(ok=True, by_email=True, invites=oinv_list(c, oid))  # 2.148.1 A (#2480): the same answer as a new account
-    name = re.sub(r"\s+", " ", str(b.get("name") or "")).strip()[:60]
-    username = _username(c, email)
-    uid = create_user(c, username, name or username, None, onboard=True, ask_purpose=me())  # 2.364.0 A (#3032)
-    c.execute("UPDATE users SET email=?, oinv_made_at=now() WHERE id=?", (email, uid))  # 2.1062.0 (#5864): made by an organisation invitation
-    fs = [x for x in (gsetting(c, "default_features") or USER_DEFAULTS["features"]).split(",") if x]
-    uset(c, uid, "features", ",".join(fs + ([] if "agents" in fs else ["agents"])))  # like a new account of the admins
-    lg = b.get("lang") or usettings(c, me()).get("lang") or "en"
-    uset(c, uid, "lang", lg if lg in LANGS else "en")
-    ensure_inbox(c, uid)
-    ojn_neutral_drop(c, oid, email)  # 2.985.0 (#4922)
     direct = g.user["is_admin"] and not _operator_apart()  # 2.453.0 (#3780): the same test as org_member_put for an existing account
-    if direct:
-        org_member_add(c, oid, uid, role)
-    else:
-        ojn_invite(c, oid, uid, role)
-    c.execute("INSERT INTO org_invites(user_id,org_id,role,created_by,created_at) VALUES(?,?,?,?,?)", (uid, oid, role, me(), iso(now_utc())))
-    # 2.593.0 (#3570, review F3): an organisation admin's mail goes through the background queue like an existing account's
-    inv = _no_link_if_sent(invite_new(c, uid, me(), send=True, days=None if direct else OJN_DAYS, bg=not g.user["is_admin"]), uid)  # job #692 review: always by mail (no "send": false - the link would go to the admin)
+    uid, inv = oinv_new_account(c, oid, email, role, b.get("name"), b.get("lang"), me(), direct, bg=not g.user["is_admin"])
+    inv = _no_link_if_sent(inv, uid)
     bump(c)
     c.commit()
     print("organisation invitation: an account into organisation", oid, "by", login_log_who(g.user), flush=True)
@@ -220,6 +204,67 @@ def org_invite_new(oid):
     if g.user["is_admin"]:
         return jsonify(ok=True, by_email=True, invited=True, user_id=uid, invitation=inv, invites=oinv_list(c, oid))
     return jsonify(ok=True, by_email=True, invites=oinv_list(c, oid))  # 2.148.1 H (#2480): no notice -- the same answer as for an existing account
+
+
+def oinv_new_account(c, oid, email, role, name, lg, by, direct, bg=True):
+    """A new account for an address without one, invited into organisation oid by admin `by` (org_invite_new; 2.1424.0, #6580:
+    also the org import's thread): user name from the address, marked as made by an organisation invitation, an org_invites
+    row, an invitation to accept (direct: an instance admin adds at once) and the invitation link by e-mail (always by mail:
+    the link would go to the admin otherwise). -> (account id, invite_new's result). The caller holds write_lock("accounts")
+    and commits."""
+    from ..accounts.signup import _username
+    name = re.sub(r"\s+", " ", str(name or "")).strip()[:60]
+    username = _username(c, email)
+    uid = create_user(c, username, name or username, None, onboard=True, ask_purpose=by)  # 2.364.0 A (#3032)
+    c.execute("UPDATE users SET email=?, oinv_made_at=now() WHERE id=?", (email, uid))  # 2.1062.0 (#5864): made by an organisation invitation
+    fs = [x for x in (gsetting(c, "default_features") or USER_DEFAULTS["features"]).split(",") if x]
+    uset(c, uid, "features", ",".join(fs + ([] if "agents" in fs else ["agents"])))  # like a new account of the admins
+    lg = lg or usettings(c, by).get("lang") or "en"
+    uset(c, uid, "lang", lg if lg in LANGS else "en")
+    ensure_inbox(c, uid)
+    ojn_neutral_drop(c, oid, email)  # 2.985.0 (#4922)
+    if direct:
+        org_member_add(c, oid, uid, role)
+    else:
+        ojn_invite(c, oid, uid, role, by=by)
+    c.execute("INSERT INTO org_invites(user_id,org_id,role,created_by,created_at) VALUES(?,?,?,?,?)", (uid, oid, role, by, iso(now_utc())))
+    # 2.593.0 (#3570, review F3): an organisation admin's mail goes through the background queue like an existing account's
+    return uid, invite_new(c, uid, by, send=True, days=None if direct else OJN_DAYS, bg=bg)
+
+
+def oinv_day_left(c, by):
+    """2.1424.0 (#6580): how many new invitations admin `by` may still send today (OINV_DAY, counted like org_invite_new)."""
+    since = iso(now_utc() - timedelta(days=1))
+    return max(0, OINV_DAY - c.execute("SELECT COUNT(*) FROM org_invites WHERE created_by=? AND created_at>?", (by, since)).fetchone()[0])
+
+
+def oinv_by_import(c, oid, email, role, name, by):
+    """2.1424.0 (#6580): the org import invites a person of its file it found no account for (the address typed by the admin of
+    the target organisation, checked against the file's hash by the caller) -- the normal way of POST /invites, outside a
+    request: a new address becomes a new account with an invitation (oinv_new_account, never direct: the person joins by
+    accepting); an address with an account the admin may not see gets what org_member_put gives it -- an ordinary invitation
+    (ojn_invite) for a proved address outside a company of its own, else a silent one (ojn_silent, #3570: the admin learns
+    nothing either way). -> the account id the invitation lies on, or None (the day's limit is reached, the person is a
+    member already: nothing invited). The caller commits."""
+    em = (email or "").strip().lower()[:200]
+    if not EMAIL_RE.fullmatch(em) or not oinv_day_left(c, by):
+        return None
+    write_lock(c, "accounts")  # user names and addresses are checked and taken in one go
+    with system_ctx(c):  # whether the address has an account (structure; never told to the admin)
+        r = c.execute("SELECT id, disabled, kind, email_proved FROM users WHERE lower(email)=? ORDER BY (email_proved=lower(email)) DESC, id LIMIT 1",
+                      (em,)).fetchone()
+        if r and c.execute("SELECT 1 FROM org_members WHERE org_id=? AND user_id=?", (oid, r["id"])).fetchone():
+            return None
+    if not r:
+        return oinv_new_account(c, oid, em, role, name, None, by, False, bg=False)[0]
+    selfm = c.execute("SELECT self_made FROM orgs WHERE id=?", (oid,)).fetchone()
+    hidden = (r["disabled"] or (r["kind"] or "user") == "agent" or ((r["email_proved"] or "") != em and not _oinv_pending(c, r["id"]))
+              or bool(selfm and selfm[0]) and not may_see(c, by, r["id"]))
+    if hidden:
+        ojn_silent(c, oid, r["id"], role, em, by=by)
+    else:
+        ojn_invite(c, oid, r["id"], role, by=by)
+    return r["id"]
 
 
 def _no_link_if_sent(inv, uid=None):
@@ -372,13 +417,14 @@ def ojn_invite(c, oid, uid, role, by=None):
     print("organisation", oid, "invited account", uid, "to join, by", login_log_who(by), flush=True)
 
 
-def ojn_silent(c, oid, uid, role, email=None):
+def ojn_silent(c, oid, uid, role, email=None, by=None):
     """2.593.0 (#3570): the invitation of an existing account the inviting admin may not see (org_member_put, a company of its
     own): an org_joins row with silent=1 -- in the list of open invitations like any other, nothing for the person (no News item,
     mail or push; ojn_open / ojn_mine / ojn_waiting skip it). An ordinary invitation stays as it is (review F5: an expired one
     is not opened again without the person hearing of it - like a new address invited again). The caller commits.
     2.985.0 (#4922, review F1): email = the address the admin typed, kept on the row (the list shows it, never a later one of the
-    account; a deletion keeps it, ojn_neutral). Review F4: the address's neutral row gives way."""
+    account; a deletion keeps it, ojn_neutral). Review F4: the address's neutral row gives way. 2.1424.0 (#6580): by = the
+    inviting admin outside a request (the org import's thread)."""
     with system_ctx(c):  # the row of a person who is no member and whom the admin may not see
         email = (email or (c.execute("SELECT email FROM users WHERE id=?", (uid,)).fetchone() or [""])[0] or "").strip().lower() or None
         if email:
@@ -386,8 +432,8 @@ def ojn_silent(c, oid, uid, role, email=None):
         c.execute("""INSERT INTO org_joins(org_id,user_id,role,created_by,created_at,silent,email) VALUES(?,?,?,?,?,true,?)
                      ON CONFLICT(org_id, user_id) DO UPDATE SET role=excluded.role, created_by=excluded.created_by, created_at=excluded.created_at,
                      email=excluded.email WHERE org_joins.silent""",
-                  (oid, uid, role, me(), iso(now_utc()), email))
-    print("organisation", oid, "invitation of an account the admin may not see kept silent, by", login_log_who(g.user), flush=True)
+                  (oid, uid, role, by or me(), iso(now_utc()), email))
+    print("organisation", oid, "invitation of an account the admin may not see kept silent, by", login_log_who(by or g.user), flush=True)
 
 
 def ojn_neutral(c, uid):

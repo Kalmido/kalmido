@@ -14,8 +14,8 @@ const umzHtml = hint => `<h4 id="s-umz-h">${tr('Move and export everything')}</h
   <details class="umzhow"><summary>${tr('Move to your own server')}</summary><ol class="umzsteps">
     <li>${tr('Here: “Export everything” and download the file.')}</li>
     <li>${tr('Set up your own Kalmido server (see SELF-HOSTING.md, section “Moving from and to app.kalmido.com”).')}</li>
-    <li>${tr('There: sign in, Settings > Data > “Import from a Kalmido export”, check the preview and start.')}</li>
-    <li>${tr('Invite the people you work with; your projects are shared with them again once you tick them in the preview. Moving back works the same way.')}</li></ol></details>`;
+    <li>${tr('There, before the import: invite the people you work with (an organisation: all its members) and let them accept. Only people found there keep their assignments, comments and times.')}</li>
+    <li>${tr('Then: Settings > Data > “Import from a Kalmido export”. The preview lists every person as found or not found; tick whom your projects are shared with and start. Moving back works the same way.')}</li></ol></details>`;
 // 2.531.0 (#4317 F9/F10): what the file does not hold (the server's list, readable, also the trashes), before and after an export
 const umzLeftHtml = j => (j.not_included || []).length ? `<details class="umzleft"><summary>${esc(tr('What is not in the file ({0})', j.not_included.length))}</summary>
   <ul class="umzleftl">${j.not_included.map(x => `<li>${esc(x)}</li>`).join('')}</ul></details>` : '';
@@ -65,14 +65,24 @@ function umzStorageHtml(p, t) {
   const c = (p.storage?.targets || {})[String(t)];
   return c ? `<div class="shint warn" role="alert">${ic('alert', 's')} ${esc(c.text)}</div>` : '';
 }
+// 2.1424.0 (#6580, decided 16.11.2026): who invites the missing people -- into an organisation its admin (the server lists the
+// targets in invite_orgs), into the private space only an instance admin (can_invite); the server decides again at the start
+const umzCanInvite = (p, t) => !!p.can_invite || (t !== 'private' && (p.invite_orgs || []).map(String).includes(String(t)));
 function umzPreviewHtml(j) {
   const p = j.preview, org = p.kind === 'org', src = p.source.url ? esc(p.source.url) : tr('unknown');
-  const people = p.people.length ? `<div class="muted mhint">${tr('People of your projects')}</div>` + p.people.map((x, i) => `<div class="mrow umzp">
-    <span class="n">${esc(x.name || tr('Unknown'))}<br><span class="muted">${x.found ? esc(tr('found: {0}', x.found_name)) : esc(tr('not on this server'))}</span></span>
+  const t0 = p.targets[0]?.id ?? 'private', inv = umzCanInvite(p, t0), invAny = p.can_invite || (p.invite_orgs || []).length;
+  const nf = p.people.filter(x => !x.found).length;
+  // 2.1424.0 (#6580): every person with found / not found, and the order (invite first, then import) before the start
+  const people = p.people.length ? `<div class="muted mhint">${esc(tr('People of your projects: {0} of {1} found here', p.people.length - nf, p.people.length))}</div>`
+    + (nf ? `<div class="shint warn umzorder">${ic('alert', 's')} ${esc(tr('Invite the missing people first and let them accept, then import: for people not found here, assignments stay empty, comments keep only the name and their times are not taken over.'))}</div>` : '')
+    + p.people.map((x, i) => `<div class="mrow umzp">
+    <span class="n">${esc(x.name || tr('Unknown'))}<br><span class="muted">${x.found ? esc(tr('found: {0}', x.found_name)) : esc(tr('not found here'))}</span></span>
     ${x.found ? `<label class="umzck"><input type="checkbox" data-umzp="${i}" data-k="share"> <span data-umzsl>${org && p.targets[0]?.id !== 'private' ? tr(UMZ_ORG_TICK) : tr('Share my projects')}</span></label>${org ? umzRoleSel(x, i, p.targets[0]?.id === 'private') : ''}`
       : (x.by_login ? `<label class="umzck"><input type="checkbox" data-umzp="${i}" data-k="share"> ${tr('Share with this user name')}</label><input type="text" class="umzem" data-umzl="${i}" autocomplete="off" autocapitalize="none" placeholder="${esc(tr('User name on this server'))}" aria-label="${esc(tr('User name of {0} on this server', x.name || ''))}">${org ? umzRoleSel(x, i, p.targets[0]?.id === 'private') : ''}` : '')  // 2.278.0 B (#3094)
-      + (p.can_invite && !x.key.startsWith('id') ? `<label class="umzck"><input type="checkbox" data-umzp="${i}" data-k="invite"> ${tr('Invite by e-mail')}</label>${x.need_address === false ? '' : `<input type="email" class="umzem" data-umze="${i}" autocomplete="off" placeholder="${esc(tr('Their e-mail address'))}" aria-label="${esc(tr('E-mail address of {0}', x.name || ''))}"><span class="muted umzmis" data-umzm="${i}" hidden>${tr('This is not the address in the file: nobody is invited.')}</span>`}` : x.by_login ? '' : `<span class="muted">${tr('Skipped')}</span>`)}</div>`).join('')
-    + hintK(tr('Nothing is shared without a tick: an address on another server can belong to somebody else here.')) : '';
+      + (invAny && !x.key.startsWith('id') ? `<span class="umzinv" data-umzinv${inv ? '' : ' hidden'}><label class="umzck"><input type="checkbox" data-umzp="${i}" data-k="invite"> ${tr('Invite by e-mail')}</label>${x.need_address === false ? '' : `<input type="email" class="umzem" data-umze="${i}" autocomplete="off" placeholder="${esc(tr('Their e-mail address'))}" aria-label="${esc(tr('E-mail address of {0}', x.name || ''))}"><span class="muted umzmis" data-umzm="${i}" hidden>${tr('This is not the address in the file: nobody is invited.')}</span>`}</span>` : '')
+      + (x.by_login ? '' : `<span class="muted" data-umzskip${invAny && !x.key.startsWith('id') && inv ? ' hidden' : ''}>${tr('Skipped')}</span>`)}</div>`).join('')
+    + hintK(tr('Nothing is shared without a tick: an address on another server can belong to somebody else here.'))
+    + (invAny ? `<div data-umzinvnote${inv ? '' : ' hidden'}>${hintK(esc(tr('An invited person joins once they accept; your projects are shared with them then. Somebody who already has an account on this server that you cannot see may not hear of the invitation: tell them yourself.')))}</div>` : '') : '';
   const lists = p.lists.length ? `<div class="umzlists">${p.lists.slice(0, 12).map(l => `<div class="mrow"><span class="n">${esc(l.inbox ? tr('Basket') : l.name)}${l.folder ? ` <span class="muted">${esc(l.folder)}</span>` : ''}</span><span class="muted">${trn('{0} task', '{0} tasks', l.tasks)}</span></div>`).join('')}${p.lists.length > 12 ? `<div class="muted mhint">${esc(trn('and {0} more', 'and {0} more', p.lists.length - 12))}</div>` : ''}</div>` : '';
   const notes = [p.again ? `<div class="shint warn" role="alert">${ic('alert', 's')} ${umzAgainText(p.earlier)}</div><label class="umzck"><input type="checkbox" data-umzagain> ${tr('Import again: what is already in the selected place is skipped')}</label>` : '',  // 2.362.3 (#3098)
     p.server_links.length ? hintK(tr('Set up the connection to {0} again (Settings > Account > Servers): access keys never move along.', p.server_links.map(esc).join(', '))) : '',
@@ -184,6 +194,9 @@ function umzInit(md) {
   md.addEventListener('change', async e => {  // review M1: a typed address that is not the one in the file -> hint at once
     if (e.target.id === 's-umz-tgt' && UMZ.cur?.preview) {  // 2.1316.0 (#6577), 2.1402.0 (#6579): the checks of the chosen target
       const oc = $('#s-umz-ochk', md); if (oc) oc.innerHTML = umzStorageHtml(UMZ.cur.preview, e.target.value) + umzOfficeHtml(UMZ.cur.preview, e.target.value);
+      const inv = umzCanInvite(UMZ.cur.preview, e.target.value);  // 2.1424.0 (#6580): inviting depends on the target
+      md.querySelectorAll('[data-umzinv],[data-umzinvnote]').forEach(x => { x.hidden = !inv; if (!inv) x.querySelectorAll('[data-k="invite"]').forEach(c => { c.checked = false; }); });
+      md.querySelectorAll('[data-umzskip]').forEach(x => { x.hidden = inv && !!x.previousElementSibling?.matches('[data-umzinv]'); });
     }
     if (e.target.id === 's-umz-tgt' && UMZ.cur?.preview?.kind === 'org') {  // 2.96.0 D (#1941): into Private nobody joins an organisation
       const t = e.target.value === 'private' ? tr('Share my projects') : tr(UMZ_ORG_TICK);
@@ -214,7 +227,7 @@ function umzInit(md) {
       if (a === 'go') {
         const p = UMZ.cur.preview, people = {};
         for (const x of md.querySelectorAll('[data-umzp]')) {
-          if (!x.checked) continue;
+          if (!x.checked || x.closest('[hidden]')) continue;
           const i = +x.dataset.umzp, k = p.people[i].key, em = $(`[data-umze="${i}"]`, md)?.value.trim() || '';
           if (x.dataset.k === 'invite' && p.people[i].need_address !== false) {
             if (!em) { toast(tr('Type the e-mail address of {0} for the invitation.', p.people[i].name || '')); return; }

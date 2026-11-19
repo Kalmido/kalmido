@@ -10,6 +10,9 @@ Invented names only.
  - 2.363.0 (#3132): the ticked projects are noted on the invitation (a resend keeps them), accepting shares them, owner and
    creator stay with dave; a project in the trash is skipped; declining drops the note.
  - 2.456.0 (#3821): the former owner of a project is no row of list_members and gets it shared all the same.
+ - 2.1424.0 (#6580): dave, admin of Gamma but no instance admin, invites a missing person of the file into Gamma (a new
+   account through the normal invitation way, joins by accepting); an address with an account he may not see gets the same
+   answer and a silent invitation; into the private space he invites nobody.
  - P4: a person without organisation imports the same archive into the private workspace: nobody is invited, the ticked
    person gets the projects shared as before.
 Starts its OWN container (start.sh) with KALMIDO_SECRET_KEY.
@@ -238,7 +241,8 @@ NG = one("SELECT id FROM users WHERE lower(email)='gina@example.com'")
 check(NG and not one("SELECT 1 FROM org_members WHERE org_id=? AND user_id=?", (GAMMA, NG)), "a new account, no member yet")
 check(one("SELECT role FROM org_joins WHERE org_id=? AND user_id=?", (GAMMA, NG)) == "admin", "the invitation with the confirmed role")
 iv = {x["email"]: x for x in Dv.get(B + f"/api/orgs/{GAMMA}/invites").json()["invites"]}
-check(iv.get("gina@example.com", {}).get("state") == "invited" and iv["gina@example.com"]["user_id"] is None, f"the admin sees it in the open invitations {iv}")
+# 2.1424.0 (#6580): the normal invitation way (org_invites row): an instance admin gets the account id in the list as there
+check(iv.get("gina@example.com", {}).get("state") == "invited" and iv["gina@example.com"]["user_id"] in (None, NG), f"the admin sees it in the open invitations {iv}")
 check(not one("SELECT 1 FROM list_members WHERE user_id=?", (NG,)), "no project shared before the person accepts")
 IMP = one("SELECT max(id) FROM imports WHERE user_id=?", (DAVE,))
 # 2.363.0 (#3132): another admin took the invitation over: it stays, the undone import's notes go
@@ -251,8 +255,53 @@ r = Dv.post(B + f"/api/imports/{IMP}/undo")
 check(r.ok, f"the import is undone {r.status_code} {r.text[:200]}")
 check(not one("SELECT 1 FROM org_joins WHERE org_id=? AND user_id=?", (GAMMA, NG)), "the undo withdraws the invitation")
 check(json.loads(one("SELECT pending_lists FROM org_joins WHERE org_id=? AND user_id=?", (GAMMA, CAROL)) or "[]") == [[2, "edit", BOB]], "#3132: the undo drops only its own notes")
+check(not one("SELECT 1 FROM org_invites WHERE org_id=? AND user_id=?", (GAMMA, NG)), "#6580: the undo ends the org_invites row too (like Withdraw)")
 Dv.delete(B + f"/api/account/import/{iid}")
 dbx("UPDATE users SET is_admin=false WHERE id=?", (DAVE,))
+
+# ---------------------------------------------------------------- 2.1424.0 (#6580): the organisation's admin invites the missing people
+# (decided 16.11.2026: not only an instance admin), the normal invitation way: a new address -> an account made by an organisation
+# invitation, joins only by accepting; an address with an account dave may not see -> the same answer, a silent invitation (#3570)
+dbx("DELETE FROM users WHERE id=?", (NG,))
+iid, pv = opened(Dv, OX, RK)
+check(not pv.get("can_invite") and GAMMA in (pv.get("invite_orgs") or []), f"#6580: dave (no instance admin) may invite into Gamma {pv.get('can_invite')} {pv.get('invite_orgs')}")
+check(any(p.get("key") == EH("gina@example.com") and not p.get("found") for p in pv.get("people", [])), "#6580: the preview lists gina as not found")
+r = Dv.post(B + f"/api/account/import/{iid}/run", json={"target": "private", "people": {EH("gina@example.com"): {"invite": True, "email": "gina@example.com"}}, "again": True})
+check(r.status_code == 202, f"#6580: into the private space the run starts {r.status_code}")
+j = wait(Dv, iid)
+st = {p.get("name"): p.get("state") for p in (j.get("result") or {}).get("people", [])}
+check(st.get("Gina Fehlt") in (None, "skipped") and not one("SELECT 1 FROM users WHERE lower(email)='gina@example.com'"),
+      f"#6580: into the private space dave invites nobody (a new account of the server: instance admins only) {st}")
+Dv.delete(B + f"/api/account/import/{iid}")
+iid, pv = opened(Dv, OX, RK)
+j = run(Dv, iid, GAMMA, people={EH("gina@example.com"): {"invite": True, "email": "gina@example.com", "role": "admin"}}, again=True)
+st = {p.get("name"): p.get("state") for p in (j.get("result") or {}).get("people", [])}
+check(j.get("state") == "done" and st.get("Gina Fehlt") == "org_invited", f"#6580: dave invites gina into Gamma {st} {j.get('error')}")
+NG = one("SELECT id FROM users WHERE lower(email)='gina@example.com'")
+check(NG and one("SELECT oinv_made_at IS NOT NULL FROM users WHERE id=?", (NG,)) and one("SELECT created_by FROM org_invites WHERE org_id=? AND user_id=?", (GAMMA, NG)) == DAVE,
+      "#6580: an account made by an organisation invitation (org_invites row by dave)")
+check(one("SELECT role FROM org_joins WHERE org_id=? AND user_id=? AND created_by=?", (GAMMA, NG, DAVE)) == "admin"
+      and not one("SELECT 1 FROM org_members WHERE org_id=? AND user_id=?", (GAMMA, NG)), "#6580: invited with the confirmed role, no member before accepting")
+check(one("SELECT 1 FROM user_invites WHERE user_id=?", (NG,)), "#6580: the invitation link")
+iv = {x["email"]: x for x in Dv.get(B + f"/api/orgs/{GAMMA}/invites").json()["invites"]}
+check(iv.get("gina@example.com", {}).get("state") == "invited" and iv["gina@example.com"]["user_id"] is None, f"#6580: in dave's open invitations, no account id {iv}")
+Dv.delete(B + f"/api/account/import/{iid}")
+# an address with an account dave may not see (made by the instance admin, in no organisation of dave): the same answer, silent
+dbx("DELETE FROM users WHERE id=?", (NG,))
+r = A.post(B + "/api/users", json={"username": "gina2", "display_name": "Gina Privat", "password": "password123", "email": "gina@example.com"})
+assert r.ok, r.text
+G2 = r.json()["id"]
+iid, pv = opened(Dv, OX, RK)
+j = run(Dv, iid, GAMMA, people={EH("gina@example.com"): {"invite": True, "email": "gina@example.com"}}, again=True)
+st = {p.get("name"): p.get("state") for p in (j.get("result") or {}).get("people", [])}
+check(j.get("state") == "done" and st.get("Gina Fehlt") == "org_invited", f"#6580: an account dave may not see: the same answer {st}")
+check(one("SELECT silent FROM org_joins WHERE org_id=? AND user_id=? AND created_by=?", (GAMMA, G2, DAVE)) is True
+      and not one("SELECT 1 FROM notifications WHERE user_id=? AND kind='orgjoin'", (G2,)), "#6580: a silent invitation, nothing for the person (#3570)")
+check(one("SELECT COUNT(*) FROM users WHERE lower(email)='gina@example.com'") == 1, "#6580: never a second account for the address")
+iv = {x["email"]: x for x in Dv.get(B + f"/api/orgs/{GAMMA}/invites").json()["invites"]}
+check(iv.get("gina@example.com", {}).get("state") == "invited" and iv["gina@example.com"]["user_id"] is None, f"#6580: the list shows it like a new address {iv}")
+Dv.delete(B + f"/api/account/import/{iid}")
+dbx("DELETE FROM users WHERE id=?", (G2,))
 
 # ---------------------------------------------------------------- P4: a person without organisation, into the private workspace
 FID, Fr = freelancer(B, A)
