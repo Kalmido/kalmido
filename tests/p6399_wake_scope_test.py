@@ -20,7 +20,7 @@ import kt  # noqa: E402
 from kt import B, check, sess  # noqa: E402
 from freelancer_fixture import freelancer  # noqa: E402
 
-FEATURES = "cal,collab,comments,events,fields,progress,office,files,contacts,agents"
+FEATURES = "cal,collab,comments,events,fields,progress,office,clients,contacts"
 
 A = kt.setup()
 ORG = {}
@@ -37,7 +37,7 @@ for u, o in (("bob", "Alpha"), ("dave", "Alpha"), ("carl", "Beta")):
 Bo, Da, Ca = sess("bob"), sess("dave"), sess("carl")
 for s in (A, Bo, Da, Ca):
     assert s.patch(B + "/api/settings", json={"lang": "en", "tour": "done", "features": FEATURES}).ok
-FID, Fr = freelancer(B, A)  # the own key of a person without an organisation
+FID, Fr = freelancer(B, A, features=FEATURES)  # the own key of a person without an organisation
 uid["frida"] = FID
 P = {"bob": Bo, "dave": Da, "carl": Ca, "frida": Fr}  # alice (the instance admin) is left out: her memberships are the setup's
 
