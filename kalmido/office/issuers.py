@@ -115,7 +115,9 @@ ISS_REUSED = ("office.ledger.ofx_company", "office.model.office_settings", "team
               "office.owrite.ow_created",
               # #6701: the drafts of office/issdocs.py, tested in tests/p6701_office_issuer_invoices_test.py
               "office.docs.doc_create", "office.docs._put_items", "office.docs.recalc", "office.invoices.inv_missing",
-              "office.docs.odoc_trash", "office.pdfweb._render")
+              "office.docs.odoc_trash", "office.pdfweb._render",
+              # #6818: the archived file of a finalised document, tested in tests/p6818_office_issuer_files_test.py
+              "office.pdfweb.epdf_stored")
 ISS_OFF = N_("Invoice issuers are not available for this office")
 ISS_ADMIN_ONLY = N_("Only an admin of the organisation can manage invoice issuers")
 ISS_SEC_FOOT = N_("Security notices of invoice issuers always come by e-mail as well.")

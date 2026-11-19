@@ -327,11 +327,11 @@ check(r.ok and r.json().get("mail_reporter") == "sent", f"freelancer: answer to 
 check(until(lambda: any(x["To"] == "otto@example.com" for x in sent()), 20), "freelancer: the mail goes out")
 
 # ---- 2.393.2 F (#3375): review 8 - a reply whose file cannot be stored stays in the mailbox (MailKept), the comment is there
-r = py("import email.message\nfrom kalmido.integrations import mail as MM, taskmail as TM\n"
+r = py("import email.message\nfrom kalmido.integrations import mail as MM\nfrom kalmido.collab import attskip as AS  # #6531: the one loop over a mail's files\n"
        "m = email.message.EmailMessage()\n"
        f"m['From'], m['To'], m['Subject'], m['Message-ID'] = 'Otto <otto@example.com>', {EA!r}, 'Re: Garden fence', '<p23932b-14@example.org>'\n"
        f"m['In-Reply-To'] = {M9!r}\nm.set_content('Photo attached.')\nm.add_attachment(b'jpg', maintype='image', subtype='jpeg', filename='fence.jpg')\n"
-       "def boom(*a, **k):\n    raise OSError('disk full')\nTM.save_attachment_bytes = boom\n"
+       "def boom(*a, **k):\n    raise OSError('disk full')\nAS.save_attachment_bytes = boom\n"
        "res = MM.mail_import(c, bytes(m))\nprint(type(res).__name__, int(res or 0))")
 check(r == f"MailKept {T9}", f"review 8: MailKept {r!r}")
 check(any("Photo attached." in x[2] for x in comments(T9)), f"review 8: the comment is there {comments(T9)}")

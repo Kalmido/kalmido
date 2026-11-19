@@ -44,6 +44,7 @@ from ..core.pg import system_ctx  # 2.149.0 G (#2517): pulled up from functions
 from ..core.ratedb import rate_counts  # (#6580)
 from ..accounts.orgs import _need_org_admin, _oinv_pending, ORG_ROLES, _operator_apart, instance_mode, may_see, org_member_add, org_member_put  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.invite import invite_state, invite_new  # 2.369.5 (#2517): pulled up from functions
+from ..accounts.mailfail import mail_disturbed  # (#6385)
 from ..accounts.users import user_purge  # 2.369.5 (#2517): pulled up from functions
 from ..core.objhooks import person_revoked  # 2.649.0 (#5051)
 
@@ -193,7 +194,7 @@ def org_invite_new(oid):
             return r
         ojn_neutral_drop(c, oid, email)  # 2.985.0 (#4922): the address has an account (again): its row stands for it now
         c.commit()
-        return jsonify(ok=True, by_email=True, invites=oinv_list(c, oid))  # 2.148.1 A (#2480): the same answer as a new account
+        return jsonify(ok=True, by_email=True, invites=oinv_list(c, oid), **_mail_notice(c))  # (#2480): the same answer as a new account
     direct = g.user["is_admin"] and not _operator_apart()  # (#3780): the same test as org_member_put for an existing account
     uid, inv = oinv_new_account(c, oid, email, role, b.get("name"), b.get("lang"), me(), direct, bg=not g.user["is_admin"])
     inv = _no_link_if_sent(inv, uid)
@@ -204,7 +205,8 @@ def org_invite_new(oid):
     # a notice); an instance admin sees every account anyway and keeps the id (undo) and the link
     if g.user["is_admin"]:
         return jsonify(ok=True, by_email=True, invited=True, user_id=uid, invitation=inv, invites=oinv_list(c, oid))
-    return jsonify(ok=True, by_email=True, invites=oinv_list(c, oid))  # (#2480): no notice -- the same answer as for an existing account
+    # (#2480): no notice of this mail -- the same answer as for an existing account; (#6385) only the general one of the server
+    return jsonify(ok=True, by_email=True, invites=oinv_list(c, oid), **_mail_notice(c))
 
 
 def oinv_new_account(c, oid, email, role, name, lg, by, direct, bg=True):
@@ -279,10 +281,17 @@ def oinv_by_import(c, oid, email, role, name, by):
     return r["id"], False
 
 
+def _mail_notice(c):
+    """(#6385): an organisation admin's general notice while the server's outgoing mail fails (mail_disturbed: the same for
+    every address, #3570/#6525 - never per invitation; the state per invitation is the instance admin's). {} otherwise."""
+    return {"notice": tr("Sending e-mails is disturbed at the moment. Please send the invitation again later.")} if mail_disturbed(c) else {}
+
+
 def _no_link_if_sent(inv, uid=None):
     """2.115.0 review (M2): the link goes only to the invited address once the mail is out. 2.148.1 A (#2486): the link
-    goes only to the invited address (an instance admin gets it when no mail went, logged)."""
-    if inv.get("sent"):
+    goes only to the invited address (an instance admin gets it when no mail went, logged). (#6385): queued = the mail waits
+    in the background queue (it is out once it went: sent_at)."""
+    if inv.get("sent") or inv.get("queued"):
         inv.pop("link", None)
     elif g.user["is_admin"]:
         print("organisation invitation: link shown to the instance admin", login_log_who(g.user), "for account", uid, flush=True)
@@ -337,7 +346,7 @@ def org_invite_resend(oid, ref):
             inv = {"sent": True, "email": (inv.get("email") or "").strip().lower()}
     bump(c)
     c.commit()
-    return jsonify(ok=True, invitation=inv, invites=oinv_list(c, oid))
+    return jsonify(ok=True, invitation=inv, invites=oinv_list(c, oid), **({} if g.user["is_admin"] else _mail_notice(c)))  # (#6385)
 
 
 @app.delete("/api/orgs/<int:oid>/invites/<ref>")

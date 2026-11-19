@@ -533,6 +533,10 @@ new organisation keeps them. Not in the organisation, account or retention expor
 - `POST /api/office/issuers/<id>/pause` · `POST /api/office/issuers/<id>/resume` `{password?}` · `GET /api/office/issuers/<id>/log`
 - `GET|POST /api/office/issuers/<id>/payees` `{label, holder, iban, bic?, ref_only?, password?}` · `DELETE /api/office/issuers/<id>/payees/<pid>`
 - The key itself: `GET /api/v1/issuer`, its clients `PUT|GET /api/v1/issuer/clients/by-ref/<external_ref>` (API.md, *Invoice issuer keys*)
+- From finalising on the key fetches the archived file of its own documents (also a person's correction of its invoice):
+  `GET /api/v1/issuer/docs/<id>/file?kind=pdf|xml` (#6818) - byte for byte as stored (`pdfweb.epdf_stored`, header
+  `X-Content-SHA256`), the XML of a ZUGFeRD invoice is the one inside its PDF; never rendered anew; each download is a line
+  `issuer_read` (target `file:<kind>:<id>`) in the office log
 
 **Clients of an invoice issuer** (2.1384, #6700; `office/issclients.py`, `office/isshold.py`): the key sets up and changes only its
 own clients (`clients.issuer_id`, `clients.external_ref`, unique per issuer); in a private office they are its owner's private

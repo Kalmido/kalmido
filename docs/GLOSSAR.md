@@ -49,6 +49,7 @@ People and organisations: sign-in, sessions, workspaces, roles, invitations, per
 - `kalmido/accounts/layouts_more.py` - The blocks of the views that came to the builder late (statistics, client card, family)
 - `kalmido/accounts/layoutsets.py` (`lyv`) - Several saved arrangements per view and person (table view_layouts)
 - `kalmido/accounts/login.py` (`auth`) - Password login, first setup, logout and two-factor authentication (TOTP, recovery codes, passkeys)
+- `kalmido/accounts/mailfail.py` - A failed mail of the queue: passing SMTP failures tried again, the person told after the last run, the general notice "mail disturbed"
 - `kalmido/accounts/mailtok.py` (`mtk`) - The secret tokens of the plus addresses (mail_tokens, hub_tokens, doc_mail)
 - `kalmido/accounts/modcards.py` (`mc`) - Own module cards (Settings > Modules)
 - `kalmido/accounts/navmenus.py` (`nav`) - The menus of the areas, arranged by each person
@@ -211,6 +212,7 @@ CalDAV, iCal feeds, appointment booking and polls.
 
 News, comments, the team chat and the browser encryption ("e2e") of lists and chat.
 
+- `kalmido/collab/attskip.py` (`att_skip`) - A file of a mail or a public form that is not filed (storage full, virus, too large) becomes a note on the task and a News item, never silently gone
 - `kalmido/collab/cchoice.py` (`lv`) - Answer buttons, approval cards and suggestions in task comments, like in the agent chat
 - `kalmido/collab/chatpins.py` (`cpin`) - Pinned chat messages (team chat and agent chat)
 - `kalmido/collab/chatsave.py` (`chat`) - Save a chat message as a task to look at later

@@ -2055,6 +2055,12 @@ buttons; the key never finalises, numbers, sends or books.
   the draft or its client.
 - `POST /api/v1/issuer/docs/{id}/withdraw`: a draft into the office's trash (a person can restore it; its `client_ref` answers
   `410` from then on); `409 not_draft`, `429 limit_reached` (`day_withdraw`).
+- *Since 2.1436.0:* `GET /api/v1/issuer/docs/{id}/file?kind=pdf|xml`: the finished file of one of its own documents (also a
+  correction a person made of its invoice), from finalising on: the archived file byte for byte, its SHA-256 (hex) in the
+  header `X-Content-SHA256`. `kind=xml` is the e-invoice XML: for ZUGFeRD the XML embedded in the PDF, for XRechnung the
+  invoice itself. A draft, or no archived file of that kind (an invoice without e-invoice has no XML): `409 not_final`;
+  Kalmido never renders the file anew for the key. 10 a minute (`429 rate_limited`); every download is a line in the office
+  log. The key reads only: it never writes, finalises or sends.
 - Limits (`429 limit_reached`, `Retry-After`, an alarm, no pause): `day_docs` drafts within 24 hours, `open_drafts` waiting drafts.
 
 ## Arrangements of views for agents

@@ -55,6 +55,9 @@ INTEG_TEXT = {
     # (#6551): a calendar subscription not fetched for over a day ({2} = its last success)
     "calsub_stale": N_("Calendar {0} could not be updated for more than a day. Its events are as of {2} and still count as busy."),
     "calsub_stale_never": N_("Calendar {0} could not be fetched for more than a day since it was added."),
+    # (#6385): a queued mail failed for good ({2} = the error class): the inviting instance admin / the booking page's person
+    "mail_invite": N_("The invitation e-mail to {0} could not be sent ({2}). Send the invitation again later."),
+    "mail_booking": N_("The booking e-mail to {0} could not be sent ({2})."),
     "backup": N_("Backup failed: {0}"),
     "payonline": N_("An online payment on invoice {0} could not be booked: {1}"),  # 2.469.0 (#3459)
 }

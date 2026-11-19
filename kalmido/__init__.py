@@ -76,6 +76,7 @@ ORDER = (
     "accounts.delhold",  # 2.1298.0 (#6395): an admin's lock holds the own deletion (no routes; before login)
     "accounts.login",
     "accounts.bgjobs",  # 2.193.0 D (#2220): the queue of short background work (mails after an action, back up now) in the database
+    "accounts.mailfail",  # (#6385): a failed mail of the queue (tried again, told to its person), below every area's mail kind
     "accounts.oidc",
     "core.access",
     "core.objexport",  # 2.1093.0 (#5289): the export register of the shared core (no imports from the app)
@@ -139,6 +140,7 @@ ORDER = (
     "collab.cmttrash",  # 2.530.0 A (#4315): the trash of comments and team chat messages (helpers only)
     "collab.comments",
     "collab.news",
+    "collab.attskip",  # #6531: a mail's / a form's file left out: the note on the task and the News item
     "collab.integfail",  # 2.367.3 (#2971): an integration stopped working: News + push to who can repair it
     "personal.habits",
     "personal.timetrack",

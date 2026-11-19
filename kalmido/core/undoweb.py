@@ -1,6 +1,8 @@
 """2.747.0 (#5249): undo across devices, stage 1 -- a person's step groups (core/undogroups.py) listed and taken back.
 
-GET  /api/undo?limit=100       the own groups, newest first (heads only, no copies; the label in the reader's language)
+GET  /api/undo?limit=100       the own groups, newest first (heads only, no copies; the label in the reader's language);
+                               (#6344): &skip_api=1 leaves out the steps over an API key (the arrow / Ctrl+Z skip
+                               them), each head names its age in seconds (age_s, the server's clock: "the last 2 minutes")
 POST /api/undo/to/<gid>        every own group from the newest down to gid back ("bis hierher"); 2.1175.0 (#6165): body
                                {"hide_api": true} = only the groups the list shows -- the steps over an API key stay
                                (undo_group_to)
@@ -20,12 +22,13 @@ nothing of it may be changed). A barrier or a group too big for copies stops the
 only for the groups of its own workspace (org_id; a finalised invoice does not hold a task step or another office's step). Barriers are per person like the list (decision 2 of
 #5249: only own steps): a barrier of someone else does not stop a person's run; a finalised document is frozen anyway."""
 import json
+from datetime import datetime, timezone
 
 from flask import g, jsonify, request
 
 from .config import app
 from .ctx import me
-from .db import bump, db
+from .db import bump, db, now_utc, parse_iso
 from .db import IntegrityError  # 2.809.0 (#5476, review)
 from .errors import BadInput, Denied
 from .i18n import N_, tr, tr_stored
@@ -316,16 +319,28 @@ def undo_group_redo(c, uid, gid):
     return {"redone": moved, "stayed": stayed, "text": tr(UG_REDONE, 1 if moved else 0, 1)}
 
 
-def undo_list(c, uid, limit=100):
+def _age_s(v):
+    """(#6344): seconds since the point in time v (ISO text or a datetime), by the server's clock; None unreadable."""
+    try:
+        d = v if isinstance(v, datetime) else parse_iso(str(v).replace("Z", "+00:00"))
+        d = d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+        return max(0, int((now_utc() - d).total_seconds()))
+    except (TypeError, ValueError):
+        return None
+
+
+def undo_list(c, uid, limit=100, skip_api=False):
     """The own groups, newest first: heads only (no copies); kind / ref_id = the object of the first part (the app sets a
-    title it can read itself, e.g. of an encrypted list)."""
+    title it can read itself, e.g. of an encrypted list). skip_api (#6344): without the steps over an API key."""
+    via = " AND COALESCE(g.via, '')<>?" if skip_api else ""
     rows = c.execute("SELECT g.*, (SELECT u.kind FROM obj_undo u WHERE u.group_id=g.id ORDER BY u.id LIMIT 1) AS p_kind, "
                      "(SELECT u.ref_id FROM obj_undo u WHERE u.group_id=g.id ORDER BY u.id LIMIT 1) AS p_ref "
-                     "FROM undo_groups g WHERE g.user_id=? ORDER BY g.id DESC LIMIT ?", (int(uid), int(limit))).fetchall()
+                     f"FROM undo_groups g WHERE g.user_id=?{via} ORDER BY g.id DESC LIMIT ?",
+                     (int(uid), *((UG_VIA_TOKEN,) if skip_api else ()), int(limit))).fetchall()
     out = []
     for r in rows:
         label, args = _label(r)
-        out.append({"id": r["id"], "at": r["created_at"], "area": r["area"], "label": label, "label_key": r["label_key"],
+        out.append({"id": r["id"], "at": r["created_at"], "age_s": _age_s(r["created_at"]), "area": r["area"], "label": label, "label_key": r["label_key"],
                     "label_args": args, "device": r["device"], "state": r["state"], "parts": r["parts"], "bytes": r["bytes"],
                     "kind": r["p_kind"], "ref_id": r["p_ref"], "org_id": r["org_id"], "via": r["via"] or "",  # 2.1175.0 (#6165)
                     "undo": r["state"] in ("done", "partial", "noaccess"), "redo": r["state"] in ("undone", "partial")})
@@ -345,7 +360,8 @@ def undo_list_route():
     c, uid = db(), me()
     if obj_is_agent(c, uid):
         raise Denied(403)
-    return jsonify(items=undo_list(c, uid, _limit()), keep_days=UNDO_KEEP_D, max=UNDO_GROUPS_MAX)
+    skip = request.args.get("skip_api") == "1"  # (#6344): the arrow / Ctrl+Z (static/js/undo.js histSrvLoad)
+    return jsonify(items=undo_list(c, uid, _limit(), skip_api=skip), keep_days=UNDO_KEEP_D, max=UNDO_GROUPS_MAX)
 
 
 @app.post("/api/undo/to/<int:gid>")

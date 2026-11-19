@@ -1243,6 +1243,8 @@ ROUTES = {
     # 2.1427.0 (#6701): an issuer's drafts and documents (p6701_office_issuer_invoices_test.py: Frida's key in her personal office)
     "POST /api/v1/issuer/invoices": "office", "GET /api/v1/issuer/docs": "office", "GET /api/v1/issuer/docs/{}": "office",
     "GET /api/v1/issuer/docs/by-ref/{}": "office", "GET /api/v1/issuer/docs/{}/pdf": "office", "POST /api/v1/issuer/docs/{}/withdraw": "office",
+    # #6818: the archived file of a finalised document (p6818_office_issuer_files_test.py: Frida's key in her personal office)
+    "GET /api/v1/issuer/docs/{}/file": "office",
     # 2.144.0 A (#2412): Stop in the agent chat and the agent's confirmation (p2144_a_api_test.py)
     "POST /api/agents/{}/abort": "agents", "POST /api/v1/agent/aborted": "agents",
     # 2.236.0 (#2904-#2911): the work style of an agent (owner / instance admin, else 404); C (#2906): its queue (p2236_c_queue_test.py)

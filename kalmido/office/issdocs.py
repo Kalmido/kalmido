@@ -7,6 +7,7 @@ computes, a person in the office checks, finalises and sends (review mode, the o
     GET  /api/v1/issuer/docs?changed_since=&cursor=&limit=   the issuer's documents changed since then (the reconciliation)
     GET  /api/v1/issuer/docs/<id> | /docs/by-ref/<client_ref>   one of them (ISD_PUBLIC)
     GET  /api/v1/issuer/docs/<id>/pdf                  the preview of a draft (watermark), only as the key delivered it
+    GET  /api/v1/issuer/docs/<id>/file?kind=pdf|xml    (#6818) the archived file of a finalised document, byte for byte
     POST /api/v1/issuer/docs/<id>/withdraw             a draft into the office's trash (a person can restore it)
 
 Rules (the design's section 2.4 "invoice draft", "idempotency", "what the read routes show"; decided 16.11.2026 17:32 and
@@ -49,7 +50,13 @@ Rules (the design's section 2.4 "invoice draft", "idempotency", "what the read r
   - An issuer's draft never becomes a series template (office/recurring.py), a copy never keeps issuer_id (docs.DUP_SKIP), its
     client can only be changed to another client of the same issuer (docs.clean_doc).
   - Log: every draft and every withdrawal one line issuer_write, reads once an hour and target; a 404 on an id counts towards the
-    self-pause (issuers._iss_refuse), a 404 by ref does not."""
+    self-pause (issuers._iss_refuse), a 404 by ref does not.
+  - (#6818) The finished file: GET /docs/<id>/file?kind=pdf|xml of the key's own documents (issuer_id, also a person's correction
+    that inherited it), from finalising on (a draft 409 not_final). The archived file (pdfweb.epdf_stored: sealed, its SHA-256
+    checked) byte for byte with X-Content-SHA256; kind=xml is the e-invoice XML that was stored (ZUGFeRD: the XML embedded in
+    the PDF, XRechnung: the invoice itself). Never rendered anew: no archived file = 409 not_final. ISD_FILE_RATE a minute,
+    every delivery one log line (issuer_read, target file:<kind>:<id>, never merged). Reads only: no writing, finalising or
+    sending."""
 import hashlib
 import json
 import re
@@ -62,7 +69,7 @@ from flask import g, jsonify, request
 from ..accounts.session import client_ip
 from ..api.common import v1_err, v1_view
 from ..collab.integfail import INTEG_TEXT
-from ..core.access import live_sql
+from ..core.access import Denied, live_sql
 from ..core.config import app
 from ..core.db import bump, iso, iso_ms, local_now, now_utc, parse_iso
 from ..core.errors import BadInput, UnknownFields
@@ -76,7 +83,8 @@ from .countries import fk_vat_territory
 from .docs import _j, _put_items, doc_create, doc_items, doc_row, odoc_trash, recalc
 from .invoices import inv_missing, inv_paid_map, inv_state
 from .packs import office_pack_for
-from .pdfweb import _file_response, _render, epdf_name, epdf_out
+from .ledger import ofx_locked
+from .pdfweb import _file_response, _render, epdf_name, epdf_out, epdf_stored
 from .isshold import ihd_load
 from .issclients import ISC_REF_RE, isc_body, isc_gone, isc_limit_tell, isc_notice, isc_row, isc_text_check
 from .issuers import ISS_ROUTES, _iss_me, _iss_once, _iss_read_logged, _iss_refuse, iss_log, iss_tell
@@ -88,7 +96,9 @@ ISD_ONE = "/api/v1/issuer/docs/<int:did>"
 ISD_REF = "/api/v1/issuer/docs/by-ref/<path:ref>"
 ISD_PDF = "/api/v1/issuer/docs/<int:did>/pdf"
 ISD_WITHDRAW = "/api/v1/issuer/docs/<int:did>/withdraw"
-ISS_ROUTES.update({("POST", ISD_POST), ("GET", ISD_LIST), ("GET", ISD_ONE), ("GET", ISD_REF), ("GET", ISD_PDF), ("POST", ISD_WITHDRAW)})
+ISD_FILE = "/api/v1/issuer/docs/<int:did>/file"  # (#6818)
+ISS_ROUTES.update({("POST", ISD_POST), ("GET", ISD_LIST), ("GET", ISD_ONE), ("GET", ISD_REF), ("GET", ISD_PDF), ("POST", ISD_WITHDRAW),
+                   ("GET", ISD_FILE)})
 ISD_REF_ROUTE = "invoices"  # office_issuer_refs.route of a draft
 ISD_KEYS = ("client_ref", "client", "items", "expect", "service_from", "service_to", "order_ref", "vat_note", "vat_check", "business_check", "wish")
 ISD_ITEM_KEYS = ("text", "detail", "qty", "unit", "rate", "tax")
@@ -101,6 +111,8 @@ ISD_UNITS = tuple(u for u in UNITS if u != "percent")
 ISD_ITEMS_MAX = 50
 ISD_TITLE_MAX, ISD_DETAIL_MAX, ISD_ORDER_REF_MAX, ISD_INFO_MAX = 200, 1000, 80, 120
 ISD_PDF_RATE = 10        # previews of one issuer a minute
+ISD_FILE_RATE = 10       # (#6818) archived files of one issuer a minute (a clock of its own, as low as the preview's)
+ISD_FILE_MIME = {"pdf": "application/pdf", "xml": "application/xml"}
 ISD_DUE_MIN_DAYS = 7     # a due date asked for less than this many days after the document's date stops finalising
 ISD_PAGE = 100           # documents of one page of changed_since (limit up to ISD_PAGE_MAX)
 ISD_PAGE_MAX = 500
@@ -772,6 +784,46 @@ def isd_pdf(did):
     return _file_response(pdf, epdf_name(r) + ".pdf", "application/pdf")
 
 
+@app.get("/api/v1/issuer/docs/<int:did>/file")  # = ISD_FILE
+@v1_view
+@_answer
+def isd_file(did):
+    """(#6818) ?kind=pdf|xml -> the archived file of the issuer's finalised document, byte for byte, its SHA-256 in
+    X-Content-SHA256. A draft or no archived file of that kind: 409 not_final (never rendered anew); ISD_FILE_RATE a minute;
+    every delivery one line of the office log."""
+    c, iss = _iss_me()  # first: a key of another kind hears 403, never what the route asks for
+    extra = sorted(k for k in request.args if k != "kind")
+    if extra:
+        raise UnknownFields(extra)
+    kind = request.args.get("kind") or ""
+    if kind not in ISD_FILE_MIME:
+        raise _bad("kind", tr("kind: pdf or xml"))
+    oid, iid = int(iss["org_id"]), int(iss["id"])
+    r = _doc(c, iss, did, live=True)
+    if r is None:
+        return _no_doc(c, iss)
+    if not ofx_locked(r):
+        raise IsdErr(409, tr("The document is not finalised yet: its file exists from finalising on"), "not_final")
+    hit = rate_hit(f"issfile:{iid}", ISD_FILE_RATE, 60)
+    if hit is None:
+        raise IsdErr(503, tr("Please try again in a moment"), "unavailable", {"Retry-After": "10"})
+    if hit:
+        raise IsdErr(429, tr("Too many requests, please slow down"), "rate_limited", {"Retry-After": "60"})
+    try:
+        data = epdf_stored(c, oid, r, kind)  # ISS_REUSED: the archive (sealed, its SHA-256 checked), never rendered here
+    except Denied as e:  # the stored file has gone or does not match its checksum (logged by epdf_stored)
+        raise IsdErr(409, str(e) or tr("There is no archived file of this kind for this document"), "not_final") from None
+    if data is None:
+        raise IsdErr(409, tr("There is no archived file of this kind for this document"), "not_final")
+    sha = hashlib.sha256(data).hexdigest()
+    iss_log(c, oid, iid, "issuer_read", f"file:{kind}:{int(did)}", {"key": g.issuer_key["prefix"], "ip": fx2_mask_ip(client_ip()),
+                                                                      "sha256": sha, "bytes": len(data)}, name=iss["name"], doc_id=int(did))
+    c.commit()
+    resp = _file_response(data, epdf_name(r) + "." + kind, ISD_FILE_MIME[kind])
+    resp.headers["X-Content-SHA256"] = sha
+    return resp
+
+
 @app.post("/api/v1/issuer/docs/<int:did>/withdraw")  # = ISD_WITHDRAW
 @v1_view
 @_answer
@@ -892,6 +944,14 @@ def isd_spec(paths, op, ok, errs):
     paths["/issuer/docs/{id}/pdf"] = {"get": op(
         "The PDF preview of an invoice issuer's draft (2.1427.0)", "Office", {"200": {"description": "PDF", "content": {"application/pdf": {}}}} | errs("403", "404", "409", "429"),
         [did], scope="office", desc=only + "Watermark DRAFT; 409 edited_by_human when a person changed the draft or its client; 10 a minute.")}
+    paths["/issuer/docs/{id}/file"] = {"get": op(
+        "The archived file of an invoice issuer's finalised document (2.1436.0)", "Office",
+        {"200": {"description": "The archived file, byte for byte; header X-Content-SHA256 = its SHA-256 (hex)",
+                 "content": {"application/pdf": {}, "application/xml": {}}}} | errs("400", "403", "404", "409", "429"),
+        [did, {"name": "kind", "in": "query", "required": True, "schema": {"type": "string", "enum": list(ISD_FILE_MIME)}}], scope="office",
+        desc=only + "Its own documents only (also a person's correction of its invoice). kind=pdf the PDF, kind=xml the e-invoice XML "
+                    "(ZUGFeRD: the XML inside the PDF, XRechnung: the invoice itself). 409 not_final: a draft, or no archived file of "
+                    "that kind (never rendered anew). 10 a minute (429 rate_limited); every download is in the office log.")}
     paths["/issuer/docs/{id}/withdraw"] = {"post": op(
         "Withdraw an invoice issuer's draft (2.1427.0)", "Office", ok(doc) | errs("403", "404", "409", "429"), [did], scope="office",
         desc=only + "Into the office's trash (a person can restore it); its client_ref answers 410 withdrawn from then on. 409 not_draft, "

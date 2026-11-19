@@ -106,7 +106,7 @@ def run(s, ws):
 docker_logs_on_first_fail()
 # ---- setup: alice (instance admin), Alpha = bob (admin) + carol, Beta = dave, erin without an organisation
 fresh(ENV)
-for d in ("INBOX", "Rechnungen", "Archiv", "Belege", "Markiert", "Weg", "Erin", "Ziel", "Gift", "Viele"):  # 2.1322.0 (#6560): + Viele  # 2.636.0 (#4853): + Ziel; 2.1281.0 (#6425): + Gift
+for d in ("INBOX", "Rechnungen", "Archiv", "Belege", "Markiert", "Weg", "Erin", "Ziel", "Gift", "Viele", "Teil"):  # #6531: + Teil  # 2.1322.0 (#6560): + Viele  # 2.636.0 (#4853): + Ziel; 2.1281.0 (#6425): + Gift
     os.makedirs(os.path.join(MB, d), exist_ok=True)
 shutil.copy(os.path.join(N, "stub_imap_folders.py"), DATA)
 subprocess.run(["docker", "exec", "-d", CT, "python", "/data/stub_imap_folders.py"], check=True)
@@ -400,5 +400,31 @@ check(run(Bo, WS) and rv().get("backlog") == 32, f"#6560: the next run goes on f
 check(run(Bo, WS) and rv().get("backlog") == 0, f"#6560: the third run reaches the end of the folder ({rv().get('backlog')})")
 check(until(lambda: vdocs() == ["Viele-alt.pdf", "Viele-neu.pdf"], 30), f"#6560: and the newest mail, each once ({vdocs()})")
 check(run(Bo, WS) and rv().get("backlog") == 0 and vdocs() == ["Viele-alt.pdf", "Viele-neu.pdf"], "#6560: a run at the end takes nothing again")
+
+# ---- #6531: a mail with one file that becomes a document and one the store refuses stays where it is (no move, no delete):
+# a refused file never goes silently; the rule says so. Before: the mail was moved like a whole one, the refused file was gone
+r = Bo.post(B + "/api/hubmail/mailbox/rules", json={"ws": f"org:{ORG}", "name": "Teil", "folder": "Teil", "need_att": True,
+                                                    "after": "move", "after_folder": "Archiv"})
+check(r.status_code == 201, f"#6531: a rule on the folder Teil ({r.status_code} {r.text[:200]})")
+RT = (r.json() or {}).get("rule") or {}
+m = email.message.EmailMessage()
+m["From"], m["To"], m["Subject"] = "Shop <billing@shop.example.com>", "office@example.com", "Invoice and an empty file"
+m["Message-ID"] = "<p2581d-teil@example.org>"
+m["Date"] = email.utils.formatdate(time.time(), localtime=False)
+m.set_content("One invoice, one empty attachment")
+m.add_attachment(pdf("Teil-1"), maintype="application", subtype="pdf", filename="Teil-1.pdf")
+zb = io.BytesIO()
+with zipfile.ZipFile(zb, "w") as z:  # unpacks to one empty PDF: the store refuses it
+    z.writestr("Leer.pdf", b"")
+m.add_attachment(zb.getvalue(), maintype="application", subtype="zip", filename="Leer.zip")
+open(os.path.join(MB, "Teil", "1.eml"), "wb").write(bytes(m))
+arch = files("Archiv")
+check(run(Bo, WS), "#6531: the run with a mail of one good and one refused file")
+check(until(lambda: [x for x in docs(WS) if x[1] == "Teil-1.pdf"], 30), "#6531: the good file became a document")
+check(files("Teil") == ["1.eml"] and files("Archiv") == arch, f"#6531: the mail stays where it is, not moved ({files('Teil')} / {files('Archiv')})")
+rt = next((x for x in Bo.get(B + f"/api/hubmail/mailbox/rules?ws=org:{ORG}").json().get("rules", []) if x["id"] == RT.get("id")), {})
+check(rt.get("error") == "skipped" and "refused" in (rt.get("error_text") or ""), f"#6531: the rule says files were refused ({rt.get('error')!r} {rt.get('error_text')!r})")
+check(run(Bo, WS) and files("Teil") == ["1.eml"] and len([x for x in docs(WS) if x[1] == "Teil-1.pdf"]) == 1,
+      "#6531: the next run takes the kept mail not again")
 
 sys.exit(done("p2581_d_mailrules"))
