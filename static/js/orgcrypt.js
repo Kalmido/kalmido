@@ -89,7 +89,7 @@ async function ocShowRecovery(oid, st, isNew = false, confirmed = false) {
       b.disabled = true;
       try { await api('POST', `/api/orgs/${oid}/export`); } catch { b.disabled = false; return; /* api() showed it */ }
       md.remove();
-      if (oxb.isConnected && typeof oxLoad === 'function') { oxLoad(oxb); oxb.scrollIntoView({block: 'nearest'}); }
+      if (oxb.isConnected && typeof oxLoad === 'function') { oxLoad(oxb); oxb.scrollIntoView({block: 'nearest'}); }  // sprung-ok: the person tapped "Create export" and is shown the box with the new archive
     }
   });
 }
