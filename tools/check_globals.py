@@ -189,6 +189,9 @@ def main(argv):
     bad, fixed = compare(cur, base)
     for x in bad:
         print(x)
+    if bad:
+        import lintmsg  # tools/ is on the path (above)
+        lintmsg.say("check_globals", LINT_WHY, LINT_INSTEAD)
     if "-v" in argv:
         for x in fixed:
             print(f"fewer than in the base (good): {x}")
@@ -196,6 +199,12 @@ def main(argv):
     print(f"check_globals: {cur['names']} top-level names ({d:+d} against {rev[:12]}, shown only), {nw} foreign writers of S in {nf} files; "
           f"{len(bad)} new, {len(fixed)} gone")
     return 1 if bad else 0
+
+
+LINT_WHY = ("a file that writes a key of S another file makes couples the two: the state changes from places the owner does "
+            "not see, and a redraw or a cache of the owner misses it")
+LINT_INSTEAD = ("write it through a setter (a function) of the file that makes the key, or let the key belong to this file "
+                "when only it uses it")
 
 
 if __name__ == "__main__":
