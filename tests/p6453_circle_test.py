@@ -653,17 +653,17 @@ from kalmido.agents.jobchat import jcd_jobs
 from kalmido.agents.core import jn9_job_names
 c = connect()
 with system_ctx(c):
-    print(json.dumps({{"card": {{k: jcd_jobs(c, {TA}, [{{"job_id": {JW}}}], u).get(str({JW})) for k, u in (("bob", {BOB}), ("alice", {ALICE}))}},
-                      "name": {{k: jn9_job_names(c, [{JW}], u).get({JW}) for k, u in (("bob", {BOB}), ("alice", {ALICE}))}}}}))
+    print(json.dumps({{"card": {{k: jcd_jobs(c, {TA}, [{{"job_id": {JW}}}], u).get(str({JW})) for k, u in (("bob", {BOB}), ("agent", {TA}))}},
+                      "name": {{k: jn9_job_names(c, [{JW}], u).get({JW}) for k, u in (("bob", {BOB}), ("agent", {TA}))}}}}))
 c.close()"""], capture_output=True, text=True)
     try:
         jc = json.loads(out.stdout.strip().splitlines()[-1])
     except (ValueError, IndexError):
         jc = {"error": (out.stdout + out.stderr)[-600:]}
-    cb, ca = (jc.get("card") or {}).get("bob") or {}, (jc.get("card") or {}).get("alice") or {}
+    cb, ca = (jc.get("card") or {}).get("bob") or {}, (jc.get("card") or {}).get("agent") or {}
     check(cb.get("id") == JW and cb.get("title") == "" and "plan" not in str(cb.get("name")),
           f"F14: the chat's job card of the task's job has no title or name for bob {jc}")
-    check(ca.get("title") == "Alice's private plan", f"F14: ... alice's has them {jc}")
+    check(ca.get("title") == "Alice's private plan", f"F14: ... the agent itself reads them (a job without a person: as job_dict) {jc}")
     nb = (jc.get("name") or {}).get("bob")
     check("plan" not in json.dumps(nb), f"F14: the job's name for bob carries no title {jc.get('name')}")
 finally:
