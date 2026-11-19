@@ -774,7 +774,7 @@ async function evCalsModal() {
       <button type="button" class="evcrowbtn" data-evc="new">${ic('plus', 's')}<span>${tr('New calendar')}</span></button>`;
     const subs = cvxVisibleCals(true).filter(c => !c.own);
     const sb = !S.calendars?.enabled ? '' : `<div class="cvxgrp">${tr('Subscriptions')}</div>${subs.length ? subs.map(c => `<div class="cvxrow" style="--cc:${cssColor(c.color)}">
-      <i class="cevdot"></i><span class="evcn">${esc(c.name)}</span>${sw(c.key, 'show', c.on, false, tr('Show {0} in my calendar', c.name))}${three(c)}
+      <i class="cevdot"></i><span class="evcn">${esc(c.name)}${cevStaleText(c.c) ? `<span class="cevstale"> ${ic('alert', 's')} ${esc(cevStaleText(c.c))}</span>` : '' /* 2.1423.0 (#6551) */}</span>${sw(c.key, 'show', c.on, false, tr('Show {0} in my calendar', c.name))}${three(c)}
       <button data-rowmenu="cvxrow" class="iconbtn" data-cvxmenu="${c.key}" data-name="${esc(c.name)}" aria-haspopup="menu" aria-label="${esc(tr('More for {0}', c.name))}" title="${esc(tr('More'))}">${ic('dots')}</button></div>`).join('')
       : `<p class="muted">${tr('No subscriptions yet. Add one under Settings > Integrations > Calendars.')}</p>`}`;
     // 2.566.0 (#4707): the calendars in the trash (the shared core's trash): opened on demand, restore with their events
