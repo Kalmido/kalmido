@@ -43,6 +43,7 @@ from ..core.config import app, APP_NAME
 from ..core.db import body, bump, db, err, iso, now_utc, test_seconds
 from ..core.i18n import lang, tr
 from ..core.pg import system_ctx
+from ..core.ratedb import rate_counts  # #6874: how many mails over the waiting ones
 from ..tasks.repo import task_insert  # 2.1358.0 (#6825): the one way into tasks
 from ..core.objcomments import ocm_add  # 2.972.0 (#5272)
 from ..core.access import Denied, MANAGE_ROLES, need_list, task_visible
@@ -72,6 +73,7 @@ RQ_FILES = 20             # files of one mail at most
 RQ_IN_HOUR = 60           # new tickets per list and hour (by mail)
 RQ_IN_SENDER_HOUR = 10    # new tickets per list, sender and hour
 RQ_WINDOW = test_seconds("KALMIDO_TEST_RQ_WINDOW_S", 3600)  # 2.1322.0 (#6560 3): the hour of both (a test container may shorten it)
+RQ_WAIT_MAX = 200          # #6874: mails per list put back for later in one window; over it a mail stays read in the mailbox
 RQ_TITLE_MAX = 300
 _AUTO_PREC = ("bulk", "junk", "list", "auto_reply")
 _AUTO_LOCAL = ("mailer-daemon", "postmaster")
@@ -283,8 +285,13 @@ def rq_take(c, r, msg, raw):
     # round; the project's managers hear it once an hour. The sender's limit first (a refused call counts nothing), then the
     # list's for every sender together - so a mail waiting for its sender's hour never uses up the list's
     if hit_limit(f"rqine:{lid}:{P.pt_email_hash(c, sender)}", RQ_IN_SENDER_HOUR, RQ_WINDOW) or hit_limit(f"rqin:{lid}", RQ_IN_HOUR, RQ_WINDOW):
+        # #6874: it waits until the window is over (not fetched again every round), and a list holds at most RQ_WAIT_MAX
+        # waiting mails a window: a flood to a known address no longer makes tickets for days and load on the shared mailbox
+        if hit_limit(f"rqwait:{lid}", RQ_WAIT_MAX, RQ_WINDOW):
+            rq_cap_tell(c, l)
+            return 0  # not taken: it stays read in the mailbox (the managers hear how many)
         rq_limit_tell(c, l)
-        return M.MAIL_LATER
+        return M.mail_later(RQ_WINDOW)
     hint = tr("Reply to ticket T{0}, the sender is not its reporter", named, lg=lang(c, l["owner_id"])) if named else ""
     tid, conf = rq_new(c, msg, mid, l, sender, verified, auto, hint)
     if conf:
@@ -300,6 +307,18 @@ def rq_limit_tell(c, lst):
     with system_ctx(c):  # the project's managers (the mail itself comes from nobody)
         uids = [lst["owner_id"]] + [r[0] for r in c.execute("SELECT user_id FROM list_members WHERE list_id=? AND role='admin'", (lst["id"],))]
     integ_tell(c, uids, "reqmail", lst["name"] or f"#{lst['id']}", click=f"l/{lst['id']}", list=lst["id"])
+
+
+def rq_cap_tell(c, lst):
+    """#6874: a mail over RQ_WAIT_MAX waiting ones is counted; the owner and the admins of the project hear the number once a
+    window (the count of this window so far)."""
+    n = (rate_counts([f"rqcap:{lst['id']}"], RQ_WINDOW, add=True) or {}).get(f"rqcap:{lst['id']}") or 1
+    if hit_limit(f"rqcaptold:{lst['id']}", 1, RQ_WINDOW):
+        return
+    with system_ctx(c):
+        uids = [lst["owner_id"]] + [r[0] for r in c.execute("SELECT user_id FROM list_members WHERE list_id=? AND role='admin'", (lst["id"],))]
+    integ_tell(c, uids, "reqmail", lst["name"] or f"#{lst['id']}", click=f"l/{lst['id']}", variant="_cap", more=(n, RQ_WAIT_MAX),
+               list=lst["id"])
 
 
 @bgj_fn("mail:reqmail", tries=1)

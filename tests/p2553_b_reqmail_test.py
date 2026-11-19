@@ -96,6 +96,15 @@ def seen_all():
     return all(str(i) in s for i in range(1, NEXT[0] + 1))
 
 
+def py_c(code):
+    """#6874: code in the app container with c = a database connection; -> the last line it printed."""
+    r = subprocess.run(["docker", "exec", "-i", CT, "python", "-c", "import app\nfrom kalmido.core.db import connect\nc = connect()\n" + code],
+                       capture_output=True, text=True, timeout=120)
+    if r.returncode:
+        print(r.stderr[-800:])
+    return (r.stdout.strip().splitlines() or [""])[-1]
+
+
 def poll(cond, secs=40):
     A.post(B + "/api/admin/mail/poll")
     return until(cond, secs)
@@ -321,12 +330,29 @@ settle_mark = mail("Marker <marker@example.org>", MARK, "marker", "marker", "<p2
 check(bool(poll(lambda: task_of(settle_mark))), "the round went past the eleven mails")
 got = [m for m in FL if task_of(m)]
 seen_now = set(open(os.path.join(DATA, "mail", "seen")).read().split())
-check(len(got) == 10 and str(NEXT[0] - 1) not in seen_now, f"10 per sender and hour become tickets, the 11th waits unseen in the mailbox ({len(got)})")
+# #6874: the waiting mail stays read in the mailbox (before: unseen again, fetched whole in every round of 60 s)
+check(len(got) == 10 and str(NEXT[0] - 1) in seen_now, f"10 per sender and hour become tickets, the 11th waits read in the mailbox ({len(got)})")
 nt = [json.loads(d).get("text", "") for (d,) in dbx("SELECT data FROM notifications WHERE kind='integfail' AND user_id=?", (BU,))]
 check(sum("hourly limit" in t for t in nt) == 1, f"the project's owner hears it once {nt}")
-check(dbx("SELECT tries, state FROM mail_in_seen WHERE box='instance' AND state='open'") == [(0, "open")], "its attempt stays open, none used up")
+check(dbx("SELECT tries, state FROM mail_in_seen WHERE box='instance' AND state IN ('open', 'later')") == [(0, "later")],
+      "its attempt waits ('later', #6874: due after the window), none used up")
+due = dbx("SELECT seen_at > now() + interval '30 seconds' FROM mail_in_seen WHERE box='instance' AND state='later'")
+check(due == [(True,)], f"#6874: it is due only after the window of the limit, not in the next round {due}")
+n_t = len(dbx("SELECT id FROM tasks WHERE list_id=?", (LB,)))
+check(settle() and len(dbx("SELECT id FROM tasks WHERE list_id=?", (LB,))) == n_t, "#6874: a round inside the window does not take it")
 time.sleep(46)  # the window has passed: the next round takes it
 check(bool(poll(lambda: task_of(FL[-1]), 30)), "after the window the waiting mail becomes its ticket")
-check(str(NEXT[0] - 1) in set(open(os.path.join(DATA, "mail", "seen")).read().split()), "and is marked seen then")
+check(dbx("SELECT count(*) FROM mail_in_seen WHERE box='instance' AND state IN ('open', 'later')") == [(0,)], "and its attempt is done")
+
+# #6874: a list holds at most RQ_WAIT_MAX waiting mails a window; one more is not taken (it stays read in the mailbox) and the
+# project's owner hears how many (here with the limits at 0 inside one import, the same code path as over 200)
+r = py_c("from kalmido.integrations import mail as MM, reqmail as R\nimport email.message\n"
+         "R.RQ_IN_SENDER_HOUR = 0\nR.RQ_WAIT_MAX = 0\n"
+         "m = email.message.EmailMessage()\n"
+         f"m['From'], m['To'], m['Subject'], m['Message-ID'] = 'Flora <flora@example.org>', {NEW!r}, 'Flood', '<p2553b-cap@example.org>'\n"
+         "m.set_content('again')\nres = MM.mail_import(c, bytes(m))\nc.commit()\nprint(type(res).__name__, int(res or 0))")
+check(r == "int 0", f"#6874: over the waiting ones the mail is not taken (no ticket, not put back) {r!r}")
+nt = [json.loads(d).get("text", "") for (d,) in dbx("SELECT data FROM notifications WHERE kind='integfail' AND user_id=?", (BU,))]
+check(sum("were not taken in" in t and "1 further" in t for t in nt) == 1, f"#6874: the project's owner hears the number {nt}")
 
 sys.exit(done("p2553_b_reqmail"))

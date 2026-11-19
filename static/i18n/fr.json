@@ -19452,6 +19452,7 @@
   "it was refused": "il a été refusé",
   "{0} file was not filed ({1}): {2}": ["{0} fichier n’a pas été enregistré ({1}) : {2}", "{0} fichiers n’ont pas été enregistrés ({1}) : {2}"],
   "the file is too large": "le fichier est trop volumineux",
+  "Requests by e-mail to project {0}: more than {3} e-mails wait for the hourly limit. {2} further e-mails were not taken in; they stay read in the mailbox.": "Demandes par e-mail au projet {0} : plus de {3} e-mails attendent la limite horaire. {2} autres e-mails n’ont pas été repris ; ils restent lus dans la boîte.",
   "This organisation has an admin of its own: only that admin can end the move": "Cette organisation a son propre administrateur : lui seul peut terminer le déménagement",
   "Private or with an organisation?": "Privé ou avec une organisation ?",
   "Kalmido keeps your private things and the work of an organisation (a company, a team, an association) apart. You can add one later too: Settings > Organisation.": "Kalmido sépare tes affaires privées du travail d’une organisation (une entreprise, une équipe, une association). Tu peux aussi l’ajouter plus tard : Paramètres > Organisation.",

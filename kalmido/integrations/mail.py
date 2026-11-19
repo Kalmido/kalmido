@@ -292,13 +292,24 @@ MAIL_DROP = _MailDrop()
 
 
 class _MailLater:
-    """2.1322.0 (#6560 3): an importer's answer "not now" (a limit was reached): the mail goes back to unseen, its attempt
-    stays open without using one up, and the next round takes it again after the new mails (mail_fetch)."""
+    """2.1322.0 (#6560 3): an importer's answer "not now" (a limit was reached): its attempt waits without using one up.
+    #6874: the mail stays read in the mailbox (never fetched again in every round); its attempt is 'later' with the moment
+    it is due (wait seconds on, mail_later(wait); MAIL_LATER = the next round), and mail_fetch takes at most
+    MAIL_LATER_ROUND due ones per round, after the new mails."""
+    def __init__(self, wait=0):
+        self.wait = wait
+
     def __bool__(self):
         return True
 
 
 MAIL_LATER = _MailLater()
+MAIL_LATER_ROUND = 20  # #6874: mails put back for later that one round fetches again (each up to MAIL_LITERAL_MAX)
+
+
+def mail_later(wait):
+    """#6874: "not now, again in wait seconds" (reqmail: after the window of its hourly limit)."""
+    return _MailLater(wait)
 _PARSED = threading.local()  # 2.1281.0 (#6425): the mail mail_fetch is at, taken apart once (the step before the transaction + the import)
 
 
@@ -322,7 +333,7 @@ class MailKept(int):
 
 def mail_import(c, raw, pre=None):
     """2.1337.0 (#6600): _mail_import under the lock of a moving organisation (core/movelock.py mv_strict): a mail for one stays
-    in the mailbox (MAIL_LATER: unseen again, taken again after the move), never imported into it, never thrown away."""
+    in the mailbox (MAIL_LATER: its attempt waits, taken again after the move), never imported into it, never thrown away."""
     if c is None:
         return _mail_import(c, raw, pre)
     with mv_strict(c):
@@ -440,11 +451,14 @@ def mail_seen_key(raw, u):
 
 
 def mail_try_open_uids(box):
-    """2.1269 (#6386): the UIDs of box with an attempt that was not finished (the round after a cut-off, a restart, a failure)."""
+    """2.1269 (#6386): the UIDs of box with an attempt that was not finished (the round after a cut-off, a restart, a failure).
+    #6874: then at most MAIL_LATER_ROUND of the mails put back for later (state 'later') whose moment has come, oldest first."""
     c = connect()
     try:
         out = [r[0].encode() for r in c.execute("SELECT imap_uid FROM mail_in_seen WHERE box=? AND state='open' AND imap_uid IS NOT NULL "
                                                 "ORDER BY seen_at", (box,)).fetchall()]
+        out += [r[0].encode() for r in c.execute("SELECT imap_uid FROM mail_in_seen WHERE box=? AND state='later' AND imap_uid IS NOT NULL "
+                                                 "AND seen_at<=? ORDER BY seen_at LIMIT ?", (box, iso(now_utc()), MAIL_LATER_ROUND)).fetchall()]
         c.commit()
         return out
     finally:
@@ -461,9 +475,10 @@ def mail_try_start(box, key, u, again):
         u = (u.decode() if isinstance(u, bytes) else str(u))[:40]
         n = None if again else c.execute("INSERT INTO mail_in_seen(box, mid, seen_at, tries, state, imap_uid) VALUES(?,?,?,1,'open',?) "
                                          "ON CONFLICT DO NOTHING RETURNING tries", (box, key, iso(now_utc()), u)).fetchone()
-        if n is None:
-            n = c.execute("UPDATE mail_in_seen SET tries=tries+1, seen_at=?, imap_uid=? WHERE box=? AND mid=? AND state='open' AND tries<? "
-                          "RETURNING tries", (iso(now_utc()), u, box, key, MAIL_TRIES)).fetchone()
+        if n is None:  # #6874: a mail put back for later only through its due UID (again), never as a new unseen one
+            n = c.execute("UPDATE mail_in_seen SET tries=tries+1, seen_at=?, imap_uid=?, state='open' WHERE box=? AND mid=? "
+                          "AND state IN ('open', ?) AND tries<? RETURNING tries",
+                          (iso(now_utc()), u, box, key, "later" if again else "open", MAIL_TRIES)).fetchone()
         gave = n is None and c.execute("UPDATE mail_in_seen SET state='gave' WHERE box=? AND mid=? AND state='open' RETURNING 1",
                                        (box, key)).fetchone() is not None
         c.commit()
@@ -479,12 +494,13 @@ def mail_try_done(c, box, key, n):
                      (box, key, n)).fetchone() is not None
 
 
-def mail_try_later(c, box, key, n):
-    """2.1322.0 (#6560 3): attempt n was put back by its importer (MAIL_LATER, a limit): it is open again and does not count
-    (the attempts are for imports that break, not for waiting). 'done' too: mail_try_done marked it in the importer's
-    transaction, and an importer may commit before it answers (hub/hubmail.py hbm_mail_import does)."""
-    c.execute("UPDATE mail_in_seen SET state='open', tries=GREATEST(tries-1, 0), seen_at=? WHERE box=? AND mid=? "
-              "AND state IN ('open', 'done') AND tries=?", (iso(now_utc()), box, key, n))
+def mail_try_later(c, box, key, n, wait=0):
+    """2.1322.0 (#6560 3): attempt n was put back by its importer (MAIL_LATER, a limit): it waits and does not count (the
+    attempts are for imports that break, not for waiting). 'done' too: mail_try_done marked it in the importer's
+    transaction, and an importer may commit before it answers (hub/hubmail.py hbm_mail_import does).
+    #6874: state 'later', seen_at = the moment it is due (wait seconds on): mail_try_open_uids hands it out from then on."""
+    c.execute("UPDATE mail_in_seen SET state='later', tries=GREATEST(tries-1, 0), seen_at=? WHERE box=? AND mid=? "
+              "AND state IN ('open', 'done') AND tries=?", (iso(now_utc() + timedelta(seconds=wait)), box, key, n))
 
 
 def mail_try_failed(box, key, n):
@@ -568,8 +584,8 @@ def mail_fetch(M, folder, importer, max_bytes=None, box="", delete=False, prefet
     if box:  # 2.1269 (#6386): the open attempts after the new mails (one that breaks the connection never holds the new ones up)
         with GATE.bg():
             again = mail_try_open_uids(box)
-        # 2.1322.0 (#6560 3): an open attempt that is unseen again (a mail an importer put back for later, MAIL_LATER) goes
-        # behind the new mails as well: a flood waiting for its limit never holds up the other mails of the mailbox
+        # 2.1322.0 (#6560 3): the open attempts and the due mails put back for later (MAIL_LATER, #6874: at most
+        # MAIL_LATER_ROUND) go behind the new mails: a flood waiting for its limit never holds up the other mails of the mailbox
         new = [u for u in new if u not in set(again)]
     try:  # 2.1269 (#6386): the notice also when the round breaks off later (each given-up mail counts once)
         for u in (new + again)[:200]:
@@ -633,11 +649,11 @@ def mail_fetch(M, folder, importer, max_bytes=None, box="", delete=False, prefet
                     res = None
                     if box and not mail_try_done(c, box, key, tries):  # another process took the attempt over
                         c.rollback()
-                    elif (res := (importer(c, raw, pre) if prefetch else importer(c, raw))) is MAIL_LATER:
-                        c.rollback()  # 2.1322.0 (#6560 3): not now - the attempt stays open and is not counted
+                    elif isinstance(res := (importer(c, raw, pre) if prefetch else importer(c, raw)), _MailLater):
+                        c.rollback()  # 2.1322.0 (#6560 3): not now - the attempt waits and is not counted
                         later = True
                         if box:
-                            mail_try_later(c, box, key, tries)
+                            mail_try_later(c, box, key, tries, res.wait)
                             c.commit()
                     elif res:
                         n += 1
@@ -673,8 +689,9 @@ def mail_fetch(M, folder, importer, max_bytes=None, box="", delete=False, prefet
                         gave += mail_try_failed(box, key, tries)
                 except Exception as e:  # noqa: BLE001 -- no database: the attempt stays open, the next round counts it
                     print("mail: attempt not noted:", type(e).__name__, flush=True)
-            if later:  # 2.1322.0 (#6560 3): unseen again, in the mailbox for the next round
-                M.uid("STORE", u, "-FLAGS", "(\\Seen)")
+            if later:  # 2.1322.0 (#6560 3): in the mailbox for a later round; #6874: read (its attempt brings it back when due)
+                if not box:  # (no attempts kept: unseen again, the next round's search finds it)
+                    M.uid("STORE", u, "-FLAGS", "(\\Seen)")
                 continue
             if delete and done:
                 M.uid("STORE", u, "+FLAGS", "(\\Seen \\Deleted)")
