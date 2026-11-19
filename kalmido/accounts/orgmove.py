@@ -112,7 +112,7 @@ def org_moving_end(oid):
         return jsonify(moving=False, paused=[])
     if r["retired_at"]:  # (#7199, reader F7): a retired organisation (orgretain) keeps its data as it is -- no series
         # pause, no history line written into it; its move stays (nobody works there any more, only the export reads it)
-        return jsonify(error=tr("This organisation is retired: its data stays as it is"), **_out(r)), 409
+        return jsonify(error=tr("This organisation is retired: its data stays as it is"), moving=True), 409  # reader F2: no names / reason
     mv_allow(c)  # ending the move is one of the writes the move allows
     with system_ctx(c):  # the organisation's own row
         c.execute("UPDATE orgs SET moving_at=NULL, moving_by=NULL, moving_by_name='', moving_why='' WHERE id=?", (int(oid),))
