@@ -7,7 +7,7 @@
    i18n keys; the original's wording stays as it is. 2.1017.0 (#5784, replaces the original + translation of #5239): the quote
    shows ONCE, in the interface language (qd_text): the original when it is in that language, else the German text for a
    German interface and the English one for every other (French reads the French original or the English translation);
-   below it only the author. 2.1030.0 (#5785): Spanish, Italian, Dutch and French have their own texts, each in a file of its
+   then only the author, in the same line right behind the quote's last word (#7228, app.css .qd). 2.1030.0 (#5785): Spanish, Italian, Dutch and French have their own texts, each in a file of its
    own loaded on demand (quotes_dada_<code>.js, lazyload.js LD_MODS quotes_<code>, account.js qd_slot), which fills QD_TR;
    English stays the fallback while that file is missing. Sound poems are never translated. No text ends on a comma, semicolon or colon. Work / year only as the tooltip of the author's name (none for Vaché and Pansaers).
    The line changes once a day (the local date), the same on the sign-in page and on Today; redrawing keeps it. */
@@ -121,6 +121,7 @@ function qd_text(/** @type {[number, string, string, string, string, string, str
   return lang !== 'en' && en ? [en, 'en'] : [orig, lang];
 }
 // the line as a node: <figure class="qd cls"><blockquote lang>text</blockquote><figcaption>— author</figcaption></figure>
+// (#7228: blockquote and figcaption are inline in app.css, so the author follows the text in the same line)
 function qd_node(/** @type {string} */ cls, d = new Date()) {
   const q = qd_pick(d), ui = typeof I18N !== 'undefined' ? I18N.code : 'en', [tx, tl] = qd_text(q, ui);
   const fig = document.createElement('figure'), bq = document.createElement('blockquote'), cap = document.createElement('figcaption'), au = document.createElement('span');
