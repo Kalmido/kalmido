@@ -321,7 +321,7 @@ it. A repeating event goes as one invitation with its rule and its changed or le
 - Only who may change the event sends invitations, and only with a confirmed own address (Settings > Account, *Confirm
   address*); without one the editor says so instead of the switch. At most 100 attendees per event and 200 invitation
   mails per person and day (30 in the account's first 30 days), and like every mail at most 5 a day to the same address.
-  A cancellation to someone who had an invitation is never held back by that per-address limit. When a limit kept guests
+  A cancellation to someone who had an invitation still goes out once a day beyond that per-address limit. When a limit kept guests
   from their mail, the message after saving says how many - let them know yourself. Without mail sending on the server
   nothing is sent and the editor says so.
 - Agents never send invitations (`send_invites` from an agent token is refused with 403), see [API.md](API.md#events).
