@@ -521,7 +521,7 @@ async function ab_upload(files, target) {
   if (!items.length) return;
   const gap = items.filter(x => x.version - x.lo + 1 !== x.n);
   const created = items.filter(x => !gap.includes(x) && !old.has(x.id) && x.version - x.n < 1), vers = items.filter(x => !gap.includes(x) && !created.includes(x) && x.version > 1);
-  const msg = ab_upMsg(vers.length ? tr('{0} uploaded, {1} as a new version', items.length, vers.length) : trn('{0} file uploaded', '{0} files uploaded', items.length), out);  // 2.1412.0 (#6227): items (a file left out of Undo, N2, counts too)
+  const msg = ab_upMsg(vers.length ? tr('{0} uploaded, {1} as a new version', items.length, vers.length) : trn('{0} file uploaded', '{0} files uploaded', items.length), out);  // (#6227): items (a file left out of Undo, N2, counts too)
   // one step back for all: the new files into the trash, a new version back to the one before (as Restore version does)
   // 2.1247.0 (#6173): a new version goes back only while it is still the newest (expect_version); a file someone else gave a
   // newer version meanwhile stays as it is, is named and leaves this step (also for Redo)

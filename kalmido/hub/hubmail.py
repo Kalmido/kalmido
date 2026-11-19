@@ -52,7 +52,7 @@ from ..files.fslock import fsl_need_plain  # 2.353.0 F (#2758)
 from ..accounts.orgs import is_org_admin
 from ..accounts.supportgrant import sga_is_support  # review of 2.1254.0 (#6294)
 from ..core.objwords import osw_match, osw_put, osw_register  # 2.1002.0 (#5279): the shared word index
-from ..files.store import FS_EML_REFUSED, fs_eml_refused  # 2.1412.0 (#7140)
+from ..files.store import FS_EML_REFUSED, fs_eml_refused  # (#7140)
 
 HBM_BODY_MAX = 200000   # characters of the plain text kept
 HBM_FILES = 20          # attachments of one mail at most
@@ -284,7 +284,7 @@ def _client_addr_write(c, kind, uid, org_id):
 
 # 2.1397.0 (#6320, review #4788 (3)): a filed mail names the account's secret filing address among its recipients (to_addrs) and
 # its original .eml carries it in the headers: for a support session the address is blacked out and the .eml refused
-HBM_EML_REFUSED = FS_EML_REFUSED  # 2.1412.0 (#7140): files/store.py
+HBM_EML_REFUSED = FS_EML_REFUSED  # (#7140): files/store.py
 HBM_TOKEN_MASK = "…"
 
 
@@ -298,7 +298,7 @@ def hbm_mask_tokens(c, v):
     return [rx.sub(HBM_TOKEN_MASK, x) if isinstance(x, str) else x for x in v] if isinstance(v, list) else rx.sub(HBM_TOKEN_MASK, str(v))
 
 
-hbm_eml_refused = fs_eml_refused  # 2.1412.0 (#7140): moved to files/store.py (fs_read checks it for every reader)
+hbm_eml_refused = fs_eml_refused  # (#7140): moved to files/store.py (fs_read checks it for every reader)
 
 
 def _address_of(c, kind, uid, org_id, cid, lid):

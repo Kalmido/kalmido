@@ -32,7 +32,7 @@ function evi_draw(md, atts) {  // the row under "People": only while someone out
     return;
   }
   if (st.info && st.info.proved === false) {
-    // 2.1412.0 (#6355): invitations go out only from a confirmed own address (the server refuses the save with 409 otherwise)
+    // (#6355): invitations go out only from a confirmed own address (the server refuses the save with 409 otherwise)
     row.innerHTML = `<span class="rlab"></span><span class="muted mhint" id="ev-invproof">${esc(tr('Invitations by e-mail need a confirmed address: confirm yours in Settings > Account.'))}</span>`;
     return;
   }
@@ -46,7 +46,7 @@ function evi_gv(md) {  // 2.380 H (#3392): the body field guests_visible of the 
   const st = md._evi; return st && $('#ev-gvrow', md) && !$('#ev-gvrow', md).hidden ? !!st.gv : null;
 }
 
-// 2.1412.0 (#6355): the save's answer names the guests a limit kept from their mail (invite_held): the line for the toast
+// (#6355): the save's answer names the guests a limit kept from their mail (invite_held): the line for the toast
 function evi_heldMsg(j) {
   const n = j?.invite_held || 0;
   return n ? tr('{0} guests outside Kalmido got no e-mail (daily limit reached). Let them know yourself.', n) : '';

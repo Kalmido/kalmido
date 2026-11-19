@@ -19,7 +19,7 @@ from ..events.model import (
 from ..events.ics import ics_export
 from ..events.invite import evi_after_delete, evi_after_restore, evi_after_save, evi_estimate, evi_flag, evi_precheck, evi_send, evi_snap
 from ..events.invite import evi_cal_cancel  # 2.947.0 (#5367)
-from ..events.invite import evi_held  # 2.1412.0 (#6355)
+from ..events.invite import evi_held  # (#6355)
 from ..events.model import ev_tell  # 2.947.0 (#5367)
 from ..api.common import v1_call  # 2.149.0 G (#2517): pulled up from functions
 from ..tasks.tasks import task_create, task_no_origin  # 2.369.5 (#2517): pulled up from functions; 2.1389.0 (#7005)
@@ -436,7 +436,7 @@ def event_new():
 
 
 def _with_held(out):
-    """2.1412.0 (#6355): invite_held = guests outside Kalmido a limit (or a missing confirmed address) kept from their
+    """(#6355): invite_held = guests outside Kalmido a limit (or a missing confirmed address) kept from their
     invitation / change / cancellation mail in this save (only when there are any); the editor says so."""
     n = evi_held()
     return {**out, "invite_held": n} if n and isinstance(out, dict) else out

@@ -8,7 +8,7 @@ person's own address, so the answers land in their mailbox (Kalmido reads no rep
 deleting the event sends METHOD:CANCEL to those who got an invitation before (event_attendees.invited_seq), restoring it
 invites them again. Only who may change the event triggers mails (the routes check the write right first); at most
 EV_ATT_MAX recipients per event and EVI_DAY_MAX mails per person and day (ev_invite_day, then 429).
-2.1412.0 (#6355): only from a person with a confirmed own address (409 before saving, evi_proved), EVI_NEW_DAY_MAX a day in
+(#6355): only from a person with a confirmed own address (409 before saving, evi_proved), EVI_NEW_DAY_MAX a day in
 the account's first EVI_NEW_DAYS; a cancellation to who had an invitation has one spare mail a day beyond the limit per
 receiving address; the
 save's answer names the guests a limit kept from their mail (invite_held). Without mail sending
@@ -29,14 +29,14 @@ from ..core.access import Denied
 from ..core.errors import BadInput
 from ..core.mailframe import mail_html
 from ..core.mailbudget import mail_budget  # 2.1297.0 (#6548): invitations count per receiving address too
-from ..core.mailbudget import mail_rcpt_key  # 2.1412.0 (#6355): the one form of an address for the cancellation's spare
+from ..core.mailbudget import mail_rcpt_key  # (#6355): the one form of an address for the cancellation's spare
 from ..events.model import EV_ATT_MAX, need_event, wall
 from ..calendars.icalfeed import ics_utc  # 2.369.5 (#2517): pulled up from functions
 from ..events.ics import _pq, ev_lines, wrap  # 2.369.5 (#2517): pulled up from functions
 from ..collab.comments import lang_of  # 2.369.5 (#2517): pulled up from functions
 
 EVI_DAY_MAX = 200  # invitation mails per person and day
-# 2.1412.0 (#6355): a fresh account (younger than EVI_NEW_DAYS) sends at most EVI_NEW_DAY_MAX a day - a new sign-up cannot
+# (#6355): a fresh account (younger than EVI_NEW_DAYS) sends at most EVI_NEW_DAY_MAX a day - a new sign-up cannot
 # use the server's mail as a relay for its free text; real people reach the 200 after a month
 EVI_NEW_DAY_MAX = 30
 EVI_NEW_DAYS = 30
@@ -109,13 +109,13 @@ def evi_snap(c, eid):
 
 
 def evi_day_max(c, uid):
-    """2.1412.0 (#6355): the person's invitation mails a day - EVI_NEW_DAY_MAX in the first EVI_NEW_DAYS of the account."""
+    """(#6355): the person's invitation mails a day - EVI_NEW_DAY_MAX in the first EVI_NEW_DAYS of the account."""
     r = c.execute("SELECT created_at > ? FROM users WHERE id=?", (iso(now_utc() - timedelta(days=EVI_NEW_DAYS)), uid)).fetchone()
     return EVI_NEW_DAY_MAX if r and r[0] else EVI_DAY_MAX
 
 
 def evi_proved(c, uid):
-    """2.1412.0 (#6355): invitations go out only from a person whose own address is confirmed (mailproof.py eproof_ok, the
+    """(#6355): invitations go out only from a person whose own address is confirmed (mailproof.py eproof_ok, the
     one check of #6352) - the address is Reply-To and ORGANIZER of every invitation."""
     proof = _mail_flags()[1]
     u = c.execute("SELECT email, email_proved FROM users WHERE id=?", (uid,)).fetchone()
@@ -123,7 +123,7 @@ def evi_proved(c, uid):
 
 
 def evi_precheck(c, uid, n):
-    """429 before anything changes when n more mails would pass the person's daily limit; 2.1412.0 (#6355): 409 without a
+    """429 before anything changes when n more mails would pass the person's daily limit; (#6355): 409 without a
     confirmed own address."""
     if n and not evi_proved(c, uid):
         raise Denied(409, tr("Please confirm your e-mail address first (Settings > Account): invitations by e-mail go out only from a confirmed address."))
@@ -165,7 +165,7 @@ def _count(c, uid, n):
     """Books n mails on today's counters (the person's and the server's); returns how many may go (the rest is dropped at
     the limit)."""
     have = _sent_today(c, uid)
-    n = max(0, min(n, evi_day_max(c, uid) - have, EVI_SERVER_DAY - _server_today(c)))  # 2.1412.0 (#6355): evi_day_max
+    n = max(0, min(n, evi_day_max(c, uid) - have, EVI_SERVER_DAY - _server_today(c)))  # (#6355): evi_day_max
     if n:
         c.execute("INSERT INTO mail_counts(k,day,n) VALUES(?,?,?) ON CONFLICT(k) DO UPDATE SET "
                   "n=CASE WHEN mail_counts.day=excluded.day THEN mail_counts.n+excluded.n ELSE excluded.n END, day=excluded.day",
@@ -180,7 +180,7 @@ EVI_SPARE_KEY = "x:"  # mail_counts key prefix: the cancellation's spare mail pe
 
 
 def _cancel_spare(c, rcpt):
-    """2.1412.0 (#6355): True and booked when the receiving address has not had its one cancellation beyond the limit per
+    """(#6355): True and booked when the receiving address has not had its one cancellation beyond the limit per
     receiving address today (mail_counts 'x:<address>', the UTC day of mail_budget); False otherwise."""
     rk = mail_rcpt_key(rcpt)
     if not rk:
@@ -198,7 +198,7 @@ def _fit(c, uid, mails, cancels=()):
     """2.1297.0 (#6548): the attendees of mails that may go today, in order: within the person's and the server's day
     (_count) and the limit per receiving address and day every other mail has (mail_budget, without a sender - with one
     the 30 per person of admin/hosting.py would apply on top of EVI_DAY_MAX). Books what it returns.
-    2.1412.0 (#6355): cancels (attendees who had an invitation to this event) count against the limit per receiving address
+    (#6355): cancels (attendees who had an invitation to this event) count against the limit per receiving address
     like every mail, and when it is used up they have one spare mail per receiving address and day (_cancel_spare) - after
     an invitation and four changes the cancellation still reaches the guest, while deleting / restoring or switching the
     status again and again sends no more than that (review of job/5568 F1); the person's and the server's day still count.
@@ -328,14 +328,14 @@ def evi_send(mails):
 
 
 def _held(n):
-    """2.1412.0 (#6355): adds n guests without their mail to this request's count (evi_held reads it for the answer)."""
+    """(#6355): adds n guests without their mail to this request's count (evi_held reads it for the answer)."""
     from flask import g, has_request_context
     if n and has_request_context():
         g.evi_held = g.get("evi_held", 0) + n
 
 
 def evi_held():
-    """2.1412.0 (#6355): how many guests got no invitation / change / cancellation mail in this request because of a limit
+    """(#6355): how many guests got no invitation / change / cancellation mail in this request because of a limit
     (per person, server, receiving address) or a missing confirmed address - the save's answer tells the organiser."""
     from flask import g, has_request_context
     return g.get("evi_held", 0) if has_request_context() else 0
@@ -361,8 +361,8 @@ def evi_after_save(c, uid, eid, snap, send, only_invited=False):
     seen = set()
     req = [a for a in req if not (a["email"].lower() in seen or seen.add(a["email"].lower()))][:EV_ATT_MAX]  # a contact + its address: one mail
     cancel = [a for a in cancel if a["email"].lower() not in seen][:EV_ATT_MAX]
-    go = {id(a) for a in _fit(c, uid, req, cancel)}  # 2.1297.0 (#6548): + the limit per receiving address
-    # 2.1412.0 (#6355): the guests a limit (or a missing confirmed address) kept from their mail - the save's answer names them
+    go = {id(a) for a in _fit(c, uid, req, cancel)}  # (#6548): + the limit per receiving address
+    # (#6355): the guests a limit (or a missing confirmed address) kept from their mail - the save's answer names them
     held = len([a for a in req + cancel if id(a) not in go])
     req, cancel = [a for a in req if id(a) in go], [a for a in cancel if id(a) in go]
     _held(held)
@@ -394,7 +394,7 @@ def evi_after_delete(c, uid, eid):
         return 0
     c.execute("UPDATE events SET seq=seq+1 WHERE id=?", (eid,))  # the cancellation outranks the last invitation
     r = c.execute("SELECT * FROM events WHERE id=?", (eid,)).fetchone()
-    go = _fit(c, uid, (), inv)  # 2.1297.0 (#6548); 2.1412.0 (#6355): a cancellation skips the limit per receiving address
+    go = _fit(c, uid, (), inv)  # (#6548); (#6355): a cancellation skips the limit per receiving address
     _held(len(inv) - len(go))
     mails = [evi_mail(c, uid, r, "CANCEL", a, [a]) for a in go]
     c.commit()
@@ -413,7 +413,7 @@ def evi_cal_cancel(c, uid, cid):
                        (cid,)).fetchall():
         inv = [a for a in evi_ext(c, r["id"]) if a["invited_seq"] is not None][:EV_ATT_MAX]
         r = {**dict(r), "seq": (r["seq"] or 0) + 1}
-        go = _fit(c, uid, (), inv)  # 2.1297.0 (#6548), 2.1412.0 (#6355)
+        go = _fit(c, uid, (), inv)  # (#6548), (#6355)
         _held(len(inv) - len(go))  # review of job/5568 F3: deleting the calendar names the held cancellations too
         mails += [evi_mail(c, uid, r, "CANCEL", a, [a]) for a in go]
     return mails
@@ -434,7 +434,7 @@ def evi_after_restore(c, uid, eid):
 def evinvite_info():
     """For the editor: may this server send mail, the person's mails left today, and (event_id) who got an invitation."""
     c = db()
-    dm = evi_day_max(c, me())  # 2.1412.0 (#6355): 30 in the account's first month; proved = the own address is confirmed
+    dm = evi_day_max(c, me())  # (#6355): 30 in the account's first month; proved = the own address is confirmed
     out = {"mail_ok": evi_mail_on(), "day_max": dm, "left": max(0, dm - _sent_today(c, me())), "proved": evi_proved(c, me()), "invited": []}
     eid = request.args.get("event_id")
     if eid:
