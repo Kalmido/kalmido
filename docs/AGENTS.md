@@ -3253,6 +3253,13 @@ mode; `KALMIDO_DISPATCH=off|dry|on` on the computer outranks the switch). No mod
 6. once a day after `report_at` (default 18:00, local time): a short report into the person's chat (counts per state,
    brakes, findings).
 
+**Reading before the approval (2.1413.0):** once the check is green and the pull request is open, the dispatcher first starts
+a read-only review job (`agent_job.py start --audit`, its own places `KALMIDO_AUDIT_MAX`) that reads the pull request and ends
+with `VERDICT: green` or `VERDICT: findings`. The *Ready to merge* card goes out when that job ended and names its verdict
+(*green*, *findings - read them before you merge*, or *no verdict*). A reading that cannot start (the review area is full) is
+tried again every round; after `read_wait_h` (default 6) the card goes out without a verdict and says why. `read_pr` (default
+on) and `read_wait_h` are set only in the state folder's `KALMIDO-DISPATCH.json`.
+
 **Dependencies (2.1394.0):** a task whose dependency field (*Blocked by* in the task, `POST /api/v1/tasks/{id}/dependencies
 {"blocked_by": ID}`) names an open task waits (*held*) until that task is built - its commit is in `close_ref` - or done. A
 blocker the agent cannot see and a field that cannot be read hold it too: an unread field never lets a task start early. The

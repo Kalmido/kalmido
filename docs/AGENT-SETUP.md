@@ -873,7 +873,8 @@ chat messages of one person that arrive together: one run). It does what a hoste
   Runtime > Work the list off* (*Off* / *Dry run* / *Active*) lets the starter work the lists of `KALMIDO-DISPATCH.json` in
   the runner's state folder (2.1400: `state` next to the env file; one in the project folder may only tighten) off on its own. It closes built tasks (a commit with `#ID` in `close_ref`), starts the next job when a
   place is free (2.1368.0: in its own working copy; once it ended, the starter runs the project's `check_cmd` itself and
-  only when it is green opens a pull request with a *Ready to merge* card for you; merging stays yours), tells you once about stuck tasks and silent jobs, and sends a day report. A task whose *Blocked by* field
+  only when it is green opens a pull request with a *Ready to merge* card for you - 2.1413.0: after a read-only review job read
+  it, its verdict stands in the card; merging stays yours), tells you once about stuck tasks and silent jobs, and sends a day report. A task whose *Blocked by* field
   names an open task waits until that one is built (2.1394.0). It builds only tasks you wrote
   yourself in the app or with your own token (2.1308.0): tasks of other members, without a creator or from a webhook, an
   e-mail, a form or an import are named in the day report, never built (2.1375.0: also a task of yours whose title or
