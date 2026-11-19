@@ -10,6 +10,8 @@ freelancer-matrix: office  tenant-matrix: org
    instance admin's deletion with it 409, nothing noted; after her export the operator's way (instance admin, ?retention=
    exported) deletes the account with its personal office
  - a person whose finalised invoice is past its period: goes as before (waiver)
+ - 2.1413.0 (#6361): a finalised invoice is kept 8 years (+ the buffer), an offer of the same year 6: an invoice dated 8 years
+   back still blocks, the same row as an offer is past its period and the account goes
  - a person with a draft invoice only: goes as before (no step)
  - an organisation with a finalised invoice: its admin's declared waiver does not let the instance admin delete it (409,
    locked_docs, the organisation and its document stay, nothing noted); after the admin's export it goes
@@ -65,9 +67,12 @@ def log(subject):
     return [x[0] for x in sql("SELECT kind FROM retention_log WHERE subject=? ORDER BY id", (subject,))]
 
 
-def locked(r):
+def locked(r, did=None):
+    """2.1413.0 (#6361): with did the day must be the invoice's own period (a receipt: 8 years + the buffer of 1, not 10 + 1 of a book)."""
     j = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
-    return r.status_code == 409 and j.get("code") == "retention" and j.get("reason") == "locked_docs" and (j.get("kept_until") or "") >= "2036"
+    want = f"{int(str(sql('SELECT date FROM office_docs WHERE id=?', (did,))[0][0])[:4]) + 9}-12-31" if did else None
+    return (r.status_code == 409 and j.get("code") == "retention" and j.get("reason") == "locked_docs"
+            and (j.get("kept_until") == want if want else (j.get("kept_until") or "") >= "2035"))
 
 
 kt.fresh({"KALMIDO_HOSTED": "1", "KALMIDO_INSTANCE_MODE": "workspaces", "KALMIDO_ORGCRYPT_DELAY": "0", "KALMIDO_SECRET_KEY": KEY}, data=DATA)
@@ -79,7 +84,7 @@ assert Fr.put(B + OFC + "/settings", json={"company_fields": COMPANY}).ok
 DID = invoice(Fr)
 POID = sql("SELECT id FROM orgs WHERE personal_of=?", (FID,))[0][0]
 r = Fr.post(B + "/api/account/delete", json={"password": kt.PASSWORD, "lists": {}, "retention": "waived"})
-check(locked(r) and "GoBD" in r.json().get("error", ""), f"#1969: her own deletion with a finalised invoice is refused (day and way named) {r.status_code} {r.text[:300]}")
+check(locked(r, DID) and "GoBD" in r.json().get("error", ""), f"#1969 #6361: her own deletion with a finalised invoice is refused (day and way named) {r.status_code} {r.text[:300]}")
 check(sql("SELECT disabled, delete_at FROM users WHERE id=?", (FID,)) == [(False, None)], "#1969: refused: the account is not locked, no deletion planned")
 check(Fr.post(B + RX + "/me/waiver").ok, "setup: frida declares the waiver")
 r = A.delete(B + f"/api/users/{FID}", params={"retention": "waived"})
@@ -101,6 +106,20 @@ check(Hr.post(B + RX + "/me/waiver").ok, "setup: hanna declares the waiver")
 r = A.delete(B + f"/api/users/{HID}", params={"retention": "waived"})
 check(r.ok and not sql("SELECT 1 FROM users WHERE id=?", (HID,)), f"#1969: past its period the invoice blocks nothing (as before) {r.status_code} {r.text[:300]}")
 
+# 2.1413.0 (#6361): each finalised document by its kind -- an invoice 8 years, an offer (business letter) 6, + the buffer of 1
+YEAR = int(sql("SELECT CAST(EXTRACT(YEAR FROM now()) AS INTEGER)")[0][0])
+IID, Ir = freelancer(B, A, "ines")
+assert Ir.put(B + OFC + "/settings", json={"company_fields": COMPANY}).ok
+IDID = invoice(Ir, "Angebot alt")
+sql("UPDATE office_docs SET date=?, locked_at=? WHERE id=?", (f"{YEAR - 8}-03-02", f"{YEAR - 8}-03-02T10:00:00+00:00", IDID), write=True, locked_ok=True)
+check(Ir.post(B + RX + "/me/waiver").ok, "setup: ines declares the waiver")
+r = A.delete(B + f"/api/users/{IID}", params={"retention": "waived"})
+check(locked(r, IDID), f"#6361: an invoice of {YEAR - 8} is still kept (8 + 1 years) {r.status_code} {r.text[:300]}")
+sql("UPDATE office_docs SET kind='offer' WHERE id=?", (IDID,), write=True, locked_ok=True)
+r = A.delete(B + f"/api/users/{IID}", params={"retention": "waived"})
+check(r.ok and not sql("SELECT 1 FROM users WHERE id=?", (IID,)),
+      f"#6361: an offer of {YEAR - 8} is past its period (6 + 1 years, not 10 + 1 as a book): deleted {r.status_code} {r.text[:300]}")
+
 # a draft only: as before
 GID, Gr = freelancer(B, A, "gina")
 assert Gr.put(B + OFC + "/settings", json={"company_fields": COMPANY}).ok
@@ -121,7 +140,7 @@ ADID = invoice(Bo, "Alpha")
 check(sql("SELECT org_id FROM office_docs WHERE id=?", (ADID,)) == [(ALPHA,)], "setup: the finalised invoice is Alpha's")
 check(Bo.post(B + RX + f"/org/{ALPHA}/waiver").ok, "setup: Alpha's admin declares the waiver")
 r = A.delete(B + f"/api/admin/orgs/{ALPHA}", params={"confirm": "1", "retention": "waived"})
-check(locked(r), f"#1969: the organisation with a finalised invoice is not deleted with the waiver {r.status_code} {r.text[:300]}")
+check(locked(r, ADID), f"#1969: the organisation with a finalised invoice is not deleted with the waiver {r.status_code} {r.text[:300]}")
 check(sql("SELECT 1 FROM orgs WHERE id=? AND retired_at IS NULL", (ALPHA,)) and sql("SELECT 1 FROM office_docs WHERE id=?", (ADID,))
       and log(f"org:{ALPHA}") == ["waiver_declared"], "#1969: the organisation and its invoice stay, no waiver is noted")
 r = su_get(Bo, B + RX + f"/org/{ALPHA}/export.zip")
