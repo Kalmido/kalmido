@@ -1,0 +1,17 @@
+{
+  "de": {
+    "Its starter asks for no request token yet: from {0} its own token reaches only its channel. Run the setup command on its computer again.": "Sein Starter holt noch kein Anfrage-Token: ab {0} erreicht sein eigenes Token nur noch seinen Kanal. Führe den Einrichtungsbefehl auf seinem Rechner noch einmal aus."
+  },
+  "es": {
+    "Its starter asks for no request token yet: from {0} its own token reaches only its channel. Run the setup command on its computer again.": "Su iniciador aún no pide token de solicitud: a partir del {0} su propio token solo llega a su canal. Vuelve a ejecutar el comando de configuración en su ordenador."
+  },
+  "fr": {
+    "Its starter asks for no request token yet: from {0} its own token reaches only its channel. Run the setup command on its computer again.": "Son lanceur ne demande pas encore de jeton de requête : à partir du {0}, son propre jeton n’atteint plus que son canal. Relance la commande d’installation sur son ordinateur."
+  },
+  "it": {
+    "Its starter asks for no request token yet: from {0} its own token reaches only its channel. Run the setup command on its computer again.": "Il suo avviatore non chiede ancora un token di richiesta: dal {0} il suo token raggiunge solo il suo canale. Esegui di nuovo il comando di configurazione sul suo computer."
+  },
+  "nl": {
+    "Its starter asks for no request token yet: from {0} its own token reaches only its channel. Run the setup command on its computer again.": "Zijn starter vraagt nog geen verzoektoken aan: vanaf {0} bereikt zijn eigen token alleen nog zijn kanaal. Voer de installatieopdracht op zijn computer opnieuw uit."
+  }
+}
