@@ -403,6 +403,7 @@ const LAZY_CSS = [
   '/static/css/habitdlg.css',
   '/static/css/helpview.css',
   '/static/css/hubmail.css',
+  '/static/css/hubmailbox.css',
   '/static/css/integrations.css',
   '/static/css/life.css',
   '/static/css/listmodal.css',

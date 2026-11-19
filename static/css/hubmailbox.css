@@ -1,0 +1,10 @@
+/* Kalmido web client: the styles of the module "hubmailbox" (2.1420.0, #4742), loaded with it (static/js/lazyload.js LD_CSS).
+   Moved unchanged from app.css (same order); later than app.css in the cascade. */
+/* 2.141.0 A (#2141, #2138): the mailbox of a workspace + writing from the e-mail filing (hubmailbox.js) */
+.hmbcheck{list-style:none;margin:.5rem 0;padding:0;display:flex;flex-direction:column;gap:.25rem;font-size:var(--fs-s)}
+.hmbcheck li{display:flex;align-items:center;gap:.375rem}
+.hmbok{color:var(--ok)}
+.hmbbad,.hmb-err{color:var(--danger)}
+.hmbsug{display:flex;flex-wrap:wrap;gap:.375rem;margin:-.25rem 0 .625rem}
+.hmbtext{width:100%;min-height:12rem;resize:vertical;font:inherit;font-size:var(--fs-s);padding:.625rem;border:1px solid var(--line);border-radius:var(--r-s);background:var(--bg2);color:var(--text)}
+.hmbnote{font-size:var(--fs-s)}
