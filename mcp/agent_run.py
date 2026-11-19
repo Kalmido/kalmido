@@ -4320,10 +4320,17 @@ class Runner:
         except (OSError, ValueError, RuntimeError, KeyError, TypeError) as e:
             log(f"job results: {type(e).__name__}")
         evs = []
-        team = self.req_mode() == "team"
+        mode = self.req_mode()
+        team = mode == "team"
         for w in agent_job.take_wakes():
             jid = (w.get("job") or {}).get("id")
             who, tp = w.get("chat_user"), w.get("token_person")
+            if mode is None and who and jid:
+                # #7162 (Fable reader job/5481 F12): GET /agent not read yet (after a restart) -- not known whether the team
+                # checks apply: the wake waits for the next look instead of running without the server's check
+                if agent_job.wake_back(w):
+                    log(f"job {jid}: the agent's mode is not known yet: the wake waits for the next look")
+                continue
             if who and ((tp is not None and str(tp) != str(who)) or (tp is None and team)):
                 # 2.1386.0 (#6668, reader R4 F1): a team agent's wake run (it asks the request token of that person) goes
                 # only to the person of the token the job started with, never to another chat_user of the job file; a job
