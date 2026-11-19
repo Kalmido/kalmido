@@ -55,7 +55,7 @@ IBAN2 = "DE89370400440532013000"
 KEY_RE = re.compile(r"kis_test_[A-Za-z0-9_-]{43}")
 # the office functions an issuer route calls without a person (office/issuers.py ISS_REUSED): each checked below
 # 2.1384.0 (#6700): the clients' functions are checked with the issuer's context in tests/p6700_office_issuer_clients_test.py
-# 2.1396.0 (#6701): the drafts' functions in tests/p6701_office_issuer_invoices_test.py
+# 2.1417.0 (#6701): the drafts' functions in tests/p6701_office_issuer_invoices_test.py
 REUSED_CHECKED = ("office.ledger.ofx_company", "office.model.office_settings", "team.clients.clean_client", "office.owrite.ow_write",
                   "office.owrite.ow_created", "office.docs.doc_create", "office.docs._put_items", "office.docs.recalc",
                   "office.invoices.inv_missing", "office.docs.odoc_trash", "office.pdfweb._render")

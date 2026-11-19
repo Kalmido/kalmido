@@ -109,7 +109,7 @@ ISD_REF_RE = re.compile(r"[A-Z0-9-]{1,35}")
 ISD_CLIENT_COLS = ("name", "name_extra", "contact", "address", "street", "address_extra", "zip", "city", "country", "vat_id",
                    "email_invoice", "buyer_reference", "doc_lang", "customer_no")
 # the fingerprint of a draft (the preview only as delivered): every column of the document and of its positions but these (identity,
-# state, versions, sums Kalmido derives, the issuer's own columns). Review F2 of 2.1396.0: an exclusion list, so a person's change
+# state, versions, sums Kalmido derives, the issuer's own columns). Review F2 of #6701: an exclusion list, so a person's change
 # of any printed field (free fields, rights, date, discounts, a position's switches) ends the preview
 ISD_DOC_SKIP = frozenset(("id", "org_id", "number", "status", "totals", "created_at", "created_by", "updated_at", "updated_by", "rev",
                           "issuer_id", "issuer_wish", "issuer_rev", "ref_sha256", "client_ref", "sent_at", "deleted_at", "deleted_by",
@@ -871,7 +871,7 @@ def isd_spec(paths, op, ok, errs):
     ref = {"name": "ref", "in": "path", "required": True, "schema": {"type": "string", "pattern": "^[A-Za-z0-9._:-]{1,64}$"}}
     only = "Only with an invoice issuer key. "
     paths["/issuer/invoices"] = {"post": op(
-        "An invoice draft of an invoice issuer (2.1396.0)", "Office", ok(doc) | ok(doc, "Created", "201") | errs("400", "403", "404", "409", "410", "413", "429"),
+        "An invoice draft of an invoice issuer (2.1417.0)", "Office", ok(doc) | ok(doc, "Created", "201") | errs("400", "403", "404", "409", "410", "413", "429"),
         [], body=body, scope="office",
         desc=only + "Kalmido computes (each line quantity x unit price rounded to the cent, the tax per rate on the sum); expect must match "
              "(409 totals_mismatch with Kalmido's totals, nothing made). The same client_ref with the same content = 200, with another "
@@ -879,20 +879,20 @@ def isd_spec(paths, op, ok, errs):
              "410 client_gone, 429 limit_reached (Retry-After). No date, number, range, currency, IBAN or link: a person checks, "
              "finalises and sends every draft. Texts with an IBAN, a web or an e-mail address: 400 invalid_field.")}
     paths["/issuer/docs"] = {"get": op(
-        "The invoice issuer's documents changed since a time (2.1396.0)", "Office",
+        "The invoice issuer's documents changed since a time (2.1417.0)", "Office",
         ok({"type": "object", "properties": {"docs": {"type": "array", "items": doc}, "next_cursor": {"type": "string", "nullable": True}}}) | errs("400", "403"),
         [{"name": "changed_since", "in": "query", "schema": {"type": "string", "format": "date-time"}},
          {"name": "cursor", "in": "query", "schema": {"type": "string"}}, {"name": "limit", "in": "query", "schema": {"type": "integer", "maximum": ISD_PAGE_MAX}}],
         scope="office", desc=only + "The source of truth of the reconciliation: its drafts, their corrections and the documents a person "
                                     "numbered in its range (origin manual), oldest change first; next_cursor = the next page.")}
-    paths["/issuer/docs/{id}"] = {"get": op("One document of the invoice issuer (2.1396.0)", "Office", ok(doc) | errs("403", "404"), [did],
+    paths["/issuer/docs/{id}"] = {"get": op("One document of the invoice issuer (2.1417.0)", "Office", ok(doc) | errs("403", "404"), [did],
                                              scope="office", desc=only + "404 for every id that is not its own (counts towards a pause).")}
-    paths["/issuer/docs/by-ref/{ref}"] = {"get": op("The invoice issuer's draft of a client_ref (2.1396.0)", "Office", ok(doc) | errs("400", "403", "404", "410"),
+    paths["/issuer/docs/by-ref/{ref}"] = {"get": op("The invoice issuer's draft of a client_ref (2.1417.0)", "Office", ok(doc) | errs("400", "403", "404", "410"),
                                                     [ref], scope="office", desc=only + "410 withdrawn: withdrawn or deleted in the office.")}
     paths["/issuer/docs/{id}/pdf"] = {"get": op(
-        "The PDF preview of an invoice issuer's draft (2.1396.0)", "Office", {"200": {"description": "PDF", "content": {"application/pdf": {}}}} | errs("403", "404", "409", "429"),
+        "The PDF preview of an invoice issuer's draft (2.1417.0)", "Office", {"200": {"description": "PDF", "content": {"application/pdf": {}}}} | errs("403", "404", "409", "429"),
         [did], scope="office", desc=only + "Watermark DRAFT; 409 edited_by_human when a person changed the draft or its client; 10 a minute.")}
     paths["/issuer/docs/{id}/withdraw"] = {"post": op(
-        "Withdraw an invoice issuer's draft (2.1396.0)", "Office", ok(doc) | errs("403", "404", "409", "429"), [did], scope="office",
+        "Withdraw an invoice issuer's draft (2.1417.0)", "Office", ok(doc) | errs("403", "404", "409", "429"), [did], scope="office",
         desc=only + "Into the office's trash (a person can restore it); its client_ref answers 410 withdrawn from then on. 409 not_draft, "
                     "429 limit_reached (day_withdraw).")}

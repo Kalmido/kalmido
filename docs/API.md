@@ -2004,7 +2004,7 @@ another issuer's or another office's client with the same id), `409 client_trash
 clients within 24 hours, or 200 changes of its clients within 24 hours - a fixed limit, not set by the admin; `Retry-After`). A client with the same name or VAT ID as one of the office is never taken over or
 merged; merging stays a person's work, and only among the clients of one issuer.
 
-*Since 2.1396.0:* the key's invoice drafts. A person in the office checks, finalises and sends each of them with the usual
+*Since 2.1417.0:* the key's invoice drafts. A person in the office checks, finalises and sends each of them with the usual
 buttons; the key never finalises, numbers, sends or books.
 
 - `POST /api/v1/issuer/invoices` `{client_ref, client: {external_ref}, items: [{text, detail?, qty?, unit?, rate, tax?}], expect: {net,

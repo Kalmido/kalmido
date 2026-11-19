@@ -730,7 +730,7 @@ def ofa_ref_sha(b):
 
 
 def _v1_ref_keep(c, did, ref):
-    """ofi_ref_keep + the request's hash (2.1396.0, #6701)."""
+    """ofi_ref_keep + the request's hash (#6701)."""
     ofi_ref_keep(c, did, ref)
     if ref and g.get("ofa_ref_sha"):
         c.execute("UPDATE office_docs SET ref_sha256=? WHERE id=?", (g.ofa_ref_sha, did))

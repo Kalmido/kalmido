@@ -2790,7 +2790,7 @@ draft's `updated_at` you read: a person who saved in between answers `409` (`err
 current draft) - read it again and build on it, never resend the old list. Positions billed from receipts stay on the draft. A draft of an agent never gets a number; the document
 shows *Drafted by the agent ...*. 2.269.0: the three draft routes (quotation, invoice from a quotation, reminder) take an
 optional `client_ref` (your own id of the request, at most 64 characters): sent again with the same value (the answer got
-lost, a retry), Kalmido answers `200` with the draft made the first time instead of making a second one. 2.1396.0: on the
+lost, a retry), Kalmido answers `200` with the draft made the first time instead of making a second one. 2.1417.0: on the
 draft routes (quotation, invoice, invoice from a quotation, reminder) the same `client_ref` with another body is `409`
 `ref_conflict` and nothing is made or changed - send a retry exactly as the first request (only `notify` may differ), and a new
 request with a new `client_ref`. A document an invoice issuer's key made (an outside system, see docs/API.md *Invoice issuer
