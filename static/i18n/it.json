@@ -19417,5 +19417,15 @@
   "Input not saved yet": "Inserimento non ancora salvato",
   "A support session does not open the original e-mail file: the client does that": "Una sessione di supporto non apre il file originale dell’e-mail: lo fa il cliente",
   "one of its clients": "uno dei suoi clienti",
-  "{0}: letters, digits and + * . - only": "{0}: solo lettere, cifre e + * . -"
+  "{0}: letters, digits and + * . - only": "{0}: solo lettere, cifre e + * . -",
+  "Extra high": "Molto alto",
+  "Jobs on its computer": "Job sul suo computer",
+  "Long work the agent starts as a job: a build or a read-only review. Empty = the agent’s default; the effort applies to Claude Code only.": "Il lavoro lungo l’agente lo avvia come job: una costruzione o una revisione in sola lettura. Vuoto = il valore predefinito dell’agente; l’impegno vale solo per Claude Code.",
+  "Model for build jobs": "Modello dei job di costruzione",
+  "Effort for build jobs": "Impegno dei job di costruzione",
+  "Model for review jobs": "Modello dei job di revisione",
+  "Effort for review jobs": "Impegno dei job di revisione",
+  "Organisation settings": "Impostazioni dell’organizzazione",
+  "An organisation is set up by the admin of this server. An organisation’s admin can then invite you by e-mail.": "Un’organizzazione viene creata dall’amministratore di questo server. Poi gli amministratori dell’organizzazione possono invitarti per e-mail.",
+  "The organisation “{0}” is set up": "L’organizzazione «{0}» è stata creata"
 }
