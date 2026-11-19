@@ -9,12 +9,11 @@ There is no field of its own on the documents: the PO number IS order_ref (BT-13
 - ppo_drafts(c, lid, old, new) the project's PO changed: drafts that still carried the old one (or none) follow; a finalised
                                document and a draft with its own different value stay -> the ids changed
 - ppo_of(c, lid)               the project's PO number ('' = none), for the editor's hint "differs from the project's PO"
-Only core imports: lists/lists.py and office/docs.py both call it at module level."""
+Only core imports at module level: lists/lists.py imports it before its own names exist (core.writes loads inside)."""
 from ..core.access import live_sql
 from ..core.db import iso_ms, now_utc
 from ..core.errors import BadInput
 from ..core.i18n import tr
-from ..core.writes import obj_history_add
 
 PPO_MAX = 80  # as office_docs.order_ref (office/docs.py clean_doc)
 PPO_KINDS = ("offer", "invoice", "credit")  # the kinds that belong to a project (office/docproject.py DPJ_KINDS)
@@ -57,6 +56,7 @@ def ppo_from_doc(c, uid, did):
                   (iso_ms(now_utc()), int(did))).fetchone()
     if not r:
         return None
+    from ..core.writes import obj_history_add  # core.writes comes later in kalmido/__init__.py ORDER (it loads lists.lists)
     obj_history_add(c, uid, "list", r["id"], {"po_number": ""}, {"po_number": r["po_number"]})  # the project's settings history
     return r["id"]
 
