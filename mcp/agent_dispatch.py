@@ -73,7 +73,7 @@ DEFAULTS = {
     "title_classes": [],      # regular expressions on the title; the first match = class 1, 2, ...
     "skip_tags": ["blocked", "keep"],  # never started
     "keep_tags": ["keep"],    # never closed
-    "waiting_rx": r"(?im)^\s*\**\s*(waiting for|blocked by|needs|wartet auf|braucht)\s*:",
+    "waiting_rx": r"(?im)^[ \t]*(?:\*+[ \t]*)?(waiting for|blocked by|needs|wartet auf|braucht)[ \t]*:",  # 2.1383.0: within a line (no \s: linear)
     "one_way_rx": r"(?i)\b(one[- ]way|no way back|irreversible|cannot be undone|einbahn|ohne r(ü|ue)ckweg)\b",
     "one_way_ok_tag": "approved",  # a one-way task starts only with this tag (set by a person: the approval)
     "close_ref": "",          # git ref whose commits close tasks ("" = the current branch; e.g. "origin/main" or a live branch)
@@ -130,7 +130,9 @@ RETIRED = {"worktree": "every job of the dispatcher has its own working copy (br
 # the description, and a size set in size_field or as a list tag (size_default does not count)
 BRIEF_DECISION_RX = r"(?m)^[ \t>-]*\*\*([^*\n]{3,})\*\*"
 BRIEF_WHERE_WORDS = r"(?:where|locations|files|fundstellen|emplacements|fichiers|ubicaciones|archivos|posizioni|vindplaatsen|bestanden)"
-BRIEF_WHERE_RX = (r"(?im)^(?:[ \t>*-]*\**\s*" + BRIEF_WHERE_WORDS + r"\s*\**\s*:|[ \t]*#{1,6}[ \t]*" + BRIEF_WHERE_WORDS + r"[ \t:]*$)")
+# one class per gap, never \s across lines: linear on long runs of blanks or stars (review F1 of 2.1383)
+BRIEF_WHERE_RX = (r"(?im)^(?:[ \t>*-]*" + BRIEF_WHERE_WORDS + r"[ \t*]*:|[ \t]*#{1,6}[ \t]*" + BRIEF_WHERE_WORDS + r"[ \t:]*$)")
+BRIEF_NOTES_MAX = 20000  # a brief is read from its first 20,000 characters
 SLOTS_FULL_RC = 4  # 2.1383.0 (#5199): agent_job.py start exits with it on 409 slots_full (nothing started)
 ID_RE = re.compile(r"(?<![Jj]ob )(?<![\w/])#(\d{1,9})\b")
 # 2.1394.0 (#6176): a file a task names -- only paths ("mcp/agent_dispatch.py:223", "app.py"), never words of a sentence: a
@@ -285,6 +287,9 @@ def load_config(project_dir, state_dir=None):
                      + ", ".join(EXEC_KEYS[k] for k in in_file) + " in the runner's env file")
     if not cfg["lists"]:
         return cfg, "no lists in " + CONFIG_FILE
+    # review F6 of 2.1383: close_ref comes from the project file the agent can write -- never a git option, never a job branch
+    if not re.fullmatch(r"(?![-/.])[\w./@^~-]{0,200}", cfg["close_ref"]) or re.search(r"(^|/)job/", cfg["close_ref"]):
+        return cfg, "close_ref in " + CONFIG_FILE + " is not used: a git ref, not an option and not a job branch (job/...)"
     if not str(cfg["check_cmd"]).strip():  # 2.1368.0 (#7028): no build without the project's check
         return cfg, "no check_cmd (KALMIDO_DISPATCH_CHECK_CMD in the runner's env file; a job ends only after the project's check)"
     if not str(cfg["push_url"]).strip():  # 2.1400.0 (#7057): the push address is fixed by the person, not by the repository
@@ -294,10 +299,15 @@ def load_config(project_dir, state_dir=None):
 
 def places_of(agent, cfg):
     """2.1383.0 (#5199): the dispatcher's places come from ONE source, the agent's work style in Kalmido (GET /api/v1/agent
-    work_style.max_parallel, Settings > Agents > (agent) > Work style), capped by the starter's own ceiling (places).
+    work_style.max_parallel, Settings > Agents > (agent) > Work style), capped by the starter's own ceiling (places) and by KALMIDO_JOB_WORKTREES.
     max_parallel 0 (no limit set) or a server without it = one place. (places, source) -- source "work style" or "default"."""
     mp = ((agent or {}).get("work_style") or {}).get("max_parallel")
-    cap = max(1, int(cfg["places"]))
+    # review F4 of 2.1383: every job has its own working copy, agent_job.py opens at most KALMIDO_JOB_WORKTREES (default 2)
+    try:
+        wt = int(os.environ.get("KALMIDO_JOB_WORKTREES") or 2)
+    except ValueError:
+        wt = 2
+    cap = max(1, min(int(cfg["places"]), wt))
     if isinstance(mp, int) and not isinstance(mp, bool) and mp > 0:
         return min(mp, cap), "work style"
     return 1, "default"
@@ -310,6 +320,8 @@ OVERRIDE_SWITCHES = {
     "KALMIDO_APPROVAL_CHECK": ("0", "no approval check of chat answers"),
     "KALMIDO_PERM_RELAY": ("0", "no permission questions in the chat"),
     "KALMIDO_SESSION_RESUME": ("0", "a fresh run per event"),
+    "KALMIDO_BLOCK_DANGEROUS": ("0", "no guard against force-push, tag delete, docker prune, reboot"),
+    "KALMIDO_PERMISSION_MODE": (None, "the permission mode set on this computer, not by Kalmido"),  # None = any value set
 }
 MODE_RANK = {"off": 0, "dry": 1, "on": 2}
 OVERRIDE_KEEP_S = 30 * 86400
@@ -320,8 +332,9 @@ def overrides(agent):
     KALMIDO_DISPATCH counts when it switches the dispatcher further on than the setting in Kalmido (dry / on against off)."""
     out = []
     for name, (val, what) in OVERRIDE_SWITCHES.items():
-        if (os.environ.get(name) or "").strip() == val:
-            out.append(f"{name}={val} ({what})")
+        v = (os.environ.get(name) or "").strip()
+        if (val is None and v) or (val is not None and v == val):
+            out.append(f"{name}={v} ({what})")
     env = (os.environ.get("KALMIDO_DISPATCH") or "").strip().lower()
     app = str(((agent or {}).get("runtime") or {}).get("dispatch") or "").strip().lower()
     app = app if app in MODES else "off"
@@ -375,7 +388,7 @@ def size_set(t, cfg, field_ids):
 def brief_missing(t, cfg, field_ids):
     """2.1383.0 (#4062): what the task's brief lacks ([] = complete): "decision" (a bold line), "where" (a section Where /
     Fundstellen), "size" (size_field or a list tag)."""
-    notes = t.get("notes") or ""
+    notes = (t.get("notes") or "")[:BRIEF_NOTES_MAX]
     out = []
     if not any(not re.fullmatch(r"(?i)\s*" + BRIEF_WHERE_WORDS + r"\s*:?\s*", m.group(1)) for m in re.finditer(BRIEF_DECISION_RX, notes)):
         out.append("decision")
@@ -697,7 +710,7 @@ def evidence_of(repo, cfg, now=None, skip=()):
         else:
             log_once("no fetch: " + why)
     ref = cfg["close_ref"] or "HEAD"
-    rc, txt = git(repo, "log", "--format=%h\t%at\t%s", "-n", "5000", ref)
+    rc, txt = git(repo, "log", "--format=%h\t%at\t%s", "-n", "5000", "--end-of-options", ref)
     if rc != 0:
         return out
     out["ok"] = True
@@ -713,11 +726,11 @@ def evidence_of(repo, cfg, now=None, skip=()):
         if br in skip:
             continue
         if cfg.get("same_file"):  # 2.1394.0 (#6176): the files an open job branch changes
-            rc3, t3 = git(repo, "diff", "--name-only", f"{ref}...{br}")
+            rc3, t3 = git(repo, "diff", "--name-only", "--end-of-options", f"{ref}...{br}")
             fs = {x.strip() for x in t3.splitlines() if x.strip()} if rc3 == 0 else set()
             if fs:
                 out["branch_files"][br] = fs
-        rc2, t2 = git(repo, "log", "--format=%ct\t%s", f"{ref}..{br}")
+        rc2, t2 = git(repo, "log", "--format=%ct\t%s", "--end-of-options", f"{ref}..{br}")
         for ln in (t2.splitlines() if rc2 == 0 else []):
             ts, _, subj = ln.partition("\t")
             for tid in ids_of(subj):

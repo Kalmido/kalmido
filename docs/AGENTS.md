@@ -3270,7 +3270,7 @@ is closed and opened again.
 **Overrides** (2.1406.0): every switch on the computer that suspends a safeguard of the starter writes one line
 `overridden: ...` into the runner's log when it starts, and the day report counts them over 7 days (*Overridden (7 days):
 2 - KALMIDO_PERM_RELAY=0, stop file removed*): `KALMIDO_APPROVAL_CHECK=0`, `KALMIDO_PERM_RELAY=0`,
-`KALMIDO_SESSION_RESUME=0`, `KALMIDO_DISPATCH` set further on than the setting in Kalmido (`dry` / `on` against *Off*) and a
+`KALMIDO_SESSION_RESUME=0`, `KALMIDO_BLOCK_DANGEROUS=0`, `KALMIDO_PERMISSION_MODE` (any value), `KALMIDO_DISPATCH` set further on than the setting in Kalmido (`dry` / `on` against *Off*) and a
 stop file that was removed. A new switch of that kind gets its log line too (`OVERRIDE_SWITCHES` in
 `mcp/agent_dispatch.py`). Who sees the number daily notices early when a rule is overridden all the time - and fixes the rule.
 
@@ -3280,7 +3280,8 @@ next round finds the job ended and its tasks still open, counts one try each (`m
 notes of the last job on the task.
 
 **Places** (2.1406.0): the number of jobs at once comes from ONE source, *Max parallel* of the agent's work style in
-Kalmido (`work_style.max_parallel` of `GET /api/v1/agent`), capped by the starter's own ceiling `places` (default 4).
+Kalmido (`work_style.max_parallel` of `GET /api/v1/agent`), capped by the starter's own ceiling `places` (default 4) and by
+`KALMIDO_JOB_WORKTREES` (default 2: every job has its own working copy).
 `max_parallel` 0 (no limit) or an older server = one place. When Kalmido refuses the start with 409 `slots_full` (jobs
 started elsewhere hold the places; `agent_job.py start` then exits with 4), only that next build job waits - closing,
 the guard and every chat run go on, and the next round tries again.

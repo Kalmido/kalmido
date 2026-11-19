@@ -1,7 +1,7 @@
 {
   "id": "override_log",
   "since": "2.1406.0",
-  "what": "Every switch on the computer that suspends a safeguard of the starter (KALMIDO_APPROVAL_CHECK=0, KALMIDO_PERM_RELAY=0, KALMIDO_SESSION_RESUME=0, KALMIDO_DISPATCH further on than the setting in Kalmido, a removed dispatcher stop file) writes one line 'overridden: ...' into the runner's log when it starts and is counted in the dispatcher's day report (7 days); a new switch of that kind goes into agent_dispatch.OVERRIDE_SWITCHES, never without its log line",
+  "what": "Every switch on the computer that suspends a safeguard of the starter (KALMIDO_APPROVAL_CHECK=0, KALMIDO_PERM_RELAY=0, KALMIDO_SESSION_RESUME=0, KALMIDO_BLOCK_DANGEROUS=0, KALMIDO_PERMISSION_MODE set, KALMIDO_DISPATCH further on than the setting in Kalmido, a removed dispatcher stop file) writes one line 'overridden: ...' into the runner's log when it starts and is counted in the dispatcher's day report (7 days); a new switch of that kind goes into agent_dispatch.OVERRIDE_SWITCHES, never without its log line",
   "core": [
     "def log_overrides",
     "self.log_overrides()"
