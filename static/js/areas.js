@@ -34,6 +34,7 @@ const mg_allOn = id => { const f = new Set(pma_full()), ks = mg_feats(id).filter
 // the tab the area opens with: the one last used on this device (LS mgTab), else its first switched-on part
 function mg_target(id) {
   const ps = (a => [...mg_partsMenu(a), ...mg_partsShown(a)])(mg_area(id)), last = (LS.get('mgTab', {}) || {})[id];  // 2.173.0 A (#2680): an organisation's view: its parts only; 2.418.0 (#3560): the menu's first
+  if (id === 'office' && ofm_multi() && ps.some(p => p[0] === 'office')) { const sp = ofm_lastSp(); return sp ? ofm_spGo(sp) : 'office'; }  // #7387: under "All" the office used last at its point, the very first time the overview
   if (id === 'office' && !isMobile() && ps.some(p => p[0] === 'office')) return ofm_entry().go;  // 2.161.2 (#2616)
   return (ps.find(p => p[0] === last) || ps[0] || mg_parts(mg_area(id))[0] || [id])[0];  // 2.353.0 D (#2759): only a part without an entry on: that one
 }
@@ -106,7 +107,18 @@ const OFM_ITEMS = [
 // so the contacts / clients pages need not load the office. The server checks every admin route on its own.
 // 2.1437.0 (#7297 c): per person and OFFICE AREA (core.js ofc_spCur: the chosen workspace, under "All" the area open there), so
 // "All > Alpha" and "Alpha" share one menu; was per workspace (under 'uid:org:N' nothing yet = the admin points gone)
-const ofm_area = () => (typeof ofc_spCur === 'function' ? ofc_spCur() : '') || 'all';
+// #7387: OFM_SP = the office a menu is drawn for (the panel under "All workspaces": one entry per office, ofm_panelHtml); '' = the
+// office shown. Under "All" with exactly ONE office that office is meant on every page of the area (its menu on #clients too:
+// was 'all' there - the role asked without an office, the admin points gone)
+let OFM_SP = '';
+const ofm_one = () => wsOn() && wsCur() === 'all' ? (sps => sps.length === 1 ? sps[0] : '')(mod_spaces('office')) : '';
+const ofm_area = () => OFM_SP || (typeof ofc_spCur === 'function' ? ofc_spCur() : '') || ofm_one() || 'all';
+// several offices under "All workspaces": the panel shows one entry per office (ofm_allPanelHtml)
+const ofm_multi = () => wsOn() && wsCur() === 'all' && mod_spaces('office').length > 1;
+// run fn with the menu's values of office sp (its role, levels, used, switched-off points - all kept per office area)
+const ofm_for = (sp, fn) => { const p = OFM_SP; OFM_SP = sp || ''; try { return fn(); } finally { OFM_SP = p; } };
+// the loaded office's settings, only for the menu of that office (another office's menu reads its own kept values)
+const ofm_info = () => typeof OFC !== 'undefined' && OFC.info && (!OFM_SP || OFM_SP === ((typeof ofc_spCur === 'function' ? ofc_spCur() : '') || ofm_one())) ? OFC.info : null;
 const ofm_ws = () => `${S.me?.id || ''}:${ofm_area()}`;
 // (#7297): the split view's right half / the own window write no LS (miniwin.js MW_GUARD): their answers stay in this
 // window (OFM_MEM), so its menu knows the role too; the main window reads LS as before (another tab may have written it)
@@ -116,20 +128,27 @@ const ofm_get = k => (ofm_mem() && OFM_MEM[k]) || LS.get(k, {}) || {};
 const ofm_put = (k, o) => { if (ofm_mem()) OFM_MEM[k] = o; LS.set(k, o); };
 const OFM_ASKED = new Set();  // areas whose role was read in this session (a failed read may ask again after a while)
 function ofm_adm() {
-  if (typeof OFC !== 'undefined' && OFC.info) return OFC.info.role === 'admin';
+  const inf = ofm_info(); if (inf) return inf.role === 'admin';
   const ws = ofm_ws();
   // the contacts / clients pages without the office loaded: its role once per workspace and session, quietly (a 4xx
   // leaves the menu as it is); the office itself reads it with its settings (ofcInfo)
-  if ((typeof OFC === 'undefined' || !OFC.info) && officeOn() && !OFM_ASKED.has(ws)) {  // 2.152.2 (#2632): also while the office script is there without its settings yet
+  if (officeOn() && !OFM_ASKED.has(ws)) {  // 2.152.2 (#2632): also while the office script is there without its settings yet
     OFM_ASKED.add(ws);
     // 2.1437.0 (#7297 c): the request names the area of its key (never the server's saved setting: an answer for the old
     // workspace stored under the new key gave a member admin points or took them from an admin)
     const sp = ofm_area();
-    rawFetch('GET', '/api/office/settings', undefined, undefined, sp === 'all' ? '' : sp).then(j => {
+    // #7387: the answer is kept for the office it was asked for (OFM_SP: another office's entry in the panel under "All")
+    const asked = OFM_SP;
+    rawFetch('GET', '/api/office/settings', undefined, undefined, sp === 'all' ? '' : sp).then(j => ofm_for(asked, () => {
       if (!j || ofm_ws() !== ws) return;
+      const no = ofm_get('ofmNo'); if (no[ws]) { delete no[ws]; ofm_put('ofmNo', no); }  // #7387: the office answers me again
       const seen = () => ofm_adm() + JSON.stringify([ofm_lv(), ofm_used(), ofm_offList()]), was = seen(); ofm_admSeen(j.role === 'admin', j.rights, j.used, j.settings?.menu_off);
-      if (was !== seen() && mg_areaOf(S.route.mod)?.[0] === 'office') renderView();
-    }, () => { setTimeout(() => OFM_ASKED.delete(ws), 30000); });  // 2.1437.0 (#7297 c): not "never again in this session"
+      if (was !== seen() && mg_areaOf(S.route.mod)?.[0] === 'office') { if (asked) sbb_officeSync(); else renderView(); }
+    }), e => {
+      // #7387: the office refuses me altogether (office groups without any right): no entry for it under "All" (ofm_allPanelHtml)
+      if (e?.status === 403) { const no = ofm_get('ofmNo'); if (!no[ws]) { no[ws] = 1; ofm_put('ofmNo', no); if (asked) sbb_officeSync(); } }
+      setTimeout(() => OFM_ASKED.delete(ws), 30000);
+    });  // 2.1437.0 (#7297 c): not "never again in this session"
   }
   return !!ofm_get('ofmAdm')[ws];
 }
@@ -150,20 +169,20 @@ function ofm_admSeen(adm, rights, used, menuOff = []) {
 // model.py office_org lets it read the admins' routes) - its levels are "view" down to the settings, which no other role of
 // "Previous access" has: then every area it may read shows (Bookkeeping, Bank, ...; writes stay refused by the server)
 const ofm_legOwnOf = r => !r || !r.legacy || !r.levels ? [] : Object.keys(r.levels).filter(k => r.levels.settings === 'view' ? r.levels[k] !== 'none' : r.levels[k] === 'own');
-const ofm_legOwn = k => (typeof OFC !== 'undefined' && OFC.info ? ofm_legOwnOf(OFC.info.rights) : ofm_get('ofmOwn')[ofm_ws()] || []).includes(k);
+const ofm_legOwn = k => (ofm_info() ? ofm_legOwnOf(ofm_info().rights) : ofm_get('ofmOwn')[ofm_ws()] || []).includes(k);
 // 2.187.0 A (#2476): {area: level} of a person ruled by office groups in the workspace shown (null = not ruled by groups)
 function ofm_lv() {
-  if (typeof OFC !== 'undefined' && OFC.info) { const r = OFC.info.rights; return r && r.levels && !r.legacy && r.manager !== 'admin' ? r.levels : null; }
+  if (ofm_info()) { const r = ofm_info().rights; return r && r.levels && !r.legacy && r.manager !== 'admin' ? r.levels : null; }
   return ofm_get('ofmLv')[ofm_ws()] || null;
 }
 // a menu point: an office area = its level is not "none" (Settings stays: "My rights" lives there); else as before (adm)
 // 2.436.0 (#3620): "View as member" in an organisation's office: no settings / contracts / bank; daily work stays
 const MV_OFM = ['settings', 'agreements', 'bank'];
-const mvOfc = () => mvOn() && (typeof OFC !== 'undefined' && OFC.info ? !OFC.info.personal : String(wsCur()).startsWith('org:'));
+const mvOfc = () => mvOn() && (ofm_info() ? !ofm_info().personal : String(ofm_area()).startsWith('org:'));  // #7387: the office of the menu
 const ofm_ok = i => { if (MV_OFM.includes(i.key) && mvOfc()) return false; if (i.admOnly && !ofm_adm()) return false; const lv = ofm_lv(), k = i.lvk || i.key; return lv && k in lv ? i.key === 'settings' || lv[k] !== 'none' : !i.adm || ofm_adm() || ofm_legOwn(k); };  // 2.276.0 A (#3039): lvk; 2.545.0 (#4592): + ofm_legOwn
 // 2.276.0 A (#3039): what the office already holds (GET /api/office/settings used: invoice, receipt, inquiry, meal, travel,
 // sub, fixed), per person and workspace like the role (LS ofmUsed); null = not known yet (everything as before)
-function ofm_used() { return typeof OFC !== 'undefined' && OFC.info ? OFC.info.used || null : ofm_get('ofmUsed')[ofm_ws()] || null; }
+function ofm_used() { return ofm_info() ? ofm_info().used || null : ofm_get('ofmUsed')[ofm_ws()] || null; }
 // 2.380 F (#3411): every point of Money shows at once; 2.448.0 (#3784): also before its first use, a point nobody needs is
 // switched off under Settings > Functions (need: money.*, office_packs.js OCF_FEATS) or hidden in the menu's editor
 // ---- 2.418.0 (#3560): each person arranges the menus of the areas (navmenu.js draws the editor): the order, the points
@@ -178,7 +197,8 @@ function nav_pref(area) {
   const m = NAV.o[area] || {};
   return {order: Array.isArray(m.order) ? m.order : [], hidden: new Set(m.hidden || []), shown: new Set(m.shown || [])};
 }
-const nav_orgOff = (area, key) => { const w = typeof wsCur === 'function' ? wsCur() : ''; return w.startsWith('org:') && (wsOrg(w.slice(4))?.nav_off || []).includes(area + ':' + key); };
+const nav_orgOff = (area, key) => { const w = area === 'office' ? ofm_area() : typeof wsCur === 'function' ? wsCur() : '';  // #7387: the office of the menu (under "All" its organisation)
+  return w.startsWith('org:') && (wsOrg(w.slice(4))?.nav_off || []).includes(area + ':' + key); };
 // hidden by the person: by hand; the parts hidden in the old sidebar settings
 // (sidebar "e:<part>", before 2.418.0) count as hidden too until shown again
 const nav_hid = (area, key) => { const p = nav_pref(area); return p.hidden.has(key) || !p.shown.has(key) && area !== 'office' && sideHidden('e:' + key); };
@@ -232,10 +252,10 @@ const ofm_all = () => typeof OFC_TABS === 'undefined' ? OFM_ITEMS : [...OFM_ITEM
 const OFR_ORDER = ['pipeline', 'offers', 'invoices', 'gendocs', 'clients', 'contacts', 'contracts', 'receipts', 'cashflow', 'kpi', 'bank', 'cards', 'books', 'subs', 'travel', 'meals', 'equipment', 'agreements', 'settings'];
 const ofr_rank = i => { const n = OFR_ORDER.indexOf(i.key); return n < 0 ? OFR_ORDER.length : n; };
 // 2.147.0 (#2459): need = a function of the country pack ('books.…'); off in this office = no menu point (office.js ofcFeat)
-const ofm_need = i => !i.need || typeof ofcFeat !== 'function' || ofcFeat(i.need);
+const ofm_need = i => !i.need || typeof ofcFeat !== 'function' || !ofm_info() || ofcFeat(i.need);  // #7387: another office's pack is not loaded (its points show)
 // 2.440.0 (#3609): points the office switched off for everybody (office setting menu_off, Settings > Functions > Menu points):
 // not in the menu, the tiles or the search, a link opens the start page (office.js ofcTab); per workspace like the role (LS ofmOff)
-const ofm_offList = () => (typeof OFC !== 'undefined' && OFC.info ? OFC.info.settings?.menu_off : ofm_get('ofmOff')[ofm_ws()]) || [];
+const ofm_offList = () => (ofm_info() ? ofm_info().settings?.menu_off : ofm_get('ofmOff')[ofm_ws()]) || [];
 const ofm_menuOff = k => ofm_offList().includes(k);
 // 2.418.0 (#3560): every point that may show (switched on, the country pack, the rights, not off in the organisation), in
 // the person's order; ofm_items = those in the menu, ofm_hidden = those under "Hidden" of the editor
@@ -257,10 +277,18 @@ function ofm_cur(mod) {
 // 2.276.0 A (#3039): nothing kept = Quotes & invoices for everybody; the Pipeline only once the office has an inquiry / lead
 function ofm_remember(key) {
   const o = LS.get('ofmLast', null); if (o !== key) LS.set('ofmLast', key);
+  // #7387: per office (LS ofmLastBy {area: key}) and the office used last under "All workspaces" (LS ofmLastSp)
+  const a = ofm_area(), by = LS.get('ofmLastBy', {}) || {};
+  if (a !== 'all' && by[a] !== key) { by[a] = key; LS.set('ofmLastBy', by); }
+  if (ofm_multi() && a !== 'all' && LS.get('ofmLastSp', '') !== a) LS.set('ofmLastSp', a);
 }
+// #7387: the office used last under "All" (still one of mine) or ''
+const ofm_lastSp = () => { const sp = LS.get('ofmLastSp', '') || ''; return ofm_multi() && mod_spaces('office').includes(sp) ? sp : ''; };
+// the address of office sp at its point used last (#office/s/<space>/<point>)
+const ofm_spGo = sp => `office/s/${sp}/${ofm_for(sp, ofm_entry).key}`;
 // 2.470.0 (#3596): Settings is a dialog, no page to open the office on
 function ofm_entry() {
-  const its = ofm_items(), last = LS.get('ofmLast', null);
+  const its = ofm_items(), a = ofm_area(), last = (a !== 'all' && (LS.get('ofmLastBy', {}) || {})[a]) || LS.get('ofmLast', null);  // #7387: per office
   return its.find(i => i.key === last && i.key !== 'settings') || its.find(i => i.key === (ofm_adm() && ofm_used()?.inquiry ? 'pipeline' : 'offers')) || its.find(i => i.key === 'offers') || its[0] || {key: 'offers', go: 'office/offers'};
 }
 const ofm_btn = (i, cur, cls) => `<button type="button" class="${cls} ${i.key === cur ? 'on' : ''}" data-go="${i.go}" data-ofm="${i.key}"${i.key === cur ? ' aria-current="page"' : ''}>${ic(i.icon, 's')}<span>${esc(tr(i.name))}</span></button>`;
@@ -519,7 +547,7 @@ function sbb_seen(r) {
 function sbb_target(id) {
   const h = (LS.get('sbbLast', {}) || {})[id], mod = h && sbb_hashMod(h), a = mg_area(id);
   const ok = !!h && (id === 'tasks' ? sbb_areaOfMod(mod) === 'tasks' : (sbb_def(id)[4] || []).includes(mod) && (!a || !!mg_parts(a).find(p => p[0] === mod)))
-    && (mod !== 'office' || (t => !t || ['import', 'services', 'texts', 'settings'].includes(t) || ofm_items().some(i => i.go === 'office/' + t || t === 'subs' && i.key === 'agreements'))(h.split('/')[1]));  // an office point no longer shown (role, pack): not kept
+    && (mod !== 'office' || (p => (p[1] !== 's' || ofm_multi() && mod_spaces('office').includes(p[2])) && ofm_for(p[1] === 's' ? p[2] : '', () => (t => !t || ['import', 'services', 'texts', 'settings'].includes(t) || ofm_items().some(i => i.go === 'office/' + t || t === 'subs' && i.key === 'agreements'))(p[1] === 's' ? p[3] : p[1])))(h.split('/')));  // #7387: + office/s/<space>/<point> under "All"  // an office point no longer shown (role, pack): not kept
   if (ok) return h;
   return id === 'tasks' ? keyToHash(LS.get('lastKey', START_KEY)) : a ? mg_target(id) : id;
 }
@@ -931,12 +959,33 @@ function sbb_foldSet(g, fold) {
   LS.set('sbbFold', [...x]); LS.set('sbbUnfold', [...y]);
 }
 const sbb_head = (g, label, n, on) => `<div class="shead sgh sbbg ${sbb_folded(g) ? 'closed' : ''} ${on ? 'sgon' : ''}"><button class="sgt" data-act="sbb-group" data-g="${esc(g)}" aria-expanded="${!sbb_folded(g)}">${ic('chev', 's fcar')}<span>${esc(label)}</span>${sbb_folded(g) && n ? `<span class="c">${n}</span>` : ''}</button></div>`;
+// #7387: the office's menu - ONE drawing for "one office" (sp '') and for each office's entry under "All workspaces" (sp = its
+// area): the groups and points with that office's role, levels, used and hidden points (ofm_for), every link with its office
+// (#office/s/<space>/<point>), the document areas as trees (office_tree.js oft_rowHtml with the office)
+function ofm_panelHtml(sp = '') {
+  return ofm_for(sp, () => {
+    const its = ofm_items(), here = sbb_area() === 'office' && (!sp || sp === ofc_spOpen()), cur = here ? ofm_cur(S.route.mod) : '';
+    const at = go => sp && /^office\//.test(go) ? `office/s/${sp}/${go.slice(7)}` : go;
+    return OFM_GROUPS.map(g => {
+      const gi = its.filter(i => i.group === g[0]), k = 'office:' + (sp ? sp + ':' : '') + g[0], on = gi.some(i => i.key === cur), solo = !!g[3]; if (!gi.length) return '';
+      return `<div class="sgroup sbbp" data-ofmg="${g[0]}">${solo ? '' : sbb_head(k, tr(g[2]), gi.length, on && sbb_folded(k))}${/*html-ok*/ !solo && sbb_folded(k) ? '' : gi.map(i => (typeof oft_rowHtml === 'function' && oft_rowHtml(i, i.key === cur, sp)) || sbb_row(at(i.go), i.icon, tr(i.name), i.key === cur, `data-ofm="${i.key}" data-navk="office:${i.key}"`)).join('') /* rows of the tree and sbb_row, their names escaped there */}</div>`;
+    }).join('');  // 2.351.0 A (#3312): a document area opens as a tree (office_tree.js: its folders, 20 newest, More…); no group "Folders"
+  });
+}
+// #7387 (owner decision 19.11.2026): under "All workspaces" with several offices the panel and the phone's drawer show one
+// entry per office, like Knowledge (wiki.js wk_panelAllHtml): its name, symbol and stripe (the tree's core, wso: the workspace
+// node of #7389; Private in my own colour), unfolded below it the menu of THAT office. Open: the office open now (marked), else the one used last on this
+// device (LS ofmLastSp); unfolded by hand per device like the trees (LS sbbOpen). No mixed lists: every page belongs to one office
+function ofm_allPanelHtml() {
+  // an office whose menu holds nothing for me (office groups without any right: only "My rights" is left) has no entry
+  const op = mod_spaces('office').includes(ofc_spOpen()) ? ofc_spOpen() : '', def = op || ofm_lastSp(), here = sbb_area() === 'office';
+  const sps = mod_spaces('office').filter(sp => sp === op || ofm_for(sp, () => !ofm_get('ofmNo')[ofm_ws()] && ofm_items().some(i => i.key !== 'settings' && /^office\//.test(i.go))));  // the office's own points (Clients / Contacts are pages of their own)
+  return `<div class="sgroup sbbp sbbtree ofmall" role="group" aria-label="${esc(tr('Workspaces'))}">${/*html-ok*/ sbb_treeHtml(sps.map(sp => ({
+    k: 'of:sp:' + sp, name: wsName(sp), go: ofm_spGo(sp), on: here && sp === op, wso: sp, has: true, here: sp === def,  // #7389: the core's workspace node (symbol, stripe, arrow); open = the office open now, else the one used last
+    attrs: `data-ofmsp="${esc(sp)}"`, sub: () => [{raw: `<div class="ofmsp" data-ofmsp-menu="${esc(sp)}">${/*html-ok*/ ofm_panelHtml(sp) /* the menu drawn from escaped parts */}</div>`}]})))}</div>`;
+}
 function sbb_officeHtml() {
-  const its = ofm_items(), here = sbb_area() === 'office', cur = here ? ofm_cur(S.route.mod) : '';
-  return OFM_GROUPS.map(g => {
-    const gi = its.filter(i => i.group === g[0]), k = 'office:' + g[0], on = gi.some(i => i.key === cur), solo = !!g[3]; if (!gi.length) return '';
-    return `<div class="sgroup sbbp" data-ofmg="${g[0]}">${solo ? '' : sbb_head(k, tr(g[2]), gi.length, on && sbb_folded(k))}${!solo && sbb_folded(k) ? '' : gi.map(i => (typeof oft_rowHtml === 'function' && oft_rowHtml(i, i.key === cur)) || sbb_row(i.go, i.icon, tr(i.name), i.key === cur, `data-ofm="${i.key}" data-navk="office:${i.key}"`)).join('')}</div>`;
-  }).join('')  // 2.351.0 A (#3312): a document area opens as a tree (office_tree.js: its folders, 20 newest, More…); no group "Folders"
+  return (ofm_multi() ? ofm_allPanelHtml() : ofm_panelHtml(''))
     + (typeof ctf_panelHtml === 'function' ? ctf_panelHtml() : '');  // 2.351.0 B (#2749): the address book's folders (ctfold.js, on its page)
 }
 // the office's points can change after the sidebar was drawn (the office loads lazily, its role arrives): a draw of an office

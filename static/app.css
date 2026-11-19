@@ -8084,6 +8084,8 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 #side .sbbtar{color:var(--faint)}
 #side .sbbtar .fcar{width:.75rem;height:.75rem;margin:0}
 #side .sbbtl{padding-left:calc(.5rem + var(--sbbl,0)*1.5rem)}
+/* #7387: the menu of an office below its entry under "All workspaces" (areas.js ofm_allPanelHtml) sits one step in */
+#side .ofmsp{padding-left:1.5rem}
 #side .sbbt .sbbtn .n,#side .fhead:not(.sbbt) .n{font-size:inherit;font-weight:400;color:inherit;letter-spacing:normal}
 #side .fhead.on .n,#side .sbbt.on .n{font-weight:600}
 #side .fhead:not(.sbbt){font-size:var(--fs-b);color:var(--text2)}
