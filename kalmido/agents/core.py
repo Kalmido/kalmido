@@ -408,7 +408,7 @@ def agent_emit(c, aid, event, data, actor="auto", via=None):
     elif actor and not lid and event in AGENT_GATED and actor.get("kind") == "person":
         if not agent_shares(c, aid, actor["id"]):
             return None
-    # 2.1414.0 (#6455, audit #4790 F5): a new / moved task and its tidy are list automations (not gated), but a person who
+    # (#6455, audit #4790 F5): a new / moved task and its tidy are list automations (not gated), but a person who
     # may not address the agent wrote the text: the event carries origin "member" + untrusted (the launcher frames it as data)
     if actor and lid and event in AGENT_MARKED and actor.get("kind") == "person" and isinstance(data, dict) \
             and not data.get("untrusted") and not agent_usable(c, aid, actor["id"], lid):
@@ -1223,7 +1223,7 @@ def is_approver(c, t, uid, agent=None, assignee=True):
 AGENT_GATED = ("mention", "comment", "assigned", "unassigned", "reaction", "team_message", "wake",
                "task_changed",  # 2.959.0 (#4030): a person without the agent switch reaches it neither by a change
                "status_changed")  # 2.983.0 (#3915): ... nor by a status change
-AGENT_MARKED = ("task_added", "tasks_added", "tidy")  # 2.1414.0 (#6455): ungated, marked "member" when the person may not address the agent
+AGENT_MARKED = ("task_added", "tasks_added", "tidy")  # (#6455): ungated, marked "member" when the person may not address the agent
 AGENT_UNGATED = ("job", "ping", "runtime_changed", "reset", "followup_due")
 # 2.26.0 (#928): the SQL condition "list l is open to person ? for agent ?": owner, list admin (own role), the list
 # belongs to that agent (it shared the list itself); parameters (person, agent, person) or the owner switched on "Members may see and use the agent"

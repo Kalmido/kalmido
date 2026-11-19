@@ -173,7 +173,7 @@ function bootDone() {
   // and the tour follow, one after the other)
   if (S.setupPending) return;
   if ((S.settings.purpose_ask || 'done') !== 'done') await paskOpen();  // 2.364.0 A (#3032): the short question first, then the list and the tour
-  if (S.settings.org_ask === 'pending') { try { await loadModule('settings'); await orgAskOpen(); } catch { /* offline: next start */ } }  // 2.1414.0 (#6519): "Private or with an organisation?" (acctadm.js), then the tour
+  if (S.settings.org_ask === 'pending') { try { await loadModule('settings'); await orgAskOpen(); } catch { /* offline: next start */ } }  // (#6519): "Private or with an organisation?" (acctadm.js), then the tour
   if (S.settings.onboard === 'pending') {
     try { const j = await api('POST', '/api/onboarding', {touch: isTouch(), mac: IS_MAC}); if (j?.created) { await load(); render(); } } catch { /* offline: next start */ }
   }
