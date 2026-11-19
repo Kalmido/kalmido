@@ -93,6 +93,8 @@ def ms_clients_bulk(c, uid, b):
     seen = {r["id"]: r for r in client_rows(c, uid, trash=action == "untrash")}  # 2.272.0 D (#3029): untrash = out of the trash
     if any(i not in seen for i in ids):
         raise Denied(404)
+    for oid in sorted({seen[i]["org_id"] for i in ids if seen[i]["org_id"]}):
+        need_org_write(c, uid, oid)  # #6607: read-only / guest / accounting change no client of the organisation (every action)
     ts = iso(now_utc())
     out = {"action": action}
     if action == "delete":
@@ -117,8 +119,6 @@ def ms_clients_bulk(c, uid, b):
             if not cl_may_delete(c, uid, seen[i]):
                 sk += 1
                 continue
-            if seen[i]["org_id"]:
-                need_org_write(c, uid, seen[i]["org_id"])
             n += 1 if cl_untrash(c, i) else 0
         out.update(changed=n, skipped=sk)
     elif action in ("archive", "unarchive"):
