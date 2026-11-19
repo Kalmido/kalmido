@@ -68,7 +68,8 @@ function grip_dragOn(g, cls) {
 // press, drag, release on a grip; a press without moving is a tap: two within 400 ms = the default, one alone = the menu
 /** @param {HTMLElement} g @param {any} h @param {(e: PointerEvent) => any} start */
 function grip_wire(g, h, start) {
-  let last = 0, mt = 0;
+  let last = 0;
+  const later = debounce(() => { if (last && g.isConnected && typeof menu === 'function') menu(g, h.menu()); }, 400);  // core.js, the one delay helper
   const onDown = e => {
     if ((e.pointerType === 'mouse' && e.button !== 0) || grip_off(h.o)) return;
     e.preventDefault(); e.stopPropagation();
@@ -82,16 +83,16 @@ function grip_wire(g, h, start) {
       g.removeEventListener('pointermove', move); g.removeEventListener('pointerup', up); g.removeEventListener('pointercancel', up);
       mv.end(moved && ev.type === 'pointerup'); off();
       if (moved) return;
-      clearTimeout(mt);
+      later.cancel();
       if (Date.now() - last < 400) { last = 0; h.reset(); return; }
       last = Date.now();
-      if (h.o.menu !== false && typeof menu === 'function') mt = setTimeout(() => { if (last && g.isConnected) menu(g, h.menu()); }, 400);
+      if (h.o.menu !== false) later();
     };
     g.addEventListener('pointermove', move); g.addEventListener('pointerup', up); g.addEventListener('pointercancel', up);
   };
-  const onDbl = e => { e.preventDefault(); clearTimeout(mt); last = 0; h.reset(); };
+  const onDbl = e => { e.preventDefault(); later.cancel(); last = 0; h.reset(); };
   g.addEventListener('pointerdown', onDown); g.addEventListener('dblclick', onDbl);
-  return () => { clearTimeout(mt); g.removeEventListener('pointerdown', onDown); g.removeEventListener('dblclick', onDbl); };
+  return () => { later.cancel(); g.removeEventListener('pointerdown', onDown); g.removeEventListener('dblclick', onDbl); };
 }
 const grip_say = t => { if (typeof announce === 'function') announce(t); };
 /** @param {HTMLElement} g @param {any} o @param {string} label @param {number} now @param {number} min @param {number} max @param {string} text */
