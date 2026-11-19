@@ -805,7 +805,8 @@ def ofm_move_doc(c, rec, r, src, dst, cmap, kmap, ts):
     ofm_move_row(c, rec, "office_docs", r, src, dst, dst, {
         "number": "", "client_id": cmap.get(r["client_id"]) if r["client_id"] else None,
         "contact_id": kmap.get(r["contact_id"]) if r["contact_id"] else None, "contract_id": None, "list_id": None,
-        "agent_id": None, "source_doc_id": None, "version_of": None, "replaces_id": None, "updated_at": ts})
+        "agent_id": None, "source_doc_id": None, "version_of": None, "replaces_id": None, "updated_at": ts,
+        "author_id": None})  # (#7300): "Created by" names a member of the old organisation
     for it in c.execute("SELECT * FROM office_doc_items WHERE doc_id=? ORDER BY id", (r["id"],)).fetchall():
         # 2.144.5 A2 (#1523, review R10): the list a position came from belongs to the old office
         ofm_move_row(c, rec, "office_doc_items", it, src, dst, dst, {"service_id": None, "list_id": None})
