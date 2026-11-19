@@ -118,9 +118,9 @@ check(Ca.get(B + f"/api/agents/{CK2}/server").json().get("enabled_org") is False
 # ---------------------------------------------------------------- the admin switches it on
 r = Bo.patch(B + f"/api/orgs/{ORG}", json={"server_agents": True})
 check(r.ok and r.json().get("server_agents") is True, f"bob (its admin) switches the Kalmido AI on ({r.status_code} {r.text[:160]})")
-check(until(lambda: dbx("SELECT message FROM admin_alerts WHERE key LIKE 'orgswitch:org_server_agents:1:%'"), 20),
+check(until(lambda: dbx(f"SELECT message FROM admin_alerts WHERE key = 'orgswitch:org_server_agents:{ORG}:1'"), 20),
       "switching it is a security alert to the server's admins")
-m = dbx("SELECT message FROM admin_alerts WHERE key LIKE 'orgswitch:org_server_agents:1:%'")
+m = dbx(f"SELECT message FROM admin_alerts WHERE key = 'orgswitch:org_server_agents:{ORG}:1'")
 check(m and "Example Studio" in m[0][0] and "bob" in m[0][0], f"the alert names who and the organisation ({m})")
 r = Bo.post(B + f"/api/orgs/{ORG}/server-agents", json={"username": "teamki", "display_name": "Team KI"})
 check(r.status_code == 201, f"on: bob creates the team agent {r.status_code} {r.text[:160]}")
@@ -139,7 +139,7 @@ check(any("Team pelican task" in json.dumps(x) for x in plog()), "on: the task r
 
 # ---------------------------------------------------------------- off again
 check(Bo.patch(B + f"/api/orgs/{ORG}", json={"server_agents": False}).ok, "bob switches it off again")
-check(until(lambda: dbx("SELECT 1 FROM admin_alerts WHERE key LIKE 'orgswitch:org_server_agents:0:%'"), 20), "switching it off is an alert too")
+check(until(lambda: dbx(f"SELECT 1 FROM admin_alerts WHERE key = 'orgswitch:org_server_agents:{ORG}:0'"), 20), "switching it off is an alert too")
 r = Bo.put(B + f"/api/agents/{TK}/server", json={"instructions": "Be brief."})
 check(r.status_code == 403 and r.json().get("error") == "org_server_agents_off", f"off: no change of its settings ({r.status_code})")
 r = Bo.get(B + f"/api/agents/{TK}/server/models")
@@ -187,5 +187,12 @@ check(Fr.post(B + f"/api/tasks/{FT}/comments", json={"body": f"<@{FK}> FAKE_COMM
 check(until(lambda: comments_by(FT, FK), 40), "without an organisation: the run commented")
 rr = settled(FK, 1)
 check(rr and rr[-1][1] == "done", f"without an organisation: the run is done {rr}")
+
+# reader F1 of job/5551: the alert key names the organisation without a time (the cooldown counts repeats), and the switch is
+# braked per organisation and person (ORG_SWITCH_HOUR in an hour, then 429) - nobody can fill the hour's cap of the real alerts
+codes = [Bo.patch(B + f"/api/orgs/{ORG}", json={"server_agents": i % 2 == 0}).status_code for i in range(8)]
+check(429 in codes and codes[0] == 200, f"F1: switching back and forth is braked with 429 ({codes})")
+n = dbx(f"SELECT COUNT(*) FROM admin_alerts WHERE key LIKE 'orgswitch:org_server_agents:{ORG}:%'")
+check(n and n[0][0] <= 2, f"F1: one alert row per organisation and direction, repeats counted ({n})")
 
 raise SystemExit(done("p6363_srvorg"))

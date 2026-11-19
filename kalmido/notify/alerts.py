@@ -545,11 +545,13 @@ def aa_switch(c, admin, key, value, cfg=None):
         aa_now("security", k, N_("{0} set “{1}” to {2}."), args)
 
 
-def aa_org_switch(admin, org_name, key, value):
+def aa_org_switch(admin, oid, org_name, key, value):
     """2.1409.0 (#6363): security alert for a changed switch of an organisation (its admin changed it), like aa_switch with the
-    organisation's name: AA_SWITCH_LABEL[key]."""
+    organisation's name: AA_SWITCH_LABEL[key]. The key names the organisation and the direction without a time (reader F1 of
+    job/5551): any organisation's admin can switch it, so the cooldown counts its repeats instead of each one using up the
+    hour's cap of the real alerts (the switch itself is braked in accounts/orgs.py ORG_SWITCH_HOUR)."""
     args = [admin["username"], {"t": AA_SWITCH_LABEL[key]}, org_name, {"t": N_("on|switch") if value else N_("off|switch")}]
-    aa_now("security", f"orgswitch:{key}:{int(bool(value))}:{int(time.time())}", N_("{0} set “{1}” in the organisation {2} to {3}."), args)
+    aa_now("security", f"orgswitch:{key}:{int(oid)}:{int(bool(value))}", N_("{0} set “{1}” in the organisation {2} to {3}."), args)
 
 
 def _rls_state():
