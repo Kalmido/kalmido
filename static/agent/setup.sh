@@ -883,7 +883,7 @@ fi
 
 # kalmido-setup-step: starter_files
 stepf s_starter
-REQUIRED="agent_launcher.sh agent_run.py kalmido_mcp.py"
+REQUIRED="agent_launcher.sh agent_run.py kalmido_mcp.py agent_common.py"  # #7151: agent_common.py = the shared helpers
 fetch() {  # fetch NAME DEST -> 0 when it worked
   if [ -n "$FROM" ]; then [ -f "$FROM/$1" ] && cp "$FROM/$1" "$2"; return; fi
   curl -fsSL --max-time 60 "$STARTER_BASE$1" -o "$2" 2>/dev/null

@@ -667,6 +667,11 @@ check(ad.pr_env({"push_url": "git@github.com:owner/repo.git"}).get("GH_REPO") ==
       and ad.pr_env({"push_url": "https://github.com/owner/repo"}).get("GH_REPO") == "owner/repo"
       and "GH_REPO" not in ad.pr_env({"push_url": bare}) or os.environ.get("GH_REPO"),
       "round 3 F2: gh opens the pull request in the repository of push_url, not one the remotes name")
+# #7170 (reader F5 of job/5497): GitHub Enterprise and addresses with a user or a port name the host in GH_REPO
+for url, want in (("https://ghe.example.org/team/app.git", "ghe.example.org/team/app"), ("ssh://git@ghe.example.org:2222/team/app", "ghe.example.org/team/app"),
+                  ("git@ghe.example.org:team/app.git", "ghe.example.org/team/app"), ("https://bot@github.com/owner/repo.git", "owner/repo"),
+                  ("ssh://git@github.com/owner/repo", "owner/repo")):
+    check(ad.pr_env({"push_url": url}).get("GH_REPO") == want, f"#7170: GH_REPO of {url} = {want} ({ad.pr_env({'push_url': url}).get('GH_REPO')})")
 os.remove(os.path.join(proj, ".git", "hooks", "reference-transaction"))
 ad.git(proj, "update-ref", "-d", "refs/heads/probe-f7")
 check(not any(k.startswith("KALMIDO_") for k in ad.git_env()) and "KALMIDO_DISPATCH_PUSH_URL" in os.environ,

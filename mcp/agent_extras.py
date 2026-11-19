@@ -21,9 +21,7 @@ bundling of task events (#1447). agent_run.py imports it tolerantly: without thi
                    never delayed. The pending bundle is kept in the state folder (bundle.json): a restart loses nothing.
 Standard library only."""
 import json
-import mimetypes
 import os
-import re
 import shutil
 import sys
 import time
@@ -32,6 +30,8 @@ import urllib.request
 import uuid
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+from agent_common import defuse_fence, multipart, write_json  # noqa: E402,F401  #7151: the starter's shared helpers
 
 
 def _quoted(path):
@@ -61,12 +61,6 @@ def log(msg):
     sys.stderr.flush()
 
 
-def defuse_fence(text):
-    """2.1352.0 (#6884): every run of three or more < or > spaced out ("<<<<<" -> "< < < < <"); the twin of
-    agent_run.defuse_fence (this module runs without it), mcp_test checks that both give the same."""
-    return re.sub(r"<{3,}|>{3,}", lambda m: " ".join(m.group()), str(text or ""))
-
-
 def _fence(text):
     return defuse_fence(text)
 
@@ -76,30 +70,6 @@ def max_file_bytes():
         return int(float(os.environ.get("KALMIDO_MAX_FILE_MB") or 50) * 1024 * 1024)
     except ValueError:
         return 50 * 1024 * 1024
-
-
-def write_json(path, data):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + ".new"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False)
-    os.replace(tmp, path)
-
-
-def multipart(fields, files):
-    """(body bytes, content type) of a multipart/form-data request; files = [(field, path)]."""
-    bd = "----kalmido" + uuid.uuid4().hex
-    out = []
-    for k, v in fields.items():
-        out.append(f'--{bd}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n'.encode())
-    for k, p in files:
-        name = os.path.basename(p).replace('"', "_")
-        mime = mimetypes.guess_type(p)[0] or "application/octet-stream"
-        with open(p, "rb") as f:
-            out.append((f'--{bd}\r\nContent-Disposition: form-data; name="{k}"; filename="{name}"\r\n'
-                        f"Content-Type: {mime}\r\n\r\n").encode() + f.read() + b"\r\n")
-    out.append(f"--{bd}--\r\n".encode())
-    return b"".join(out), "multipart/form-data; boundary=" + bd
 
 
 # kalmido-capability: outbox, event_bundling (2.44.0)

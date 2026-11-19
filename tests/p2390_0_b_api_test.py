@@ -130,7 +130,7 @@ def run(who, s, uid):
     cur = r.json().get("next_cursor")
     # 2.577.0 (#3354): compact carries the column's meaning section_kind too
     check(r.ok and set(r.json()["data"][0]) == {"id", "title", "list_id", "section_id", "section_kind", "parent_id", "status", "due", "due_time",
-                                                "priority", "tags", "list_tags", "assignee_id"} and cur, f"{who}: sorted + compact")
+                                                "priority", "tags", "list_tags", "assignee_id", "created_by"} and cur, f"{who}: sorted + compact")  # #7151
     check(get(list_id=L, sort="due", cursor=cur).status_code == 400, f"{who}: a cursor of another sort = 400")
     plain = get(list_id=L, limit=1).json()["next_cursor"]
     check(get(list_id=L, sort="due", cursor=plain).status_code == 400 and get(sort="size").status_code == 400, f"{who}: bad sort / cursor = 400")

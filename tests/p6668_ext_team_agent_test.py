@@ -245,8 +245,8 @@ def _f6():
         api = aj.Api()
         api.job_id = 31
 
-        def dead(*a, **k):
-            raise RuntimeError("HTTP 401 Missing or invalid API token")
+        def dead(*a, **k):  # #7151: the shared transport (agent_common.Api) raises ApiError; agent_job.Api.req turns it into RuntimeError
+            raise aj.ApiError(401, "Missing or invalid API token")
         api._req = dead
         try:
             api.req("GET", "/agent")

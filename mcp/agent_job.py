@@ -61,7 +61,6 @@ How it works
     card. Yes / No on it goes to the job's inbox while it runs, or wakes the ended job in its session once (--wake).
 Only the Python standard library; Linux, macOS, Windows. Never prints the token."""
 import json
-import mimetypes
 import os
 import re
 import shutil
@@ -69,15 +68,14 @@ import subprocess
 import sys
 import threading
 import time
-import urllib.error
-import urllib.parse
-import urllib.request
 import uuid
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+# #7151: the helpers the starter's modules share (one copy each; the job runner's redact now has every pattern)
+from agent_common import Api as ApiBase, ApiError, chunks, defuse_fence, env_credentials, kill_tree, multipart, redact, write_json  # noqa: E402,F401
 OPEN_STATES = ("starting", "running", "paused")
 MAX_RESUMES = 3
-CHAT_CHUNK = 7500
 STEP_GAP_S = 5.0
 LIMIT_WORDS = ("usage limit", "rate limit", "hit your limit", "limit reached", "5-hour limit", "rate_limit", "429")
 # 2.619.0 (#2196): the weekly limit, told apart from the 5-hour window
@@ -90,11 +88,6 @@ AUDIT_NOTE = ("## Audit job: read only\n\nThis job is a review in the read-only 
               "report. Never commit, merge, push, tag, deploy, change a server or delete anything; in Kalmido write only "
               "comments and your result. Something that needs a change becomes a finding in your result (or a task the "
               "person creates), never a change by you.\n\n")
-SECRET_RES = [
-    re.compile(r"\b(?:abk|sk-ant|sk-proj|sk)[-_][A-Za-z0-9_-]{16,}"),
-    re.compile(r"\b(?:ghp|gho|ghu|ghs|ghr|github_pat)_[A-Za-z0-9_]{16,}"),
-    re.compile(r"\b(?:Bearer|Basic|Token)\s+(?=[A-Za-z0-9._~+/=-]{0,200}\d)[A-Za-z0-9._~+/=-]{12,}"),
-]
 
 
 def log(msg):
@@ -102,27 +95,11 @@ def log(msg):
     sys.stderr.flush()
 
 
-def redact(text):
-    text = text or ""
-    vals = [os.environ.get("KALMIDO_TOKEN", "")] + [v for k, v in os.environ.items() if re.search(r"TOKEN|SECRET|PASSWORD|API_KEY", k)]
-    for v in sorted({v for v in vals if len(v) >= 8}, key=len, reverse=True):
-        text = text.replace(v, "[redacted]")
-    for pat in SECRET_RES:
-        text = pat.sub("[redacted]", text)
-    return text
-
-
 # 2.59.0 (#1827): neutral first names for jobs (kalmido-capability: job_names); the app reads a name the same way (NAME_RE)
 JOB_NAMES = ("Alma", "Bruno", "Cora", "Dina", "Emil", "Fiona", "Greta", "Hugo", "Ida", "Jonas", "Kira", "Leo", "Mila", "Nils",
              "Olga", "Paula", "Rosa", "Theo", "Vera", "Yara")
 NAME_RE = re.compile(r"^([A-ZÄÖÜ][a-zäöüß]{1,11}(?: [A-Z])?): ")
 STATE_DIR = None  # set by the runner (agent_extras) when its --state differs from the environment
-
-
-def defuse_fence(text):
-    """2.1352.0 (#6884): every run of three or more < or > spaced out ("<<<<<" -> "< < < < <"); the twin of
-    agent_run.defuse_fence (this module runs without it), mcp_test checks that both give the same."""
-    return re.sub(r"<{3,}|>{3,}", lambda m: " ".join(m.group()), str(text or ""))
 
 
 def state_dir():
@@ -135,14 +112,6 @@ def jobs_dir():
 
 def job_dir(jid):
     return os.path.join(jobs_dir(), str(int(jid)))
-
-
-def write_json(path, data):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + ".new"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False)
-    os.replace(tmp, path)
 
 
 def load(jid):
@@ -175,19 +144,6 @@ def alive(pid):
         return True
     except OSError:
         return False
-
-
-def kill_tree(pid):
-    if not pid:
-        return
-    try:
-        if os.name == "nt":
-            subprocess.run(["taskkill", "/PID", str(int(pid)), "/T", "/F"], capture_output=True, timeout=30)
-        else:
-            import signal
-            os.killpg(int(pid), signal.SIGTERM)
-    except Exception:
-        pass
 
 
 def all_jobs():
@@ -235,20 +191,6 @@ def job_name(title, name="", parent=None, jobs=None):
 
 # ---- the Kalmido API (the few calls a job needs)
 
-def env_credentials():
-    """2.1367.0 (#6457): (url, token) from the environment, else from the env file KALMIDO_ENV_FILE (kalmido_mcp.py next to
-    this file reads it). A job started from inside a run (agent_job.py start) has no KALMIDO_TOKEN in its environment."""
-    url, tok = os.environ.get("KALMIDO_URL", ""), os.environ.get("KALMIDO_TOKEN", "")
-    if url and tok:
-        return url, tok
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    try:
-        from kalmido_mcp import env_credentials as creds
-    except ImportError:
-        return url, tok
-    return creds()
-
-
 # 2.1386.0 (#6668, review R3 F6): part of the capability request_token (mcp/launcher_capabilities.json)
 def mark_req_expired(jid=None):
     """2.1386.0 (#6668, review R3 F6): the request token of this job's env file answered 401 and the file holds no newer one
@@ -286,79 +228,42 @@ def take_req_expired():
     return out
 
 
-class Api:
+class Api(ApiBase):
+    """#7151: the shared transport (agent_common.Api: 429 again, a new request token after 401) with the job's contract:
+    errors as RuntimeError("HTTP <code> <text>"), soft() -> the answer or None."""
+
     def __init__(self):
         url, tok = env_credentials()  # 2.1367.0 (#6457): a job started from a run has only the env file's path
         if not url or not tok:
             raise SystemExit("KALMIDO_URL / KALMIDO_TOKEN missing")
-        self.base, self.token = url.rstrip("/") + "/api/v1", tok
+        super().__init__(url, tok)
 
-    def req(self, method, path, body=None, timeout=30, raw=None, ctype=None):
+    def note(self, msg):
+        log(msg)
+
+    def renew(self):
         """2.1386.0 (#6668 with #6457): a 401 with the token of the env file (a team agent's request token, replaced by the
-        starter in the same file) reads the file once more and sends the call again with a new token; never another token."""
-        try:
-            return self._req(method, path, body, timeout, raw, ctype)
-        except RuntimeError as e:
-            if not str(e).startswith("HTTP 401") or os.environ.get("KALMIDO_TOKEN") or not os.environ.get("KALMIDO_ENV_FILE"):
-                raise
-            url, tok = env_credentials()
-            if not tok or tok == self.token or url.rstrip("/") + "/api/v1" != self.base:
-                mark_req_expired(getattr(self, "job_id", None))  # review R3 F6: no fresh file -- the starter says so
-                raise
-            self.token = tok
-            return self._req(method, path, body, timeout, raw, ctype)
+        starter in the same file) reads the file once more; never another token, never another address."""
+        if os.environ.get("KALMIDO_TOKEN") or not os.environ.get("KALMIDO_ENV_FILE"):
+            return None
+        url, tok = env_credentials()
+        if not tok or tok == self.token or url.rstrip("/") + "/api/v1" != self.base:
+            mark_req_expired(getattr(self, "job_id", None))  # review R3 F6: no fresh file -- the starter says so
+            return None
+        return tok
 
-    def _req(self, method, path, body=None, timeout=30, raw=None, ctype=None):
-        data = raw if raw is not None else (json.dumps(body).encode() if body is not None else None)
-        h = {"Authorization": "Bearer " + self.token, "Accept": "application/json"}
-        if data is not None:
-            h["Content-Type"] = ctype or "application/json"
-        rq = urllib.request.Request(self.base + path, data=data, method=method, headers=h)
+    def req(self, method, path, body=None, timeout=30, raw=None, ctype=None, retry=True):
         try:
-            with urllib.request.urlopen(rq, timeout=timeout) as r:
-                b = r.read()
-                return json.loads(b) if b else {}
-        except urllib.error.HTTPError as e:
-            raise RuntimeError(f"HTTP {e.code} {e.read().decode(errors='replace')[:200]}")
+            return super().req(method, path, body, timeout=timeout, retry=retry, raw=raw, ctype=ctype)
+        except ApiError as e:
+            raise RuntimeError(f"HTTP {e.status} {e.body[:200]}") from None
 
     def soft(self, method, path, body=None):
         try:
-            return self.req(method, path, body, timeout=20)
+            return self.req(method, path, body, timeout=20, retry=False)
         except Exception as e:
             log(f"{method} {path}: {str(e)[:120]}")
             return None
-
-
-def multipart(fields, files):
-    """(body bytes, content type) of a multipart/form-data request; files = [(field, path)]."""
-    bd = "----kalmido" + uuid.uuid4().hex
-    out = []
-    for k, v in fields.items():
-        out.append(f'--{bd}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n'.encode())
-    for k, p in files:
-        name = os.path.basename(p).replace('"', "_")
-        mime = mimetypes.guess_type(p)[0] or "application/octet-stream"
-        with open(p, "rb") as f:
-            out.append((f'--{bd}\r\nContent-Disposition: form-data; name="{k}"; filename="{name}"\r\n'
-                        f"Content-Type: {mime}\r\n\r\n").encode() + f.read() + b"\r\n")
-    out.append(f"--{bd}--\r\n".encode())
-    return b"".join(out), "multipart/form-data; boundary=" + bd
-
-
-def chunks(text, n=CHAT_CHUNK):
-    text = (text or "").strip("\n")
-    out = []
-    while len(text) > n:
-        cut = text.rfind("\n\n", 0, n)
-        if cut < n // 2:
-            cut = text.rfind("\n", 0, n)
-        if cut < n // 2:
-            cut = n
-        out.append(text[:cut].rstrip())
-        text = text[cut:].lstrip("\n")
-    if text.strip():
-        out.append(text)
-    return out
 
 
 def outbox_files(outbox):

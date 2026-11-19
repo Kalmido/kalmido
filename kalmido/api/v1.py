@@ -1121,12 +1121,12 @@ def v1_tasks():
     rows = rows[:limit]
     out = [v1_task(d) for d in rows]
     if a.get("fields") == "compact":  # 2.0.8 (#333): the few fields an agent scans a list with
-        out = [{k: x.get(k) for k in V1_COMPACT} for x in out]
+        out = [{**{k: x.get(k) for k in V1_COMPACT}, **{k: x[k] for k in ("origin", "untrusted") if k in x}} for x in out]  # #7151
     return jsonify(data=out, next_cursor=cursor_enc("i", rows[-1]["id"]) if more else None)
 
 
 V1_COMPACT = ("id", "title", "list_id", "section_id", "section_kind", "parent_id", "status", "due", "due_time", "priority", "tags", "list_tags",
-              "assignee_id")
+              "assignee_id", "created_by")  # #7151: created_by, so an agent's data fence knows whose title it is
 
 
 # ---- 2.390.0 B (#3355): the further filters and the sort of GET /api/v1/tasks
@@ -1351,7 +1351,7 @@ def v1_tasks_sorted(c, a, where, args, sort):
     byid = {d["id"]: d for d in load_tasks(c, "id = ANY(CAST(? AS BIGINT[]))", (st_ids(k["id"] for k in keys),))} if keys else {}
     out = [v1_task(byid[k["id"]]) for k in keys if k["id"] in byid]
     if a.get("fields") == "compact":
-        out = [{k: x.get(k) for k in V1_COMPACT} for x in out]
+        out = [{**{k: x.get(k) for k in V1_COMPACT}, **{k: x[k] for k in ("origin", "untrusted") if k in x}} for x in out]  # #7151
     nxt = None
     if more:
         nxt = base64.urlsafe_b64encode(json.dumps([sort, keys[-1]["k"], keys[-1]["id"]]).encode()).decode().rstrip("=")

@@ -47,6 +47,8 @@ import sys
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+from agent_common import defuse_fence, write_json  # noqa: E402,F401  #7151: the starter's shared helpers
 CONFIG_FILE = "KALMIDO-DISPATCH.json"
 STOP_FILE = "dispatch-STOP"
 STATE_FILE = "dispatch.json"
@@ -157,13 +159,6 @@ def load_json(path, default):
         return v if isinstance(v, type(default)) else default
     except (OSError, ValueError):
         return default
-
-
-def write_json(path, data):
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=1)
-    os.replace(tmp, path)
 
 
 # 2.1400 (#7117): the configuration lives in the runner's state folder (<state dir>/KALMIDO-DISPATCH.json or
@@ -509,12 +504,6 @@ def same_file_first(q, cfg):
     return [a] + pulled + [t for t in q if int(t["id"]) not in ids]
 
 
-def defuse_fence(text):
-    """2.1352.0 (#6884): every run of three or more < or > spaced out ("<<<<<" -> "< < < < <"); the twin of
-    agent_run.defuse_fence (this module runs without it), mcp_test checks that both give the same."""
-    return re.sub(r"<{3,}|>{3,}", lambda m: " ".join(m.group()), str(text or ""))
-
-
 def fenced(text, n=1500):
     """One line of fenced text: whitespace folded, cut, and no fence marks of its own (a text cannot close its fence)."""
     return " ".join(defuse_fence(text).split())[:n]
@@ -850,13 +839,21 @@ def push_url_ok(cfg, repo):
     return True, ""
 
 
+# #7170: https:// or ssh:// with an optional user and port, or the scp form user@host:owner/repo
+PR_URL_RX = re.compile(r"^(?:(?:https|ssh)://(?:[^/@\s]+@)?|[\w.-]+@)([\w.-]+)(?::\d+)?[:/]([\w.-]+)/([\w.-]+?)(?:\.git)?/?$")
+
+
 def pr_env(cfg):
     """reader F2 (2.1400): pr_cmd's environment. gh picks its repository from the remotes (and gh-resolved), which the agent
     can write: for a GitHub push_url GH_REPO names the repository of push_url, so the pull request lands where the push went."""
     env = dict(os.environ)
-    m = re.match(r"^(?:https://|ssh://git@|git@)github\.com[:/]([\w.-]+)/([\w.-]+?)(?:\.git)?/?$", str(cfg.get("push_url") or "").strip())
-    if m:
-        env["GH_REPO"] = m.group(1) + "/" + m.group(2)
+    url = str(cfg.get("push_url") or "").strip()
+    m = PR_URL_RX.match(url)
+    if m:  # #7170 (reader F5 of job/5497): any host -- GitHub Enterprise needs the host in GH_REPO ([HOST/]OWNER/REPO)
+        host = m.group(1).lower()
+        env["GH_REPO"] = ("" if host == "github.com" else host + "/") + m.group(2) + "/" + m.group(3)
+    elif url:
+        log_once("push_url names no HOST/OWNER/REPO: pr_cmd picks the repository itself (GH_REPO not set)")
     return env
 
 
@@ -902,7 +899,7 @@ class Dispatcher:
 
     def save(self):
         try:
-            write_json(self.state_path, self.reg)
+            write_json(self.state_path, self.reg, indent=1)
         except OSError as e:
             log(f"state: {type(e).__name__}")
 

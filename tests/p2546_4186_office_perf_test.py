@@ -19,6 +19,8 @@ tenant-matrix: office  freelancer-matrix: office
  - 2.1365.0 (#6795): the income statement (GET /books/euer) and the key figures read the credit notes of the office once:
    their statements stay the same (at most +2) for 6 more paid invoices (was one query per paid invoice), organisation and
    personal office
+ - #6401: decrypting / encrypting 13 sealed bank bookings in one transaction reads the org key row and the switch
+   org_encrypt once each (was once per row and field); oc_forget and a rollback read the key row anew
  - 2.1315.0 (#6403): rc_receipts has the indexes ix6403_rc_receipts_ws / ix6403_rc_receipts_billed and the lookups by ws /
    billed_doc_id use them (EXPLAIN, sequential scans off)
 usage: p2546_4186_office_perf_test.py <datadir>"""
@@ -310,6 +312,47 @@ check(r.status_code == 201, "bank: import one booking " + r.text[:200])
 items = A.get(B + O + "/bank/tx").json().get("items", [])
 sug = [s_["id"] for t in items for s_ in t.get("suggestions", []) if s_["kind"] == "receipt"]
 check(sug[:1] == [RA[1]], f"bank: the booking of 23.80 suggests the receipt of the same amount {sug}")
+
+# #6401: the org key row is read once per transaction (request / background run), not per row and field. 12 more sealed
+# bookings, then every booking decrypted like the bank list does: org_keys / org_encrypt are asked once each; a rollback or
+# oc_forget (a key changed) asks again; the values are the plain ones.
+ntry = "".join(f'<Ntry><Amt Ccy="EUR">{10 + k}.50</Amt><CdtDbtInd>DBIT</CdtDbtInd><Sts><Cd>BOOK</Cd></Sts><BookgDt><Dt>{TD}</Dt></BookgDt>'
+               f'<NtryDtls><TxDtls><RltdPties><Cdtr><Pty><Nm>Laden {k}</Nm></Pty></Cdtr></RltdPties><RmtInf><Ustrd>Kauf {k}</Ustrd></RmtInf>'
+               '</TxDtls></NtryDtls></Ntry>' for k in range(12))
+camt12 = ('<?xml version="1.0" encoding="UTF-8"?><Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.08"><BkToCstmrStmt><Stmt>'
+          f'<Id>S6401</Id>{ntry}</Stmt></BkToCstmrStmt></Document>')
+r = A.post(B + O + "/bank/import", json={"text": camt12, "filename": "auszug6401.xml"})
+check(r.status_code == 201, "#6401: import 12 more bookings " + r.text[:200])
+CODE = f"""
+import json
+from kalmido.core.orgcrypt import oc_dec_fields, oc_enc_fields, oc_forget, oc_is_enc
+rows = c.execute("SELECT * FROM office_bank_tx WHERE org_id=?", ({ORG},)).fetchall()
+n = {{"keys": 0, "switch": 0}}
+ex = c.execute
+def counting(sql, *a, **k):
+    n["keys"] += "FROM org_keys" in sql
+    n["switch"] += "key='org_encrypt'" in sql
+    return ex(sql, *a, **k)
+c.execute = counting
+out = [oc_dec_fields(c, {ORG}, "office_bank_tx", r) for r in rows]
+for r in rows:
+    oc_enc_fields(c, {ORG}, "office_bank_tx", {{"counterpart": "x", "purpose": "y"}})
+one = dict(n)
+oc_forget({ORG})
+oc_dec_fields(c, {ORG}, "office_bank_tx", rows[0])
+after_forget = n["keys"]
+c.rollback()
+oc_dec_fields(c, {ORG}, "office_bank_tx", rows[0])
+print(json.dumps({{"rows": len(rows), "sealed": sum(oc_is_enc(r["counterpart"]) for r in rows), "one": one,
+                  "after_forget": after_forget, "after_rollback": n["keys"],
+                  "names": sorted(d["counterpart"] for d in out if d["counterpart"].startswith("Laden"))}}))
+"""
+res = last_json(in_app(CODE))
+print(f"PERF #6401: org_keys reads for {res.get('rows')} sealed bookings decrypted + encrypted once each: {res.get('one')}", flush=True)
+check(res.get("rows", 0) >= 13 and res.get("sealed") == res.get("rows"), f"#6401: the bookings are sealed at rest {res}")
+check(res.get("one") == {"keys": 1, "switch": 1}, f"#6401: the org key row and the switch are read once for all rows {res}")
+check(res.get("after_forget") == 2 and res.get("after_rollback") == 3, f"#6401: oc_forget and a rollback read the key row anew {res}")
+check(res.get("names") == sorted(f"Laden {k}" for k in range(12)), f"#6401: the values decrypt to the plain ones {res}")
 
 # 2.1315.0 (#6403): rc_receipts has indexes on the area (ws) and on the invoice a receipt was billed on (partial); the office's
 # statements (ws=?, ws=? AND billed_doc_id=?) can use them. Sequential scans off: the few test rows would else be read whole.
