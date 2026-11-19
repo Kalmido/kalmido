@@ -311,9 +311,9 @@ const V = B + 'api/v1';
     check(await ffLogin(o, 'light') === 200, tag + ': login');
     await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: 390, height: 844}});
     await o.nav(B + '#today'); await ready(o);
-    await ev(`(() => { document.querySelector('#top [data-act="side"]').click(); return 1; })()`); await o.until(`(() => { const b = document.querySelector('#side .wsbar'); return !!b && b.getBoundingClientRect().width > 30; })()`);
+    await ev(`(() => { document.querySelector('#top [data-act="side"]').click(); return 1; })()`); await o.until(`(() => { const b = document.querySelector('#side .sbbrand'); return !!b && b.getBoundingClientRect().width > 30; })()`);
     // 2.87.9 (#1933): the switch is a round icon button beside the search
-    check(await ev(`(() => { const b = document.querySelector('#side .wsbar'); return !!b && b.getBoundingClientRect().width > 30 && b.parentElement.classList.contains('sbhead'); })()`), `${tag}: #935 the switch in the drawer, the head of the sidebar (2.138.2 #2392)`);  // 2.138.2 (#2392): the switch is the sidebar's heading
+    check(await ev(`(() => { const b = document.querySelector('#side .sbbrand'); return !!b && b.getBoundingClientRect().width > 30 && b.parentElement.classList.contains('sbhead'); })()`), `${tag}: #935 the switch in the drawer, the head of the sidebar (2.138.2 #2392)`);  // 2.138.2 (#2392): the switch is the sidebar's heading
     await shot('p2280-light-390-drawer.png');
     await ev(`(() => { wsSet('private'); return 1; })()`); await o.until(`!!document.querySelector('#top .wschip')`);
     check(await ev(`!!document.querySelector('#top .wschip')`), `${tag}: #935 the chip on the phone`);

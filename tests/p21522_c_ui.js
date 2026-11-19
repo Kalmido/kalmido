@@ -119,8 +119,9 @@ const v1 = async (method, url, body) => { const r = await fetch(B + 'api/v1' + u
       await nav(B + '#inbox');
       await ready(ev, `!!document.querySelector('#top .menu')`, 60);
       await ev(`document.querySelector('#top .menu').click()`); await sleep(700);
-      const m = await ev(`(() => { const w = document.querySelector('#side .sbbrand .sbbsub .wsn'); return w ? {t: w.textContent, sw: w.scrollWidth, cw: w.clientWidth} : null; })()`);
-      check(m && (u !== 'alice' || /^All workspaces$/i.test(m.t)) && m.sw <= m.cw, '#2660: ' + label + ': "All workspaces" is whole under the brand ' + JSON.stringify(m));
+      // 2.1437.0 (#7299): the line with the workspace under the brand is gone (the chip in the header names it): the brand fits whole
+      const m = await ev(`(() => { const b = document.querySelector('#side .sbbrand'); return b ? {sub: !!b.querySelector('.sbbsub, .wsn'), sw: b.scrollWidth, cw: b.clientWidth} : null; })()`);
+      check(m && !m.sub && m.sw <= m.cw + 1, '#2660 / #7299: ' + label + ': the brand is whole, no workspace line under it ' + JSON.stringify(m));
       await shot('p21522c-brand-' + u + '.png');
     }, true);
   }

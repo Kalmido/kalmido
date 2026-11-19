@@ -63,7 +63,7 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
     await ev(`(() => { wsSet('org:${ORG}'); return 1; })()`); await sleep(900);
     d = await ev(drawer);
     check(d.open && d.scrim && d.ws === 'org:' + ORG && /cal/.test(d.hash), '#3847: the calendar stays and the drawer stays ' + JSON.stringify(d));
-    check(await ev(`(() => { const t = document.querySelector('#kbar .kbsw, #side .wsbar'); return !!t && (t.textContent || '').includes('Studio'); })()`), '#3847: the switch shows the new workspace');
+    check(await ev(`(() => { const t = document.querySelector('#kbar .kbsw, #top .wschip');  /* 2.1437.0 (#7299): the chip names it (the drawer's brand leads to Start) */ return !!t && (t.textContent || '').includes('Studio'); })()`), '#3847: the switch shows the new workspace');
     // the hold does not leak: a later page change closes the drawer as before
     await ev(`(() => { go('today'); return 1; })()`); await sleep(700);
     check(!(await ev(drawer)).open, '#3847: a later page change closes the drawer again');
@@ -101,7 +101,7 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
     await open(ev);
     // (#7235): who closes the drawer - every closeSide() call with its caller and the hold (SBM.keep) at that moment, for the log
     await ev(`(() => { window.__cs = []; const o = window.closeSide; window.closeSide = function (...a) { window.__cs.push((typeof SBM === 'object' && SBM.keep ? 'keep ' : '') + location.hash + ' ' + (new Error().stack || '').split('\\n').slice(1, 6).map(x => x.replace(/@.*\\//, '@').trim()).join(' < ')); return o.apply(this, a); }; return 1; })()`);
-    await tap('#side .wsbar'); await pick('Private');
+    await tap('#top .wschip'); await pick('Private');  // 2.1437.0 (#7299): the switch is the chip (was the drawer's brand); a switch while the drawer is open keeps it (#3847)
     await ready(ev, settled, 20); await sleep(900);
     d = await ev(drawer);
     const cs = await ev(`JSON.stringify(window.__cs || [])`);

@@ -46,8 +46,9 @@ const FEAT = 'cal,comments,collab';
   // menu has Start
   // 2.152.3 (#2619): on a computer the brand sits in the head bar (#kbar .kbsw: .kbbrand + the workspace), its menu only
   // switches workspaces; Start is in the account menu. The phone keeps the brand in the drawer with Start (brandStart)
-  const sbmark = `(() => { const b = document.querySelector('#kbar .kbsw'), k = b && b.querySelector('.kbbrand'); if (!k) return null; const lg = k.querySelector('svg.logo'), w = k.querySelector('svg.kword');
-    return {act: b.dataset.act, plate: lg && lg.querySelector('rect').getAttribute('fill'), word: !!w, inside: k.scrollWidth <= k.clientWidth + 1, tag: b.tagName, old: !!document.querySelector('#side .sbmark, #side .sbbrand')}; })()`;
+  // 2.1437.0 (#7299): the brand is a link to Start (its own element), the chip beside it opens the workspace menu
+  const sbmark = `(() => { const k = document.querySelector('#kbar .kbbrand'); if (!k) return null; const lg = k.querySelector('svg.logo'), w = k.querySelector('svg.kword');
+    return {go: k.dataset.go, href: k.getAttribute('href'), plate: lg && lg.querySelector('rect').getAttribute('fill'), word: !!w, inside: k.scrollWidth <= k.clientWidth + 1, tag: k.tagName, old: !!document.querySelector('#side .sbmark, #side .sbbrand')}; })()`;
   // 2.1401.0 (#6127): ONE workspace menu on every device: the phone's Start is in the drawer's account menu too (no wsm-home)
   const brandStart = `(() => { document.querySelector('#side .sbacct').click(); return new Promise(r => setTimeout(() => { const s = [...document.querySelectorAll('#pop [role="menuitem"]')].find(b => (b.querySelector('.ml') || b).textContent.trim() === 'Start'); if (s) s.click(); r(!!s); }, 300)); })()`;
   const acctStart = `(() => { document.querySelector('#kbar .kbacct').click(); return new Promise(r => setTimeout(() => { const s = [...document.querySelectorAll('#pop [role="menuitem"]')].find(b => (b.querySelector('.ml') || b).textContent.trim() === 'Start'); if (s) s.click(); r(!!s); }, 300)); })()`;  // 2.152.3 (#2619): Start on a computer = the account menu
@@ -62,7 +63,7 @@ const FEAT = 'cal,comments,collab';
     check(await ready(ev, `!!document.querySelector('#kbar .kbsw')`, 80), 'the app is up');  // 2.152.3 (#2619): the workspace switch moved into the head bar
     // ===== #2433 / #2437; 2.161.2 (#2607): the mark moved to the top (the brand = the workspace switch), Start in its menu
     const mk = await ev(sbmark);
-    check(mk && mk.tag === 'BUTTON' && mk.act === 'sbb-ws' && !mk.old, '#2607: the brand on top is a button opening the workspace menu, no mark at the bottom: ' + JSON.stringify(mk));  // 2.152.3 (#2619): the brand moved from the panel into the head bar (sbb-ws), none left in the panel
+    check(mk && mk.tag === 'A' && mk.go === 'home' && mk.href === '#home' && !mk.old, '#7299 (was #2607 variant B): the brand on top is a link to Start, no mark at the bottom: ' + JSON.stringify(mk));  // 2.152.3 (#2619): the brand moved from the panel into the head bar (sbb-ws), none left in the panel
     check(mk && mk.plate === 'currentColor' && mk.word  /* 2.233.0 (#3195): plate follows the accent */ && mk.inside, '#2433: the logo plate is lilac, the word mark shows, nothing overflows: ' + JSON.stringify(mk));
     check(await ev(wsNoStart), '#2619: the brand menu switches workspaces, no Start / Hide the sidebar');  // 2.152.3 (#2619): Start left the brand menu on a computer
     check(await ev(acctStart), '#2607: the account menu has Start');  // 2.152.3 (#2619): Start on a computer = the account menu

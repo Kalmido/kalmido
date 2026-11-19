@@ -808,7 +808,10 @@ function sbb_barHtml() {
   // P4: without an organisation the switch shows the private space (its menu: Private + "Add a company")
   const cur = wsOn() ? wsCur() : 'private', nm = wsName(cur);
   const acct = S.me ? `<button type="button" class="kbacct" data-act="user-menu" aria-haspopup="menu" title="${esc(acctLabel())}" aria-label="${esc(acctLabel())}">${av(S.me.id, S.me.display_name, 'avatar', '', '', true)}${updDot() ? `<span class="kbupd" title="${esc(tr('Update available'))}"></span>` : '' /* 2.1401.0 (#6127): Settings live in the account menu now, so does the update's dot (#3400) */}</button>` : '';
-  return `<button type="button" class="kbsw" data-act="sbb-ws" aria-haspopup="menu" aria-label="${esc(APP_NAME + ' · ' + tr('Workspace') + ': ' + nm)}" title="${esc(tr('Switch to'))}"${wsp_attr(cur)}><span class="kbbrand">${logoSvg(28)}${wordSvg()}</span><span class="kbfirm">${cur === 'all' ? ic('grid', 's') : wsp_dot(cur)}<span class="wsn">${esc(nm)}</span>${ic('chev', 's')}</span></button>`
+  // 2.1437.0 (#7299, variant 1 of 19.11.2026): split in two - the brand (kbbrand) is a link to Start, the chip beside it
+  // (kbsw kbfirm) names the workspace and opens its menu (wsMenu); was ONE button opening the menu (#2607 variant B)
+  return `<a href="#home" class="kbbrand" data-go="home" aria-label="${esc(APP_NAME + ' · ' + tr('Start|home'))}" title="${esc(tr('Start|home'))}">${logoSvg(28)}${wordSvg()}</a>`
+    + `<button type="button" class="kbsw kbfirm" data-act="sbb-ws" aria-haspopup="menu" aria-label="${esc(tr('Workspace: {0}', nm))}" title="${esc(tr('Switch to'))}"${wsp_attr(cur)}>${cur === 'all' ? ic('grid', 's') : wsp_dot(cur)}<span class="wsn">${esc(nm)}</span>${ic('chev', 's')}</button>`
     + '<div class="fv2bar" role="group"></div>'  // 2.441.0 (#3592): the favourites, only in the free room (favtiles.js fv2_barDraw)
     + `<button type="button" class="kbsrch" data-act="palette" title="${esc(tr('Search and commands'))} (${kbText('Mod+K')})" aria-label="${esc(tr('Search and commands'))}">${ic('search', 's')}<span>${esc(tr('Search'))}</span></button>`
     + `<span class="kbend">${/*html-ok*/ spl_btn() /* 2.1037.0 (#5803): miniwin.js */}${bellBtn()}${netDotHtml()}${acct}</span>`;

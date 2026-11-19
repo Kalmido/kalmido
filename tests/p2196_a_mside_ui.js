@@ -52,7 +52,7 @@ const MODS = 'cal,comments,office,contacts,wiki,time,pomo,review,stats,agents';
       search: !!document.querySelector('#side .sbfix .scmd'), today: !!document.querySelector('#side .sbfix .srow[data-go="today"]'), inbox: !!document.querySelector('#side .sbfix .srow[data-drop="inbox"]'),
       rowFixed: !!document.querySelector('#side .sbfix .sbmr'), lists: !!document.querySelector('#side .sg-lists'), office: !!document.querySelector('#side [data-ofmg]'), wiki: !!document.querySelector('#side .sbbp, #side [data-act="sbb-tree"], #side .sbbtl'),
       todayTwice: document.querySelectorAll('#side .srow[data-go="today"]').length, set: !!(dock && dock.querySelector('.sset')), acct: !!(dock && dock.querySelector('.sbacct')),
-      dockBottom: dock ? Math.round(sr.bottom - R(dock).bottom) : null, fshr: !!document.querySelector('#side .fhead[data-folder="Family"] .fshr'), ws: !!document.querySelector('#side .sbhead .wsbar'),
+      dockBottom: dock ? Math.round(sr.bottom - R(dock).bottom) : null, fshr: !!document.querySelector('#side .fhead[data-folder="Family"] .fshr'), ws: !!document.querySelector('#side .sbhead .sbbrand') && !!document.querySelector('#top .wschip') /* 2.1437.0 (#7299): the brand on top, the switch is the chip */,
       inside: s.scrollWidth <= s.clientWidth + 1, mod: S.route.mod, hash: location.hash}; })()`;
 
   const phone = async (o, w, h, tag) => {

@@ -243,14 +243,12 @@ function wsBadge(l) {
   // 2.53.0 (#1474): an organisation's list: the sign in the organisation's colour (Private stays neutral)
   return `<button type="button" class="wsbadge tf5" data-act="ws-menu" data-ico="${ws === 'private' ? 'home' : 'brief'}" aria-haspopup="menu" title="${esc(tr('Workspace: {0}', nm))}" aria-label="${esc(tr('Workspace: {0}', nm))}"${wsp_attr(ws) /* 2.57.0 B (#1807): my colour, Private too */}>${wsIcon(ws)}<span>${esc(nm)}</span></button>`;
 }
-// the switch in the sidebar (under the brand): one button naming the shown workspace (a long organisation name fits), the
-// menu offers Private | <organisations> | All workspaces
-// 2.161.2 A (#2607, variant B): the brand IS the switch: the bot icon + the word mark, big, on top; the shown workspace as
-// a small line under it (dot + name), an arrow on the right. The menu adds Start and "Hide the sidebar" (wsMenu).
+// the brand on top of the sidebar (the phone's drawer): the bot icon + the word mark (2.161.2 A, #2607)
+// 2.1437.0 (#7299, variant 1 of 19.11.2026, newer than #2607 variant B "the brand is the switch"): a click on the brand
+// always leads to Start; the workspace is chosen only with the chip in the header (wsChip, always there). The line with the
+// workspace and the arrow under the brand are gone (the chip names it).
 function wsBarHtml() {
-  // 2.87.9 (#1933, P4): without an organisation the button stays and shows the private space (its menu has only that)
-  const cur = wsOn() ? wsCur() : 'private';
-  return `<button type="button" class="wsbar sbbrand ${cur === 'all' ? '' : 'on'}" data-act="ws-menu" aria-haspopup="menu" aria-label="${esc(APP_NAME + ' · ' + tr('Workspace') + ': ' + wsName(cur))}" title="${esc(tr('Workspace') + ' · ' + tr('Only this workspace is shown'))}"${wsp_attr(cur) /* 2.53.0 (#1474), 2.57.0 B (#1807) */}>${logoSvg(36)}<span class="sbbt">${wordSvg()}<span class="sbbsub">${cur === 'all' ? ic('brief', 's') : wsp_dot(cur) /* 2.138.0 B (#2161): colour dot (or the icon for "All") in front of the name */}<span class="wsn">${esc(wsName(cur))}</span></span></span>${ic('chev', 's') /* 2.138.0 B (#2161): name + arrow */}</button>`;
+  return `<a href="#home" class="sbbrand" data-go="home" aria-label="${esc(APP_NAME + ' · ' + tr('Start|home'))}" title="${esc(tr('Start|home'))}">${logoSvg(36)}<span class="sbbt">${wordSvg()}</span></a>`;
 }
 // 2.161.2 A (#2608): the brand's bot blinks now and then (every 20-60 s, by chance), never while something is typed, the
 // page is hidden or a menu is open; no timer at all with reduced motion (the system setting; it can change while open)
@@ -260,7 +258,7 @@ function wsBlinkPlan() {
   clearTimeout(wsBlinkT); wsBlinkT = 0;
   if (wsBlinkCalm()) return;
   wsBlinkT = setTimeout(() => {
-    const b = $('#kbar .kbsw') || $('#side .sbbrand'), a = document.activeElement;  // 2.152.3 A (#2619): a computer: the head bar
+    const b = $('#kbar .kbbrand') || $('#side .sbbrand'), a = document.activeElement;  // 2.1437.0 (#7299): the brand is its own link  // 2.152.3 A (#2619): a computer: the head bar
     if (b && !document.hidden && !(a && (/INPUT|TEXTAREA|SELECT/.test(a.tagName) || a.isContentEditable)) && $('#pop')?.classList.contains('hidden') !== false) {
       b.classList.remove('blink'); void b.offsetWidth; b.classList.add('blink');
       setTimeout(() => b.classList.remove('blink'), 600);
@@ -270,11 +268,14 @@ function wsBlinkPlan() {
 }
 try { matchMedia('(prefers-reduced-motion: reduce)').addEventListener?.('change', wsBlinkPlan); } catch { /* old engine */ }
 wsBlinkPlan();
-// the chip in the header while one workspace is shown (a click opens the switch as a menu)
+// the chip in the header (a click opens the switch as a menu)
+// 2.1437.0 (#7299): always there, "All workspaces" too (its grid symbol): it is the only way to switch now (the brand leads to Start).
+// Without an organisation it shows Private like the head bar's switch (#1933 P4: its menu holds "Add an organisation"); not for a
+// child or an agent without one (nothing to switch, nothing to add)
 function wsChip() {
-  if (!wsOn() || wsCur() === 'all') return '';
-  const cur = wsCur();
-  return `<button type="button" class="wschip tf5" data-act="ws-menu" data-ico="${cur === 'private' ? 'home' : 'brief'}" aria-haspopup="menu" title="${esc(tr('Workspace: {0}', wsName(cur)) + ' · ' + tr('Only this workspace is shown'))}" aria-label="${esc(tr('Workspace: {0}', wsName(cur)))}"${wsp_attr(cur) /* the workspace's colour (#1474, #1807) */}>${wsIcon(cur)}<span class="wsname">${esc(wsName(cur))}</span></button>`;  // #7210: the name has its own class: the phone hides only it, never the letter / symbol (.orgini, .wsemo)
+  if (!wsOn() && (S.me?.kid || S.me?.kind === 'agent')) return '';
+  const cur = wsOn() ? wsCur() : 'private';
+  return `<button type="button" class="wschip tf5" data-act="ws-menu" data-ico="${cur === 'private' ? 'home' : cur === 'all' ? 'grid' : 'brief'}" aria-haspopup="menu" title="${esc(tr('Workspace: {0}', wsName(cur)) + ' · ' + tr('Only this workspace is shown'))}" aria-label="${esc(tr('Workspace: {0}', wsName(cur)))}"${wsp_attr(cur) /* the workspace's colour (#1474, #1807) */}>${wsIcon(cur)}<span class="wsname">${esc(wsName(cur))}</span></button>`;  // #7210: the name has its own class: the phone hides only it, never the letter / symbol (.orgini, .wsemo)
 }
 // 2.1401.0 (#6127): ONE menu "Switch to" for the head bar (sbb-ws), the phone's button / the brand of the drawer and the
 // workspace badges (ws-menu), the same entries in the same order on every device: the organisations (each with its own sign),
