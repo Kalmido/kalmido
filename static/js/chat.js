@@ -476,13 +476,16 @@ document.addEventListener('click', e => {
 const tc_mid = () => td_rc('tcmid', () => matchMedia('(max-width:899px)').matches);
 const tth_wide = () => !tc_mid() && !(typeof cw_ren !== 'undefined' && cw_ren) && !S.cw?.lt;
 // #7302: the thread pane's width by the one grip (grip.js, docs/dev/kern.md "Resizing: the one grip"): --g-tc-thread on .tcview,
-// 16rem up to half of the area; nothing stored = today's minmax (app.css .tcview.inthread). Called after each draw of the team
+// 16rem up to all the room the conversation (16rem) leaves; nothing stored = today's minmax (app.css .tcview.inthread). Called after each draw of the team
 // view (render.js): a morph took the grip's marks and the variable off, they come back
+const TTH_ROOM_MIN = 16;  // rem the conversation keeps beside a wide thread
 function tth_grip() {
   const g = $('#view .tthpane > .tthgrip'), v = g?.closest('.tcview'); if (!g || !v) return;
   if (g._grip && (g.classList.contains('grip') || document.body.classList.contains('gdrag'))) { g.classList.add('grip', 'grip-x'); g._grip.refresh(); return; }  // a redraw during a drag: the same handle
   const rem = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-  grip_col(g, {key: 'tc-thread', edge: 'start', panel: () => g.parentElement, scope: v, min: 16, max: () => Math.max(16, Math.floor(v.clientWidth / rem() / 2))});
+  // no fixed cap (product rule "Handles", #4829): the room of the view minus the list beside it and the conversation's 16rem
+  const room = () => { const l = $('.tclist', v); return (v.clientWidth - (l && l.offsetParent ? l.getBoundingClientRect().width : 0)) / rem() - TTH_ROOM_MIN; };
+  grip_col(g, {key: 'tc-thread', edge: 'start', panel: () => g.parentElement, scope: v, min: 16, max: () => Math.max(16, Math.floor(room()))});
 }
 const tth_all = () => S.tc.th ? [S.tc.th.root, ...S.tc.th.msgs].filter(Boolean) : [];
 // 2.1213.0 (#6166): "edited" opens the earlier versions (as in an agent's chat, agentchat.js chatEditsShow). The server keeps
