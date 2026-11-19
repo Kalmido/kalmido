@@ -679,7 +679,9 @@ def folder_group_del(gid):
     if gid not in _fgroups(c, me(), f):  # 2.958.0 (#5245): the folder nodes' shares (group_shares is gone)
         return err(tr("unknown"), 404)
     from .folders import need_folder_write
-    need_folder_write(c, me(), f)  # #6607
+    need_folder_write(c, me(), f)  # #6607: taking a folder share back is refused too - the share gives roles on every list of the folder,
+    # the organisation's project too (lf_folder_share), so its removal changes that project for the others; per
+    # project the person still leaves / removes (member_remove)
     from .lffolder import lf_folder_share
     lf_folder_share(c, me(), f, gid, None, group=True)
     grp_sync(c, before)

@@ -9,7 +9,8 @@ and not through the next route somebody forgets. Invented names only, addresses 
    3 the folder ways (props, agents, owner, public links, people, groups, Playbook, notification template, repositories,
      dissolving, renaming / moving the folder, folder-reset of a list): 403 while the folder holds a project she only reads;
      GET public-links names no link of it any more. Reader job/5762 F1: renaming "Work" under her private folder with its own
-     Playbook would have put the organisation's project under that Playbook -> 403, the project's path stays. F2: switching
+     Playbook would have put the organisation's project under that Playbook -> 403, the project's path stays; F4: the same
+     through the projects tree (tree/move, PATCH /api/files/nodes/<id> of a private twin folder "Work"). F2: switching
      the public links OFF answers 200 but touches only lists she owns by role (her read-only project keeps its link)
    4 POST /api/lists/<id>/join: read-only joins no organisation-wide project (no member row); a member joins
    5 PATCH /api/office/agents/<id>: an office group with "settings: manage" no longer lifts the read-only role; the admin switches
@@ -197,6 +198,25 @@ check(r.status_code == 403 and dbx("SELECT folder FROM lists WHERE id=?", (L2,))
       f"way 3: the folder with her read-only project does not move under her Playbook ({r.status_code} {r.text[:120]})")
 check(Ri.post(B + "/api/folders/rename", json={"old": "Mine", "new": "Mine 2"}).ok
       and Ri.post(B + "/api/folders/rename", json={"old": "Mine 2", "new": "Mine"}).ok, "way 3: her own private folder renames freely")
+# reader job/5762 F4: the same through the projects tree -- a private twin folder "Work" moved under "Mine" (tree/move, the file
+# store's node PATCH) would take every path "Work" of hers along (folder_rename_do), the organisation's project too
+sp = [x for x in Ri.get(B + "/api/lists/tree").json().get("spaces", []) if not x.get("org_id")]
+check(len(sp) == 1, f"way 3: her private projects tree {len(sp)}")
+PR = sp[0]["root"] if sp else 0
+PR = PR.get("id") if isinstance(PR, dict) else PR
+r = Ri.post(B + "/api/lists/folders", json={"parent_id": PR, "name": "Work"})
+check(r.status_code in (200, 201), f"way 3: a private twin folder Work ({r.status_code} {r.text[:120]})")
+TW = r.json().get("id") if r.status_code in (200, 201) else 0
+mine = [f for x in Ri.get(B + "/api/lists/tree").json().get("spaces", []) if not x.get("org_id")
+        for f in (x.get("folders") or []) if f.get("path") == "Mine"]
+check(len(mine) == 1, f"way 3: her private folder Mine in the tree {mine}")
+MN = mine[0]["id"] if mine else 0
+for m, p, body in (("POST", "/api/lists/tree/move", {"node_id": TW, "parent_id": MN}),
+                   ("PATCH", f"/api/files/nodes/{TW}", {"parent_id": MN}),
+                   ("PATCH", f"/api/files/nodes/{TW}", {"name": "Renamed"})):
+    r = Ri.request(m, B + p, json=body)
+    check(r.status_code == 403 and dbx("SELECT folder FROM lists WHERE id=?", (L2,))[0][0] == "Work",
+          f"way 3: {m} {p} {body} leaves the organisation's project where it was ({r.status_code} {r.text[:120]})")
 # reader job/5762 F2: switching the public links off is a taking back -- 200, her read-only project keeps its link (not hers to change)
 r = Ri.put(B + "/api/folders/public-links", json={**F, "on": False})
 check(r.ok and r.json().get("removed") == 0 and dbx("SELECT 1 FROM public_links WHERE list_id=?", (L2,)),
