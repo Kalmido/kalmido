@@ -854,7 +854,7 @@ $('#scrim').addEventListener('click', () => { closeSide(); closePop(); });
 // closes (the drawer: closeSide, the panel beside the content: the button's way, sbb_panel, the state is kept as before),
 // otherwise it snaps back. Starts only after a clear sideways move (8 px, like calgest.js), vertical scrolling stays, a
 // second finger cancels. Mouse / keyboard are untouched (touch events only).
-// 2.1408.0 (#6693): the counterpart - a swipe to the right opens the folded sidebar on every touch device: folded by hand (LS
+// (#6693): the counterpart - a swipe to the right opens the folded sidebar on every touch device: folded by hand (LS
 // sideFold) through sbb_panel(), the drawer (side-rail, phone) through sideDrawerOpen(). The same thresholds (8 px lock, a
 // third of the width), it follows the finger. Only on the page (#main: the head bar, empty space, group heads, section
 // titles); never within 16 px of the screen's edge (the phone's Back), on a row that swipes itself (rowswipe.js: done /

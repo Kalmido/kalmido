@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # kalmido-suite: fresh
-"""2.1408.0 (#6388): the queue bg_jobs - failed and lost rows are seen, a raising function is tried again, waiting rows have a
+"""(#6388): the queue bg_jobs - failed and lost rows are seen, a raising function is tried again, waiting rows have a
 highest age; a server agent's run that a restart cut off tells its person. Own container (start.sh). Invented accounts only.
  1. a function that raises: the row waits again with a growing gap (30 s, then 60 s), the payload kept, the error named; after
     its runs (retry=3) it fails; a kind with tries=1 and no retry fails at once (the old way). mail:* / push:* retry 3, highest

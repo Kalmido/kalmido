@@ -52,7 +52,7 @@ function swn_box(el, full, inside) {
   return {l: pl, t: pt, w: f.clientWidth - pl - (parseFloat(cs.paddingRight) || 0), h: f.clientHeight - pt - (parseFloat(cs.paddingBottom) || 0)};
 }
 /** @param {HTMLElement|Document} root @param {{area: (t: any) => HTMLElement|null, can: (dir: number) => boolean, go: (dir: number) => any, peek?: (dir: number) => ({img?: string, el?: HTMLElement}|null), full?: boolean, inside?: boolean, edge?: number, busy?: () => boolean, back?: (el: HTMLElement) => void, cut?: boolean, lock?: number}} o */
-/** @type {{root: HTMLElement|Document, area: (t: any) => HTMLElement|null}[]} 2.1408.0 (#6693): the attached areas */
+/** @type {{root: HTMLElement|Document, area: (t: any) => HTMLElement|null}[]} (#6693): the attached areas */
 const SWN_REG = [];
 /** @param {any} t -> true when a leafing area owns a touch on t (the sidebar's swipe to the right leaves it alone, events.js) */
 function swn_owns(t) {

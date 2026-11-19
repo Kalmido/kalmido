@@ -104,7 +104,7 @@ rs = rows()
 check(len(rs) == 1 and rs[0][1] == "done" and rs[0][2] == 1 and rs[0][3] == "", f"one row of the queue, done after one run, payload emptied {rs}")
 h = health(A)
 q = h.get("queue") or {}
-# 2.1408.0 (#6388): + failed_1h, failed_kinds (kind names), oldest_wait_s
+# (#6388): + failed_1h, failed_kinds (kind names), oldest_wait_s
 check(set(q) == {"wait", "run", "done", "failed", "failed_1h", "failed_kinds", "oldest_wait_s"}
       and all(isinstance(q[k], int) for k in ("wait", "run", "done", "failed", "failed_1h", "oldest_wait_s"))
       and all(isinstance(x, str) for x in q["failed_kinds"]) and q["done"] >= 1,
@@ -224,7 +224,7 @@ check(wait_for(lambda: len(backups(A)["items"]) == n0 + 1, 30), "the worker's ba
 
 # review 2.193.0: a lost mail is not sent twice (failed, not again); a kind of another version is not taken (it waits)
 sql("INSERT INTO bg_jobs(kind, payload, state, attempts, run_after, created_at, started_at, beat_at) VALUES('mail:pwreset', '', 'run', 1, '2000-01-01T00:00:00+00:00', '2000-01-01T00:00:00+00:00', '2000-01-01T00:00:00+00:00', '2000-01-01T00:00:00+00:00')")
-# 2.1408.0 (#6388): made now - a row of a kind no process knows fails 'unknown kind' after 24 h (p21408_6388_bgjobs)
+# (#6388): made now - a row of a kind no process knows fails 'unknown kind' after 24 h (p21408_6388_bgjobs)
 sql("INSERT INTO bg_jobs(kind, payload, state, attempts, run_after, created_at) VALUES('zz:other-version', 'v1.x', 'wait', 0, '2000-01-01T00:00:00+00:00', ?)",
     (time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime()),))
 lost = wait_for(lambda: [x for x in rows("mail:pwreset") if x[1] != "run"], 90)

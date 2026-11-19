@@ -3,7 +3,7 @@
 // - jsdom: swipe left > 1/3 of the width closes (panel: folded and remembered like the button; drawer: closeSide), a short
 //   swipe keeps it open and the panel snaps back, a vertical move / a swipe to the right / a second finger do nothing,
 //   the same for a person without an organisation
-// - 2.1408.0 (#6693): a swipe to the right on the page opens the folded sidebar (folded by hand: sideFold back to false; the
+// - (#6693): a swipe to the right on the page opens the folded sidebar (folded by hand: sideFold back to false; the
 //   drawer, also the phone's: open); short = it snaps back; not on a task row (its own swipe), not from the 16 px edge, not
 //   when it shows already; the panel is clipped at its left edge while it moves (glides under the icon bar), the drawer's
 //   scrim follows the finger; a drag of drag.js holding the finger never moves the panel (both ways)
@@ -34,7 +34,7 @@ async function jsd(user, L, tag, mobile) {
   await until(() => d.querySelector('#side .srow'));
   const side = d.querySelector('#side'), pick = () => d.querySelector('#side .srow') || side; let item = pick();
   side.getBoundingClientRect = () => ({left: 0, top: 0, width: 270, height: 600, right: 270, bottom: 600});
-  const open = () => side.classList.contains('open'), folded = () => !!w.eval("LS.get('sideFold', false)");  // 2.1408.0 (#6693): the value, not the stored text ('false' is truthy)
+  const open = () => side.classList.contains('open'), folded = () => !!w.eval("LS.get('sideFold', false)");  // (#6693): the value, not the stored text ('false' is truthy)
   check(!errs.length, `${tag}: boots without errors ` + errs.join(' | ')); errs.splice(0);
 
   if (!mobile) {
@@ -48,7 +48,7 @@ async function jsd(user, L, tag, mobile) {
     tev(w, item, 'touchend', []);
     swipe(w, item, -120);
     check(await until(() => folded()), `${tag}: a swipe > 1/3 hides the panel (remembered as the button does)`);
-    // 2.1408.0 (#6693): the swipe to the right brings it back
+    // (#6693): the swipe to the right brings it back
     const top = d.querySelector('#top');
     check(d.querySelector('#app.side-rail'), `${tag}: folded by hand = the panel is out of the way`);
     swipe(w, top, 30); check(folded() && side.style.transform === '' && side.style.clipPath === '', `${tag}: #6693 a short swipe to the right keeps it folded, the panel snaps back`);
@@ -75,7 +75,7 @@ async function jsd(user, L, tag, mobile) {
     swipe(w, item, -30); check(open(), `${tag}: drawer: a short swipe keeps it open`);
     swipe(w, item, 0, 90); check(open(), `${tag}: drawer: vertical scrolling keeps it open`);
     swipe(w, item, -120); check(!open(), `${tag}: drawer: a swipe > 1/3 closes it`);
-    // 2.1408.0 (#6693): the swipe to the right on the page opens the drawer, the scrim follows the finger
+    // (#6693): the swipe to the right on the page opens the drawer, the scrim follows the finger
     const top = d.querySelector('#top'), scrim = d.querySelector('#scrim');
     swipe(w, top, 150, 0, false, 8); check(!open(), `${tag}: #6693 drawer: a start at the edge opens nothing`);
     tev(w, top, 'touchstart', [[200, 300]]); tev(w, top, 'touchmove', [[335, 302]]);
