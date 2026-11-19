@@ -58,7 +58,7 @@ function wgStdLoad(force) {
   if (WG.stdBusy || (!force && S.lyStd && WG.stdWs === ws && Date.now() - (WG.stdAt || 0) < 120000)) return;
   WG.stdBusy = true;
   api('GET', '/api/layouts/std?ws=' + encodeURIComponent(ws)).then(j => {
-    const ch = JSON.stringify(j.layouts) !== JSON.stringify(S.lyStd) || !!j.can !== S.lyStdCan || JSON.stringify(j.org || null) !== JSON.stringify(S.lyStdOrg);
+    const ch = JSON.stringify(j.layouts || {}) !== JSON.stringify(S.lyStd || {}) || !!j.can !== S.lyStdCan || JSON.stringify(j.org || null) !== JSON.stringify(S.lyStdOrg);  // #7399: none yet (null) = none: no extra draw
     S.lyStd = j.layouts || {}; S.lyStdV = j.versions || {}; S.lyStdCan = !!j.can; WG.stdAt = Date.now();  // 2.570.0 (#4770): + their versions
     S.lyStdOrg = j.org || null; WG.stdWs = ws;
     if (ch) viewSafeRender();

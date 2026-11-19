@@ -24,12 +24,13 @@ const vdr_key = (k, id) => `${k}:${id}`;
 function vdr_rows(k, id, redraw) {
   const key = vdr_key(k, id), c = VDR.by[key];
   if (!c && !VDR.busy[key]) {
-    VDR.busy[key] = 1;
-    api('GET', `/api/videos?${k}=${id}`).then(j => { VDR.by[key] = j.reviews || []; }, () => { VDR.by[key] = []; })
-      .finally(() => { delete VDR.busy[key]; redraw(); });
+    VDR.busy[key] = api('GET', `/api/videos?${k}=${id}`).then(j => { VDR.by[key] = j.reviews || []; }, () => { VDR.by[key] = []; })
+      .finally(() => { delete VDR.busy[key]; redraw(); });  // #7399: the promise, so a page can wait for it (vdr_load)
   }
   return c || null;
 }
+// #7399: load the reviews of k / id without a draw of their own (the clients page draws once with everything, ms_clFetch)
+const vdr_load = (k, id) => { vdr_rows(k, id, () => {}); return VDR.busy[vdr_key(k, id)] || Promise.resolve(); };
 function vdr_listHtml(rows, k, id, add) {
   const li = rows.map(r => `<li><button type="button" class="vdrrow" data-vdr="open" data-id="${r.id}">${ic(r.kind === 'image' ? 'picture' : r.kind === 'pdf' ? 'pdf' : vdr_isAud(r.versions?.[r.versions.length - 1]) ? 'music' : 'film', 's')}<span class="vdrrt"><b>${esc(r.title)}</b>
     <small class="muted">${esc([`v${r.version}`, tr(VDR_ST[r.state] || r.state), r.open_comments ? trn('{0} open comment', '{0} open comments', r.open_comments) : ''].filter(Boolean).join(' · '))}</small></span>

@@ -12,16 +12,16 @@ function hbm_url(key) {
   const u = k === 'inbox' ? '/api/hubmail/inbox' : `/api/hubmail/mails?${k === 'client' ? 'client_id' : 'list_id'}=${id}`;
   return q ? `${u}${u.includes('?') ? '&' : '?'}q=${encodeURIComponent(q)}` : u;
 }
-async function hbm_load(key) {
+async function hbm_load(key, q) {  // #7399: q = no paint (the clients page draws once with everything, ms_clFetch)
   const s = HBM.s[key] = HBM.s[key] || {q: ''};
   const seq = s.seq = (s.seq || 0) + 1;
   s.loading = true;
   try { const j = await rawFetch('GET', hbm_url(key)); if (seq === s.seq) s.j = j; }
   catch (e) { if (seq === s.seq) s.j = s.j || {mails: [], total: 0, err: e.message || ''}; }
   s.loading = false; s.at = Date.now();
-  if (seq === s.seq) hbm_paint(key);
+  if (seq === s.seq && !q) hbm_paint(key);
 }
-const hbm_reloadAll = () => Promise.all(Object.keys(HBM.s).map(hbm_load));
+const hbm_reloadAll = () => Promise.all(Object.keys(HBM.s).map(k => hbm_load(k)));
 // a section paints its own body (the search field keeps the focus); the first answer draws the whole view once
 function hbm_paint(key) {
   const s = HBM.s[key], first = !s.painted, el = document.querySelector(`[data-hbm="${key}"]`);
