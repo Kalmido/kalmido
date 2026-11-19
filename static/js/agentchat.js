@@ -93,8 +93,7 @@ function chatFloatSize(p, w, h, save) {
 function chatGripVal(p) { const g = $('.chrsz.nw', p); if (g) g.setAttribute('aria-valuenow', String(Math.round(p.getBoundingClientRect().width))); }
 function chatGrips(p) {  // after every redraw of the window's content (chatDraw)
   if (!p.classList.contains('float') || $('.chrsz', p)) return;
-  const lbl = esc(tr('Resize (arrow keys; double-click: default size)')), tip = esc(tr('Drag to resize · double-click: default size'));
-  p.insertAdjacentHTML('beforeend', `<div class="chrsz nw" tabindex="0" role="separator" aria-orientation="vertical" aria-label="${lbl}" title="${tip}" aria-valuemin="0" aria-valuemax="${innerWidth}" aria-valuenow="0"></div>`
+  p.insertAdjacentHTML('beforeend', `<div class="chrsz nw" tabindex="0" role="separator" aria-orientation="vertical" aria-label="${esc(tr('Resize (arrow keys; double-click: default size)'))}" title="${esc(tr('Drag to resize · double-click: default size'))}" aria-valuemin="0" aria-valuemax="${esc(String(innerWidth))}" aria-valuenow="0"></div>`
     + '<div class="chrsz w" aria-hidden="true"></div><div class="chrsz n" aria-hidden="true"></div>');
   chatGripVal(p);
 }
