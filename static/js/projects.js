@@ -284,10 +284,26 @@ function povRowd() {
   povRowdOn = true;
   rowd_attach(document, {kind: 'lnk', row: '.povl', move: (from, to) => { const l = routeList(), j = l && S.povD[l.id]?.j; return j && povLinkMove(l, j, from, to); }});
 }
+// #6945: the client's PO number in the project's head (no block of its own): owner / project admins type it in place (saved on
+// leaving the field), everybody else reads it; empty and no office = nothing shown (calm view)
+function povPoHtml(l) {
+  const po = l.po_number || '', can = canManage(l) && !l.archived && !l.is_inbox;
+  if (l.is_inbox || (!po && !(can && typeof officeOn === 'function' && officeOn()))) return '';
+  const tip = tr('New quotations and invoices of the project take it as their order number');
+  return `<div class="povpo">${can ? `<label for="pov-po">${esc(tr('PO number'))}</label><input id="pov-po" maxlength="80" value="${esc(po)}" data-was="${esc(po)}" placeholder="${esc(tr('the client\'s order number'))}" title="${esc(tip)}" autocomplete="off">`
+    : `<span class="muted">${esc(tr('PO number'))}</span> <b>${esc(po)}</b>`}</div>`;
+}
+document.addEventListener('change', async e => {
+  const t = e.target; if (t?.id !== 'pov-po') return;
+  const l = routeList(); if (!l) return;
+  const was = t.dataset.was || '', v = t.value.trim();
+  if (v === was) return;
+  try { await optWrite(optSet(() => listById(l.id), {po_number: v}), () => api('PATCH', `/api/lists/${l.id}`, {po_number: v, _prev: {po_number: was}})); t.dataset.was = v; toast(tr('Saved')); } catch { t.value = was; /* shown, put back */ }
+});
 function viewProjOv() {
   const l = routeList(), d = S.povD[l.id];
   if (!d || (!d.busy && d.v !== S.v)) setTimeout(() => povLoad(l.id), 0);
-  const head = `${listHead(l, {noPill: true})}`;  // 2.13.0 (#453 P1): "Set status" only once (in the status section)
+  const head = `${listHead(l, {noPill: true})}${povPoHtml(l)}`;  // 2.13.0 (#453 P1): "Set status" only once (in the status section); #6945: + PO number
   // 2.1292.0 (#6139): the shared blocks (an error with "Try again", loading of the same height)
   if (!d?.j) return `<div class="pov">${head}${/*html-ok*/ d?.err ? errorState({title: tr('The overview could not be loaded'), sub: d.err === 'offline' ? tr('Only available online.') : undefined, retry: () => povLoad(l.id, true)}) : loadingHtml('big')}</div>`;  // 2.910.0 (#5444)
   const j = d.j, can = !!j.can_edit && !l.archived, t0 = today();

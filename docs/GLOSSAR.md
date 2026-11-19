@@ -542,6 +542,7 @@ Lists and projects: folders, sections, fields, formulas, templates, sprints, sha
 - `kalmido/lists/playbook.py` (`pb`) - The Playbook of a list or folder
 - `kalmido/lists/points.py` (`spt`) - Story points and velocity. tasks.points holds a task
 - `kalmido/lists/projects.py` (`ov`) - Project lists: status, progress, the overview (description, links, files)
+- `kalmido/lists/projpo.py` - #6945: the PO number of a project (lists.po_number) and the order reference of its documents (office_docs.order_ref)
 - `kalmido/lists/public.py` (`pub`) - Public links of lists and checklist mode
 - `kalmido/lists/report.py` - The status report of a project (or any list)
 - `kalmido/lists/rules.py` (`rul`) - Rules of a list ("When ... then ...")

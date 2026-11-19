@@ -604,6 +604,7 @@ def v1_list(d):
             "icon": d.get("icon") or "",
             "repos": d.get("repos") or [], "tickets": bool(d.get("tickets")),
             "ticket_key": d.get("ticket_key") or None,  # 2.390.0 (#3353): the project's key APP (its tasks: APP-1, APP-2, ...)
+            "po_number": d.get("po_number") or "",  # #6945: the client's PO number (the order reference of the project's documents)
             "time_tracking": bool(d.get("time_tracking")),  # 2.41.0 (#1471): time tracking on for this list
             "points_on": bool(d.get("points_on")),  # 2.60.0 (#1511): story points shown in the app
             "mail_guests": bool(d.get("mail_guests")),  # 2.395.0 (#3380): guests read the project's filed e-mails (read only here)
@@ -935,6 +936,7 @@ def v1_list_patch(lid):
                                                "org_visibility", "org_edit", "sort_mode", "group_field"))  # 2.28.0 (#935); 2.34.0 (#266); 2.39.1 (#1188); 2.41.0 (#1471); 2.46.0 (#1603)
     unknown = [k for k in unknown if k != "points_on"]  # 2.60.0 (#1511): story points on (the owner)
     unknown = [k for k in unknown if k != "ticket_key"]  # 2.390.0 (#3353): the project's ticket key (owner / list admins)
+    unknown = [k for k in unknown if k != "po_number"]  # #6945: the project's PO number (owner / list admins)
     unknown = [k for k in unknown if k != "expect_updated_at"]  # 2.657.0 (#5052): the version read (lists/lists.py lv_check)
     if "points_on" in b and not isinstance(b["points_on"], bool):
         raise BadInput(tr("Invalid value: {0}", "points_on"))

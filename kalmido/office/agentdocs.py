@@ -56,6 +56,7 @@ from ..collab.comments import user_names  # 2.369.5 (#2517): pulled up from func
 from ..team.clients import cdn_labels  # 2.369.5 (#2517): pulled up from functions
 from .cashflow import CF8_CHOICES  # 2.369.5 (#2517): pulled up from functions
 from ..core.pg import like_escape  # 2.369.5 (#2517): pulled up from functions
+from ..lists.projpo import ppo_doc_take, ppo_from_doc  # #6945
 
 OFA_ITEM_KEYS = ("kind", "service_id", "text", "detail", "qty", "unit", "price", "discount")
 OFA_ITEM_KEYS += ("id",)  # 2.270.0 D (#3028): the stored position it changes (from GET): what the agent does not send stays
@@ -436,6 +437,7 @@ def ofa_draft_create(c, uid, oid, data, agent_id=None):
     if items:
         _put_items(c, oid, r, items, False, flags)
     c.execute("UPDATE office_docs SET agent_id=?, list_id=? WHERE id=? AND org_id=?", (agent_id, lid, did, oid))
+    ppo_doc_take(c, did)  # #6945: the project's PO number as the order reference
     recalc(c, oid, did)
     ofx_log(c, oid, "create", doc_id=did, detail={"number": "", "items": len(items)})  # 2.149.0 A (#2521): like a person's new quotation
     return did
@@ -787,6 +789,8 @@ def v1_office_offer_patch(did):
         c.execute(f"UPDATE office_docs SET {','.join(k + '=?' for k in f)} WHERE id=? AND org_id=?", [*f.values(), did, oid])
         if diff["after"]:
             ofx_log(c, oid, "update", doc_id=did, detail=diff)
+        if f.get("list_id"):  # #6945: moved into a project: its PO number, or the document's order reference for a project without one
+            ppo_doc_take(c, did) or ppo_from_doc(c, uid, did)
     kept = None
     if "items" in b:
         r = doc_row(c, oid, did)

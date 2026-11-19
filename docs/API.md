@@ -516,6 +516,18 @@ next one. A task carries `key` (`"APP-12"`, `null` without a key) next to its `i
 - The app shows the key in the task row, in the task's menu (*Copy link*), finds `APP-12` in the search and makes
   `APP-12` in comments a link to the task.
 
+## PO number of a project
+
+#6945: a project carries the client's **PO number** `po_number` (text, at most 80 characters, `""` = none): `PATCH /lists/{id}`
+with `po_number` (owner / project admins; `null` / `""` removes it), lists carry it, the project's settings history records it.
+It is the order reference `order_ref` of the project's documents (quotations, invoices, credit notes; BT-13 in ZUGFeRD /
+XRechnung / Peppol), no field of its own:
+
+- a document bound to the project without an own `order_ref` takes the project's PO number (a draft only);
+- a document's `order_ref` set while its project has no PO number gives the project that number; a project with another one
+  keeps it, the document keeps its own;
+- a changed PO number of the project changes the drafts that carried the old one (or none), never a finalised document.
+
 ## Ticket types
 
 2.609.0 (#3372): next to the built-in types `bug`, `feature` and `task` a workspace has **own ticket types** (at most 20): an
