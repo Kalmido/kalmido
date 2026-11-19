@@ -26,17 +26,39 @@ function cl_newWs() {
 const cl_wsOrg = ws => ws === 'private' ? null : +ws.slice(4);
 // #7292: "Belongs to (main client)": a client of the same workspace that is no location itself (one level); a main client with
 // locations of its own shows how many instead (it cannot become a location). o.parent_id: "Add location" on the main client's card
-function cl_parentHtml(c, o) {
+// #7407: the main clients a client of workspace org may belong to (org undefined = not known yet -> none)
+const cl_parents = (c, org, cur) => org === undefined ? [] : (S.clients || []).filter(x => x.id === cur || (x.id !== c?.id && !x.parent_id && !x.archived && (x.org_id ?? null) === org))
+  .sort((a, b) => cdn_label(a).localeCompare(cdn_label(b)));
+const cl_parentOpts = (ps, cur) => `<option value="">${tr('none')}</option>${ps.map(x => `<option value="${esc(String(x.id))}" ${x.id === cur ? 'selected' : ''}>${esc(cdn_label(x))}</option>`).join('')}`;
+// nws (#7298/#7407): the workspace of a new client under "All": .ws known, .choose = the field #cl-ws decides (the list
+// fills on its change, cl_wsPick; until then it is empty and locked)
+function cl_parentHtml(c, o, nws = {}) {
   const all = S.clients || [], kids = c ? all.filter(x => x.parent_id === c.id).length : 0;
   if (kids) return `<div class="row"><span class="rlab">${tr('Belongs to (main client)')}</span><span class="muted">${esc(trn('Main client of {0} location', 'Main client of {0} locations', kids))}</span></div>`;
   const ws = typeof wsCur === 'function' ? wsCur() : 'all';
-  const org = c ? c.org_id ?? null : 'org_id' in o ? o.org_id ?? null : ws === 'private' ? null : ws.startsWith('org:') ? +ws.slice(4) : undefined;
+  const org = c ? c.org_id ?? null : 'org_id' in o ? o.org_id ?? null : nws.ws ? cl_wsOrg(nws.ws) : ws === 'private' ? null : ws.startsWith('org:') ? +ws.slice(4) : undefined;
   const cur = c ? c.parent_id || null : o.parent_id || null;
-  const ps = all.filter(x => x.id === cur || (x.id !== c?.id && !x.parent_id && !x.archived && (org === undefined || (x.org_id ?? null) === org)))
-    .sort((a, b) => cdn_label(a).localeCompare(cdn_label(b)));
+  const hint = `<div class="shint lhint" id="cl-parent-h">${tr('A location: its own address and documents, its hours and amounts also count for the main client.')}</div>`;
+  if (org === undefined && nws.choose) {
+    if (!nws.choose.some(w => cl_parents(c, cl_wsOrg(w), null).length)) return '';
+    return `<div class="row"><label for="cl-parent">${tr('Belongs to (main client)')}</label><select id="cl-parent" disabled aria-describedby="cl-parent-h cl-parent-ws">${/*html-ok*/ cl_parentOpts([], null) /* #7407: names through esc() inside */}</select></div>
+    <div class="shint lhint" id="cl-parent-ws">${tr('Select the workspace first.')}</div>${/*html-ok*/ hint /* tr() inside */}`;
+  }
+  const ps = cl_parents(c, org, cur);
   if (!ps.length) return '';
-  return `<div class="row"><label for="cl-parent">${tr('Belongs to (main client)')}</label><select id="cl-parent" aria-describedby="cl-parent-h"><option value="">${tr('none')}</option>${ps.map(x => `<option value="${esc(String(x.id))}" ${x.id === cur ? 'selected' : ''}>${esc(cdn_label(x))}</option>`).join('')}</select></div>
-    <div class="shint lhint" id="cl-parent-h">${tr('A location: its own address and documents, its hours and amounts also count for the main client.')}</div>`;
+  return `<div class="row"><label for="cl-parent">${tr('Belongs to (main client)')}</label><select id="cl-parent" aria-describedby="cl-parent-h">${/*html-ok*/ cl_parentOpts(ps, cur) /* #7407: names through esc() inside */}</select></div>
+    ${/*html-ok*/ hint /* tr() inside */}`;
+}
+// #7407: the workspace chosen under "All" -> "Belongs to" offers only its main clients (a chosen one of another workspace is
+// cleared) and the required message goes
+function cl_wsPick(md) {
+  const w = $('#cl-ws', md)?.value || '', sel = $('#cl-parent', md), err = $('.aerr', md);
+  if (w && err?.dataset.ws) { err.textContent = ''; delete err.dataset.ws; }
+  if (!sel) return;
+  const ps = w ? cl_parents(null, cl_wsOrg(w), null) : [], cur = +sel.value || null;
+  sel.innerHTML = cl_parentOpts(ps, ps.some(x => x.id === cur) ? cur : null);
+  sel.disabled = !w;
+  $('#cl-parent-ws', md)?.toggleAttribute('hidden', !!w);
 }
 function clientModal(c, o = {}) {  // 2.80.0 (#1842): o.org_id (the office's area, null = private), o.stay (no jump to the client)
   if (c && typeof loadModule === 'function') loadModule('ofundo').catch(() => {});  // 2.111.0 A (#2233): "Saved · Undo" after the save
@@ -58,7 +80,7 @@ function clientModal(c, o = {}) {  // 2.80.0 (#1842): o.org_id (the office's are
   const sc = typeof officeOn === 'function' && officeOn() ? `<div class="row"><label for="cl-sc">${tr('Short code')}</label><input id="cl-sc" maxlength="6" value="${esc(c?.short_code || '')}" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="${esc(cl_autoCode(c?.name || ''))}" aria-describedby="cl-sc-h"></div>
     <div class="shint lhint" id="cl-sc-h">${tr('In numbers as {kuerzel}, e.g. 673_TNP_R. Empty = the first three letters of the name.')}</div>` : '';
   const ico = `<div class="row"><label id="cl-icon-l">${tr('Symbol')}</label>${cl_iconPickHtml(c?.icon || '')}</div>`;
-  const rest = `${/*html-ok*/ cl_parentHtml(c, o) /* #7292: escaped inside */}${ico}
+  const rest = `${/*html-ok*/ cl_parentHtml(c, o, nws) /* #7292: escaped inside */}${ico}
     <div class="row clkrow"><label>${tr('Contact persons')}</label><div class="clk" id="cl-contacts"></div></div>
     ${short ? '' : em + emi}
     <div class="row"><label for="cl-phone">${tr('Phone')}</label><input id="cl-phone" type="tel" maxlength="60" value="${esc(c?.phone || '')}" autocomplete="tel"></div>
@@ -80,6 +102,7 @@ function clientModal(c, o = {}) {  // 2.80.0 (#1842): o.org_id (the office's are
   if (c?.updated_at) loadModule('objsave').then(() => dlgStale(md, `/api/clients/${c.id}`, () => (md._objBase || c._objBase || c).updated_at)).catch(() => {});  // 2.576.0 (#4764): saved elsewhere meanwhile -> the calm bar
   const scIn = $('#cl-sc', md), nmIn = $('#cl-name', md);  // 2.433.0 (#3604): capitals while typing, the automatic code as placeholder
   if (scIn) { scIn.addEventListener('input', () => { scIn.value = scIn.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); }); nmIn?.addEventListener('input', () => { scIn.placeholder = cl_autoCode(nmIn.value); }); }
+  $('#cl-ws', md)?.addEventListener('change', () => cl_wsPick(md));  // #7407
   const close = fgModal(md);  // 2.40.0 (#1371): the client card asks before unsaved input is lost
   // 2.552.0 (#4547): + the contact persons (rows drawn by clkDraw) and the symbol (a hidden field set by its buttons)
   const clX = () => { clkRead(md); return JSON.stringify({icon: $('#cl-icon', md)?.value ?? null, k: md._clk, rm: md._clkRm}); }, clX0 = clX();
@@ -121,7 +144,7 @@ function clientModal(c, o = {}) {  // 2.80.0 (#1842): o.org_id (the office's are
       if ($('#cl-sc', md)) body.short_code = v('#cl-sc').trim().toUpperCase();  // 2.433.0 (#3604)
       if (!c && 'org_id' in o) body.org_id = o.org_id;
       else if (!c && nws.ws) body.org_id = cl_wsOrg(nws.ws);  // (#7298): the client always names it under "All"
-      else if (!c && nws.choose) { const w = v('#cl-ws'); if (!w) { $('.aerr', md).textContent = tr('Select the workspace for the new client.'); $('#cl-ws', md)?.focus(); return; } body.org_id = cl_wsOrg(w); }
+      else if (!c && nws.choose) { const w = v('#cl-ws'); if (!w) { const er = $('.aerr', md); er.textContent = tr('Select the workspace for the new client.'); er.dataset.ws = '1'; $('#cl-ws', md)?.focus(); return; } body.org_id = cl_wsOrg(w); }
       if ($('#cl-parent', md)) body.parent_id = +v('#cl-parent') || null;  // #7292
       if (!o.quick && md._clkRm?.length) body.contacts_removed = md._clkRm.slice();  // only these are deleted (missing ones stay)
       if ($('#cl-rate', md)) Object.assign(body, {rate: num($('#cl-rate', md).value), budget_h: num($('#cl-bh', md).value), budget_amount: num($('#cl-ba', md).value)});
