@@ -239,7 +239,9 @@ def run(a):
                       {"email_invoice": f"neu-{stamp}@example.com", "expect_updated_at": upd["de"]})
         R.step("a new e-mail of the client: checked false (hold mark)", st == 200 and j.get("checked") is False, f"{st} {err_code(j)}")
         st, j = k.req("GET", f"/api/v1/issuer/docs/{d['id']}")
-        R.step("the draft: flag client_changed", st == 200 and "client_changed" in (j.get("flags") or []), j.get("flags"))
+        # a client no person checked yet carries its mark as client_new, a checked one that the key changed as client_changed
+        R.step("the draft shows the hold mark (client_new / client_changed)",
+               st == 200 and bool({"client_new", "client_changed"} & set(j.get("flags") or [])), j.get("flags"))
 
     # -- a person finalises (and confirms the hold mark), the German invoice is mailed
     for c_, d in docs.items():
