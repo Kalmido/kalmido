@@ -1240,6 +1240,9 @@ ROUTES = {
     "POST /api/office/issuers/{}/payees": "office", "DELETE /api/office/issuers/{}/payees/{}": "office", "GET /api/v1/issuer": "office",
     # 2.1384.0 (#6700): an issuer's clients and the hold mark (p6700_office_issuer_clients_test.py: Frida's key and Frida herself)
     "GET /api/v1/issuer/clients/by-ref/{}": "office", "PUT /api/v1/issuer/clients/by-ref/{}": "office", "POST /api/clients/{}/issuer-hold": "office",
+    # 2.1427.0 (#6701): an issuer's drafts and documents (p6701_office_issuer_invoices_test.py: Frida's key in her personal office)
+    "POST /api/v1/issuer/invoices": "office", "GET /api/v1/issuer/docs": "office", "GET /api/v1/issuer/docs/{}": "office",
+    "GET /api/v1/issuer/docs/by-ref/{}": "office", "GET /api/v1/issuer/docs/{}/pdf": "office", "POST /api/v1/issuer/docs/{}/withdraw": "office",
     # 2.144.0 A (#2412): Stop in the agent chat and the agent's confirmation (p2144_a_api_test.py)
     "POST /api/agents/{}/abort": "agents", "POST /api/v1/agent/aborted": "agents",
     # 2.236.0 (#2904-#2911): the work style of an agent (owner / instance admin, else 404); C (#2906): its queue (p2236_c_queue_test.py)
