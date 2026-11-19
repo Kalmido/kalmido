@@ -14,7 +14,13 @@ const OFT = {d: {}, busy: {}};
 // area -> [route segment, icon of its documents]
 // 2.380.0 B (#3409): [2] = the query of the area (quotations / invoices share the documents' route)
 const OFT_AREAS = {offers: ['docs', 'file'], invoices: ['docs', 'receipt', '?sec=invoices'], gendocs: ['gen-docs', 'file'], letters: ['letters', 'mail'], receipts: ['receipts', 'ticket']};
-const oft_key = () => `${S.me?.id || ''}:${typeof wsCur === 'function' ? wsCur() : 'all'}`;
+// #7336: + the office's area under "All workspaces" (#office/s/<space>, core.js ofc_spOpen): the tree of one area never
+// stands for another one's (a load without the area answered 400 and stayed as an empty tree)
+const oft_sp = () => typeof ofc_spOpen === 'function' ? ofc_spOpen() : '';
+const oft_key = () => `${S.me?.id || ''}:${typeof wsCur === 'function' ? wsCur() : 'all'}:${oft_sp()}`;
+// #7336: the office's overview under "All workspaces" (several offices, none open, office.js ofc_allOvr): an area's node holds
+// one node per office (Private, each organisation) with that office's tree (OFT.ov, loaded with its area; like the knowledge's spaces)
+const oft_ovr = () => typeof ofc_allOvr === 'function' && ofc_allOvr();
 // 2.373.0 (#3337): OFT.busy[area] = the running load; a second call gets it to wait on (ltSentModal's folders). The fetch
 // starts only after busy is set (a call while it starts, e.g. a drawing, must not start another one)
 function oft_load(area) {
@@ -30,21 +36,32 @@ async function oft_fetch(area) {
 // the tree of an area: loaded once per person / workspace, again after a change (S.v) at most every few seconds
 function oft_get(area) {
   const d = OFT.d[area];
-  if (!d || d.key !== oft_key() || (d.v !== S.v && Date.now() - d.at > 4000)) oft_load(area);
+  if (!d || d.key !== oft_key() || ((d.v !== S.v || d.err) && Date.now() - d.at > 4000)) oft_load(area);  // #7336: a failed load is tried again
   return d && d.key === oft_key() ? d : null;
 }
+// #7336: the tree of an area in the office of space sp (the overview under "All"): the same route with that area
+OFT.ov = {};
+function oft_getSp(area, sp) {
+  const k = `${S.me?.id || ''}:${sp}|${area}`, d = OFT.ov[k];
+  if ((!d || ((d.v !== S.v || d.err) && Date.now() - d.at > 4000)) && !OFT.busy[k]) {
+    OFT.busy[k] = rawFetch('GET', `/api/office/${OFT_AREAS[area][0]}/tree${OFT_AREAS[area][2] || ''}`, undefined, undefined, sp)
+      .then(j => { OFT.ov[k] = {...j, v: S.v, at: Date.now()}; }, e => { if (e.message !== 'auth') OFT.ov[k] = {v: S.v, at: Date.now(), folders: [], docs: [], err: e.message}; })
+      .finally(() => { OFT.busy[k] = null; if (typeof sbb_officeSync === 'function') sbb_officeSync(); });
+  }
+  return d || null;
+}
 // 2.979.0 (#5667): an undo / redo the server did: the folder trees of the office come again (shown: at once, else on the next look, oft_get)
-histReloader('office-tree', () => { const as = Object.keys(OFT.d).filter(a => OFT.d[a]); as.forEach(a => { OFT.d[a].at = 0; OFT.d[a].v = -1; }); if (as.length && S.route.mod === 'office') return Promise.all(as.map(oft_load)).then(() => ofcDraw()); });
+histReloader('office-tree', () => { OFT.ov = {}; const as = Object.keys(OFT.d).filter(a => OFT.d[a]); as.forEach(a => { OFT.d[a].at = 0; OFT.d[a].v = -1; }); if (as.length && S.route.mod === 'office') return Promise.all(as.map(oft_load)).then(() => ofcDraw()); });
 const oft_folder = (area, id) => (OFT.d[area]?.folders || []).find(f => f.id === +id) || null;
 const oft_doc = (area, id) => (OFT.d[area]?.docs || []).find(x => x.id === +id) || null;
 const oft_canW = f => !!f && (f.role === 'edit' || f.role === 'owner');
 const oft_byNo = (a, b, na, nb) => ((a ?? Infinity) - (b ?? Infinity)) || String(na || '').localeCompare(String(nb || ''), undefined, {sensitivity: 'base'});
 // the folders at the top of the area (below its root; the outside ones with their path) / below folder pid
-function oft_kids(area, pid) {
-  const d = OFT.d[area]; if (!d) return [];
+function oft_kids(area, pid, d = OFT.d[area]) {
+  if (!d) return [];
   return d.folders.filter(f => pid ? f.parent_id === pid && !f.outside : f.outside || f.parent_id === d.root).sort((a, b) => oft_byNo(a.sort_no, b.sort_no, a.path || a.name, b.path || b.name));
 }
-const oft_docsIn = (area, fid) => (OFT.d[area]?.docs || []).filter(x => (x.folder_id || null) === (fid || null)).sort((a, b) => fid ? oft_byNo(a.fsort, b.fsort, a.title, b.title) : 0);
+const oft_docsIn = (area, fid, d = OFT.d[area]) => (d?.docs || []).filter(x => (x.folder_id || null) === (fid || null)).sort((a, b) => fid ? oft_byNo(a.fsort, b.fsort, a.title, b.title) : 0);
 const oft_path = (area, f) => { if (f.outside) return f.path; const p = []; for (let y = f, g = 0; y && g < 40; y = oft_folder(area, y.parent_id), g++) p.unshift(y.name); return p.join(' / '); };
 
 // ---- the panel: the row of an area as a tree node (areas.js sbb_officeHtml; '' = a plain row)
@@ -56,12 +73,27 @@ function oft_rowHtml(i, on) {
   const fold = f => ({k: `of:f:${f.id}`, name: f.outside ? f.path : f.name, icon: f.shared ? 'users' : 'folder', go: 'ablage/' + f.id, ns: 'oft', id: `f:${area}:${f.id}`,
     par: f.outside || !f.parent_id || f.parent_id === OFT.d[area]?.root ? 'a:' + area : `f:${area}:${f.parent_id}`, drag: oft_canW(f) && !f.outside, drop: oft_canW(f), menu: true,
     kids: oft_kids(area, f.id).length > 0 || oft_docsIn(area, f.id).length > 0, sub: () => [...oft_kids(area, f.id).map(fold), ...oft_docsIn(area, f.id).map(x => doc(x, `f:${area}:${f.id}`))]});
+  if (oft_ovr()) return sbb_treeHtml([{k: 'of:a:' + area, name: tr(i.name), icon: i.icon, go: i.go, on, battrs: `data-ofm="${esc(area)}"`, kids: true,
+    sub: () => ofc_spaces().map(sp => oft_spNode(area, sp))}], 0);  // #7336: the overview under "All": one node per office
   const node = {k: 'of:a:' + area, name: tr(i.name), icon: i.icon, go: i.go, on, battrs: `data-ofm="${esc(area)}"`, ns: 'oft', id: 'a:' + area, par: '', drop: true, menu: true, kids: true,
     sub: () => { const d = oft_get(area); if (!d) return null;
       if (d.err && !d.folders.length && !d.docs.length) return [];
       return [...oft_kids(area, null).map(fold), ...oft_docsIn(area, null).map(x => doc(x, 'a:' + area)),
         ...(d.more ? [{k: 'of:m:' + area, name: tr('More…'), icon: 'dots', go: i.go, battrs: `data-oftmore="${esc(area)}"`}] : [])]; }};
   return sbb_treeHtml([node], 0);
+}
+// #7336: one office's tree on the overview under "All": its name opens that office's list (#office/s/<space>/<area>), below it
+// the same folders, 20 newest and More… as inside the office; a link keeps the area. Filing, menus and dragging: inside the office
+function oft_spNode(area, sp) {
+  const at = go => /^office\//.test(go || '') ? `office/s/${sp}/${go.slice(7)}` : go, top = `office/s/${sp}/${area}`;
+  const doc = x => ({k: `of:s:${sp}:d:${area}:${x.id}`, name: x.title + (x.sub ? ' · ' + x.sub : ''), icon: OFT_AREAS[area][1], go: at(x.open), kids: false, attrs: `data-oftspdoc="${area}:${x.id}"`});
+  const fold = (d, f) => ({k: `of:s:${sp}:f:${f.id}`, name: f.outside ? f.path : f.name, icon: f.shared ? 'users' : 'folder', go: 'ablage/' + f.id,
+    kids: oft_kids(area, f.id, d).length > 0 || oft_docsIn(area, f.id, d).length > 0, sub: () => [...oft_kids(area, f.id, d).map(g => fold(d, g)), ...oft_docsIn(area, f.id, d).map(doc)]});
+  return {k: `of:s:${sp}:${area}`, name: wsName(sp), ichtml: wsIcon(sp), go: top, wso: sp, kids: true, attrs: `data-oftsp="${esc(sp)}"`,
+    sub: () => { const d = oft_getSp(area, sp); if (!d) return null;
+      if (d.err && !d.folders.length && !d.docs.length) return [];
+      return [...oft_kids(area, null, d).map(f => fold(d, f)), ...oft_docsIn(area, null, d).map(doc),
+        ...(d.more ? [{k: `of:s:${sp}:m:${area}`, name: tr('More…'), icon: 'dots', go: top, battrs: `data-oftmore="${esc(area)}"`}] : [])]; }};
 }
 
 // ---- 2.351.0 A (#2823): the lists of Documents / Correspondence also show what another office shares through a folder (read:
@@ -74,6 +106,7 @@ function oft_sharedHtml(area) {
 
 // ---- changes
 function oft_after(area) {
+  OFT.ov = {};  // #7336: the overview's trees come again on their next look
   if (area) { if (OFT.d[area]) OFT.d[area].at = 0; OFT.d[area] && (OFT.d[area].v = -1); oft_load(area); }
   if (typeof ab_ptStale === 'function') ab_ptStale();
   if (S.route.mod === 'office' && (area === 'offers' || area === 'invoices') && typeof OFD !== 'undefined') OFD.list = null;
