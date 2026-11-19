@@ -21,7 +21,7 @@ from ..core.access import Denied, need_collab
 from ..core.errors import BadInput  # 2.149.0 G (#2517): pulled up from functions
 from ..api.common import v1_call  # 2.149.0 G (#2517): pulled up from functions
 from ..lists.lists import FOLDER_SEP, folder_under, clean_folder, list_agent_set  # 2.369.5 (#2517): pulled up from functions
-from ..lists.folders import folder_props_of, folder_lists, need_folder_write, _list_agent as la, folder_apply, _clean_props  # 2.369.5 (#2517): pulled up from functions
+from ..lists.folders import folder_props_of, folder_lists, need_folder_write, _list_agent as la, folder_apply, _clean_props  # (#2517): pulled up from functions
 from ..lists.ownership import owner_transfer  # 2.369.5 (#2517): pulled up from functions
 from ..lists.groups import grp_folder_rows  # 2.958.0 (#5245): the folder nodes' group shares (group_shares is gone)
 

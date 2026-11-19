@@ -1049,7 +1049,7 @@ def runtime_clean(cur, b):
     if unknown:
         raise BadInput(tr("Invalid value: {0}", "runtime." + unknown[0]))
     out = {k: cur.get(k, v) for k, v in RUNTIME_DEFAULTS.items()}
-    for k in ("model", "model_decide", "model_routine", "model_review", "model_job", "model_audit"):  # 2.974.0 (#5668), 2.992.0 (#5684), 2.1394.0 (#7031): same rules as model
+    for k in ("model", "model_decide", "model_routine", "model_review", "model_job", "model_audit"):  # (#5668), (#5684), (#7031): same rules as model
         if k in b:
             m = b[k] if b[k] is not None else ""
             if not isinstance(m, str):
@@ -1058,7 +1058,7 @@ def runtime_clean(cur, b):
             if m and (len(m) > RUNTIME_MODEL_MAX or not RUNTIME_MODEL_RE.fullmatch(m)):
                 raise BadInput(tr("Invalid value: {0}", k))
             out[k] = m.lower() if m.lower() in RUNTIME_MODEL_SHORT else m  # #7368: "Fable" = "fable"
-    for k in RUNTIME_EFFORT_KEYS:  # 2.1394.0 (#7031), #7368: effort / effort_decide / effort_review / effort_routine too
+    for k in RUNTIME_EFFORT_KEYS:  # (#7031), #7368: effort / effort_decide / effort_review / effort_routine too
         if k in b:
             v = b[k] if b[k] is not None else ""
             if not isinstance(v, str) or v.strip().lower() not in JOB_EFFORTS:

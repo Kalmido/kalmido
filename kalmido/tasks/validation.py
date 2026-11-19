@@ -13,7 +13,7 @@ from ..core.pg import qi  # 2.1375.0 (#6677)
 from ..core.objtags import otg_unames  # 2.955.0 (#5276)
 from ..core.pages import valid_link
 from ..api.common import act_by_hand, act_via  # 2.149.0 G (#2517): pulled up from functions; 2.1389.0 (#6728)
-from ..core.errors import BadInput, SORT_MAX, sort_value  # 2.149.0 G (#2517): pulled up from functions
+from ..core.errors import BadInput, SORT_MAX, sort_value  # (#2517): pulled up from functions
 from ..core.conflict import agent_account  # 2.564.0 (#4702)
 
 

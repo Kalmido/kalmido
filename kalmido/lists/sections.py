@@ -10,7 +10,7 @@ from ..accounts.session import me
 from ..core.access import Denied, is_project, need_list
 from ..lists.lists import clean_folder, FOLDER_DEPTH, FOLDER_SEP, folder_under
 from ..lists.groups import grp_list_ids, grp_sync, grp_touch
-from ..core.errors import BadInput, sort_value  # 2.149.0 G (#2517): pulled up from functions
+from ..core.errors import BadInput, sort_value  # (#2517): pulled up from functions
 from ..lists.lists import lp_folder_rename  # 2.369.5 (#2517): pulled up from functions
 from ..lists.seckind import sk_clean  # 2.577.0 (#3354)
 from ..tasks.validation import as_int

@@ -32,7 +32,7 @@ from ..collab.comments import user_names
 from ..core.errors import BadInput
 from ..api.common import v1_args, v1_json, v1_view
 from ..lists.lists import folder_under, clean_folder  # 2.369.5 (#2517): pulled up from functions
-from ..lists.folders import folder_lists, need_folder_write  # 2.369.5 (#2517): pulled up from functions
+from ..lists.folders import folder_lists, need_folder_write  # (#2517): pulled up from functions
 from ..collab.news import news_add  # 2.369.5 (#2517): pulled up from functions
 
 PB_MAX = 8000          # characters of one Playbook
