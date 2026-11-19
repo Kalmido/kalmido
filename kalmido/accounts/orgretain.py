@@ -2,7 +2,7 @@
 when it is deleted.
 
 odl_retention(c, oid) counts the office data under a legal retention period (finalised documents by their kind -- invoices
-8, offers / reminders / delivery notes 6 years, 2.1413.0 #6361 -- and archive entries:
+8, offers / reminders / delivery notes 6 years, #6361 -- and archive entries:
 books, cash book, bank statements: 10 years; booked receipts, receipts of trips taken into DATEV, entertainment receipts, the logbook: 8 years -- core/retention.py
 RET_LEGAL_YEARS, 2.545.0 (#4595): + the buffer, ret_keep_years, from the end of the calendar year) and gives the latest end. An organisation with such data is not
 deleted but retired (orgs.retired_at / retain_until): members out, data and key stay, nobody sees it in the app any more
@@ -37,7 +37,7 @@ from ..core.pg import insert_id  # 2.369.5 (#2517): pulled up from functions
 
 # (count key, legal kind, SQL of the years per row: org_id = ?) -- the year a period starts from (its end + N years)
 ODL_LEGAL = (
-    # 2.1413.0 (#6361): kind "doc" = per row by the document's kind (core/retention.py ret_doc_kind), the query gives (year, kind)
+    # (#6361): kind "doc" = per row by the document's kind (core/retention.py ret_doc_kind), the query gives (year, kind)
     ("documents", "doc", "SELECT substr(COALESCE(NULLIF(date, ''), CAST(locked_at AS text)), 1, 4), kind FROM office_docs "  # 2.1115.0 (#5951): TIMESTAMPTZ
                          "WHERE org_id=? AND locked_at IS NOT NULL"),
     ("archive", "book", "SELECT substr(COALESCE(NULLIF(date, ''), CAST(created_at AS text)), 1, 4) FROM office_archive WHERE org_id=?"),
@@ -160,7 +160,7 @@ def _year(v):
 def _until(kind, years):
     """The latest end of the periods of rows from `years`; None when there is none or it is over already (2.152.0 #2167,
     review A8: an expired period keeps nothing, it neither retires an organisation nor a personal office).
-    2.1413.0 (#6361): kind "doc" -- `years` are (year, office_docs.kind) and each row has the period of its own kind."""
+    (#6361): kind "doc" -- `years` are (year, office_docs.kind) and each row has the period of its own kind."""
     pairs = [(v[0], ret_doc_kind(v[1])) for v in years] if kind == "doc" else [(v, kind) for v in years]
     ends = [y + ret_keep_years(k) for y, k in ((_year(v), k) for v, k in pairs) if y]  # 2.545.0 (#4595): the law + the buffer
     end = f"{max(ends)}-12-31" if ends else None
@@ -437,7 +437,7 @@ def odl_locked_docs(c, oid):
     sql = dict((k, q) for k, _kind, q in ODL_LEGAL)["documents"]
     with system_ctx(c):  # years only, no content: the deleting person need not be a member
         years = [tuple(r) for r in c.execute(sql, (int(oid),)).fetchall()]
-    end = _until("doc", years)  # 2.1413.0 (#6361): each by its kind (was: all as books)
+    end = _until("doc", years)  # (#6361): each by its kind (was: all as books)
     return {"n": len(years) if end else 0, "until": end}
 
 

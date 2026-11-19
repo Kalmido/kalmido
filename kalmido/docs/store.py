@@ -1412,7 +1412,7 @@ def process(c, nid):
         res = doc_text(node["name"], node["mime"], data, lang=ulang, langs=cfg_get(c, ws)["ocr_langs"] or None,  # 2.635.0 (#4807 b)
                        doc_s=anon_s)
         if res.get("error") != "busy":
-            ocr_charge(ws, time.monotonic() - t0, anon=anon_s is not None)  # 2.1337.0 (#6651): the workspace's hour budget (2.1413.0 #6951: + the anonymous share)
+            ocr_charge(ws, time.monotonic() - t0, anon=anon_s is not None)  # 2.1337.0 (#6651): the workspace's hour budget (#6951: + the anonymous share)
     if res.get("error") == "busy":
         return "wait"
     if ei and not res.get("error"):
