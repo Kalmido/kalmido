@@ -2,10 +2,13 @@
 // (kalmido/admin/acctexport.py: start, state polled while it runs, download, delete). Import: the ZIP uploaded in pieces,
 // checked on the server, a preview with the people (found by e-mail, shared only when ticked) and the target, the run in
 // the background, the result with undo (kalmido/admin/acctimport.py). One undo step = the whole import.
-const UMZ = {timer: 0, up: null};
+const UMZ = {timer: 0, up: null, file: null, chunk: 0, pause: 1000};  // (#6583): pause = ms before the 2nd try of a piece, doubled per try
+// (#6583): a piece of the upload is sent at most this often after a network error / 5xx / 429, 1, 2, 4, 8 s apart; then the
+// upload waits for "Continue the upload" (the server keeps what it has: the next piece starts where it stopped)
+const UMZ_TRIES = 5;
 const UMZ_OFFICE_COPY = N_('Your own office (invoices, receipts, cash book) is in the file as a copy. To take it to another server, use “Export the office” in the office settings.');  // 2.362.2 (#3099)
 const umzHtml = hint => `<h4 id="s-umz-h">${tr('Move and export everything')}</h4>
-  ${hint(tr('One file with everything that is yours: projects, tasks, comments, files, calendars, contacts, habits and settings. Use it to move to your own Kalmido server (or back) or as your own copy of your data.'))}
+  ${/*html-ok*/ hint(tr('A file with what is yours as a person: projects, tasks, comments, files, calendars, contacts, habits and settings. An organisation moves with a file of its own (Settings > Organisation > Data > Export the organisation). Use it to move to your own Kalmido server (or back) or as your own copy of your data.')) /* a fixed text of the app in its box (#6582: the text changed) */}
   ${hint(tr(UMZ_OFFICE_COPY))}
   <div id="s-umz-exp" aria-live="polite"><div class="muted mhint">${tr('Loading…')}</div></div>
   <div id="s-umz-sig"></div>
@@ -15,7 +18,8 @@ const umzHtml = hint => `<h4 id="s-umz-h">${tr('Move and export everything')}</h
     <li>${tr('Here: “Export everything” and download the file.')}</li>
     <li>${tr('Set up your own Kalmido server (see SELF-HOSTING.md, section “Moving from and to app.kalmido.com”).')}</li>
     <li>${tr('There, before the import: invite the people you work with (an organisation: all its members) and let them accept. Only people found there keep their assignments, comments and times.')}</li>
-    <li>${tr('Then: Settings > Data > “Import from a Kalmido export”. The preview lists every person as found or not found; tick whom your projects are shared with and start. Moving back works the same way.')}</li></ol></details>`;
+    <li>${tr('Then: Settings > Data > “Import from a Kalmido export”. The preview lists every person as found or not found; tick whom your projects are shared with and start. Moving back works the same way.')}</li>
+    <li>${tr('A whole company: start the move of the organisation first and export it as well, see “Moving with the company” in SELF-HOSTING.md or the help.')}</li></ol></details>`;  // (#6582)
 // 2.531.0 (#4317 F9/F10): what the file does not hold (the server's list, readable, also the trashes), before and after an export
 const umzLeftHtml = j => (j.not_included || []).length ? `<details class="umzleft"><summary>${esc(tr('What is not in the file ({0})', j.not_included.length))}</summary>
   <ul class="umzleftl">${j.not_included.map(x => `<li>${esc(x)}</li>`).join('')}</ul></details>` : '';
@@ -140,17 +144,24 @@ function umzResultHtml(j) {
   const r = j.result || {};
   const ppl = (r.people || []).map(x => `<div class="mrow"><span class="n">${esc(x.name || x.email || '')}</span><span class="muted">${esc({shared: tr('Shared'), invited: tr('Invited'), org_invited: tr('Invited to the organisation'), skipped: tr('Skipped'), failed: tr('Not possible'), mismatch: tr('Address does not match')}[x.state] || '')}${x.lists ? ' · ' + esc(trn('{0} project', '{0} projects', x.lists)) : ''}</span></div>`).join('');
   const w = (r.warnings || []).map(x => `<li>${esc(x.text)}${x.count > 1 ? ` (${x.count})` : ''}</li>`).join('');
-  return `<div class="impbox umzbox" role="status"><div class="imphead"><b>${esc(r.stopped || tr('Import finished'))}</b></div>
-    <div class="umzcnt">${umzCounts(r.created)}</div>${ppl}${w ? `<ul class="impwarn">${w}</ul>` : ''}
-    <div class="row">${r.import_id ? `<button type="button" class="btn sm" data-umz="undo" data-id="${+r.import_id}">${tr('Undo this import')}</button>${r.undo_until ? `<span class="muted">${esc(tr('possible until {0}', fmtWhen(r.undo_until)))}</span>` : ''}` : ''}<button type="button" class="btn sm" data-umz="close">${tr('Close')}</button></div></div>`;
+  // (#6583): the whole list of warnings is in the import's report file (the result names at most 50 besides the ones it must)
+  const more = r.warn_more > 0 ? `<div class="muted mhint">${esc(trn('{0} more warning is in the report.', '{0} more warnings are in the report.', r.warn_more))}</div>` : '';
+  const rep = r.import_id && w ? `<a class="btn sm" href="/api/imports/${esc(String(+r.import_id))}/report" download>${ic('download', 's')} ${tr('Download the report')}</a>` : '';
+  return `<div class="impbox umzbox" role="status"><div class="imphead"><b>${esc(r.trouble || r.stopped || tr('Import finished'))}</b></div>
+    <div class="umzcnt">${umzCounts(r.created)}</div>${ppl}${w ? `<ul class="impwarn">${w}</ul>` : ''}${/*html-ok*/ more /* built with esc() above */}
+    <div class="row">${/*html-ok*/ rep /* built with esc() above */}${r.import_id ? `<button type="button" class="btn sm" data-umz="undo" data-id="${+r.import_id}">${tr('Undo this import')}</button>${r.undo_until ? `<span class="muted">${esc(tr('possible until {0}', fmtWhen(r.undo_until)))}</span>` : ''}` : ''}<button type="button" class="btn sm" data-umz="close">${tr('Close')}</button></div></div>`;
 }
 function umzImpHtml(j) {
   if (!j) return '';
   const bar = (a, b, lbl) => `<div class="umzbar">${botBusy(`<div class="muted">${lbl}</div><progress max="${b || 1}" value="${a || 0}"></progress>`)}</div>`;  // 2.161.2 (#2611): + the bot at work
+  // (#6583): an upload that stopped (no connection after every try, or the page was reloaded) continues where it stopped
+  if (j.state === 'upload' && j.stalled) return `<div class="shint keep" role="alert">${ic('alert', 's')} ${esc(tr('The upload stopped at {0} of {1}.', fmtSize(j.received || 0), fmtSize(j.size || 0)))} ${esc(UMZ.file && UMZ.up === j.id ? tr('It continues where it stopped.') : tr('Select the same file again to continue where it stopped.'))}</div>
+    <div class="row">${UMZ.file && UMZ.up === j.id ? `<button type="button" class="btn sm pri" data-umz="resume">${tr('Continue the upload')}</button>` : ''}<button type="button" class="btn sm" data-umz="cancel">${tr('Cancel')}</button></div>`;
   if (j.state === 'upload') return bar(j.received, j.size, tr('Uploading… {0} of {1}', fmtSize(j.received || 0), fmtSize(j.size || 0)))
     + `<div class="row"><button type="button" class="btn sm" data-umz="cancel">${tr('Cancel')}</button></div>`;
   if (j.state === 'checking') return bar(0, 0, tr('Checking the file…'));
-  if (j.state === 'preview') return umzPreviewHtml(j);
+  // (#6583): a run that was interrupted (a restart, an update of the server) is back at its preview: start it again
+  if (j.state === 'preview') return (j.interrupted ? `<div class="shint warn umzintr" role="alert">${ic('alert', 's')} ${esc(tr('The import was interrupted, for example by an update of the server. The file is still here: start the import again.'))}</div>` : '') + umzPreviewHtml(j);
   if (j.state === 'key') return `<div class="impbox umzbox" role="status"><div class="imphead"><b>${tr('Organisation export of {0}', esc(j.preview?.org || ''))}</b></div>
     <div class="shint">${tr('The file is encrypted. Enter the recovery key of the organisation (on the old server: Settings > Organisation > Data > Encryption).')}</div>
     ${j.error ? `<div class="shint keep" role="alert">${ic('alert', 's')} ${esc(j.error)}</div>` : ''}
@@ -169,29 +180,45 @@ async function umzImpPoll(md) {
   if (!UMZ.cur) return;
   try { umzImpDraw(md, await api('GET', `/api/account/import/${UMZ.cur.id}`)); } catch { /* api() showed it */ }
 }
-async function umzUpload(md, file) {
-  let j = await api('POST', '/api/account/import', {size: file.size, name: file.name});
-  const id = j.id, chunk = j.chunk; let off = 0;
-  UMZ.up = id; umzImpDraw(md, {id, state: 'upload', size: file.size, received: 0});
+// cur (#6583): the upload of the server that stopped (same file chosen again / "Continue the upload"): no new upload, it goes
+// on at the bytes the server has (a 409 names them)
+async function umzUpload(md, file, cur) {
+  let j, id, chunk, off = 0;
+  if (cur) { id = cur.id; chunk = UMZ.chunk; off = cur.received || 0; }
+  else { j = await api('POST', '/api/account/import', {size: file.size, name: file.name}); id = j.id; chunk = j.chunk; UMZ.chunk = chunk; }
+  UMZ.up = id; UMZ.file = file;
+  umzImpDraw(md, {id, state: 'upload', size: file.size, received: off, name: file.name});
+  let fails = 0;
   while (off < file.size) {
     if (UMZ.up !== id) return;  // cancelled
     const part = file.slice(off, Math.min(file.size, off + chunk));
-    let r;
+    let r = null;
     try { r = await fetch(`/api/account/import/${id}?offset=${off}`, {method: 'PUT', body: part, headers: {'X-Requested-With': 'kalmido', 'Content-Type': 'application/octet-stream'}}); }
-    catch { toast(tr('Only available online.')); return; }
+    catch { r = null; }
+    if (!r || r.status >= 500 || r.status === 429) {  // (#6583): the network or the server for a moment: the same piece again, with a pause
+      if (++fails >= UMZ_TRIES) { if (UMZ.up === id) umzImpDraw(md, {id, state: 'upload', size: file.size, received: off, name: file.name, stalled: true}); return; }
+      await new Promise(res => setTimeout(res, UMZ.pause * 2 ** (fails - 1)));
+      continue;
+    }
     j = await r.json().catch(() => ({}));
     if (!r.ok) { if (r.status === 409 && typeof j.received === 'number') { off = j.received; continue; } toast(j.error || httpErrText(r.status)); umzImpDraw(md, null); return; }
+    fails = 0;
     off += part.size;
     umzImpDraw(md, j);
   }
-  UMZ.up = null;
+  UMZ.up = null; UMZ.file = null;
 }
 function umzInit(md) {
   if (!$('#s-umz-exp', md)) return;
   umzExpLoad(md);
   umzSigLoad(md);
-  api('GET', '/api/account/import').then(j => { if (j.current && j.current.state !== 'upload') umzImpDraw(md, j.current); }).catch(() => {});
-  $('#s-umz-file', md)?.addEventListener('change', e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) umzUpload(md, f).catch(() => umzImpDraw(md, null)); });
+  // (#6583): an upload that stopped (the page was left) is offered to continue: the same file chosen again goes on where it stopped
+  api('GET', '/api/account/import').then(j => { UMZ.chunk = j.chunk || UMZ.chunk; if (j.current && UMZ.up !== j.current.id) umzImpDraw(md, j.current.state === 'upload' ? {...j.current, stalled: true} : j.current); }).catch(() => {});
+  $('#s-umz-file', md)?.addEventListener('change', e => {
+    const f = e.target.files?.[0]; e.target.value = ''; if (!f) return;
+    const cur = UMZ.cur?.state === 'upload' && UMZ.cur.stalled && UMZ.cur.size === f.size && UMZ.cur.name === f.name && UMZ.chunk ? UMZ.cur : null;
+    umzUpload(md, f, cur).catch(() => umzImpDraw(md, null));
+  });
   md.addEventListener('change', async e => {  // review M1: a typed address that is not the one in the file -> hint at once
     if (e.target.id === 's-umz-tgt' && UMZ.cur?.preview) {  // 2.1316.0 (#6577), 2.1402.0 (#6579): the checks of the chosen target
       const oc = $('#s-umz-ochk', md); if (oc) oc.innerHTML = umzStorageHtml(UMZ.cur.preview, e.target.value) + umzOfficeHtml(UMZ.cur.preview, e.target.value);
@@ -218,7 +245,8 @@ function umzInit(md) {
         if (!await askConfirm(tr('Delete the export now?'), tr('The file is removed from the server. You can create a new one at any time.'), {ok: tr('Delete'), danger: true})) return;
         await api('DELETE', '/api/account/export'); toast(tr('Deleted')); return umzExpLoad(md);
       }
-      if (a === 'cancel') { UMZ.up = null; if (UMZ.cur?.id) await api('DELETE', `/api/account/import/${UMZ.cur.id}`).catch(() => {}); return umzImpDraw(md, null); }
+      if (a === 'resume') { if (UMZ.file && UMZ.cur?.state === 'upload') umzUpload(md, UMZ.file, UMZ.cur).catch(() => umzImpDraw(md, null)); return; }  // (#6583)
+      if (a === 'cancel') { UMZ.up = null; UMZ.file = null; if (UMZ.cur?.id) await api('DELETE', `/api/account/import/${UMZ.cur.id}`).catch(() => {}); return umzImpDraw(md, null); }
       if (a === 'close') { if (UMZ.cur?.id) await api('DELETE', `/api/account/import/${UMZ.cur.id}`).catch(() => {}); return umzImpDraw(md, null); }
       if (a === 'key') {
         const k = $('#s-umz-key', md)?.value || ''; if (!k.trim()) return;

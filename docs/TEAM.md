@@ -1399,6 +1399,25 @@ you at once; you get a notification. The link works once and for 14 days and is 
 **Withdraw** ends an open link at once. Someone who already has an account opens it signed in and confirms the connection.
 An admin of the server can switch these links off (Settings > Server > Sign-in).
 
+## How to: Move the company to another server
+<!-- user-help: team -->
+
+1. On the new server (your own, or app.kalmido.com) create an empty organisation and invite its members under Settings >
+   Organisation > People - or tick **Invite by e-mail** for the missing people in the preview of the import.
+2. On the old server note the recovery key (Settings > Organisation > Data > Encryption), then open
+   **Move the organisation** and select **Start the move…**: the organisation becomes read-only, invoice series,
+   reminders, mail and bank fetching rest.
+3. Select **Export the organisation**, then **Create export** and **Download**. Every person also selects
+   **Export everything** (their own data), and whoever has an own office **Export the office**.
+4. On the new server select **Import from a Kalmido export**: first the organisation's file (with the recovery key, the
+   new organisation as the target), then each person their own file.
+5. Set up again what does not come along: passwords and passkeys, mail account passwords, calendar and contact devices,
+   webhooks and connections, public, form and booking links, incoming e-mail addresses and agents.
+
+What happens then: invoice numbers are given only on the new server from now on. Ask the admin of the old server to
+delete the old organisation; **End the move** only if you stay there after all. Renaming the company needs no move -
+change its name. Two companies cannot be merged into one, nor one split, without losses.
+
 ## How to: Share a folder with people
 <!-- user-help: sharing -->
 

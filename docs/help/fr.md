@@ -312,3 +312,24 @@ Ce qui se passe ensuite : tous les projets du dossier sont partagés avec elle, 
 
 Ce qui se passe ensuite : quiconque a le lien peut lire le projet, sans connexion, en lecture seule, sans commentaires,
 responsables ni fichiers. **Désactiver** met fin au lien aussitôt.
+
+<!-- help: team#how-to-move-the-company-to-another-server src=7feca89b2e -->
+## Déménager l'entreprise sur un autre serveur
+
+1. Sur le nouveau serveur (le tien ou app.kalmido.com) crée une organisation vide et invite ses membres sous Paramètres >
+   Organisation > Personnes - ou coche **Inviter par e-mail** pour les personnes manquantes dans l'aperçu de l'import.
+2. Sur l'ancien serveur note la clé de récupération (Paramètres > Organisation > Données > Chiffrement), puis ouvre
+   **Déménager l’organisation** et choisis **Lancer le déménagement…** : l'organisation passe en lecture seule, les
+   séries de factures, les relances, la récupération du courrier et de la banque s'arrêtent.
+3. Choisis **Exporter l’organisation**, puis **Créer l’export** et **Télécharger**. Chaque personne choisit aussi
+   **Tout exporter** (ses propres données), et celle qui a son propre bureau **Exporter le bureau**.
+4. Sur le nouveau serveur choisis **Reprendre depuis un export Kalmido** : d'abord le fichier de l'organisation (avec la
+   clé de récupération, la nouvelle organisation comme cible), puis chaque personne son propre fichier.
+5. Configure à nouveau ce qui ne suit pas : mots de passe et passkeys, mots de passe des comptes de messagerie, appareils
+   de calendrier et de contacts, webhooks et connexions, liens publics, de formulaires et de réservation, adresses e-mail
+   d'entrée et agents.
+
+Ce qui se passe ensuite : seuls les numéros de facture du nouveau serveur comptent désormais. Demande à l'admin de
+l'ancien serveur de supprimer l'ancienne organisation ; **Terminer le déménagement** seulement si tu y restes finalement.
+Changer le nom de l'entreprise ne demande pas de déménagement - change son nom. Deux entreprises ne peuvent pas être
+réunies en une, ni une être divisée, sans pertes.

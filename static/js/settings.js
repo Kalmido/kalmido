@@ -1576,7 +1576,7 @@ function impInit(md) {
     const box = $('#s-imp-hist', md); if (!box) return;
     let j; try { j = await api('GET', '/api/imports'); } catch { return; }
     const rows = j.imports.filter(x => x.can_undo).slice(0, 5);
-    box.innerHTML = rows.length ? `<div class="muted mhint">${tr('Recent imports')}</div>` + rows.map(x => `<div class="mrow"><span class="n">${esc(x.source_name)}${x.file_name ? ' · ' + esc(x.file_name) : ''}</span><span class="muted">${x.source === 'newsletter' ? trn('{0} contact', '{0} contacts', x.counts.contacts || 0) : trn('{0} task', '{0} tasks', x.counts.tasks || 0)}</span><button class="btn sm" data-imp="undo" data-id="${+x.id}" data-src="${esc(x.source)}">${tr('Undo')}</button></div>`).join('') : '';
+    box.innerHTML = rows.length ? `<div class="muted mhint">${tr('Recent imports')}</div>` + rows.map(x => `<div class="mrow"><span class="n">${esc(x.source_name)}${x.file_name ? ' · ' + esc(x.file_name) : ''}</span><span class="muted">${x.source === 'newsletter' ? trn('{0} contact', '{0} contacts', x.counts.contacts || 0) : trn('{0} task', '{0} tasks', x.counts.tasks || 0)}</span>${x.warnings ? `<a class="btn sm" href="/api/imports/${esc(String(+x.id))}/report" download title="${esc(tr('Download the report'))}">${ic('download', 's')} ${esc(trn('{0} warning', '{0} warnings', x.warnings))}</a>` : ''}<button class="btn sm" data-imp="undo" data-id="${+x.id}" data-src="${esc(x.source)}">${tr('Undo')}</button></div>`).join('') : '';  // (#6583): the report with every warning
   }
   hist();
   $('#s-imp-src', md).addEventListener('change', e => {

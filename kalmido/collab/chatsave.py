@@ -51,7 +51,7 @@ def chat_save_title(text):
     """The first Markdown heading, else the first line with text -- without Markdown marks, shortened."""
     lines = [x.strip() for x in (text or "").splitlines() if x.strip()]
     head = next((x for x in lines if re.match(r"^#{1,6}\s+\S", x)), None)
-    t = head or (lines[0] if lines else "")
+    t = (head or (lines[0] if lines else ""))[:CHAT_SAVE_TITLE * 10]  # #6433: cut before the link pattern (quadratic on "[](" runs)
     t = re.sub(r"^(#{1,6}|>|[-*+]|\d+[.)])\s+", "", t)
     t = re.sub(r"[*_`~]+", "", re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", t)).strip()
     return t if len(t) <= CHAT_SAVE_TITLE else t[:CHAT_SAVE_TITLE - 1].rstrip() + "…"

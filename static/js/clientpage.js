@@ -384,12 +384,39 @@ document.addEventListener('click', e => {
       const msg = c.archived ? trn('{0} client restored', '{0} clients restored', ids.length) : trn('{0} client archived', '{0} clients archived', ids.length);
       if (j.changed) ms_hist(msg, msg, async () => { await ms_clSend({action: 'restore', items: j.undo}); await ms_clAfter(); }, async () => { await ms_clSend({action: c.archived ? 'unarchive' : 'archive', ids}); await ms_clAfter(); });
     }},
-    !c.parent_id && !c.archived ? {label: tr('Add location'), icon: 'mappin', fn: () => clientModal(null, {org_id: c.org_id ?? null, parent_id: c.id})} : null,  // #7292 ofm_can(c.org_id ?? null) ? {label: tr('Move to another workspace…'), icon: 'brief', fn: () => ofm_clients([c.id])} : null,  // (#2049)
+    {label: tr('Duplicate'), icon: 'copy', fn: () => ms_clCopy(c, false)},  // #7295
+    {label: tr('Add location'), icon: 'mappin', fn: () => ms_clCopy(c, true)},  // #7295 (#7292): of a location = of its main client
+    ofm_can(c.org_id ?? null) ? {label: tr('Move to another workspace…'), icon: 'brief', fn: () => ofm_clients([c.id])} : null,  // (#2049)
     typeof tpo_on === 'function' && tpo_on() ? {label: tr('Find a date…'), icon: 'users', fn: () => tpo_forClient(c)} : null,  // 2.98.0 A (#1953)
     formsOn() && !S.me?.kid ? {label: tr('Copy questionnaire link for this client'), icon: 'copy', fn: () => fq_clientLink(c, b)} : null,  // 2.102.0 C (#2201)
     kp_menuItem(c)]);  // 2.120.0 B (#2088)
   }
 });
+// #7295: "Duplicate" / "Add location" of the client page: one call (POST /api/clients/<id>/copy: name, address, country, rate,
+// icon, colour, note; the contact persons only when ticked), one undo step (the new client into the trash, redo = back out of
+// it), then the new client opens for editing (a location: its name addition to fill in)
+async function ms_clCopy(c, site) {
+  const nk = (c.contacts || []).length, main = site && c.parent_id ? clientById(c.parent_id) || null : null;
+  let j = null;
+  const ok = await askDialog({title: site ? tr('Add a location of {0}', cdn_label(main || c)) : tr('Duplicate {0}', cdn_label(c)),
+    html: `<p>${esc(site ? tr('The location takes over the address, country, hourly rate, icon, colour and note. Its name addition stays empty for you to fill in.')
+      : tr('The copy takes over the name, address, country, hourly rate, icon, colour and note. Projects, documents, hours, budget and links stay with the original.'))}</p>`
+      + (nk ? `<label class="chk"><input type="checkbox" id="clcp-k"> ${esc(trn('Take the contact person along ({0})', 'Take the contact persons along ({0})', nk))}</label>` : ''),
+    ok: site ? tr('Add location') : tr('Duplicate'),
+    submit: async () => {
+      try { j = await rawFetch('POST', `/api/clients/${c.id}/copy`, {as_location: site, contacts: !!$('#clcp-k')?.checked}); return true; }
+      catch (x) { toast(x.message || ''); return false; }
+    }});
+  if (!ok || !j) return;
+  const nid = j.id, msg = site ? tr('Location added') : tr('Client duplicated');
+  await ms_clAfter();
+  go('client/' + nid);
+  clientModal(j);
+  ms_hist(msg, msg, async () => {  // after the jump: the message belongs to the new client's page
+    await rawFetch('DELETE', `/api/clients/${nid}`);
+    await ms_clAfter(); if (S.route.mod === 'clients' && +S.route.client === nid) go('client/' + c.id);
+  }, async () => { await ms_clSend({action: 'untrash', ids: [nid]}); await ms_clAfter(); });
+}
 kb_on('view:clients', 'Escape', () => {  // 2.630.0 (#4510): key registry (keys.js): the view's Esc, after an open menu / dialog and before the detail
   if (!(MSC.pick && S.route.mod === 'clients' && !$('.modal, .lightbox') && $('#pop')?.classList.contains('hidden'))) return false; ms_clEnd();
 });

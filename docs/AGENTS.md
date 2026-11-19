@@ -1558,7 +1558,7 @@ approval their admin) reopen it in the app.
 last) to be safe against a person editing the client at the same time: changed in between answers `409` with the code
 `conflict` - read the client again and decide with the person, never send the old state once more.
 
-**Clients are managed by people (2.370.4).** The client tools (`list_clients`, `get_client`, `create_client`,
+**Clients are managed by people (2.370.4).** The client tools (`list_clients`, `get_client`, `create_client`, `copy_client`,
 `update_client`, `delete_client`, `bulk_clients`) are for a person's own MCP client with their own token. An agent account
 sees no clients there (`list_clients` answers an empty list, `get_client` `404`) and every change - creating, changing,
 deleting, moving into the trash, `bulk_clients` with `untrash` - answers `403` (*Only people can manage clients*). The
@@ -1566,7 +1566,7 @@ clients of the office area reach an agent read-only through `list_office_data`. 
 
 **Locations of a client (#7292).** A client with several locations (e.g. offices in two cities) is a main client plus one
 client per location: `parent_id` names the main client (`create_client` / `update_client`; `null` removes it). One level only,
-the main client in the same workspace (else `400`). Documents keep choosing one client, the location; `get_client` of a
+the main client in the same workspace (else `400`). `copy_client` (#7295) makes a copy of a client or, with `as_location: true`, a new location of it (of a location: of its main client); `contacts: true` takes the contact persons along. People only, like the other client tools. Documents keep choosing one client, the location; `get_client` of a
 main client adds `sites` (its locations with their figures) and `group` (hours, amounts and budget of all together).
 
 Example `reaction`:
@@ -4841,7 +4841,7 @@ endpoint is named somewhere in this guide or in [AGENT-SETUP.md](AGENT-SETUP.md)
 `add_comment`, `add_contract`, `add_decision`, `add_deadline`, `add_dependency`, `add_device`, `add_health_entry`, `add_milestone`,
 `add_occasion`, `add_preparation_task`, `add_project_link`, `add_relation`, `add_reward`, `add_rule`, `add_shop_areas`, `add_snippet`,
 `add_subtask`, `add_time_entry`, `add_upkeep`, `apply_template`, `batch_tasks`, `bulk_clients`, `bulk_contacts`,
-`chat_typing`, `check_in_habit`, `clear_plan_usage`, `clear_waiting`, `comment_typing`, `complete_task`, `confirm_abort`,
+`chat_typing`, `check_in_habit`, `clear_plan_usage`, `clear_waiting`, `comment_typing`, `complete_task`, `confirm_abort`, `copy_client`,
 `create_address_book`, `create_client`, `create_contact`, `create_document`, `create_event`, `create_event_calendar`, `create_field`,
 `create_file_folder`, `create_filter`, `create_form`, `create_view`, `create_habit`, `create_invoice_draft`, `create_job`, `create_letter_draft`, `create_list`, `create_list_tag`,
 `create_note`, `create_offer_draft`, `create_office_deal`, `create_office_lead`, `create_packing_list`, `create_poll`, `create_section`, `create_task`, `create_template`,

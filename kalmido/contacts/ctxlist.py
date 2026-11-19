@@ -40,6 +40,7 @@ from ..contacts.bulk import bk_gate, ms_groups, ms_write  # 2.369.5 (#2517): pul
 # ---- CSV (#2080)
 CTX_DELIMS = (";", ",", "\t")
 CTX_SAMPLE = 5
+CTX_COLS_MAX = 200  # #6433: columns of a contacts CSV (Google's export has about 90; more only slows every row down)
 CTX_TYPES = {"email": ("home", "work", "other"), "phone": ("cell", "home", "work", "fax", "other"), "adr": ("home", "work", "other")}
 CTX_ADR = ("street", "code", "city", "region", "country")
 # the fields a column can go to ('' = ignore): name parts, company, typed e-mails / phones, address parts per kind, the rest
@@ -175,6 +176,8 @@ def ctx_read(raw):
     if len(rows) < 2:
         raise BadInput(tr("This is not a contacts file (vCard or CSV)"))
     headers = [h.strip() for h in rows[0]]
+    if len(headers) > CTX_COLS_MAX:  # #6433
+        raise BadInput(tr("Too many columns (at most {0})", CTX_COLS_MAX))
     if len(headers) < 2 and not any(ctx_guess(headers)):
         raise BadInput(tr("This is not a contacts file (vCard or CSV)"))
     return {"headers": headers, "rows": rows[1:], "delimiter": d, "encoding": enc}
@@ -226,7 +229,8 @@ def ctx_date(v):
 
 
 def ctx_split(v, groups=False):
-    parts = re.split(r"\s*:::\s*" + (r"|\s*[;,]\s*" if groups else ""), v)
+    # #6433: no \s* around the separators (quadratic on long blanks); every part is stripped anyway
+    parts = re.split(r":::|[;,]", v) if groups else v.split(":::")
     return [x.strip() for x in parts if x.strip()]
 
 
@@ -240,8 +244,27 @@ def ctx_type(v, kind, default):
     return default
 
 
-def ctx_row(headers, row, mapping):
-    """One CSV row -> the contact's columns (lists as lists) or None for an empty row."""
+def ctx_cols(headers):
+    """#6433: once per file, not per cell: per column its normalised name, its number ('E-mail 2 - Value' -> '2') and the
+    indexes of its Google sibling columns ('<X> N - Type' / '- Label', the last one wins)."""
+    norm = [ctx_norm(h) for h in headers]
+    pos = {}
+    for j, hn in enumerate(norm):
+        pos.setdefault(hn, []).append(j)
+    out = []
+    for hn in norm:
+        num = re.search(r"\b(\d+)\b", hn)
+        sibs = []
+        if num:
+            stem = hn.split(num.group(1))[0]
+            sibs = sorted(pos.get(f"{stem}{num.group(1)} type", []) + pos.get(f"{stem}{num.group(1)} label", []))
+        out.append((hn, num.group(1) if num else None, sibs))
+    return out
+
+
+def ctx_row(headers, row, mapping, cols=None):
+    """One CSV row -> the contact's columns (lists as lists) or None for an empty row. cols: ctx_cols(headers) of the file."""
+    cols = cols if cols is not None else ctx_cols(headers)
     v = {k: "" for k in ("fn", "given", "middle", "family", "prefix", "suffix", "nickname", "org", "dept", "title", "bday", "anniversary", "note")}
     lists = {"emails": [], "phones": [], "urls": [], "groups": []}
     adrs = {}
@@ -251,14 +274,9 @@ def ctx_row(headers, row, mapping):
         val = ctx_cell(row[i])
         if not val:
             continue
-        num = re.search(r"\b(\d+)\b", ctx_norm(headers[i]))
-        sib = None  # Google: the "<X> N - Type" / "- Label" column next to the value
-        if num:
-            stem = ctx_norm(headers[i]).split(num.group(1))[0]
-            for j, h in enumerate(headers):
-                hn = ctx_norm(h)
-                if hn in (f"{stem}{num.group(1)} type", f"{stem}{num.group(1)} label") and j < len(row):
-                    sib = row[j]
+        hn, num, sibs = cols[i]
+        # Google: the "<X> N - Type" / "- Label" column next to the value
+        sib = next((row[j] for j in reversed(sibs) if j < len(row)), None)
         if f in ("bday", "anniversary"):
             v[f] = ctx_date(val)
         elif f == "note":
@@ -273,7 +291,7 @@ def ctx_row(headers, row, mapping):
             lists["emails" if kind == "email" else "phones"] += [{"value": x[:FIELD_MAX], "type": [t]} for x in ctx_split(val)]
         elif f.startswith("adr:"):
             _, t, part = f.split(":")
-            key = (t, num.group(1) if num and "address" in ctx_norm(headers[i]) else "")
+            key = (t, num if num and "address" in hn else "")
             a = adrs.setdefault(key, {"type": [ctx_type(sib, "adr", t) if sib else t]})
             a[part] = (a.get(part, "") + " " + val).strip()[:FIELD_MAX] if part == "street" else val[:FIELD_MAX]
         else:
@@ -304,8 +322,9 @@ def ctx_cards(raw, mapping=None):
     if not any(m):
         raise BadInput(tr("Select at least one column"))
     out, ts = [], iso(now_utc())
+    cols = ctx_cols(t["headers"])  # #6433: once per file
     for row in t["rows"]:
-        v = ctx_row(t["headers"], row, m)
+        v = ctx_row(t["headers"], row, m, cols)
         if v is None:
             continue
         r = {**v, **{k: json.dumps(v[k], ensure_ascii=False) for k in ("emails", "phones", "urls", "groups", "addresses")},

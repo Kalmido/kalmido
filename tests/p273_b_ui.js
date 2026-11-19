@@ -52,8 +52,8 @@ async function dataPane(w) {
   let w = await boot({user: 'alice'});
   let md = await dataPane(w);
   check(md.querySelector('#s-umz-h') && /Move and export everything/.test(md.querySelector('#s-umz-h').textContent), 'the section is there');
-  check(md.querySelector('.umzhow summary') && /Move to your own server/.test(md.querySelector('.umzhow').textContent) && md.querySelectorAll('.umzsteps li').length === 4,
-    'the steps "Move to your own server"');
+  check(md.querySelector('.umzhow summary') && /Move to your own server/.test(md.querySelector('.umzhow').textContent) && md.querySelectorAll('.umzsteps li').length === 5 && /Moving with the company/.test(md.querySelector('.umzsteps').textContent),
+    'the steps "Move to your own server" (#6582: + the step for a whole company)');
   check(md.querySelector('a[href="/api/export.json"]'), 'the JSON export stays');
   const eb = await until(() => md.querySelector('#s-umz-exp [data-umz="exp"]'));
   check(eb && /Export everything/.test(eb.textContent), '"Export everything"');

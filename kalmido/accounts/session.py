@@ -21,12 +21,26 @@ from ..core.pg import system_ctx  # 2.369.6 (#3139)
 from ..core.orgcrypt import ROT_LOCK_KEY, ROT_LOCK_TTL
 from ..core.ratedb import rate_clear, rate_counts  # 2.306.0 D1 (#2875): failures counted for every process
 from ..core.ratedb import rate_known_add, rate_known_at  # 2.312.0 C (#3265): known addresses for every process
+from ..core.env import env_float  # (#6615): a wrong value = one warning with its name
+
+
+DNAME_MAX = 60  # characters of a display name
+
+
+def dname_clean(raw, fallback=""):
+    """#6432: the ONE check of a display name someone types (setup, an admin's user dialog, the own settings; sign-up and
+    invitations #6549 / #6501 use it too): trimmed, at most DNAME_MAX characters, empty -> fallback (the username). No < or >:
+    a name is shown in many places, a forgotten escape there must not turn it into markup. Names that have < > already stay.
+    -> (name, None) or (None, error message for err())."""
+    name = str(raw or "").strip()[:DNAME_MAX]
+    if "<" in name or ">" in name:
+        return None, tr("The display name cannot contain < or >.")
+    return name or fallback, None
 
 
 # ---------------------------------------------------------------- auth
 
 from ..core.ctx import me  # noqa: E402,F401  2.149.0 G (#2517): moved to core/ctx.py, re-exported here
-from ..core.env import env_float  # (#6615): a wrong value = one warning with its name
 
 
 def _peer_trusted():

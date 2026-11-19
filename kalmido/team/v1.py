@@ -4,7 +4,7 @@ from flask import jsonify
 from ..core.config import app
 from ..core.errors import reject_unknown
 from ..api.common import v1_args, v1_call, v1_json, v1_view
-from ..team.clients import CLIENT_FIELDS, client_create, client_delete, client_get, client_update, clients_list
+from ..team.clients import CLIENT_FIELDS, client_copy, client_create, client_delete, client_get, client_update, clients_list
 from ..team.clients_bulk import clients_bulk
 from ..team.workload import workload_get
 from ..team.approvals import APPROVAL_ACTIONS, APPROVAL_STATES, task_approval
@@ -48,6 +48,15 @@ def v1_client_update(cid):
 def v1_client_delete(cid):
     v1_args(())
     return jsonify(v1_call(client_delete, cid))
+
+
+@app.post("/api/v1/clients/<int:cid>/copy")
+@v1_view
+def v1_client_copy(cid):  # #7295
+    v1_args(())
+    b = v1_json()
+    reject_unknown(b, ("as_location", "contacts"))
+    return jsonify(v1_call(client_copy, cid, body=b)), 201
 
 
 @app.post("/api/v1/clients/bulk")
@@ -182,6 +191,15 @@ def pkgc_spec(paths, schemas, op, ok, errs, ref, pid, nul, page, q):
                      "trash_days), back with bulk action untrash, deleted for good after the trash period. 2.370.4 (#3089): people only "
                      "(an agent account: 403)", C, ok({"type": "object"}) | errs("403", "404"),
                      [pid("id", "Client id")], scope="structure")}
+    paths["/clients/{id}/copy"] = {"post": op(  # #7295
+        "A copy of a client or a new location of it, in its workspace (people only, an agent account: 403). It takes over name, "
+        "name_extra, the address fields, country, rate, icon, color and note (a copy: the name with \" (copy)\"; a location: the "
+        "same name, name_extra empty, parent_id = this client or, for a location, its main client); the contact persons only "
+        "with contacts: true. Never projects, documents, hours, budget, links or the archive state. Undo: DELETE /clients/{new id}",
+        C, ok(ref("Client"), "Created", "201") | errs("400", "403", "404", "409"), [pid("id", "Client id")],
+        body={"type": "object", "additionalProperties": False, "properties": {
+            "as_location": {"type": "boolean", "description": "true = a new location of the client instead of a copy"},
+            "contacts": {"type": "boolean", "description": "true = take its contact persons along"}}}, scope="structure")}
     paths["/clients/bulk"] = {"post": op(  # 2.47.3 (#1733)
         "Several clients at once (up to 1000 ids; one you do not see -> 404, nothing changes). delete: a client used in quotations, "
         "invoices or framework contracts is archived instead; only its creator or an admin deletes (others: skipped). archive / unarchive; "
