@@ -31,8 +31,9 @@ from flask import jsonify, request
 from ..core.config import _origin, app, APP_NAME, APP_VERSION, TZ
 from ..core.pg import insert_id, qi, table_columns, write_lock
 from ..core.ephem import eph_busy_give, eph_busy_take, eph_put, eph_take  # 2.642.0 (#4975); 2.800.0 (#5466): put / take
-from ..core.i18n import lang, N_, tr
-from ..core.db import bump, ALLOW_PURPOSES, body, connect, db, err, gsetting, iso, iso_ms, local_now, now_utc, parse_iso
+from ..core.i18n import lang, N_, short_day, tr
+from ..core.db import bump, ALLOW_PURPOSES, body, connect, db, err, gsetting, iso, iso_ms, local_now, now_utc, parse_iso, usettings
+from ..core.usertz import hm_text, tz_of_s  # 2.1423.0 (#6551)
 from ..accounts.session import FAIL_WINDOW, GATE, me
 from ..accounts.login import seal, unseal  # 2.800.0 (#5466): the undo copy of a removed subscription
 from ..core.access import Denied
@@ -42,6 +43,7 @@ from ..core.conflict import ccf_check  # 2.564.0 D (#4701)
 from ..calendars.caldav import _DtdRefused, xml_no_dtd
 from ..notify.push import _b64u, _b64u_dec
 from ..notify.alerts import _env_int, aa_count, aa_now
+from ..collab.integfail import integ_tell  # 2.1423.0 (#6551)
 from ..core.env import env_bool
 
 
@@ -1215,10 +1217,6 @@ def _cal_stale_tell(c, s, name, lg, now):
     before = parse_iso(s["tried_at"] or "") if s["fails"] else None
     if before and (before - t).total_seconds() > CAL_STALE_S:
         return  # told at the failure that crossed the line (once per outage; a success starts anew)
-    from ..core.i18n import short_day
-    from ..core.usertz import hm_text, tz_of_s
-    from ..core.db import usettings
-    from ..collab.integfail import integ_tell
     us = usettings(c, s["user_id"])
     loc = t.astimezone(tz_of_s(us))
     stand = f"{short_day(loc, lg)} {hm_text(loc, us)}" if s["synced_at"] else ""
