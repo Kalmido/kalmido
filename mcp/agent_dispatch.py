@@ -1274,13 +1274,16 @@ class Dispatcher:
             r = e.get("read") or {}
             who = f"job #{r['job']}" if r.get("job") else "not started" + (f": {r['why']}" if r.get("why") else "")
             summary = f"{summary}\nReading ({who}): {READ_LINE.get(verdict, READ_LINE['none'])}."
-        e["carded"] = True
         if not tids:
+            e["carded"] = True
             return
         api = self.host.api
-        w(f"approval card for {url} on #{tids[0]}", lambda: api.req("POST", f"/tasks/{int(tids[0])}/comments", {
-            "body": f"Ready to merge: {url}\n\n{summary}",
-            "suggestion": {"kind": "merge_request", "pr_url": url, "summary": summary}}))
+        if not w(f"approval card for {url} on #{tids[0]}", lambda: api.req("POST", f"/tasks/{int(tids[0])}/comments", {
+                "body": f"Ready to merge: {url}\n\n{summary}",
+                "suggestion": {"kind": "merge_request", "pr_url": url, "summary": summary}})):
+            if verdict:  # reader F5 (2.1413): not written (the round's write limit, an API error) -- again next round
+                return
+        e["carded"] = True
         self.finding(res, f"pr:{jid}", self.say("dispatch_pr", f"#{jid}", url, " ".join(f"#{t}" for t in tids)))
 
     def after_read(self, jid, e, jobs, cfg, now, res, w):
