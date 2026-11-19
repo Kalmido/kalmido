@@ -49,7 +49,7 @@ function chatOpen(aid, o = {}) {
   if (!p) { p = document.createElement('aside'); p.id = 'achat'; p.setAttribute('aria-label', tr('Chat')); document.body.appendChild(p); }
   if (p.classList.contains('float') !== fl) { p.innerHTML = ''; delete p.dataset.aid; delete p.dataset.cw; p.classList.remove('cwsplit'); }
   p.classList.toggle('float', fl); p.classList.remove('min'); document.body.classList.toggle('chat-float', fl); document.body.classList.toggle('chat-open', !fl);
-  if (fl) chatFloatPlace(p); else p.style.left = p.style.top = p.style.right = p.style.bottom = '';
+  if (fl) chatFloatPlace(p); else p.style.left = p.style.top = p.style.right = p.style.bottom = p.style.width = p.style.height = '';  // #7289: + the window's size
   p.classList.remove('hidden'); fitLayout(); chatDraw(); chatFabDraw(); chatLoad().then(() => $('#chat-in')?.focus());
 }
 function chatClose() { if (S.chat.job && chatFull()) { jc_back(); return; }  // 2.56.0 (#1793): Back leaves a job's history first; #5222: from a job card the chat
@@ -70,7 +70,54 @@ function chatFloatPlace(p) {
   const pos = (LS.get('chatPos', '') || '').split(',').map(Number);
   if (pos.length === 2 && pos.every(Number.isFinite)) { p.style.left = Math.max(8, Math.min(innerWidth - 120, pos[0])) + 'px'; p.style.top = Math.max(8, Math.min(innerHeight - 60, pos[1])) + 'px'; p.style.right = p.style.bottom = 'auto'; }
   else { p.style.left = p.style.top = ''; p.style.right = p.style.bottom = ''; }
+  chatFloatSize(p, ...(LS.get('chatSize', '') || '').split(',').map(Number));  // #7289
 }
+// #7289: the floating window's size. It sticks to the bottom right, so the grips sit at the top left: the corner (width and
+// height, focusable: arrow keys, Home / End, Enter or double-click = default size) and the left and top edges. At least about
+// 18 x 20 rem, at most what the window leaves; remembered per device (chatSize "w,h" in px, next to chatPos). A window moved by
+// its header (left / top set) keeps its bottom right corner while it grows. Phone and full screen: no window, no grips.
+const CHF_MIN = [18, 20], CHF_STEP = 16;
+function chatFloatLim(p) {
+  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16, r = p.getBoundingClientRect(), free = !!p.style.left;
+  return {minW: CHF_MIN[0] * rem, minH: CHF_MIN[1] * rem, maxW: r.right - 8, maxH: r.bottom - 8, r, free};  // the bottom right corner stays put
+}
+function chatFloatSize(p, w, h, save) {
+  if (!(w > 0 && h > 0)) { p.style.width = p.style.height = ''; if (save) LS.del('chatSize'); chatGripVal(p); return; }
+  const L = chatFloatLim(p);
+  w = Math.round(Math.max(L.minW, Math.min(L.maxW, w))); h = Math.round(Math.max(L.minH, Math.min(L.maxH, h)));
+  if (L.free) { p.style.left = Math.max(8, L.r.right - w) + 'px'; p.style.top = Math.max(8, L.r.bottom - h) + 'px'; }  // the bottom right corner stays
+  p.style.width = w + 'px'; p.style.height = h + 'px';
+  if (save) { LS.set('chatSize', `${w},${h}`); if (L.free) LS.set('chatPos', `${parseInt(p.style.left)},${parseInt(p.style.top)}`); }
+  chatGripVal(p);
+}
+function chatGripVal(p) { const g = $('.chrsz.nw', p); if (g) g.setAttribute('aria-valuenow', String(Math.round(p.getBoundingClientRect().width))); }
+function chatGrips(p) {  // after every redraw of the window's content (chatDraw)
+  if (!p.classList.contains('float') || $('.chrsz', p)) return;
+  const lbl = esc(tr('Resize (arrow keys; double-click: default size)')), tip = esc(tr('Drag to resize · double-click: default size'));
+  p.insertAdjacentHTML('beforeend', `<div class="chrsz nw" tabindex="0" role="separator" aria-orientation="vertical" aria-label="${lbl}" title="${tip}" aria-valuemin="0" aria-valuemax="${innerWidth}" aria-valuenow="0"></div>`
+    + '<div class="chrsz w" aria-hidden="true"></div><div class="chrsz n" aria-hidden="true"></div>');
+  chatGripVal(p);
+}
+document.addEventListener('pointerdown', e => {
+  const g = e.target.closest?.('#achat.float .chrsz'); if (!g || e.button !== 0) return;
+  const p = $('#achat'), r = p.getBoundingClientRect(), x0 = e.clientX, y0 = e.clientY, dw = !g.classList.contains('n'), dh = !g.classList.contains('w');
+  e.preventDefault(); e.stopPropagation(); try { g.setPointerCapture(e.pointerId); } catch { /* gone */ } document.body.classList.add('chrsz-drag');
+  let at = null;
+  const put = rafThrottle((x, y) => { at = [dw ? r.width + x0 - x : r.width, dh ? r.height + y0 - y : r.height]; chatFloatSize(p, at[0], at[1]); });
+  const mv = ev => put(ev.clientX, ev.clientY);
+  const up = () => { g.removeEventListener('pointermove', mv); put.flush(); document.body.classList.remove('chrsz-drag');
+    if (at) { const b = p.getBoundingClientRect(); chatFloatSize(p, b.width, b.height, true); } };
+  g.addEventListener('pointermove', mv); g.addEventListener('pointerup', up, {once: true}); g.addEventListener('pointercancel', up, {once: true});
+}, true);
+document.addEventListener('dblclick', e => { if (e.target.closest?.('#achat.float .chrsz')) chatFloatSize($('#achat'), 0, 0, true); });
+document.addEventListener('keydown', e => {
+  const g = e.target.closest?.('#achat.float .chrsz.nw'); if (!g) return;
+  const p = $('#achat'), b = p.getBoundingClientRect(), st = CHF_STEP * (e.shiftKey ? 4 : 1), L = chatFloatLim(p);
+  const to = {ArrowLeft: [b.width + st, b.height], ArrowRight: [b.width - st, b.height], ArrowUp: [b.width, b.height + st], ArrowDown: [b.width, b.height - st],
+    Home: [L.minW, L.minH], End: [L.maxW, L.maxH]}[e.key];
+  if (to) { e.preventDefault(); e.stopPropagation(); chatFloatSize(p, to[0], to[1], true); }
+  else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); chatFloatSize(p, 0, 0, true); }
+});
 document.addEventListener('pointerdown', e => {  // move the window by its header (not by its buttons)
   const h = e.target.closest?.('#achat.float .chath'); if (!h || e.button !== 0 || e.target.closest('button,a,input,textarea,select')) return;
   const p = $('#achat'), r = p.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top;
@@ -1095,7 +1142,7 @@ function chatDraw(o = {}) {
   const p = $('#achat');
   if (typeof cw_frame === 'function' && cw_frame(p)) o = {};  // 2.47.1 (#1720): several chats one above the other (chatwins.js); 2.380 F (#3381): the new box restores its place
   if (p && !p.classList.contains('hidden') && !p.classList.contains('cwsplit') && S.chat.aid && !chatFull() && (p.dataset.aid !== String(S.chat.aid) || (p.dataset.jc || '') !== jc_key() || !$('#chat-msgs', p))) {  // 2.56.0 (#1793): jc = a job's history
-    const d = S.drafts['chat:' + S.chat.aid] = $('#chat-in', p)?.value ?? S.drafts['chat:' + S.chat.aid]; p.innerHTML = chatInner(S.chat.aid); p.dataset.aid = S.chat.aid; p.dataset.jc = jc_key(); if (d !== undefined) $('#chat-in', p).value = d;
+    const d = S.drafts['chat:' + S.chat.aid] = $('#chat-in', p)?.value ?? S.drafts['chat:' + S.chat.aid]; p.innerHTML = chatInner(S.chat.aid); chatGrips(p); p.dataset.aid = S.chat.aid; p.dataset.jc = jc_key(); if (d !== undefined) $('#chat-in', p).value = d;
     o = {};  // 2.380 F (#3381): was bottom; the new box restores its place (chs_restore)
   }
   chatPatch(o);  // 2.7.2 (#422) / 2.12.2 (#451): the open chat refreshes in place (the box keeps its focus, the keyboard stays)

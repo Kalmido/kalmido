@@ -98,7 +98,7 @@ function cw_show() {
   let p = $('#achat');
   if (!p) { p = document.createElement('aside'); p.id = 'achat'; p.setAttribute('aria-label', tr('Chat')); document.body.appendChild(p); }
   if (p.classList.contains('float')) { LS.set('chatFloat', '0'); p.innerHTML = ''; delete p.dataset.aid; delete p.dataset.cw; }
-  p.classList.remove('float', 'min', 'hidden'); p.style.left = p.style.top = p.style.right = p.style.bottom = '';
+  p.classList.remove('float', 'min', 'hidden'); p.style.left = p.style.top = p.style.right = p.style.bottom = p.style.width = p.style.height = '';  // #7289: + size
   document.body.classList.remove('chat-float'); document.body.classList.add('chat-open');
   fitLayout(); chatDraw(); chatFabDraw(); cw_save();
 }

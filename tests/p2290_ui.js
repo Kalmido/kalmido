@@ -9,6 +9,8 @@
 // #345 Settings > Agents > Lists: lists of others shared with me show up read-only with their owner
 // #363 the chat pop-up: the round button bottom right (desktop), the key A, the window stays while switching views, fold,
 //      dock as side panel and back
+// #7289 (Firefox 1440 light): the window's corner grip (drag, arrow keys, double-click = default size), the left edge down to the
+//      minimum, the size comes back when it opens again
 // Firefox (1440 light / dark, 390 touch): screenshots; #1028 a long command in a chat bubble wraps (no sideways scrollbar over
 // the next line); #1002 a click on an empty "Assigned" cell of a shared agency project opens the people picker; #963 "+"
 // in the reactions opens the emoji field above the chat.
@@ -230,6 +232,31 @@ const V = B + 'api/v1';
     // #1028: the long command wraps inside the bubble, no sideways scrollbar, the line under it is not covered
     check(await ev(`(() => { const pre = [...document.querySelectorAll('#achat .cbub pre.mdpre')].pop(); if (!pre) return false; const cs = getComputedStyle(pre); const next = pre.closest('.mdcode').nextElementSibling; const pr = pre.getBoundingClientRect(), nr = next ? next.getBoundingClientRect() : null; return pre.scrollWidth <= pre.clientWidth + 1 && cs.whiteSpace === 'pre-wrap' && (!nr || nr.top >= pr.bottom - 0.5); })()`), `${tag}: #1028 the code block wraps, the text under it stays free`);
     await shot(`p2290-${th}-1440-chat-window.png`);
+    if (th === 'light') {  // #7289: the floating window takes a new size by its grip at the top left (mouse and keyboard), kept per device
+      const box = `(() => { const p = document.querySelector('#achat.float'), g = p && p.querySelector('.chrsz.nw'); if (!g) return null; const a = g.getBoundingClientRect(), r = p.getBoundingClientRect(); return {x: a.left + a.width / 2, y: a.top + a.height / 2, w: Math.round(r.width), h: Math.round(r.height), right: Math.round(r.right), bottom: Math.round(r.bottom), ls: localStorage.getItem('tasks.chatSize'), lbl: g.getAttribute('aria-label') || '', tab: g.tabIndex}; })()`;
+      const g0 = await ev(box);
+      check(g0 && g0.tab === 0 && g0.lbl && !g0.ls, `${tag}: #7289 the window has a focusable corner grip at the top left ${JSON.stringify(g0)}`);
+      if (g0) {
+        await o.drag(g0.x, g0.y, -120, -80);
+        const g1 = await o.until(`(() => { const b = ${box}; return b && b.w > ${g0.w} + 100 && b.ls ? b : null; })()`, {timeout: 5000});
+        check(g1 && g1.h > g0.h + 60 && Math.abs(g1.right - g0.right) <= 1 && Math.abs(g1.bottom - g0.bottom) <= 1, `${tag}: #7289 dragging the corner: wider and taller, the bottom right corner stays, remembered ${JSON.stringify([g0, g1])}`);
+        await ev(`(() => { const g = document.querySelector('#achat.float .chrsz.nw'); g.focus(); g.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true})); return 1; })()`);
+        const g2 = await ev(box);
+        check(g1 && g2 && g2.w === g1.w - 16 && g2.ls === JSON.stringify(`${g2.w},${g2.h}`), `${tag}: #7289 arrow right: 16 px narrower, stored ${JSON.stringify([g1, g2])}`);
+        const e0 = await ev(box);  // the left edge alone: only the width
+        await o.drag(e0.x - 6, e0.y + 200, 900, 0);
+        const g3 = await o.until(`(() => { const b = ${box}; return b && b.w < ${e0.w} ? b : null; })()`, {timeout: 5000});
+        const rem = await ev(`parseFloat(getComputedStyle(document.documentElement).fontSize)`);
+        check(g3 && g3.w === Math.round(18 * rem) && g3.h === e0.h, `${tag}: #7289 the left edge: narrower down to about 18 rem, the height stays ${JSON.stringify([e0, g3, rem])}`);
+        await ev(`(() => { chatClose(); return 1; })()`); await o.until(`!!document.querySelector('#chatfab')`);
+        await ev(`(() => { document.querySelector('#chatfab').click(); return 1; })()`);
+        const g4 = await o.until(`(() => { const b = ${box}; return b && b.w === ${g3 ? g3.w : -1} ? b : null; })()`, {timeout: 5000});
+        check(g4 && g4.h === g3.h, `${tag}: #7289 opened again: the same size ${JSON.stringify([g3, g4])}`);
+        await ev(`(() => { const g = document.querySelector('#achat.float .chrsz.nw'); g.dispatchEvent(new MouseEvent('dblclick', {bubbles: true})); return 1; })()`);
+        const g5 = await ev(box);
+        check(g5 && g5.w === g0.w && g5.h === g0.h && !g5.ls, `${tag}: #7289 double-click: the default size, nothing stored ${JSON.stringify([g0, g5])}`);
+      }
+    }
     // #963: "+" under a message opens the emoji field ABOVE the chat window (it was behind the chat panel once)
     await ev(`(() => { const b = [...document.querySelectorAll('#achat [data-act="rx-more"]')].pop(); b && b.click(); return !!b; })()`); await sleep(500);
     check(await ev(`(() => { const p = document.querySelector('#pop'), i = document.querySelector('#pop #rx-in'); if (!i || p.classList.contains('hidden')) return false; const r = i.getBoundingClientRect(); const e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!e && p.contains(e); })()`), `${tag}: #963 "+" opens the emoji field on top`);
