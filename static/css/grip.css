@@ -1,0 +1,40 @@
+/* #7293: the one grip to resize (static/js/grip.js, module grip; docs/dev/kern.md "Resizing: the one grip"). The size lives in
+   --g-<key> / --g-<key>-w / --g-<key>-h, which the area's own CSS reads (with its default as the fallback). */
+.grip{touch-action:none;-webkit-user-select:none;user-select:none;box-sizing:border-box;flex:none}
+.grip:focus{outline:none}
+.grip:focus-visible{outline:2px solid var(--accent);outline-offset:-1px;border-radius:2px}
+/* the line grips: a thin accent line in the middle of a wider hit area */
+.grip-x{width:.625rem;align-self:stretch;cursor:col-resize;display:flex;justify-content:center}
+.grip-y{height:.625rem;justify-self:stretch;cursor:row-resize;display:flex;flex-direction:column;justify-content:center}
+.grip-x::after,.grip-y::after{content:"";border-radius:1px;background:transparent}
+.grip-x::after{width:2px;height:100%}
+.grip-y::after{height:2px;width:100%}
+.grip-x:hover::after,.grip-y:hover::after,.grip-x.drag::after,.grip-y.drag::after,.grip-x:focus-visible::after,.grip-y:focus-visible::after{background:var(--accent)}
+/* the corner of a floating window: an L-shaped mark in the corner */
+.grip-c{position:absolute;width:1.25rem;height:1.25rem;z-index:2;padding:0;border:0;background:none}
+.grip-c::before{content:"";position:absolute;width:.5rem;height:.5rem;border:0 solid var(--faint)}
+.grip-c:hover::before,.grip-c:focus-visible::before,.grip-c.drag::before{border-color:var(--accent)}
+.grip-br{right:0;bottom:0;cursor:nwse-resize}
+.grip-br::before{right:.3125rem;bottom:.3125rem;border-right-width:.125rem;border-bottom-width:.125rem;border-bottom-right-radius:.125rem}
+.grip-bl{left:0;bottom:0;cursor:nesw-resize}
+.grip-bl::before{left:.3125rem;bottom:.3125rem;border-left-width:.125rem;border-bottom-width:.125rem;border-bottom-left-radius:.125rem}
+.grip-tr{right:0;top:0;cursor:nesw-resize}
+.grip-tr::before{right:.3125rem;top:.3125rem;border-right-width:.125rem;border-top-width:.125rem;border-top-right-radius:.125rem}
+.grip-tl{left:0;top:0;cursor:nwse-resize}
+.grip-tl::before{left:.3125rem;top:.3125rem;border-left-width:.125rem;border-top-width:.125rem;border-top-left-radius:.125rem}
+/* a finger (also a touch tablet): a bigger hit area, the mark stays */
+@media (pointer:coarse){
+  .grip-x{width:1rem}
+  .grip-y{height:1rem}
+  .grip-c{width:1.75rem;height:1.75rem}
+}
+/* during a drag a plain cover over the page carries the cursor (no ::after on body: #3304) */
+.gcover{position:fixed;inset:0;z-index:2147483000}
+.gcover.x{cursor:col-resize}.gcover.y{cursor:row-resize}
+.gcover.cbr,.gcover.ctl{cursor:nwse-resize}.gcover.cbl,.gcover.ctr{cursor:nesw-resize}
+body.gdrag{user-select:none;-webkit-user-select:none}
+/* out of the way while a menu, a popover or a dialog is open (like .pgrip, #976) - a grip inside it stays */
+body:has(#pop:not(.hidden)) .grip:not(#pop .grip):not(.modal .grip),body:has(.modal) .grip:not(.modal .grip):not(#pop .grip),
+body.pop-open .grip:not(#pop .grip):not(.modal .grip),body.modal-open .grip:not(.modal .grip):not(#pop .grip){visibility:hidden;pointer-events:none}
+/* the phone layout has no grips */
+@media (max-width:767px){ .grip{display:none!important} }

@@ -1618,3 +1618,65 @@ events (`cevWs`) and the time report (`tv_wsLists`: the projects of the workspac
 The frame colour of #6697 (`wscolor.js wso_scope`: a page whose module is on in exactly one workspace wears its colour) asks
 `mod_spaces` too (featKey may be a list: on when one of them is on), so the list and the colour never disagree.
 Do not ask `wsa_wsOn` / `mc_wsOn` in an area for this; build on these two. Test: `tests/p21398_a_modspaces_ui.js`.
+
+## Resizing: the one grip (#7293)
+
+Everything a person can make wider, taller or bigger uses **one grip**, no drag handling of its own: a grip between two
+columns, a grip between two rows (a horizontal divider) and the corner of a floating window.
+
+- browser, loaded on demand (module `grip`, `static/js/grip.js` + `static/css/grip.css`): `grip_col(el, opts)`,
+  `grip_row(el, opts)`, `grip_corner(win, opts)`. lazyload.js has stand-ins for the three, so start code may call them
+  before the module is in: `const g = await grip_col(...)` always gives the handle.
+- the handle: `g.get()` (the stored value, `null` = default), `g.now()` (the size in use), `g.set(v)`, `g.reset()`,
+  `g.refresh()` (limits or the layout changed), `g.destroy()`; the grip element carries `data-grip="<key>"`.
+
+```js
+// a column: the grip sits between the panel (before it) and the rest; the box's grid reads the variable
+grip_col(box.querySelector('.mygrip'), {key: 'side', min: 12, max: () => panelRoom(), def: 16});
+//   .mybox{grid-template-columns:var(--g-side, 16rem) auto 1fr}
+grip_row(sep, {key: 'chat-split', unit: '%', min: 20, max: 80});         // a divider: the panel above, in % of the box
+grip_corner(win, {key: 'bell', at: 'bl', minW: 18, minH: 14, fit: true,  // a window right-aligned under a button
+  legacy: {key: 'bellSize'}});                                           //   .bpop{width:var(--g-bell-w, 24rem);height:var(--g-bell-h, auto)}
+grip_corner(card, {key: 'dlg-settings', mode: 'dialog', unit: 'px', legacy: {key: 'kalmido.dlgsize.settings'}});
+```
+
+The rules are the same for all three:
+
+- **Variable, naming rule:** the size is a CSS variable `--g-<key>` (row / column) or `--g-<key>-w` / `--g-<key>-h` (corner),
+  never anything else (the lint of #7294 recognises a resizable place by it). The area's own CSS reads it with its default as
+  the fallback, and only in the wide layout. `key`: letters, digits, `-`, `_`; one per place, or per instance where each one
+  has its own size (`sheetbox-<id>`, `dlg-<kind>`).
+- **Where it is set:** on `opts.scope`, default the grip's parent (column / row) or the window (corner) = the nearest box
+  whose layout reads it, never the root (#4860: ~20 ms per frame at the root, ~1 ms at the box). During a drag it is set
+  once per frame (`rafThrottle`) on `opts.dragScope` (default the scope) and the content reflows live, no preview line
+  (#4860); body carries `pgdrag` (the fitting watchers rest, `dragRest`) and a cover carries the cursor.
+- **Limits:** `min` / `max` / `def` (corner: `minW` / `minH` / `maxW` / `maxH` / `def: {w, h}`) are numbers or functions
+  (a panel's room depends on the window and its neighbours, like `panelMax` in detail.js), read at the start of each drag,
+  key press and window resize. `unit`: `rem` (default, follows the font size), `px`, or `%` of the scope (row / column).
+  The corner's max defaults to the visible window minus 1.5rem; `fit: true` = never taller than its content (#4993).
+- **Column / row:** `edge: 'end'` (default: the sized panel lies before the grip, left / above) or `'start'` (after it);
+  `panel` names the sized element when it is not the neighbour. **Corner:** `at: 'br' | 'bl' | 'tr' | 'tl'` (the corner
+  the grip sits in), `mode: 'dialog'` for a centred card (both edges move, the grip follows the pointer at twice the speed),
+  `grip` = an own grip element instead of the module's.
+- **Input:** pointer events (mouse, pen, a finger - also on a touch tablet; no `pointer:fine` limit), the keyboard on the
+  focused grip (arrow keys, Shift = 4 steps, Home / End = smallest / largest, Enter = default), a double click or double tap
+  = the default size, a tap without dragging = a small menu (wider / narrower / default; WCAG 2.5.7; `menu: false` = none).
+- **Accessibility:** `role=separator` with `aria-valuenow` / `-valuemin` / `-valuemax` / `-valuetext`, a label
+  (`opts.label`, default "Drag to resize · double-click: default size"), the new size is announced.
+- **Out of the way:** while a menu, a popover or a dialog is open the grips step aside (as `.pgrip`, #976) - a grip inside
+  that menu or dialog stays; the phone layout (< 768 px) has no grips (`opts.off()` switches one off elsewhere).
+- **Storage:** per device in localStorage under `grip:<key>` (LS, i.e. `tasks.grip:<key>`; wiped on sign-out like every
+  `tasks.*` key unless it goes into `LS_KEEP`). A size that belongs to the account or to an object passes
+  `load()` (-> the value, `null` = default, `undefined` = nothing stored) and `save(v)` (`v` null = back to the default)
+  instead. The default itself is never stored.
+- **Taking over old sizes:** `legacy: 'pw.side'` or a list of `{key, map, raw}`: when nothing is stored under the new key,
+  the first old key with a value is converted (`map(old)`, e.g. px -> rem or `{w, h}`), stored under the new key, and all the
+  old keys go. A key starting with `kalmido.` (or `raw: true`) is read as it is, any other through `LS` (`tasks.<key>`).
+  The old keys of today's grips: `pw.side` / `pw.det` / `pw.chat`, `bellSize`, `dv.stripW` / `dv.maskW`, `shzSize`,
+  `kalmido.dlgsize.*`.
+
+Who uses it: nobody yet; the grips of today move onto it in their own tasks (#7312 panels, #7314 bell, #7315 document view,
+#7316 split view, #7318 table frame, #7320 dialogs, #7323 chat divider, #7324 comment split), new places build on it (#7289,
+#7290, #7302 - #7311). They stay on their own: the dashboard's blocks (`.lygrip`, snaps to the grid), the columns of a table
+(`.shvrsz`, the table's data with an undo step) and the columns of a list (`.lchead .lcg`, per list in the account).
+Test: `tests/p21437_a_grip_ui.js` (a test page with one grip of each form).

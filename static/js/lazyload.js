@@ -133,6 +133,7 @@ const LD_MODS = {
   propcards: ['importprop', 'contractprop', 'propcards'],  // 2.1238.0 (#4280): the card of an agent's proposal (was in agents.js); importprop.js and contractprop.js with it
   photometa: ['photometa'],  // 2.1238.0 (#4280): photo metadata (the organisation's switch in the settings, the taken date of a document; LD_NEED)
   cryptscope: ['cryptscope'],  // 2.1238.0 (#4280): the fold "What is encrypted?" of the settings (orgcrypt.js ocScopeFill; LD_NEED settings)
+  grip: ['grip'],  // #7293: the one grip to resize (columns, rows, corners of windows); grip_col / grip_row / grip_corner below (LD_CALL)
 };
 // 2.65.0 (#1823): modules a module needs before its own files (their globals are used while it draws): the settings dialog
 // draws the agent panes (agentchat.js), the calendars (calview.js) and the tokens / webhooks (integrations.js), the agent chat
@@ -184,7 +185,8 @@ const LD_CALL = {settings: ['settingsModal', 'setApply', 'settingsSync', 'modCou
   orgadmin: ['oadmOpen'],  // 2.1238.0 (#4280): Projects of the organisation (Settings > Workspaces, a news item)
   sched: ['schedOpen'],  // 2.1238.0 (#4280): the plans of an agent (Plans in the agent chat, the agents' view)
   habitdlg: ['habitModal'],  // 2.1238.0 (#4280): New habit / open a habit (habits view, palette)
-  propcards: ['propOpen']};  // 2.1238.0 (#4280): the card of an agent's proposal (bell, news, agents' view, links #prop/…)
+  propcards: ['propOpen'],  // 2.1238.0 (#4280): the card of an agent's proposal (bell, news, agents' view, links #prop/…)
+  grip: ['grip_col', 'grip_row', 'grip_corner']};  // #7293: the stand-ins resolve to the grip's handle once the module is in
 // 2.65.0 (#1823): functions that only update what the module drew: before it is loaded there is nothing to update (no loading)
 const LD_NOP = {agentchat: ['chatLoad', 'chatPatch', 'chatFit', 'stepsChanged', 'chatTypers', 'chatStHtml'], timeline: ['tlKbSync', 'tlAfterRender', 'rmAfterRender'],
   timesheet: ['tsl_printNote'],  // 2.149.0 F (#2518): the printed timesheet's month line (nothing before the card loaded the month)
@@ -194,7 +196,7 @@ const LD_NOP = {agentchat: ['chatLoad', 'chatPatch', 'chatFit', 'stepsChanged', 
 // them next to the scripts and resolves only once they apply (no unstyled flash when the area opens)
 const LD_CSS = {settings: ['settings'], contacts: ['contacts'], office: ['office'], agentchat: ['agentchat'], pdf: ['pdf'], mindmap: ['mindmap'],
   wiki: ['wiki'], stats: ['stats'], calendar: ['calendar'], docs: ['docs', 'docview'] /* 2.583.0 (#4835) */, docviews: ['docviews'], life: ['life'],
-  integrations: ['integrations'], playbook: ['playbook'], timeline: ['timeline'], feeds: ['feeds'], bookmarks: ['bookmarks'], sheets: ['sheets'], videos: ['videorev'], tagsel: ['tagsel'], filereq: ['filereq'], fltdlg: ['fltdlg'], abscan: ['abscan'], ablage: ['ablage'] /* (#4693) */, calabs: ['calabs'], sideviews: ['sideviews'], navmenu: ['navmenu'], whatsnew: ['whatsnew'], msgpop: ['msgpop'], shoot: ['shoot'], splitview: ['splitview'] /* (#4858) */, undolist: ['undolist'] /* (#5250) */, evinvite: ['evedit'] /* (#5465): the event editor */, callsheet: ['callsheet'] /* (#1956) */, helpview: ['helpview'] /* (#5820) */, family: ['family'], team: ['team'] /* (#4742): start budget */, hubmail: ['hubmail'], hubmailbox: ['hubmailbox'], msvview: ['msvview'], listmodal: ['listmodal'], formq: ['formq'], clientpage: ['clientpage'], propcards: ['propcards'], habitdlg: ['habitdlg'], tagsview: ['tagsview'], folderprops: ['folderprops'] /* start budget: rules only these modules draw (#4742) */};  /* (#4565) */  // (#3560): + navmenu  // (#1950): + bookmarks  // (#1162): + feeds
+  integrations: ['integrations'], playbook: ['playbook'], timeline: ['timeline'], feeds: ['feeds'], bookmarks: ['bookmarks'], sheets: ['sheets'], videos: ['videorev'], tagsel: ['tagsel'], filereq: ['filereq'], fltdlg: ['fltdlg'], abscan: ['abscan'], ablage: ['ablage'] /* (#4693) */, calabs: ['calabs'], sideviews: ['sideviews'], navmenu: ['navmenu'], whatsnew: ['whatsnew'], msgpop: ['msgpop'], shoot: ['shoot'], splitview: ['splitview'] /* (#4858) */, undolist: ['undolist'] /* (#5250) */, evinvite: ['evedit'] /* (#5465): the event editor */, callsheet: ['callsheet'] /* (#1956) */, helpview: ['helpview'] /* (#5820) */, family: ['family'], team: ['team'] /* (#4742): start budget */, hubmail: ['hubmail'], hubmailbox: ['hubmailbox'], msvview: ['msvview'], listmodal: ['listmodal'], formq: ['formq'], clientpage: ['clientpage'], propcards: ['propcards'], habitdlg: ['habitdlg'], tagsview: ['tagsview'], grip: ['grip'] /* #7293 */, folderprops: ['folderprops'] /* start budget: rules only these modules draw (#4742) */};  /* (#4565) */  // (#3560): + navmenu  // (#1950): + bookmarks  // (#1162): + feeds
 const LD_VIEW = {viewFamily: ['family', 1], viewAblage: ['ablage', 1], viewContacts: ['contacts', 1], viewOffice: ['office', 1], kp_tile: ['office'], ux_info: ['office'], ofcII: ['office'],
   dpj_projHtml: ['office'],  // 2.168.0 A (#2665): a project page's quotations & invoices (only while the office is on)
   // 2.65.0 (#1823)
