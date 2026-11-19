@@ -167,7 +167,7 @@ m = wait_for(lambda: [x for x in admin_msgs("t-alice") if "Update available" in 
 # 2.1179.0 C (#2898): the alert says to back up first
 check(len(m) == 1 and "9.9.9 is available" in m[0]["msg"] and "Back up first" in m[0]["msg"] and m[0]["click"].endswith("/releases/tag/v9.9.9"),
       f"update alert with the release link: {m}")
-check(any("Check daily for a new version" in x["msg"] and " off" in x["msg"] for x in admin_msgs("t-alice")),
+check(any("Check for a new version every 6 hours" in x["msg"] and " off" in x["msg"] for x in admin_msgs("t-alice")),
       "switching the update check is a security alert too")
 switch("update_check", False)
 switch("update_check", True)

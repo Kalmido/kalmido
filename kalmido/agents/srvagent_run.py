@@ -8,7 +8,8 @@ The run:
     fairly (_turn): the agent waiting longest goes first, and an organisation (or a person without one) holds at most one place
     while someone else waits; alone it may use them all. Who waits longer than SRV_WAIT_NOTE_S s is told once in the chat that
     the agent waits for a free place (never who holds them). Nothing runs while the instance switch
-    server_agents_off is on, the agent is paused / switched off or has no key; at its usage limit (agents/usage.py usage_block:
+    server_agents_off is on (2.1409.0, #6363: a run of an agent whose organisation has the Kalmido AI off ends before any
+    provider call, the person who asked reads why; no event of a project of such an organisation reaches a run), the agent is paused / switched off or has no key; at its usage limit (agents/usage.py usage_block:
     the limits of the admins, its owner's budget) it pauses with the reason (agents.status paused) and goes on with the next event
     once the limit allows it again.
  2. makes a token of the agent for this run only (agents/admin.py agent_token_new: its scopes, projects and lists; it runs out
@@ -50,11 +51,13 @@ from ..agents.core import agent_active, agent_row, CHAT_MAX
 from ..agents.admin import agent_token_new
 from ..agents.mcpremote import _inproc_cls, mcpr_module
 from .srvagent import ProviderError, srv_flow_models, srv_key, srv_models, srv_off, srv_pick_default, srv_provider, srv_row, srv_defaults, SRV_PROVIDER
+from .srvagent import srv_org_blocked, SRV_ORG_OFF_TEXT  # 2.1409.0 (#6363): the switch of the agent's organisation
 from .srvstarter import SRV_BRIEF_AT, SRV_FLOWS, SRV_FOLLOWUP_AT, SRV_TEXTS
 from .srvweb import SRV_VIES_TOOL, SRV_WEB_FRAME, SRV_WEB_REMIND, srv_vies_result, srv_web_on, srv_web_scan, srv_web_state, srv_web_tools  # 2.571.0 D
 from .srvteam import srv_batch, srv_member_block, srv_run_asker, srv_usage_mark, SRV_FOREIGN_SQL  # 2.569.0 B (#4675): team projects
 from .srvteam import srv_limit_fix, srv_requester  # 2.1308.0 (#6568): hosted - the hard day limit, runs nobody asked for
 from .srvteam import srv_events_cut, srv_run_cut, SRV_FOR_FRAME  # 2.1287.0 (#6454): a team agent's run works with the requester's rights
+from .srvteam import srv_org_events_cut  # 2.1409.0 (#6363)
 
 SRV_PARALLEL = env_int("KALMIDO_SRVAGENT_PARALLEL", 2, lo=1, hi=64)   # runs at once on this server
 SRV_RUN_S = env_int("KALMIDO_SRVAGENT_RUN_S", 300, lo=10, hi=3600)     # s of one run at most
@@ -386,6 +389,9 @@ def _run(aid, rid):
                 a, row = agent_row(c, aid), srv_row(c, aid)
                 key = srv_key(c, aid, row)
                 model = row["model"] or ""
+                org_off = srv_org_blocked(c, a)  # 2.1409.0 (#6363): its organisation has the Kalmido AI off - no provider call at all
+                if not model and org_off:
+                    model = srv_defaults()[0]
                 if not model:
                     try:
                         model = srv_pick_default(srv_models(c, aid, row) or [])[0]
@@ -433,6 +439,9 @@ def _run(aid, rid):
         asker = _asker(work)
         if asker:
             lang = _db(lambda c: usettings(c, asker)["lang"]) or lang
+        if org_off:  # 2.1409.0 (#6363): the events are taken (never worked later), the person who asked reads why
+            raise _Stop("failed", SRV_ORG_OFF_TEXT)
+        data = _db(lambda c: srv_org_events_cut(c, data))  # 2.1409.0 (#6363): no event of a project of an organisation with it off
         mwhy = _db(lambda c: srv_member_block(c, aid, who, nobody=nobody))  # 2.569.0 B (#4675): this member's limit; the others go on
         if mwhy:
             asker = asker or who
@@ -588,6 +597,8 @@ def _loop(aid, rid, api, mod, prov, model, system, tools, allowed, messages, dea
             return "failed", N_("The time limit of the run is reached"), sent
         if _db(srv_off):
             return "failed", N_("Server agents are switched off on this server"), sent
+        if _db(lambda c: srv_org_blocked(c, agent_row(c, aid))):  # 2.1409.0 (#6363): its organisation switched it off meanwhile
+            return "failed", SRV_ORG_OFF_TEXT, sent
         why = _limit_reached(aid)
         if why:
             return "paused", why, sent

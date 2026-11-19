@@ -47,6 +47,7 @@ Y1, Z1 = own(Fr, "yone"), own(Gi, "zone")
 ALL = (X1, X2, X3, Y1, Z1)
 check(all(dbx("SELECT org_id FROM agents WHERE user_id=?", (x,)) == [(ORG,)] for x in (X1, X2, X3)), "setup: X's agents in the organisation")
 check(dbx("SELECT org_id, owner_id FROM agents WHERE user_id=?", (Y1,)) == [(None, FID)], "setup: Y's agent is hers, no organisation")
+dbx("UPDATE orgs SET srv_agents=1")  # 2.1409.0 (#6363): the Kalmido AI is off in a new organisation
 for x in ALL:  # server agents with a key (never opened here: no run reaches a model)
     dbx("UPDATE agents SET provider='kalmido-server', ai=1 WHERE user_id=?", (x,))
     dbx("INSERT INTO agent_server(agent_id, key_sealed, key_hint) VALUES(?, 'sealed-test', 'test')", (x,))

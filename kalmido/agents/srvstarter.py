@@ -31,7 +31,8 @@ A server agent is a normal agent with provider "kalmido-server": Kalmido itself 
    sched_wait_wake, review F2: not when someone else takes the agent into a project the person is only a member of; the watchdog
    within a minute; the same item asked again starts it at once - the agent's window does that after "Share project"). GET …/server/starter tells the
    agent's window which items are there, waiting or still missing (added later one by one with the same POST). The documents of an organisation need its
-   admin. Instance switch off -> 403 {error: "server_agents_off"}.
+   admin. Instance switch off -> 403 {error: "server_agents_off"}; 2.1409.0 (#6363): the agent's organisation has the Kalmido AI
+   off -> 403 {error: "org_server_agents_off"}.
 Kalmido calls no model here."""
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -324,7 +325,9 @@ def srv_defaults():
         if is_org_admin(c, me(), oid):
             nm = c.execute("SELECT name FROM orgs WHERE id=?", (oid,)).fetchone()
             ws.append({"key": f"org:{oid}", "name": nm[0] if nm else ""})
+    from ..agents.srvagent import srv_org_on  # at call time (srvagent.py imports this module)
     return jsonify(docs_scopes=ws, enabled_instance=not srv_off(c), provider=SRV_PROVIDER, default_name=tr(SRV_DEFAULT_NAME),
+                   orgs_off=[o for o in user_orgs(c, me()) if not srv_org_on(c, o)],  # 2.1409.0 (#6363): the Kalmido AI is off there
                    default_model=SRV_DEFAULT_MODEL, default_instructions=tr(SRV_DEFAULT_INSTRUCTIONS),
                    starter=list(SRV_STARTER), flows=list(SRV_FLOWS), followup_days=SRV_FOLLOWUP_DAYS, followup_max=SRV_FOLLOWUP_MAX,
                    day_limit_default=SRV_DAY_LIMIT_DEFAULT,  # 2.638.0 (#4714)
@@ -339,6 +342,9 @@ def srv_starter(aid):
     a = srv_need(c, aid)
     if srv_off(c):
         return err(SRV_OFF_KEY, 403)
+    from ..agents.srvagent import srv_org_blocked, srv_org_refuse
+    if srv_org_blocked(c, a):  # 2.1409.0 (#6363): its organisation has the Kalmido AI off
+        return srv_org_refuse()
     items, days = srv_starter_in(body())
     out = srv_starter_apply(c, a, me(), items, days)
     bump(c)

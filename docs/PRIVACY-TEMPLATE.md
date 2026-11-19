@@ -126,13 +126,13 @@ The **server** connects to other services only for what follows. Keep the rows y
 |---------|------|--------------|---------|
 | Push services of the browsers (Google `fcm.googleapis.com`, Mozilla `push.services.mozilla.com`, Apple `push.apple.com`, Microsoft `notify.windows.com`) | a person allows notifications on a device | the notification, encrypted end to end (RFC 8291); the service sees that a message goes to a device, and the server's address (it signs every message with it, VAPID) | on (`KALMIDO_WEBPUSH`) |
 | ntfy (`NTFY_URL`, default `https://ntfy.sh`) | a person chooses ntfy for notifications (an own ntfy server also gets a message no device took on Web Push; the public ntfy.sh only with ntfy chosen) | title and text of the notification and the link it opens (the server's address with the path of the entry), **not encrypted** | off per person |
-| E-mail (`KALMIDO_SMTP_*`) | invitations, password links, reminders and notifications by e-mail | address, name, task or project titles in the text | only when configured |
+| E-mail (`KALMIDO_SMTP_*`) | invitations, password links, reminders and notifications by e-mail; answers to a reporter; invitations to an event; documents an office sends | address, name, task or project titles in the text; the text of a comment (notifications, an answer to a reporter); an event with its description (the invitation's `.ics` file); an invoice or another document as a PDF | only when configured |
 | GitHub (`api.github.com`) | update check for admins, a few times a day | the installed version and the server's address | on (`KALMIDO_UPDATE_CHECK`, switch in Settings > Server > Server) |
 | Calendar subscriptions (ICS / CalDAV) and address books (CardDAV) | a person adds one | sign-in to that server, appointments / contacts to sync | per subscription |
 | Contact import (Google contacts) | a person imports contacts with photos | the photo addresses are fetched from Google's image server | per import |
 | Bookmarks, feeds, read later (Karakeep) | the module is on and a person saves a link / feed | the link is fetched for a preview / the articles | module off |
 | Webhooks, chat channels (Slack, Matrix, Telegram, Signal) | a person or admin sets one up | task data, names, a short comment excerpt | per webhook / channel |
-| Git hosting (GitHub, GitLab, Bitbucket, own) | a project is connected to a repository | repository requests with the token given | per connection |
+| Git hosting (GitHub, GitLab, Bitbucket, own) | a project is connected to a repository | repository requests with the token given; with the issue sync on: title, notes (not a locked note), open / closed, labels and comments of the project's tasks, each comment with the name of its author | per connection; issue sync off |
 | E-invoicing (Peppol access point) | an invoice is sent over Peppol | the invoice with the customer's data | office, per action |
 | Online payment (Stripe) | an office connected its Stripe account and a customer presses *Pay* on a pay link | amount, currency, the invoice number as title and the return address. The customer then enters the payment details at Stripe, in the customer's browser. Stripe reports payment, refund and dispute to `/api/hooks/pay/...`; for a payout the server fetches its fees | off until an office sets it up |
 | Invoice links in mails | a mail to a person's document address has no file, only a download link to an invoice | the server fetches that link once (https, public addresses only, no sign-in, no cookies); the other side sees the server's address and the link | only with a document address |
@@ -145,13 +145,24 @@ The **server** connects to other services only for what follows. Keep the rows y
 | Assistant (`KALMIDO_AI_BASE_URL`) | configured by the admin, switched on by a person, on that person's request | see [PRIVACY-ASSISTANT-TEMPLATE.md](PRIVACY-ASSISTANT-TEMPLATE.md) | off |
 | Similarity service (`KALMIDO_EMBED_URL`) | configured by the admin; in the background for every task, and while a person adds a task or searches | the folder, project and parent task names with the title and description of each task; the text a person types while adding a task or searching. Another host only with `KALMIDO_EMBED_EXTERNAL=1`. If the service is not your own, name it and its contract here | off |
 | Catalog of office packs (`KALMIDO_PACKS_CATALOG`) | an admin opens the office packs page (the list is kept for an hour) | a request for the catalog address; the other side sees the server's address | off |
+| Kalmido AI (server agent) at Anthropic (`api.anthropic.com`, USA: a transfer to a third country) | a person, or an organisation's admin for a team agent, sets up an agent on the Kalmido server with their own API key; it then runs on every event that asks for work (chat, @mention, assignment, listening in, a planned job) | the events of the run and the result of every tool call of the run: tasks, comments, chats, files and other content of every project shared with the agent, also what other members wrote there; the agent's instructions. With web research switched on also the search queries and the addresses the provider fetches for the run | off: per agent (a key is needed). In an organisation only after its admin switches *Kalmido AI in this organisation* on (default off); the whole server: `server_agents_off` |
+| VAT number check (VIES, European Commission, `ec.europa.eu`) | a server agent with web research checks a VAT number | the country code and the number | only with web research on |
+| Bank fetch (FinTS) | a person starts a fetch in the office's tab *Bank* | sign-in name, PIN, TAN and the product registration number to the FinTS server of the bank the person entered | off while `KALMIDO_FINTS_PRODUCT_ID` is empty |
+| Paperless-ngx | a workspace connects its Paperless server | requests with the token given; the documents come back for the import | per connection |
+| Linear (`api.linear.app`) | a person imports from Linear with their own API key | the key and the read request; teams, issues and comments come back. The key is not stored | per import |
 
 Every account gets a random ntfy topic when it is created; nothing goes to it until the person chooses ntfy. The full list of
 what the server contacts, with the switch for each, is in [SELF-HOSTING.md](SELF-HOSTING.md#outgoing-connections).
 
-Agents (AI agents people connect themselves) run on the computer and with the provider of the person who connects
-them; they see only the projects shared with them. Say in your statement that the person who connects an agent is
-responsible for what that provider receives.
+Agents come in two kinds. **Own agents** (on a person's computer or behind their own service) run with the provider of the
+person who connects them; they see only the projects shared with them, and the person who connects one is responsible for
+what that provider receives. The **Kalmido AI (server agent)** runs on this server: the server itself sends the data named
+in the table to the model provider (today Anthropic, USA) with the API key of a person or an organisation. A personal server
+agent also works in projects its owner shares with other people, so what those people wrote reaches the provider too. In an
+organisation it works only after an admin of the organisation switches *Kalmido AI in this organisation* on (*Settings > Organisation > People*, the
+organisation's entry; default off); while it is off, no content of the organisation goes to the provider. Private projects
+and people without an organisation decide for themselves by setting one up. Name the provider as a recipient, the transfer
+to a third country and its legal basis (for example the EU-US Data Privacy Framework or standard contractual clauses).
 
 ### AI functions (EU AI Act)
 
@@ -159,7 +170,9 @@ Template paragraph, adapt it (EU AI Act Art. 50; the operator of the server is t
 models):
 
 > **AI functions.** `<name of the operator>` uses AI models of third parties as a deployer: agents that people connect to
-> their projects, and the optional assistant if it is switched on. Kalmido itself does not run an AI model. Texts and
+> their projects, the Kalmido AI (server agent: the server calls the model of the provider with the key of a person or an
+> organisation; in an organisation only after its admin switched it on), and the optional assistant if it is switched on.
+> Kalmido itself does not run an AI model on its own server. Texts and
 > answers written by an agent are marked "AI agent" in the app and in the customer portal (also in its e-mails). Before an
 > agent's letter goes out, or a wiki page an agent wrote or changed last gets a public link, the app offers to add the line "Created with AI
 > support". Other texts carry no such mark, for example notification e-mails and public project pages. Whoever publishes or
