@@ -118,6 +118,7 @@ const RK_RE = /^R2(-[A-Z2-7]{4}){13}$/;
   check(await until(() => !d.querySelector('#oc-rk')), 'show: Done closes the dialog');
 
   // ================= new: confirm, password, a different key
+  w.__dialogs = 'manual';  // #6604: this part answers the question itself (boot.js dialogBridge would say yes at once)
   await until(() => d.querySelector(`#s-wsdata .ocbox[data-ocorg="${ORG}"] [data-oc="new"]`));
   click(w, d.querySelector(`#s-wsdata .ocbox[data-ocorg="${ORG}"] [data-oc="new"]`));
   const ask = await until(() => d.querySelector('.cdlg'));
