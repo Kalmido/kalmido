@@ -1,0 +1,57 @@
+{
+  "de": {
+    "In the office: quotations, invoices, clients, contracts and the office settings. Restrict it in the office settings under Rights.": "Im Büro: Angebote, Rechnungen, Kunden, Rahmenverträge und die Büro-Einstellungen. Einschränken kannst du das in den Büro-Einstellungen unter Rechte.",
+    "In the office: everything, including the office rights.": "Im Büro: alles, auch die Büro-Rechte.",
+    "In the office: reads quotations, invoices, clients and contracts.": "Im Büro: liest Angebote, Rechnungen, Kunden und Rahmenverträge.",
+    "In the office: reads and exports the bookkeeping, invoices, receipts and bank.": "Im Büro: liest und exportiert Buchhaltung, Rechnungen, Belege und Bank.",
+    "In the office: nothing.": "Im Büro: nichts.",
+    "In the office: only their own receipts, travel expenses, drives and times. You give more in the office settings under Rights.": "Im Büro: nur die eigenen Belege, Reisekosten, Fahrten und Zeiten. Mehr gibst du in den Büro-Einstellungen unter Rechte frei.",
+    "In the office: only their own receipts, travel expenses, drives and times, read-only. You give more in the office settings under Rights.": "Im Büro: nur die eigenen Belege, Reisekosten, Fahrten und Zeiten, nur lesend. Mehr gibst du in den Büro-Einstellungen unter Rechte frei.",
+    "Projects are shared one by one, or opened to everyone in the organisation in the project's settings.": "Projekte werden einzeln geteilt oder in den Einstellungen des Projekts für alle in der Organisation geöffnet.",
+    "{0} joined and starts in the default group": "{0} ist beigetreten und startet in der Vorgabe-Gruppe"
+  },
+  "es": {
+    "In the office: quotations, invoices, clients, contracts and the office settings. Restrict it in the office settings under Rights.": "En la oficina: presupuestos, facturas, clientes, contratos marco y los ajustes de la oficina. Puedes limitarlo en los ajustes de la oficina, en Derechos.",
+    "In the office: everything, including the office rights.": "En la oficina: todo, también los derechos de la oficina.",
+    "In the office: reads quotations, invoices, clients and contracts.": "En la oficina: lee presupuestos, facturas, clientes y contratos marco.",
+    "In the office: reads and exports the bookkeeping, invoices, receipts and bank.": "En la oficina: lee y exporta la contabilidad, las facturas, los recibos y el banco.",
+    "In the office: nothing.": "En la oficina: nada.",
+    "In the office: only their own receipts, travel expenses, drives and times. You give more in the office settings under Rights.": "En la oficina: solo sus propios recibos, gastos de viaje, trayectos y tiempos. Das más en los ajustes de la oficina, en Derechos.",
+    "In the office: only their own receipts, travel expenses, drives and times, read-only. You give more in the office settings under Rights.": "En la oficina: solo sus propios recibos, gastos de viaje, trayectos y tiempos, solo lectura. Das más en los ajustes de la oficina, en Derechos.",
+    "Projects are shared one by one, or opened to everyone in the organisation in the project's settings.": "Los proyectos se comparten uno a uno, o se abren a todos en la organización en los ajustes del proyecto.",
+    "{0} joined and starts in the default group": "{0} se unió y empieza en el grupo predeterminado"
+  },
+  "fr": {
+    "In the office: quotations, invoices, clients, contracts and the office settings. Restrict it in the office settings under Rights.": "Au bureau : devis, factures, clients, contrats-cadres et les réglages du bureau. Tu peux le restreindre dans les réglages du bureau, sous Droits.",
+    "In the office: everything, including the office rights.": "Au bureau : tout, y compris les droits du bureau.",
+    "In the office: reads quotations, invoices, clients and contracts.": "Au bureau : lit les devis, factures, clients et contrats-cadres.",
+    "In the office: reads and exports the bookkeeping, invoices, receipts and bank.": "Au bureau : lit et exporte la comptabilité, les factures, les justificatifs et la banque.",
+    "In the office: nothing.": "Au bureau : rien.",
+    "In the office: only their own receipts, travel expenses, drives and times. You give more in the office settings under Rights.": "Au bureau : seulement ses propres justificatifs, frais de déplacement, trajets et temps. Tu en donnes plus dans les réglages du bureau, sous Droits.",
+    "In the office: only their own receipts, travel expenses, drives and times, read-only. You give more in the office settings under Rights.": "Au bureau : seulement ses propres justificatifs, frais de déplacement, trajets et temps, en lecture seule. Tu en donnes plus dans les réglages du bureau, sous Droits.",
+    "Projects are shared one by one, or opened to everyone in the organisation in the project's settings.": "Les projets se partagent un par un, ou s'ouvrent à toute l'organisation dans les réglages du projet.",
+    "{0} joined and starts in the default group": "{0} a rejoint et commence dans le groupe par défaut"
+  },
+  "it": {
+    "In the office: quotations, invoices, clients, contracts and the office settings. Restrict it in the office settings under Rights.": "In ufficio: preventivi, fatture, clienti, contratti quadro e le impostazioni dell'ufficio. Puoi limitarlo nelle impostazioni dell'ufficio, alla voce Diritti.",
+    "In the office: everything, including the office rights.": "In ufficio: tutto, compresi i diritti dell'ufficio.",
+    "In the office: reads quotations, invoices, clients and contracts.": "In ufficio: legge preventivi, fatture, clienti e contratti quadro.",
+    "In the office: reads and exports the bookkeeping, invoices, receipts and bank.": "In ufficio: legge ed esporta la contabilità, le fatture, le ricevute e la banca.",
+    "In the office: nothing.": "In ufficio: niente.",
+    "In the office: only their own receipts, travel expenses, drives and times. You give more in the office settings under Rights.": "In ufficio: solo le proprie ricevute, spese di viaggio, tragitti e tempi. Ne concedi di più nelle impostazioni dell'ufficio, alla voce Diritti.",
+    "In the office: only their own receipts, travel expenses, drives and times, read-only. You give more in the office settings under Rights.": "In ufficio: solo le proprie ricevute, spese di viaggio, tragitti e tempi, in sola lettura. Ne concedi di più nelle impostazioni dell'ufficio, alla voce Diritti.",
+    "Projects are shared one by one, or opened to everyone in the organisation in the project's settings.": "I progetti si condividono uno per uno, oppure si aprono a tutta l'organizzazione nelle impostazioni del progetto.",
+    "{0} joined and starts in the default group": "{0} si è unito e parte nel gruppo predefinito"
+  },
+  "nl": {
+    "In the office: quotations, invoices, clients, contracts and the office settings. Restrict it in the office settings under Rights.": "In het kantoor: offertes, facturen, klanten, raamcontracten en de kantoorinstellingen. Beperk dat in de kantoorinstellingen onder Rechten.",
+    "In the office: everything, including the office rights.": "In het kantoor: alles, ook de kantoorrechten.",
+    "In the office: reads quotations, invoices, clients and contracts.": "In het kantoor: leest offertes, facturen, klanten en raamcontracten.",
+    "In the office: reads and exports the bookkeeping, invoices, receipts and bank.": "In het kantoor: leest en exporteert de boekhouding, facturen, bonnen en bank.",
+    "In the office: nothing.": "In het kantoor: niets.",
+    "In the office: only their own receipts, travel expenses, drives and times. You give more in the office settings under Rights.": "In het kantoor: alleen de eigen bonnen, reiskosten, ritten en tijden. Meer geef je vrij in de kantoorinstellingen onder Rechten.",
+    "In the office: only their own receipts, travel expenses, drives and times, read-only. You give more in the office settings under Rights.": "In het kantoor: alleen de eigen bonnen, reiskosten, ritten en tijden, alleen lezen. Meer geef je vrij in de kantoorinstellingen onder Rechten.",
+    "Projects are shared one by one, or opened to everyone in the organisation in the project's settings.": "Projecten worden een voor een gedeeld, of in de instellingen van het project voor iedereen in de organisatie geopend.",
+    "{0} joined and starts in the default group": "{0} is erbij gekomen en begint in de standaardgroep"
+  }
+}
