@@ -10,6 +10,7 @@ from ..core.db import bump, db, err, iso, now_utc
 from ..core.i18n import tr
 from ..core.access import collab_all, Denied, list_role, MANAGE_ROLES, my_max_sort, need_collab, ov_role
 from ..accounts.session import me
+from ..accounts.orgroles import need_org_write
 from ..api.common import v1_args, v1_view
 from ..lists.lists import member_folder_adopt  # 2.369.5 (#2517): pulled up from functions
 
@@ -89,6 +90,7 @@ def ov_join(c, lid, uid):
         return err(tr("You are already a member of this project"), 409)
     if not ov_role(c, lid, uid):
         raise Denied(404)
+    need_org_write(c, uid, c.execute("SELECT org_id FROM lists WHERE id=?", (lid,)).fetchone()[0])  # #6607: read-only joins nothing
     from .lmcore import lmc_mirror, lmc_share_lock
     lmc_share_lock(c, lid, uid)  # 2.1032.0 (#5788): the share's bucket before the member row (member_set's order)
     c.execute("INSERT INTO list_members(list_id,user_id,role,own_role,sort,added_at) VALUES(?,?,?,?,?,?)",
