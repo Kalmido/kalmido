@@ -301,7 +301,7 @@ function ofdListHtml() {
     <select id="ofd-status" aria-label="${esc(tr('Status'))}"><option value="">${tr('All|status')}</option>${sts.map(([v, n]) => `<option value="${v}" ${OFD.status === v ? 'selected' : ''}>${tr(n)}</option>`).join('')}</select>${ofd_fltHtml()}${tri_filterHtml()}${lst_sortBtn(ofd_listKey(k))}<span class="spacer"></span>${ofcAdmin('offers') && ofd_canNew() /* 2.1238.0 (#6161) */ ? `<button type="button" class="btn sm" data-ofd="trash" title="${esc(tr('Trash'))}" aria-label="${esc(tr('Trash'))}">${ic('trash', 's')}</button>` : ''}${/*html-ok*/ noTop || !ofd_canNew() /* 2.1238.0 (#6161, Stufe 3): a reader adds nothing */ ? '' : newBtn}</div>${tri_barHtml()}`;
   if (!rows) return bar + loadingHtml('big');
   if (OFD.err && !rows.length) return bar + ofcFail(OFD.err, () => { OFD.err = ''; OFD.list = null; ofdLoadList(true); });  // 2.1076.0 (#5450)
-  const hit = r => !q || [r.number, r.recipient_name, r.project_title, r.project_ref].some(v => (v || '').toLowerCase().includes(q));
+  const hit = r => !q || [r.number, r.recipient_name, r.project_title, r.project_ref, r.order_ref /* #6945 */].some(v => (v || '').toLowerCase().includes(q));
   const more = OFD.next ? `<p class="rcl-more"><button type="button" class="btn ghost" data-ofd="listmore" ${OFD.more ? 'disabled' : ''}>${tr('Load more')}</button></p>` : '';  // 2.369.0 A (#3200)
   const list = lst_sorted(rows.filter(hit), ofd_listKey(k), r => ({date: r.date, client: r.recipient_name, amount: inv ? r.gross : k === 'delivery' ? null : r.net, name: r.project_title || r.number}));  // 2.451.0 (#3834)
   const emptyTxt = {offer: N_('No quotations yet.'),  // 2.298.0 A1 (#3186): the button sits right below
@@ -383,6 +383,9 @@ const ofdSec = (key, title, body, extra = '') => `<details class="ofdsec" ${OFD.
 // (i) text of its own the help joins it (one (i) per label)
 const ofdF = (k, label, field, hint, o) => { const ii = typeof OFC_II === 'object' && OFC_II['ed_' + k] && hint && !o?.keep;
   return `<div class="row${field.startsWith('<textarea') ? ' ofdml' : '' /* 2.1284.0 (#6597): a multi-line field under its label, full width */}"><label for="ofd-${k}">${esc(label)}</label>${field}${ii ? '' : ofcHint(hint, o)}</div>${typeof ofcII === 'function' ? ofcII('ed_' + k, ii ? hint : '') : ''}`; };  // 2.47.3 (#1382): (i) per field
+// #6945: the order reference = the client's PO number (quotations too); a value other than the project's PO is marked
+const ofd_poF = d => ofdF('order_ref', tr('Order number / reference'), ofdIn('order_ref', d.order_ref, {max: 80, ph: tr('the client\'s order reference')}),
+  d.project_po && d.order_ref && d.order_ref !== d.project_po ? tr('Differs from the project\'s PO number {0}', d.project_po) : '', {keep: 1});
 // 2.354.0 D (#2838): a credit note keeps currency, rate, client and VAT of its invoice (the server refuses a change)
 const ofdBound = (d, h) => d.kind === 'credit' && d.cancels_id ? h.replace(/^<(select|input) /, `<$1 disabled title="${esc(tr('Taken from the invoice'))}" `) : h;
 const ofdSel = (k, cur, opts, empty) => `<select id="ofd-${k}" data-f="${k}">${empty != null ? `<option value="">${esc(empty)}</option>` : ''}${opts.map(([v, n]) => `<option value="${esc(v)}" ${String(v) === String(cur ?? '') ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>`;
@@ -442,7 +445,7 @@ function ofdEditorHtml() {
     <button type="button" class="btn sm" data-ofd="more" aria-haspopup="menu" aria-label="${esc(tr('More'))}">${ic('dots', 's')}</button></span></div>`;  // 2.356.0 C (#3004): "…" never wraps alone into a line of its own
   const invFields = inv && kind !== 'reminder' ? `
     ${d.dup_times_from && !lk ? `<p class="cdnmiss" role="status">${ic('info', 's')} ${esc(tr('Copy of {0}: the hours of that invoice are already billed. This copy binds no times.', d.dup_times_from))}</p>` : ''}
-    ${ofdF('order_ref', tr('Order number / reference'), ofdIn('order_ref', d.order_ref, {max: 80, ph: tr('the client\'s order reference')}))}
+    ${ofd_poF(d)}
     ${kind === 'invoice' ? ofdF('payment_days', tr('Payment terms'), `<span class="lacts">${ofdIn('payment_days', d.payment_days ?? '', {num: true, max: 3})}<span class="muted">${tr('days')}</span></span>`) : ''}
     ${kind === 'invoice' ? ofdF('due_date', tr('Due on'), dateIn('ofd-due_date', d.due_date || '', {label: tr('Due on'), attrs: 'data-f="due_date"'})) : ''}
     ${kind === 'invoice' ? absHeadFields(d) : ''}
@@ -471,7 +474,7 @@ function ofdEditorHtml() {
     ${ofdF('recipient_lines', tr('Address lines'), ofdTa('recipient_lines', (d.recipient?.lines || []).join('\n'), 3, {ph: tr('one line each: name, attention, street, place')}))}`}
     ${ofdF('project_title', tr('Project title'), ofdTa('project_title', d.project_title, 2, {max: 1000, grow: 10}))}
     ${kind === 'delivery' ? ofdF('delivery_title', tr('Document title'), ofdSel('delivery_title', d.delivery_title || '', [['', tr('Delivery note')], ['service', tr('Proof of service')]])) : ''}
-    ${kind === 'offer' ? ofdF('project_ref', tr('Order number / reference'), ofdIn('project_ref', d.project_ref, {max: 80})) : ''}
+    ${/*html-ok*/ kind === 'offer' ? ofdF('project_ref', tr('Your reference'), ofdIn('project_ref', d.project_ref, {max: 80})) + ofd_poF(d) /* #6945: + the PO number */ : ''}
     ${ofdF('date', tr('Date'), dateIn('ofd-date', d.date, {label: tr('Date'), clear: false, attrs: 'data-f="date"'}))}${/*html-ok*/ ofd_rangeHtml(d, ro) /* 2.1365.0 (#6698): escaped inside */}
     ${kind === 'offer' ? ofdF('valid_until', tr('Valid until'), dateIn('ofd-valid_until', d.valid_until, {label: tr('Valid until'), attrs: 'data-f="valid_until"'})) : ''}
     ${kind !== 'reminder' ? ofdF('service_from', tr('Service from'), dateIn('ofd-service_from', d.service_from || '', {label: tr('Service from'), attrs: 'data-f="service_from"'})) : ''}
@@ -1560,7 +1563,7 @@ async function ofdSendDialog(d, o = {}) {
   const fuText = fu ? d.offer_exp?.text || tr('Hello,\n\nwe would like to follow up on our quotation {0}. It is valid until {1}. Do you have any questions about it, or can we help you decide?', d.number || '', d.valid_until ? fmtDate(d.valid_until) : '') : '';
   ofdDlg(fu ? tr('Follow up on {0}', d.number || '') : tr('Send {0}', d.number || ''), hint + `<div class="ofd-mailf"${ms.smtp ? '' : ' hidden'}>` + ofdF('s-to', tr('To|mail recipient'), `<input id="ofd-s-to" type="email" value="${esc(to)}" maxlength="200" ${ms.smtp ? '' : 'disabled'}>`)
     + ofdF('s-cc', tr('Copy to'), `<input id="ofd-s-cc" type="email" multiple value="${esc(cc)}" maxlength="1000" placeholder="${esc(tr('several: separated by commas'))}" ${ms.smtp ? '' : 'disabled'}>`)
-    + ofdF('s-subject', tr('Subject'), `<input id="ofd-s-subject" value="${esc(fu ? d.offer_exp?.subject || tr('Our quotation {0}', d.number || '') : `${ofdKindName(d.kind, true)} ${d.number || ''}`)}" maxlength="200" ${ms.smtp ? '' : 'disabled'}>`)
+    + ofdF('s-subject', tr('Subject'), `<input id="ofd-s-subject" value="${esc(fu ? d.offer_exp?.subject || tr('Our quotation {0}', d.number || '') : d.mail_subject || `${ofdKindName(d.kind, true)} ${d.number || ''}` /* #6945: the server's suggestion (+ the PO number) */)}" maxlength="200" ${ms.smtp ? '' : 'disabled'}>`)
     + ofdF('s-text', tr('Text'), `<textarea id="ofd-s-text" rows="4" maxlength="8000" placeholder="${esc(tr('empty = the default text'))}" ${ms.smtp ? '' : 'disabled'}>${esc(fuText)}</textarea>`)
     + (typeof ofmSendHtml === 'function' ? ofmSendHtml(prof, true, !ms.smtp) : '')
     + (d.timesheet_ok ? `<div class="row"><label class="chkl" style="min-width:0"><input type="checkbox" id="ofd-s-ts"> ${tr('Attach the timesheet')}</label></div>` : '')  // 2.120.0 D (#2089)

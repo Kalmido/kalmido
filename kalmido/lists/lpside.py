@@ -35,7 +35,7 @@ LPS_LABEL = N_("Settings of {0}")  # the keys exist (static/js/dialogs.js)
 LPS_WS = N_("Workspace of {0}")
 LPS_GONE = N_("Changed in the meantime, nothing to undo")  # the key exists (tasks/tundo.py)
 # the body keys with side effects elsewhere (lists.py list_apply): one of them in a save makes the save a diff step
-LPS_KEYS = ("folder", "org_id", "ptype", "family", "life", "trip", "time_tracking", "client_id", "ticket_key", "agent_tidy",
+LPS_KEYS = ("folder", "org_id", "ptype", "family", "life", "trip", "time_tracking", "client_id", "ticket_key", "po_number", "agent_tidy",
             "tidy_agent_id", "listen_agent_ids", "agent_members", "agent_followup", "stale_days", "org_visibility", "org_edit")
 # the agents a save names only through the project's agents (a member that went, a new project type's default): a step
 # keeps them only when the save set them itself or adopted a folder's (else its way back would name an agent gone since)

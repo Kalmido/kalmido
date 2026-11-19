@@ -44,6 +44,7 @@ from .invoices import ofi_ref_doc, ofi_ref_keep  # 2.269.0 D (#3046)
 from .invoices import inv_credit_pack, inv_refund_open  # 2.354.0 D (#2837, #2838)
 from .invoices import inv_number_year, inv_pay_add  # 2.355.0 A (#2839, #2847)
 from .invoices import inv_manual_seq  # 2.1289.0 (#6481 N2)
+from .invoices import inv_mail_subject  # #6945
 
 DOC_KINDS = ("offer",) + INV_KINDS + ("delivery",)  # 2.120.0 D (#2089): delivery notes / proofs of service (office/delivery.py); 2.38.0 (#1021, F1): invoices, credit notes, reminders live in office/invoices.py
 STATUSES = ("draft", "sent", "accepted", "declined", "superseded")  # 2.437.0 B (#3621): superseded = replaced by a newer quotation (replaces_id)
@@ -63,6 +64,7 @@ from ..accounts.supportgrant import SGA_BOOKING, sga_is_support  # noqa: E402  2
 from .sheet import prd_options  # 2.369.5 (#2517): pulled up from functions
 from ..core.config import OFFICE_DIR  # 2.369.5 (#2517): pulled up from functions
 from ..files.store import fs_purge, fs_purge_files  # 2.369.5 (#2517): pulled up from functions
+from ..lists.projpo import ppo_doc_take, ppo_from_doc, ppo_of  # #6945
 
 
 def _ofr_may(c, uid, oid, level, special=None):
@@ -657,6 +659,10 @@ def doc_public(c, oid, r, admin, items=True):
         from .offerexp import ofe_doc_state
         d["offer_exp"] = ofe_doc_state(c, oid, r)  # 2.1064.0 (#5818): sent, no answer, near / past "valid until" -> the editor's note
     from .peppol import pep_doc_extra
+    if r["kind"] in ("offer", "invoice", "credit"):  # #6945: the project's PO number, for the editor's "differs from the project's PO"
+        d["project_po"] = ppo_of(c, _cur_val(r, "list_id"))
+    if items and ofx_locked(r):  # #6945: the send dialog's suggested subject (the one rule of office/invoices.py inv_mail_subject)
+        d["mail_subject"] = inv_mail_subject(c, oid, r)
     pep_doc_extra(c, oid, d)  # 2.154.0 B (#1960): the newest Peppol send of an invoice / credit note
     if items:
         from .payonline import pol_doc_extra
@@ -673,6 +679,7 @@ def doc_brief(r, pm=None, lg=None, today=None):
     d = {"id": r["id"], "kind": r["kind"], "number": r["number"], "status": r["status"], "state": state, "status_text": tr(STATUS_TXT.get(state, state), lg=lg),
          "lang": r["lang"], "currency": r["currency"], "client_id": r["client_id"], "recipient_name": rec.get("name") or "",
          "project_title": r["project_title"], "project_ref": r["project_ref"], "date": r["date"], "valid_until": r["valid_until"],
+         "order_ref": _cur_val(r, "order_ref") or "",  # #6945: the PO number (the list's filter)
          "net": t.get("net") or 0, "net_text": fmt_money(t.get("net") or 0, r["lang"], r["currency"]),
          "gross": t.get("gross") or 0, "gross_text": fmt_money(t.get("gross") or 0, r["lang"], r["currency"]),
          "net_incl_raw": t.get("net_incl_raw"), "updated_at": r["updated_at"], "created_by": r["created_by"],
@@ -1521,6 +1528,8 @@ def odoc_render(c, doc_id, oid, keep_detail=False):
     if r["project_ref"]:
         # 2.357.0 B (#3180): a quotation asks for the client's reference ("Ihre Referenz"); the invoice keeps "Bestellnr. / Referenz"
         meta.append([L.get("offer_ref") or tr("Your reference|pdf", lg=lang), r["project_ref"]])
+    if _cur_val(r, "order_ref"):  # #6945: the client's PO number (order_ref; the invoice made from it keeps it)
+        meta.append([L.get("offer_po") or tr("Your order number|pdf", lg=lang), r["order_ref"]])
     if r["valid_until"]:
         meta.append([L.get("valid_until", tr("Valid until|document", lg=lang)), valid_text])
     sf, st = (r["service_from"] or "", r["service_to"] or "") if "service_from" in r.keys() else ("", "")
@@ -1681,8 +1690,9 @@ def odoc_list():
         like = f"%{like_escape(q)}%"
         # 2.369.0 A (#3200): the search of a paged list runs here; some recipients are stored with \\uXXXX escapes
         like_esc = f"%{like_escape(json.dumps(q)[1:-1])}%"
-        sql += " AND (number ILIKE ? ESCAPE '\\' OR project_title ILIKE ? ESCAPE '\\' OR project_ref ILIKE ? ESCAPE '\\' OR CAST(recipient AS text) ILIKE ? ESCAPE '\\' OR CAST(recipient AS text) ILIKE ? ESCAPE '\\')"
-        args += [like, like, like, like, like_esc]
+        sql += " AND (number ILIKE ? ESCAPE '\\' OR project_title ILIKE ? ESCAPE '\\' OR project_ref ILIKE ? ESCAPE '\\' OR CAST(recipient AS text) ILIKE ? ESCAPE '\\' OR CAST(recipient AS text) ILIKE ? ESCAPE '\\'"
+        sql += " OR order_ref ILIKE ? ESCAPE '\\')"  # #6945: the PO number
+        args += [like, like, like, like, like_esc, like]
     # 2.369.0 A (#3200): a page by (date, id), the order of the list: date is NOT NULL, ties and empty dates stay stable
     n = request.args.get("limit") or ""
     n = max(1, min(int(n), ODOC_PAGE_MAX)) if re.fullmatch(r"\d{1,6}", n) else ODOC_PAGE_MAX
@@ -1846,6 +1856,8 @@ def odoc_update(did):
         if diff["after"]:
             ofx_log(c, oid, "update", doc_id=did, detail=diff)
     fd_put_titles(c, oid, did, titles)
+    if f.get("order_ref"):  # #6945: the way back -- a project without a PO number takes the document's order reference
+        ppo_from_doc(c, uid, did)
     if "fx_rate" in f or "currency" in f:  # 2.523.0 (#4082): a final invoice's deductions follow its rate (billed amounts)
         from .abschlag import abs_refx  # noqa: PLC0415
         abs_refx(c, oid, doc_row(c, oid, did))
@@ -2099,6 +2111,7 @@ def odoc_duplicate(did):
     if r["kind"] == "invoice" and r["client_id"] and r["service_from"] and r["service_to"]:
         row["dup_times_from"] = r["number"] or f"#{did}"  # 2.154.0 D (#2567): its hours are billed on the original; the copy binds none
     nid = insert_id(c, f"INSERT INTO office_docs({','.join(row)}) VALUES({','.join('?' * len(row))})", list(row.values()))
+    ppo_doc_take(c, nid)  # #6945: a new version without an order reference takes its project's PO number
     ofi_ref_keep(c, nid, ref)
     from ..integrations.webhooks import who_note
     who_note("invoice.created", "invoice", nid)  # 2.115.0 A (#2061): a copy

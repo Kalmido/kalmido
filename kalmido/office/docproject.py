@@ -18,6 +18,7 @@ from ..core.errors import BadInput
 from ..core.pg import write_lock
 from ..lists.lists import LIST_NAME_MAX
 from ..lists.templates import ptype_create
+from ..lists.projpo import ppo_doc_take, ppo_from_doc  # #6945
 from ..team.clients import list_client_set
 from .agentdocs import _list_ok
 from .docs import doc_brief, doc_public, doc_row
@@ -72,6 +73,12 @@ def dpj_set(did):
     if lid != before:
         c.execute("UPDATE office_docs SET list_id=?, updated_at=? WHERE id=? AND org_id=?", (lid, iso(now_utc()), did, oid))
         ofx_log(c, oid, "project", doc_id=did, detail={"before": {"list_id": before}, "after": {"list_id": lid}, "created": made})
+        if lid:  # #6945: a draft without an order reference takes the project's PO number; else the document's gives a project without one its PO
+            po = ppo_doc_take(c, did)
+            if po:
+                ofx_log(c, oid, "update", doc_id=did, detail={"before": {"order_ref": r["order_ref"] or ""}, "after": {"order_ref": po}})
+            else:
+                ppo_from_doc(c, uid, did)
     if made and r["kind"] == "offer":  # the deal of this quotation gets the new project unless it has one
         c.execute("UPDATE office_deals SET list_id=?, updated_at=? WHERE org_id=? AND offer_id=? AND list_id IS NULL AND deleted_at IS NULL",
                   (lid, iso(now_utc()), oid, did))

@@ -41,6 +41,7 @@ from .calc import office_calc  # 2.369.5 (#2517): pulled up from functions
 from .pdf import office_pdf  # 2.369.5 (#2517): pulled up from functions
 from .pdfweb import epdf_mark  # 2.369.5 (#2517): pulled up from functions
 from ..core.orgcrypt import oc_item_store  # 2.369.5 (#2517): pulled up from functions
+from ..lists.projpo import ppo_doc_take  # #6945
 
 INV_KINDS = ("invoice", "credit", "reminder")
 INV_STATUSES = {"invoice": ("draft", "issued", "sent", "paid", "cancelled"), "credit": ("draft", "issued", "sent", "paid"),
@@ -610,6 +611,8 @@ def _insert_doc(c, oid, uid, row):
     ts = iso(now_utc())
     row.update(org_id=oid, number="", status="draft", totals="{}", created_by=uid, created_at=ts, updated_at=ts, sent_at=None)
     did = insert_id(c, f"INSERT INTO office_docs({','.join(row)}) VALUES({','.join('?' * len(row))})", list(row.values()))
+    if row.get("list_id"):  # #6945: a document of a project without an own order reference takes the project's PO number
+        ppo_doc_take(c, did)
     if row.get("trial"):  # 2.144.10 A (#2576): a trial document takes its TEST number at once (no gap in a real series)
         from .docs import _assign_number
         _assign_number(c, oid, did)
@@ -1115,6 +1118,35 @@ def inv_title(L, lang, kind, level=1):
     return L.get(key) or tr(TITLE_FALLBACK[key], lg=lang)
 
 
+INV_PO_SUBJECT = N_("{0} – your PO {1}|mail subject")  # #6945: the suggested subject of a document with an order reference
+
+
+def inv_po_of(c, oid, r):
+    """#6945: the order reference (PO number) of document r for its mail; a reminder without one: its invoices' one (only one)."""
+    po = (_col(r, "order_ref") or "").strip()
+    if po or r["kind"] != "reminder":
+        return po
+    ids = [int(i) for i in _j(_col(r, "ref_doc_ids") or "[]", []) if str(i).isdigit()]
+    if not ids:
+        return ""
+    refs = {(x["order_ref"] or "").strip() for x in c.execute(
+        f"SELECT order_ref FROM office_docs WHERE org_id=? AND id IN ({','.join('?' * len(ids))})", (oid, *ids)).fetchall()}
+    refs.discard("")
+    return refs.pop() if len(refs) == 1 else ""
+
+
+def inv_mail_subject(c, oid, r, s=None):
+    """#6945: the suggested subject of document r's mail in its language: "Rechnung 673" or, with an order reference,
+    "Rechnung 673 – Ihre Bestellnummer PO-4711". The one rule: the send dialog shows it (doc_public mail_subject), a send
+    without a subject (series, reminders run) uses it; a subject typed in the dialog stays as it is."""
+    lang = doc_lg(r["lang"])
+    pack = doc_pack(office_pack_for(s or office_settings(c, oid)) or {}, lang)
+    title = inv_title((pack.get("labels") or {}).get(lang) or {}, lang, r["kind"], inv_level(r))
+    base = f"{title} {r['number']}".strip()
+    po = inv_po_of(c, oid, r) if r["kind"] != "delivery" else ""
+    return inv_clean_subject(tr(INV_PO_SUBJECT, base, po, lg=lang)) if po else base
+
+
 def inv_render(c, oid, r, m, t, pack, L, lang, fmt_date):
     """Adds the keys of invoices / credit notes / reminders to print model m (see iface: title per kind, order_ref, due
     date, tax lines per rate, EUR tax line for USD, the credit note's invoice, the reminder's table, the payment info)."""
@@ -1393,9 +1425,7 @@ def inv_send(c, oid, uid, r, b, later=False, auto=False):
     if datev:
         inv_datev_ready(c, oid, r, s)
     lang = doc_lg(r["lang"])  # 2.185.0 C (#2520)
-    pack = doc_pack(office_pack_for(s) or {}, lang)
-    title = inv_title((pack.get("labels") or {}).get(lang) or {}, lang, r["kind"], inv_level(r))
-    subject = inv_clean_subject(b.get("subject")) or f"{title} {r['number']}"
+    subject = inv_clean_subject(b.get("subject")) or inv_mail_subject(c, oid, r, s)  # #6945: + the PO number
     text = (b.get("text") or "").strip() if isinstance(b.get("text"), str) else ""
     own = bool(text) and text[:5000] != _mail_text(r, lang, s).strip()
     text = text[:5000] or _mail_text(r, lang, s)
