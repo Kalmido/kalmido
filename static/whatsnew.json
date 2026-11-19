@@ -1,6 +1,28 @@
 {
  "versions": [
   {
+   "version": "2.1432.0",
+   "date": "2026-11-19",
+   "items": [
+    {
+     "de": "Ein Kalender-Abo, das seit über einem Tag nicht abgerufen werden konnte, ist jetzt mit einem Warnzeichen und „Stand …“ gekennzeichnet, und du bekommst einmal Bescheid.",
+     "en": "A calendar subscription that could not be updated for over a day now shows a warning mark with \"as of …\", and you are told once."
+    },
+    {
+     "de": "Rechnungs-Entwürfe eines Rechnungs-Ausstellers zeigen im Editor, wer sie angelegt hat und was das fremde System dazu meldet (unbestätigt).",
+     "en": "Invoice drafts of an invoice issuer show in the editor who made them and what the outside system reported (unconfirmed)."
+    },
+    {
+     "de": "Nach einer Auswahl in einem Auswahlfeld kommen Änderungen von anderen Geräten wieder sofort an.",
+     "en": "After picking from a drop-down, changes from other devices arrive right away again."
+    },
+    {
+     "de": "Neue Kolleginnen und Kollegen in einer selbst angelegten Firma sehen im Büro zuerst nur ihre eigenen Belege, Reisen und Zeiten; mehr gibst du unter Rechte frei.",
+     "en": "New colleagues in a company you created see only their own receipts, travel and times in the office at first; you give more under Rights."
+    }
+   ]
+  },
+  {
    "version": "2.1426.0",
    "date": "2026-11-19",
    "items": [
@@ -1271,32 +1293,6 @@
     {
      "de": "Gelöschte Bewirtungsbelege und Vertrags-PDFs liegen im Büro-Papierkorb und lassen sich dort wiederherstellen.",
      "en": "Deleted entertainment receipts and contract PDFs lie in the office trash and can be restored there."
-    }
-   ]
-  },
-  {
-   "version": "2.995.0",
-   "date": "2026-11-12",
-   "items": [
-    {
-     "de": "Mit „Modell je Lauf“ wählst du jetzt auch ein eigenes Modell für Prüfungen, und im Chat-Kopf steht, mit welchem Modell der Agent zuletzt lief.",
-     "en": "With \"Select the model per run\" you can now pick a model of its own for reviews, and the chat header shows which model the agent last ran with."
-    },
-    {
-     "de": "Im Abschnitt Modell siehst du den Verbrauch der letzten 7 Tage je Art: Läufe, Tokens und Kosten, wenn sie gemeldet werden.",
-     "en": "The section Model shows the usage of the last 7 days per kind: runs, tokens and costs when they are reported."
-    },
-    {
-     "de": "Die Suche findet Umlaute in jeder Schreibweise (Müller und Mueller) und jetzt auch freigegebene Wissensseiten.",
-     "en": "Search finds umlauts in either spelling (Müller and Mueller) and now also shared knowledge pages."
-    },
-    {
-     "de": "Gelöschte Dokument-Notizen und Video-Kommentare landen im Papierkorb und lassen sich mit Rückgängig zurückholen.",
-     "en": "Deleted document notes and video comments go to the trash and come back with undo."
-    },
-    {
-     "de": "Beim Umzug deines Kontos kommen deine eigenen Ticket-Typen und Feldvorlagen jetzt mit.",
-     "en": "Moving your account now takes your own ticket types and field templates along."
     }
    ]
   }
