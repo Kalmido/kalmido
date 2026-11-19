@@ -19,11 +19,11 @@
 
 ## What's new
 
-**2.1426.0** (2026-11-19):
-- **Agents**: Kalmido AI is now a per-organisation switch (off by default, admins only); personal agents' roles are capped by their person's role; starter dispatcher gains brief checks, build places and override logging.
-- **Organisations**: the target admin invites missing people from the import preview; exports notify when ready or failed, check disk space and run one at a time per server.
-- **Office**: merged clients and contacts keep their links, and undo restores them.
-- **Release**: version data is stamped from the tag when the image is built.
+**2.1432.0** (2026-11-19):
+- **Office**: invoice issuer keys now prepare invoice drafts with a sums check and idempotent client_ref; a person checks, finalises and sends them. New members of a company you created start in the "Staff" office group.
+- **Calendar**: subscriptions that could not be fetched for over a day are marked out of date, and you are told once.
+- **Agents**: team agents' long-lived tokens reach only their channel from 2027-01-01; proposals outside an agent's circle hide their title.
+- **Live updates**: changes wake only the tabs of people who can see them, and a focused drop-down no longer blocks them.
 
 Full history: [CHANGELOG.md](CHANGELOG.md).
 
@@ -195,7 +195,7 @@ More: [docs/TEAM.md](docs/TEAM.md)
 More: [docs/HOME.md](docs/HOME.md), [docs/BUDGET.md](docs/BUDGET.md), [docs/FEEDS.md](docs/FEEDS.md), [docs/BOOKMARKS.md](docs/BOOKMARKS.md)
 
 **Office, files and knowledge**: the paperwork of a small business.
-- Quotes and invoices with PDFs, e-invoices, receipts, letters on your own letterhead, bank import and DATEV export
+- Quotes and invoices with PDFs, e-invoices, invoice drafts from outside systems via issuer keys, receipts, letters on your own letterhead, bank import and DATEV export
 - Files and documents for you and each organisation, with versions, a trash and sharing
 - Knowledge pages with a mind map (also offline), formulas and Mermaid diagrams, plus tables
 - Your own calendars and address books, synced with the phone's apps
