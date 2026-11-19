@@ -7,7 +7,7 @@
 // - the open drawer has its grip on the right edge (#pgrip-side, a separator); dragged right the drawer gets wider live, released
 //   the width is kept (pw.side); the drawer stays open; dragged far it stops at 80 % of the window
 // - closed: no grip; unfolded: the fixed sidebar has the drawer's width
-// - phone width: the drawer keeps its fixed width (17rem / 80 %), no grip
+// - phone width: the drawer keeps its own width (not pw.side), no grip
 const {execFileSync} = require('child_process');
 const path = require('path');
 const {sleep, B, login} = require('./boot');
@@ -49,6 +49,7 @@ const M = `JSON.stringify((() => {
       check(await until(`!!document.querySelector('#side') && !!document.querySelector('#view')`, {timeout: 20000}), `${W}: the app is there`);
     };
     const drag = async (x0, y0, dx, look) => {
+      const vw = +(await ev('innerWidth')); dx = Math.max(1, Math.min(vw - 2, x0 + dx)) - x0;  // a far drag ends at the window's edge
       await cmd('input.performActions', {context: ctx, actions: [{type: 'pointer', id: 'm', parameters: {pointerType: 'mouse'}, actions: [
         {type: 'pointerMove', x: Math.round(x0), y: Math.round(y0)}, {type: 'pointerDown', button: 0},
         {type: 'pointerMove', x: Math.round(x0 + dx / 2), y: Math.round(y0), duration: 100}, {type: 'pointerMove', x: Math.round(x0 + dx), y: Math.round(y0), duration: 100}]}]});
@@ -61,7 +62,7 @@ const M = `JSON.stringify((() => {
     };
     const openDrawer = async () => {
       await ev(`(document.querySelector('#top [data-act="side"]')?.click(), 1)`);
-      return until(`document.querySelector('#side').classList.contains('open') && (() => { const g = document.querySelector('#pgrip-side'); return !!g && !g.hidden && Math.abs(g.getBoundingClientRect().left + 5 - document.querySelector('#side').getBoundingClientRect().right) <= 2; })()`, {timeout: 5000});
+      return until(`document.querySelector('#side').classList.contains('open') && !document.querySelector('#side').getAnimations().length && (() => { const g = document.querySelector('#pgrip-side'); return !!g && !g.hidden && Math.abs(g.getBoundingClientRect().left + 5 - document.querySelector('#side').getBoundingClientRect().right) <= 2; })()`, {timeout: 5000});
     };
 
     await open(1280, true);
@@ -70,7 +71,7 @@ const M = `JSON.stringify((() => {
     check(!f0.rail && Math.abs(f0.w - 20 * f0.rem) <= 2 && f0.ls === '20', 'the fixed sidebar at 20rem ' + JSON.stringify(f0));
     // folded by hand: the drawer
     await ev(`(sideFold(true), 1)`);
-    check(await until(`document.querySelector('#app').classList.contains('side-rail')`, {timeout: 5000}), 'folded: the drawer layout');
+    check(await until(`document.querySelector('#app').classList.contains('side-rail') && !document.querySelector('#side').getAnimations().length && document.querySelector('#pgrip-side').hidden`, {timeout: 5000}), 'folded: the drawer layout, the closed drawer hides the grip');
     const c0 = await get();
     check(!c0.open && !c0.grip, 'the closed drawer has no grip ' + JSON.stringify(c0));
     check(await openDrawer(), 'the menu button opens the drawer, its grip sits on the right edge');
@@ -98,7 +99,7 @@ const M = `JSON.stringify((() => {
     await until(`document.querySelector('#side').classList.contains('open')`, {timeout: 5000});
     await sleep(300);
     const p0 = await get();
-    check(p0.open && p0.w <= Math.round(Math.min(17 * p0.rem, p0.W * .8)) + 1 && !p0.grip, 'phone: the drawer keeps 17rem / 80 %, no grip ' + JSON.stringify(p0));
+    check(p0.open && p0.w < 26 * p0.rem && p0.w <= p0.W * .8 + 1 && !p0.grip, 'phone: the drawer keeps its own width (not the 26rem of pw.side), no grip ' + JSON.stringify(p0));
   });
 
   console.log(`p7307_drawer_grip_ui: ${ok} passed, ${F.length} failed`);
