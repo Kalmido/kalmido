@@ -1,6 +1,44 @@
 {
  "versions": [
   {
+   "version": "2.1412.0",
+   "date": "2026-11-19",
+   "items": [
+    {
+     "de": "Termine einer Organisation tragen im geöffneten Fenster immer deren Farbe, auch über einen Link geöffnet; Aufgaben im Kalender haben denselben Farbstreifen.",
+     "en": "An organisation's events always show its colour when opened, also from a link; tasks in the calendar carry the same colour stripe."
+    },
+    {
+     "de": "Agenten: Modell und Aufwand lassen sich je Job-Art (Bau, Prüfung) einstellen.",
+     "en": "Agents: model and effort can be set per job kind (build, review)."
+    },
+    {
+     "de": "Unter „Alle Arbeitsbereiche“ zeigt jedes Modul nur die Bereiche, in denen es eingeschaltet ist.",
+     "en": "Under \"All workspaces\" every module shows only the workspaces it is switched on in."
+    },
+    {
+     "de": "Verschiebst du ein Projekt hin und zurück, hängen abgerechnete Zeiten wieder an ihrer Rechnung.",
+     "en": "Move a project away and back and its billed time is on its invoice again."
+    },
+    {
+     "de": "Am Handy zeigen die Favoriten ihren Namen, und die Reihe blendet am Rand weich aus, solange noch mehr folgen.",
+     "en": "On the phone, favourites show their name, and the row fades softly at the edge while more follow."
+    },
+    {
+     "de": "Ein einziges Menü zum Wechseln des Arbeitsbereichs, überall gleich.",
+     "en": "One menu to switch the workspace, the same everywhere."
+    },
+    {
+     "de": "Lange Listen scrollen wieder flüssig.",
+     "en": "Long lists scroll smoothly again."
+    },
+    {
+     "de": "Beleg-Felder in der Dokument-Ansicht überschreiben keine Änderung mehr, die auf einem anderen Gerät gemacht wurde.",
+     "en": "Receipt fields in the document view no longer overwrite a change made on another device."
+    }
+   ]
+  },
+  {
    "version": "2.1405.0",
    "date": "2026-11-19",
    "items": [
@@ -1223,64 +1261,6 @@
     {
      "de": "In den Agenten-Einstellungen kannst du ein Modell für deine Nachrichten und Entscheidungen und ein günstigeres für Routine wählen.",
      "en": "In the agent settings you can pick one model for your messages and decisions and a cheaper one for routine."
-    }
-   ]
-  },
-  {
-   "version": "2.962.0",
-   "date": "2026-11-11",
-   "items": [
-    {
-     "de": "Organisations-Labels hängen direkt an der Aufgabe und bleiben beim Verschieben zwischen Projekten erhalten.",
-     "en": "Organisation labels sit on the task itself and stay when it moves between projects."
-    },
-    {
-     "de": "Ein gelöschter Kalender lässt sich samt Terminen unter „Letzte Schritte“ zurückholen.",
-     "en": "A deleted calendar can be brought back with its events from Recent steps."
-    },
-    {
-     "de": "Im Büro heißt jetzt jedes Ding überall gleich, und Entwürfe zeigen ihre Dokumentart statt „ohne Nummer“.",
-     "en": "The office now uses one word for each thing, and drafts show their document type instead of \"no number\"."
-    },
-    {
-     "de": "Zurück schließt am Handy genau einen Schritt: Menü-Schublade, Datumswähler und Tour-Karten einzeln.",
-     "en": "Back on the phone goes exactly one step: the menu drawer, the date picker and the tour cards one at a time."
-    },
-    {
-     "de": "Erledigt- und Abgelehnt-Spalten im Board zeigen die zuletzt erledigten Aufgaben.",
-     "en": "Done and rejected columns on the board show the recently completed tasks."
-    },
-    {
-     "de": "Belege, die du einer Kreditkarten-Position oder einer Bankbuchung zuordnest, landen automatisch im passenden Monatsordner unter Belege.",
-     "en": "Receipts you match with a credit card position or a bank booking now land in the right month folder under Receipts by themselves."
-    },
-    {
-     "de": "In gesperrten Ordnern findet die Namenssuche jetzt auch Dateien in Unterordnern.",
-     "en": "The name search of a locked folder now finds files in its subfolders too."
-    },
-    {
-     "de": "Ordner mit Inhalt lassen sich in gesperrte Ordner hinein- und wieder herausschieben.",
-     "en": "Folders with their content can now be moved into and out of locked folders."
-    },
-    {
-     "de": "Verliert jemand den Zugriff auf einen gesperrten Ordner, bekommt der Ordner automatisch einen neuen Schlüssel.",
-     "en": "When someone loses access to a locked folder, the folder gets a new key automatically."
-    },
-    {
-     "de": "Zurück in Menüs und Fenstern geht jetzt eine Stufe zurück, statt alles zu schließen.",
-     "en": "Back in menus and windows now goes one step back instead of closing everything."
-    },
-    {
-     "de": "Auf der Anmeldeseite und auf Heute steht jeden Tag ein anderes Dada-Zitat mit Übersetzung und Autor.",
-     "en": "The sign-in page and Today show a different Dada quote every day, with translation and author."
-    },
-    {
-     "de": "Der Stundennachweis an den Kunden lässt nicht abrechenbare Einträge weg und nennt bei schon abgerechneten die Rechnung.",
-     "en": "The client timesheet leaves out non-billable entries and names the invoice of entries already billed."
-    },
-    {
-     "de": "Persönliche Tags unterscheiden nicht mehr zwischen Groß- und Kleinschreibung, doppelte werden zusammengeführt.",
-     "en": "Personal tags no longer depend on upper or lower case; duplicates are merged."
     }
    ]
   }
