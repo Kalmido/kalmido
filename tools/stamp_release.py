@@ -118,10 +118,19 @@ def git(root, *args):
     return p.stdout
 
 
-def tags(root):
-    """{version: tag name} of the release tags vX.Y.Z of the repository at ROOT."""
+def tags(root, v=None):
+    """{version: tag name} of the release tags vX.Y.Z of the repository at ROOT; with V only the tags that are ancestors of the
+    tag vV (or of HEAD while vV is not tagged yet): a later tag on another line (a hotfix of an older version) never changes
+    what a version was stamped with, so release.yml and the weekly release stamp the same bytes (reader F2 of job/5551)."""
+    args = ["tag", "-l", "v*.*.*"]
+    if v is not None:
+        try:
+            git(root, "rev-parse", "-q", "--verify", "refs/tags/v%s" % v)
+            args += ["--merged", "refs/tags/v%s" % v]
+        except Refused:
+            args += ["--merged", "HEAD"]
     try:
-        out = git(root, "tag", "-l", "v*.*.*")
+        out = git(root, *args)
     except Refused:
         return {}
     return {t[1:]: t for t in out.split() if VER_RE.match(t[1:])}
@@ -238,7 +247,7 @@ def stamp(root, v, datum=None, changelog_only=False, log=print):
     if not changelog_only and (read(root, "VERSION") or "").strip() == v:
         log("stamp_release: VERSION is already %s - nothing stamped (the version commit of the train wrote it)" % v)
         return []
-    tg = tags(root)
+    tg = tags(root, v)
     if changelog_only and v not in tg:
         raise Refused("--changelog-only needs a tag v%s" % v)
     if changelog_only and vt(v) <= newest_section(root):
