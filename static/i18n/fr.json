@@ -430,7 +430,6 @@
   "Error {0}": "Erreur {0}",
   "Too many requests, wait a moment": "Trop de requêtes, patiente un instant",
   "Server error, please try again later": "Erreur du serveur, réessaie plus tard",
-  "Offline: only works again with a connection": "Hors ligne : ne fonctionne à nouveau qu'avec une connexion",
   "Recurring task was already checked off, not advanced twice": "La tâche récurrente était déjà cochée, elle n'a pas été avancée deux fois",
   "Title": "Titre",
   "Description": "Description",

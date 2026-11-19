@@ -228,7 +228,7 @@ function oidcWire(md) {
       if (!i.checked) return;
       i.disabled = true;
       // 2.306.0 D1 (#2875): a change of who becomes an admin asks for the account password
-      const apply = async b => { try { return await rawFetch('POST', '/api/admin/oidc/draft/apply', b); } catch (x) { if (x.data?.password_needed || x.data?.reauth_needed) throw x; throw new Error(x instanceof Offline ? tr('Offline: only works again with a connection') : x.message); } };
+      const apply = async b => { try { return await rawFetch('POST', '/api/admin/oidc/draft/apply', b); } catch (x) { if (x.data?.password_needed || x.data?.reauth_needed) throw x; throw new Error(x instanceof Offline ? tr('Only available online.') : x.message); } };
       try {
         let j; try { j = await apply({}); } catch (x) {
           if (x.data?.reauth_needed) { if (!await reauthFresh(x.data)) throw new Error(tr('Cancelled|dialog')); j = await apply({}); } else {  // 2.611.0 (#4019)
