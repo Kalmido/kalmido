@@ -21,14 +21,15 @@ from ..core.orgcrypt import oc_send_file
 from .upsafe import h6d_one_file_request, h6d_read
 from .scan import sc_guard  # 2.477.0 (#3936): pulled up from functions
 from .store import download_name  # 2.750.0 (#4876)
+from .store import fs_children_visible  # #6953: every listing of a folder's children
 from .store import FS_NOT_ADDR  # 2.1138.0 (#6025)
 from .store import (fs_chain, fs_chains, fs_deleted, fs_link_target, fs_log_add, fs_new_version, fs_put, fs_read,
                     fs_height, fs_mail_rows, fs_role, fs_version_row, DEPTH_MAX, fs_visible_ids, need_node, safe_fs_name, _free_name,
                     _now, _place, ROLE_RANK)
 from .fsref import (FSR, fs_ref_content, fs_ref_json, fs_ref_need_move, fs_ref_need_share, fs_ref_node, fs_ref_place, fs_ref_role,  # 2.199.0 A (#2742)
                     fs_ref_rows, fs_ref_trashed, fs_trash_prepare, fs_trash_restored)
-from .fsroots import fs_area_root_need_free, fs_area_root_of  # 2.199.0 F (#2742, review G1)
-from .fsroots import fs_area_after, fs_area_before, fs_area_folder_name, fs_area_need_fit, fs_area_of, fs_area_open  # 2.200.0 A (#2747)
+from .fsroots import fs_area_root_need_free  # (#2742)
+from .fsroots import fs_area_after, fs_area_before, fs_area_folder_name, fs_area_need_fit, fs_area_of  # (#2747)
 from .fsroots import fs_area_share  # 2.200.0 B (#2747)
 from .fsroots import fs_area_root_excl, fs_area_root_shares  # 2.1045.0 (#5823); 2.1225.0 (#5862): fs_area_root_excl
 from ..core.dlock import dl_chain_cut, dl_excl_parse, dl_forget  # 2.1045.0 (#5823); 2.1225.0 (#5862): dl_excl_parse, dl_forget
@@ -182,10 +183,8 @@ def files_list():
         if n["kind"] != "folder":
             raise Denied(409, tr("Not a folder"))
         rows = c.execute("SELECT * FROM fs_nodes WHERE parent_id=? AND deleted_at IS NULL ORDER BY id", (pid,)).fetchall()
-        rows = fs_mail_rows(c, uid, rows)  # 2.148.1 D (#2488): filed mail files follow the mail's rule
-        ar = fs_area_root_of(c, pid)
-        if ar and not fs_area_open(ar[1]):  # 2.199.0 F (#2742, review G1): an area's root lists only the folders with a role of their own; 2.200.0 A (#2747): not an open one
-            rows = [r for r in rows if fs_role(c, r["id"], uid, chain=fs_chain(c, r["id"])[:-1])]
+        # mail files (#2488), a closed area's root (#2742), accounting (#6953): the one rule (store.py)
+        rows = fs_children_visible(c, uid, n, rows)
         fs_log_add(c, pid, "list")
         c.commit()
         chain = fs_chain(c, pid)
