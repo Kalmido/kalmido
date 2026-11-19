@@ -15,9 +15,10 @@ does not see, no longer visible). Full when the answer is not certain: a scope c
 participant somewhere (their visibility hangs on assignments) or a token limited to lists. Rather full too often than stale."""
 import hashlib
 import json
+import re
 from datetime import timedelta
 
-from flask import jsonify, request
+from flask import has_request_context, jsonify, request
 
 from ..core.config import app, APP_VERSION
 from ..core.db import appver_parse, db, gset, gsetting, iso, now_utc, trigger_ensure, usettings
@@ -216,22 +217,45 @@ def dl_stamp(c, v):
 DL_SCOPE_ROWS = 500  # 2.369.4 (#2507): more unstamped rows than this at a bump: counted for everyone (no scope worked out)
 
 
+# 2.1432 (#6399): writes whose people are not known from the writer (structure of the whole instance or of who sees what):
+# admin / operator / account management, organisations and their members, groups, sharing and memberships (the person who
+# just lost a share is no longer in any circle). They stay "version:all"; they are rare.
+LV_ALL_PATHS = re.compile(r"^/api/(v1/)?(admin|operator|users|orgs?|groups)(/|$)|/(shares?|members?|leave|transfer)(/|$)")
+
+
 def dl_scope(c, area, uid):
     """2.369.4 (#2507): the version keys a bump moves besides the total ("version:org:<id>", "version:u:<id>"), worked out
     from the rows of dl_changes this transaction wrote (not stamped yet): the lists the changed tasks were / are in (+ the
     further lists of a task, task_links), their owners, members and organisations, and the people of person-only rows.
-    None = for everyone ("version:all", as before): outside a request or another area than tasks / comments / time / self,
-    no rows (what changed is not known), a row for everyone (who sees a list changed), a task no list can be found for,
-    too many rows. "self" = the writer's own account. /api/version takes the maximum of the own keys (version_sigs), so a
-    change in organisation A no longer makes the members of B fetch a delta (the client skips it, liveparts.js lpSkip)."""
+    None = for everyone ("version:all", as before): outside a request or without an account, a row for everyone (who sees a
+    list changed), a task no list can be found for, too many rows; for tasks / comments / time also no rows (what changed is
+    not known; bump's #6335 fallback makes that the writer's own). "self" = the writer's own account. /api/version takes the
+    maximum of the own keys (version_sigs), so a change in organisation A no longer makes the members of B fetch a delta
+    (the client skips it, liveparts.js lpSkip).
+    2.1432 (#6399): every other area (office, files, contacts, calendars, sheets, wiki, team, an agent's status, "other" ...)
+    was "version:all" - every open tab of every organisation reloaded the whole state. It now goes to the writer's circle
+    (lv_circle) plus the people of the task rows the write left; "version:all" stays for the paths of LV_ALL_PATHS."""
     if area in ("self", "undo"):  # #5407: + the own list of steps
         return [f"version:u:{int(uid)}"] if uid else None
-    if not uid or area not in ("tasks", "comments", "time"):
+    if not uid:
         return None
+    if area in ("tasks", "comments", "time"):
+        return dl_rows_scope(c, uid) or None
+    circle = lv_circle(c, uid)
+    rows = dl_rows_scope(c, uid) if circle is not None else None
+    if rows is None:
+        return None
+    return sorted(set(circle) | set(rows))
+
+
+def dl_rows_scope(c, uid):
+    """The keys of the unstamped dl_changes rows (see dl_scope): [] = no rows, None = for everyone."""
     with system_ctx(c):  # who sees a list = structure (other people's memberships too); only ids, nothing goes to a person
         rows = c.execute("SELECT d.task_id, d.list_id, d.user_id, t.list_id FROM dl_changes d LEFT JOIN tasks t ON t.id=d.task_id "
                          "WHERE d.ver IS NULL LIMIT ?", (DL_SCOPE_ROWS + 1,)).fetchall()
-        if not rows or len(rows) > DL_SCOPE_ROWS:
+        if not rows:
+            return []
+        if len(rows) > DL_SCOPE_ROWS:
             return None
         lids, people, tids = set(), set(), set()
         for tid, lid, pid, tl in rows:
@@ -258,6 +282,41 @@ def dl_scope(c, area, uid):
                     (orgs if k == "o" else people).add(int(x))
     people.add(int(uid))  # the writer's other devices
     return [f"version:org:{o}" for o in sorted(orgs)] + [f"version:u:{p}" for p in sorted(people)]
+
+
+# 2.1432 (#6399): everyone who can see what a person writes outside the task lists: their organisations; the organisations,
+# owners and members of the lists they are in (a project's side objects: tables, knowledge pages, the budget); both sides of
+# their shares (files, folders, calendars, address books: who they share with, who shares with them, and the organisation
+# of what is shared with them); for an agent its owner and its organisation. People of these organisations are reached by
+# the organisation's key and are not listed one by one.
+_LV_CIRCLE_SQL = """
+WITH mo AS (SELECT org_id FROM org_members WHERE user_id=? UNION SELECT org_id FROM agents WHERE user_id=? AND org_id IS NOT NULL),
+ml AS (SELECT id FROM lists WHERE owner_id=? UNION SELECT list_id FROM list_members WHERE user_id=?),
+si AS (SELECT node_id FROM fs_shares WHERE user_id=? OR agent_id=? OR group_id IN (SELECT group_id FROM group_members WHERE user_id=?)),
+so AS (SELECT s.user_id, s.group_id FROM fs_shares s JOIN fs_nodes n ON n.id=s.node_id
+       WHERE n.owner_id=? OR n.org_id IN (SELECT org_id FROM mo) OR s.node_id IN (SELECT node_id FROM si)),
+o AS (SELECT org_id FROM mo UNION SELECT org_id FROM lists WHERE id IN (SELECT id FROM ml) AND org_id IS NOT NULL
+      UNION SELECT org_id FROM fs_nodes WHERE id IN (SELECT node_id FROM si) AND org_id IS NOT NULL),
+p AS (SELECT owner_id AS id FROM agents WHERE user_id=? UNION SELECT owner_id FROM lists WHERE id IN (SELECT id FROM ml)
+      UNION SELECT user_id FROM list_members WHERE list_id IN (SELECT id FROM ml)
+      UNION SELECT owner_id FROM fs_nodes WHERE id IN (SELECT node_id FROM si) UNION SELECT user_id FROM so
+      UNION SELECT user_id FROM group_members WHERE group_id IN (SELECT group_id FROM so))
+SELECT 'o', org_id FROM o
+UNION ALL SELECT 'u', id FROM p WHERE id IS NOT NULL AND id<>? AND id NOT IN (SELECT user_id FROM org_members WHERE org_id IN (SELECT org_id FROM o))
+LIMIT ?"""
+
+
+def lv_circle(c, uid):
+    """2.1432 (#6399): the version keys of the writer's circle (_LV_CIRCLE_SQL) + their own; None = for everyone: outside a
+    request, a path of LV_ALL_PATHS, more than DL_SCOPE_ROWS keys."""
+    if not has_request_context() or LV_ALL_PATHS.search(request.path):
+        return None
+    u = int(uid)
+    with system_ctx(c):  # memberships and shares of other people = structure; only ids, nothing goes to a person
+        rows = c.execute(_LV_CIRCLE_SQL, (u,) * 10 + (DL_SCOPE_ROWS + 1,)).fetchall()
+    if len(rows) > DL_SCOPE_ROWS:
+        return None
+    return [f"version:org:{int(x)}" for k, x in rows if k == "o"] + [f"version:u:{int(x)}" for k, x in rows if k == "u"] + [f"version:u:{u}"]
 
 
 def dl_changed(c, since, uid=None):
