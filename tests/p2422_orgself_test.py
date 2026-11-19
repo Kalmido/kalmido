@@ -13,6 +13,8 @@ invitation, a switch per server, default off), own container (start.sh, SMTP sin
  (e) the switch signup_private (default off): "open" refused (409) next to an organisation while off; on (asks for the
      password): open works, a registration with an organisation's e-mail domain stays a private account (never joins
      it); off again: the mode falls back to off
+ 2.1414.0 (#6519): the self-registered account of (e) gets org_ask pending (the first start's question), an account an
+     admin made not; the client may only set it to done
  (f) 2.540.0 (#4383): the server admin's routes (POST /api/admin/orgs, POST /api/office/move) count no retired organisation
      when they check a name
 usage: p2422_orgself_test.py <datadir>      (P2422_NOSTART=1: a running server, no start.sh)
@@ -163,6 +165,12 @@ u = until(lambda: sql("SELECT id FROM users WHERE email='hanna@alpha.example'"),
 check(u and not sql("SELECT 1 FROM org_members WHERE user_id=?", (u[0][0],)),
       "(e) it stays a private account: no member of Alpha Example (rollback test: before 2.422 open was impossible here)")
 check(until(lambda: [m for m in mails() if "hanna@alpha.example" in [t.lower() for t in m["to"]]], 15), "(e) the confirmation mail goes out")
+# 2.1414.0 (#6519): a self-registered private account is asked "Private or with an organisation?" on its first start
+check(u and sql("SELECT value FROM user_settings WHERE user_id=? AND key='org_ask'", (u[0][0],)) == [("pending",)],
+      "(e) #6519: the self-registered account gets org_ask pending (rollback test: none without the fix)")
+check(sql("SELECT value FROM user_settings WHERE user_id=? AND key='org_ask'", (FID,)) in ([], [("done",)]), "(e) #6519: an account an admin made is not asked")
+check(Fr.patch(B + "/api/settings", json={"org_ask": "pending"}).status_code == 400, "(e) #6519: the client cannot ask again (only done)")
+check(Fr.patch(B + "/api/settings", json={"org_ask": "done"}).ok, "(e) #6519: the client finishes the question")
 r = A.patch(S, json={"signup_private": False})
 ab = about()
 check(r.ok and ab.get("signup_private") is False and ab.get("signup_mode") == "off" and ab.get("signup_effective") == "off",

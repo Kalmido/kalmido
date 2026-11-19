@@ -58,7 +58,7 @@ SU_CONFLICT = N_("Changed again in the meantime, so it cannot be undone")
 # view state a view writes by itself (no step); the server-only keys are never a step either (accounts/settings.py)
 SU_QUIET = ("workspace", "side_view", "folders_closed", "sections_closed", "col_widths", "detail_split", "detail_fold",
             "detail_cm_fold", "settings_more", "trial_hint_seen", "tours_seen", "office_ws_hint", "ab_cards", "reset_undo",
-            "whatsnew_seen", "tour")
+            "whatsnew_seen", "tour", "org_ask")  # 2.1414.0 (#6519): the first start's question
 # 2.997.0 (#5625): the roadmap's view state (zoom, collapsed projects, list selection, filters: static/js/roadmap.js rmSet) is
 # saved by the view itself while one looks around, like the column widths; as a step (bundled, the newest again on every save)
 # it went back with the undo of a project shift and changed the zoom under the person's next drag
