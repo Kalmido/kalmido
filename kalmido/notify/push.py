@@ -532,12 +532,12 @@ def notify(uid, title, msg, prio="4", click=None, actions=None, tag=None, s=None
     that want it (Slack, Matrix, Telegram, Signal; notify/channels.py); without kind it is guessed from tag / origin.
     2.240.0 B2 (#2867): scope / chn_msg = what the push belongs to / the channels' text (chn_scope, chn_push); web push and ntfy unchanged.
     2.367 (#2966): quiet=False = not held in the person's quiet hours (quiet_hold).
-    2.1130.0 (#6057): chat=True = a chat message the in-app pop-up shows too (web push payload chat: 1, sw.js).
+    (#6057): chat=True = a chat message the in-app pop-up shows too (web push payload chat: 1, sw.js).
     #6486: a disabled (or unknown) account gets nothing, whatever the caller checked before."""
     from ..notify.alerts import aa_count
     c = connect()
     try:
-        with system_ctx(c):  # 2.37.0 (#1150): the recipient's settings
+        with system_ctx(c):  # (#1150): the recipient's settings
             # #6486: the second line for every caller - a disabled account gets no push and no channel message
             u = c.execute("SELECT disabled FROM users WHERE id=?", (uid,)).fetchone()
             if not u or u[0]:
