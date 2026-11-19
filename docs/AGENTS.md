@@ -3251,7 +3251,10 @@ mode; `KALMIDO_DISPATCH=off|dry|on` on the computer outranks the switch). No mod
    of a build, never close tasks or start another job, run the project's `check_cmd` before each commit, and at the end
    commit on its branch and stop (never merge, push, open a pull request or deploy),
 6. once a day after `report_at` (default 18:00, local time): a short report into the person's chat (counts per state,
-   brakes, findings).
+   brakes, findings). 2.1383.0: it always names three numbers of the last 7 days - the median hours from *built* (the
+   author time of the task's commit) to *in `close_ref`* (the round that closed it), how many of the dispatcher's jobs
+   ended with a task still open (neither in `close_ref` nor on a branch), and how often a safeguard was overridden (see
+   *Overrides* below). Whoever sees them daily turns the cause sooner.
 
 **Dependencies (2.1394.0):** a task whose dependency field (*Blocked by* in the task, `POST /api/v1/tasks/{id}/dependencies
 {"blocked_by": ID}`) names an open task waits (*held*) until that task is built - its commit is in `close_ref` - or done. A
