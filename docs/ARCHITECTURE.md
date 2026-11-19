@@ -862,6 +862,14 @@ Since 2.37.0 Kalmido runs on PostgreSQL 17 only (`DATABASE_URL`); SQLite is gone
   back (#7181: the release first, a slow chat note never costs it): a server agent's run ends as interrupted and the
   person it worked for reads "please send it again" in the chat (a lost run the same at the next claim, without naming a
   restart; the run's own end then says nothing more) - no second run on its own.
+- **A failing mail server (#6385).** Every mail through the instance's SMTP counts for the admin alert in `mail_deliver`
+  (`aa_fail` / `aa_ok` "smtp"; a refused recipient is no failure of the server); `AA_FAIL_ROW` in a row alert the admins,
+  the same for the mail import's fetch ("mail"). The `mail:*` kinds call `mail_bg_failed` (accounts/mailfail.py) in their except branch: a passing
+  failure (no connection, a time-out, 4xx) raises `SmtpTemporary` while the row has runs left (`bgj_last`), so the queue's
+  retry tries it again (these kinds say `retry=MAIL_RETRY` at `bgj_fn`; #7181 keeps every other mail kind at one run); a lasting refusal ends the row. A kind with a list of mails (`mail_bg_list`) puts the rest into a
+  new row once one went (`bgj_again`) - nobody gets a mail twice. A booking mail / an instance admin's invitation that
+  failed for good is told to its person (News, `integ_tell`). An invitation's `sent_at` is set only by the mail that went;
+  an organisation admin sees only the server-wide notice of `mail_disturbed` (#3570), the instance admin "e-mail not sent".
 - **Session limits.** Every connection runs with `statement_timeout` 30 s, `idle_in_transaction_session_timeout`
   5 min and `jit=off`. Network calls (mail, calendar and contact sync, Web Push) run outside open transactions.
   `init_db` and the backup lift the statement limit for themselves.

@@ -8,7 +8,8 @@
 // keyboard (Ctrl/Cmd+Z back, Ctrl/Cmd+Shift+Z or Ctrl+Y forward), the toasts' "Undo" and the short list of this window's
 // own steps: an entry (histAdd) is a label plus the group(s) the server recorded for it (gids: the header X-Kalmido-Undo-Gid
 // of the write's answer, core.js rawFetch0 -> histUgid) or the outbox entries still on their way (qs); no copies, no
-// functions of their own. Undo takes back the person's newest step (ul: the server's newest group, any device), the toast's
+// functions of their own. Undo takes back this window's newest step or a step of elsewhere of the last 2 minutes (2.1436.0,
+// #6344: histPick; older ones of elsewhere: the list "Recent steps" opens with it marked; never a step over an API key), the toast's
 // "Undo" exactly its own entry, both with POST /api/undo/<id>/undo per group of the entry (2.1005.0, #5637; 2.1358.0, #6328:
 // the arrow / Ctrl+Z no longer /api/undo/to/<id>, newer steps of the person stay); redo POST /api/undo/<id>/redo. A change still waiting in the
 // outbox is taken out of the queue (never sent); the server checks rights, conflicts and barriers and names what stayed.
@@ -21,6 +22,10 @@ const HIST_MAX = 100, HIST_MENU = 100;  // 2.773.0 (#5250, #5242): 100 steps (wa
 // fresh: the step groups of answers no entry took yet (histUgid); gtok: the bundling token of histGroup (X-Kalmido-Undo-Group)
 // own: > 0 while this device runs an entry's own undo / redo (no server group): its writes carry X-Kalmido-Undo-Own (core.js)
 const HIST = {undo: [], redo: [], busy: false, group: null, gToast: null, toastE: null, sess: 0, ids: {}, secmap: new Map(), fresh: [], gtok: '', own: 0};
+// (#6344): srv = the server's newest heads without the steps over an API key ({items, at}: histSrvLoad), mark = the
+// group the list "Recent steps" marks (histListOpen)
+HIST.srv = null; HIST.mark = 0;
+const HIST_OTHER_S = 120;  // (#6344): a step of elsewhere (another device, tab, sync) is taken by the arrow / Ctrl+Z for 2 minutes
 const HIST_FRESH_MS = 8000;  // 2.905.0 (#5255): an answer's group older than this is no longer taken by a new entry
 const snapTask = t => t ? JSON.parse(JSON.stringify(t)) : null;
 const withKids = id => { const out = [], walk = x => { for (const k of children(x)) { out.push(snapTask(k)); walk(k.id); } }; out.push(snapTask(taskById(id))); walk(id); return out.filter(Boolean); };
@@ -112,6 +117,7 @@ function histFree() { for (const x of [...HIST.undo, ...HIST.redo]) if (x.local 
 function histMark(ids, dir) {
   if (!ids?.length) return;
   const from = dir === 'undo' ? 'undo' : 'redo', to = dir === 'undo' ? 'redo' : 'undo';
+  for (const g of HIST.srv?.items || []) if (ids.includes(g.id)) g.state = dir === 'undo' ? 'undone' : 'done';  // (#6344): the tooltip at once
   for (const x of [...HIST[from]]) { const g = histGids(x); if (g.length && g.every(id => ids.includes(id))) { HIST[from] = HIST[from].filter(y => y !== x); HIST[to].push(x); } }
   renderHist();
 }
@@ -262,18 +268,59 @@ async function histDo(e, dir) {
   if (!gids.length && !cut && !parts.some(p => p[dir] && !histSrv(p))) out.none = true;  // nothing the server or this device could take back
   return out;
 }
-// the person's newest step: this window's newest entry, unless the server has a newer group (another device, a write
-// without an entry here) -> an entry or {label, gids, row} of that group. 2.1358.0 (#6328): whichever it is, histDo takes back
-// only its own groups; without the server's list (offline, a child's account) the top entry alone
+// 2.1436.0 (#6344, decision 16.11.: variant A): what the arrow / Ctrl+Z take back -- only this window's entries and a step of
+// elsewhere (another device, a second tab, a calendar sync) of the last 2 minutes (HIST_OTHER_S, the server's clock: age_s),
+// newest first; the steps over an API key never (GET /api/undo?skip_api=1, #6165: hidden in the list too). An older step of
+// elsewhere that is newer than this window's is no surprise of Ctrl+Z any more: without an entry of this window the list
+// "Recent steps" opens with it marked (mark). Before: the person's newest step of any device and age (up to 30 days).
+// items = the server's heads (newest first), at = when they came -> {e} (an entry or {label, gids, row} of a group) or {mark}
+function histPick(items, at, now = Date.now()) {
+  const top = HIST.undo[HIST.undo.length - 1];
+  if (top && histPending(top)) return {e: top};  // just made, its change still on its way: it is the newest
+  const g = (items || []).find(x => x.state !== 'undone' && x.via !== 'token') || null;
+  if (!g) return {e: top || null};
+  const tg = histGids(top);
+  if (top && (tg.length ? Math.max(...tg) >= g.id : (top.at || 0) >= (Date.parse(g.at) || 0))) return {e: top};
+  const own = HIST.undo.find(x => histGids(x).includes(g.id));
+  if (own) return {e: own};
+  const age = g.age_s != null ? +g.age_s + (now - at) / 1000 : (now - (Date.parse(g.at) || 0)) / 1000;
+  if (age < HIST_OTHER_S) return {e: {label: g.label || tr('Change'), gids: [g.id], row: g, lids: [], at: Date.parse(g.at) || 0}, until: now + (HIST_OTHER_S - age) * 1000};
+  return top ? {e: top} : {mark: g};
+}
+// the server's newest heads of the person (no list without it: offline, a child's account -> this window's entries alone)
+async function histSrvLoad() {
+  if (!histListable()) { HIST.srv = null; return null; }
+  try {
+    const j = await rawFetch('GET', '/api/undo?limit=20&skip_api=1');
+    HIST.srv = {items: j.items || [], at: Date.now()};
+  } catch { HIST.srv = null; }
+  return HIST.srv;
+}
+// (#6344): the poll saw the person's step counter move (liveparts.js lpChanged): the tooltip names the new step
+let histSrvT = 0, histSrvTried = false;
+function histSrvSoon() {
+  if (histSrvT || !histListable()) return;
+  histSrvT = setTimeout(() => { histSrvLoad().then(() => { histSrvT = 0; renderHist(); }, () => { histSrvT = 0; }); }, 300);
+}
+// the click's step (fresh from the server; #6328: histDo takes back only its own groups)
 async function histNext() {
   const top = HIST.undo[HIST.undo.length - 1];
-  if (top && histPending(top)) return top;  // just made, its change still on its way: it is the newest
-  let g = null;
-  if (histListable()) { try { g = ((await rawFetch('GET', '/api/undo?limit=20')).items || []).find(x => x.state !== 'undone') || null; } catch { g = null; } }
-  if (!g) return top || null;
-  const tg = histGids(top);
-  if (top && (tg.length ? Math.max(...tg) >= g.id : (top.at || 0) >= (Date.parse(g.at) || 0))) return top;
-  return HIST.undo.find(x => histGids(x).includes(g.id)) || {label: g.label || tr('Change'), gids: [g.id], row: g, lids: [], at: Date.parse(g.at) || 0};
+  if (top && histPending(top)) return {e: top};
+  const sv = await histSrvLoad();
+  return sv ? histPick(sv.items, sv.at) : {e: top || null};
+}
+// "from Laptop" under a step of elsewhere (its device; a second window of this browser has the same name)
+function histFrom(e) {
+  const d = e?.row?.device;
+  if (!d) return '';
+  return tr('from {0}|device', d === histDevice() ? tr('another window of this device') : String(d).replace(/ \([a-z0-9]{4}\)$/, ''));
+}
+// (#6344): the list "Recent steps" with a step marked: the window at the arrow, on a phone (no arrows) the page
+function histListOpen(anchor, mark) {
+  HIST.mark = mark?.id || 0;
+  $('#toast')?.classList.add('hidden');
+  const a = anchor || $('#top [data-act="hist-undo"]');
+  if (a && !isMobile()) ul_open(a); else go('steps');
 }
 const HIST_OFF = ['barrier', 'toobig', 'noaccess'];  // the server's groups that cannot go back (and hold the older ones)
 // 2.979.0 (#5667): the areas registered with histReloader (core.js) fetch their data again
@@ -300,13 +347,18 @@ async function histStep(dir, n = 1, only = null) {
   if (only) n = only.length;
   HIST.busy = true; renderHist();
   const done = [], skipped = [];
-  let queued = false, stop = false, dropped = null, note = '', srv = false;
+  let queued = false, stop = false, dropped = null, note = '', srv = false, listMark = null;
   const other = dir === 'undo' ? 'redo' : 'undo';
   const out = e => { HIST.undo = HIST.undo.filter(x => x !== e); HIST.redo = HIST.redo.filter(x => x !== e); };
   try {
     await flushSaves();
     for (let i = 0; i < n && !stop; i++) {
-      const e = only ? only[i] : dir === 'undo' ? await histNext() : HIST.redo[HIST.redo.length - 1];
+      let e = only ? only[i] : dir === 'undo' ? null : HIST.redo[HIST.redo.length - 1];
+      if (!only && dir === 'undo') {
+        const pk = await histNext();
+        if (pk.mark && !i) { listMark = pk.mark; break; }  // (#6344): no step of here: the list, the step marked
+        e = pk.e;
+      }
       if (!e || (only && !HIST[dir].includes(e))) break;
       if (e.row && HIST_OFF.includes(e.row.state)) { toast(e.row.state === 'noaccess' ? tr('You may not change it any more, so it cannot be undone') : tr('Stopped before a step that cannot be undone: {0}', e.label)); stop = true; break; }
       if (e.lids.some(l => listById(l) && !canAddTo(l))) {  // the list became view-only in the meantime (the server checks again)
@@ -332,6 +384,7 @@ async function histStep(dir, n = 1, only = null) {
   } finally {
     try {  // the page may be gone meanwhile (closed tab, tests)
       if (done.length || dropped) {
+        histSrvSoon();  // (#6344): the next step the arrow names
         await histRedraw(srv);
         for (const x of done) { try { x.post?.(dir); } catch (err) { console.warn('history post', err); } }
       }
@@ -339,7 +392,7 @@ async function histStep(dir, n = 1, only = null) {
         if (skipped.length) toast((dir === 'undo' ? tr('Changed elsewhere, not undone: {0}', skipped.slice(0, 4).join(', ')) : tr('Changed elsewhere, not redone: {0}', skipped.slice(0, 4).join(', '))) + (skipped.length > 4 ? ' …' : ''));
         else {
           const what = done.length > 1 ? (dir === 'undo' ? trn('{0} step undone', '{0} steps undone', done.length) : trn('{0} step redone', '{0} steps redone', done.length))
-            : dir === 'undo' ? tr('Undone: {0}', done[0].label) : tr('Redone: {0}', done[0].label);
+            : [dir === 'undo' ? tr('Undone: {0}', done[0].label) : tr('Redone: {0}', done[0].label), histFrom(done[0])].filter(Boolean).join(' · ');  // (#6344): the device of a step of elsewhere
           toast(note || (queued && !OUT.online ? what + ' · ' + tr('sent as soon as you are online') : what), null, note ? 10000 : undefined);  // 2.560.0 (#4667): e.g. restored without its client; 2.951.0 (#5638): the hint only offline (online the outbox sends it at once)
         }
       }
@@ -347,24 +400,32 @@ async function histStep(dir, n = 1, only = null) {
     HIST.busy = false;
     try { renderHist(); } catch { /* page gone */ }
   }
+  if (listMark) { try { histListOpen(null, listMark); } catch (x) { console.warn('history list', x); } }  // (#6344)
   return {done: done.length, stop};  // 2.773.0 (#5250)
 }
 // ---- the ← / → buttons (top bar), their tooltips and the history menu
+// (#6344): ← names exactly the step its click takes (histPick on the server's heads of the last poll: a step of
+// elsewhere with its device); none here -> it opens the list "Recent steps" (mark: the step of elsewhere it marks)
 function histBtn(dir) {
-  const e = HIST[dir][HIST[dir].length - 1], p = histPending(e);
-  const lab = e ? (dir === 'undo' ? tr('Undo: {0}', e.label) : tr('Redo: {0}', e.label)) : dir === 'undo' ? tr('Nothing to undo') : tr('Nothing to redo');
+  const pk = dir === 'undo' ? (HIST.srv ? histPick(HIST.srv.items, HIST.srv.at) : {e: HIST.undo[HIST.undo.length - 1]}) : {e: HIST.redo[HIST.redo.length - 1]};
+  const e = pk.e || null, p = histPending(e);
+  const lab = e ? [dir === 'undo' ? tr('Undo: {0}', e.label) : tr('Redo: {0}', e.label), histFrom(e)].filter(Boolean).join(' · ') : dir === 'undo' ? tr('Nothing to undo') : tr('Nothing to redo');
   // 2.773.0 (#5250): list = nothing to undo here, the button opens the list "Recent steps" (the person's steps of every device)
   const list = dir === 'undo' && !e && histListable();
-  return {lab, tip: lab + (e ? ` (${kbText(dir === 'undo' ? 'Mod+Z' : 'Mod+Shift+Z')})` : '') + (p ? ' · ' + tr('waiting for the connection') : ''), off: !e || HIST.busy, p, list};
+  return {lab, tip: lab + (e ? ` (${kbText(dir === 'undo' ? 'Mod+Z' : 'Mod+Shift+Z')})` : '') + (p ? ' · ' + tr('waiting for the connection') : ''), off: !e || HIST.busy, p, list, mark: pk.mark || null, until: pk.until || 0};
 }
 const histListable = () => !!S.me && S.me.kind !== 'agent' && !S.me.kid;  // 2.773.0 (#5250): a person has the list "Recent steps"
 function histBtns() {
   return `<div class="hist tf" role="group" aria-label="${esc(tr('History'))}">${['undo', 'redo'].map(dir => { const b = histBtn(dir), lab = b.list ? tr('Recent steps') : b.lab; return `<button type="button" class="iconbtn hbtn${b.p ? ' pend' : ''}" data-act="hist-${dir}" aria-label="${esc(lab)}" title="${esc(b.list ? lab : b.tip)}"${b.off && !b.list ? ' disabled' : ''}>${ic(dir === 'undo' ? 'undo' : 'redo')}</button>`; }).join('')}</div>`;
 }
+let histRenT = 0;
 function renderHist() {  // in place: keeps the keyboard focus on the button
+  clearTimeout(histRenT); histRenT = 0;
+  if (!HIST.srv && !histSrvT && !histSrvTried && S.me) { histSrvTried = true; histSrvSoon(); }  // (#6344): the first heads
   for (const dir of ['undo', 'redo']) {
     const el = $(`#top [data-act="hist-${dir}"]`); if (!el) continue;
     const b = histBtn(dir);
+    if (b.until) histRenT = setTimeout(renderHist, Math.max(500, b.until - Date.now() + 50));  // (#6344): its 2 minutes end: the tooltip again
     const lab = b.list ? tr('Recent steps') : b.lab;  // 2.773.0 (#5250)
     el.disabled = b.off && !b.list; el.title = b.list ? lab : b.tip; el.setAttribute('aria-label', lab); el.classList.toggle('pend', b.p);
   }
@@ -372,7 +433,7 @@ function renderHist() {  // in place: keeps the keyboard focus on the button
   if (typeof ul_draw === 'function' && document.querySelector('.ulbody')) ul_draw();  // lazy-ok: undolist.js
 }
 function histMenu(anchor, dir) {
-  if (dir === 'undo' && S.me?.kind !== 'agent') { $('#toast')?.classList.add('hidden'); ul_open(anchor); return; }  // 2.773.0 (#5250): the list "Recent steps" (undolist.js, loaded on demand)
+  if (dir === 'undo' && S.me?.kind !== 'agent') { HIST.mark = 0; $('#toast')?.classList.add('hidden'); ul_open(anchor); return; }  // (#5250): the list "Recent steps" (undolist.js, loaded on demand)
   const list = HIST[dir].slice(-HIST_MENU).reverse();
   if (!list.length || HIST.busy) return;
   $('#toast')?.classList.add('hidden');

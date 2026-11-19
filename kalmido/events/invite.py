@@ -24,7 +24,8 @@ from ..core.db import db, iso, local_now, now_utc, usettings
 from ..core.env import env_int
 from ..accounts.orgs import user_orgs
 from ..accounts.session import me
-from ..accounts.bgjobs import bgj_add, bgj_fn
+from ..accounts.bgjobs import bgj_add, bgj_again, bgj_fn
+from ..accounts.mailfail import MAIL_RETRY, mail_bg_list  # (#6385)
 from ..core.access import Denied
 from ..core.errors import BadInput
 from ..core.mailframe import mail_html
@@ -312,14 +313,16 @@ def evi_mail(c, uid, r, method, a, ics_atts, update=False):
     return a["email"], subj, text, hb, addr, name, [("invite.ics" if method == "REQUEST" else "cancel.ics", ics, "text/calendar")]
 
 
-@bgj_fn("mail:evinvite", tries=1)
+@bgj_fn("mail:evinvite", tries=1, retry=MAIL_RETRY)
 def evi_bg(mails):
+    """(#6385): a passing failure of the mail server is tried again; the guests who got theirs never get it twice
+    (mail_bg_list). Nobody waits for it: the person can send it again by saving."""
     from ..integrations.mail import mail_send
-    for to, subj, text, hb, rt, fn, att in mails:
-        try:
-            mail_send(to, subj, text, hb, from_name=fn, reply_to=rt or None, attachments=att)
-        except Exception as ex:  # noqa: BLE001  (nobody waits for this; the person can send it again by saving)
-            print("event invitation mail failed:", type(ex).__name__, flush=True)
+
+    def one(m):
+        to, subj, text, hb, rt, fn, att = m
+        mail_send(to, subj, text, hb, from_name=fn, reply_to=rt or None, attachments=att)
+    mail_bg_list("event invitation", list(mails), one, lambda rest: bgj_again(rest, delay=30.0))
 
 
 def evi_send(mails):

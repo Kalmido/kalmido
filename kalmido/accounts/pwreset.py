@@ -18,6 +18,7 @@ from ..core.db import body, connect, db, err, iso, now_utc, parse_iso, write_loc
 from ..accounts.session import _accept_lang, _rate_blocked, _rate_fail, _rate_keys, client_ip
 from ..accounts.login import login_log_ip  # 2.239.0 B (#2888)
 from .bgjobs import bgj_add, bgj_fn
+from .mailfail import MAIL_RETRY, mail_bg_failed  # (#6385)
 from ..integrations.mail import MAIL_OUT_ON, mail_send
 from ..accounts.invite import invite_mail, invite_new  # 2.369.5 (#2517): pulled up from functions
 from ..core.i18n import N_  # 2.369.5 (#2517): pulled up from functions
@@ -37,7 +38,7 @@ def _pw_eligible(u):
     return bool(u["password_hash"] and u["email"] and not u["disabled"] and not u["kid"] and (u["kind"] or "user") != "agent")
 
 
-@bgj_fn("mail:pwreset", tries=1)
+@bgj_fn("mail:pwreset", tries=1, retry=MAIL_RETRY)
 def _pw_mail(uid, to, subject, text, html_body):
     """The background part: talks to the mail server after the answer has gone out."""
     try:
@@ -53,7 +54,7 @@ def _pw_mail(uid, to, subject, text, html_body):
         finally:
             c.close()
     except Exception as e:  # noqa: BLE001  (nobody waits for this; the person can ask again)
-        print("password reset mail failed:", type(e).__name__, flush=True)
+        mail_bg_failed("password reset", e)  # (#6385): a passing failure of the mail server is tried again
 
 
 def _pw_send(who):

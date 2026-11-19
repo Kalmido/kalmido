@@ -36,6 +36,7 @@ from ..notify.alerts import _env_int
 from ..files.store import fs_chain, fs_deleted, fs_role, fs_roles_many
 from ..docs import store as DS
 from ..docs.ingest import docs_kick, docs_mailbox_import, _mail_has_parts, _mail_toks
+from ..collab.attskip import att_skip_news  # #6531
 from ..core.mailguard import MailRefused, mail_head, mail_parse  # 2.1281.0 (#6425)
 from ..docs.maillink import ml_collect, ml_links
 from . import mailbox as MB
@@ -59,7 +60,9 @@ MBR_RULE_ERR = {"target": N_("The mailbox's holder cannot file into the folder o
                 "unsafe": N_("The last e-mail of this rule was refused: it has too many parts or a header line that cannot be read; it is not tried again"),
                 # 2.1281.0 (#6425): the budget of one mail (docs/ingest.py MAIL_DOCS / MAIL_BYTES) left files out: what fitted
                 # became documents, the mail is neither moved nor deleted
-                "partly": N_("The last e-mail of this rule had more files than one e-mail may bring (100 documents, 100 MB unpacked): the rest was left out, the e-mail stays where it is")}
+                "partly": N_("The last e-mail of this rule had more files than one e-mail may bring (100 documents, 100 MB unpacked): the rest was left out, the e-mail stays where it is"),
+                # #6531: a file of the mail was refused (storage full, virus, type or content) while others became documents
+                "skipped": N_("Files of the last e-mail of this rule were refused (storage full, a virus or the type): the rest became documents, the e-mail stays where it is")}
 _CTRL = re.compile(r"[\x00-\x1f\x7f]")
 _MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 _BUDGET = {}            # (box id, kind) -> [hour, used]: this process (the mailbox round runs in one process)
@@ -447,10 +450,10 @@ def _take(box, holder, rule, key, raw, msg=None):
         if c.execute("INSERT INTO hub_mailbox_docs(box_id, mid, rule_id, at) VALUES(?,?,?,?) ON CONFLICT DO NOTHING RETURNING box_id",
                      (box["id"], key, rule["id"], _now())).fetchone() is None:
             return None, 0
-        why, cut = [], []
+        why, cut, left = [], [], []
         first, made = docs_mailbox_import(c, holder, box["org_id"] or None, msg, raw, meta=meta, parent_id=rule["target_id"],
                                           take_files=bool(rule["take_files"]), take_mail=bool(rule["take_mail"]), budget=budget, pre=pre,
-                                          why=why, cut=cut)
+                                          why=why, cut=cut, left=left)
         if not made and why and all(w == "ValueError" for w in why):
             # 2.636.0 (#4853, review): refused for good (file type / content): the claim stays, else such a mail would be
             # fetched every round and fill the round's limit
@@ -465,16 +468,19 @@ def _take(box, holder, rule, key, raw, msg=None):
             return RETRY, 0  # 2.1322.0 (#6560 2): the run's position stays before this mail
         c.execute("UPDATE hub_mailbox_docs SET node_id=? WHERE box_id=? AND mid=?", (first or None, box["id"], key))
         # 2.1281.0 (#6425): the mail's budget left files out -> the rule says so and the mail stays (KEPT: no move, no delete).
-        # What this run wrote to the rule about another mail (partly, unsafe) is not wiped by a hit of the same run.
+        # #6531: so does every refused file (ValueError, Denied, QuotaExceeded); the holder hears of a file the storage refused.
+        # What this run wrote to the rule about another mail (partly, skipped, unsafe) is not wiped by a hit of the same run.
         sticky = box.setdefault("_mbr_marked", set())
-        if cut:
+        att_skip_news(c, holder, left)
+        if cut or why:
             sticky.add(rule["id"])
-            c.execute("UPDATE hub_mailbox_rules SET hits=hits+1, last_hit_at=?, last_error='partly' WHERE id=?", (_now(), rule["id"]))
+            c.execute("UPDATE hub_mailbox_rules SET hits=hits+1, last_hit_at=?, last_error=? WHERE id=?",
+                      (_now(), "partly" if cut else "skipped", rule["id"]))
         elif rule["id"] in sticky:
             c.execute("UPDATE hub_mailbox_rules SET hits=hits+1, last_hit_at=? WHERE id=?", (_now(), rule["id"]))
         else:
             c.execute("UPDATE hub_mailbox_rules SET hits=hits+1, last_hit_at=?, last_error='' WHERE id=?", (_now(), rule["id"]))
-        return (KEPT if cut else True), len(made)
+        return (KEPT if cut or why else True), len(made)
     return _bg(run)
 
 

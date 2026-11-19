@@ -25,7 +25,7 @@ with @bgj_fn(kind) that gets the payload's arguments; it runs in the same contex
 no request). Without the database (bgj_add fails) the work runs in a thread as before.
 
 (#6388): a row whose function raises waits again with a growing gap (BGJ_RETRY_S, doubled per run) while its kind
-has runs left (bgj_fn retry=, default its tries; mail:* and push:* catch their own send errors: one run); a
+has runs left (bgj_fn retry=, default its tries; mail:* and push:* catch their own send errors: one run, except the mail kinds of #6385 that raise only when nothing went out: accounts/mailfail.py MAIL_RETRY); a
 waiting row of a kind with a highest age (bgj_fn max_age=, mail:* 24 h, push:* 1 h) older than that is failed 'expired'
 instead of going out days late, a row of a kind no process knows after BGJ_UNKNOWN_H hours 'unknown kind'. bgj_trouble
 gives the numbers the watchdog alerts the admins with (notify/alerts.py aa_bgjobs). BGJ_ON_STOP: functions a stopping process calls after it released its rows (the
@@ -424,7 +424,7 @@ def _run_row(rid, kind, args, run, gated=False):
     stop = threading.Event()
     threading.Thread(target=_beat, args=(rid, stop, run), daemon=True, name="bgjobs-beat").start()
     state, error = "done", ""
-    _CUR.rid = rid
+    _CUR.rid, _CUR.run, _CUR.kind = rid, run, kind
     try:
         fn = BGJ_FNS.get(kind)
         if fn is None:  # a kind of another version
@@ -437,7 +437,7 @@ def _run_row(rid, kind, args, run, gated=False):
         if run and run < BGJ_RETRY_OF.get(kind, 1) and not _Q.get("stopping"):  # (#6388): again, a while later
             state = "retry"
     finally:
-        _CUR.rid = None
+        _CUR.rid = _CUR.run = _CUR.kind = None
         stop.set()
         try:
             if state == "retry":
@@ -609,6 +609,31 @@ def bgj_drop(kinds, user_id=None, org_id=None, c=None):
 def bgj_current():
     """The id of the row the current thread runs (None outside a queue row, e.g. the thread fallback without a database)."""
     return getattr(_CUR, "rid", None)
+
+
+def bgj_last():
+    """(#6385): the row the current thread runs gets no further run when its function raises now (its kind's runs are used
+    up, or the process stops); outside a queue row (the thread fallback without a database) always True. A mail kind tells
+    the person who started it only then."""
+    run = getattr(_CUR, "run", None)
+    return not run or run >= BGJ_RETRY_OF.get(getattr(_CUR, "kind", None), 1) or bool(_Q.get("stopping"))
+
+
+def bgj_again(*args, delay=0.0):
+    """(#6385): a new row of the current row's kind for the same person / organisation with these arguments, e.g. the
+    mails of a list that were not sent yet when the mail server failed in the middle (the sent ones never go twice). Outside
+    a queue row: nothing (False)."""
+    rid, kind = bgj_current(), getattr(_CUR, "kind", None)
+    if not rid or not kind:
+        return False
+    c = connect()
+    try:
+        with system_ctx(c):  # the queue's own row
+            r = c.execute("SELECT user_id, org_id FROM bg_jobs WHERE id=?", (rid,)).fetchone()
+    finally:
+        c.close()
+    bgj_add(kind, *args, user_id=r["user_id"] if r else None, org_id=r["org_id"] if r else None, delay=delay)
+    return True
 
 
 def bgj_progress(rid, d):

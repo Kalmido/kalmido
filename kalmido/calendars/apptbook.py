@@ -25,7 +25,9 @@ from flask import g, jsonify, redirect, request
 from ..core.config import app, APP_NAME, EMAIL_RE, PUBLIC_URL, TZ  # 2.1297.0 (#6548): the one strict address check
 from ..core.i18n import browser_lang, LANGS, N_, short_day, tr
 from ..collab.comments import lang_of  # 2.367.5 (#2980)
-from ..core.db import body, bump, db, err, iso, iso_ms, now_utc, parse_iso, usettings
+from ..core.db import body, bump, connect, db, err, iso, iso_ms, now_utc, parse_iso, usettings
+from ..accounts.mailfail import MAIL_RETRY, mail_bg_failed, smtp_err  # (#6385)
+from ..collab.integfail import integ_tell  # (#6385)
 from ..core.pg import insert_id, like_escape, system_ctx, write_lock
 from ..core.access import acx_token_bind, Denied, need_feat, feat_has
 from ..accounts.session import _rate_blocked, _rate_fail, _token_hash, rate_ip
@@ -490,7 +492,7 @@ def apb_booking_cancel(bid):
     mail = apb_cancel(c, r, "host", reason)
     c.commit()
     if mail:
-        bgj_add("mail:apptbook", *mail)  # 2.193.0 D (#2220): the queue in the database (the worker sends it)
+        bgj_add("mail:apptbook", *mail, uid)  # (#6385): the person hears a cancellation that failed for good; (#2220): the queue in the database (the worker sends it)
     tnames = {x[0]: x[1] for x in c.execute("SELECT id, name FROM appt_types WHERE user_id=?", (uid,))}
     return jsonify(apb_booking_out(c.execute("SELECT * FROM appt_bookings WHERE id=?", (bid,)).fetchone(), tnames))
 
@@ -1087,7 +1089,7 @@ def apb_confirm(token):
     bump(c)
     c.commit()
     print("apptbook confirmed", r["id"], flush=True)
-    bgj_add("mail:apptbook", *mail)  # 2.193.0 D (#2220): the queue in the database (the worker sends it)
+    bgj_add("mail:apptbook", *mail, r["user_id"])  # (#6385): the person hears a confirmation that failed for good; (#2220): the queue in the database (the worker sends it)
     return redirect(APB_PREFIX + "c/" + token, 303)
 
 
@@ -1179,13 +1181,25 @@ def apb_cancel_guest(token):
 
 
 # ---------------------------------------------------------------- mails and the push
-@bgj_fn("mail:apptbook", tries=1)
-def apb_mail_bg(to, subject, text, html_body, reply_to, from_name):
+@bgj_fn("mail:apptbook", tries=1, retry=MAIL_RETRY)
+def apb_mail_bg(to, subject, text, html_body, reply_to, from_name, owner=None):
+    """(#6385): a passing failure of the mail server is tried again (bgjobs); owner = the booking page's person, who hears it
+    when the confirmation of a booking / their own cancellation could not reach the guest for good."""
     from ..integrations.mail import mail_send
     try:
         mail_send(to, subject, text, html_body, from_name=from_name, reply_to=reply_to or None)
     except Exception as ex:  # noqa: BLE001  (nobody waits for this; the customer can book again)
-        print("apptbook mail failed:", type(ex).__name__, flush=True)
+        mail_bg_failed("apptbook", ex, (lambda x=ex: apb_mail_lost(owner, to, x)) if owner else None)
+
+
+def apb_mail_lost(owner, to, ex):
+    """(#6385): News (+ push, event "integration") for the booking page's person: the mail to the guest did not go."""
+    c = connect()
+    try:
+        integ_tell(c, [owner], "mail_booking", to, more=(smtp_err(ex),), click="calendar")
+        c.commit()
+    finally:
+        c.close()
 
 
 def apb_mail_html(lines, url=None, button=None, foot="", subject="", brand=None, lg=""):

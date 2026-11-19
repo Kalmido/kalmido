@@ -3,8 +3,8 @@
 """(#6388): the queue bg_jobs - failed and lost rows are seen, a raising function is tried again, waiting rows have a
 highest age; a server agent's run that a restart cut off tells its person. Own container (start.sh). Invented accounts only.
  1. a function that raises: the row waits again with a growing gap (30 s, then 60 s), the payload kept, the error named; after
-    its runs (retry=3) it fails; a kind with tries=1 and no retry fails at once (the old way). mail:* / push:* keep one run
-    (#7181: they catch their own send errors), highest age 24 h / 1 h; other kinds keep their tries and have no highest age
+    its runs (retry=3) it fails; a kind with tries=1 and no retry fails at once (the old way). push:* and the mail:* kinds without mailfail keep one run
+    (#7181: they catch their own send errors; the #6385 mail kinds MAIL_RETRY), highest age 24 h / 1 h; other kinds keep their tries and have no highest age
  2. the housekeeping: a push waiting over an hour and a mail over 24 h fail 'expired' (payload gone), younger ones and kinds
     without a highest age wait on; a row of a kind no process knows fails 'unknown kind' after 24 h, not before
  3. the watchdog (notify/alerts.py aa_bgjobs): more than KALMIDO_BG_ALARM_FAILED rows failed in the last hour and a due row waiting > 15 min
@@ -117,8 +117,8 @@ check(st[1].get("state") == "wait" and st[1].get("attempts") == 2 and 55 <= st[1
 check(st[2].get("state") == "failed" and st[2].get("attempts") == 3 and not st[2].get("kept"), f"after its 3 runs the row fails, payload gone {st[2]}")
 check((r1.get("once") or {}).get("state") == "failed" and (r1.get("once") or {}).get("attempts") == 1,
       f"a kind with tries=1 and no retry fails at its first error (as before) {r1.get('once')}")
-check(r1.get("retry") == {"mail:pwreset": 1, "mail:polls": 1, "push:send": 1, "backup": 3, "umz:import": 1},
-      f"retry: every kind its tries (#7181: mail / push catch their own errors, one run) {r1.get('retry')}")
+check(r1.get("retry") == {"mail:pwreset": 3, "mail:polls": 3, "push:send": 1, "backup": 3, "umz:import": 1},
+      f"retry: every kind its tries (#7181: push catches its own errors, one run), the mail kinds of #6385 MAIL_RETRY: they raise only when nothing went out {r1.get('retry')}")
 check(r1.get("age") == {"mail:pwreset": 86400, "mail:portal": 86400, "push:send": 3600, "backup": None, "umz:import": None},
       f"highest age: mail 24 h, push 1 h, the others none {r1.get('age')}")
 

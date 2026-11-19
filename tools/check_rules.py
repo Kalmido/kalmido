@@ -16,6 +16,10 @@ Rules (RULES below; sharp = a rise is red, otherwise a notice until the task tha
   starter-secret alternatives of the SECRET_* name patterns of the starter: a name check is no wall          (#7149)
   generated      a tracked file whose head says it is generated (dependency locks aside)                   (#6887)
   client-write   a writing api() / fetch() in static/js outside objsave.js, notice only                     (#7150)
+  window-open    window.open( in the client code outside static/js/miniwin.js (a tab only with a mouse)  (#7262)
+  wording        "chip" in the English texts, the old names of the own workspace in the German ones          (#7262)
+  emoji          emoji in the texts of static/i18n other than the thumbs                                     (#7262)
+The product rules behind the last three stand in docs/dev/produkt-regeln.md.
 Not built here (the right way does not exist yet, so the message could not name it): FOR UPDATE outside the lock helper
 (#7153), IBAN patterns outside core/iban.py (#7154), except Exception around unseal( (#7156: unseal_or); the schema,
 export, import and month lock rules (#7145 - #7148) need the structure those tasks build.
@@ -169,6 +173,52 @@ def count_client_write(root):
     return regex_counts(root, client_js(root), WRITE, skip=("static/js/objsave.js",))
 
 
+WINOPEN = re.compile(r"\bwindow\.open\(")
+CHIP = re.compile(r"\bchips?\b", re.I)
+OLD_PRIVATE = re.compile(r"Meine Ablage|Mein Bereich|persönliche[sn]? Büro")
+EMOJI = re.compile("[\U0001F300-\U0001FAFF]")
+THUMBS = "\U0001F44D\U0001F44E"
+
+
+def i18n_texts(root):
+    """{static/i18n/<lang>.json: {English text: translation (a plural: its forms joined)}} - the texts people read."""
+    import json
+    d = os.path.join(root, "static", "i18n")
+    out = {}
+    for n in sorted(os.listdir(d)) if os.path.isdir(d) else []:
+        if n.endswith(".json"):
+            try:
+                data = json.loads(read(root, f"static/i18n/{n}"))
+            except ValueError:
+                continue
+            out[f"static/i18n/{n}"] = {k: v if isinstance(v, str) else " ".join(map(str, v)) for k, v in data.items()}
+    return out
+
+
+def count_window_open(root):
+    return regex_counts(root, client_js(root), WINOPEN, skip=("static/js/miniwin.js",))
+
+
+def count_wording(root):
+    """The English texts (the keys, counted once in de.json) with "chip"; the German ones with an old name of Private."""
+    out = {}
+    for rel, texts in i18n_texts(root).items():
+        n = sum(1 for v in texts.values() if OLD_PRIVATE.search(v)) if rel.endswith("/de.json") else 0
+        n += sum(1 for k in texts if CHIP.search(k)) if rel.endswith("/de.json") else 0
+        if n:
+            out[rel] = n
+    return out
+
+
+def count_emoji(root):
+    out = {}
+    for rel, texts in i18n_texts(root).items():
+        n = sum(1 for v in texts.values() for ch in EMOJI.findall(v) if ch not in THUMBS)
+        if n:
+            out[rel] = n
+    return out
+
+
 # name: (counter, sharp, why, instead)
 RULES = {
     "env": (count_env, True,
@@ -195,6 +245,17 @@ RULES = {
     "client-write": (count_client_write, False,
                      "every own write path needs its own conflict protocol (#7150)",
                      "objsave.js (saveDialog) and kalmido/core/writes.py"),
+    "window-open": (count_window_open, True,
+                    "on a touch device nothing leaves the app unasked; a tab or window of its own is for a mouse only "
+                    "(docs/dev/produkt-regeln.md, #4574)",
+                    "the button only behind mw_desk() of static/js/miniwin.js; a picture opens in the app's preview (attLightbox)"),
+    "wording": (count_wording, True,
+                "decided words: no 'chip' (a label, shown in the task row), the own workspace is 'Privat' "
+                "(docs/dev/produkt-regeln.md, #4605)",
+                "'label' / 'show in the task row'; 'Privat' (en: Private)"),
+    "emoji": (count_emoji, True,
+              "app icons instead of emoji; the thumbs are the only emoji in texts (docs/dev/produkt-regeln.md)",
+              "an app icon (ic(...) of static/js/icons.js) beside the text"),
 }
 
 

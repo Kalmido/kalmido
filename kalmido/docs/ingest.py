@@ -16,6 +16,8 @@ from datetime import timedelta
 from ..core.env import env_int  # (#6615): a wrong value = one warning with its name
 from ..core.config import app
 from ..core.db import connect, iso, now_utc
+from ..collab.attskip import att_skip_news  # #6531: the News item of a file the storage refused
+from ..files.upsafe import UploadRefused  # #6531
 from ..accounts.session import GATE, bg_here
 from ..accounts.mailtok import mtk_where  # 2.674.0 (#4382 finding 5)
 from ..core.pg import system_ctx
@@ -548,13 +550,14 @@ def docs_mail_import(c, msg, raw, pre=None):
             if dest:
                 fixed["folder"] = str(dest)
         budget = (lambda kind, n=1: ml_budget(c, r["token"], kind, n)) if r else None
-        cut = []
+        cut, left = [], []
         first, _made = _docs_mail_into(c, msg, raw, uid, org, sort=sort, letter=letter, budget=budget, pre=pre,
-                                       meta_add=fixed, parent_id=dest, cut=cut)
+                                       meta_add=fixed, parent_id=dest, cut=cut, left=left)
+        att_skip_news(c, uid, left)  # #6531: a file the storage refused (full, virus) never goes silently; the mail stays
     c.commit()
     if first:
         docs_kick()
-    if first and cut:  # 2.1281.0 (#6425): the budget of one mail left files out: the mail stays in the mailbox (not deleted)
+    if first and (cut or left):  # (#6425): the budget of one mail left files out: the mail stays in the mailbox (not deleted)
         return DocsMailKept(first)
     return first
 
@@ -565,7 +568,7 @@ def _mail_mid(msg, raw):
 
 
 def _docs_mail_into(c, msg, raw, uid, org, sort=None, letter=None, budget=None, pre=None, take_files=True, take_mail=False,
-                    meta_add=None, parent_id=None, source="mail", why=None, cut=None):
+                    meta_add=None, parent_id=None, source="mail", why=None, cut=None, left=None):
     """2.581.0 (#4804): the one documents input of a mail (pulled out of docs_mail_import, unchanged for the document address):
     its files (ZIP / winmail unpacked, e-invoice XML, images as files), else its invoice links, else the mail itself; the same
     bytes / the same ext_id already in the workspace are linked, not stored twice. Called inside system_ctx; the caller commits.
@@ -574,7 +577,8 @@ def _docs_mail_into(c, msg, raw, uid, org, sort=None, letter=None, budget=None, 
     too; meta_add = given fields for every document (tags, sender); parent_id = a target folder (fs_put checks uid's right);
     source = doc_meta.source ("mail", "mailbox"); why = a list that gets the kind of every refusal ("ValueError", "Denied",
     "QuotaExceeded"; 2.636.0 #4853); cut = a list that gets an entry for every file the budget of one mail left out
-    (2.1281.0 #6425, _mail_parts). -> (first node id or 0, [node ids])."""
+    (2.1281.0 #6425, _mail_parts); left = a list that gets (name, "quota" / "virus" / "denied") for every file the storage
+    refused (#6531: the caller keeps the mail and tells the person). -> (first node id or 0, [node ids])."""
     from ..admin.hosting import QuotaExceeded
     _toks, mail_text, ei_is = _mail_toks(msg)
     mid = _mail_mid(msg, raw)
@@ -591,6 +595,10 @@ def _docs_mail_into(c, msg, raw, uid, org, sort=None, letter=None, budget=None, 
             print("docs: mail document refused", type(e).__name__, flush=True)
             if why is not None:
                 why.append(type(e).__name__)
+            kind = "quota" if isinstance(e, QuotaExceeded) else "virus" if isinstance(e, UploadRefused) else \
+                "denied" if isinstance(e, Denied) else None  # (a plain ValueError is the file itself: unreadable, no document)
+            if left is not None and kind:
+                left.append((name, kind))
             return 0
     _text, files = mail_text(msg, att_images=True)
     made, cand, eml_done = [], False, False
@@ -630,7 +638,7 @@ def _docs_mail_into(c, msg, raw, uid, org, sort=None, letter=None, budget=None, 
 
 
 def docs_mailbox_import(c, uid, org, msg, raw, meta=None, parent_id=None, take_files=True, take_mail=False, budget=None, pre=None,
-                        why=None, cut=None):
+                        why=None, cut=None, left=None):
     """2.581.0 (#4804): a mail a rule of a workspace mailbox took (hub/mailrules.py) -> documents of that workspace as uid (the
     mailbox's holder), through the same input as the document address (_docs_mail_into), doc_meta.source 'mailbox'. Checks
     that uid is active and (an organisation) still a member; the private space without a target folder sorts like the own
@@ -641,4 +649,4 @@ def docs_mailbox_import(c, uid, org, msg, raw, meta=None, parent_id=None, take_f
             return 0, []
         sort = "sort" if not org and not parent_id else None
         return _docs_mail_into(c, msg, raw, uid, org, sort=sort, budget=budget, pre=pre, take_files=take_files, take_mail=take_mail,
-                               meta_add=meta, parent_id=parent_id, source="mailbox", why=why, cut=cut)
+                               meta_add=meta, parent_id=parent_id, source="mailbox", why=why, cut=cut, left=left)

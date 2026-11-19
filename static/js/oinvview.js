@@ -122,7 +122,7 @@ document.addEventListener('click', async e => {
   try {
     if (b.dataset.oinv === 'resend') {
       const r = await api('POST', `/api/orgs/${oid}/invites/${uid}/resend`);
-      inviteResult(r.invitation, who);
+      if (r.notice) toast(r.notice); else inviteResult(r.invitation, who);  // (#6385): the server's mail is disturbed (general, never per invitation)
     } else {
       if (!await askConfirm(tr('Withdraw the invitation for {0}?', who), tr('The invitation stops working.'), {ok: tr('Withdraw'), danger: true})) return;
       const r = await api('DELETE', `/api/orgs/${oid}/invites/${uid}`);

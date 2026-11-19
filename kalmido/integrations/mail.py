@@ -17,7 +17,7 @@ import time
 from datetime import date, timedelta
 from flask import g, jsonify, request
 
-from ..core.config import app, APP_NAME, MAX_FILE_MB, PUBLIC_URL
+from ..core.config import app, APP_NAME, PUBLIC_URL
 from ..core.pg import system_ctx, table_exists
 from ..tasks.repo import task_insert  # 2.1358.0 (#6825): the one way into tasks
 from ..core.i18n import browser_lang, lang, md_plain, tr, trn
@@ -27,8 +27,10 @@ from ..core.movelock import mv_refused, mv_strict  # 2.1337.0 (#6600): the mail 
 from ..accounts.session import GATE, me
 from ..accounts.mailtok import mtk_new, mtk_plain, mtk_where  # 2.674.0 (#4382 finding 5)
 from ..accounts.bgjobs import bgj_fn
+from ..accounts.mailfail import MAIL_RETRY, mail_bg_failed, smtp_down, smtp_err  # (#6385)
 from ..core.access import list_role, need_list, vis_sql, WRITE_ROLES, list_state_sql
-from ..core.pages import new_inbox_task, save_attachment_bytes, split_link, valid_url
+from ..core.pages import new_inbox_task, split_link, valid_url
+from ..collab.attskip import att_skip_task, mail_files_save  # #6531: the one loop over a mail's files
 from ..tasks.validation import as_int, log_act
 from ..collab.news import news_unread
 from ..collab.integfail import integ_backoff_s, integ_tell  # 2.1269 (#6386), 2.1333.0 (#6545)
@@ -429,16 +431,8 @@ def _mail_import(c, raw, pre=None):
         MAIL_TASK_HOOK["keep"](c, tid, mid, email.utils.parseaddr(sender)[1].strip().lower(), "src")  # 2.393.2 F: review 2
     if eml is not None:
         files = [((subj[:60].replace("/", "-").strip() or "mail") + ".eml", "message/rfc822", eml)] + files
-    whole = len(files) <= 20
-    for name, mime, data in files[:20]:
-        if 0 < len(data) <= MAX_FILE_MB * 1024 * 1024:
-            try:
-                save_attachment_bytes(c, tid, name, mime, data, anon=True)  # 2.1337.0 (#6651): from a mail
-            except OSError:
-                whole = False
-                break
-        elif data:
-            whole = False
+    whole, skipped, _top = mail_files_save(c, tid, files, 20)  # #6531: a file left out keeps the mail and is noted
+    att_skip_task(c, tid, skipped)
     bump(c)
     c.commit()
     return tid if whole else MailKept(tid)
@@ -915,9 +909,18 @@ def mail_message(to, subject, text, html_body=None, images=None, from_name=None,
 
 def mail_deliver(m, smtp=None):
     """2.141.0 A (#2141): sends a built message (mail_message) through KALMIDO_SMTP_* or the access smtp; raises on failure.
-    2.1312.0 (#6540): through a workspace's SMTP at most SMTP_OWN_S seconds in all (a server answering drop by drop)."""
+    (#6540): through a workspace's SMTP at most SMTP_OWN_S seconds in all (a server answering drop by drop).
+    (#6385): every mail through the instance's SMTP counts for the admin alert (aa_ok / aa_fail "smtp", AA_FAIL_ROW in a row):
+    a failure of the server, not a refused recipient. A workspace's own SMTP is its people's business (not counted)."""
     if smtp is None:
-        return _deliver(m, None, 30)
+        try:
+            _deliver(m, None, 30)
+        except OSError as e:  # smtplib's errors are OSErrors: counted, then to the caller as before
+            if smtp_down(e):
+                aa_fail("smtp", smtp_err(e))
+            raise
+        aa_ok("smtp")
+        return None
     until = time.monotonic() + SMTP_OWN_S
     with cal_until(until):
         _deliver(m, smtp, cal_left(until, 30))
@@ -944,17 +947,44 @@ def mail_send(to, subject, text, html_body=None, images=None, from_name=None, at
     return m
 
 
-def _sec_mail_send(to, subject, text, html_body, images=None):
+def _sec_mail_send(to, subject, text, html_body, images=None, inv=None):
     """2.266.0 (#2963): the background part of a security mail (accounts/secmail.py queues it by its kind, one try).
-    2.593.0 (#3570): images = the logo of an organisation's invitation mail (accounts/invite.py invite_new bg)."""
+    (#3570): images = the logo of an organisation's invitation mail (accounts/invite.py invite_new bg).
+    (#6385): inv = [account id, link hash, inviting account] of an invitation: its sent_at is set only once the mail went
+    (and only while it is still that link); a mail that failed for good is told to an inviting instance admin."""
     try:
         mail_send(to, subject, text, html_body, images=images or None, from_name=APP_NAME)
     except Exception as e:  # noqa: BLE001  (nobody waits for it)
-        print("security mail failed:", type(e).__name__, flush=True)
+        mail_bg_failed("security", e, (lambda x=e: _inv_failed(inv, to, x)) if inv else None)
+        return
+    if inv:
+        c = connect()
+        try:
+            with system_ctx(c):  # the invitation of a new account, outside a request
+                c.execute("UPDATE user_invites SET sent_at=? WHERE user_id=? AND token_hash=? AND used_at IS NULL", (iso(now_utc()), inv[0], inv[1]))
+            c.commit()
+        finally:
+            c.close()
+
+
+def _inv_failed(inv, to, e):
+    """(#6385): an invitation mail failed for good: the inviting person hears it when an instance admin (they see every
+    account); an organisation admin does not (#3570: an invitation to an address with an account never sends, so a notice
+    per invitation would tell them apart) - their invitation dialog shows the general notice (mail_disturbed)."""
+    c = connect()
+    try:
+        with system_ctx(c):  # the inviting person's role, outside a request
+            u = c.execute("SELECT is_admin FROM users WHERE id=?", (inv[2],)).fetchone() if inv[2] else None
+        if not u or not u["is_admin"]:
+            return
+        integ_tell(c, [inv[2]], "mail_invite", to, more=(smtp_err(e),), click="settings/users", focus="users")
+        c.commit()
+    finally:
+        c.close()
 
 
 if MAIL_OUT_ON:  # registered only with outgoing mail: accounts/secmail.py queues nothing without it
-    bgj_fn("mail:security", tries=1)(_sec_mail_send)
+    bgj_fn("mail:security", tries=1, retry=MAIL_RETRY)(_sec_mail_send)
 
 
 def digest_mail_content(c, uid, today):
@@ -1043,11 +1073,9 @@ def digest_mail_user(c, uid, s, today):
         mail_send(u["email"].strip(), *m, from_name=APP_NAME, unsub=off)
     except Exception as e:  # noqa: BLE001
         print("mail: summary for user", uid, "failed:", type(e).__name__, flush=True)  # 2.240.0 A (#2883): no addresses
-        aa_fail("smtp", aa_err(e))
-        return False
+        return False  # (#6385): mail_deliver counted it for the admin alert
     uset(c, uid, "digest_mail_sent", today)
     c.commit()
-    aa_ok("smtp")
     return True
 
 

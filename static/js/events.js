@@ -735,7 +735,7 @@ document.addEventListener('click', async e => {
     }
     case 'section-menu': e.stopPropagation(); sectionMenu(a, id); break;
     case 'nav-back': bnBack(); break;
-    case 'hist-undo': case 'hist-redo': if (!histHeld()) { if (act === 'hist-undo' && histBtn('undo').list) ul_open(a); else histStep(act.slice(5)); } break;  // 2.773.0 (#5250): nothing to undo here: the list "Recent steps"
+    case 'hist-undo': case 'hist-redo': if (!histHeld()) { if (act === 'hist-undo' && histBtn('undo').list) histListOpen(a, histBtn('undo').mark); else histStep(act.slice(5)); } break;  // (#5250): nothing to undo here: the list "Recent steps" (#6344: an older step of elsewhere marked)
     case 'date': datePop(a, id); break;
     case 'due-q': quickDue(id, +a.dataset.d); break;
     case 'prio': prioMenu(a, id); break;

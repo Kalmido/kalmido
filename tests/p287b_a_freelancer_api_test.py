@@ -49,6 +49,8 @@ ALLOW = {
     "GET /api/v1/issuer/docs/{}": "a personal token is no invoice issuer key",
     "GET /api/v1/issuer/docs/by-ref/{}": "a personal token is no invoice issuer key",
     "GET /api/v1/issuer/docs/{}/pdf": "a personal token is no invoice issuer key",
+    # #6818: the same (p6818_office_issuer_files_test.py calls it with the key of a personal office)
+    "GET /api/v1/issuer/docs/{}/file": "a personal token is no invoice issuer key",
 }
 # 2.421.0 A (#2936): route -> (status, why) of a 4xx other than 401 / 403 that is right for the freelancer, too (every other
 # 4xx of the sweep fails like a 403; an exception whose status does not come any more fails as stale)

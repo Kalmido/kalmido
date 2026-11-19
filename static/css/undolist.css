@@ -16,6 +16,7 @@
 .ulrow .btn{flex:none}
 .ulrow.uloff .ullab,.ulrow.ulundone .ullab{color:var(--muted)}
 .ulrow.ulundone .ullab{text-decoration:line-through}
+.ulrow.ulmark{background:var(--accent-soft);border-radius:.375rem}  /* 2.1436.0 (#6344): the step the arrow / Ctrl+Z points at */
 .ulrow.ul-q .ultag{font-weight:600}
 .ulnote{margin:.375rem .5rem;font-size:var(--fs-s)}
 .ulerr,.ulempty{margin:.5rem;font-size:var(--fs-s)}
