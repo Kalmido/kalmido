@@ -15,12 +15,12 @@ async function ms_clLoad(q) {  // 2.431.0 C (#3602): q = quietly for ms_clLive (
   if (seq === MSC.seq && !q) ms_clDraw();
 }
 // open invoices per client (office on); 2.369.0 A (#3200): the open invoices of this client from the server, not filtered here from the newest 500
-async function ms_clInvLoad(q) {
+async function ms_clInvLoad(q, nd) {  // #7399: nd = no draw, a failure counts (ms_clFetch draws once)
   const id = S.route.client; if (!id) return;
   MSC.invLoading = true; MSC.invFor = id;
   try { const rows = await docsAll(`/api/office/docs?kind=invoice&status=open&client_id=${id}`); if (S.route.client === id) MSC.inv = rows; } catch { if (!q) MSC.inv = []; }  // quiet: without an office (400) no section
   MSC.invLoading = false;
-  if (!q) ms_clDraw();
+  if (!q && !nd) ms_clDraw();
 }
 // 2.119.1 B (#2086): an address opens the map app on a tap (Apple devices: Apple Maps, else Google Maps); nothing is
 // embedded or fetched before the tap (here: the contacts module loads on demand, the client card uses it too)
@@ -59,6 +59,24 @@ async function ms_clLtLoad(id, q) {
   if (!q) ms_clDraw();
 }
 function ms_clDraw() { if (S.route.mod === 'clients') { const el = $('#view'); if (el) { const ck = ct_scrollKeep(el); keepFocus(el, () => setHtml(el, mg_wrap('clients', viewClients()))); ck(); wso_sync(); } } }  // 2.431.0 C (#3598): + the columns' scroll
+// #7399: opening a client loads its card and what the card shows (open invoices, documents, letters, data protection)
+// together and draws once; until then the card on screen stays, dimmed (ms_clView), the list, its search and bar stay the
+// same nodes (one view, morphed: areas.js ofm_detail keys the path line). Before, every part drew the page on its own.
+async function ms_clFetch(id) {
+  MSC.opening = id;
+  const ofc = typeof officeOn === 'function' && officeOn();
+  if (ofc) { MSC.gdLoading = MSC.ltLoading = true; DSB.cl = {id, busy: 1}; }
+  // the e-mails and the sign-offs of the card: their modules and data come along (before, each drew the page once more)
+  const mod = (n, f) => typeof loadModule === 'function' ? loadModule(n).then(f, () => {}) : null;
+  try {
+    await Promise.allSettled([clLoad(false, true), ofc && ms_clInvLoad(false, true), ofc && ms_clGdLoad(id, 1), ofc && ms_clLtLoad(id, 1), ofc && dsb_clLoad(id, 1),
+      mod('hubmail', () => typeof hbm_load === 'function' && !HBM.s['client:' + id] ? hbm_load('client:' + id, 1) : null),
+      mod('videos', () => typeof vdr_load === 'function' ? vdr_load('client_id', id) : null)]);
+  }
+  finally { if (MSC.opening === id) MSC.opening = null; }
+  S.lpN.clOpen = (S.lpN.clOpen || 0) + 1;  // for the tests
+  if (S.route.mod === 'clients' && S.route.client === id) ms_clDraw();
+}
 const ms_clDirty = () => { MSC.items = null; MSC.inv = null; };
 // 2.979.0 (#5667): an undo / redo the server did (a move into another workspace taken back): the clients come again
 histReloader('clients', () => { if (!MSC.items) return; if (S.route.mod === 'clients') return ms_clLoad(); ms_clDirty(); });
@@ -126,13 +144,17 @@ function ms_clView() {
   }
   if (MSC.items === null && !MSC.loading) setTimeout(ms_clLoad, 0);
   const id = S.route.client || null, mob = lsd_one();  // 2.1168.0 (#6117): a phone or a content area too narrow for list + card (render.js)
-  if (id && (!CLV.data || CLV.id !== id) && !CLV.loading) setTimeout(clLoad, 0);
   if (id && MSC.invFor !== id && !MSC.invLoading) MSC.inv = null;  // 2.369.0 A (#3200): another client
-  if (id && MSC.inv === null && !MSC.invLoading && typeof officeOn === 'function' && officeOn()) setTimeout(ms_clInvLoad, 0);
+  if (id && (!CLV.data || CLV.id !== id) && !CLV.loading && MSC.opening !== id) { MSC.opening = id; setTimeout(() => ms_clFetch(id), 0); }  // #7399: card + its parts, one draw
+  if (id && MSC.inv === null && !MSC.invLoading && MSC.opening !== id && typeof officeOn === 'function' && officeOn()) setTimeout(ms_clInvLoad, 0);
   const d = id && CLV.data && CLV.id === id ? CLV.data : null;
-  const card = !id ? (mob ? '' : `<div class="ctcard ctnone muted">${ic('brief')}${tr('Select a client')}</div>`)
-    : !d ? `<div class="ctcard ctnone muted">${tr('Loading…')}</div>`
-    : d.error ? `<div class="ctcard ctnone muted">${ic('brief')}${tr('This client does not exist or you cannot see it.')}${mob ? `<a class="btn" href="#clients">${tr('All clients')}</a>` : ''}</div>` : ms_clCard(d);
+  // #7399: while another client loads, the card on screen stays (dimmed, busy) instead of "Loading…"
+  const pick = `<div class="ctcard ctnone ctpick muted">${ic('brief')}${tr('Select a client')}</div>`;
+  const dim = h => h.replace(/^<(\w+) class="ctcard /, '<$1 aria-busy="true" class="ctcard ctwait ');
+  const was = !d && id && !mob ? MSC.cardHtml && $('#view .msclcard[data-ck]') ? dim(MSC.cardHtml) : $('#view .ctcard.ctpick') ? dim(pick) : '' : '';
+  const card = !id ? (mob ? '' : pick)
+    : !d ? was || `<div class="ctcard ctnone muted">${tr('Loading…')}</div>`
+    : d.error ? `<div class="ctcard ctnone muted">${ic('brief')}${tr('This client does not exist or you cannot see it.')}${mob ? `<a class="btn" href="#clients">${tr('All clients')}</a>` : ''}</div>` : (MSC.cardHtml = ms_clCard(d));
   const head = '';  // 2.87.9 (#1917): no "Office › Clients" heading (it looked like a way back); the office menu shows the place, the path only on a client
   const none = !MSC.trash && MSC.items !== null && !MSC.items.length;  // 2.218.0 C (#2804): no clients yet -> only the way to the first one (the empty state below), no filters
   const bar = none ? '' : `<div class="ctbar"><div class="ctsearch">${ic('search', 's')}<input id="mscl-q" type="search" value="${esc(MSC.q)}" placeholder="${esc(tr('Search clients'))}" aria-label="${esc(tr('Search clients'))}" autocomplete="off" enterkeyhint="search"></div>
@@ -476,11 +498,11 @@ function dsb_replyHtml(r) {
   const when = new Date(r.at || '').toLocaleDateString(LOCALE(), {dateStyle: 'medium'});
   return `<div class="dsb-reply muted"><span>${esc(tr('Reply of {0}', when))}${r.from ? ` · ${esc(r.from)}` : ''}${r.subject ? ` · ${esc(r.subject)}` : ''}</span>${r.text ? `<blockquote>${esc(r.text)}</blockquote>` : ''}</div>`;
 }
-async function dsb_clLoad(id) {
+async function dsb_clLoad(id, q) {  // #7399: q = no draw (ms_clFetch draws once)
   let ss = null;
   try { ss = (await rawFetch('GET', `/api/office/privacy-sheets?client_id=${id}&brief=1`)).sheets || []; } catch { ss = null; DSB.no = true; }  // quiet: members (403) see no section
   DSB.cl = {id, sheets: ss};
-  ms_clDraw();
+  if (!q) ms_clDraw();
 }
 const dsb_clReload = () => { DSB.cl = null; DSB.all = null; ms_clDraw(); };
 // the list filter: the newest sheet of each kind counts (open = not yet signed / handed over)

@@ -272,7 +272,9 @@ function ofm_detail(mod) {
   // 2.1185.0 (#6151): an open quotation / invoice has no path line any more: the big heading names it and "< Quotations" in its
   // head is its one way back (the path repeated both)
   else if (mod === 'office' && S.route.tab === 'travel' && typeof RK !== 'undefined' && RK.open && typeof rk_trip === 'function' && rk_trip(RK.open)) p = [tr('Travel expenses'), rk_trip(RK.open).dest || tr('Trip')];
-  return p ? `<nav class="ofmcrumb" aria-label="${esc(tr('Path'))}">${p.map(x => `<span>${esc(x)}</span>`).join('<span aria-hidden="true">›</span>')}</nav>` : '';
+  // #7399: keyed (data-k), so a path line that comes or goes with the loaded card does not shift the morph's matching by
+  // position (it replaced the whole client page: list, search, bar)
+  return p ? `<nav class="ofmcrumb" data-k="ofhead" aria-label="${esc(tr('Path'))}">${p.map(x => `<span>${esc(x)}</span>`).join('<span aria-hidden="true">›</span>')}</nav>` : '';
 }
 function ofm_menuHtml(mod) {
   const cur = ofm_cur(mod), its = ofm_items(), crumb = ofm_detail(mod);
@@ -296,7 +298,7 @@ function ofm_menuHtml(mod) {
 function ofr_wrap(mod, html) {
   mg_seen(mod); sbb_officeSync();
   const cur = ofm_cur(mod), crumb = ofm_detail(mod), it = ofm_items().find(i => i.key === cur);
-  const head = crumb || (it && !sbb_on() ? `<h2 class="ofpt">${esc(tr(it.name))}</h2>` : '');
+  const head = crumb || (it && !sbb_on() ? `<h2 class="ofpt" data-k="ofhead">${esc(tr(it.name))}</h2>` : '');
   return `<div class="ofwrap"><div class="ofbody">${head}${html}</div></div>`;
 }
 // left / right (Home / End) inside a phone's tab row; Tab keeps the reading order

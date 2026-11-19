@@ -25,6 +25,9 @@ const vm_ws = () => typeof wsCur === 'function' ? wsCur() : 'all';
 // the key of the view shown now: a task view by its key, any other by its address (office/offers/12 = that document)
 function vm_key() {
   const r = S.route; if (!r || !r.mod || r.mod === 'team' || (r.mod === 'agents' && r.agent)) return '';  // a conversation opens at its newest message
+  // #7399: the clients page with list and card side by side is one view: another client is no view entered anew (its kept
+  // place moved the list away from where the person scrolled it); one column (phone) keeps a place per client card
+  if (r.mod === 'clients' && r.client && r.client !== 'mailhub' && typeof lsd_one === 'function' && !lsd_one()) return vm_ws() + '|clients';
   return vm_ws() + '|' + (r.mod === 'tasks' ? 't:' + r.key + vm_lv() : location.hash.slice(1).split('?')[0] || r.mod);
 }
 // 2.1213.0 (#6140): a list keeps one place per view (its calendar opened at the list's place: month name and views scrolled

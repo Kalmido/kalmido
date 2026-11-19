@@ -20,13 +20,15 @@ function lyv_key(v) {
 }
 const lyv_rows = key => (S.lyv?.rows || []).filter(r => r.key === key).sort((a, b) => a.pos - b.pos || a.id - b.id);
 // all of the person's saved arrangements (B, #1066, calls it after a 👍); the view redraws
-function lyv_reload() {
-  return api('GET', '/api/layouts/saved').then(j => { S.lyv = {rows: j.saved || [], at: Date.now()}; viewSafeRender(); return S.lyv; })
+// #7399: ifNew = the look-up of a view (lyv_load) draws only when something changed (it drew the clients page once more on
+// every open after two minutes)
+function lyv_reload(ifNew) {
+  return api('GET', '/api/layouts/saved').then(j => { const was = JSON.stringify(S.lyv?.rows || []); S.lyv = {rows: j.saved || [], at: Date.now()}; if (!ifNew || JSON.stringify(S.lyv.rows) !== was) viewSafeRender(); return S.lyv; })
     .catch(() => { S.lyv ||= {rows: [], at: Date.now()}; return S.lyv; });
 }
 function lyv_load() {
   if (LYV.busy || (S.lyv && Date.now() - S.lyv.at < 120000) || !S.me) return;
-  LYV.busy = true; lyv_reload().finally(() => { LYV.busy = false; });
+  LYV.busy = true; lyv_reload(true).finally(() => { LYV.busy = false; });
 }
 // the view's own value as stored (project page: my own arrangement of it)
 function lyv_own(v) {
