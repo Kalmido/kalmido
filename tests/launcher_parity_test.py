@@ -38,6 +38,7 @@ caps = [c for c in caps if not c.get("server")]
 ids = [c["id"] for c in caps]
 check(len(ids) == len(set(ids)) and len(ids) >= 9, f"capability ids unique, at least 9: {ids}")
 core = read("agent_run.py") + read("agent_extras.py") + read("agent_job.py")  # 2.44.0 (#1443 #1445 #1447): the additions live in modules of their own
+core += read("agent_common.py")  # #7151: the helpers the starter's modules share (redact, kill_tree, chunks, the API transport)
 # 2.1394.0 (#4068): the launchers are thin -- both do the same steps (load the env file, find Python, start agent_run.py
 # --launch) and nothing else; every capability, also the runtime loop, lives in agent_run.py (one place, no drift)
 starter_steps = {}
@@ -77,8 +78,11 @@ for fn in sorted(os.listdir(MCP)):
     if re.match(r"(agent_[a-z_]+\.py|agent_rules\.md|agent_launcher\.(sh|ps1)|kalmido_mcp\.py)$", fn):
         check(fn in listed, f"starter_files.txt lists {fn}")
 check("launcher_capabilities.json" not in listed, "#6887: the capabilities are no starter file (no runtime reads them)")
-for fn in ("agent_launcher.sh", "agent_launcher.ps1", "agent_run.py", "kalmido_mcp.py"):
+for fn in ("agent_launcher.sh", "agent_launcher.ps1", "agent_run.py", "kalmido_mcp.py", "agent_common.py"):
     check(os.path.isfile(os.path.join(MCP, fn)) and fn in listed, f"required starter file {fn}")
+check("agent_common.py" in open(os.path.join(STATIC, "setup.sh"), encoding="utf-8").read().split("REQUIRED=", 1)[1].split("\n", 1)[0]
+      and "'agent_common.py'" in open(os.path.join(STATIC, "setup.ps1"), encoding="utf-8").read().split("$Required = ", 1)[1].split("\n", 1)[0],
+      "#7151: both setups require agent_common.py (the starter's modules import it)")
 
 # ---- the runner itself, without a server
 spec = importlib.util.spec_from_file_location("agent_run", os.path.join(MCP, "agent_run.py"))

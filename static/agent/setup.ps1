@@ -745,7 +745,7 @@ else {
 
 # kalmido-setup-step: starter_files
 Step (M 's_starter')
-$Required = @('agent_launcher.ps1', 'agent_run.py', 'kalmido_mcp.py')
+$Required = @('agent_launcher.ps1', 'agent_run.py', 'kalmido_mcp.py', 'agent_common.py')  # #7151: agent_common.py = the shared helpers
 function Fetch([string]$name, [string]$dest) {
   if ($From) { $src = Join-Path $From $name; if (Test-Path -LiteralPath $src) { Copy-Item -LiteralPath $src -Destination $dest -Force; return $true }; return $false }
   try { Invoke-WebRequest -Uri ($StarterBase + $name) -OutFile $dest -UseBasicParsing -TimeoutSec 60; return $true } catch { return $false }

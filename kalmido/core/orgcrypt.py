@@ -211,6 +211,23 @@ def oc_error(e):
 _LOCK = threading.Lock()
 _CACHE = {}  # (org id, wrapped) -> org key; a deleted / rewrapped row is never found again (the wrapped text is the key)
 _ROT = {}  # 2.138.0 C (#1972): org id -> the earlier org key while orgcrypt_cli rotate runs (reading falls back to it)
+_GEN = [0]  # #6401: bumped by oc_forget (a key row changed): every connection's memo below is stale then
+
+
+def _memo(c):
+    """#6401: what this connection's transaction already read about keys (key rows, the switch org_encrypt): a request
+    (g.db) or a background run, so a list of N sealed rows reads org_keys once instead of N (or N x fields) times.
+    Dropped at a commit (a long-lived worker sees a key another process rotated), a rollback (a key row made in a rolled
+    back transaction is gone) and after oc_forget (this process changed a key)."""
+    stamp = (getattr(c, "commits", None), getattr(c, "rollbacks", None), _GEN[0])
+    m = getattr(c, "_oc_memo", None)
+    if m is None or m[0] != stamp:
+        m = (stamp, {})
+        try:
+            c._oc_memo = m
+        except AttributeError:  # not our connection type (a stand-in): no memo
+            return {}
+    return m[1]
 # 2.360.2 L (#2561): the write lock of a rotation is a row in settings (the CLI is a process of its own): unix time it ends
 # at, renewed while the run lives, so a dead run frees the server by itself. The request gate (accounts/session.py) caches it.
 ROT_LOCK_KEY, ROT_LOCK_S, ROT_LOCK_TTL = "rot_write_lock", 120, 2.0
@@ -276,9 +293,13 @@ def oc_active(c):
     """True when NEW values / files are encrypted: a master key and the instance switch org_encrypt (default "1")."""
     if not SECRET_KEY:
         return False
+    m, ck = _memo(c), "active"  # #6401: once per transaction
+    if ck in m:
+        return m[ck]
     with system_ctx(c):  # orgcrypt: key rows / server-side bulk work are infrastructure, never content handed to a person
         r = c.execute("SELECT value FROM settings WHERE key='org_encrypt'").fetchone()
-    return (r[0] if r else "1") != "0"
+    m[ck] = (r[0] if r else "1") != "0"
+    return m[ck]
 
 
 def oc_private_on(c):
@@ -296,6 +317,17 @@ def oc_active_for(c, sid):
 
 
 def _row(c, org_id):
+    """The key row of org_id; #6401: read once per connection (see _memo), a missing row is asked again."""
+    m, ck = _memo(c), ("row", int(org_id))
+    r = m.get(ck)
+    if r is None:
+        r = m[ck] = _row_db(c, org_id)
+        if r is None:
+            m.pop(ck, None)
+    return r
+
+
+def _row_db(c, org_id):
     with system_ctx(c):  # orgcrypt: key rows / server-side bulk work are infrastructure, never content handed to a person
         if int(org_id) < 0:  # 2.64.0 (#1864): an account key
             return c.execute("SELECT wrapped, kek_check FROM user_keys WHERE user_id=?", (-int(org_id),)).fetchone()
@@ -413,6 +445,7 @@ def oc_key(c, org_id, create=True):
 def oc_forget(org_id=None):
     """Drop cached keys (one organisation or all): after deleting / rewrapping a key."""
     with _LOCK:
+        _GEN[0] += 1  # #6401: the connections' memos of key rows read anew
         for k in [k for k in _CACHE if org_id is None or k[0] == int(org_id)]:
             _CACHE.pop(k, None)
         for k in [k for k in _ROT if org_id is None or k == int(org_id)]:  # 2.138.0 C (#1972)
@@ -1365,7 +1398,7 @@ def oc_rewrap(c, org_id, key, master=None):
     kek = _kek(master)
     if kek is None:
         raise OrgCryptError("no server key (KALMIDO_SECRET_KEY) set")
-    r = _row(c, org_id)
+    r = _row_db(c, org_id)  # #6401: fresh, never the connection memo
     if r is not None and r["wrapped_rot"]:  # 2.138.0 C (#1972): first finish the rotation (orgcrypt_cli rotate)
         raise OrgCryptError(f"org {int(org_id)}: a key rotation is not finished - run rotate again first")
     if r is not None and hmac.compare_digest(str(r["kek_check"]), _kek_check(kek, org_id)):
@@ -1389,7 +1422,7 @@ def rck_rot_begin(c, org_id):
     kek = _kek()
     if kek is None:
         raise OrgCryptError("no server key (KALMIDO_SECRET_KEY) set")
-    r = _row(c, org_id)
+    r = _row_db(c, org_id)  # #6401: fresh, never the connection memo
     if r is None:
         raise OrgCryptError(f"org {int(org_id)}: no key")
     if r["wrapped_rot"]:

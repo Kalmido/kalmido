@@ -669,7 +669,7 @@ def openapi_spec():
                      q("updated_since", "Changed since (ISO date-time)", {"type": "string", "format": "date-time"}),
                      q("parent_id", "Subtasks of this task", {"type": "integer"}), q("top_level", "true = no subtasks", {"type": "boolean"}),
                      q("fields", "compact = only id, title, list_id, section_id, parent_id, status, due, due_time, priority, tags, "
-                                 "list_tags, assignee_id (default full)", {"type": "string", "enum": ["full", "compact"]}),
+                                 "list_tags, assignee_id, created_by; origin / untrusted when the task came from outside (default full)", {"type": "string", "enum": ["full", "compact"]}),
                      q("waiting", "true = only tasks waiting on someone, false = only the others", {"type": "boolean"}),
                      q("pinned", "2.16.0: true = only pinned tasks, false = only the others", {"type": "boolean"}),
                      q("milestone", "2.18.0: true = only milestones, false = only the other tasks", {"type": "boolean"}),

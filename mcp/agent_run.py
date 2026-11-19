@@ -83,8 +83,11 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# #7151: the helpers the starter's modules share (one copy each): secrets masking, chat parts, the API transport, processes
+from agent_common import (CHAT_CHUNK, REDACTED, RETRY_429_S, SECRET_RES, Api as ApiBase, ApiError, chunks,  # noqa: E402,F401
+                          defuse_fence, kill_tree, redact)
 try:  # 2.44.0 B (#1443 #1445 #1447): outbox, jobs, task bundling live in a module of their own; without it all works as before
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import agent_extras
 except ImportError:
     agent_extras = None
@@ -93,13 +96,11 @@ STEP_GAP_S = 2.0          # at most one step every 2 s (the server allows 60 a m
 STEP_CHARS = 500
 TYPING_EVERY_S = 8
 QUOTA_EVERY_S = 300       # plan usage at most every 5 minutes (and after every run)
-CHAT_CHUNK = 7500         # the server takes 8000 characters per message
 APPROVAL_TTL_S = int(os.environ.get("KALMIDO_APPROVAL_TTL") or 7 * 86400)  # an approval card expires (default 7 days)
 APPROVAL_REMIND_S = int(os.environ.get("KALMIDO_APPROVAL_REMIND") or 2 * 3600)  # 2.44.0 (#1444): one reminder after 2 h
 PERM_TIMEOUT_S = int(os.environ.get("KALMIDO_PERM_TIMEOUT") or 540)  # 2.44.0 (#1442): no answer in 9 min = denied
 PERM_RELAY = os.environ.get("KALMIDO_PERM_RELAY", "1").strip() != "0"
 RUN_TIMEOUT_S = int(os.environ.get("KALMIDO_RUN_TIMEOUT") or 3600)  # 2.44.0 (#1448): 0 = no time limit per run
-RETRY_429_S = (5, 15, 30, 60)  # 2.44.0 (#1448): HTTP 429 of the API -> try again after 5 / 15 / 30 / 60 s
 HOLD_POLL_S = 30  # 2.503.0 (#4309): how often a pause with a reason is read again; a new event looks at once
 QUEUE_SETTLE_S = 2.0  # 2.44.0 (#1448): events that come within 2 s of each other are handled together
 SESSION_RESUME = os.environ.get("KALMIDO_SESSION_RESUME", "1").strip() != "0"  # 2.44.0 (#1446)
@@ -129,19 +130,6 @@ def session_day(rt):
         return datetime.fromtimestamp(t, ZoneInfo(str((rt or {}).get("timezone") or ""))).strftime("%Y-%m-%d")
     except Exception:  # no / unknown time zone: the host's local time
         return time.strftime("%Y-%m-%d", time.localtime(t))
-REDACTED = "[redacted]"
-SECRET_RES = [
-    re.compile(r"-----BEGIN [A-Z0-9 ]*(?:PRIVATE KEY|KEY|CERTIFICATE)-----.*?(?:-----END [A-Z0-9 ]*-----|\Z)", re.S),
-    re.compile(r"\b(?:abk|sk-ant|sk-proj|sk)[-_][A-Za-z0-9_-]{16,}"),
-    re.compile(r"\b(?:ghp|gho|ghu|ghs|ghr|github_pat)_[A-Za-z0-9_]{16,}"),
-    re.compile(r"\bglpat-[A-Za-z0-9_-]{16,}"),
-    re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"),
-    re.compile(r"\bxox[abprs]-[A-Za-z0-9-]{10,}"),
-    re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{4,}"),
-    re.compile(r"\b(?:Bearer|Basic|Token)\s+(?=[A-Za-z0-9._~+/=-]{0,200}\d)[A-Za-z0-9._~+/=-]{12,}"),
-    re.compile(r"(?i)(?<=://)[^/\s:@]+:[^/\s@]+(?=@)"),
-    re.compile(r"(?i)\b([A-Za-z0-9_]{0,30}(?:token|secret|password|passwd|api_?key)[A-Za-z0-9_]{0,30}\"?\s*[:=]\s*\"?)[^\s\"']{8,}"),
-]
 # 2.40.0 (#1100 approval_anchor): the block counts only at a line start - a mention of it in the prose is no card
 APPROVAL_RE = re.compile(r"(?:\A|\n)[ \t]*\n*```(?:approval|freigabe)(?![\w-])[^\n]*\n(.*?)\n?```\s*$", re.S)
 
@@ -193,26 +181,7 @@ def log(msg, who="agent_run"):
         pass  # a log that cannot be written never stops a run
 
 
-def redact(text):
-    """Known secret values (the token, values of *TOKEN* / *SECRET* / *PASSWORD* variables) and token patterns -> [redacted]."""
-    if not text:
-        return text
-    vals = [os.environ.get("KALMIDO_TOKEN", "")]
-    vals += [v for k, v in os.environ.items() if re.search(r"TOKEN|SECRET|PASSWORD|API_KEY", k) and len(v) >= 8]
-    for v in sorted({v for v in vals if len(v) >= 8}, key=len, reverse=True):
-        text = text.replace(v, REDACTED)
-    for i, pat in enumerate(SECRET_RES):
-        text = pat.sub((lambda m: m.group(1) + REDACTED) if i == len(SECRET_RES) - 1 else REDACTED, text)
-    return text
-
-
-class ApiError(Exception):
-    def __init__(self, status, body):
-        super().__init__(f"HTTP {status}")
-        self.status, self.body = status, body or ""
-
-
-class Api:
+class Api(ApiBase):
     """The few calls of the agent API this runner needs. Feature flags start unknown (None) and are switched off once a
     server answers 404 / 400 unknown field: an older server keeps working without them (2.32 steps + host info, 2.33
     plan usage, 2.35 approval cards)."""
@@ -221,52 +190,14 @@ class Api:
     renew = None  # 2.1386.0 (#6668, review F4): a request token's client: -> a new token after a 401 (Runner.op_api / run_request)
 
     def __init__(self, url, token):
-        self.base = url.rstrip("/") + "/api/v1"
-        self.token = token
+        super().__init__(url, token)  # #7151: the transport (429 again, renew after 401) is agent_common.Api
         self.no_fixed = False  # 2.437.0 (#2931): this server takes no permission_fixed in the status
         self.lang = ""  # 2.450.0 (#3769): the agent's language (the runner sets it from GET /agent)
         self.key_ok = None  # 2.450.0 (#3769): False = this server takes no text_key in the status
         self.progress_ok = self.host_ok = self.quota_ok = self.approval_ok = self.choices_ok = self.notice_ok = None
 
-    def req(self, method, path, body=None, query=None, timeout=30, retry=True):
-        """One API call; HTTP 429 is tried again after 5 / 15 / 30 / 60 s (kalmido-capability: robust_runs, 2.44.0 #1448).
-        2.1386.0 (#6668, review F4): a request token's client (renew) that gets 401 (the token was replaced or ended) asks
-        once for a new one and sends the call again with it; no new token = the 401 stands (never the agent's own token)."""
-        try:
-            return self._req_429(method, path, body, query, timeout, retry)
-        except ApiError as e:
-            if e.status != 401 or not callable(self.renew):
-                raise
-            tok = self.renew()
-            if not tok or tok == self.token:
-                raise
-            log(f"{path.split('?')[0]}: HTTP 401, a new request token")
-            self.token = tok
-            return self._req_429(method, path, body, query, timeout, retry)
-
-    def _req_429(self, method, path, body=None, query=None, timeout=30, retry=True):
-        for wait in (RETRY_429_S if retry else ()):
-            try:
-                return self._req(method, path, body, query, timeout)
-            except ApiError as e:
-                if e.status != 429:
-                    raise
-                log(f"{path.split('?')[0]}: HTTP 429, trying again in {wait} s")
-                time.sleep(wait)
-        return self._req(method, path, body, query, timeout)
-
-    def _req(self, method, path, body=None, query=None, timeout=30):
-        url = self.base + path + ("?" + urllib.parse.urlencode(query) if query else "")
-        data = json.dumps(body).encode() if body is not None else None
-        rq = urllib.request.Request(url, data=data, method=method, headers={
-            "Authorization": "Bearer " + self.token, "Accept": "application/json",
-            **({"Content-Type": "application/json"} if data is not None else {})})
-        try:
-            with urllib.request.urlopen(rq, timeout=timeout) as r:
-                raw = r.read()
-                return json.loads(raw) if raw else {}
-        except urllib.error.HTTPError as e:
-            raise ApiError(e.code, e.read().decode(errors="replace")[:500])
+    def note(self, msg):
+        log(msg)
 
     def soft(self, method, path, body=None, timeout=20):
         """A cosmetic call: never raises; returns the HTTP status (0 = not reachable)."""
@@ -1237,8 +1168,6 @@ def control_block(ctl):
     return "\n".join(out)
 
 
-
-
 def build_prompt(evs, chat_uid, extra=None):
     head = DEFAULT_PROMPT
     pf = os.environ.get("KALMIDO_PROMPT_FILE")
@@ -1865,14 +1794,6 @@ def playbook_hint(pb):
             f"<<<playbook of project {pb.get('list_id')}>>>", t, "<<<end playbook>>>"]
 
 
-def defuse_fence(text):
-    """2.1352.0 (#6884): every run of three or more < or > spaced out ("<<<<<" -> "< < < < <"), like _defuse in
-    kalmido_mcp.py; a plain replace of "<<<" from the left left "<<<<<" as "< < <<<" -- a fence line again. The same
-    function stands in agent_extras.py, agent_job.py and agent_dispatch.py (each runs without the others); mcp_test
-    checks that all of them give the same."""
-    return re.sub(r"<{3,}|>{3,}", lambda m: " ".join(m.group()), str(text or ""))
-
-
 def fence(n, uid, text):
     """A person's text between unique fence lines; a fake end line inside the text is defused."""
     t = defuse_fence(text)
@@ -2027,29 +1948,6 @@ def result_text(st):
     """The final answer of a finished run ("" when it failed)."""
     res = st.result or {}
     return str(res.get("result") or "").strip() if not res.get("is_error") else ""
-
-
-def chunks(text, n=CHAT_CHUNK):
-    """2.40.0 (#1100 chunk_fences): a long answer in chat-sized parts, cut at a paragraph (else a line); a code block open
-    at the cut is closed there and opened again (same language) in the next part; several parts are numbered (i/n)."""
-    text = (text or "").strip("\n")
-    n = max(200, n - 40)  # room for the closing fence and the part number
-    out = []
-    while len(text) > n:
-        cut = text.rfind("\n\n", 0, n)
-        if cut < n // 2:
-            cut = text.rfind("\n", 0, n)
-        if cut < n // 2:
-            cut = n
-        piece, text = text[:cut].rstrip(), text[cut:].lstrip("\n")
-        fences = re.findall(r"^[ \t]*```([^\n`]*)$", piece, re.M)
-        if len(fences) % 2 == 1:  # a code block is open at the cut
-            piece += "\n```"
-            text = "```" + fences[-1].strip() + "\n" + text
-        out.append(piece)
-    if text.strip():
-        out.append(text)
-    return [f"{p}\n\n_({i + 1}/{len(out)})_" for i, p in enumerate(out)] if len(out) > 1 else out
 
 
 # kalmido-capability: approval_closed (2.44.0, #1441)
@@ -3542,25 +3440,6 @@ def perm_hook(argv):
                 c.close()
             except Exception:
                 pass
-
-
-def kill_tree(p):
-    """2.44.0 (#1448): end the command AND what it started (its process group; Windows: taskkill /T)."""
-    try:
-        if os.name == "nt":
-            subprocess.run(["taskkill", "/T", "/F", "/PID", str(p.pid)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
-        else:
-            import signal
-            os.killpg(p.pid, signal.SIGTERM)
-            try:
-                p.wait(5)
-            except subprocess.TimeoutExpired:
-                os.killpg(p.pid, signal.SIGKILL)
-    except Exception:
-        try:
-            p.kill()
-        except Exception:
-            pass
 
 
 class Runner:
