@@ -92,17 +92,6 @@ moved("dave makes a folder of his organisation", lambda: ok(Da.post(B + "/api/fi
 FF = made(Fr.post(B + "/api/files/folders", json={"name": "Frida teilt", "space": "private"}), "frida's folder")["id"]
 moved("frida makes a folder in her own space", lambda: ok(Fr.post(B + "/api/files/folders", json={"name": "Entwurf", "parent_id": FF})),
       ["frida"], ["bob", "dave", "carl"])
-# a membership is an instance-wide path (the person who loses one is in no circle any more): everyone. A file share stays
-# inside its workspace; across organisations people meet in a list (carl's private project with frida)
-CL = made(Ca.post(B + "/api/lists", json={"name": "Carl und Frida"}), "carl's private list")["id"]
-kt.dbx("UPDATE users SET email_proved=lower(COALESCE(email, '')) WHERE email_proved=''")  # (#5669) a share by address needs a proved one
-moved("carl adds frida to his private list", lambda: ok(Ca.put(B + f"/api/lists/{CL}/members", json={"email": "frida@example.com", "role": "edit"})),
-      list(P), [])
-moved("frida makes a folder in her own space", lambda: ok(Fr.post(B + "/api/files/folders", json={"name": "Für Carl", "parent_id": FF})),
-      ["frida", "carl"], ["bob", "dave"])
-moved("carl makes a folder of his organisation", lambda: ok(Ca.post(B + "/api/files/folders", json={"name": "Beta Ablage", "space": f"org:{ORG['Beta']}"})),
-      ["carl", "frida"], ["bob", "dave"])
-
 # ---------------------------------------------------------------- contacts (an address book + a contact)
 BK = {}
 
@@ -118,6 +107,18 @@ moved("carl adds a contact", lambda: ok(Ca.post(B + "/api/contacts", json={"book
 BB = made(Bo.post(B + "/api/books", json={"name": "Alpha Adressen", "org_id": ORG["Alpha"]}), "bob's org book")["id"]
 moved("bob adds a contact", lambda: ok(Bo.post(B + "/api/contacts", json={"book_id": BB, "fn": "Max Muster"})),
       ["bob", "dave"], ["carl", "frida"])
+
+# ---------------------------------------------------------------- across organisations
+# a file share stays inside its workspace; across organisations people meet in a list (alice's project with frida and carl)
+CL = made(A.post(B + "/api/lists", json={"name": "Gemeinsames Projekt"}), "alice's private list")["id"]
+kt.dbx("UPDATE users SET email_proved=lower(COALESCE(email, '')) WHERE email_proved=''")  # (#5669) a share by address needs a proved one
+for who in ("frida", "carl"):
+    ok(A.put(B + f"/api/lists/{CL}/members", json={"email": f"{who}@example.com", "role": "edit"}))
+    check(bool(kt.dbx("SELECT 1 FROM list_members WHERE list_id=? AND user_id=?", (CL, uid[who]))), f"setup: {who} is a member of alice's list")
+moved("frida makes a folder in her own space", lambda: ok(Fr.post(B + "/api/files/folders", json={"name": "Für Carl", "parent_id": FF})),
+      ["frida", "carl"], ["bob", "dave"])
+moved("carl makes a folder of his organisation", lambda: ok(Ca.post(B + "/api/files/folders", json={"name": "Beta Ablage", "space": f"org:{ORG['Beta']}"})),
+      ["carl", "frida"], ["bob", "dave"])
 
 # ---------------------------------------------------------------- agents (a status change)
 ag = made(A.post(B + "/api/admin/agents", json={"scopes": ["write"], "username": "helper", "display_name": "Helper"}), "an agent")
