@@ -7,7 +7,8 @@ get a red version; "latest" comes later still, with promote.yml after the device
 
 Reads the CI runs of the commit (GET /repos/R/actions/workflows/ci.yml/runs?head_sha=SHA, needs `actions: read`) and
 the job names of a green run (the shard jobs "Test suites N/M full ..." = the full stage, see ci.yml / tests/stages.py).
-Exit 0 = a run of SHA is green and was the full stage (#6253: or the release stage of the train's push = every hard part); 1 = the CI of SHA is red / cancelled / only the push stage /
+Exit 0 = a run of SHA is green and was the full stage (#6253: or the release stage of the train's push = every hard part;
+#6893: or the merge_group run of SHA has its check "Merge queue gate" green - the commit the merge queue landed); 1 = the CI of SHA is red / cancelled / only the push stage /
 no CI run within --no-run-min / still running at --timeout-min. While a run of SHA is queued or running it waits.
 A red or cancelled run that is re-run by hand (same run, new attempt) counts again; re-run this workflow afterwards.
 2.595.0 (#4905): when the tagged commit itself has no green full run, a green full CI run of ANOTHER commit with the same
@@ -86,9 +87,18 @@ def stage(job_names):
 RELEASE_STAGES = ("full", "release")  # #6253: the stages a release (image, latest) may stand on
 
 
-def decide(runs, jobs_of, soft=None):
+def queue_green(run, gate_of):
+    """#6893 (architecture review of #6894): a tag on a commit the merge queue landed carries only the merge_group run of that
+    very commit (stage queue: the hard groups) and the landing push (stage none, no shards). The required check "Merge queue
+    gate" of the merge_group run judged the commit by its hard suites (judge_queue) - green there = green for the image, like a
+    green release stage. gate_of(run_id) -> the conclusion of that job (None = no such job or no result yet)."""
+    return run.get("event") == "merge_group" and gate_of(run["id"]) == "success"
+
+
+def decide(runs, jobs_of, soft=None, gate_of=None):
     """runs = the CI runs of the commit (GitHub API dicts), jobs_of(run_id) -> job names.
-    ("green" | "soft" | "wait" | "red" | "none", text). Green beats everything (one green full run is enough); then (#5324,
+    ("green" | "soft" | "wait" | "red" | "none", text). Green beats everything (one green full run is enough; #6893, gate_of
+    given: or a merge_group run whose check "Merge queue gate" is green); then (#5324,
     soft(run_id) -> (ok, text) given) a finished run red only in soft parts = "soft" (go); then a run still queued / in
     progress = wait; else red with the reasons."""
     if not runs:
@@ -100,6 +110,9 @@ def decide(runs, jobs_of, soft=None):
             if st in RELEASE_STAGES:  # #6253: + the release stage of the train's push (all hard parts)
                 return "green", "CI run %s is green (%s stage)" % (r["id"], st)
             why.append("run %s green, but stage %s (a release needs the full or release stage)" % (r["id"], st))
+    for r in runs:  # #6893: a tag on a commit the merge queue landed has only its merge_group run (stage queue) and the landing push (none)
+        if gate_of is not None and queue_green(r, gate_of):
+            return "green", "merge_group run %s: check '%s' green (the merge queue landed this commit)" % (r["id"], QUEUE_GATE)
     if soft is not None:  # #5324: a finished full run red only in soft parts = go, like live in the fast lane
         for r in runs:  # #5600: a cancelled run as well (its cancelled hard parts are red in judge_soft)
             if r.get("status") == "completed" and r.get("conclusion") in SOFT_CONCL:
@@ -310,7 +323,8 @@ def report_md(version, run_id, info, url=""):
     return "\n".join(out) + "\n"
 
 
-TREE_EVENTS = ("push", "schedule", "workflow_dispatch")  # review 2.595.0 (#4905): a pull_request run tests the merge commit, other files
+# review 2.595.0 (#4905): a pull_request run tests the merge commit, other files; #6893: a merge_group run tests the very commit it lands
+TREE_EVENTS = ("push", "schedule", "workflow_dispatch", "merge_group")
 
 
 def same_tree(runs, tree, sha, repo):
@@ -323,14 +337,17 @@ def same_tree(runs, tree, sha, repo):
             and (r.get("head_repository") or {}).get("full_name") == repo]
 
 
-def decide_tree(res, txt, tree_runs, jobs_of):
-    """#4905: (res, txt) of the tagged commit; a green FULL run with the same tree turns red / none / wait into green."""
+def decide_tree(res, txt, tree_runs, jobs_of, gate_of=None):
+    """#4905: (res, txt) of the tagged commit; a green FULL run with the same tree turns red / none / wait into green.
+    #6893: so does a green merge_group run of the same tree whose "Merge queue gate" is green (gate_of given)."""
     if res in ("green", "soft"):
         return res, txt
     for r in tree_runs:
         st = stage(jobs_of(r["id"]))
         if st in RELEASE_STAGES:  # #6253: + release
             return "green", "CI run %s of %s is green (%s stage) on the same tree as the tag" % (r["id"], str(r.get("head_sha"))[:12], st)
+        if gate_of is not None and queue_green(r, gate_of):
+            return "green", "merge_group run %s of %s: check '%s' green on the same tree as the tag" % (r["id"], str(r.get("head_sha"))[:12], QUEUE_GATE)
     return res, txt
 
 
@@ -451,6 +468,9 @@ def main():
     def jobs_of(rid):
         return [j.get("name") for j in jobs_full(rid)]
 
+    def gate_of(rid):  # #6893: the conclusion of the job "Merge queue gate" of a run (None = the run has none)
+        return next((j.get("conclusion") for j in jobs_full(rid) if (j.get("name") or "") == QUEUE_GATE), None)
+
     def suites_of(job):  # #5324: the red suites of a shard from its annotations (tests/run_all.sh "suite X failed")
         try:
             anns = api("/repos/%s/check-runs/%s/annotations?per_page=100" % (repo, job["id"]))
@@ -474,7 +494,7 @@ def main():
 
     if a.report:  # #5324: the soft red parts for the release notes (nothing when a run of SHA is green or none is soft)
         runs = api("/repos/%s/actions/workflows/ci.yml/runs?head_sha=%s&per_page=50" % (repo, a.sha)).get("workflow_runs", [])
-        res, _ = decide(runs, jobs_of, soft)
+        res, _ = decide(runs, jobs_of, soft, gate_of)
         if res == "soft":
             rid = hard["ok"]
             sys.stdout.write(report_md(a.report, rid, hard[rid], "https://github.com/%s/actions/runs/%s" % (repo, rid)))
@@ -484,7 +504,7 @@ def main():
         cache.clear()  # a re-run attempt of a run changes its jobs: ask again each poll
         try:
             runs = api("/repos/%s/actions/workflows/ci.yml/runs?head_sha=%s&per_page=50" % (repo, a.sha)).get("workflow_runs", [])
-            res, txt = decide(runs, jobs_of, soft)
+            res, txt = decide(runs, jobs_of, soft, gate_of)
             if res not in ("green", "soft"):  # #4905: a green full run of the same files on another commit
                 own = [(r.get("head_commit") or {}).get("tree_id") for r in runs if r.get("head_sha") == a.sha]
                 if own and own[0] and tree[0] is None:
@@ -492,7 +512,7 @@ def main():
                 tr = tree_of()
                 if tr:
                     ok = api("/repos/%s/actions/workflows/ci.yml/runs?status=success&per_page=100" % repo).get("workflow_runs", [])
-                    res, txt = decide_tree(res, txt, same_tree(ok, tr, a.sha, repo), jobs_of)
+                    res, txt = decide_tree(res, txt, same_tree(ok, tr, a.sha, repo), jobs_of, gate_of)
         except Exception as e:  # a hiccup of the API: ask again at the next poll
             res, txt = "wait", "API: %s" % e
         mins = (time.time() - t0) / 60

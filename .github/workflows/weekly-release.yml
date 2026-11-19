@@ -43,6 +43,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+      # #6893: once the train no longer folds the CHANGELOG in main (#6894), its sections come from the tags and the
+      # changelog.d fragments - stamped here up to the newest release tag (no effect while the sections are there)
+      - name: CHANGELOG sections of the tags (tools/stamp_release.py --changelog-only)
+        run: |
+          set -euo pipefail
+          top=$(git tag -l 'v*.*.*' --merged HEAD --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)
+          if [ -n "$top" ]; then python3 tools/stamp_release.py "${top#v}" --changelog-only; fi
       - name: Pick (tools/weekly_release.py)
         id: pick
         env:
@@ -101,6 +108,13 @@ jobs:
           # /api/code-manifest of a server running it answers), built from the tag's source archive with the tag's own
           # tools/web_manifest.py, twice independently: different = no release. Tags before 2.742.0 have no tool, no manifest.
           mkdir wm && tar -xzf "dist/kalmido-$VER.tar.gz" -C wm
+          # #6893: the image serves the STAMPED files (release.yml) - the manifest describes those: the tag's own stamp in a
+          # checkout of the tag (it has the tags; no effect when the train's version commit wrote them), its files into wm/
+          git worktree add -q --detach "$RUNNER_TEMP/stamptree" "v$VER"
+          if [ -f "$RUNNER_TEMP/stamptree/tools/stamp_release.py" ]; then
+            python3 "$RUNNER_TEMP/stamptree/tools/stamp_release.py" "$VER" --root "$RUNNER_TEMP/stamptree"
+            for f in VERSION static/sw.js static/whatsnew.json CHANGELOG.md; do cp "$RUNNER_TEMP/stamptree/$f" "wm/kalmido-$VER/$f"; done
+          fi
           if [ -f "wm/kalmido-$VER/tools/web_manifest.py" ]; then
             python3 "wm/kalmido-$VER/tools/web_manifest.py" --root "wm/kalmido-$VER" --twice -o "dist/web-manifest-$VER.json"
             echo "manifest=yes" >> "$GITHUB_OUTPUT"  # 2.761.0 (#5218): the job attest signs it

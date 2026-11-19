@@ -25,6 +25,9 @@ name: Release
 # step summary and, with ci_gate.py --report, into the notes of the weekly release.
 # 2.940.0 (#5600): a CANCELLED full run (a newer push cut it) counts like a red one - every hard shard and hard job green, only
 # soft shards cut = image; a cut hard part, a job without a result or a Lint whose scanners did not all run green = no image.
+# #6893: the version data are stamped into the checked-out tree before the image build (tools/stamp_release.py: VERSION, the
+# cache number of static/sw.js, the CHANGELOG section, whatsnew.json); the tag must equal the stamped VERSION, the notes come
+# from the stamped CHANGELOG. A tag on a commit the merge queue landed is carried by its merge_group run (tools/ci_gate.py).
 on:
   push:
     tags: ["v*.*.*"]
@@ -99,7 +102,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.ci-gate.outputs.sha }}
-      - name: Version from tag
+          fetch-depth: 0  # #6893: the tags - the stamp reads the fragments since the tag before
+      - name: Version from tag (stamped into the tree, #6893)
         id: v
         env:
           TAG: ${{ needs.ci-gate.outputs.tag }}
@@ -109,6 +113,9 @@ jobs:
           echo "version=$ver" >> "$GITHUB_OUTPUT"
           # 2.995.0 (#5686): the image name follows the repository (lower case), so a move of the repository moves the image along
           echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          # #6893: VERSION, the cache number of static/sw.js, the CHANGELOG section and whatsnew.json come from the tag and the
+          # changelog.d fragments since the tag before (no effect while the train's version commit wrote them, until #6894)
+          python3 tools/stamp_release.py "$ver"
           test "$(cat VERSION)" = "$ver" || { echo "VERSION file ($(cat VERSION)) does not match tag $TAG"; exit 1; }
       - name: Release notes from CHANGELOG.md
         run: |
