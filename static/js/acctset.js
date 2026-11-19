@@ -430,7 +430,7 @@ function accountWire(md) {
   drawUsers();
   orgsDraw(md);
   if ($('#s-wsr', md)) { wsr_draw(md); wsr_wire(md); }  // 2.365.2 C (#2789)
-  if (wsPaneOn()) { wsPaneDraw(md); wsPaneWire(md); } else { wsp_paneWire(md); md.addEventListener('click', e => { if (/** @type {any} */ (e.target).closest?.('[data-wsorgadd]')) sbb_orgAdd(); }); }  // (#6519): + Add an organisation  // 2.28.0 (#935); 2.138.2 C (#2389): the colour of Private
+  if (wsPaneOn()) { wsPaneDraw(md); wsPaneWire(md); } else { wsp_paneWire(md); md.addEventListener('click', e => { if (/** @type {any} */ (e.target).closest?.('[data-wsorgadd]')) sbb_orgAdd(); }); }  // the Workspaces pane (#935), else the colour of Private (#2389) and Add an organisation (#6519)
   md.addEventListener('change', async e => {  // 2.22.0 (#752): whom people see
     if (e.target.id !== 'a-vis') return;
     try { await api('PUT', '/api/admin/orgs/visibility', {mode: e.target.value}); toast(tr('Saved')); await load(); } catch { /* api() said it */ }
