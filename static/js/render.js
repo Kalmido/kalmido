@@ -1188,7 +1188,31 @@ function kr_scroller(n) {
 }
 function vw_anchorKeep(fn) { return keepReading($('#view'), fn); }  // 2.924.0 (#5224): the agents page's boxes through keepReading
 function renderView() { FL.vlast = Date.now(); return td_rcRun(() => { const r = an_view(() => keepFocus($('#view'), renderView0));  // 2.46.1 (#1560): a view change / a new empty hint fades in
-    wso_sync(); rowRove(); rowMoreWatch(); agb_after(); vl_after(); vm_after(); td_lcSweep(); topw_sync(); topw_later(); return r; }); }  // 2.1205.0 (#6179): wso_sync = the open object's workspace colour, also when an area drew it later (wscolor.js)  // 2.65.0 (#1825): vl_after = the window of a long list; 2.413.0 A (#3439): vm_after = a view entered again gets its place back (viewmem.js)  // 2.599.0 (#4814): topw_sync = the page's width for #top
+    wso_sync(); rowRove(); rowMoreWatch(); agb_after(); vl_after(); vm_after(); td_lcSweep(); topw_sync(); topw_later(); gcol_sync(); return r; }); }  // (#6179): wso_sync = the open object's workspace colour, also when an area drew it later (wscolor.js)  // (#1825): vl_after = the window of a long list; (#3439): vm_after = a view entered again gets its place back (viewmem.js)  // (#4814): topw_sync = the page's width for #top
+// ---- #7303 #7304: the width of a list beside its content in the page (team chat's conversations, the file store's areas,
+// notes, knowledge without sidebar B), by the one grip (grip.js grip_col, docs/dev/kern.md "Resizing: the one grip"). The view
+// draws gcol_html(KEY) right after the list (its panel) inside the box whose grid reads var(--g-KEY, <its default>); the box is
+// positioned (the grip stands absolutely on the list's edge, opts.place, so it is no item of the grid). gcol_sync mounts a new
+// grip after each draw and refreshes a kept one (a morph drops the variable on the box and the grip's place). From
+// --w-leiste-min up to what leaves the content beside it GCOL_REST; per device under grip:<KEY>; off on a phone and while the
+// list is not beside the content.
+const gcol_html = key => `<div class="grip grip-x grip-place" data-gcol="${esc(key)}" tabindex="0" role="separator" aria-orientation="vertical" aria-label="${esc(tr('Width of the list'))}" hidden></div>`;
+const GCOL_REST = 20;  // rem the content beside the list keeps at least (a conversation, a page, the file list)
+const gcol_rem = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+const GCOL_OPTS = {place: true, label: N_('Width of the list'),
+  min: () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--w-leiste-min')) || 14,
+  // no fixed cap (docs/dev/produkt-regeln.md "Handles"): the list may take what the content beside it does not need (GCOL_REST)
+  max: h => { const p = h.el.parentElement, tr = p ? getComputedStyle(p).gridTemplateColumns.split(/\s+/).map(parseFloat).filter(n => n >= 0) : [];
+    const min = GCOL_OPTS.min(), rem = gcol_rem();
+    return tr.length < 2 ? min : Math.max(min, Math.floor((tr[0] + tr[1] - GCOL_REST * rem) / rem * 4) / 4); }};
+function gcol_sync() {
+  for (const el of document.querySelectorAll('#view [data-gcol]')) {
+    if (el._grip) el._grip.refresh();
+    else if (!el._gcol) { el._gcol = 1; grip_col(el, {...GCOL_OPTS, label: tr(GCOL_OPTS.label), key: el.dataset.gcol}); }  // the stand-in loads the module once
+  }
+}
+fl_onAdded(() => { if (document.querySelector('#view [data-gcol]')) gcol_sync(); });  // a redraw of a part (morph) outside renderView
+
 // ---- 2.599.0 (#4814): the page reports its width once to #main: data-w = lesen | form | seite (the widths of :root,
 // static/css/start-breite.css), eigen (an element with data-pw: its own centred block, e.g. notes / a knowledge page) or voll;
 // --pw = that width in px, --pw-sb = the scrollbar of #view. static/css/start-kopf-4814.css gives #top the same middle and

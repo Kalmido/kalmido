@@ -19,8 +19,9 @@
      width (wiki.css .wkpgo); only the text inside follows the width switch (the rule that centred the bar here is gone) */
   /* notes and a knowledge page with its list beside it: list + page as one block in the middle (one head line: the list's bar
      and the page's head side by side on its top edge); render.js topw_sync takes its width for #top (data-pw) */
-  .ntwrap > .ntview.open{grid-template-columns:minmax(14rem,22rem) minmax(0,var(--ntsheet));max-width:calc(23rem + var(--ntsheet));margin-inline:auto}
-  .ntwrap.pgw-voll > .ntview.open{grid-template-columns:minmax(14rem,22rem) minmax(0,1fr);max-width:none}
+  /* #7303: a list width chosen with its grip (--g-nt-list notes, --g-wk-list knowledge) replaces 14-22rem; the block's width counts with it (was 23rem = 22rem + the gap) */
+  .ntwrap > .ntview.open{grid-template-columns:var(--g-nt-list,var(--g-wk-list,minmax(14rem,22rem))) minmax(0,var(--ntsheet));max-width:calc(var(--g-nt-list,var(--g-wk-list,22rem)) + 1rem + var(--ntsheet));margin-inline:auto}
+  .ntwrap.pgw-voll > .ntview.open{grid-template-columns:var(--g-nt-list,var(--g-wk-list,minmax(14rem,22rem))) minmax(0,1fr);max-width:none}
   .ntwrap > .ntview.open > .ntedit{max-width:none}
   /* the note alone beside the shared panel (#4817 .ntsolo, start-leisten-4817.css): one column, the sheet in the middle */
   .ntwrap > .ntview.ntsolo.open{grid-template-columns:minmax(0,1fr);max-width:var(--ntsheet)}

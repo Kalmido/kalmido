@@ -66,6 +66,7 @@ RIN_PAUSE_WHY = ("nobody", "nobody_told", "fails", "template", "import", "moving
 # 2.1337.0 (#6600): a series whose period came while its organisation was moving (read only) is not made late when the move ends:
 # paused with the task RIN_TASK_PAUSED and this text (accounts/orgmove.py mv_series_pause, rin_moved)
 RIN_WHY_MOVE = N_("The organisation was moving (read-only) when the next invoice of the series was due: it was not made and will not be made late. Check the series and switch it on again.")
+RIN_WHY_CLIENT = N_("The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.")
 RIN_WHY_BACK = N_("The series was paused because its area had no admin with the office switched on: no invoices were made since. Check the series and switch it on again.")
 
 
@@ -291,6 +292,8 @@ def rin_make(c, oid, uid, s, period):
     t = c.execute(f"SELECT * FROM office_docs WHERE id=? AND org_id=? AND {live_sql()}", (s["template_id"], oid)).fetchone() if s["template_id"] else None
     if t is None or t["kind"] != "invoice" or t["status"] == "cancelled" or t["trial"]:  # 2.144.10 A (#2576): never from a trial one
         return None
+    if rin_client_gone(c, oid, t["client_id"]):  # #7317: never an invoice to a client that left the office
+        return None
     t = oc_dec_fields(c, oid, "office_docs", t)
     st = office_settings(c, oid)
     pack = office_pack_for(st) or {}
@@ -447,6 +450,12 @@ def _name(c, oid, s):
         return s["title"]
     t = c.execute(f"SELECT project_title, recipient FROM office_docs WHERE id=? AND org_id=? AND {live_sql()}", (s["template_id"], oid)).fetchone() if s["template_id"] else None
     return (rin_bare(t["project_title"]) or _j(t["recipient"]).get("name") or "") if t else ""
+
+
+def rin_client_gone(c, oid, cid):
+    """#7317: the template's client cid is not a client of this office (moved into another workspace): the series makes no
+    invoice for it (like a new document, docs._client)."""
+    return bool(cid) and not c.execute(f"SELECT 1 FROM clients WHERE id=? AND {pb_cl_sql(c, oid)}", (cid,)).fetchone()
 
 
 def rin_bare(text):
@@ -769,11 +778,12 @@ def _rin_as(c, oid, sid, today, actor, people):
     if s is None or not s["next_date"] or s["next_date"] > today or s["mail_doc"]:
         c.rollback()
         return True
-    t = c.execute(f"SELECT kind, status FROM office_docs WHERE id=? AND org_id=? AND {live_sql()}", (s["template_id"], oid)).fetchone() if s["template_id"] else None
-    if t is None or t["kind"] != "invoice" or t["status"] == "cancelled":
+    t = c.execute(f"SELECT kind, status, client_id FROM office_docs WHERE id=? AND org_id=? AND {live_sql()}", (s["template_id"], oid)).fetchone() if s["template_id"] else None
+    gone = t is not None and rin_client_gone(c, oid, t["client_id"])  # #7317
+    if t is None or t["kind"] != "invoice" or t["status"] == "cancelled" or gone:
         c.execute("UPDATE office_inv_series SET active=false, fail_count=0, pause_why='template', updated_at=? WHERE id=? AND org_id=?", (iso(now_utc()), sid, oid))
         name = _name(c, oid, s)
-        _tell(c, people, RIN_TASK_PAUSED, name, lambda lg: tr("The template invoice of the series was deleted or cancelled. Select another one and switch the series on again.", lg=lg))
+        _tell(c, people, RIN_TASK_PAUSED, name, lambda lg: tr(RIN_WHY_CLIENT if gone else "The template invoice of the series was deleted or cancelled. Select another one and switch the series on again.", lg=lg))
         bump(c)
         c.commit()
         return True
@@ -946,9 +956,11 @@ def rin_run(sid):
         raise Denied(409, tr("The last invoice of the series is still being sent; try again in a moment."))
     if not s["next_date"] or (s["until"] and s["next_date"] > s["until"]):
         raise Denied(409, tr("The series has ended; set a later end first"))
-    t = c.execute(f"SELECT kind, status FROM office_docs WHERE id=? AND org_id=? AND {live_sql()}", (s["template_id"], oid)).fetchone() if s["template_id"] else None
+    t = c.execute(f"SELECT kind, status, client_id FROM office_docs WHERE id=? AND org_id=? AND {live_sql()}", (s["template_id"], oid)).fetchone() if s["template_id"] else None
     if t is None or t["kind"] != "invoice" or t["status"] == "cancelled":
         raise Denied(409, tr("The template invoice of the series was deleted or cancelled. Select another one and switch the series on again."))
+    if rin_client_gone(c, oid, t["client_id"]):  # #7317
+        raise Denied(409, tr(RIN_WHY_CLIENT))
     prev = s["next_date"]
     nid, sent, datev, why, post = rin_step(c, oid, uid, s, s["next_date"], [])  # the person is here: no task for what they just did
     bump(c)

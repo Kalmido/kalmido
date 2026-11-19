@@ -31,11 +31,16 @@ merge queue gets the same checks here, as a CI step on the commits of the change
               merged meanwhile brought never make an entry red (the totals of check_suppress / check_rules in the lint job
               are notices for that reason). Both read the two checks from the BASE commit, like this file itself; a base
               without them is a notice.
+  griff       #7294: a CSS rule the change adds (static/app.css, static/css/*.css) that gives a panel, a column or a floating
+              window a fixed size without the one grip (grip.js; it reads var(--g-<key>, ...)) is red - a fixed column of at
+              least 12rem beside an fr column, flex: 0 0 <fixed>, a floating box with a written width / height of 12rem or more;
+              the way out is /* griff-ok: REASON */ at the rule. Only added declarations count (a rule moved unchanged is not
+              new); the stock goes through the audit tasks. The rules are tools/griff_lint.py of the BASE (like marks).
   oneway      the one-way rules (destructive SQL, a schema version bump, a migration step that deletes, a sign-in route
               added / removed, the registration modes changed): a note (GitHub warning annotation), never red - a one-way
               step is a note while the switch "einbahn_braucht_ja" of the release tooling is off; --strict makes it red.
 
-  python3 tools/pr_lint.py --base BASE [--head HEAD] [--only subject,changelog,privacy,i18n,marks,suppress,oneway] [--strict] [--repo DIR]
+  python3 tools/pr_lint.py --base BASE [--head HEAD] [--only subject,changelog,privacy,i18n,marks,suppress,griff,oneway] [--strict] [--repo DIR]
 Exit 0 clean (notes allowed), 1 a check failed (listed), 2 usage / git error. Python standard library only.
 """
 from __future__ import annotations
@@ -49,7 +54,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = [ROOT]  # --repo (the self test runs on a temporary repository)
-CHECKS = ("subject", "changelog", "privacy", "i18n", "marks", "suppress", "oneway")
+CHECKS = ("subject", "changelog", "privacy", "i18n", "marks", "suppress", "griff", "oneway")
 
 # subjects the release tooling writes itself (kalmido-livezug.py): the version commit, the README / changelog fold, a job's
 # changelog fragment, a job number; a revert keeps the subject of the reverted commit in quotes
@@ -219,6 +224,7 @@ def check_i18n(base: str, head: str, files) -> list[str]:
     return hits
 
 
+CSS_GRIFF = re.compile(r"^static/(?:app\.css|css/[^/]+\.css)$")  # #7294
 MARK_CODE = re.compile(r"^(?:app\.py|kalmido/.+\.py|static/js/.+\.js|static/[^/]+\.js)$")
 ENV_CODE = re.compile(r"^(?:app\.py|kalmido/.+\.py)$")
 _TOOLS: dict[str, object] = {}
@@ -322,6 +328,35 @@ def check_suppress(base: str, files, notes: list[str]) -> list[str]:
     return hits
 
 
+def check_griff(base: str, head: str, files, notes: list[str]) -> list[str]:
+    """#7294: the fixed sizes without the grip that the change adds to the CSS (tools/griff_lint.py of the base)."""
+    css = sorted(p for p, side in files.items() if CSS_GRIFF.match(p) and side["+"])
+    if not css:
+        return []
+    gl = base_tool(base, "griff_lint")
+    if gl is None:
+        notes.append("griff: tools/griff_lint.py is not in the base - not checked")
+        return []
+    mb = git("merge-base", base, head).strip()
+
+    def show(rev, path):
+        try:
+            return git("show", f"{rev}:{path}")
+        except RuntimeError:
+            return ""
+    added: dict[str, set[int]] = {}
+    for path in css:
+        lines = added.setdefault(path, set())
+        for ln in git("diff", "-U0", "--no-color", "--no-ext-diff", f"{mb}", head, "--", path).splitlines():
+            m = re.match(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", ln)
+            if m:
+                a, n = int(m.group(1)), int(m.group(2) if m.group(2) is not None else 1)
+                lines.update(range(a, a + n))
+    # a rule moved from another file counts as known: the base of every changed CSS file
+    olds = {p: show(mb, p) for p in files if CSS_GRIFF.match(p)}
+    return gl.new_findings(olds, {p: show(head, p) for p in css}, added)
+
+
 def check_oneway(files) -> list[str]:
     hits = []
     for r in ONEWAY:
@@ -385,6 +420,12 @@ def main(argv=None) -> int:
             hits = check_marks(a.base, files, notes)
         elif c == "suppress":
             hits = check_suppress(a.base, files, notes)
+        elif c == "griff":
+            try:
+                hits = check_griff(a.base, a.head, files, notes)
+            except RuntimeError as e:
+                print(f"pr_lint: {e}", file=sys.stderr)
+                return 2
         else:
             hits = check_oneway(files)
             for h in hits:

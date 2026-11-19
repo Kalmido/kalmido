@@ -156,7 +156,7 @@ function viewAblage() {
   const tdays = trash && d?.trash_days ? `<p class="muted abhint abtrashdays">${esc(ab_trashNote(d))}</p>` : '';  // 2.152.0 B (#2165); 2.1178.0 (#6115): ab_trashNote
   // 2.1238.0 (#6161, Stufe 2): a folder / an organisation's top the person only reads: ONE read hint (roHintHtml) under the tools
   const ro = d && !trash && !canAdd && (r.nid || String(sp).startsWith('org:')) ? roHintHtml() : '';
-  return `<div class="abview ${canAdd ? 'abdropok' : ''} ${desk ? 'abdesk' : ''}" data-abzone="${r.nid || ''}">${desk ? '' : spaces}<div class="abmain">${search}${search && ftxtActive() ? `<h3 class="abtitle">${tr('Search results')}</h3>` : /*html-ok*/ crumbs + tools + ro + (r.nid ? ab_shHead(d) : '') + ab_scanDoneHtml() + (!trash && d && typeof abd_recogLine === 'function' ? abd_recogLine(d) : '')}${body}${search && ftxtActive() ? '' : hint + tdays + ab_selBar(trash)}</div></div>`;
+  return `<div class="abview ${canAdd ? 'abdropok' : ''} ${desk ? 'abdesk' : ''}" data-abzone="${r.nid || ''}">${desk ? '' : spaces}${/*html-ok*/ desk || isMobile() ? '' : gcol_html('ab-list') /* #7304: the grip's fixed markup (render.js) */}<div class="abmain">${search}${search && ftxtActive() ? `<h3 class="abtitle">${tr('Search results')}</h3>` : /*html-ok*/ crumbs + tools + ro + (r.nid ? ab_shHead(d) : '') + ab_scanDoneHtml() + (!trash && d && typeof abd_recogLine === 'function' ? abd_recogLine(d) : '')}${body}${search && ftxtActive() ? '' : hint + tdays + ab_selBar(trash)}</div></div>`;
 }
 // 2.752.0 (#4887): the file store's tools above a folder with recognition: New folder, Share, its menu (Upload and Scan are
 // "Add documents" / "Scan" in the documents' bar, the same way into the folder)

@@ -21,7 +21,7 @@ from ..accounts.modcards import mod_ws_on  # (#7298)
 from ..accounts.orgroles import user_orgs_full, is_write_request  # 2.369.5 (#2517): pulled up from functions
 from ..personal.timetrack import time_report  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.supportgrant import sga_org_foreign
-from ..accounts.orgout import org_out
+from ..accounts.orgout import oo_denied, oo_grant, org_out
 from ..api.common import agent_time_hidden  # 2.582.0 (#4380)
 from ..office.owrite import ow_history_answer, ow_write  # 2.567.0 (#4711): the office's write layer (the clients save through it)
 
@@ -650,9 +650,16 @@ def client_update(cid):
             cl_parent_check(c, uid, cid, cl_area({"org_id": f.get("org_id", old["org_id"]), "created_by": old["created_by"]}), f["parent_id"])
         if "org_id" in f:
             h6c_client_move_ok(c, uid, need_client(c, cid, uid))
+            if f["org_id"] is None and old["created_by"] != uid:  # #7317: "Private" is its creator's area (pb_cl_sql), never the mover's
+                raise Denied(403, tr(CL_PRIVATE_OWN))
             if cl_locked_docs(c, cid):  # 2.126.0 A (#1979 F7): its finalised documents keep it; 2.148.1 B (#2484): also a personal office's
                 raise Denied(409, tr("Finalised documents of this organisation refer to this client, so it stays here. “Move to another workspace…” in the office takes a copy along.")
                              if old["org_id"] else tr(CL_LOCKED_PRIVATE))
+            if old["org_id"] and not is_org_admin(c, uid, old["org_id"]) and not (f["org_id"] is None and oo_grant(c, old["org_id"], "clients", cid, uid)):
+                raise oo_denied(c, old["org_id"], f["org_id"] or None, "clients", cid, uid)  # the right first (org_out below uses the release up)
+            live = cl_live_refs(c, cid, old)
+            if live:  # #7317: drafts, requests, letters, contracts, series of its office would keep a client that is not there any more
+                raise Denied(409, tr(CL_LIVE_STAYS, ", ".join(tr(x) for x in live)), data={"code": "client_in_use", "what": live})
             if old["org_id"]:  # #6607: out of an organisation only through org_out (its admin, or the maker's released request),
                 # logged and told to the other admins -- as lists and files
                 org_out(c, old["org_id"], f["org_id"] or None, "clients", old["name"], obj=cid)
@@ -689,6 +696,40 @@ def cl_locked_docs(c, cid, real=False):
     with system_ctx(c):  # existence only: the documents of the office area the client belongs to
         return bool(c.execute(f"SELECT 1 FROM office_docs WHERE client_id=? AND locked_at IS NOT NULL AND {live_sql()}" + (" AND trial=0" if real else "")  # 2.1005.0 (#5415): not the trash
                               + " LIMIT 1", (cid,)).fetchone())
+
+
+CL_PRIVATE_OWN = N_("Only the person who created the client can move it into Private: there it would belong to them, not to you.")
+CL_LIVE_STAYS = N_("Its office still has {0} for this client, so it stays here. “Move to another workspace…” in the office takes the client with all of it along.")
+# #7317: what in the office of the client's workspace is still alive and points at it (table, label, extra condition); the
+# finalised documents are cl_locked_docs. A series counts through its template invoice.
+CL_LIVE_REFS = (("office_docs", N_("draft quotations or invoices"), "locked_at IS NULL"),
+                ("office_deals", N_("requests"), ""),
+                ("office_letters", N_("letters"), ""),
+                ("office_contracts", N_("contracts"), ""),
+                ("office_gen_docs", N_("documents from templates"), "NOT archived"))
+CL_LIVE_TABLES = {t for t, _l, _x in CL_LIVE_REFS}
+
+
+def cl_live_refs(c, cid, r):
+    """#7317: the labels (N_ keys) of what is still alive in the office of client row r (its organisation's office, a private
+    client's: its creator's personal office) and refers to it: drafts, requests (pipeline deals), letters, contracts,
+    documents from templates, invoice series (their template invoice). Not the trash, not another office (an old reference
+    elsewhere is not told across the boundary). The direct move of a client (PATCH org_id) refuses while there is any; the
+    office's "Move to another workspace…" (office/officemove.py) takes them along."""
+    from ..office.model import pb_personal
+    area = r["org_id"] or pb_personal(c, r["created_by"], create=False)
+    if not area:
+        return []  # a private client of somebody without a personal office: no office holds anything of it
+    out = []
+    with system_ctx(c):  # existence only, like cl_locked_docs, in the one office area the client belongs to
+        for t, label, extra in CL_LIVE_REFS:
+            w = ["client_id=?", "org_id=?"] + ([live_sql()] if "deleted_at" in table_columns(c, t) else []) + ([extra] if extra else [])
+            if c.execute(f"SELECT 1 FROM {qi(t, CL_LIVE_TABLES)} WHERE {' AND '.join(w)} LIMIT 1", (cid, area)).fetchone():
+                out.append(label)
+        if c.execute(f"SELECT 1 FROM office_inv_series s JOIN office_docs d ON d.id=s.template_id WHERE d.client_id=? AND s.org_id=? AND {live_sql('s')} LIMIT 1",
+                     (cid, area)).fetchone():
+            out.append(N_("invoice series"))
+    return out
 
 
 def cl_may_delete(c, uid, r):

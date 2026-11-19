@@ -2175,6 +2175,9 @@ DUP_SKIP |= {"mail_state", "mail_at"}  # (#6820): a copy was never mailed  # (#5
 DUP_ITEM_SKIP = {"id", "tax_pct", "net", "tax_amount"}
 
 
+ODOC_CLIENT_GONE = N_("The client of this document is not in this office any more (moved to another workspace). Select another client first.")
+
+
 @app.post("/api/office/docs/<int:did>/duplicate")
 def odoc_duplicate(did):
     """A copy as a new draft of today with the next number (positions, rights and texts copied); also of a finalised
@@ -2192,6 +2195,10 @@ def odoc_duplicate(did):
         office_need_feature(c, oid, "docs.delivery")
     if r["kind"] == "credit":  # 2.354.0 D (#2838): a copy would be a credit note bound to no invoice
         raise Denied(409, tr("A credit note needs a finalised invoice"))
+    if r["client_id"]:  # #7317: the client is checked against this office like on a new document (moved away / in the trash)
+        if not _client(c, oid, r["client_id"]):
+            raise Denied(409, tr(ODOC_CLIENT_GONE))
+        pb_cl_live(c, oid, r["client_id"])
     ref, hit = ofi_ref_doc(c, oid, uid, b)  # 2.269.0 D (#3046): sent again = the copy made the first time
     if hit:
         return jsonify(doc_public(c, oid, doc_row(c, oid, hit), admin))

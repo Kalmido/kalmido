@@ -19658,5 +19658,15 @@
   "Select the workspace…": "Choisis l’espace de travail…",
   "Select the workspace for the new client.": "Choisis l’espace de travail du nouveau client.",
   "Clients are switched off for you in {0}. Select the workspace for the new client: {1}.": "Les clients sont désactivés pour toi dans {0}. Choisis l’espace de travail du nouveau client : {1}.",
-  "Clients are switched off for you in every workspace you may add clients to.": "Les clients sont désactivés pour toi dans tous les espaces de travail où tu peux ajouter des clients."
+  "Clients are switched off for you in every workspace you may add clients to.": "Les clients sont désactivés pour toi dans tous les espaces de travail où tu peux ajouter des clients.",
+  "Only the person who created the client can move it into Private: there it would belong to them, not to you.": "Seule la personne qui a créé le client peut le déplacer dans Privé : il lui appartiendrait alors, pas à toi.",
+  "Its office still has {0} for this client, so it stays here. “Move to another workspace…” in the office takes the client with all of it along.": "Le bureau contient encore {0} pour ce client, il reste donc ici. « Déplacer vers un autre espace de travail… » dans le bureau emmène le client avec tout cela.",
+  "draft quotations or invoices": "des brouillons de devis ou de factures",
+  "requests": "des demandes",
+  "letters": "des lettres",
+  "contracts": "des contrats",
+  "documents from templates": "des documents issus de modèles",
+  "invoice series": "des séries de factures",
+  "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "Le client de ce document n'est plus dans ce bureau (déplacé vers un autre espace de travail). Choisis d'abord un autre client.",
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Le client de la facture modèle n'est plus dans ce bureau (déplacé vers un autre espace de travail). Choisis une autre facture modèle et réactive la série."
 }

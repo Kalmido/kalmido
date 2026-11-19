@@ -19658,5 +19658,15 @@
   "Select the workspace…": "Kies de werkruimte…",
   "Select the workspace for the new client.": "Kies de werkruimte voor de nieuwe klant.",
   "Clients are switched off for you in {0}. Select the workspace for the new client: {1}.": "Klanten zijn voor jou uitgeschakeld in {0}. Kies de werkruimte voor de nieuwe klant: {1}.",
-  "Clients are switched off for you in every workspace you may add clients to.": "Klanten zijn voor jou uitgeschakeld in elke werkruimte waarin je klanten mag toevoegen."
+  "Clients are switched off for you in every workspace you may add clients to.": "Klanten zijn voor jou uitgeschakeld in elke werkruimte waarin je klanten mag toevoegen.",
+  "Only the person who created the client can move it into Private: there it would belong to them, not to you.": "Alleen wie de klant heeft aangemaakt, kan hem naar Privé verplaatsen: daar zou hij van die persoon zijn, niet van jou.",
+  "Its office still has {0} for this client, so it stays here. “Move to another workspace…” in the office takes the client with all of it along.": "Het kantoor heeft voor deze klant nog {0}, dus hij blijft hier. „Naar een andere werkruimte verplaatsen…” in het kantoor neemt de klant met alles mee.",
+  "draft quotations or invoices": "concepten van offertes of facturen",
+  "requests": "aanvragen",
+  "letters": "brieven",
+  "contracts": "contracten",
+  "documents from templates": "documenten uit sjablonen",
+  "invoice series": "factuurreeksen",
+  "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "De klant van dit document staat niet meer in dit kantoor (naar een andere werkruimte verplaatst). Kies eerst een andere klant.",
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "De klant van de sjabloonfactuur staat niet meer in dit kantoor (naar een andere werkruimte verplaatst). Kies een andere sjabloonfactuur en zet de reeks weer aan."
 }

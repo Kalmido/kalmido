@@ -3918,7 +3918,7 @@ body.lcmoving{cursor:grabbing!important;user-select:none!important}  /* 2.331.0 
 
 /* ---- 2.17.0 package B "Communication" ------------------------------------------------------------------------- */
 /* #419 team chat: the conversations next to the open one (desktop), one or the other on phones */
-.tcview{display:grid;grid-template-columns:minmax(var(--w-leiste-min),var(--w-leiste)) minmax(0,1fr);gap:0;height:calc(100dvh - 6.5rem);min-height:20rem;border:1px solid var(--line);border-radius:var(--r-l);overflow:hidden;background:var(--bg)}
+.tcview{display:grid;grid-template-columns:var(--g-tc-list,minmax(var(--w-leiste-min),var(--w-leiste))) minmax(0,1fr);position:relative;gap:0;height:calc(100dvh - 6.5rem);min-height:20rem;border:1px solid var(--line);border-radius:var(--r-l);overflow:hidden;background:var(--bg)}
 .tclist{display:flex;flex-direction:column;overflow-y:auto;border-right:1px solid var(--line);background:var(--bg2);min-width:0}
 .tchead{display:flex;align-items:center;gap:.5rem;padding:.625rem .75rem;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg2);z-index:1}
 .tcrow{display:flex;align-items:center;gap:.625rem;width:100%;padding:.5rem .75rem;text-align:left;border-bottom:1px solid var(--line);min-height:3.25rem;color:var(--text2)}
@@ -3994,7 +3994,7 @@ body.lcmoving{cursor:grabbing!important;user-select:none!important}  /* 2.331.0 
 .tcxdlg .abadge{font-family:inherit}
 @media (pointer:coarse){ .tcxmem .tcxrm{min-width:2.75rem;min-height:2.75rem;justify-content:center} }
 /* 2.139.0 A (#2127): threads: the pane right of the conversation (desktop), the line under a first message, the thread view */
-.tcview.inthread{grid-template-columns:minmax(var(--w-leiste-min),var(--w-leiste)) minmax(0,1fr) var(--g-tc-thread,minmax(18rem,24rem))}  /* 2.602.0 (#4817): --w-leiste (was 13-17rem) */
+.tcview.inthread{grid-template-columns:var(--g-tc-list,minmax(var(--w-leiste-min),var(--w-leiste))) minmax(0,1fr) var(--g-tc-thread,minmax(18rem,24rem))}  /* 2.602.0 (#4817): --w-leiste (was 13-17rem) */
 /* 2.479.0 (#2814): the area "Chat" on a computer: its conversations are the panel, the page only the open one (and its thread) */
 .tcview.nolist{grid-template-columns:minmax(0,1fr)}
 .tcview.nolist.inthread{grid-template-columns:minmax(0,1fr) var(--g-tc-thread,minmax(18rem,24rem))}  /* #7302: the thread's width by its grip (chat.js tth_grip) */
@@ -4042,9 +4042,13 @@ button.trdline:hover,button.trdline:focus-visible{background:var(--bg3);color:va
   .tcview:not(.inroom) .tcroom{display:none}
   .tcrow{min-height:3.5rem}
 }
+/* #7303 #7304: the grip of a list beside its content (render.js gcol_html / gcol_sync, grip.js opts.place): never an item of
+   the grid - it stands on the list's edge; hidden until the grip module has placed it */
+[data-gcol]{position:absolute;top:0;bottom:0;z-index:3}
+[data-gcol][hidden]{display:none!important}
 /* #442 notes */
-.ntview{display:grid;grid-template-columns:minmax(0,1fr);gap:1rem}
-.ntview.open{grid-template-columns:minmax(var(--w-leiste-min),var(--w-leiste)) minmax(0,1fr)}  /* 2.602.0 (#4817): --w-leiste (was 14-22rem) */
+.ntview{display:grid;grid-template-columns:minmax(0,1fr);gap:1rem;position:relative}
+.ntview.open{grid-template-columns:var(--g-nt-list,var(--g-wk-list,minmax(var(--w-leiste-min),var(--w-leiste)))) minmax(0,1fr)}  /* 2.602.0 (#4817): --w-leiste (was 14-22rem) */
 .ntbar{display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;flex-wrap:wrap}  /* 2.725.0 (#5163): always wraps; buttons below keep their size */
 .ntbar .ssearch,.ntbar .ctsearch{flex:1 1 auto}
 .ntcards{list-style:none;margin:0;padding:0;display:grid;gap:.375rem}
@@ -6621,7 +6625,7 @@ button.lnph:hover{border-color:var(--accent)}
 /* 2.48.0 D (#1152) Paperless-ngx in the documents settings: connection, progress, the mapping of the preview */
 .pl-url { font-family: var(--mono, monospace); font-size: var(--fs-m); overflow-wrap: anywhere; }
 /* 2.48.0 A (#1207) the file store "Ablage" (ablage.js): spaces on the left (a row of buttons on phones), the path, the list */
-.abview{display:grid;grid-template-columns:var(--w-leiste) minmax(0,1fr);gap:1rem;align-items:start;min-height:12rem;border-radius:var(--r-l);transition:box-shadow .15s}
+.abview{display:grid;grid-template-columns:var(--g-ab-list,var(--w-leiste)) minmax(0,1fr);position:relative;gap:1rem;align-items:start;min-height:12rem;border-radius:var(--r-l);transition:box-shadow .15s}
 .abview.abdrop{box-shadow:inset 0 0 0 2px var(--accent)}
 .abspaces{display:flex;flex-direction:column;gap:.125rem;position:sticky;top:0}
 .abspace{display:flex;align-items:center;gap:.5rem;min-height:2.5rem;padding:0 .75rem;border:0;border-radius:var(--radius);background:none;color:inherit;text-align:left;cursor:pointer}
