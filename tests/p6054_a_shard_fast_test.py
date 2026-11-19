@@ -139,6 +139,23 @@ ok, txt, _ = gate.judge_queue("merge_group", NEEDS, qjobs, lambda j: {2: ["p1_ui
 check(not ok and "stopped after a red streak" in txt, f"queue gate: a stopped shard holds the entry: {ok} {txt}")
 ok, txt, _ = gate.judge_queue("merge_group", NEEDS, qjobs, lambda j: {2: ["p1_ui"]}.get(j["id"], []), ["*invoice*"], {"p1_ui": "p1_ui"})
 check(ok, f"queue gate: the same soft red without a stop still passes as soft: {ok} {txt}")
+# #7366 (decision 19.11.2026): in the queue only the must list has to have run
+gjobs = [job(100, "Lint, i18n, scanners"), job(1, "Test suites 1/1 queue hart (API, UI, security)")]
+QN = {**NEEDS, "tests": OK}
+ok, txt, _ = gate.judge_queue("merge_group", QN, gjobs + [job(9, "Upgrade and restore (nightly)", "skipped")], lambda j: [], ["*restore*"], {})
+check(ok, f"#7366 queue gate: a skipped nightly job (hard name, outside must) = green: {ok} {txt}")
+ok, txt, _ = gate.judge_queue("merge_group", QN, gjobs + [job(9, "Upgrade and restore (nightly)", "neutral")], lambda j: [], ["*restore*"], {})
+check(ok, f"#7366 queue gate: a neutral job outside must = green: {ok} {txt}")
+for k in ("checks", "pr-lint", "plan", "semgrep", "einvoice", "zap"):
+    ok, txt, _ = gate.judge_queue("merge_group", {**QN, k: {"result": "skipped"}}, gjobs, lambda j: [], ["*restore*"], {})
+    check(not ok and ("%s: skipped" % k) in txt, f"#7366 queue gate: a skipped must job ({k}) = red: {ok} {txt}")
+ok, txt, _ = gate.judge_queue("merge_group", QN, gjobs + [job(9, "Upgrade and restore (nightly)", "failure")], lambda j: [], ["*restore*"], {})
+check(not ok and "hard job red" in txt, f"#7366 queue gate: a red hard job = red: {ok} {txt}")
+ok, txt, _ = gate.judge_queue("merge_group", QN, gjobs + [dict(job(9, "Upgrade and restore (nightly)", None), status="in_progress")], lambda j: [], ["*restore*"], {})
+check(not ok and "not finished" in txt, f"#7366 queue gate: an unfinished hard job = red: {ok} {txt}")
+ok, txt, _ = gate.judge_soft([job(1, "Test suites 1/1 full hart (API, UI, security)"), job(6, "Lint, i18n, scanners"),
+                              job(9, "Upgrade and restore (nightly)", "skipped")], lambda j: [], ["*restore*"], {})
+check(not ok and "did not run" in txt, f"#7366: the nightly / main judgement stays hard (a skipped hard job = no image): {ok} {txt}")
 fjobs = [job(1, "Test suites 1/2 full hart (API, UI, security)"), job(2, "Test suites 2/2 full (API, UI, security)", "failure"),
          job(6, "Lint, i18n, scanners")]
 ok, txt, info = gate.judge_soft(fjobs, lambda j: {2: ["p1_ui", gate.STOPPED]}.get(j["id"], []), ["*invoice*"], {"p1_ui": "p1_ui"})
