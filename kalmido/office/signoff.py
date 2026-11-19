@@ -15,6 +15,8 @@ import hmac
 import html
 import json
 import secrets
+import threading
+from collections import OrderedDict
 from datetime import date, datetime, timedelta
 
 from flask import g, jsonify, redirect, request
@@ -709,9 +711,13 @@ def sig_page(c, r, token, lg, error=None, code=200):
         head = vdr_sig_html(c, r, lg, token, SIG_PREFIX)
     else:
         head = sig_offer_html(c, r, lg, token) if r["kind"] == "offer" else sig_list_html(c, r, lg)
-    if r["kind"] in ("offer", "document"):  # 2.113.2 (#2253): the terms next to the PDF
+    agb = ""
+    if r["kind"] == "document":  # 2.113.2 (#2253): the terms next to the PDF
         from .terms import agb_sig_html
         head += agb_sig_html(c, r, lg, token, SIG_PREFIX)
+    elif r["kind"] == "offer":  # #7338: the quotation's PDF carries the terms pages: a sentence at the acceptance, no own button
+        from .terms import agb_sig_offer_note
+        agb = agb_sig_offer_note(c, r, lg, sig_offer_pages(c, r))
     acc = (tr("I accept the quotation", lg=lg) if r["kind"] == "offer" else tr("I sign this document", lg=lg) if r["kind"] == "document"
            else tr("I approve this version", lg=lg) if vkind in ("image", "pdf")  # 2.764.0 (#5040)
            else tr("I approve this version of the video", lg=lg) if vid else tr("I confirm the acceptance", lg=lg))
@@ -726,7 +732,7 @@ def sig_page(c, r, token, lg, error=None, code=200):
             f'<input type="hidden" name="f" value="{sig_form_key(c, r)}">{ver}'
             f'<label for="sg-name">{e(tr("Your name|public", lg=lg))}</label><input id="sg-name" name="name" maxlength="{NAME_MAX}" autocomplete="name" value="{e(gname)}" required>'
             f'<label for="sg-mail">{e(tr("E-mail (optional)", lg=lg))}</label><input id="sg-mail" name="email" type="email" maxlength="{EMAIL_MAX}" autocomplete="email">'
-            f'<label class="ok"><input type="checkbox" name="ok" value="1"> {e(acc)}</label>'
+            f'<label class="ok"><input type="checkbox" name="ok" value="1"> {e(acc)}</label>{agb}'
             f'<button type="submit" name="do" value="accept">{e(go)}</button>'
             f'<details class="decl"><summary>{e(no)}</summary>'
             f'<label for="sg-why">{e(tr("Reason (optional)", lg=lg))}</label><textarea id="sg-why" name="reason" rows="3" maxlength="{REASON_MAX}"></textarea>'
@@ -741,6 +747,35 @@ def sig_page(c, r, token, lg, error=None, code=200):
         from ..videos.review import vdr_sig_csp  # 2.764.0 (#5040): + fetch / worker of this server for a PDF version
         resp.headers["Content-Security-Policy"] = SIG_VIDEO_CSP + vdr_sig_csp(c, r)
     return resp
+
+
+SIG_PAGES = OrderedDict()  # #7338: (office, quotation, content hash of the link) -> pages of the quotation's own PDF
+SIG_PAGES_MAX = 256
+SIG_PAGES_LOCK = threading.Lock()
+
+
+def sig_offer_pages(c, r):
+    """#7338: the number of pages of the open link's quotation before the terms pages (its stored PDF, a quotation sent
+    without finalising rendered), None when not reliably known. Kept per content hash: an open link's quotation is
+    unchanged (sig_open), so one count per link."""
+    key = (r["org_id"], r["doc_id"], r["doc_hash"])
+    with SIG_PAGES_LOCK:
+        if key in SIG_PAGES:
+            return SIG_PAGES[key]
+    try:
+        from ..docs.pdfopt import po_pages
+        d = doc_row(c, r["org_id"], r["doc_id"])
+        data = epdf_stored(c, r["org_id"], d, "pdf", commit=False)
+        n = po_pages(data if data is not None else _render(c, r["org_id"], d)[0])
+    except (Denied, OSError, ValueError, KeyError, TypeError) as ex:  # the page shows the sentence without the page
+        print("signoff: pages of the quotation unknown", r["id"], type(ex).__name__, flush=True)
+        return None
+    n = n if isinstance(n, int) and n > 0 else None
+    with SIG_PAGES_LOCK:
+        SIG_PAGES[key] = n
+        while len(SIG_PAGES) > SIG_PAGES_MAX:
+            SIG_PAGES.popitem(last=False)
+    return n
 
 
 @app.get("/s/q/<token>")

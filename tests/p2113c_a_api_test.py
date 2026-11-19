@@ -275,7 +275,12 @@ r = A.post(B + f"{D}/{Q}/signoff", json={})
 check(r.ok, "approval link " + r.text[:160])
 TOK = r.json()["url"].split("/s/q/")[1]
 pg = anon("/s/q/" + TOK)
-check(pg.status_code == 200 and f"/s/q/{TOK}/terms" in pg.text and "01.10.2026" in pg.text, "the customer page links the terms with their date")
+# #7338: the quotation's PDF carries the terms pages (#3619): no own button on its page, a sentence at the acceptance with the
+# state and the page they start on (the one-page quotation: page 2); the route /terms stays for older links
+check(pg.status_code == 200 and f"/s/q/{TOK}/terms" not in pg.text, "#7338: the quotation's page has no terms button of its own")
+sent = re.search(r'<p class="sigagb">([^<]*)</p>', pg.text)
+check(sent and sent.group(1) == "Es gelten unsere AGB, Stand 01.10.2026, im PDF enthalten (ab Seite 2)." and pg.text.index('class="sigagb"') > pg.text.index('name="ok"'),
+      "#7338: the sentence at the acceptance names the state and the page " + (sent.group(1) if sent else pg.text[-600:]))
 r = anon(f"/s/q/{TOK}/terms")
 check(r.status_code == 200 and r.content == DE1 and "AGB-Stand-2026-10-01.pdf" in r.headers.get("Content-Disposition", ""), f"/terms: the frozen file ({r.status_code})")
 check("noindex" in r.headers.get("X-Robots-Tag", "") and r.headers.get("Referrer-Policy") == "no-referrer", "/terms: noindex, no referrer")
@@ -283,7 +288,7 @@ bad_t, bad_p = anon("/s/q/" + "x" * 43 + "/terms"), anon("/s/q/" + "x" * 43 + "/
 check(bad_t.status_code == 404 and bad_t.status_code == bad_p.status_code and bad_t.text == bad_p.text, "a wrong token: the same 404 as /pdf")
 check(A.post(B + f"{D}/{QE}/status", json={"status": "sent"}).ok, "setup: the English quotation sent")
 TOKE = A.post(B + f"{D}/{QE}/signoff", json={}).json()["url"].split("/s/q/")[1]
-check(anon(f"/s/q/{TOKE}/terms").status_code == 404 and "/terms" not in anon("/s/q/" + TOKE).text, "a link without terms: no link, 404")
+check(anon(f"/s/q/{TOKE}/terms").status_code == 404 and "/terms" not in anon("/s/q/" + TOKE).text and "sigagb" not in anon("/s/q/" + TOKE).text, "a link without terms: no link, no sentence, 404")
 r = requests.post(B + "/s/q/" + TOK, data={"f": form_key(pg.text), "name": "Max Muster", "ok": "1", "do": "accept"}, allow_redirects=False)
 check(r.status_code == 303, f"the customer accepts ({r.status_code})")
 done = anon("/s/q/" + TOK)
@@ -337,7 +342,7 @@ gz = json.loads(sql("SELECT terms FROM office_gen_docs WHERE id=?", (G,))[0][0] 
 check(gz.get("sha256") == SHA2 and gz.get("lang") == "de", f"finishing a contract froze the terms {gz}")
 r = A.post(B + f"{GD}/{G}/signoff", json={})
 GT = r.json()["url"].split("/s/q/")[1] if r.ok else ""
-check(r.ok and f"/s/q/{GT}/terms" in anon("/s/q/" + GT).text, "the contract's link offers the terms")
+check(r.ok and f"/s/q/{GT}/terms" in anon("/s/q/" + GT).text and "sigagb" not in anon("/s/q/" + GT).text, "the contract's link offers the terms (its own button, #7338)")
 r = anon(f"/s/q/{GT}/terms")
 check(r.status_code == 200 and r.content == DE2, "the contract's link serves its frozen terms")
 TN = A.post(B + O + "/doc-templates", json={"starter": "nda"}).json()["id"]
