@@ -20,7 +20,7 @@ function render0() {
   $('#fab').innerHTML = ic('plus'); $('#fab').setAttribute('aria-label', tr('New task')); $('#fab').title = kt(tr('New task'), 'n');
   fabSync();
   o3c_sync();  // 2.83.0 C (#1427): the header strip of a list / folder (listhead.js)
-  if (S.sel && S.tasks.has(S.sel)) { if (!$('#detail').contains(document.activeElement)) renderDetail(); else lpDetail(S.sel, new Set([S.sel])); }  // 2.1432.0 (#6639): the focus in the panel: morphed (lpDetail, liveparts.js), the focused field stays; was not drawn at all
+  if (S.sel && S.tasks.has(S.sel)) { if (!$('#detail').contains(document.activeElement)) renderDetail(); else lpDetail(S.sel, new Set([S.sel])); }  // (#6639): the focus in the panel: morphed (lpDetail, liveparts.js), the focused field stays; was not drawn at all
   if (S.sel && !S.tasks.has(S.sel) && !(S.extra || []).some(t => t.id === S.sel) && !lzSel(S.sel)) closeDetail();  // 2.369.2 (#3136): lzSel = its list is on the way
   agentLive();
 }

@@ -10,7 +10,7 @@ from ..core.pg import insert_id, qi, system_ctx
 from ..core.i18n import tr, trn
 from ..core.db import body, bump, create_user, db, ensure_inbox, err, gset, gsetting, iso, iso_ms, now_utc, uset, usettings, write_lock
 from ..accounts.session import _token_hash, me
-from ..api.runfor import REQ_NOT_SQL, req_main_due  # 2.1386.0 (#6668); #6978 F7: by its columns, not its name; 2.1432 (#6808)
+from ..api.runfor import REQ_NOT_SQL, req_main_due  # (#6668); #6978 F7: by its columns, not its name; (#6808)
 from ..accounts.login import login_log_who  # 2.239.0 B (#2888)
 from ..accounts.pictures import avatar_drop_file, ALL_PRESETS
 from ..accounts.colors import ac_assign
@@ -60,7 +60,7 @@ def agent_admin_dict(c, a):
             "tokens": [token_public(r) for r in c.execute(f"SELECT * FROM api_tokens WHERE user_id=? AND {REQ_NOT_SQL} ORDER BY id DESC",
                                                           (a["user_id"],))],
             "webhook": wh_public(c, w) if w else None,
-            # 2.1432 (#6808): a team agent that never asked for a request token: the day its own token reaches only its
+            # (#6808): a team agent that never asked for a request token: the day its own token reaches only its
             # channel (Settings > Agents shows it: update its starter), None when it asks already / is personal / the day passed
             "req_main_due": req_main_due(a),
             "limits": usage_limits(a), "usage": usage_state(c, a),  # 2.1.1 (#326)
