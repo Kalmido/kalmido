@@ -683,7 +683,7 @@ def umz_not_imported(tables, docs, lg):
     """2.1334.0 (#6585, audit #4808 T13 5): the manifest's not_imported -- the parts of this file an account import leaves
     behind ("<name>: <parts>", acctimport.py UMZ_LEFT: the history of my changes, my links, what I wrote elsewhere ...), so
     "in the file" never reads as "moves along"; + the details of my private documents."""
-    from .acctimport import UMZ_LEFT, UMZ_READ, umz_fit  # the import reads this module: here, not at the load
+    from .acctimport import UMZ_LEFT, UMZ_READ  # the import reads this module: here, not at the load
     out = []
     for w, ps in UMZ_LEFT:
         have = [p for p in ps if tables.get(p) and p not in UMZ_READ]
@@ -806,7 +806,7 @@ def umz_build(c, uid, stream, export_id):
             **({"private_documents": docs} if docs else {}),  # 2.1334.0 (#6585)
             "not_imported": umz_not_imported(out.tables, docs, lang(c, uid)),  # 2.1334.0 (#6585)
             # 2.1419.0 (#6578): whether an import with the standard limits takes this file (the entries' sum stands for the archive)
-            "import_fit": umz_fit([(f["path"], f["size"]) for f in out.files], out.tables),
+            "import_fit": umz_fit_done(out.files, out.tables, None),
         }
         mb = json.dumps(manifest, ensure_ascii=False, indent=1, default=_jdef).encode()
         zi = zipfile.ZipInfo("manifest.json", date_time=time.localtime()[:6])
@@ -970,7 +970,7 @@ def umz_status(uid):
 
 
 def umz_fit_done(files, tables, size):
-    """2.1419.0 (#6578): the import check of a finished account export, with the size of the file as it is downloaded."""
+    """2.1419.0 (#6578): the import check of an account export; size = the file as it is downloaded (None: the entries' sum)."""
     from .acctimport import umz_fit
     return umz_fit([(f["path"], f["size"]) for f in files], tables, archive=size)
 
