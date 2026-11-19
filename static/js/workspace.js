@@ -131,10 +131,10 @@ function ws_target(ws) {
 // fails takes the switch back and says so. The split view's right half / the own window (miniwin.js MW_GUARD, #5358) never
 // sends the setting: its workspace stays this window's own, held over every load; the office there names its area with each
 // request (core.js ofc_spHdr), so it never depends on the main window's setting.
-const WSH = {p: null};
+const WS_HOLD = {p: null};
 function ws_hold(ws) {
-  if (WSH.p) { OPT.delete(WSH.p); OPT_DONE.delete(WSH.p); }
-  const p = WSH.p = {ws, put: () => { if (S.settings) S.settings.workspace = ws; }};
+  if (WS_HOLD.p) { OPT.delete(WS_HOLD.p); OPT_DONE.delete(WS_HOLD.p); }
+  const p = WS_HOLD.p = {ws, put: () => { if (S.settings) S.settings.workspace = ws; }};
   OPT.add(p); p.put(); LS.set('ws', ws);
   return p;
 }
@@ -144,8 +144,8 @@ async function ws_save(p, from) {
   try { await api('PATCH', '/api/settings', {workspace: p.ws}); }
   catch {
     OPT.delete(p);
-    if (WSH.p !== p) return false;  // a newer switch meanwhile: its own save decides
-    WSH.p = null;
+    if (WS_HOLD.p !== p) return false;  // a newer switch meanwhile: its own save decides
+    WS_HOLD.p = null;
     if (from && from !== p.ws && wsCur() === p.ws && wsOptions().includes(from)) {
       toast(tr('The workspace could not be switched: {0} is shown again', wsName(from)), null, 6000);
       await wsSet(from, {local: true});
@@ -153,7 +153,7 @@ async function ws_save(p, from) {
     return false;
   }
   OPT.delete(p);
-  if (WSH.p === p) { p.end = S.wseq || 0; p.at = Date.now(); OPT_DONE.add(p); }
+  if (WS_HOLD.p === p) { p.end = S.wseq || 0; p.at = Date.now(); OPT_DONE.add(p); }
   return true;
 }
 // 2.1437.0 (#7297): wsCur never falls back to "All" without a word: a state whose organisations no longer hold the saved one (the
@@ -179,7 +179,7 @@ async function wsSet(ws, o = {}) {
   if (WSV.ws === from) wsv_save(from);  // 2.397.0 (#3404)
   if (typeof vm_leave === 'function') vm_leave();  // 2.497.0 (#4048): the place of the view left: no route may follow (the page stays)
   let sv = null;
-  if (o.local) { if (WSH.p) { OPT.delete(WSH.p); OPT_DONE.delete(WSH.p); WSH.p = null; } S.settings.workspace = ws; LS.set('ws', ws); }
+  if (o.local) { if (WS_HOLD.p) { OPT.delete(WS_HOLD.p); OPT_DONE.delete(WS_HOLD.p); WS_HOLD.p = null; } S.settings.workspace = ws; LS.set('ws', ws); }
   else sv = ws_hold(ws);  // 2.1437.0 (#7297): held over a state load until saved
   // 2.455.0 (#3847): the phone's open drawer stays and shows the new workspace; route() must not close it either
   const hold = !!$('#side.open') && typeof SBM !== 'undefined';

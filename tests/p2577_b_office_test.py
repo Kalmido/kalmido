@@ -89,6 +89,9 @@ def where(s, sp=None):
 
 st = where(A)
 check(st[0] == 400, f"All, two organisations, no header: as before 400 (choose a workspace) {st}")
+r = A.get(B + O + "/settings")
+check(r.json().get("code") == "office_no_area" and "at the top" not in r.json().get("error", "") and "Which workspace?" in r.json().get("error", ""),
+      f"#7297: the answer carries the code office_no_area and no 'at the top' {r.text[:200]}")
 check(where(A, f"org:{ORG}")[:2] == (200, ORG), f"header org:{ORG}: its office {where(A, f'org:{ORG}')}")
 check(where(A, f"org:{ORG2}")[:2] == (200, ORG2), f"header org:{ORG2}: its office {where(A, f'org:{ORG2}')}")
 st = where(A, "private")

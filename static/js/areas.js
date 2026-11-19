@@ -108,6 +108,12 @@ const OFM_ITEMS = [
 // "All > Alpha" and "Alpha" share one menu; was per workspace (under 'uid:org:N' nothing yet = the admin points gone)
 const ofm_area = () => (typeof ofc_spCur === 'function' ? ofc_spCur() : '') || 'all';
 const ofm_ws = () => `${S.me?.id || ''}:${ofm_area()}`;
+// 2.1437.0 (#7297): the split view's right half / the own window write no LS (miniwin.js MW_GUARD): their answers stay in this
+// window (OFM_MEM), so its menu knows the role too; the main window reads LS as before (another tab may have written it)
+const OFM_MEM = {};
+const ofm_mem = () => typeof MW_GUARD !== 'undefined' && MW_GUARD;
+const ofm_get = k => (ofm_mem() && OFM_MEM[k]) || LS.get(k, {}) || {};
+const ofm_put = (k, o) => { if (ofm_mem()) OFM_MEM[k] = o; LS.set(k, o); };
 const OFM_ASKED = new Set();  // areas whose role was read in this session (a failed read may ask again after a while)
 function ofm_adm() {
   if (typeof OFC !== 'undefined' && OFC.info) return OFC.info.role === 'admin';
@@ -125,17 +131,17 @@ function ofm_adm() {
       if (was !== seen() && mg_areaOf(S.route.mod)?.[0] === 'office') renderView();
     }, () => { setTimeout(() => OFM_ASKED.delete(ws), 30000); });  // 2.1437.0 (#7297 c): not "never again in this session"
   }
-  return !!(LS.get('ofmAdm', {}) || {})[ws];
+  return !!ofm_get('ofmAdm')[ws];
 }
 function ofm_admSeen(adm, rights, used, menuOff = []) {
-  const f = LS.get('ofmOff', {}) || {}; if (JSON.stringify(f[ofm_ws()] || []) !== JSON.stringify(menuOff)) { f[ofm_ws()] = menuOff; LS.set('ofmOff', f); }  // 2.440.0 (#3609)
-  const o = LS.get('ofmAdm', {}) || {}; if (!!o[ofm_ws()] !== adm) { o[ofm_ws()] = adm; LS.set('ofmAdm', o); }
-  const u = LS.get('ofmUsed', {}) || {}; if (used && JSON.stringify(u[ofm_ws()] || null) !== JSON.stringify(used)) { u[ofm_ws()] = used; LS.set('ofmUsed', u); }  // 2.276.0 A (#3039)
+  const f = ofm_get('ofmOff'); if (JSON.stringify(f[ofm_ws()] || []) !== JSON.stringify(menuOff)) { f[ofm_ws()] = menuOff; ofm_put('ofmOff', f); }  // 2.440.0 (#3609)
+  const o = ofm_get('ofmAdm'); if (!!o[ofm_ws()] !== adm) { o[ofm_ws()] = adm; ofm_put('ofmAdm', o); }
+  const u = ofm_get('ofmUsed'); if (used && JSON.stringify(u[ofm_ws()] || null) !== JSON.stringify(used)) { u[ofm_ws()] = used; ofm_put('ofmUsed', u); }  // 2.276.0 A (#3039)
   // 2.187.0 A (#2476): + the levels of a person ruled by office groups (null = as before), so #clients / #contacts show the right menu
-  const lv = rights && rights.levels && !rights.legacy && rights.manager !== 'admin' ? rights.levels : null, l = LS.get('ofmLv', {}) || {};
-  if (JSON.stringify(l[ofm_ws()] || null) !== JSON.stringify(lv)) { if (lv) l[ofm_ws()] = lv; else delete l[ofm_ws()]; LS.set('ofmLv', l); }
-  const ow = LS.get('ofmOwn', {}) || {}, on = ofm_legOwnOf(rights);  // 2.545.0 (#4592): the own areas of a member in "Previous access"
-  if (JSON.stringify(ow[ofm_ws()] || []) !== JSON.stringify(on)) { if (on.length) ow[ofm_ws()] = on; else delete ow[ofm_ws()]; LS.set('ofmOwn', ow); }
+  const lv = rights && rights.levels && !rights.legacy && rights.manager !== 'admin' ? rights.levels : null, l = ofm_get('ofmLv');
+  if (JSON.stringify(l[ofm_ws()] || null) !== JSON.stringify(lv)) { if (lv) l[ofm_ws()] = lv; else delete l[ofm_ws()]; ofm_put('ofmLv', l); }
+  const ow = ofm_get('ofmOwn'), on = ofm_legOwnOf(rights);  // 2.545.0 (#4592): the own areas of a member in "Previous access"
+  if (JSON.stringify(ow[ofm_ws()] || []) !== JSON.stringify(on)) { if (on.length) ow[ofm_ws()] = on; else delete ow[ofm_ws()]; ofm_put('ofmOwn', ow); }
 }
 // 2.545.0 (#4592): a member in "Previous access" has the level "own" in some areas (server: office/rights.py LEGACY_OWN,
 // the travel expenses): their menu point shows, everything else stays as before
@@ -144,11 +150,11 @@ function ofm_admSeen(adm, rights, used, menuOff = []) {
 // model.py office_org lets it read the admins' routes) - its levels are "view" down to the settings, which no other role of
 // "Previous access" has: then every area it may read shows (Bookkeeping, Bank, ...; writes stay refused by the server)
 const ofm_legOwnOf = r => !r || !r.legacy || !r.levels ? [] : Object.keys(r.levels).filter(k => r.levels.settings === 'view' ? r.levels[k] !== 'none' : r.levels[k] === 'own');
-const ofm_legOwn = k => (typeof OFC !== 'undefined' && OFC.info ? ofm_legOwnOf(OFC.info.rights) : (LS.get('ofmOwn', {}) || {})[ofm_ws()] || []).includes(k);
+const ofm_legOwn = k => (typeof OFC !== 'undefined' && OFC.info ? ofm_legOwnOf(OFC.info.rights) : ofm_get('ofmOwn')[ofm_ws()] || []).includes(k);
 // 2.187.0 A (#2476): {area: level} of a person ruled by office groups in the workspace shown (null = not ruled by groups)
 function ofm_lv() {
   if (typeof OFC !== 'undefined' && OFC.info) { const r = OFC.info.rights; return r && r.levels && !r.legacy && r.manager !== 'admin' ? r.levels : null; }
-  return (LS.get('ofmLv', {}) || {})[ofm_ws()] || null;
+  return ofm_get('ofmLv')[ofm_ws()] || null;
 }
 // a menu point: an office area = its level is not "none" (Settings stays: "My rights" lives there); else as before (adm)
 // 2.436.0 (#3620): "View as member" in an organisation's office: no settings / contracts / bank; daily work stays
@@ -157,7 +163,7 @@ const mvOfc = () => mvOn() && (typeof OFC !== 'undefined' && OFC.info ? !OFC.inf
 const ofm_ok = i => { if (MV_OFM.includes(i.key) && mvOfc()) return false; if (i.admOnly && !ofm_adm()) return false; const lv = ofm_lv(), k = i.lvk || i.key; return lv && k in lv ? i.key === 'settings' || lv[k] !== 'none' : !i.adm || ofm_adm() || ofm_legOwn(k); };  // 2.276.0 A (#3039): lvk; 2.545.0 (#4592): + ofm_legOwn
 // 2.276.0 A (#3039): what the office already holds (GET /api/office/settings used: invoice, receipt, inquiry, meal, travel,
 // sub, fixed), per person and workspace like the role (LS ofmUsed); null = not known yet (everything as before)
-function ofm_used() { return typeof OFC !== 'undefined' && OFC.info ? OFC.info.used || null : (LS.get('ofmUsed', {}) || {})[ofm_ws()] || null; }
+function ofm_used() { return typeof OFC !== 'undefined' && OFC.info ? OFC.info.used || null : ofm_get('ofmUsed')[ofm_ws()] || null; }
 // 2.380 F (#3411): every point of Money shows at once; 2.448.0 (#3784): also before its first use, a point nobody needs is
 // switched off under Settings > Functions (need: money.*, office_packs.js OCF_FEATS) or hidden in the menu's editor
 // ---- 2.418.0 (#3560): each person arranges the menus of the areas (navmenu.js draws the editor): the order, the points
@@ -229,7 +235,7 @@ const ofr_rank = i => { const n = OFR_ORDER.indexOf(i.key); return n < 0 ? OFR_O
 const ofm_need = i => !i.need || typeof ofcFeat !== 'function' || ofcFeat(i.need);
 // 2.440.0 (#3609): points the office switched off for everybody (office setting menu_off, Settings > Functions > Menu points):
 // not in the menu, the tiles or the search, a link opens the start page (office.js ofcTab); per workspace like the role (LS ofmOff)
-const ofm_offList = () => (typeof OFC !== 'undefined' && OFC.info ? OFC.info.settings?.menu_off : (LS.get('ofmOff', {}) || {})[ofm_ws()]) || [];
+const ofm_offList = () => (typeof OFC !== 'undefined' && OFC.info ? OFC.info.settings?.menu_off : ofm_get('ofmOff')[ofm_ws()]) || [];
 const ofm_menuOff = k => ofm_offList().includes(k);
 // 2.418.0 (#3560): every point that may show (switched on, the country pack, the rights, not off in the organisation), in
 // the person's order; ofm_items = those in the menu, ofm_hidden = those under "Hidden" of the editor

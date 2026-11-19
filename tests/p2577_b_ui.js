@@ -78,7 +78,7 @@ const svc = async sp => ((await call('GET', '/api/office/services', null, CK, {'
   check(mo.http < 300, 'setup #6717: the office off in Private and Bravo ' + mo.http);
   w = await boot({hash: 'office', allWs: true, mobile: true}); d = w.document;
   check(await until(() => w.eval('OFC.info && OFC.info.org_id') === A && !w.eval('OFC.infoErr')), '#6717: under "All" the only office (Alpha) opens, no error ' + w.eval('OFC.infoErr || ""'));
-  check(!rows(d) && !/Select a workspace/i.test(d.querySelector('#view')?.textContent || ''), '#6717: no overview, no "Select a workspace" ' + (d.querySelector('#view')?.textContent || '').slice(0, 120));
+  check(!rows(d) && !/Select a workspace|Which workspace\?/i.test(d.querySelector('#view')?.textContent || ''), '#6717: no overview, no "Select a workspace" ' + (d.querySelector('#view')?.textContent || '').slice(0, 120));
   check(w.location.hash === '#office' && w.eval('S.settings.workspace') === 'all' && !d.querySelector('#view [data-ofcall="up"]'), '#6717: the address stays #office, the workspace "All", no "All workspaces /" ' + w.location.hash);
   w.eval("go('office/offers')");
   check(await until(() => w.location.hash === '#office/offers' && w.eval('OFC.info && OFC.info.org_id') === A && !w.eval('OFC.infoErr')), '#6717: another tab of it loads too ' + w.location.hash);

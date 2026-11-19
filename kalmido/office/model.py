@@ -12,8 +12,9 @@ import unicodedata
 from contextlib import contextmanager
 from datetime import date
 
-from flask import g, has_request_context, request
+from flask import g, has_request_context, jsonify, request
 
+from ..core.config import app  # 2.1437.0 (#7297): OfficeNoArea's answer
 from ..core.i18n import LANGS, N_, tr
 from ..core.pg import DatabaseError, insert_id, like_escape, qi, table_columns, system_ctx, write_lock
 from ..core.db import db, iso, local_now, now_utc, usettings
@@ -34,7 +35,21 @@ from ..accounts.supportgrant import sga_scope_check  # 2.538.0 (#4365)
 from .packs import PACK_FEATURES  # 2.369.5 (#2517): pulled up from functions
 
 OFFICE_FEAT = "office"
-OFFICE_NO_ORG = N_("Select a workspace at the top (Private or an organisation) to open its office")  # 2.47.3 (#1360)
+# 2.1437.0 (#7297): no "at the top" any more (it pointed nowhere in Settings > Company & office); the app
+# puts a button per workspace with an office right under it (office.js ofc_noAreaHtml, code office_no_area)
+OFFICE_NO_ORG = N_("Which workspace? The office always belongs to a workspace.")  # 2.47.3 (#1360)
+
+
+class OfficeNoArea(BadInput):
+    """2.1437.0 (#7297): no office area chosen (OFFICE_NO_ORG) -- a 400 with code office_no_area, so the app offers the areas."""
+
+    def __init__(self):
+        super().__init__(tr(OFFICE_NO_ORG))
+
+
+@app.errorhandler(OfficeNoArea)
+def _office_no_area(e):
+    return jsonify(error=str(e), code="office_no_area"), 400
 OFFICE_ADMIN_ONLY = N_("Only an admin of this workspace can do this")
 OFFICE_OFF = N_("Office & finance is switched off in your settings")
 UNITS = ("day", "hour", "piece", "minute", "flat", "percent")  # 2.47.0 (#1649): percent = a rate on the external fees (KSK)
@@ -277,7 +292,7 @@ def office_space(orgs, ws):
     m = re.fullmatch(r"org:(\d{1,9})", sp)
     if sp == "private" or (m and int(m.group(1)) in orgs):
         return sp
-    raise BadInput(tr(OFFICE_NO_ORG))
+    raise OfficeNoArea()
 
 
 def office_where(c, uid):
@@ -295,9 +310,9 @@ def office_where(c, uid):
         oid = orgs[0]
         role = org_role(c, uid, oid)
     else:
-        raise BadInput(tr(OFFICE_NO_ORG))
+        raise OfficeNoArea()
     if not oid or not role:
-        raise BadInput(tr(OFFICE_NO_ORG))
+        raise OfficeNoArea()
     return oid, role
 
 

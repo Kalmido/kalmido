@@ -9,6 +9,8 @@
 // - the main window: a state load that ends while the switch is still being saved keeps the new workspace (core.js OPT)
 // - PATCH /api/settings fails: the switch is taken back to the workspace before with a note, never a silent half state
 // - a workspace really gone (removed from Bravo): switched to "All workspaces" with a note, never silently
+// - Settings > Company & office under "All": "Which workspace? ..." (no "at the top") with a button per
+//   workspace with an office right under it; a click chooses it and its office settings show
 // - freelancer-matrix: office (a person without an organisation: her own office, the request names Private)
 const {execFileSync} = require('child_process');
 const path = require('path');
@@ -56,7 +58,7 @@ const isWsPatch = (u, o) => (o.method || 'GET') === 'PATCH' && /\/api\/settings\
   check(w.eval('wsCur()') === WA && await srvWs() === 'all', 'right half on Alpha, the server still "All" (no PATCH leaves the right half) ' + await srvWs());
   w.eval("go('office/offers')");
   check(await until(() => w.eval('OFC.info && OFC.info.org_id') === A && !w.eval('OFC.infoErr')), 'the office of Alpha opens, no error ' + (w.eval('OFC.infoErr') || ''));
-  check(!/Select a workspace/i.test(viewTxt(d)), 'no "Select a workspace" ' + viewTxt(d).slice(0, 160));
+  check(!/Select a workspace|Which workspace\?/i.test(viewTxt(d)), 'no "Which workspace?" with a workspace chosen ' + viewTxt(d).slice(0, 160));
   check(await until(() => /Alpha Angebot/.test(viewTxt(d))), 'the quotations load (Alpha Angebot) ' + viewTxt(d).slice(0, 160));
   check(w.eval('OFC.info.role') === 'admin' && w.eval('ofm_adm()') === true, 'the full menu: admin of Alpha');
   check(w.eval('ofm_ws()') === `${me.id}:${WA}`, 'the menu cache key is the office area ' + w.eval('ofm_ws()'));
@@ -72,6 +74,20 @@ const isWsPatch = (u, o) => (o.method || 'GET') === 'PATCH' && /\/api\/settings\
   check(await until(() => w.eval('OFC.info && OFC.info.org_id') === A), '"All > Alpha" opens Alpha\'s office');
   check(w.eval('ofm_ws()') === `${me.id}:${WA}`, '"All > Alpha" uses the cache of Alpha ' + w.eval('ofm_ws()'));
   w.close();
+
+  // ================= "Which workspace?" (no "at the top") with a button per workspace with an office
+  w = await boot({hash: 'tasks', allWs: true}); d = w.document;
+  w.eval("settingsModal('biz')");
+  const nb = () => [...d.querySelectorAll('#s-biz [data-ofc="noarea"]')].map(b => b.dataset.ws).sort().join();
+  check(await until(() => /Which workspace\?/.test(d.querySelector('#s-biz')?.textContent || '')), 'Settings > Company & office under "All" (two organisations): "Which workspace?" ' + (d.querySelector('#s-biz')?.textContent || '').slice(0, 160));
+  check(!/at the top/i.test(d.querySelector('#s-biz')?.textContent || ''), 'the text names no "at the top"');
+  check(await until(() => nb() === ['private', WA, WB].sort().join()), 'right under it a button per workspace with an office ' + nb());
+  d.querySelector(`#s-biz [data-ofc="noarea"][data-ws="${WA}"]`).click();
+  check(await until(() => w.eval('wsCur()') === WA && w.eval('OFC.info && OFC.info.org_id') === A && !!d.querySelector('#s-biz #ofc-set')), 'a click chooses Alpha and shows its office settings');
+  check(await until(async () => await srvWs() === WA), 'and saves the workspace');
+  check(!/Which workspace\?/.test(d.querySelector('#s-biz')?.textContent || ''), 'with a workspace chosen the question is gone');
+  w.close();
+  await call('PATCH', '/api/settings', {workspace: 'all'});
 
   // ================= main window: a state load overtakes the save of the switch
   w = await boot({hash: 'tasks', allWs: true}); d = w.document;
