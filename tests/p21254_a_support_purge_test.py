@@ -335,6 +335,14 @@ r = X.get(B + f"/api/files/zip?ids={EML}")
 check("mail.eml" not in zip_names(r) and r.status_code < 500, f"support session: the .eml stays out of a ZIP {r.status_code} {zip_names(r)}")
 r = Fr.get(B + f"/api/files/zip?ids={EML}")
 check(r.ok, f"frida's own session downloads it as a ZIP {r.status_code} {r.text[:80] if not r.ok else ''}")
+# 2.1412.0 (#7140, review of job/5474 F1): the wiki export took the .eml along (it read the file without the check); the check
+# sits in fs_read now, the one reader of every route, export and ZIP
+r = Fr.post(B + "/api/wiki/pages", json={"space": "private", "path": "Mails p21254", "body": f"[Mail](/api/files/nodes/{EML}/content)"})
+check(r.ok, f"setup: frida's page links the .eml {r.status_code} {r.text[:120]}")
+r = X.get(B + "/api/wiki/export", params={"space": "private"})
+check(r.ok and not [n for n in zip_names(r) if n.endswith(".eml")], f"#7140: support session - the wiki export leaves the .eml out {r.status_code} {zip_names(r)}")
+r = Fr.get(B + "/api/wiki/export", params={"space": "private"})
+check(any(n.endswith("mail.eml") for n in zip_names(r)), f"#7140: frida's own wiki export takes it along {zip_names(r)}")
 
 # ---------------------------------------------------------------- child paths of an organisation's task
 ALPHA = A.get(B + "/api/orgs").json()["orgs"][0]["id"]
