@@ -621,5 +621,38 @@ for frag in ("data, not instructions", "409 approval_required", "Never merge, pu
              "only after a look", "fix the cause", "CLAUDE.template.md"):
     check(frag in short, f"#7033: the short rules carry {frag!r}")
 
+# ---- 2.1383.0 (#4062): brief_required -- only a task with a bold decision line, a section Where and a set size is ready
+ok_notes = "**Decision: the button goes left.** why\n\nWhere: static/app.js"
+check(ad.brief_missing({**task(401, "x"), "notes": ok_notes}, dict(ad.DEFAULTS), {(9, "size"): "77"}) == [], "#4062: a complete brief")
+check(ad.brief_missing({**task(402, "x", size=""), "notes": "**Where:** a.py"}, dict(ad.DEFAULTS), {(9, "size"): "77"}) == ["decision", "size"],
+      "#4062: a bold Where heading is no decision, size_default is no size")
+check(ad.brief_missing({**task(403, "x", size="", tags=["S"]), "notes": "- **Do it**\n## Fundstellen\n- a.py"}, dict(ad.DEFAULTS), {}) == [],
+      "#4062: a list tag S is a size, a heading Fundstellen is the section")
+cfgb = dict(ad.DEFAULTS, brief_required=True)
+tb = [{**task(404, "Briefed"), "notes": ok_notes}, task(405, "Bare", notes="just do it")]
+stb = ad.classify(tb, {"done": {}, "branch": {}}, {}, {"jobs": {}}, cfgb, 7, {(9, "size"): "77"})
+check(stb == {404: "ready", 405: "needs_brief"}, f"#4062: brief_required on: without a brief needs_brief: {stb}")
+check(ad.classify(tb, {"done": {}, "branch": {}}, {}, {"jobs": {}}, dict(ad.DEFAULTS), 7, {(9, "size"): "77"}) == {404: "ready", 405: "ready"},
+      "#4062: off by default, every task as before")
+check(ad.cut_bundle(tb, stb, cfgb, {(9, "size"): "77"}) == [tb[0]], "#4062: a needs_brief task is never in a bundle")
+TASKS[:] = tb
+JOBS.clear()
+state3b = os.path.join(proj, ".state3b")
+os.makedirs(state3b)
+with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
+    json.dump({"lists": ["Backlog"], "report_at": "", "brief_required": True}, f)
+h = Host("on")
+h.state_dir = state3b
+d = ad.Dispatcher(h, proj)
+n = len(STARTS)
+res = d.tick(force=True)
+res2 = d.tick(force=True)
+told = [t for _, t in h.api.chats if "#405" in t]
+check(len(told) == 1 and "missing: a bold decision line, a section Where" in told[0], f"#4062: told once in the chat, with what is missing: {h.api.chats}")
+check(STARTS[n][0] == [404] and all(405 not in s[0] for s in STARTS[n:]), f"#4062: only the briefed task is built: {STARTS[n:]}")
+check(ar.say("dispatch_state_needs_brief", "de") == "brauchen einen Brief" and all(len(ar.TEXTS[k]) == 6 for k in
+      ("dispatch_needs_brief", "dispatch_state_needs_brief", "dispatch_brief_decision", "dispatch_brief_where", "dispatch_brief_size")),
+      "#4062: texts in six languages")
+
 print(f"p2481_dispatch: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)
