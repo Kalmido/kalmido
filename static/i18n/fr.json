@@ -19564,5 +19564,9 @@
   "No level selected yet - works as before, but writing where more people read and a message to a person outside its circle need an approval card.": "Aucun niveau choisi pour l’instant - fonctionne comme avant, mais écrire là où plus de personnes lisent et un message à une personne hors de son cercle demandent une carte d’approbation.",
   "I was interrupted and could not finish your request. Please send it again.": "J’ai été interrompu et je n’ai pas pu terminer ta demande. Merci de l’envoyer à nouveau.",
   "Archives downloaded before open only with the earlier key, never with the new one: keep the earlier key with them or create a new export afterwards.": "Les archives téléchargées avant ne s’ouvrent qu’avec l’ancienne clé, jamais avec la nouvelle : garde l’ancienne clé avec elles ou crée ensuite un nouvel export.",
-  "Width of the list": "Largeur de la liste"
+  "Width of the list": "Largeur de la liste",
+  "Select the workspace…": "Choisis l’espace de travail…",
+  "Select the workspace for the new client.": "Choisis l’espace de travail du nouveau client.",
+  "Clients are switched off for you in {0}. Select the workspace for the new client: {1}.": "Les clients sont désactivés pour toi dans {0}. Choisis l’espace de travail du nouveau client : {1}.",
+  "Clients are switched off for you in every workspace you may add clients to.": "Les clients sont désactivés pour toi dans tous les espaces de travail où tu peux ajouter des clients."
 }

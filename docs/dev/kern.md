@@ -1680,3 +1680,7 @@ Who uses it: nobody yet; the grips of today move onto it in their own tasks (#73
 #7290, #7302 - #7311). They stay on their own: the dashboard's blocks (`.lygrip`, snaps to the grid), the columns of a table
 (`.shvrsz`, the table's data with an undo step) and the columns of a list (`.lchead .lcg`, per list in the account).
 Test: `tests/p21437_a_grip_ui.js` (a test page with one grip of each form).
+- server twin (2.1441.0, #7298): `kalmido/accounts/modcards.py` -- `mod_ws_on(c, uid, oid, area, feat)` answers the same
+  question for one workspace (`oid` None = Private). For whatever lands somewhere without the person naming the workspace:
+  a new client (`team/clients.py cl_ws_default`) never goes silently where its list hides it. The browser names the
+  workspace under "All" itself (`clientdlg.js cl_newWs`). Test: `tests/p21441_clientws_test.py`.

@@ -12,6 +12,18 @@ function cl_iconPickHtml(cur) {
   const old = cur && !cur.startsWith('ic:') ? `<button type="button" class="avopt on" data-clico="${esc(cur)}" aria-pressed="true" aria-label="${esc(cur)}"><span class="semo" aria-hidden="true">${esc(cur)}</span></button>` : '';
   return `<input type="hidden" id="cl-icon" value="${esc(cur)}"><div class="lipick clico" role="group" aria-labelledby="cl-icon-l"><button type="button" class="avopt none ${cur ? '' : 'on'}" data-clico="" aria-pressed="${!cur}" title="${esc(tr('No icon'))}" aria-label="${esc(tr('No icon'))}">${ic('ban', 's')}</button>${old}${CL_ICONS.map(k => `<button type="button" class="avopt ${cur === 'ic:' + k ? 'on' : ''}" data-clico="ic:${k}" aria-pressed="${cur === 'ic:' + k}" aria-label="${k}">${ic(k)}</button>`).join('')}</div>`;
 }
+// (#7298): the workspace of a new client under "All workspaces" (else the workspace on top decides, server
+// ws_chosen_org): the area the office shows (ofc_sp), else the only workspace where Clients is on for me and I may add
+// (areas.js mod_spaces, the rule of the list under "All"); several -> {choose} = a required field in the dialog. Never
+// silently a workspace whose list hides the client (the server refuses that too, team/clients.py cl_ws_default)
+function cl_newWs() {
+  if (typeof wsOn !== 'function' || !wsOn() || wsCur() !== 'all') return {};
+  const sps = mod_spaces('office', 'clients').filter(canWrite);
+  const open = S.route?.mod === 'office' && typeof ofc_sp === 'function' ? ofc_sp() : '';
+  const ws = open && sps.includes(open) ? open : sps.length === 1 ? sps[0] : '';
+  return ws ? {ws} : sps.length > 1 ? {choose: sps} : {};
+}
+const cl_wsOrg = ws => ws === 'private' ? null : +ws.slice(4);
 // #7292: "Belongs to (main client)": a client of the same workspace that is no location itself (one level); a main client with
 // locations of its own shows how many instead (it cannot become a location). o.parent_id: "Add location" on the main client's card
 function cl_parentHtml(c, o) {
@@ -34,6 +46,8 @@ function clientModal(c, o = {}) {  // 2.80.0 (#1842): o.org_id (the office's are
     <div class="shint lhint" id="cl-nx-h">${tr('Printed as its own line under the name, e.g. the legal form or the partners.')}</div>`;
   const em = `<div class="row"><label for="cl-email">${tr('E-mail')}</label><input id="cl-email" type="email" maxlength="200" value="${esc(c?.email || '')}" autocomplete="email"></div>`;
   const short = !c && !o.quick, bb = c?.billing || {};
+  const nws = !c && !('org_id' in o) ? cl_newWs() : {};  // (#7298)
+  const wsp = nws.choose ? `<div class="row"><label for="cl-ws">${tr('Workspace')}</label><select id="cl-ws" required aria-required="true"><option value="">${esc(tr('Select the workspace…'))}</option>${nws.choose.map(w => `<option value="${esc(w)}">${esc(wsName(w))}</option>`).join('')}</select></div>` : '';
   // 2.433.0 (#3599): the e-mail for invoices sits next to E-mail / Phone (also when adding), no longer in the billing details
   const emi = cdn_invMailOk(bb, c) ? cdn_fieldHtml(bb)(OFX_CL_FIELDS.find(([k]) => k === 'email_invoice')) : '';
   const city = short ? cdn_fieldHtml(bb)(OFX_CL_FIELDS.find(([k]) => k === 'city')) : '';
@@ -56,7 +70,7 @@ function clientModal(c, o = {}) {  // 2.80.0 (#1842): o.org_id (the office's are
     ${c ? `<div class="row"><label>${tr('Archive')}</label><label class="chkl"><input type="checkbox" id="cl-arch" ${c.archived ? 'checked' : ''}> ${tr('Archived (hidden from the sidebar)')}</label></div>` : ''}`;
   /** @type {any} */
   const md = modal(`<h3>${c ? tr('Edit client') : tr('New client')}</h3>
-    ${nm}
+    ${nm}${/*html-ok*/ wsp /* (#7298): built above, the names through esc() */}
     ${o.quick ? `${nx}${addr}` : short ? `${em}${emi}${city}<details class="clmore" id="cl-more" ${o.parent_id ? 'open' : ''}><summary>${ic('chev', 's fcar')}<span>${tr('More details')}</span></summary>${nx}${dn}${sc}${rest}</details>` : `${nx}${dn}${sc}${rest}`}
     <div class="aerr" role="alert"></div>
     <div class="foot ${short ? 'clfoot' : ''}">${c?.can_delete ? `<button class="btn danger" data-m="del">${tr('Delete')}</button>` : ''}<span class="spacer"></span><button class="btn" data-m="close">${tr('Cancel')}</button><button class="btn pri" data-m="save">${c ? tr('Save') : tr('Add')}</button></div>`);
@@ -106,6 +120,8 @@ function clientModal(c, o = {}) {  // 2.80.0 (#1842): o.org_id (the office's are
         phone: v('#cl-phone'), display_name: v('#cl-dname'), note: v('#cl-note')};  // 2.99.0 D (#2188): + name_extra
       if ($('#cl-sc', md)) body.short_code = v('#cl-sc').trim().toUpperCase();  // 2.433.0 (#3604)
       if (!c && 'org_id' in o) body.org_id = o.org_id;
+      else if (!c && nws.ws) body.org_id = cl_wsOrg(nws.ws);  // (#7298): the client always names it under "All"
+      else if (!c && nws.choose) { const w = v('#cl-ws'); if (!w) { $('.aerr', md).textContent = tr('Select the workspace for the new client.'); $('#cl-ws', md)?.focus(); return; } body.org_id = cl_wsOrg(w); }
       if ($('#cl-parent', md)) body.parent_id = +v('#cl-parent') || null;  // #7292
       if (!o.quick && md._clkRm?.length) body.contacts_removed = md._clkRm.slice();  // only these are deleted (missing ones stay)
       if ($('#cl-rate', md)) Object.assign(body, {rate: num($('#cl-rate', md).value), budget_h: num($('#cl-bh', md).value), budget_amount: num($('#cl-ba', md).value)});
@@ -124,7 +140,7 @@ function clientModal(c, o = {}) {  // 2.80.0 (#1842): o.org_id (the office's are
         gone = true;
       }
       md.remove(); await load(); render(); clReload();
-      if (gone || !(c && r !== c && typeof objSaved === 'function' && objSaved(`/api/clients/${c.id}`, r.name, async () => { await load(); render(); clReload(); }))) toast(gone ? tr('The linked contact no longer exists; link removed.') : c ? tr('Saved') : tr('Added: {0}', r.name));  // 2.111.0 A (#2233); 2.747.0 (#5246): objsave.js objSaved
+      if (gone || !(c && r !== c && typeof objSaved === 'function' && objSaved(`/api/clients/${c.id}`, r.name, async () => { await load(); render(); clReload(); }))) toast(gone ? tr('The linked contact no longer exists; link removed.') : c ? tr('Saved') : tr('Added: {0}', r.name) + (wsOn() && wsCur() === 'all' ? ' · ' + wsName(wso_ws(r.org_id || 0)) : ''));  // (#2233); (#5246): objsave.js objSaved; (#7298): under "All" the toast names the workspace
       if (!c && !o.stay) go('client/' + r.id);
       if (o.done) await o.done(r);
     } catch (x) {

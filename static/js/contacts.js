@@ -688,7 +688,7 @@ function ct_mate(c) {
 }
 async function ctEditor(c, cf, draft, mate) {  // draft: (#4764) the input of a new contact whose save failed; mate: #7296 (ct_mate)
   if (c && !cf) await loadModule('objsave').catch(() => { /* offline without the copy: saved as before */ });
-  const books = (S.books || []).filter(b => ctWrite(b) && (wsObjIn(b) || (c && b.id === c.book_id)));  // 2.30.0 (#1036): of the shown workspace (+ the contact's own)
+  const books = (S.books || []).filter(b => ctWrite(b) && (ctBookOn(b) || (c && b.id === c.book_id)));  // (#1036): of the shown workspace (+ the contact's own); (#7298): under "All" not a book whose workspace has Contacts off (its list hides the new contact)
   const fold = !!c && !ctWrite(ctBook(c.book_id));  // 2.351.0 B (#2749): changed through its folder: stays in its address book
   if (!c && !ctCanNew()) { toast(tr('You can only read this address book')); return; }  // 2.1238.0 (#6161, Stufe 1): no book for a reader
   if (!books.length && !fold) { const bk = await ct_ownBook(); if (!bk) return; books.push(bk); }  // 2.1174.0 (#6122): asks first, no quiet book
