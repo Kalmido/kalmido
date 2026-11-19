@@ -1,6 +1,5 @@
 """Saved filters, folders and sections (kanban columns)."""
 import json
-import math
 from flask import g, jsonify
 
 from ..core.config import app
@@ -11,7 +10,7 @@ from ..accounts.session import me
 from ..core.access import Denied, is_project, need_list
 from ..lists.lists import clean_folder, FOLDER_DEPTH, FOLDER_SEP, folder_under
 from ..lists.groups import grp_list_ids, grp_sync, grp_touch
-from ..core.errors import BadInput  # 2.149.0 G (#2517): pulled up from functions
+from ..core.errors import BadInput, sort_value  # 2.149.0 G (#2517): pulled up from functions
 from ..lists.lists import lp_folder_rename  # 2.369.5 (#2517): pulled up from functions
 from ..lists.seckind import sk_clean  # 2.577.0 (#3354)
 from ..tasks.validation import as_int
@@ -105,8 +104,8 @@ def filter_update(fid):
         if f["shared"] and not isinstance(b["rules"] or {}, dict):
             raise BadInput(tr("Invalid value: {0}", "rules"))
         c.execute("UPDATE filters SET rules=? WHERE id=?", (json.dumps(view_rules(b["rules"]) if f["shared"] else b["rules"] or {}), fid))
-    if "sort" in b:
-        c.execute("UPDATE filters SET sort=? WHERE id=?", (b["sort"], fid))
+    if "sort" in b:  # #6430: finite and bounded (core/errors.sort_value); NaN / inf broke /api/state for everyone
+        c.execute("UPDATE filters SET sort=? WHERE id=?", (sort_value(b["sort"]), fid))
     bump(c)
     c.commit()
     return jsonify(ok=True)
@@ -265,13 +264,7 @@ def _sec_tasks(c, sid):
 
 
 def _sec_sort(v):
-    try:
-        v = float(v)
-    except (TypeError, ValueError):
-        raise BadInput(tr("Invalid value: {0}", "sort")) from None
-    if not math.isfinite(v):
-        raise BadInput(tr("Invalid value: {0}", "sort"))
-    return v
+    return sort_value(v)  # #6430: the one sort check (also bounded now)
 
 
 def wip_hard_clean(v):

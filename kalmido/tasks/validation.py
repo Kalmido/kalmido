@@ -1,7 +1,6 @@
 """Task activity log, input validation, repeat rules (RRULE) and task tree helpers."""
 import functools
 import json
-import math
 import re
 from datetime import date, datetime
 from dateutil.rrule import rrulestr
@@ -14,7 +13,7 @@ from ..core.pg import qi  # 2.1375.0 (#6677)
 from ..core.objtags import otg_unames  # 2.955.0 (#5276)
 from ..core.pages import valid_link
 from ..api.common import act_by_hand, act_via  # 2.149.0 G (#2517): pulled up from functions; 2.1389.0 (#6728)
-from ..core.errors import BadInput  # 2.149.0 G (#2517): pulled up from functions
+from ..core.errors import BadInput, SORT_MAX, sort_value  # 2.149.0 G (#2517): pulled up from functions
 from ..core.conflict import agent_account  # 2.564.0 (#4702)
 
 
@@ -561,14 +560,8 @@ def clean_task(b):
                 v = "" if v in (None, "") else v
                 if v and v not in TICKET_TYPES and not (isinstance(v, str) and TT_KEY_RE.match(v)):  # 2.609.0 (#3372): + own types
                     raise BadInput(tr("Invalid value: {0}", tr("Type")))
-            if k == "sort":
-                if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
-                    try:
-                        v = float(v)
-                    except (TypeError, ValueError):
-                        raise BadInput(tr("Invalid value: {0}", "sort")) from None
-                    if not math.isfinite(v):
-                        raise BadInput(tr("Invalid value: {0}", "sort"))
+            if k == "sort":  # #6430: the one sort check (finite, bounded); an int stays an int
+                v = v if isinstance(v, int) and not isinstance(v, bool) and abs(v) <= SORT_MAX else sort_value(v)
             out[k] = v
     if out.get("due") is None and "due" in out:
         out["due_time"] = None

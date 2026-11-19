@@ -52,7 +52,7 @@ from ..core.db import body, bump, connect, db, err, iso, iso_ms, now_utc, parse_
 from ..core.pg import insert_id, system_ctx, ts_canon  # 2.1095.0 (#5306): ts_canon
 from ..core.moneycol import MC_COLS, MC_FITS  # 2.765.0 (#5315): the money columns NUMERIC(14,2) and their rule
 from ..core.coltype import CT_JSON  # 2.1111.0 (#5953): the JSON columns that were TEXT (JSONB now)
-from ..core.errors import BadInput  # 2.273.0 A (#3030)
+from ..core.errors import BadInput, sort_value  # 2.273.0 A (#3030); #6430: sort_value
 from ..core.zipread import ZipOver, json_guard, zip_guard  # 2.1282.0 (#6426): the checks before zipfile and json.loads
 from ..accounts.settings import clean_look_pref, clean_setting  # 2.273.0 A (#3030); 2.363.4 (#3127): clean_setting
 from ..tasks.snippets import snip_clean  # 2.273.0 A (#3030)
@@ -1320,8 +1320,8 @@ def umz_list_tags(c, run, data, inbox, uid):
             continue
         have = otg_find(c, "list", lid, name)
         try:
-            srt = float(r.get("sort") or 0)
-        except (TypeError, ValueError):
+            srt = sort_value(r.get("sort") or 0)  # #6430: no NaN / inf from an import file
+        except BadInput:
             srt = None
         nid = have["id"] if have else otg_add(c, "list", lid, name, clean_color(r.get("color") or ""), by=uid, sort=srt)
         run.put("list_tags", r.get("id"), nid)

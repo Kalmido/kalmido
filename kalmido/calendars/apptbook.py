@@ -32,7 +32,7 @@ from ..core.pg import insert_id, like_escape, system_ctx, write_lock
 from ..core.access import acx_token_bind, Denied, need_feat, feat_has
 from ..accounts.session import _rate_blocked, _rate_fail, _token_hash, rate_ip
 from ..accounts.bgjobs import bgj_add, bgj_fn
-from ..core.errors import BadInput
+from ..core.errors import BadInput, sort_value
 from ..core.conflict import ccf_check  # 2.564.0 D (#4701)
 from .subscriptions import CAL_ON, cal_stale  # (#6551)
 from ..core.mailframe import mail_html
@@ -318,7 +318,7 @@ def apb_type_fields(b, create=False):
     if "sort" in b:
         if not isinstance(b["sort"], (int, float)) or isinstance(b["sort"], bool):
             raise BadInput(tr("Invalid value: {0}", "sort"))
-        f["sort"] = float(b["sort"])
+        f["sort"] = sort_value(b["sort"])  # #6430: finite and bounded (core/errors.sort_value); NaN / inf broke /api/state for everyone
     return f
 
 

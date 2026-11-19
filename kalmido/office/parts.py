@@ -8,7 +8,6 @@ optional, included stays included) and its purchase x qty. A part nobody refers 
 parts is computed by office_calc exactly as before (doc_totals only calls tp_doc_totals for documents with parts).
 Purchase / surplus (costs, margin) only for the organisation's admins (callers strip them for members)."""
 import json
-import math
 from decimal import Decimal
 
 from flask import jsonify
@@ -19,7 +18,7 @@ from ..core.access import Denied, live_sql  # 2.1005.0 (#5415): live_sql
 from ..core.i18n import N_, tr
 from ..core.pg import insert_id, write_lock
 from ..core.orgcrypt import oc_dec_fields, oc_enc_fields, oc_item_store, oc_json_load, oc_json_store
-from ..core.errors import BadInput
+from ..core.errors import BadInput, sort_value
 from .calc import RAW_MODES, TAX_KEYS, calc_cur, calc_discount_split, calc_home_rate, calc_line_amount, inv_sur_fields, calc_subtotals, calc_items_sub, calc_disc_detail, calc_tax_day, calc_lang, dec, fmt_money, fmt_qty, fmt_rate, label, money, office_calc, opt_label_under, pack_tax, _num
 from .homecur import hc_home  # 2.189.0 (#2475)
 from .doclang import doc_txt
@@ -949,12 +948,7 @@ def tp_part_patch(did, pid):
     if "print" in b:
         f["print"] = 0 if b.get("print") in (0, False, "0", "false") else 1
     if "sort" in b:
-        try:
-            f["sort"] = float(b.get("sort"))
-        except (TypeError, ValueError):
-            raise BadInput(tr("Invalid value: {0}", "sort"))
-        if not math.isfinite(f["sort"]):  # 2.47.0 (#1215): no nan / inf, the order of the parts must stay defined
-            raise BadInput(tr("Invalid value: {0}", "sort"))
+        f["sort"] = sort_value(b.get("sort"))  # 2.47.0 (#1215): no nan / inf; #6430: the one sort check
     if "settings" in b:
         f["settings"] = json.dumps(tp_settings_clean(b.get("settings"), p["settings"], dict(r).get("producing_mode") == "amount"), ensure_ascii=False)
     if "sheet" in b:
