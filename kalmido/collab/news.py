@@ -50,6 +50,7 @@ NEWS_KINDS = ("mention", "comment", "assign", "unassign", "take", "complete", "s
               "lytpl")  # 2.55.0 (#1068): someone sent me an arrangement as a template (row "share", accounts/layoutsets.py)
 NEWS_KINDS += ("review",)  # 2.60.0 C (#1512): a review asked of me / my task sent back (row "review", tasks/review.py)
 NEWS_KINDS += ("upscan",)  # 2.61.0 (#1818): the virus scanner found malware in a file I uploaded earlier (files/scan.py, no push)
+NEWS_KINDS += ("attskip",)  # #6531: a file of a mail / a form to my storage was left out (full, virus; core/pages.py att_skip_note, row "limits")
 NEWS_KINDS += ("e2e_key",)  # 2.64.1 (#1817): someone handed me the key of a list encrypted in the browser (row "share", collab/liste2e.py)
 NEWS_KINDS += ("filereq",)  # 2.122.0 A (#2097): a client uploaded files through my file request (row "filereq", files/filereq.py)
 NEWS_KINDS += ("leavereq", "leavedecide")  # 2.125.0 A (#2117): a vacation request for the admins / their decision (row "leave", hub/leave.py)
@@ -112,7 +113,7 @@ NEWS_FOR_ME_ANY = ("evinvite", "tbl_urgent", "proposal", "playbook_proposal", "j
 
 def news_to_me(kind, actor_id, data, agents, s=None):
     # 2.61.0 (#1818): my own file was locked (no actor); 2.122.0 A (#2097): files for me; 2.138.0 C (#1972): recovery key
-    if kind in ("upscan", "filereq", "orgkey", "ptlimit", "apblimit", "fetcherr", "evchange", "apbooking", "calsub", "integfail", "docoverdue", "orglogin", "budgetwarn", "docflow", "offerexp", "oxdone"):  # oxdone (#6581): my own export; ptlimit (#2380): the portal's sign-in mails used up
+    if kind in ("upscan", "attskip", "filereq", "orgkey", "ptlimit", "apblimit", "fetcherr", "evchange", "apbooking", "calsub", "integfail", "docoverdue", "orglogin", "budgetwarn", "docflow", "offerexp", "oxdone"):  # oxdone (#6581): my own export; ptlimit (#2380): the portal's sign-in mails used up
         return True
     if kind in NEWS_DUE_KINDS:  # 2.1037.0 (#5801): a follow-up day / an agent's proposal waits on me (were "For you" in the app only)
         return True
@@ -327,6 +328,7 @@ KIND_ROW["tsheet"] = "timesheet"  # 2.125.0 B (#2119)
 KIND_ROW["signoff"] = "signoff"  # 2.266.0 (#2965)
 KIND_ROW["fetcherr"] = "fetcher"  # 2.425.0 C (#3453)
 KIND_ROW["ptlimit"] = KIND_ROW["apblimit"] = "limits"  # 2.453.0 (#3781): one row for both
+KIND_ROW["attskip"] = "limits"  # #6531: a file left out of a mail / a form (the storage is full ...), News only
 KIND_ROW["integfail"] = "integration"  # 2.367.3 (#2971)
 KIND_ROW["job_watch"] = "approval"  # 2.392.2 (#3366): the watchdog's finding about an agent's job ("An agent waits for me")
 KIND_ROW["agentask"] = "approval"  # 2.1039.0 (#5805): "an agent waits for me" (News on by default)
