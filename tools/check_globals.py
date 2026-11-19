@@ -28,6 +28,11 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import eslint_globals as EG  # noqa: E402  (scanner: tokens(), names(), FILES)
+import lintmsg  # noqa: E402 -- tools/ is not a package; the line above puts it on the path
+
+WHY = ("every file that writes a key of the shared state S makes the client harder to change: who set a value can no longer "
+       "be told from one place")
+INSTEAD = "write the key through a setter of the file that makes it (core.js for the keys of its `const S = {...}`)"
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OWNER = "static/js/core.js"
@@ -208,4 +213,5 @@ LINT_INSTEAD = ("write it through a setter (a function) of the file that makes t
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    with lintmsg.red_hint("check_globals", WHY, INSTEAD):
+        sys.exit(main(sys.argv[1:]))

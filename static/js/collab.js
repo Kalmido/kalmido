@@ -338,6 +338,9 @@ function newsText(it, U) {
     case 'proposal': return d.title || d.assistant ? tr('{0} has a proposal for you: {1}', d.assistant ? q(tr('Assistant')) : who, q(d.title || ''))  // (#1411): the built-in assistant has no person
       : tr('{0} has a proposal for you', who);  // #7159: a team agent's words reach only who reads all it reads
     case 'upscan': return tr('The virus scanner found {0} in your file {1}. The file is locked.', esc(d.sig || '?'), q(d.name || ''));  // 2.61.0 (#1818)
+    case 'attskip': return trn('{0} file was not filed ({1}): {2}', '{0} files were not filed ({1}): {2}', d.n || 1,
+      esc(({quota: tr('the storage is full'), virus: tr('the virus scanner refused it'), lock: tr('the list is encrypted in the browser'), large: tr('the file is too large')})[d.why] || tr('it was refused')),
+      q(d.name || ''));  // #6531: collab/attskip.py, the mail stays in the mailbox
     case 'filereq': { const d = it.data || {}; return trn('{0} file arrived through {1}', '{0} files arrived through {1}', d.n || 1, q(d.title || '')) + (d.name ? ' · ' + q(d.name) : ''); }  // 2.122.0 A (#2097)
     case 'oxdone': return esc(d.text || '');  // #6581: written in the person's language by the server (admin/orgexport.py ox_tell)
     case 'integfail': return esc(d.text || '') + (d.what === 'mailbox' || d.what === 'git' || d.what === 'hookin' ? ' ' + esc(tr('Check the connection in the settings, or remove it.')) : '');  // 2.1111.0 (#5963): the way to the solution  // 2.367.3 (#2971): written in the person's language by the server (collab/integfail.py)

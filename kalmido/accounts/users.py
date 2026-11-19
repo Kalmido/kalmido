@@ -44,6 +44,11 @@ def _invite_state(c, uid):
     return invite_state(c, uid)
 
 
+def _invite_unsent(c, uid):
+    from ..accounts.invite import invite_unsent
+    return invite_unsent(c, uid)
+
+
 def user_forget_conns(c, uid):
     """A user is deleted / becomes an agent: their own connection rows, stored tokens and grants go (list bells too).
     2.36.0 (#1116): the Paperless connection is gone from the app; its tables stay (the way back), but a deleted person's
@@ -86,6 +91,7 @@ def _user_admin_full(c, u, kid_parents):
             "twofa": twofa_methods(c, u), "oidc_linked": bool(u["oidc_subject"]),
             "parents": kid_parents(c, u["id"]) if u["kid"] else [],  # 2.19.0 (#653)
             "invite": _invite_state(c, u["id"]),  # 2.22.0 (#697): invited | expired | null
+            "invite_unsent": _invite_unsent(c, u["id"]),  # (#6385): the open link did not go out by e-mail
             "signup": u["signup"] or "",  # 2.23.0 (#711): confirm (e-mail not confirmed) | pending (waits for approval) | ''
             "kid": bool(u["kid"]),
             **_admin_struct(c, u),  # 2.22.0 (#752) orgs, 2.28.0 (#935) org_id of an agent, number of lists

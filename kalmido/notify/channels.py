@@ -40,7 +40,7 @@ from ..accounts.orgs import org_role  # 2.240.0 B2 (#2867): pulled up from funct
 from ..core.access import Denied, live_sql, org_trip_sql, ov_open, reading_sql, task_visible, list_archived_sql
 from ..core.errors import BadInput
 from ..core.mailframe import MAIL_ACC, MAIL_MUTED, Safe, mail_html
-from ..notify.alerts import _env_int, aa_count, aa_err, aa_fail, aa_ok
+from ..notify.alerts import _env_int, aa_count
 from ..core.env import env_bool
 from ..calendars.subscriptions import CAL_ERR, CAL_SEND_S, cal_host_allowed, cal_until  # 2.369.5 (#2517): pulled up from functions; 2.539.0 (#4379): CAL_SEND_S, cal_until
 from ..collab.integfail import integ_org_admins, integ_tell  # 2.369.5 (#2517): pulled up from functions
@@ -979,10 +979,8 @@ def evm_user(c, uid, s, lg, now):
         if rto:  # its Message-ID: an answer to this mail becomes a comment of the task
             MAIL_TASK_HOOK["keep"](c, one, sent["Message-ID"], "", "out")  # 2.393.2 F (review 3, 4): no address, the token names the account
             c.commit()
-        aa_ok("smtp")
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001  (#6385): mail_deliver counted it for the admin alert
         print("mail: event mail for user", uid, "failed:", type(e).__name__, flush=True)  # 2.240.0 A (#2883): no addresses
-        aa_fail("smtp", aa_err(e))
 
 
 def evm_content(lines, total, lg):

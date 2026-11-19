@@ -202,4 +202,35 @@ def stubfile(name):
 
 check(until(lambda: "1" in stubfile("deleted") and stubfile("expunged"), 20), f"freelancer: the mail is deleted from the mailbox {stubfile('deleted')}")
 
+# ---- #6531: storage full -> the file is never dropped silently: the mail stays in the mailbox, the task says which file and
+# why, the owner gets a News item "attskip" (before: the task came without the file, the mail was deleted, a log line only)
+check(A.patch(B + f"/api/users/{FID}", json={"storage_quota_mb": 1}).ok, "#6531 setup: the freelancer has 1 MB of storage")
+T1 = dbx("SELECT id FROM tasks WHERE tt_id=?", ("mail:<p2240a-1@example.test>",))[0][0]
+r = Fr.post(B + f"/api/tasks/{T1}/attachments", files={"file": ("filler.bin", os.urandom(900 * 1024), "application/octet-stream")})
+check(r.ok, f"#6531 setup: 900 kB of her 1 MB used {r.status_code} {r.text[:200]}")
+m = email.message.EmailMessage()
+m["From"], m["To"], m["Subject"], m["Message-ID"] = "sender@example.com", addr, "Receipt with scan", "<p2240a-2@example.test>"
+m.set_content("the receipt is attached")
+m.add_attachment(os.urandom(300 * 1024), maintype="application", subtype="octet-stream", filename="receipt-scan.bin")
+m.add_attachment(os.urandom(1100 * 1024), maintype="application", subtype="octet-stream", filename="huge-scan.bin")
+with open(os.path.join(DATA, "mail", "in", "2.eml"), "wb") as f:
+    f.write(bytes(m))
+A.post(B + "/api/admin/mail/poll")
+row = until(lambda: dbx("SELECT id, content FROM tasks WHERE tt_id=?", ("mail:<p2240a-2@example.test>",)), 40)
+tid = row[0][0] if row else 0
+note = (row[0][1] or "") if row else ""
+check("receipt-scan.bin" in note and "storage is full" in note, f"#6531: the task names the file left out and why {note[-300:]!r}")
+check("huge-scan.bin" in note and "too large" in note, f"#6531: a file over the size limit is named as well (TASKS_MAX_FILE_MB=1 here) {note[-300:]!r}")
+check(not dbx("SELECT 1 FROM attachments WHERE task_id=?", (tid,)), "#6531: the file is not stored (the storage is full)")
+check(until(lambda: "2" in stubfile("seen"), 20) and "2" not in stubfile("deleted"),
+      f"#6531: the mail stays in the mailbox (seen, not deleted) {stubfile('seen')} {stubfile('deleted')}")
+nw = dbx("SELECT data FROM notifications WHERE user_id=? AND kind='attskip' AND task_id=?", (FID, tid))
+nd = json.loads(nw[0][0]) if nw else {}
+check("receipt-scan.bin" in nd.get("name", "") and nd.get("why") == "quota" and nd.get("n") == 2 and nd.get("untrusted") is True
+      and nd.get("origin") == "mail", f"#6531: the owner gets a News item with the files and the reason, marked as from outside {nd}")
+it = Fr.get(B + "/api/news").json()
+items = it.get("items", it) if isinstance(it, dict) else it
+check(any(x.get("kind") == "attskip" and x.get("task_id") == tid for x in items or []), "#6531: the News item is in her feed")
+A.patch(B + f"/api/users/{FID}", json={"storage_quota_mb": None})
+
 sys.exit(done("p2240_a_mail"))

@@ -18,10 +18,12 @@
    where it is (no jump, #5224). Classic script sharing the global scope with the others.
    2.1175.0 (#6165): the steps written over a personal API key (scripts, via 'token', the key's name as the device) are hidden
    unless the switch "Show steps over API keys" is on (user setting undo_show_api, every device); "Undo up to here" then takes
-   back only the shown rows (hide_api: the server leaves the hidden groups and stops before an object one of them changed). */
+   back only the shown rows (hide_api: the server leaves the hidden groups and stops before an object one of them changed).
+   (#6344): the arrow / Ctrl+Z found no step of this window and none of elsewhere of the last 2 minutes: the list opens
+   with the newest step of elsewhere marked (undo.js histListOpen, HIST.mark), a line says why, its button has the focus. */
 'use strict';
 
-const UL = {items: null, err: '', undo: undefined, busy: false, note: '', t: 0, n: 0, html: new WeakMap(), at: 0, hidden: 0};
+const UL = {items: null, err: '', undo: undefined, busy: false, note: '', t: 0, n: 0, html: new WeakMap(), at: 0, hidden: 0, marked: 0};
 const UL_MAX = 100;
 const ul_showApi = () => S.settings?.undo_show_api === '1';  // 2.1175.0 (#6165)
 const ul_api = r => r.kind === 's' && r.g?.via === 'token';
@@ -74,7 +76,8 @@ function ul_rowHtml(r) {
   const busy = ul_busy(), wait = busy ? ` disabled aria-disabled="true" title="${esc(tr('A step is still running'))}"` : '';
   const btn = r.redo ? `<button type="button" class="btn sm" data-ul-redo="${r.g.id}"${/*html-ok*/ wait}>${esc(tr('Redo'))}</button>`
     : r.kind === 'q' ? '' : `<button type="button" class="btn sm" data-ul-go="${esc(r.key)}"${/*html-ok*/ busy ? wait : r.off ? ' disabled aria-disabled="true"' : ''}>${esc(tr('Back up to here'))}</button>`;
-  return `<li class="ulrow ul-${r.kind}${r.off ? ' uloff' : ''}${r.redo ? ' ulundone' : ''}" data-ul="${esc(r.key)}"><div class="ulmain"><span class="ullab">${esc(r.label || '')}</span>`
+  const mk = r.kind === 's' && HIST.mark && r.g.id === HIST.mark;  // (#6344)
+  return `<li class="ulrow ul-${r.kind}${r.off ? ' uloff' : ''}${r.redo ? ' ulundone' : ''}${mk ? ' ulmark' : ''}" data-ul="${esc(r.key)}"${mk ? ' aria-current="true"' : ''}><div class="ulmain"><span class="ullab">${esc(r.label || '')}</span>`
     + `${meta ? `<small class="ulmeta">${esc(meta)}</small>` : ''}${tags ? `<small class="ultag">${esc(tags)}</small>` : ''}</div>${btn}</li>`;
 }
 const ul_busy = () => UL.busy || HIST.busy;  // 2.1257.0 (#6283)
@@ -82,7 +85,8 @@ function ul_inner() {
   const rows = ul_rows();
   // 2.1257.0 (#6283): while a step runs that is said (the note of an earlier run waits until it is done)
   const note = ul_busy() ? `<p class="ulnote ulbusy" role="status">${esc(tr('A step is still running'))}</p>`
-    : UL.note ? `<p class="ulnote" role="status">${esc(UL.note)}</p>` : '';
+    : UL.note ? `<p class="ulnote" role="status">${esc(UL.note)}</p>`
+    : HIST.mark ? `<p class="ulnote ulmarknote" role="status">${esc(tr('Here, Undo only covers the steps of this window and of the last {0} minutes. Your newest step from elsewhere is marked.', 2))}</p>` : '';  // (#6344)
   const err = UL.err ? `<p class="muted ulerr">${esc(UL.err)}</p>` : UL.items === null && S.me?.kind !== 'agent' ? `<p class="muted lempty">${esc(tr('Loading…'))}</p>` : '';
   const hid = UL.hidden ? `<p class="muted ulhid">${esc(trn('{0} step over an API key hidden', '{0} steps over API keys hidden', UL.hidden))}</p>` : '';  // 2.1175.0 (#6165)
   if (!rows.length) return note + err + (UL.items !== null || UL.err ? `<p class="muted ulempty">${esc(tr('Nothing to undo'))}</p>` : '') + hid;
@@ -104,7 +108,14 @@ function ul_paint(h, html) {
   if (key) { const li = find('.ulrow', ['data-ul'], key); if (li) sc.scrollTop += li.getBoundingClientRect().top - top - off; }
   if (fk) find('[data-ul-go], [data-ul-redo]', ['data-ul-go', 'data-ul-redo'], fk)?.focus({preventScroll: true});
 }
-function ul_draw() { const html = ul_inner(); for (const h of ul_hosts()) ul_paint(h, html); }
+function ul_draw() {
+  const html = ul_inner(); for (const h of ul_hosts()) ul_paint(h, html);
+  // (#6344): the marked step once in sight, its button focused (a key press away from "Back up to here")
+  if (HIST.mark && UL.marked !== HIST.mark) {
+    const li = /** @type {HTMLElement|null} */ (document.querySelector(`.ulbody .ulrow[data-ul="s:${HIST.mark}"]`));
+    if (li) { UL.marked = HIST.mark; li.scrollIntoView?.({block: 'nearest'}); /** @type {HTMLElement|null} */ (li.querySelector('[data-ul-go]:not([disabled])'))?.focus({preventScroll: true}); }  // sprung-ok: the person pressed Ctrl+Z / the arrow, the list shows the step it points at (#6344)
+  }
+}
 async function ul_fetch() {
   if (S.me?.kind === 'agent') { UL.items = []; return; }
   try {
@@ -120,7 +131,7 @@ function ul_live() {
   if (UL.t) return;
   UL.undo = S.lpA?.undo;
   UL.t = setInterval(() => {
-    if (!ul_hosts().length) { clearInterval(UL.t); UL.t = 0; UL.note = ''; return; }
+    if (!ul_hosts().length) { clearInterval(UL.t); UL.t = 0; UL.note = ''; HIST.mark = 0; UL.marked = 0; return; }  // (#6344): + the mark
     if (S.lpA?.undo !== UL.undo && !UL.busy) { UL.undo = S.lpA?.undo; ul_fetch().then(ul_draw); return; }
     ul_draw();
   }, 1000);

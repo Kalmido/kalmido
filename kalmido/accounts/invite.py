@@ -40,6 +40,13 @@ def _hash(tok):
     return hashlib.sha256(tok.encode()).hexdigest()
 
 
+def invite_unsent(c, uid):
+    """(#6385): the open, valid invitation link of uid did not go out by e-mail (yet): a failed or still queued mail, or a
+    link the instance admin copied. For the instance admin's list of people only (an organisation admin never sees it, #3570)."""
+    r = c.execute("SELECT kind, sent_at, expires_at FROM user_invites WHERE user_id=? AND used_at IS NULL", (uid,)).fetchone()
+    return bool(r and r["kind"] != "login" and not r["sent_at"] and parse_iso(r["expires_at"]) > now_utc())
+
+
 def invite_state(c, uid):
     """'invited' (a link that is still valid), 'expired' (one that ran out) or None."""
     r = c.execute("SELECT * FROM user_invites WHERE user_id=? AND used_at IS NULL", (uid,)).fetchone()
@@ -49,7 +56,7 @@ def invite_state(c, uid):
 
 
 def invite_new(c, uid, by, send=True, kind=None, days=None, bg=False):
-    """A new link for uid (replaces an older one) -> {link, expires_at, sent, kind, error?}. send: by e-mail when SMTP is
+    """A new link for uid (replaces an older one) -> {link, expires_at, sent, kind, error?, queued?}. send: by e-mail when SMTP is
     set up and the person has an address. kind: invite / reset (by the password), 2.23.0: signup (#711, a registration
     to confirm), login (#444, a sign-in link without a password: never sent by mail, shown as a link + QR code).
     2.453.0 (#3780): days = how long the link lives (default INVITE_DAYS). 2.593.0 (#3570, review F3): bg = the mail goes
@@ -93,14 +100,17 @@ def invite_new(c, uid, by, send=True, kind=None, days=None, bg=False):
             except OSError:
                 logo = {}
             if bg and "mail:security" in BGJ_FNS:  # registered by integrations/mail.py with outgoing mail; after the caller's commit
-                bgj_add("mail:security", u["email"], subject, text, body_html, logo, delay=1.0)  # no user_id: a new account is not committed yet
+                # no user_id: a new account is not committed yet. (#6385): sent_at only once the queue's mail went out
+                # (integrations/mail.py _sec_mail_send inv, for this link only); "queued" instead of "sent"
+                bgj_add("mail:security", u["email"], subject, text, body_html, logo, [uid, _hash(tok), by], delay=1.0)
+                out["queued"] = True
             else:
                 # 2.37.0 (#1150): the link is stored before the mail goes out (it stayed on a mail error before, too), so no
                 # transaction is open while the mail server is asked; every caller committed right after this anyway
                 c.commit()
                 mail_send(u["email"], subject, text, body_html, images=logo, from_name=APP_NAME)
-            c.execute("UPDATE user_invites SET sent_at=? WHERE user_id=?", (iso(now_utc()), uid))
-            out["sent"] = True
+                c.execute("UPDATE user_invites SET sent_at=? WHERE user_id=?", (iso(now_utc()), uid))
+                out["sent"] = True
         except Exception as e:  # noqa: BLE001  (the link still works: the admin can copy it)
             c.heal()
             print("invitation mail failed:", type(e).__name__, flush=True)
