@@ -177,7 +177,8 @@ RULES = {
             "env_str / env_int / env_bool of kalmido/core/env.py, the variable declared in its VARS"),
     "version-mark": (count_version, False,
                      "the history is in git; version marks are 5 to 10 % of the lines and a source of merge conflicts (#7156)",
-                     "a comment says what holds and why, without '2.<n> (#<id>)'; the task belongs into the commit subject"),
+                     "a comment says what holds and why, without '2.<n>'; a decided task stays as '(#<id>)', the history goes into the "
+                     "commit subject"),
     "mcp-dup": (count_mcp_dup, True,
                 "a fix lands in one copy only (#6884: the same fix in four files); the starter files load together (#7151)",
                 "one shared starter module (mcp/starter_files.txt, with its hash) - until it exists, extend the copy that is "
