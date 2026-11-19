@@ -39,6 +39,7 @@ const waitMail = async (to, n) => { for (let i = 0; i < 50; i++) { if (mails(to)
     await call(ev, 'POST', '/api/admin/setup', {lang: 'en', collab_all: true, modules: ['cal', 'comments']});
     await call(ev, 'PATCH', '/api/settings', {lang: 'en', tour: 'done', features: 'cal,comments,events,contacts'});
     execFileSync('python3', [path.join(__dirname, 'dbx.py'), DATA, "UPDATE users SET email='alice@example.com' WHERE username='alice'"]);
+    execFileSync('python3', [path.join(__dirname, 'dbx.py'), DATA, "UPDATE users SET email_proved=lower(email) WHERE username='alice'"]);  // 2.1412.0 (#6355)
     const cal = await call(ev, 'POST', '/api/evcals', {name: 'Alice Termine'});
     await nav(B + '#cal');
     check(await ready(ev, `!!document.querySelector('#view .calbar [data-act="ev-cals"]')`, 80), 'the calendar view');

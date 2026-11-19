@@ -107,9 +107,21 @@ if not dbx("SELECT email FROM users WHERE id=?", (ALICE,))[0][0]:
 D = (date.today() + timedelta(days=5)).isoformat()
 
 # ================================================================== invitations
-j = A.get(B + "/api/evinvite").json()
-check(j["mail_ok"] is True and j["day_max"] == 200 and j["left"] == 200 and j["invited"] == [], "the editor learns: mail works, 200 a day " + str(j))
 CAL = A.post(B + "/api/evcals", json={"name": "Alice Termine", "org_id": None}).json()["id"]
+# 2.1412.0 (#6355): without a confirmed own address no invitation goes out (409 before anything is stored), a new account
+# sends 30 a day; then the address is confirmed and the account a month old (the rest of this suite as before)
+j = A.get(B + "/api/evinvite").json()
+check(j.get("proved") is False and j["day_max"] == 30 and j["left"] == 30, "#6355: unconfirmed, a new account: 30 a day " + str(j))
+n_ev = len(dbx("SELECT id FROM events WHERE cal_id=?", (CAL,)))
+r = A.post(B + "/api/events", json={"cal_id": CAL, "title": "Unbestaetigt", "start": f"{D}T07:00", "end": f"{D}T07:30", "send_invites": True,
+                                    "attendees": [{"email": "noproof@example.com"}]})
+check(r.status_code == 409 and "confirm" in r.text.lower(), f"#6355: without a confirmed address: 409 ({r.status_code} {r.text[:160]})")
+check(len(dbx("SELECT id FROM events WHERE cal_id=?", (CAL,))) == n_ev and not mails("noproof@example.com"), "#6355: nothing stored, no mail")
+dbx("UPDATE users SET email_proved=lower(email) WHERE id=?", (ALICE,))
+dbx("UPDATE users SET created_at=? WHERE id=?", ((date.today() - timedelta(days=40)).isoformat() + "T00:00:00+00:00", ALICE))
+j = A.get(B + "/api/evinvite").json()
+check(j["mail_ok"] is True and j.get("proved") is True and j["day_max"] == 200 and j["left"] == 200 and j["invited"] == [],
+      "the editor learns: mail works, confirmed, 200 a day " + str(j))
 r = A.post(B + "/api/events", json={"cal_id": CAL, "title": "Projektstart", "start": f"{D}T10:00", "end": f"{D}T11:00", "tz": "Europe/Berlin",
                                     "location": "Studio 3", "description": "Bitte Unterlagen mitbringen.", "send_invites": True,
                                     "attendees": [{"email": "ext1@example.com", "name": "Ext Eins"}, {"user_id": BOB}]})
@@ -216,6 +228,13 @@ check(len(A.get(B + f"/api/events?from={D}&to={D}").json()["items"]) == len(befo
 r = A.post(B + "/api/events", json={"cal_id": CAL, "title": "Ohne Mail", "start": f"{D}T16:00", "end": f"{D}T17:00",
                                     "attendees": [{"email": "l1@example.com"}]})
 check(r.status_code == 201, "without the flag the limit does not apply " + r.text[:200])
+# 2.1412.0 (#6355): in the account's first 30 days the limit is 30
+dbx("UPDATE users SET created_at=? WHERE id=?", ((date.today() - timedelta(days=2)).isoformat() + "T00:00:00+00:00", ALICE))
+dbx("UPDATE ev_invite_day SET n=29 WHERE user_id=?", (ALICE,))
+r = A.post(B + "/api/events", json={"cal_id": CAL, "title": "Zu viele neu", "start": f"{D}T16:00", "end": f"{D}T17:00", "send_invites": True,
+                                    "attendees": [{"email": "l1@example.com"}, {"email": "l2@example.com"}]})
+check(r.status_code == 429 and "30" in r.text, "#6355: a new account: 429 at 30 " + r.text[:200])
+dbx("UPDATE users SET created_at=? WHERE id=?", ((date.today() - timedelta(days=40)).isoformat() + "T00:00:00+00:00", ALICE))
 dbx("UPDATE ev_invite_day SET n=0 WHERE user_id=?", (ALICE,))
 
 # ================================================================== the subscription link
@@ -283,6 +302,7 @@ check(pub.get(B + feed_path(UA)).status_code == 404, "the link of a deleted cale
 
 # ================================================================== a freelancer without an organisation
 FID, Fr = freelancer(B, A)
+dbx("UPDATE users SET email_proved=lower(email) WHERE id=?", (FID,))  # 2.1412.0 (#6355): a confirmed own address
 FCAL = Fr.post(B + "/api/evcals", json={"name": "Frida Kalender"}).json()["id"]
 r = Fr.post(B + "/api/events", json={"cal_id": FCAL, "title": "Kundentermin", "start": f"{D}T12:00", "end": f"{D}T13:00", "send_invites": True,
                                      "attendees": [{"email": "kundin@example.com", "name": "Kundin"}]})
