@@ -68,7 +68,7 @@ const oft_path = (area, f) => { if (f.outside) return f.path; const p = []; for 
 function oft_rowHtml(i, on) {
   const area = i.key; if (!OFT_AREAS[area]) return '';
   const r = S.route, here = r.mod === 'office' && r.tab === area ? r.id : null;
-  const doc = (x, par) => ({k: `of:d:${area}:${x.id}`, name: x.title + (x.sub ? ' · ' + x.sub : ''), icon: OFT_AREAS[area][1], go: x.open, on: here === x.id,
+  const doc = (x, par) => ({k: `of:d:${area}:${x.id}`, name: x.title + (x.sub ? ' · ' + x.sub : ''), icon: OFT_AREAS[area][1], go: x.open, on: here === x.id, stripe: ofc_rowWs(), stripeP: wsCur() === 'all',  // #7337: the office's stripe (not a workspace node, #7389)
     ns: 'oft', id: `d:${area}:${x.id}`, par, drag: true, menu: true, kids: false, attrs: `data-oftdoc="${area}:${x.id}"`});
   const fold = f => ({k: `of:f:${f.id}`, name: f.outside ? f.path : f.name, icon: f.shared ? 'users' : 'folder', go: 'ablage/' + f.id, ns: 'oft', id: `f:${area}:${f.id}`,
     par: f.outside || !f.parent_id || f.parent_id === OFT.d[area]?.root ? 'a:' + area : `f:${area}:${f.parent_id}`, drag: oft_canW(f) && !f.outside, drop: oft_canW(f), menu: true,

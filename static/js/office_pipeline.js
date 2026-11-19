@@ -65,7 +65,7 @@ function pp_html() {
 function pp_card(x) {
   const who = cdn_name(x.client_id, x.client_name) || x.contact;  // 2.97.0 B (#1951)
   const offer = x.offer_id ? `<span class="rotag ${x.offer_status === 'declined' ? 'ppdecl' : `st-${esc(x.offer_status)}`}">${esc(tr('Quotation {0}', x.offer_number || ''))}${x.offer_status === 'declined' ? ' · ' + tr('rejected') : x.offer_status === 'superseded' ? ' · ' + tr('Superseded') : ''}</span>` : '';
-  return `<li><div role="button" tabindex="0" class="ppcard${x.offer_status === 'declined' && x.stage !== 'lost' ? ' warn' : ''}" draggable="true" data-pp="open" data-id="${x.id}">
+  return `<li><div role="button" tabindex="0" class="ppcard${x.offer_status === 'declined' && x.stage !== 'lost' ? ' warn' : ''}"${/*html-ok*/ ofc_rowMark() /* #7337 */} draggable="true" data-pp="open" data-id="${x.id}">
     <span class="pptitle">${esc(x.title)}</span>${who ? `<small class="muted">${esc(who)}</small>` : ''}
     <span class="ppmeta"><b class="rksum">${ofcMoney(x.value)}</b><span class="muted" title="${esc(tr('Probability'))}">${x.probability} %</span>${x.expected_date ? `<span class="muted" title="${esc(tr('Expected date'))}">${esc(fmtDateLoc(x.expected_date))}</span>` : ''}</span>
     ${offer || x.list_id ? `<span class="ppmeta">${offer}${x.list_id ? `<span class="rotag">${ic('brief', 's')}${tr('Project')}</span>` : ''}</span>` : ''}</div></li>`;
