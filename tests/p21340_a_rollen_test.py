@@ -92,12 +92,19 @@ check(CONTRACT not in listed(Ri), "read-only: no other member's unshared documen
 # ---- #6953 (reader job/5148 F2, F3): folders below the documents folder that hold a receipt are walkable for accounting
 # (the folder only), the others and the other files in such a folder stay hidden; listing and single check follow one rule
 ROOT = A.get(B + f"/api/files/nodes/{RECEIPT}").json().get("parent_id")
-SUB = A.post(B + "/api/files/folders", json={"name": "Receipts 2026", "parent_id": ROOT}).json().get("id")
-EMPTY = A.post(B + "/api/files/folders", json={"name": "Staff papers", "parent_id": ROOT}).json().get("id")
+
+
+def folder(name):  # bob's folder below the documents folder (a move stays in one owner's tree; the folders straight in the database)
+    dbx("INSERT INTO fs_nodes(parent_id, kind, name, owner_id, org_id, created_by, created_at, updated_at) "
+        "VALUES(?, 'folder', ?, ?, ?, ?, '2026-11-19T00:00:00Z', '2026-11-19T00:00:00Z')", (ROOT, name, uid["bob"], ORG, uid["bob"]), data=DATA)
+    return (dbx("SELECT id FROM fs_nodes WHERE parent_id=? AND name=?", (ROOT, name), data=DATA) or [(None,)])[0][0]
+
+
+SUB, EMPTY = folder("Receipts 2026"), folder("Staff papers")
 check(ROOT and SUB and EMPTY, f"setup: two folders below the documents folder {ROOT} {SUB} {EMPTY}")
 for nid in (RECEIPT, CONTRACT):
-    r = A.patch(B + f"/api/files/nodes/{nid}", json={"parent_id": SUB})
-    check(r.ok, f"setup: the admin moves {nid} into the receipts folder {r.status_code} {r.text[:120]}")
+    r = Bo.patch(B + f"/api/files/nodes/{nid}", json={"parent_id": SUB})
+    check(r.ok, f"setup: bob moves {nid} into the receipts folder {r.status_code} {r.text[:120]}")
 r = Ax.get(B + f"/api/files/nodes/{SUB}")
 check(r.ok and r.json().get("role") == "view", f"F3: accounting opens the folder with a receipt, read only ({r.status_code} {r.text[:120]})")
 check(Ax.get(B + f"/api/files/nodes/{EMPTY}").status_code in (403, 404), "F3: a folder without receipts stays closed to accounting")
