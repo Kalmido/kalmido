@@ -710,19 +710,19 @@ for k in ad.OVERRIDE_SWITCHES:  # no switch of a safeguard without its log line:
 check("self.log_overrides()" in src and "def log_overrides" in src, "#4064: the runner logs the overrides when it starts")
 TASKS[:] = [task(601, "Six", "S")]
 JOBS.clear()
-state5 = os.path.join(proj, ".state5")
-os.makedirs(state5)
+state5b = os.path.join(proj, ".state5b")
+os.makedirs(state5b)
 with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
     json.dump({"lists": ["Backlog"], "report_at": ""}, f)
 h = Host("on")
-h.state_dir = state5
+h.state_dir = state5b
 d = ad.Dispatcher(h, proj)
 d.tick(force=True)
 d.tick(force=True)
 check([x[1] for x in d.reg["overrides"]] == ["KALMIDO_PERM_RELAY=0 (no permission questions in the chat)"], f"#4064: counted once per start: {d.reg['overrides']}")
-open(os.path.join(state5, ad.STOP_FILE), "w").close()
+open(os.path.join(state5b, ad.STOP_FILE), "w").close()
 d.tick(force=True)
-os.remove(os.path.join(state5, ad.STOP_FILE))
+os.remove(os.path.join(state5b, ad.STOP_FILE))
 with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
     json.dump({"lists": ["Backlog"], "report_at": "00:00"}, f)
 d.tick(force=True)
