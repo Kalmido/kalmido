@@ -19423,5 +19423,14 @@
   "Effort for review jobs": "Inspanning voor reviewjobs",
   "Organisation settings": "Organisatie-instellingen",
   "An organisation is set up by the admin of this server. An organisation’s admin can then invite you by e-mail.": "Een organisatie wordt aangemaakt door de beheerder van deze server. De beheerders van de organisatie kunnen je daarna per e-mail uitnodigen.",
-  "The organisation “{0}” is set up": "De organisatie „{0}” is aangemaakt"
+  "The organisation “{0}” is set up": "De organisatie „{0}” is aangemaakt",
+  "The archive is {0} MB, an import takes at most {1} MB.": "Het archief is {0} MB, een import neemt hoogstens {1} MB.",
+  "The data parts are {0} MB together, an import takes at most {1} MB.": "De gegevensdelen zijn samen {0} MB, een import neemt hoogstens {1} MB.",
+  "The data part {0} is {1} MB, an import takes at most {2} MB per part.": "Het gegevensdeel {0} is {1} MB, een import neemt hoogstens {2} MB per deel.",
+  "The archive has {0} parts, an import takes at most {1}.": "Het archief heeft {0} delen, een import neemt er hoogstens {1}.",
+  "The table {0} has {1} rows, an import takes at most {2}.": "De tabel {0} heeft {1} rijen, een import neemt er hoogstens {2}.",
+  "Files larger than {0} MB: {1}. An import may skip them and names them, the rest comes.": "Bestanden groter dan {0} MB: {1}. Een import kan ze overslaan en noemt ze, de rest komt aan.",
+  "Another Kalmido server with standard settings cannot import this file:": "Een andere Kalmido-server met standaardinstellingen kan dit bestand niet importeren:",
+  "Note for the import:": "Opmerking voor de import:",
+  "These files are larger than {0} MB and are skipped, the rest comes: {1}": "Deze bestanden zijn groter dan {0} MB en worden overgeslagen, de rest komt aan: {1}"
 }

@@ -226,6 +226,8 @@ VARS = (
     _v("KALMIDO_OFFSITE_RETRY_S", "300", "Seconds before a failed off-site copy is tried again.", "backup"),
     _v("KALMIDO_ACCOUNT_IMPORT_MAX_MB", "4096", "Size in MB of an account move file that can be imported.", "backup"),
     _v("KALMIDO_ACCOUNT_IMPORT_MAX_ROWS", "500000", "Rows of one table in an account move file at most.", "backup"),
+    _v("KALMIDO_IMPORT_JSON_PART_MAX_MB", "32", "Size in MB of one data part (data/<table>.json) of an account or organisation move file that can be imported; an export warns above the standard value (2.1419.0).", "backup"),
+    _v("KALMIDO_IMPORT_JSON_MAX_MB", "96", "Size in MB of all data parts of a move file together that can be imported (they are held in memory while it is checked and imported); an export warns above the standard value (2.1419.0).", "backup"),
     _v("KALMIDO_BACKUP_ENCRYPT_REQUIRED", "0", "Switch: no backup without encryption (hosting; self-hosted installations keep working without it), 2.152.0.", "backup"),
 
     # ---- office
