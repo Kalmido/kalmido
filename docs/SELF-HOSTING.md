@@ -161,7 +161,9 @@ counts as not empty.
 Every server works the same way: each person has a private space, and organisations are shared workspaces with their own
 admins. A new server has no organisation; the first-run setup creates one when you give it a name (you become its admin),
 and an instance admin creates further ones under *Settings > Organisation > People > Organisations*. Since 2.422 a person creates a
-company of her own too (the workspace menu > *Add an organisation*, `POST /api/orgs {name}`): she becomes its admin, at most
+company of her own too (the workspace menu > *Add an organisation*, `POST /api/orgs {name}`; without an organisation also
+*Settings > Account*; since 2.1414 a self-registered account is asked once on its first start, skippable, and every new one
+ends in a closing step with *Enter the organisation's details* and *Invite people*): she becomes its admin, at most
 3 such companies per person; their e-mail domains are set only by an instance admin, and they do not count as the server's
 organisations for open registration. Nobody joins an organisation by themselves: an admin picks it when adding a person, a registration joins one only through its e-mail domains (and only
 with a confirmed address: without e-mail sending an admin adds the person after the approval), and an
