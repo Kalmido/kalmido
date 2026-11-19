@@ -925,7 +925,7 @@ def umz_run(uid, export_id):
                                      "expires_at": iso(done + timedelta(hours=UMZ_KEEP_H)), "file": name, "bytes": w.size,
                                      "sealed": bool(key), "export_id": export_id, "rows": sum(man["tables"].values()),
                                      "files": sum(1 for x in man["files"] if x["path"].startswith("files/")), "missing": len(man["missing"]),
-                                     "locked": len(man.get("locked_files") or []),  # 2.533.0 (#4318) F18: the export page says it
+                                     "locked": len(man.get("locked_files") or []),  # (#4318) F18: the export page says it
                                      "fit": umz_fit_done(man["files"], man["tables"], w.size)})  # (#6578)
         c.rollback()
         print(f"account export of user {uid}: {w.size} bytes", flush=True)
