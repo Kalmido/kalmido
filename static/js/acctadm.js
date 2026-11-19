@@ -390,3 +390,75 @@ async function bkoDraw(md, j) {
   if (j.running && !box._poll) box._poll = setTimeout(async () => { box._poll = null; if (md.isConnected) await bkoDraw(md); }, 2000);
 }
 const bkBody = md => $('#bk-on', md) ? {on: $('#bk-on', md).checked, time: $('#bk-time', md).value || '03:30', keep_daily: Math.max(1, +$('#bk-daily', md).value || 14), keep_weekly: Math.max(0, +$('#bk-weekly', md).value || 0), encrypt: $('#bk-enc', md).disabled ? undefined : $('#bk-enc', md).checked} : null;  // 2.152.0 B (#2172): required by the server = not sent
+// 2.1414.0 (#6519): the first start of a self-registered account (org_ask pending, accounts/signup.py) asks once, before the
+// tour: "Private or with an organisation?" -- skippable; "For my organisation" with its name creates it (POST /api/orgs)
+// and ends in the same closing step as "Add an organisation" (orgAddDone). Resolves when the person is done.
+/** @returns {Promise<void>} */
+function orgAskOpen() {
+  if (S.settings.org_ask !== 'pending' || S.me?.kid || S.me?.kind === 'agent' || (S.me?.workspaces || []).length || $('.oaskdlg')) return Promise.resolve();
+  const finish = () => { S.settings.org_ask = 'done'; return api('PATCH', '/api/settings', {org_ask: 'done'}).catch(() => { /* offline: asked again next start */ }); };
+  let cur = 'private';
+  const cards = () => `<div class="ptcards" role="radiogroup" aria-label="${esc(tr('Private or with an organisation?'))}">${[['private', 'home', tr('Just for me, privately'), tr('Everything stays in your private workspace.')],
+    ['org', 'brief', tr('For my organisation'), tr('You become its admin and can invite people.')]].map(([k, i, n, d]) =>
+    `<button type="button" class="ptcard ${k === cur ? 'on' : ''}" role="radio" aria-checked="${k === cur ? 'true' : 'false'}" data-oask="${esc(k)}">${ic(i, 's')}<b>${esc(n)}</b><small class="muted">${esc(d)}</small></button>`).join('')}</div>`;
+  return new Promise(res => {
+    /** @type {any} */
+    const md = modal(`<h3>${tr('Private or with an organisation?')}</h3><p class="muted">${tr('Kalmido keeps your private things and the work of an organisation (a company, a team, an association) apart. You can add one later too: Settings > Organisation.')}</p>
+      <div id="oask-c">${/*html-ok*/ cards()}</div>
+      <div class="row oaskname" hidden><label for="oask-n">${tr('Name of the new organisation')}</label><input type="text" id="oask-n" maxlength="60" autocomplete="organization"></div>
+      <div class="aerr" role="alert" id="oask-err"></div>
+      <div class="foot"><button type="button" class="btn" data-oask-skip>${tr('Skip')}</button><span class="spacer"></span><button type="button" class="btn pri" data-oask-go>${tr('Continue')}</button></div>`);
+    md.classList.add('oaskdlg');
+    let busy = false;
+    onRemove(md, () => { if (!busy) { finish(); res(); } });  // closed (Esc, backdrop) = skipped
+    md.addEventListener('click', async (/** @type {any} */ e) => {
+      const c = e.target.closest('[data-oask]');
+      if (c) {
+        cur = c.dataset.oask; $('#oask-c', md).innerHTML = cards(); $(`[data-oask="${cur}"]`, md)?.focus({preventScroll: true});
+        $('.oaskname', md).hidden = cur !== 'org'; if (cur === 'org') $('#oask-n', md).focus({preventScroll: true});
+        return;
+      }
+      if (e.target.closest('[data-oask-skip]')) { md.remove(); return; }
+      if (!e.target.closest('[data-oask-go]')) return;
+      if (cur !== 'org') { md.remove(); return; }
+      const name = $('#oask-n', md).value.trim();
+      if (!name) { $('#oask-err', md).textContent = tr('Name of the new organisation'); $('#oask-n', md).focus({preventScroll: true}); return; }
+      busy = true;
+      let o; try { o = await api('POST', '/api/orgs', {name}); } catch (x) { busy = false; $('#oask-err', md).textContent = x.message || tr('Server not reachable.'); return; }
+      await finish(); md.remove();
+      try { await load(); } catch { /* offline */ }
+      if (typeof wsSet === 'function') wsSet('org:' + o.id); else render();
+      await orgAddDone(o, true);
+      res();
+    });
+  });
+}
+// 2.1414.0 (#6519): after an organisation was added (the question above, the workspace menu, Settings > Organisation): a
+// small closing step with the two next steps instead of only a message. onboarding: a step taken lets the welcome tour
+// wait for the next start (it would close the step's dialog).
+/** @returns {Promise<void>} */
+function orgAddDone(/** @type {any} */ o, onboarding = false) {
+  return new Promise(res => {
+    /** @type {any} */
+    const md = modal(`<h3>${esc(tr('The organisation “{0}” is set up', o.name))}</h3><p class="muted">${tr('Two next steps for your organisation:')}</p>
+      <div class="ptcards oadone">
+        <button type="button" class="ptcard" data-oadone="data">${ic('building', 's')}<b>${tr('Enter the organisation’s details')}</b><small class="muted">${tr('Name and symbol; with the office also address, tax numbers and bank details.')}</small></button>
+        <button type="button" class="ptcard" data-oadone="invite">${ic('send', 's')}<b>${tr('Invite people')}</b><small class="muted">${tr('Colleagues get an e-mail and join with their own account.')}</small></button>
+      </div>
+      <div class="foot"><span class="spacer"></span><button type="button" class="btn" data-oadone="later">${tr('Later')}</button></div>`);
+    md.classList.add('oadonedlg');
+    onRemove(md, () => res());
+    md.addEventListener('click', async (/** @type {any} */ e) => {
+      const b = e.target.closest('[data-oadone]'); if (!b) return;
+      const k = b.dataset.oadone;
+      md.remove();
+      if (k === 'later') return;
+      if (onboarding) { try { sessionStorage.setItem('kalmido-tour-' + S.me?.id, '1'); } catch { /* private mode */ } }
+      if (k === 'data') { settingsModal(typeof modOn === 'function' && modOn('office') ? 'biz' : 'org'); return; }
+      let on = true, roles = [];
+      try { on = (await api('GET', `/api/orgs/${o.id}/invites`)).enabled !== false; } catch { /* the dialog says it on sending */ }
+      try { roles = ((await api('GET', '/api/orgs')).orgs || []).find((/** @type {any} */ x) => x.id === o.id)?.roles || []; } catch { /* without the role hints */ }
+      oinvDialog(o.id, roles, on);
+    });
+  });
+}

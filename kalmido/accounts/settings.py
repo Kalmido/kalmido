@@ -36,6 +36,7 @@ SETTINGS_SERVER_ONLY = ("digest_sent", "digest_mail_sent", "digest_mail_try", "r
                         "evmail_at", "evmail_day")  # 2.142.0 A (#2146): the bundled event mails sent
 USER_DEFAULTS.setdefault("settings_more", "[]")  # 2.583.0 (#4833); 2.1353.0 (#6827): the head rows of the settings opened / closed against their start
 USER_DEFAULTS.setdefault("col_widths", "{}")  # 2.742.0 (#4857): the dragged column widths per list (accounts/colwidths.py)
+USER_DEFAULTS.setdefault("org_ask", "done")  # 2.1414.0 (#6519): pending = a self-registered account is asked "Private or an organisation?" once (signup.py)
 USER_DEFAULTS.setdefault("view_cols", "")  # 2.750.0 (#4502): the columns of the collected views (Today, My tasks, filters, ...): json list of keys, '' = the default (not in schema.py)
 SIDE_GROUPS = ("focus", "clients", "lists", "filters", "tags", "views", "areas", "team", "more")  # 2.25.0 (UX-03); 2.39.1 (#1185): areas; 2.1367.0 (#6748): + more (the client has it since 2.45.0: every new order was refused)
 # 2.575.0 D (#4051): start_page "a:<area>" = the app opens on that area (the ids of SBB_RAIL in static/js/areas.js; home stays "home")
@@ -244,7 +245,7 @@ def clean_setting(k, v):
         if not math.isfinite(x) or not lo <= x <= hi:
             raise bad
         return sv.replace(",", ".")
-    if k == "tour":  # the client can only finish the tour (restarting it is local)
+    if k in ("tour", "org_ask"):  # the client can only finish the tour (restarting it is local); 2.1414.0 (#6519): and the question
         if sv != "done":
             raise bad
         return sv
