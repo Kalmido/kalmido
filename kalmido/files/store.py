@@ -406,6 +406,15 @@ def _fs_has_receipt_below(c, nid, org):
                      (nid, org)).fetchone() is not None
 
 
+def fs_children_seen(c, uid, n, rows):
+    """#6953 (reader F1 of job/5543): the children of folder n that account uid may list. The accounting role may walk a folder
+    below the documents folder that holds a receipt (_fs_limited_role), but lists in it only what it may open itself -- the
+    receipts, its own uploads, shares; every listing of a folder's children (web, API v1) goes through here."""
+    if n["role"] == "owner" or not n["org_id"] or org_role_key(c, uid, n["org_id"]) != "accounting":
+        return rows
+    return [r for r in rows if fs_role(c, r["id"], uid)]
+
+
 def _fs_open_area(c, chain):
     """2.200.0 A (#2747, review 4): does the chain lie in the tree of an area opened to the organisation (fsroots org_open,
     the knowledge folders: its nodes belong to an admin)? Ownership there counts for full members only."""

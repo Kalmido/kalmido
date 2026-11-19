@@ -119,6 +119,19 @@ check(RECEIPT in seen and CONTRACT not in seen, "F3: the documents list still ha
 check(Ax.get(B + f"/api/files/nodes/{RECEIPT}/content").ok, "F3: accounting reads the receipt in the sub folder")
 check(Ax.get(B + f"/api/files/nodes/{CONTRACT}/content").status_code in (403, 404), "F3: ... and not the contract next to it")
 check(A.get(B + "/api/files", params={"parent": SUB}).ok and CONTRACT in listed(A), "F3: the admin sees everything as before")
+# reader F1 of job/5543: the API v1 lists a folder's children by the same rule (a token of the accounting person)
+r = Ax.post(B + "/api/me/tokens", json={"name": "acc", "scopes": ["read"]})
+check(r.status_code == 201, f"setup: accounting makes a read token {r.status_code} {r.text[:120]}")
+VH = {"Authorization": "Bearer " + (r.json().get("token") or "" if r.status_code == 201 else "")}
+r = requests.get(B + "/api/v1/files", params={"parent_id": SUB}, headers=VH)
+ids = {x["id"] for x in r.json().get("data", [])} if r.ok else set()
+check(r.ok and RECEIPT in ids and CONTRACT not in ids, f"F1 v1: the folder's listing has the receipt, not the contract ({r.status_code} {ids})")
+r = requests.get(B + f"/api/v1/files/{SUB}", headers=VH)
+ids = {x["id"] for x in r.json().get("children", [])} if r.ok else set()
+check(r.ok and RECEIPT in ids and CONTRACT not in ids, f"F1 v1: the folder's children: the receipt, not the contract ({r.status_code} {ids})")
+r = requests.get(B + "/api/v1/files", params={"parent_id": ROOT}, headers=VH)
+ids = {x["id"] for x in r.json().get("data", [])} if r.ok else set()
+check(r.ok and SUB in ids and EMPTY not in ids, f"F1 v1: the documents folder lists the receipts folder only ({r.status_code} {ids})")
 # F2: a receipt row of no organisation (or another one) opens nothing for accounting; the listing never showed it
 dbx("UPDATE rc_receipts SET org_id=NULL WHERE node_id=?", (RECEIPT,), data=DATA)
 check(Ax.get(B + f"/api/files/nodes/{RECEIPT}/content").status_code in (403, 404) and RECEIPT not in listed(Ax),
