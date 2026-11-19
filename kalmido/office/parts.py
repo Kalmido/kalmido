@@ -948,7 +948,7 @@ def tp_part_patch(did, pid):
     if "print" in b:
         f["print"] = 0 if b.get("print") in (0, False, "0", "false") else 1
     if "sort" in b:
-        f["sort"] = sort_value(b.get("sort"))  # 2.47.0 (#1215): no nan / inf; #6430: the one sort check
+        f["sort"] = sort_value(b.get("sort"))  # (#1215): no nan / inf; #6430: the one sort check
     if "settings" in b:
         f["settings"] = json.dumps(tp_settings_clean(b.get("settings"), p["settings"], dict(r).get("producing_mode") == "amount"), ensure_ascii=False)
     if "sheet" in b:
