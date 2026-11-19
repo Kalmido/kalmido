@@ -109,7 +109,7 @@ def srv_org_refuse():
 def _srv_org_switched(c, oid, name, on):
     """PATCH /api/orgs/<id> {server_agents} changed the switch (accounts/orgs.py ORG_SWITCH_WATCH): a security alert to the server's
     admins, like the server switch (core/instance.py aa_switch)."""
-    aa_org_switch(g.user, name, "org_server_agents", on)
+    aa_org_switch(g.user, oid, name, "org_server_agents", on)
 
 
 ORG_SWITCH_WATCH["server_agents"] = _srv_org_switched
