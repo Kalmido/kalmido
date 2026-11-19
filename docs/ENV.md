@@ -166,6 +166,7 @@ an empty value counts as unset. See [SELF-HOSTING.md](SELF-HOSTING.md) for the c
 |---|---|---|
 | `KALMIDO_CLAMAV_OFF` | `(empty)` | Why the installer left the virus scanner out (low_memory = under about 3 GB of memory), 2.1284.0; written by install.sh into .env, shown in the admin view. Removed when the scanner is switched on (KALMIDO_CLAMAV=1 ./update.sh). |
 | `KALMIDO_CLAMD` | `(empty)` | Virus scanner (clamd) as host:port; empty = no scan (Docker Compose sets clamav:3310). |
+| `KALMIDO_CLAMD_ALERT_S` | `300` | Seconds the virus scanner may not answer before the server admins get an alert (2.1437.0, #6615). |
 | `KALMIDO_CLAMD_DOWN_S` | `30` | Seconds a failed scanner is not asked again. |
 | `KALMIDO_CLAMD_MAX_MB` | `100` | Largest file in MB the scanner checks. |
 | `KALMIDO_CLAMD_STRICT` | `(empty)` | Switch: files the scanner could not check yet stay locked (empty = on whenever a scanner is set). |

@@ -1,4 +1,5 @@
 """Files of tasks (upload, download, delete)."""
+import errno
 import mimetypes
 import os
 import re
@@ -72,6 +73,15 @@ def attachment_upload(tid):
     return jsonify(one_task(c, tid))
 
 
+ATT_FULL_ERRNO = (errno.ENOSPC, errno.EDQUOT)  # 2.1437.0 (#6615): the disk (or the folder's quota) is full
+
+
+def _att_full(e):
+    """2.1437.0 (#6615): a full disk while storing an attachment = 507 with words (was a general 500), as paperless/zipimp.py."""
+    if e.errno in ATT_FULL_ERRNO:
+        raise Denied(507, tr("There is not enough space on the server for this upload right now")) from None
+
+
 def save_attachments(c, tid, files, comment_id=None, saved=None, uid=None, ids=None, sealed=False):
     """Store uploaded werkzeug files for a task (or one of its comments). Returns an error message or
     None (caller commits; on an error the caller rolls back and unlinks `saved`). `ids` (a list) gets the new row ids.
@@ -88,6 +98,7 @@ def save_attachments(c, tid, files, comment_id=None, saved=None, uid=None, ids=N
         os.makedirs(os.path.join(ATT_DIR, str(tid)), exist_ok=True)
     except OSError as e:
         aa_count("storage", "attachments", aa_oserr(e))
+        _att_full(e)
         raise
     ts = iso(now_utc())
     agent = uploader_is_agent(c, uid)  # 2.30.0 (#380)
@@ -105,6 +116,12 @@ def save_attachments(c, tid, files, comment_id=None, saved=None, uid=None, ids=N
             h6d_save(f, full)  # 2.86.0 (N22): stops right after MAX_FILE_MB (refused below)
         except OSError as e:
             aa_count("storage", "attachments", aa_oserr(e))
+            if e.errno in ATT_FULL_ERRNO:
+                try:
+                    os.remove(full)  # the cut-off part
+                except OSError:
+                    pass
+            _att_full(e)
             raise
         size = os.path.getsize(full)
         if size > MAX_FILE_MB * 1024 * 1024:

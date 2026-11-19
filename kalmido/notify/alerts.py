@@ -24,7 +24,7 @@ from ..accounts.users import need_admin
 from ..notify.push import (
     ntfy, ntfy_public, NTFY_TOPIC_RE, push_channel, PUSH_PRIORITIES, webpush_count, WEBPUSH_ON, webpush_payload, webpush_user,
 )
-from ..core.env import env_bool
+from ..core.env import env_bool, env_int
 from ..core.rls import STATE  # 2.149.0 G (#2517): pulled up from functions
 from ..accounts.bgjobs import bgj_trouble  # (#6388)
 
@@ -39,7 +39,7 @@ from ..accounts.bgjobs import bgj_trouble  # (#6388)
 # comments, list names or other content.
 def _env_int(name, dflt, lo=1):
     try:
-        return max(lo, int(os.environ.get(name, "") or dflt))
+        return max(lo, env_int(name, dflt))
     except ValueError:
         return dflt
 
@@ -57,6 +57,10 @@ AA_KEEP = 500         # rows kept in admin_alerts
 AA_LIST = 50          # rows shown in the settings
 AA_STORAGE_EVERY = 600
 AA_QC_EVERY = 86400
+AA_SCAN_EVERY = 60     # 2.1437.0 (#6615): s between two looks at the virus scanner (a PING)
+AA_SCAN_DOWN_S = _env_int("KALMIDO_CLAMD_ALERT_S", 300)  # 2.1437.0 (#6615): s the scanner does not answer before the alert
+AA_SCAN_TEXT = N_("The virus scanner ({0}) has not answered for {1} min: uploads are taken and marked “Unchecked”. Start the clamav service (COMPOSE_PROFILES in .env) or switch the scan off with KALMIDO_CLAMD= (empty).")
+AA_SCAN_STRICT = N_("The virus scanner ({0}) has not answered for {1} min: uploads are taken and marked “Unchecked” and cannot be opened until it has checked them. Start the clamav service (COMPOSE_PROFILES in .env) or switch the scan off with KALMIDO_CLAMD= (empty).")
 # names of the watchdog parts in _wd_fail (shown in the alert)
 AA_WD_WHAT = {"section": N_("a whole watchdog part"), "settings of user": N_("account settings"),
               "reminder of task": N_("reminders"), "focus session": N_("focus sessions"), "habit": N_("habit reminders"),
@@ -72,7 +76,7 @@ AA_SWITCH_LABEL = {"collab_all": N_("Collaboration for everyone"), "time_all": N
                    "server_agents": N_("Server agents (run on this server with their own API key)"),  # (#4670)
                    "org_server_agents": N_("Kalmido AI in this organisation")}  # (#6363): aa_org_switch
 _AA_LOCK = threading.Lock()
-_AA = {"q": [], "b": {}, "int": {}, "disk_at": 0.0, "qc_at": 0.0, "storage": {}, "qc": {}}
+_AA = {"q": [], "b": {}, "int": {}, "disk_at": 0.0, "qc_at": 0.0, "storage": {}, "qc": {}, "scan_at": 0.0, "scan_down": 0.0}
 
 
 def _clamp_int(v, lo, hi, dflt):
@@ -452,6 +456,25 @@ def _aa_storage(c, cfg, now):
                     [rows[0][:160]], len(rows))
 
 
+def _aa_scanner(c, cfg, now):
+    """2.1437.0 (#6615): a virus scanner that is set (KALMIDO_CLAMD) but has not answered for AA_SCAN_DOWN_S: one storage alert
+    (its cooldown as every alert). The upload stays as decided in #1818: taken and marked "Unchecked", never refused; in
+    strict mode such files cannot be opened until the scanner checked them -- which is why the admin hears it. The compose
+    file sets KALMIDO_CLAMD=clamav:3310 by default, the clamav service runs only with its profile: the text says both ways."""
+    from ..files.scan import sc_ping, sc_strict, sc_target
+    if now - _AA["scan_at"] < AA_SCAN_EVERY:
+        return
+    _AA["scan_at"] = now
+    if not sc_target() or sc_ping():
+        _AA["scan_down"] = 0.0
+        return
+    _AA["scan_down"] = _AA["scan_down"] or now
+    if now - _AA["scan_down"] < AA_SCAN_DOWN_S:
+        return
+    mins = max(1, int((now - _AA["scan_down"]) // 60))
+    aa_emit(c, cfg, "storage", "clamd", AA_SCAN_STRICT if sc_strict() else AA_SCAN_TEXT, [(os.environ.get("KALMIDO_CLAMD") or "").strip()[:80], mins])
+
+
 def _aa_integrations(c, cfg, ints, now):
     for name, s in ints.items():
         if s.get("alerted") and now - s["alerted"] < max(cfg["cooldown_h"] * 3600, AA_WINDOW):
@@ -588,6 +611,7 @@ def aa_tick(c):
         _aa_integrations(c, cfg, ints, now)
     if "storage" in cfg["kinds"]:
         _aa_storage(c, cfg, now)
+        _aa_scanner(c, cfg, now)  # 2.1437.0 (#6615)
     _aa_digest(c, cfg)
 
 

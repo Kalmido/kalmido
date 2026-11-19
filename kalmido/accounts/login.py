@@ -498,6 +498,29 @@ def totp_match(secret_b32, code, last_step=0):
     return None
 
 
+TOTP_SKEW_STEPS = 20  # 2.1437.0 (#6615): +-10 minutes looked at (never accepted) when a code fails
+
+
+def totp_wrong(secret_b32, code):
+    """2.1437.0 (#6615): the answer text for a refused authenticator code. A code that fits a time step up to TOTP_SKEW_STEPS
+    away (never accepted: only said) means the clock of the server or the phone is off -- with one log line for the admin
+    (a self-hosted server without time sync refused every code with only "Wrong code")."""
+    code = re.sub(r"\s", "", str(code or ""))
+    try:
+        key = base64.b32decode(secret_b32 + "=" * (-len(secret_b32) % 8)) if secret_b32 else b""
+    except (ValueError, TypeError):
+        key = b""
+    if key and re.fullmatch(r"\d{%d}" % TOTP_DIGITS, code):
+        now = int(time.time() // TOTP_STEP)
+        for d in sorted(range(-TOTP_SKEW_STEPS, TOTP_SKEW_STEPS + 1), key=abs):
+            if abs(d) > 1 and hmac.compare_digest(totp_code(key, now + d), code):
+                mins = round(d * TOTP_STEP / 60)
+                print(f"2fa: an authenticator code fits a clock {mins:+d} min off: check the server's time (NTP) and the phone's",
+                      flush=True)
+                return tr("Wrong code. It would fit a clock {0} minutes off: check the time on your phone and on the server.", abs(mins) or 1)
+    return tr("Wrong code")
+
+
 def totp_new_secret():
     return base64.b32encode(secrets.token_bytes(20)).decode().rstrip("=")
 
@@ -750,7 +773,7 @@ def auth_2fa():
     if e:
         return e
     c, b = db(), body()
-    ok, via = False, "totp"
+    ok, via, wrong = False, "totp", tr("Wrong code")
     if b.get("recovery"):
         ok = rc_use(c, u["id"], b.get("recovery"))
         via = "recovery"
@@ -762,10 +785,12 @@ def auth_2fa():
         st = totp_match(secret, b.get("code"), u["totp_step"]) if secret else None
         if st:
             ok = c.execute("UPDATE users SET totp_step=? WHERE id=? AND totp_step<?", (st, u["id"], st)).rowcount == 1
+        elif secret:
+            wrong = totp_wrong(secret, b.get("code"))  # 2.1437.0 (#6615): a clock that is off is said
     if not ok:
         _code_fail(u, p)
         c.rollback()
-        return err(tr("Wrong code"), 401)
+        return err(wrong, 401)
     pend_drop()
     left = rc_left(c, u["id"])
     if via == "recovery":
@@ -823,7 +848,7 @@ def auth_enrol_totp_confirm():
     st = totp_match(p.get("totp") or "", body().get("code")) if p.get("totp") else None
     if not st:
         _code_fail(u, p)
-        return err(tr("Wrong code"), 401)
+        return err(totp_wrong(p.get("totp") or "", body().get("code")), 401)  # 2.1437.0 (#6615)
     c.execute("UPDATE users SET totp_secret=?, totp_step=? WHERE id=?", (seal(c, f"totp:{u['id']}", p["totp"]), st, u["id"]))
     codes = rc_new(c, u["id"])
     pend_drop()
@@ -990,7 +1015,7 @@ def me_totp_confirm():
     st = totp_match(p["secret"], body().get("code"))
     if not st:
         _rate_fail(keys)
-        return err(tr("Wrong code"), 400)
+        return err(totp_wrong(p["secret"], body().get("code")), 400)  # 2.1437.0 (#6615): a clock that is off is said
     pend_take(f"totp:{u['id']}")
     first = not twofa_methods(c, u)
     c.execute("UPDATE users SET totp_secret=?, totp_step=? WHERE id=?", (seal(c, f"totp:{u['id']}", p["secret"]), st, u["id"]))

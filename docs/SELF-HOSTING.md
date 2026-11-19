@@ -399,7 +399,10 @@ to *deny* and allow each app per group, so a new account does not open every app
 ## Database (PostgreSQL)
 
 Since 2.37.0 Kalmido needs PostgreSQL 17 (`DATABASE_URL=postgresql://user:password@host:5432/db`); without it the app
-does not start and says why. The `docker-compose.yml` of the repository brings its own server (service `db`,
+does not start and says why. 2.1437.0 (#6615): the start also checks the server's major version and the two extensions Kalmido
+creates (`unaccent`, `pg_trgm`, both part of PostgreSQL's contrib package): an older PostgreSQL, a missing extension or a
+database user that may not create one ends the start with a `FATAL:` line that says what to do (exit code 3), instead of a raw
+SQL error halfway through the setup of the tables. A newer major version than 17 starts, with one warning line. The `docker-compose.yml` of the repository brings its own server (service `db`,
 `postgres:17.12`, data in `./pgdata`, password `POSTGRES_PASSWORD` in `.env`); nothing else is needed. Coming from an older
 version: [Installs from before 2.37](#installs-from-before-237-sqlite).
 
@@ -1532,6 +1535,15 @@ The database container has the same reduced rights.
 | `KALMIDO_CLAMD_MAX_MB` | `100` | larger files are not sent to the scanner (marked *Unchecked*); keep it at or below clamd's `StreamMaxLength` |
 | `KALMIDO_CLAMD_TIMEOUT` | `60` | seconds one scan may take |
 | `KALMIDO_CLAMD_STRICT` | on when `KALMIDO_CLAMD` is set | 2.79.0: `1` = unchecked files are held back until the later scan (not those too large for the scanner), `0` = they stay readable (as up to 2.78) |
+| `KALMIDO_CLAMD_ALERT_S` | `300` | 2.1437.0: seconds the scanner may not answer before the server admins get an alert (*Storage*) |
+
+**The compose default and the profile (2.1437.0, #6615).** `docker-compose.yml` sets `KALMIDO_CLAMD=clamav:3310` whenever
+`.env` does not set it, but the service `clamav` starts only when `clamav` stands in `COMPOSE_PROFILES`. A `.env` without
+both (written by hand, not by the installer) therefore has a scanner that never answers: every upload is taken and marked
+*Unchecked* and, in strict mode, cannot be opened until a scan. Choose one: `COMPOSE_PROFILES=clamav` (plus `localdb` for
+the database of the compose file) or `KALMIDO_CLAMD=` (empty). When the scanner has not answered for five minutes
+(`KALMIDO_CLAMD_ALERT_S`) the server admins get an alert, and *Settings > Server > Backup* names both ways. As decided in
+2.61.0 the upload itself is never refused because the scanner is away.
 
 **Left out under about 3 GB (2.1284.0).** A new installation on a server with less than about 3 GB of memory (2,800 MB as
 Docker reports it; a 3 GB server stays above) runs without the scanner: ClamAV alone needs 1-1.5 GB and pushed small servers
@@ -2650,6 +2662,19 @@ published it), while the API line keeps using the app port. With the built-in lo
 ## Configuration
 
 All settings are environment variables in `.env` (see [.env.example](../.env.example)); [docs/ENV.md](ENV.md) lists every variable the server reads with its default (2.149, generated from the code). Switches accept `1`/`true`/`yes`/`on` and `0`/`false`/`no`/`off`.
+
+**Wrong values at the start (2.1437.0, #6615).** A number variable with a value that is no number (`TASKS_MAX_FILE_MB=50MB`)
+gives one log line `warning: TASKS_MAX_FILE_MB='50MB' is not a whole number: using the default (50)` and the server starts
+with the default (before, the container ended in a Python traceback without the variable's name and restarted over and over).
+Two values have no safe default and end the start with one `FATAL:` line naming them: `PORT` (not a port 1-65535) and `TZ`
+(not a time zone such as `Europe/Berlin` or `UTC`). Once per start the log names every `KALMIDO_*` variable the server does
+not know (`warning: Kalmido does not know KALMIDO_SMTP_HOSTT ...`): usually a typo, which otherwise has no effect at all; the
+known names are those in [docs/ENV.md](ENV.md). `KALMIDO_SMTP_HOST` without `KALMIDO_MAIL_FROM` (or `KALMIDO_MAIL_ADDRESS`)
+also gets a log line: sending stays off. The test mail under *Settings* says why sending failed in words (sign-in refused,
+sender refused, encryption, server not reachable). A full disk while a task file is stored answers `507` with
+"There is not enough space on the server for this upload right now" instead of a general error, and an authenticator code
+that fits a clock some minutes off is answered with that hint (never accepted) plus a log line: check the server's time
+synchronisation (NTP).
 
 | Variable | Default | Purpose |
 |---|---|---|

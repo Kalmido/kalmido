@@ -20,7 +20,6 @@ import ipaddress
 import json
 import math
 import mimetypes
-mimetypes.add_type("font/woff2", ".woff2")  # slim images have no /etc/mime.types (bundled Geist fonts)
 import os
 import re
 import uuid
@@ -60,13 +59,29 @@ from webauthn.helpers import structs as wa_structs
 from flask import Flask, Response, g, has_request_context, jsonify, redirect, request, send_file, send_from_directory
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from .env import env_bool  # 2.149.0 D (#2511): one reading of the switches
+from .env import env_bool, env_int, env_port  # 2.149.0 D (#2511): one reading of the switches; 2.1437.0 (#6615): numbers
+
+mimetypes.add_type("font/woff2", ".woff2")  # slim images have no /etc/mime.types (bundled Geist fonts); 2.1437.0: after the imports (E402)
 
 DB = os.environ.get("TASKS_DB", "/data/tasks.db")
 # 2.37.0 (#1150): the database is Postgres (postgresql://user:password@host/db). TASKS_DB only names the data dir (its folder holds
 # attachments, office files, backups and the marker). 2.1034.0 (#5304): the file itself is not used any more (the move tool is gone).
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
-TZ = ZoneInfo(os.environ.get("TZ", "Europe/Berlin"))
+
+
+def _tz():
+    """2.1437.0 (#6615): TZ with a name that is no time zone ends the start with one FATAL line naming it (was a traceback of
+    ZoneInfo in the restart loop); empty = Europe/Berlin."""
+    v = (os.environ.get("TZ") or "").strip() or "Europe/Berlin"
+    try:
+        return ZoneInfo(v)
+    except (ValueError, KeyError, OSError):  # ZoneInfoNotFoundError is a KeyError
+        print(f"FATAL: TZ={v[:40]!r} is not a time zone (e.g. Europe/Berlin, UTC). Fix it in the .env and start again.", file=sys.stderr, flush=True)
+        raise SystemExit(2) from None
+
+
+TZ = _tz()
+PORT = env_port("PORT", 3040)  # 2.1437.0 (#6615): a value that is no port = one FATAL line with the name (app.py listens on it)
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "")  # topic of the first admin (seed); other users: settings
 NTFY_URL = os.environ.get("NTFY_URL", "https://ntfy.sh")
 NTFY_TOKEN = os.environ.get("NTFY_TOKEN", "")  # optional ntfy access token (write access to NTFY_TOPIC)
@@ -107,11 +122,11 @@ UPDATE_URL = os.environ.get("KALMIDO_UPDATE_URL", "https://api.github.com/repos/
 UPDATE_EVERY = 6 * 3600  # s (1.9.0: was a day; releases come more often)
 UPDATE_RETRY = 3600      # s: after a failed check (e.g. GitHub's rate limit for anonymous requests, HTTP 403 / 429)
 UPDATE_MAX_BYTES = 256 * 1024
-WATCHDOG_INTERVAL = int(os.environ.get("TASKS_WATCHDOG_INTERVAL", "30"))
+WATCHDOG_INTERVAL = env_int("TASKS_WATCHDOG_INTERVAL", 30)
 
 ATT_DIR = os.environ.get("TASKS_ATTACHMENTS", os.path.join(os.path.dirname(DB), "attachments"))
 OFFICE_DIR = os.environ.get("TASKS_OFFICE_DIR", os.path.join(os.path.dirname(DB), "office"))  # 2.36.1 (#1021): logos (in backups)
-MAX_FILE_MB = int(os.environ.get("TASKS_MAX_FILE_MB", "50"))
+MAX_FILE_MB = env_int("TASKS_MAX_FILE_MB", 50)
 # shown in the browser; everything else is served as a download (svg/html could carry script)
 INLINE_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp", "image/avif", "image/bmp",
                 "image/heic", "image/heif", "application/pdf"}
@@ -278,14 +293,14 @@ AUTH_PROXY_PORT = os.environ.get("AUTH_PROXY_PORT", "").strip()
 _TP_RAW = os.environ.get("KALMIDO_TRUSTED_PROXIES", "127.0.0.1,::1").strip()
 TRUSTED_PROXIES = ([] if _TP_RAW.lower() in ("none", "off", "0") else _nets(_TP_RAW)) + AUTH_TRUSTED
 try:
-    TRUSTED_PROXY_COUNT = max(1, min(5, int(os.environ.get("KALMIDO_TRUSTED_PROXY_COUNT", "1"))))
+    TRUSTED_PROXY_COUNT = max(1, min(5, env_int("KALMIDO_TRUSTED_PROXY_COUNT", 1)))
 except ValueError:
     TRUSTED_PROXY_COUNT = 1
 TRUSTED_PROXY_HEADERS = {"x-forwarded-for", "x-forwarded-proto", "x-forwarded-host"}
 BOOT_USER = (os.environ.get("AUTH_BOOTSTRAP_USER") or "admin").strip().lower()
 BOOT_NAME = (os.environ.get("AUTH_BOOTSTRAP_NAME") or BOOT_USER.capitalize()).strip()
 BOOT_PROXY = os.environ.get("AUTH_BOOTSTRAP_PROXY_LOGIN", "").strip() or None
-SESSION_DAYS = int(os.environ.get("AUTH_SESSION_DAYS", "30"))
+SESSION_DAYS = env_int("AUTH_SESSION_DAYS", 30)
 COOKIE = "kalmido_session"
 CSRF_HEADER, CSRF_VALUE = "X-Requested-With", "kalmido"
 # reachable without a user; the proxy header is never read on PROXY_IGNORE paths (they bypass the

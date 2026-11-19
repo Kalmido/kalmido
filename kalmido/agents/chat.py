@@ -9,6 +9,7 @@ import time
 from datetime import timedelta
 from flask import g, jsonify, request
 
+from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
 from ..core.config import app, ATT_DIR, MAX_FILE_MB
 from ..core.pgbus import bus_on, bus_send  # 2.622.0 (#3891)
 from ..core.pg import insert_id
@@ -530,7 +531,7 @@ APPROVAL_OPEN_MAX, APPROVAL_PIN_MAX, APPROVAL_PUSH_HOUR = 10, 20, 5
 # 2.86.0 (N31): a daily push budget per agent and person (chat answers + jobs waiting for the person); past it the message
 # still arrives in the chat / Agents tab, only without a push -- a hijacked agent cannot flood someone's phone
 try:
-    AGENT_PUSH_DAY = max(1, int(os.environ.get("KALMIDO_AGENT_PUSH_DAY") or 500))
+    AGENT_PUSH_DAY = max(1, env_int("KALMIDO_AGENT_PUSH_DAY", 500))
 except ValueError:
     AGENT_PUSH_DAY = 500
 

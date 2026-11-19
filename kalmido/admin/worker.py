@@ -36,6 +36,7 @@ from ..core.reqtime import rt_stats
 from ..accounts.session import _BG_TURN, GATE
 from ..accounts.bgjobs import bgj_add, bgj_counts, bgj_fn, bgj_kick
 from ..core.instance import UPDATE_KICK, _update_now
+from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
 
 bgj_fn("instance:update")(_update_now)  # 2.370.3 (#2760): "check for updates now" (core/instance.py) through the queue
 UPDATE_KICK.append(lambda: bgj_add("instance:update", once=True))
@@ -46,7 +47,7 @@ from ..tasks.related import emb_kick  # 2.369.5 (#2517): pulled up from function
 from ..core.retention import ret_status  # 2.369.5 (#2517): pulled up from functions
 
 try:
-    WRK_REPLICAS = max(1, int(os.environ.get("KALMIDO_REPLICAS", "") or 1))
+    WRK_REPLICAS = max(1, env_int("KALMIDO_REPLICAS", 1))
 except ValueError:
     WRK_REPLICAS = 1
 WRK_CONN_EXTRA = 7  # direct connections outside the pool per process (start-up, loop locks, backup, CLI; 2.642.0 #4975: + the busy locks of core/ephem.py)
@@ -62,7 +63,7 @@ WRK_LOCKS_ON = os.environ.get("KALMIDO_LOOP_LOCKS", "1") != "0"  # 0 = every pro
 WRK_LOCK_CLASS = 21020  # first key of the two-key advisory locks (a key space of its own next to write_lock's one-key locks)
 WRK_RETRY_S = 15  # a loop another process runs: asks again after this
 WRK_PING_S = 15  # the lock connection is checked at most this often
-WRK_HB_S = max(5, int(os.environ.get("KALMIDO_WORKER_HEARTBEAT", "") or 30))
+WRK_HB_S = max(5, env_int("KALMIDO_WORKER_HEARTBEAT", 30))
 # the threads (by name) that take a loop lock: startup.py's loops + the queues their modules start on demand
 # 2.1069.0 (#5412): + docs-pdfopt (Optimise PDF's own thread next to docs: one process per instance runs it)
 WRK_LAZY = ("filetext", "docs", "docs-pdfopt", "paperless", "paperless-zipcheck", "embed", "bgjobs")  # 2.193.0 D (#2220): + bgjobs
@@ -366,7 +367,7 @@ def wrk_web_procs_start(script):
 def wrk_web_proc_guard():
     """A started web process ends when its first process is gone (a hard stop sends it no SIGTERM)."""
     try:
-        parent = int(os.environ.get("KALMIDO_WEB_PROC_PARENT", "") or 0)
+        parent = env_int("KALMIDO_WEB_PROC_PARENT", 0)
     except ValueError:
         parent = 0
     if not WEB_PROC or not parent:

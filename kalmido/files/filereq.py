@@ -24,7 +24,6 @@ import hmac
 import html
 import json
 import mimetypes
-import os
 import re
 import secrets
 import time
@@ -52,6 +51,7 @@ from .upsafe import H6D_SLACK, UploadRefused, h6d_read  # 2.369.5 (#2517): pulle
 from ..collab.news import news_add, notif_ok  # 2.369.5 (#2517): pulled up from functions
 from ..collab.comments import collab_user  # 2.369.5 (#2517): pulled up from functions
 from ..notify.push import push_prio  # 2.369.5 (#2517): pulled up from functions
+from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
 
 FRQ_TOKEN_RE = re.compile(r"[A-Za-z0-9_-]{20,64}")
 FRQ_TITLE_MAX, FRQ_NOTE_MAX, FRQ_NAME_MAX = 120, 2000, 120
@@ -61,7 +61,7 @@ FRQ_VIEW_RATE, FRQ_SEND_RATE, FRQ_SEND_HOUR = 60, 30, 300  # per address / minut
 FRQ_NOTIFY_S = 600
 FRQ_MIN_S, FRQ_MAX_S = 2, 24 * 3600  # the page's signed stamp: not sooner, not later after loading
 try:  # a typo in the variable must not stop the server
-    FRQ_DAY_MB = max(1, int(os.environ.get("KALMIDO_FILE_REQUEST_MB_DAY") or 1000))
+    FRQ_DAY_MB = max(1, env_int("KALMIDO_FILE_REQUEST_MB_DAY", 1000))
 except ValueError:
     FRQ_DAY_MB = 1000
 # Programs, scripts, HTML and SVG never (tasks/attachments.py EXEC_EXT, FRQ_NEVER) -- also not inside an allowed ending (the

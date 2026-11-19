@@ -21,11 +21,12 @@ import urllib.request
 
 from ..core.config import safe_urlopen
 from ..core.i18n import lang
+from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
 
 
 def _asst_env_int(name, dflt, lo=1):
     try:
-        return max(lo, int(os.environ.get(name, "") or dflt))
+        return max(lo, env_int(name, dflt))
     except ValueError:
         return dflt
 

@@ -61,6 +61,7 @@ from ..core.pg import system_ctx, write_lock
 from ..core.errors import Denied  # 2.1124.0 (#6047)
 from ..core.db import body, bump, connect, db, err, fresh_within, gset, iso, iso_ms, now_utc  # 2.149.0 G (#2517): pulled up from functions
 from .moneycol import mc_fields  # 2.755.0 (#5293): the NUMERIC money columns back as the text the office code reads
+from .env import env_int, env_float  # 2.1437.0 (#6615): a wrong value = one warning with its name
 
 PREFIX = "kenc1:"
 MAGIC = b"KENC1\n"
@@ -771,8 +772,8 @@ def oc_read_file(c, path, ctx=FILE_CTX):
 # (also on public links, where no sign-in is needed). A background job (no request) waits longer and then goes on.
 # A single file larger than the budget is let through when nothing else is held (it could never be opened otherwise).
 SEAL_RAM_FILE = 10 * 1024 * 1024
-SEAL_RAM_BUDGET = int(os.environ.get("KALMIDO_SEAL_RAM_MB") or 256) * 1024 * 1024
-SEAL_RAM_WAIT = float(os.environ.get("KALMIDO_SEAL_RAM_WAIT") or 15)
+SEAL_RAM_BUDGET = env_int("KALMIDO_SEAL_RAM_MB", 256) * 1024 * 1024
+SEAL_RAM_WAIT = env_float("KALMIDO_SEAL_RAM_WAIT", 15)
 SEAL_RAM_BG_WAIT = 300
 SEAL_RAM_RETRY = 10
 SEAL_RAM_QUEUE = 2  # 2.663.0 (#4191, Fable review): at most this many requests wait for room; more answer 503 at once

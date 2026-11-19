@@ -26,7 +26,7 @@ from ..core.db import db, gset, gsetting, iso, iso_ms, now_utc, bump
 from ..core.pg import system_ctx  # 2.149.0 G (#2517): pulled up from functions
 from ..core.access import Denied  # 2.149.0 G (#2517): pulled up from functions
 from ..core.orgcrypt import oc_read_file  # 2.149.0 G (#2517): pulled up from functions
-from ..core.env import env_bool
+from ..core.env import env_bool, env_int
 from ..core.objwords import osw_put  # 2.1002.0 (#5279)
 from ..accounts.users import need_admin  # 2.369.5 (#2517): pulled up from functions
 
@@ -41,7 +41,7 @@ _SC = {"down_until": 0.0, "tick_at": 0.0, "last_ok": "", "last_err": "", "gc_at"
 
 def _env_int(name, default, lo, hi):
     try:
-        return max(lo, min(hi, int(os.environ.get(name, "") or default)))
+        return max(lo, min(hi, env_int(name, default)))
     except ValueError:
         return default
 

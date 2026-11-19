@@ -57,6 +57,7 @@ from .store import fs_mail_rows, fs_log_add  # 2.369.5 (#2517): pulled up from f
 from .store import _fs_receipt_hidden, _fs_receipts_hidden_ids  # 2.649.0 A (#5049)
 from .scan import sc_guard  # 2.369.5 (#2517): pulled up from functions
 from .bulk import fs_zip_build, abm_send_zip, abm_drop  # 2.369.5 (#2517): pulled up from functions
+from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
 
 XL_PREFIX = "/s/f/"
 XL_DAYS = {"1d": 1, "7d": 7, "30d": 30}
@@ -65,8 +66,8 @@ XL_LABEL_MAX = 80
 XL_LIST_MAX = 1000       # entries shown per folder
 XL_ZIP_RATE = 5          # folder ZIPs per client address and minute
 XL_ZIP_LINK_RATE = 10    # 2.112.1 (#2058, review): folder ZIPs per link and minute (all addresses together)
-XL_ZIP_MAX_MB = int(os.environ.get("KALMIDO_EXT_ZIP_MAX_MB", "256"))      # a ZIP through a link: lower than signed in
-XL_ZIP_MAX_FILES = int(os.environ.get("KALMIDO_EXT_ZIP_MAX_FILES", "1000"))
+XL_ZIP_MAX_MB = env_int("KALMIDO_EXT_ZIP_MAX_MB", 256)      # a ZIP through a link: lower than signed in
+XL_ZIP_MAX_FILES = env_int("KALMIDO_EXT_ZIP_MAX_FILES", 1000)
 XL_PW_LINK_LIMIT = 20    # wrong passwords per file link within FAIL_WINDOW (list links: PUB_PW_LINK_LIMIT)
 XL_REVOKED_DAYS = 30     # a revoked link is removed for good after this many days (undo works until then)
 XL_PREVIEW_MB = 15       # bigger images get no preview (the download stays)

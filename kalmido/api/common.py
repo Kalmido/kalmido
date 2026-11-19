@@ -3,7 +3,6 @@ counter). They lived in api/v1.py, which re-exports them; the domain modules' v1
 imports: kalmido/__init__.py puts this module into the core layer (LAYER_OF)."""
 import base64
 import functools
-import os
 import threading
 import time
 from flask import g, has_request_context, jsonify, request, Response
@@ -15,6 +14,7 @@ from ..core.ctx import me
 from ..core.errors import BadInput, Denied, UnknownFields
 from ..core.ratedb import RATE_SHARED_MIN_S, rate_hit
 from ..core.access import feat_has  # 2.1327.0 (#6823): the one reading of the module switches
+from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
 
 
 V1_CODES = {400: "invalid", 401: "unauthorized", 403: "forbidden", 404: "not_found", 405: "method_not_allowed",
@@ -23,7 +23,7 @@ V1_CODES = {400: "invalid", 401: "unauthorized", 403: "forbidden", 404: "not_fou
 
 _HITS, _HITS_LOCK = {}, threading.Lock()
 try:  # 2.1282.0 (#6426): the value of integrations/importers.py IMPORT_RATE, read the same way
-    IMPORT_UPLOAD_RATE = max(1, int(os.environ.get("KALMIDO_IMPORT_RATE", "") or 30))
+    IMPORT_UPLOAD_RATE = max(1, env_int("KALMIDO_IMPORT_RATE", 30))
 except ValueError:
     IMPORT_UPLOAD_RATE = 30
 # 2.425.0 C (#3453): bearer keys of their own kind (not api_tokens rows), by prefix -> f(c, key, bad address counters):

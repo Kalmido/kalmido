@@ -46,7 +46,7 @@ from ..core.i18n import tr
 from ..core.pg import system_ctx
 from ..core.access import Denied, need_task, reading_sql, tvis, vis_sql, acx_lists_sql
 from ..api.common import v1_args, v1_view
-from ..core.env import env_bool
+from ..core.env import env_bool, env_float
 from ..core.orgcrypt import oc_active, oc_dec, oc_enc, OrgCryptError, PREFIX  # 2.149.0 G (#2517): pulled up from functions
 from ..core.serializers import load_tasks, rel_of  # 2.149.0 G (#2517): pulled up from functions; 2.576.0 (#3371): rel_of
 from ..personal.timetrack import vis_ids  # 2.576.0 (#3371)
@@ -99,13 +99,13 @@ if EMB_BLOCKED:
     print("embed: KALMIDO_EMBED_URL points to another host, allowed only with KALMIDO_EMBED_EXTERNAL=1; related tasks stay off", flush=True)
     EMBED_URL, EMB_EXTERNAL = "", ""
 # 2.59.0 part M (measurement on the dev lists, 16.10.2026): multilingual-e5-small int8, cosine thresholds of that model
-EMB_DUP = float(os.environ.get("KALMIDO_RELATED_DUP") or 0.96)     # cosine from which two tasks are "probably duplicates"
-EMB_REL = float(os.environ.get("KALMIDO_RELATED_MIN") or 0.90)     # lowest cosine of a related task
-EMB_SEARCH = float(os.environ.get("KALMIDO_RELATED_SEARCH") or 0.82)  # lowest cosine of a "similar meaning" search hit (query vs task)
+EMB_DUP = env_float("KALMIDO_RELATED_DUP", 0.96)     # cosine from which two tasks are "probably duplicates"
+EMB_REL = env_float("KALMIDO_RELATED_MIN", 0.90)     # lowest cosine of a related task
+EMB_SEARCH = env_float("KALMIDO_RELATED_SEARCH", 0.82)  # lowest cosine of a "similar meaning" search hit (query vs task)
 EMB_MIX = os.environ.get("KALMIDO_RELATED_MIX") or "nsum"  # the order of the related tasks, t = trigram similarity of the titles:
 #   nsum: (1 - EMB_W_TXT) * clip((cosine - EMB_NORM) / (1 - EMB_NORM), 0, 1) + EMB_W_TXT * t   (M: e5 cosines sit above ~0.84)
 #   add: min(1, cosine + EMB_W_TXT * t) | max: max(cosine, 0.5 + t / 2) | sum: (1 - EMB_W_TXT) * cosine + EMB_W_TXT * t
-EMB_NORM = float(os.environ.get("KALMIDO_RELATED_NORM") or 0.84)
+EMB_NORM = env_float("KALMIDO_RELATED_NORM", 0.84)
 EMB_W_TXT = 0.25
 EMB_REFS = 5            # tasks named by #number (either direction) are shown apart from the similar ones ("ref"), at most this many
 EMB_TRGM_MIN = 0.45     # titles at least this similar (pg_trgm) are candidates even without a close vector
@@ -113,10 +113,10 @@ EMB_TOP = 30            # vector candidates before mixing
 EMB_K = 5               # related tasks shown
 EMB_TEXT_MAX = 2000     # characters of a task's text sent to the service (the model reads ~512 tokens anyway)
 EMB_BATCH = 32          # tasks per worker batch (the service takes at most 64 texts)
-EMB_IDLE = float(os.environ.get("KALMIDO_EMBED_IDLE") or 15)      # seconds between looks when nothing is waiting
-EMB_BUSY = float(os.environ.get("KALMIDO_EMBED_BUSY") or 2)       # pause between batches of a backlog (first start: throttled)
-EMB_DOWN = float(os.environ.get("KALMIDO_EMBED_DOWN") or 60)  # pause after the service failed
-EMB_CLEAN = float(os.environ.get("KALMIDO_EMBED_CLEAN") or 60)  # seconds between two cleanups (emb_cleanup) of a process
+EMB_IDLE = env_float("KALMIDO_EMBED_IDLE", 15)      # seconds between looks when nothing is waiting
+EMB_BUSY = env_float("KALMIDO_EMBED_BUSY", 2)       # pause between batches of a backlog (first start: throttled)
+EMB_DOWN = env_float("KALMIDO_EMBED_DOWN", 60)  # pause after the service failed
+EMB_CLEAN = env_float("KALMIDO_EMBED_CLEAN", 60)  # seconds between two cleanups (emb_cleanup) of a process
 EMB_QUERY_TIMEOUT = 1.5  # a live query (hint while adding, search) waits at most this long for the service
 EMB_RATE = (6, 10.0)     # live queries per account: at most 6 per 10 s (more: an empty answer without asking the service)
 EMB_CTX = "task_vectors.vec"

@@ -13,6 +13,7 @@ import threading
 import time
 from datetime import timedelta
 
+from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
 from ..core.config import app
 from ..core.db import connect, iso, now_utc
 from ..accounts.session import GATE, bg_here
@@ -30,7 +31,7 @@ from .mailaddr import dmn_dest  # 2.577.0 C (#4466)
 from .ocr import ocr_anon_tired, ocr_tired, ocr_ws_sql  # (#6951): + the anonymous share; (#6651): the workspaces' hour budget of recognition
 
 IDLE = 5             # s the queue sleeps when there is nothing to do (a new document wakes it at once)
-SCAN_EVERY = max(1, int(os.environ.get("KALMIDO_DOCS_SCAN_S", "60") or 60))  # s between two looks into the inbox folders
+SCAN_EVERY = max(1, env_int("KALMIDO_DOCS_SCAN_S", 60))  # s between two looks into the inbox folders
 RUN_STALE = 30       # min after which a run that was cut off (restart) is taken up again. 2.521.0 E (#4475): only the fallback
                      # (a replica gone for good; longer than the longest run, docs/ocr.py 30 pages x 60 s): a run this process lost to
                      # a database restart is taken up at its next step, and the first step of the only queue process takes up every one
@@ -323,7 +324,7 @@ def docs_run_once():
 def _replicas():
     """KALMIDO_REPLICAS as admin/worker.py WRK_REPLICAS reads it (read here: that module is a layer above and imports this one)."""
     try:
-        return max(1, int(os.environ.get("KALMIDO_REPLICAS", "") or 1))
+        return max(1, env_int("KALMIDO_REPLICAS", 1))
     except ValueError:
         return 1
 

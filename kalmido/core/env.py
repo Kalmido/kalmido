@@ -164,6 +164,7 @@ VARS = (
     _v("KALMIDO_CLAMD_MAX_MB", "100", "Largest file in MB the scanner checks.", "files"),
     _v("KALMIDO_CLAMD_TIMEOUT", "60", "Seconds one scan may take.", "files"),
     _v("KALMIDO_CLAMD_DOWN_S", "30", "Seconds a failed scanner is not asked again.", "files"),
+    _v("KALMIDO_CLAMD_ALERT_S", "300", "Seconds the virus scanner may not answer before the server admins get an alert (2.1437.0, #6615).", "files"),
     _v("KALMIDO_CLAMAV_OFF", "", "Why the installer left the virus scanner out (low_memory = under about 3 GB of memory), 2.1284.0; written by install.sh into .env, shown in the admin view. Removed when the scanner is switched on (KALMIDO_CLAMAV=1 ./update.sh).", "files"),
     _v("KALMIDO_WIKI_FILE_MAX_MB", "100", "Largest PDF or picture in MB of a knowledge page (upload and ZIP import), 2.177.0.", "files"),
     _v("KALMIDO_WIKI_IMPORT_MAX_MB", "4096", "Size in MB of a ZIP of knowledge pages that can be imported (and of everything unpacked from it), 2.177.0.", "files"),
@@ -406,17 +407,73 @@ def env_str(name, default=None):
     return env_default(name) if default is None else default
 
 
+def _warn_num(name, v, what, default):
+    """2.1437.0 (#6615): a number variable with a value that is no number: one line with its name (per process), then the default."""
+    if name not in _WARNED:
+        _WARNED.add(name)
+        print(f"warning: {name}={v[:20]!r} is not {what}: using the default ({default})", file=sys.stderr, flush=True)
+
+
 def env_int(name, default, lo=None, hi=None):
-    """A whole number; unset, empty or not a number = default; then clamped to lo / hi."""
+    """A whole number; unset or empty = default; not a number = default and one warning in the log with the name (2.1437.0,
+    #6615: was silent; before env_int a module's int(os.environ...) ended the start with a ValueError without the name);
+    then clamped to lo / hi."""
+    v = (os.environ.get(name) or "").strip()
     try:
-        n = int((os.environ.get(name) or "").strip() or default)
+        n = int(v) if v else int(default)
     except ValueError:
+        _warn_num(name, v, "a whole number", default)
         n = int(default)
     if lo is not None:
         n = max(lo, n)
     if hi is not None:
         n = min(hi, n)
     return n
+
+
+def env_float(name, default, lo=None, hi=None):
+    """2.1437.0 (#6615): a number (also with a decimal point), the same way as env_int."""
+    v = (os.environ.get(name) or "").strip()
+    try:
+        n = float(v) if v else float(default)
+    except ValueError:
+        _warn_num(name, v, "a number", default)
+        n = float(default)
+    if n != n:  # nan
+        _warn_num(name, v, "a number", default)
+        n = float(default)
+    if lo is not None:
+        n = max(lo, n)
+    if hi is not None:
+        n = min(hi, n)
+    return n
+
+
+def env_unknown(environ=None):
+    """2.1437.0 (#6615): the KALMIDO_* names in the environment that Kalmido does not read (not in VARS, the one list
+    tools/env_check.py checks the code against): a typo like KALMIDO_SMTP_HOSTT would else stay silently without effect."""
+    environ = os.environ if environ is None else environ
+    return sorted(k for k in environ if k.startswith("KALMIDO_") and k not in _BY)
+
+
+def env_unknown_warn():
+    """2.1437.0 (#6615): one log line at the start (app.py, the first web process) naming the unknown KALMIDO_* variables."""
+    unk = env_unknown()
+    if unk:
+        print(f"warning: Kalmido does not know {', '.join(unk)} (a typo? the known names: docs/ENV.md): no effect", file=sys.stderr, flush=True)
+    return unk
+
+
+def env_port(name="PORT", default=3040):
+    """2.1437.0 (#6615): the port to listen on; a value that is no port (1-65535) ends the start with one FATAL line naming the
+    variable (a default here would listen where the proxy does not look)."""
+    v = (os.environ.get(name) or "").strip()
+    if not v:
+        return default
+    if v.isdigit() and 1 <= int(v) <= 65535:
+        return int(v)
+    print(f"FATAL: {name}={v[:20]!r} is not a port number (1-65535). Fix it in the .env and start again.", file=sys.stderr, flush=True)
+    raise SystemExit(2)
 
 
 def env_bool(name, default):

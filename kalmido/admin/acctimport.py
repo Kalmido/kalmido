@@ -91,6 +91,7 @@ from ..contacts.bulk import bk_occ_drop, ctt_unlink  # 2.370.4 (#3089)
 from ..accounts.invite import invite_new  # 2.369.5 (#2517): pulled up from functions
 from .orgexport import OX_MAGIC, OX_FK_AAD  # 2.369.5 (#2517): pulled up from functions
 from ..hub.mailbox import mbx_take_values  # 2.369.5 (#2517): pulled up from functions
+from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
 
 UMZ_IN_DIR = os.path.join(EXPORT_DIR, "account-import")
 UMZ_SOURCE = "Kalmido"  # imports.source of an account import (the list of recent imports shows it as it is)
@@ -99,7 +100,7 @@ UMZ_KEEP_H = 24  # an upload that is not used is removed after this
 
 def _env_mb(name, dflt):
     try:
-        v = int(os.environ.get(name, "").strip() or dflt)
+        v = env_int(name, dflt)
     except ValueError:
         v = dflt
     return max(1, v)

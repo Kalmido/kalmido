@@ -1,13 +1,12 @@
 """Comments, mentions, the activity timeline and collaboration pushes."""
 import json
-import os
 import re
 import time
 from datetime import date
 from flask import g, has_request_context, jsonify, request
 
 from ..core.config import app, APP_NAME, PUBLIC_URL
-from ..core.env import env_bool
+from ..core.env import env_bool, env_int
 from ..core.pg import write_lock
 from ..core.i18n import LANGS, short_day, tr, trn
 from ..core.db import body, bump, db, err, inbox_default, iso, local_now, now_utc, usettings
@@ -461,7 +460,7 @@ def comment_restore(cid):
 # Burst rule, shared by all of them (per recipient and task): the first push goes out right away; anything
 # else on that task in the next TASK_PUSH_GAP seconds is only counted, and once that minute is over the
 # watchdog sends ONE summary ("2 more comments · 1 more change", "you were mentioned").
-TASK_PUSH_GAP = int(os.environ.get("TASKS_PUSH_GAP", "60"))  # seconds
+TASK_PUSH_GAP = env_int("TASKS_PUSH_GAP", 60)  # seconds
 
 
 def collab_on(s):

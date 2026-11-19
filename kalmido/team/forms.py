@@ -2,7 +2,6 @@
 import hashlib
 import hmac
 import html
-import os
 import re
 import secrets
 import threading
@@ -32,6 +31,7 @@ from ..collab.liste2eguard import LE2B_OFF_MSG, le2b_list_locked  # 2.369.5 (#25
 from ..tasks.attachments import safe_name, unexec_name  # 2.369.5 (#2517): pulled up from functions
 from ..core.pages import save_attachment_bytes  # 2.369.5 (#2517): pulled up from functions
 from ..lists.public import PUB_ACTOR  # 2.369.5 (#2517): pulled up from functions
+from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
 
 
 # ---------------------------------------------------------------- 2.23.0 (#463 / #341): forms -> tasks
@@ -64,7 +64,7 @@ FRM_TTYPES = ("", "bug", "feature", "task")
 # 2.86.0 (N24): the file bytes anonymous visitors may send through ONE form per hour (20 full files); more = the report
 # is refused with a "try later" page (a link in the open cannot fill the disk); signed-in senders count on their quota.
 try:  # 2.86.0 (review): a typo in the variable must not stop the server
-    FRM_BYTES_HOUR = max(1, int(os.environ.get("KALMIDO_FORM_FILES_MB_HOUR") or 200)) * 1024 * 1024
+    FRM_BYTES_HOUR = max(1, env_int("KALMIDO_FORM_FILES_MB_HOUR", 200)) * 1024 * 1024
 except ValueError:
     FRM_BYTES_HOUR = 200 * 1024 * 1024
 _FRM_BYTES, _FRM_BYTES_LOCK = {}, threading.Lock()

@@ -11,7 +11,6 @@ they are opened per workspace as in the filters). A name nobody has = no hit. Th
 (2.1002.0 #5279: the shared word index, core/objwords.py osw_match -- this syntax is a filter layer over it); exact
 phrases and excluded words / phrases are checked against the opened text and the name.
 Nothing here reads a document the caller does not already filter by visibility (docs/web.py doc_query)."""
-import os
 import re
 from datetime import date, timedelta
 
@@ -21,12 +20,13 @@ from ..files.store import fs_role  # 2.306.0 D3 (#2875)
 from . import store as S
 from ..core.objwords import osw_match  # 2.1002.0 (#5279)
 from ..core.objtags import OTG_FS_IN  # 2.1119.0 (#5277)
+from ..core.env import env_int  # 2.1437.0 (#6615): a wrong value = one warning with its name
 
 DSR_KEYS = {"tag": "tag", "tags": "tag", "absender": "sender", "sender": "sender", "von": "sender", "from": "sender",
             "typ": "type", "type": "type", "art": "type", "datum": "date", "date": "date", "eingang": "added", "added": "added"}
 DSR_FTYPES = ("pdf", "image", "office", "text", "other")
 DSR_TOKEN = re.compile(r'(-?)(?:([A-Za-zÄÖÜäöü]+):(?:"([^"]*)"|(\S+))|"([^"]*)"|(\S+))')
-DSR_TEXT_MAX = int(os.environ.get("KALMIDO_DSR_TEXT_MAX", "3000"))  # documents whose text is opened for a phrase / an exclusion (2.897.0, #5547: settable for the tests)
+DSR_TEXT_MAX = env_int("KALMIDO_DSR_TEXT_MAX", 3000)  # documents whose text is opened for a phrase / an exclusion (2.897.0, #5547: settable for the tests)
 _ISO = r"\d{4}-\d{2}-\d{2}"
 # 2.1119.0 (#5277): the documents carrying one of the tag ids (the core's links; + " IN (?,?))" by _in) -- was doc_node_tags
 _DT_IN = "d.node_id IN (" + OTG_FS_IN

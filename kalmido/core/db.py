@@ -15,7 +15,7 @@ from werkzeug.security import generate_password_hash
 from ..core.config import app, ATT_DIR, BOOT_NAME, BOOT_PROXY, BOOT_USER, DATABASE_URL, DB, NTFY_TOPIC, ONBOARDING_ENV, PUBLIC_URL, TZ
 from ..core.config import APP_VERSION
 from ..core import config as skfp_cfg  # 2.190.0 B (#2592): the server key for skfp_check
-from ..core.env import env_bool
+from ..core.env import env_bool, env_int
 from ..core.pg import (  # noqa: F401  (re-exported: the app imports the database API from here)
     Conn, DatabaseError, DataError, Error as DbError, IntegrityError, OperationalError, Row, UniqueViolation, connect_direct,
     connect_pooled, insert_id, like_escape, table_columns, table_exists, wait_ready, write_lock,
@@ -73,7 +73,7 @@ def test_seconds(name, default):
     if os.environ.get("KALMIDO_TEST") != "1" or not os.environ.get(name):
         return default
     try:
-        return max(1, int(os.environ[name]))
+        return max(1, int(os.environ[name]))  # env_check: test only (KALMIDO_TEST=1)
     except ValueError:
         return default
 
@@ -437,6 +437,38 @@ def _has_files(d):
     return False
 
 
+PG_MAJOR = 17  # 2.1437.0 (#6615): the PostgreSQL version Kalmido needs (docs/SELF-HOSTING.md, the postgres image of docker-compose.yml)
+PG_EXTENSIONS = ("unaccent", "pg_trgm")  # init_db creates them (message search); both ship with PostgreSQL (contrib)
+
+
+def pg_requirements(c):
+    """2.1437.0 (#6615): what the database server lacks, as lines for the log ([] = all there): a major version older than
+    PG_MAJOR (a newer one only warns), an extension of PG_EXTENSIONS that is neither installed nor installable, or one this
+    database user may not create (CREATE on the database; both are trusted extensions since PostgreSQL 13)."""
+    out = []
+    num = int(c.execute("SHOW server_version_num").fetchone()[0])
+    major = num // 10000
+    if major < PG_MAJOR:
+        out.append(f"PostgreSQL {major} is too old: Kalmido needs PostgreSQL {PG_MAJOR}. Move the data to a PostgreSQL {PG_MAJOR} "
+                   "server (dump and restore, docs/SELF-HOSTING.md) and start again.")
+        return out
+    if major > PG_MAJOR:
+        print(f"warning: PostgreSQL {major}: Kalmido is tested with PostgreSQL {PG_MAJOR}.", flush=True)
+    have = {r[0] for r in c.execute("SELECT extname FROM pg_extension").fetchall()}
+    avail = {r[0] for r in c.execute("SELECT name FROM pg_available_extensions").fetchall()}
+    may = bool(c.execute("SELECT has_database_privilege(current_database(), 'CREATE')").fetchone()[0])
+    for ext in PG_EXTENSIONS:
+        if ext in have:
+            continue
+        if ext not in avail:
+            out.append(f"the PostgreSQL extension {ext} is not available on the database server: install the PostgreSQL contrib "
+                       "package there (the postgres image has it) and start again.")
+        elif not may:
+            out.append(f"the database user may not create the PostgreSQL extension {ext}: run CREATE EXTENSION {ext}; in the "
+                       "database as its owner or a superuser (or grant CREATE on the database) and start again.")
+    return out
+
+
 def startup_guard():
     """Raises DataDirError (exit code 3) when the database must not be (re)created or opened; returns True when this is a
     genuinely new install (an empty database and a data dir without Kalmido data), False for an existing database.
@@ -448,9 +480,14 @@ def startup_guard():
     if not DATABASE_URL:
         raise DataDirError(_no_url())
     try:
-        wait_ready(DATABASE_URL, int(os.environ.get("KALMIDO_DB_WAIT", "60")))
+        wait_ready(DATABASE_URL, env_int("KALMIDO_DB_WAIT", 60))
         c = connect_direct(DATABASE_URL)
         try:
+            bad = pg_requirements(c)  # 2.1437.0 (#6615): an old PostgreSQL / a missing extension in plain words, not mid init_db
+            if bad:
+                for line in bad:
+                    print(f"FATAL: {line}", flush=True)
+                raise DataDirError(3)
             has_tables = table_exists(c, "users")
             meta = dict(c.execute("SELECT key, value FROM kalmido_meta WHERE key IN ('schema_version','app_version',"
                                   "'app_version_prev','back_floor','back_floor_how')").fetchall()) if has_tables and table_exists(c, "kalmido_meta") else {}

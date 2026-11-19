@@ -42,7 +42,7 @@ from ..core.config import ATT_DIR, OFFICE_DIR, app, SECRET_KEY
 from ..core.pg import qi, system_ctx, write_lock  # 2.981.0 (#5273): qi
 from ..office.ledger import ofx_release  # 2.542.0 (#4598)
 from ..core import orgcrypt as oc
-from ..core.env import env_bool
+from ..core.env import env_bool, env_float
 from ..core.db import connect, gset, gsetting, iso, now_utc  # 2.149.0 G (#2517): pulled up from functions
 from ..accounts.bgjobs import bgj_add, bgj_fn
 from ..life.model import jr_settle  # 2.306.0 A (#2885)
@@ -803,7 +803,7 @@ def docs_count(c):
 
 def _pause():
     try:
-        return max(0.0, float(os.environ.get("KALMIDO_ORGCRYPT_PAUSE", "0.2")))
+        return max(0.0, env_float("KALMIDO_ORGCRYPT_PAUSE", 0.2))
     except ValueError:
         return 0.2
 
@@ -1141,7 +1141,7 @@ def oc_migrate_once():
 
 def oc_migrate_loop(delay=3.0):
     """The background thread: a wait (the server answers first), then one pass."""
-    time.sleep(float(os.environ.get("KALMIDO_ORGCRYPT_DELAY", delay)))
+    time.sleep(env_float("KALMIDO_ORGCRYPT_DELAY", delay))
     oc_migrate_once()
 
 
@@ -1154,7 +1154,7 @@ def oc_migrate_kick():
     (a pass in the background after the usual short wait, so the moving request has committed). Not in helper processes.
     2.193.0 D (#2220): a row of the queue (the worker runs it; one waiting row is enough)."""
     if oc.oc_enabled() and env_bool("TASKS_WATCHDOG", True):
-        bgj_add("orgcrypt:migrate", delay=float(os.environ.get("KALMIDO_ORGCRYPT_DELAY", 3.0)), once=True)
+        bgj_add("orgcrypt:migrate", delay=env_float("KALMIDO_ORGCRYPT_DELAY", 3.0), once=True)
 
 
 @bgj_fn("orgcrypt:settle")  # 2.193.0 D (#2220): oc_settle_kick through the queue
@@ -1202,7 +1202,7 @@ def oc_settle_again(list_ids, again=0):
     if int(again) >= OC_SETTLE_AGAIN:
         print(TAG, "budget lists still busy, left to the next full pass:", ids, flush=True)
         return
-    delay = max(float(os.environ.get("KALMIDO_ORGCRYPT_DELAY", 0) or 0), 30.0 * 2 ** int(again))
+    delay = max(env_float("KALMIDO_ORGCRYPT_DELAY", 0), 30.0 * 2 ** int(again))
     bgj_add("orgcrypt:settle", ids, int(again) + 1, delay=delay)
 
 
@@ -1232,7 +1232,7 @@ def oc_settle_kick(list_ids, delay=3.0):
 
 def _settle_queue(ids, delay):
     """2.193.0 D (#2220): one row of the queue per moving request (was a waiting thread of this process)."""
-    bgj_add("orgcrypt:settle", sorted(ids), delay=float(os.environ.get("KALMIDO_ORGCRYPT_DELAY", delay)))
+    bgj_add("orgcrypt:settle", sorted(ids), delay=env_float("KALMIDO_ORGCRYPT_DELAY", delay))
 
 
 # ---- rewrap: test a recovery key before it replaces anything ---------------------------------------------------------
@@ -1285,7 +1285,7 @@ ROT_WS = (("doc_rules", "id", "data", "doc_rules.data"), ("doc_models", "id", "d
           ("doc_field_values", "id", "value", "doc_field_values.value"),  # 2.153.0 (#2179): custom field values (docs/fields.py)
           ("obj_comments", "id", "body", "doc_notes.text"),  # 2.635.0 (#4807 d): notes on documents (docs/notes.py); 2.981.0 (#5273):
           ("obj_comment_trash", "comment_id", "body", "doc_notes.text"))  # rows of the comments' core (DOC_WS: their workspace)
-ROT_SETTLE = float(os.environ.get("KALMIDO_ORGCRYPT_ROT_SETTLE", "30"))  # 2.360.2 L (#2561): longest wait for running writers (0 = none)
+ROT_SETTLE = env_float("KALMIDO_ORGCRYPT_ROT_SETTLE", 30)  # 2.360.2 L (#2561): longest wait for running writers (0 = none)
 
 
 # 2.138.0 C (#1972): tables with one row per organisation (no id column; office_cf_start since 2.123)
