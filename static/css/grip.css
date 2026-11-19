@@ -33,8 +33,9 @@
 .gcover.x{cursor:col-resize}.gcover.y{cursor:row-resize}
 .gcover.cbr,.gcover.ctl{cursor:nwse-resize}.gcover.cbl,.gcover.ctr{cursor:nesw-resize}
 body.gdrag{user-select:none;-webkit-user-select:none}
-/* out of the way while a menu, a popover or a dialog is open (like .pgrip, #976) - a grip inside it stays */
-body:has(#pop:not(.hidden)) .grip:not(#pop .grip):not(.modal .grip),body:has(.modal) .grip:not(.modal .grip):not(#pop .grip),
+/* out of the way while a menu, a popover or a dialog is open (like .pgrip, #976) - a grip inside it stays. Two rules: a browser
+   without :has() drops a whole rule that names it, the classes body.pop-open / body.modal-open (set by the code) still work */
+body:has(#pop:not(.hidden)) .grip:not(#pop .grip):not(.modal .grip),body:has(.modal) .grip:not(.modal .grip):not(#pop .grip){visibility:hidden;pointer-events:none}
 body.pop-open .grip:not(#pop .grip):not(.modal .grip),body.modal-open .grip:not(.modal .grip):not(#pop .grip){visibility:hidden;pointer-events:none}
 /* the phone layout has no grips */
 @media (max-width:767px){ .grip{display:none!important} }

@@ -72,7 +72,7 @@ const LSV = k => `localStorage.getItem('${k}')`;
       check(await ev(`fetch('/api/auth/login', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify({username: 'alice', password: 'password123'})}).then(r => r.status)`) === 200, `${W}: login`);
     }
     await nav(B + '#today');
-    check(await until(`!!document.querySelector('#view') && typeof grip_col === 'function' && typeof menu === 'function'`, {timeout: 20000}), `${W}: the app is there`);
+    check(await until(`!!document.querySelector('#view') && typeof grip_col === 'function' && typeof menu === 'function' && !document.getElementById('boot')`, {timeout: 20000}), `${W}: the app is there`);
   };
   // a pointer pressed, moved (two steps), looked at while still pressed, then released
   const dragLook = async ({cmd, ev, ctx}, x0, y0, dx, dy, look, kind = 'mouse') => {
@@ -116,8 +116,8 @@ const LSV = k => `localStorage.getItem('${k}')`;
     // ---- the old keys are taken over and go
     const lg = await ev(`({v: ${VAR('gl-box', '--g-t-leg')}, w: document.getElementById('gl-panel').getBoundingClientRect().width, nw: ${LSV('tasks.grip:t-leg')}, old: ${LSV('tasks.tleg.side')},
       d: __g.gd.get(), dn: ${LSV('tasks.grip:t-dlg')}, dold: ${LSV('kalmido.dlgsize.tgrip')}, dw: document.getElementById('gd-card').getBoundingClientRect().width})`);
-    check(lg.v === '22rem' && Math.abs(lg.w - 352) <= 1 && lg.nw === '22' && lg.old === null, 'legacy: the old LS key is taken over (22rem) and removed ' + JSON.stringify(lg));
-    check(lg.d && lg.d.w === 420 && lg.d.h === 200 && lg.dn && lg.dold === null && Math.abs(lg.dw - 420) <= 1, 'legacy: a raw kalmido.dlgsize key is taken over through map and removed ' + JSON.stringify(lg));
+    check(lg.v === '22rem' && Math.abs(lg.w - 352) <= 1 && lg.nw === '22' && lg.old == null, 'legacy: the old LS key is taken over (22rem) and removed ' + JSON.stringify(lg));
+    check(lg.d && lg.d.w === 420 && lg.d.h === 200 && lg.dn && lg.dold == null && Math.abs(lg.dw - 420) <= 1, 'legacy: a raw kalmido.dlgsize key is taken over through map and removed ' + JSON.stringify(lg));
     await ev(`(__g.gd.reset(), 1)`);
     check(await ev(`__g.gd.get() === null && ${LSV('tasks.grip:t-dlg')} === null && ${LSV('kalmido.dlgsize.tgrip')} === null && Math.abs(document.getElementById('gd-card').getBoundingClientRect().width - 300) <= 1`), 'legacy: after a reset the old size does not come back');
 
@@ -129,10 +129,12 @@ const LSV = k => `localStorage.getItem('${k}')`;
 
     // ---- the column: a mouse drag, live on the nearest box
     let b = await ev(BOX('gx-grip'));
+    const hit = await ev(`(() => { const h = document.elementFromPoint(${b.cx}, ${b.cy}); return h ? h.id || h.tagName : 'nothing'; })()`);
+    check(hit === 'gx-grip', 'column: the pointer reaches the grip (nothing lies over it) ' + hit);
     check(Math.abs(b.x - 21 - 240) <= 1, 'column: the grip sits after the 15rem panel ' + JSON.stringify(b));
     const mid = await dragLook(o, b.cx, b.cy, 80, 0, `({box: document.getElementById('gx-box').style.getPropertyValue('--g-t-col'), root: document.documentElement.style.getPropertyValue('--g-t-col'),
       w: document.getElementById('gx-panel').getBoundingClientRect().width, cls: document.body.classList.contains('pgdrag'), cover: !!document.querySelector('.gcover.x'), ls: ${LSV('tasks.grip:t-col')}})`);
-    check(mid && mid.box === '20rem' && !mid.root && Math.abs(mid.w - 320) <= 1 && mid.cls && mid.cover && mid.ls === null, 'column: during the drag the width follows live on the box, not the root, stored only on release ' + JSON.stringify(mid));
+    check(mid && mid.box === '20rem' && !mid.root && Math.abs(mid.w - 320) <= 1 && mid.cls && mid.cover && mid.ls == null, 'column: during the drag the width follows live on the box, not the root, stored only on release ' + JSON.stringify(mid));
     const af = await ev(`({v: ${VAR('gx-box', '--g-t-col')}, ls: ${LSV('tasks.grip:t-col')}, cls: document.body.classList.contains('pgdrag'), cover: !!document.querySelector('.gcover'), now: document.getElementById('gx-grip').getAttribute('aria-valuenow')})`);
     check(af.v === '20rem' && af.ls === '20' && !af.cls && !af.cover && af.now === '20', 'column: released it is stored under grip:t-col, the drag marks are gone ' + JSON.stringify(af));
     // max as a function: 30 now, 24 on the next drag
@@ -163,9 +165,10 @@ const LSV = k => `localStorage.getItem('${k}')`;
     check(await until(`${VAR('gx-box', '--g-t-col')} === '15rem' && ${LSV('tasks.grip:t-col')} === null`, {timeout: 3000}), 'mouse: a double click = the default width, forgotten');
     check(!await until(`!!document.querySelector('#pop:not(.hidden) .menu-list')`, {timeout: 700}), 'mouse: a double click opens no menu');
     // a tap = the menu, "Wider" = 4rem wider
+    b = await ev(BOX('gx-grip'));  // the grip moved back with the default width
     await taps(o, b.cx, b.cy, 1);
     const mi = await until(`[...document.querySelectorAll('#pop:not(.hidden) button, #pop:not(.hidden) [role="menuitem"]')].find(x => /Wider/.test(x.textContent))?.textContent.trim()`, {timeout: 3000});
-    check(mi, 'mouse: a tap without dragging opens the menu with Wider / Narrower / Default width');
+    check(mi, 'mouse: a tap without dragging opens the menu with Wider / Narrower / Default width ' + await ev(`JSON.stringify({pop: document.getElementById('pop').className, html: document.getElementById('pop').innerHTML.slice(0, 160), ae: document.activeElement?.id})`));
     await shot('p21437a-menu.png');
     if (mi) {
       await ev(`([...document.querySelectorAll('#pop:not(.hidden) button, #pop:not(.hidden) [role="menuitem"]')].find(x => /Wider/.test(x.textContent)).click(), 1)`);
@@ -174,10 +177,11 @@ const LSV = k => `localStorage.getItem('${k}')`;
     await ev(`(typeof closePop === 'function' && closePop(), 1)`);
 
     // ---- out of the way while a dialog is open; a grip inside the dialog stays
-    await ev(`(() => { const m = document.createElement('div'); m.className = 'modal'; m.id = 'gfx-modal'; m.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px'; document.body.appendChild(m); m.appendChild(document.getElementById('gd-wrap')); return 1; })()`);
+    await ev(`(() => { const m = document.createElement('div'); m.className = 'modal'; m.id = 'gfx-modal'; m.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px'; document.body.appendChild(m); document.body.classList.add('modal-open'); m.appendChild(document.getElementById('gd-wrap')); return 1; })()`);
+    await until(`getComputedStyle(document.getElementById('gx-grip')).visibility === 'hidden'`, {timeout: 2000});
     const vis = await ev(`({col: getComputedStyle(document.getElementById('gx-grip')).visibility, pe: getComputedStyle(document.getElementById('gx-grip')).pointerEvents, inside: getComputedStyle(document.querySelector('#gd-card > .grip')).visibility})`);
     check(vis.col === 'hidden' && vis.pe === 'none' && vis.inside === 'visible', 'a dialog is open: the grips step aside, the one inside the dialog stays ' + JSON.stringify(vis));
-    await ev(`(() => { document.getElementById('gfx').appendChild(document.getElementById('gd-wrap')); document.getElementById('gfx-modal').remove(); return 1; })()`);
+    await ev(`(() => { document.getElementById('gfx').appendChild(document.getElementById('gd-wrap')); document.getElementById('gfx-modal').remove(); document.body.classList.remove('modal-open'); return 1; })()`);
     check(await until(`getComputedStyle(document.getElementById('gx-grip')).visibility === 'visible'`, {timeout: 3000}), 'the dialog is closed: the grip is back');
 
     // ---- the row, in % of its box
@@ -198,7 +202,7 @@ const LSV = k => `localStorage.getItem('${k}')`;
     const c1 = await ev(`({b: ${BOX('gc-win')}, v: __g.gc.get(), acct: sessionStorage.getItem('acct.t-win'), ls: ${LSV('tasks.grip:t-win')}, saves: window.__saves})`);
     check(cm && Math.abs(cm.w - 320) <= 1 && cm.cover, 'corner: the width follows live during the drag ' + JSON.stringify(cm));
     check(c1.v && c1.v.w === 20 && c1.v.h === 13 && Math.abs(c1.b.r - b.r) <= 1 && Math.abs(c1.b.w - 320) <= 1 && Math.abs(c1.b.h - 208) <= 1, 'corner: 4rem wider to the left, 3rem taller, the right edge stays ' + JSON.stringify(c1));
-    check(c1.acct === JSON.stringify({w: 20, h: 13}) && c1.ls === null && c1.saves >= 1, 'corner: the save hook keeps it (not localStorage) ' + JSON.stringify(c1));
+    check(c1.acct === JSON.stringify({w: 20, h: 13}) && c1.ls == null && c1.saves >= 1, 'corner: the save hook keeps it (not localStorage) ' + JSON.stringify(c1));
     const gp2 = await ev(`(() => { const r = document.querySelector('#gc-win > .grip').getBoundingClientRect(); return {x: r.left + r.width / 2, y: r.top + r.height / 2}; })()`);
     await dragLook(o, gp2.x, gp2.y, 0, 400);
     const c2 = await ev(`({v: __g.gc.get(), h: document.getElementById('gc-win').getBoundingClientRect().height, sh: document.getElementById('gc-in').getBoundingClientRect().height})`);
