@@ -1583,6 +1583,7 @@ def ox_start(oid):
     if oc_status(c, oid).get("rotating"):  # 2.138.0 C (#1972, review F2): the archive's recovery header needs the finished key
         return err(tr("The organisation’s key is being renewed on the server. Try again when that is finished."), 409)
     uid = me()
+    mv_allow(c)  # 2.1413.0 (#6951, reader F1): the export runs while the organisation moves - its queue row too (not strict)
 
     def guard(qc):  # 2.370.3 (#2760): under the queue's lock of the organisation: one export at a time in every process
         if _running(oid, qc):
