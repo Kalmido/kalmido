@@ -24,7 +24,7 @@ from datetime import date, timedelta
 import requests
 
 from freelancer_fixture import freelancer
-from kt import B, H, check, dbx, done, fresh, sess, setup
+from kt import B, H, check, circle_yes, dbx, done, fresh, sess, setup
 
 KEY = base64.b64encode(os.urandom(32)).decode()
 O = "/api/office"
@@ -35,6 +35,7 @@ TEST_IBAN = "DE02120300000000202051"
 T0 = date.today()
 D1, D2, D9 = (T0 - timedelta(days=3)).isoformat(), (T0 - timedelta(days=2)).isoformat(), (T0 - timedelta(days=9)).isoformat()
 TODAY = T0.isoformat()
+V = B + "/api/v1"
 
 fresh({"KALMIDO_INSTANCE_MODE": "workspaces", "KALMIDO_SECRET_KEY": KEY, "KALMIDO_ORGCRYPT_DELAY": "0"}, prefix="P2568B")
 A = setup()
@@ -70,6 +71,7 @@ def head(did):
     return dict(r[0]) if r else None
 
 
+AG_ORG = AH0_ORG = CL_ORG = None  # the organisation's agent, set in the first round (org admin)
 for who, S, uid in (("org admin", A, ALICE), ("freelancer", F, FID)):
     # freelancer-matrix: office
     r = S.put(B + O + "/settings", json={"lang": "en", "currency": "EUR",
@@ -192,6 +194,11 @@ for who, S, uid in (("org admin", A, ALICE), ("freelancer", F, FID)):
     # ---- free positions
     r = requests.post(INV, headers=AH, json={"client_id": CL2, "title": "Workshop", "from": D9, "to": TODAY, "notify": True,
                                                          "items": [{"text": "Workshop day", "qty": 2, "unit": "day", "price": 500}]})
+    # 2.1418.0 (#7142): the agent has no control level and counts as "free" for the circle rule: a draft without a project
+    # is a write into the office, a wider circle than its projects -- the circle's card first, the person says Yes, the
+    # step runs from the card
+    check(r.status_code == 409 and (r.json().get("error") or {}).get("circle") == "wider", f"{who}: #7142: the circle's card first {r.status_code} {r.text[:150]}")
+    r = circle_yes(r, AH, G, S, V, uid, base=B)
     check(r.status_code == 201, f"{who}: a free invoice draft {r.status_code} {r.text[:300]}")
     j = r.json() if r.status_code == 201 else {}
     d = j.get("doc") or {}
@@ -225,10 +232,14 @@ for who, S, uid in (("org admin", A, ALICE), ("freelancer", F, FID)):
     # ---- another person's agent finds nothing of it (tenant-matrix: office)
     if S is F:
         r = requests.post(INV, headers=AH0_ORG, json={"client_id": CL, "items": [{"text": "x", "qty": 1, "price": 1}]})
+        # 2.1418.0 (#7142): the circle's card comes first (the agent has no control level); the admin's Yes runs the step,
+        # and the step meets the tenant border
+        r = circle_yes(r, AH0_ORG, AG_ORG, A, V, ALICE, base=B)
         # review 2.568.0 (M1d): a tenant border answers 403 / 404, never a 400 of an input check that would hide it
         check(r.status_code in (403, 404), f"the organisation's agent with the freelancer's client: refused ({r.status_code} {r.text[:120]})")
         # review 2.568.0 (M1c): the freelancer's project with the organisation's agent -> 404
         r = requests.post(INV, headers=AH0_ORG, json={"client_id": CL_ORG, "from_time": True, "list_id": LP, "from": D9, "to": TODAY})
+        r = circle_yes(r, AH0_ORG, AG_ORG, A, V, ALICE, base=B)
         check(r.status_code == 404, f"the organisation's agent with the freelancer's project: 404 ({r.status_code} {r.text[:120]})")
         check(not dbx("SELECT 1 FROM office_docs WHERE client_id=? AND agent_id=?", (CL, AG_ORG)), "nothing made with another office's client")
     else:
