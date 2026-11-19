@@ -100,7 +100,9 @@ function apbDraw() {
   const types = APB.types.length ? `<ul class="apb-list">${APB.types.map(t => `<li class="${t.active ? '' : 'off'}"><button class="apb-main" data-apbtype="${t.id}"><b>${esc(t.name)}</b><span class="muted">${esc(apbTypeSub(t))}</span></button>
       <button class="iconbtn" data-apbdel="${t.id}" aria-label="${esc(tr('Delete {0}', t.name))}" title="${esc(tr('Delete'))}">${ic('trash', 's')}</button></li>`).join('')}</ul>`
     : emptyState({icon: 'cal', size: 'row', title: tr('No appointment type yet'), sub: tr('Clients select one of them first.')});  // 2.1183.0 (#6157): the shared empty state
-  el.innerHTML = `${warn ? `<p class="apb-warn" role="note">${esc(warn)}</p>` : ''}
+  // 2.1423.0 (#6551): a subscription out of date still blocks its old times here (rather busy than booked twice)
+  const stale = (D.stale_subs || []).map(x => `<p class="apb-warn" role="note"><span class="cevstale">${ic('alert', 's')}</span> ${esc(tr('Calendar {0} could not be updated: its events as of {1} still block times here.', x.name, x.synced_at ? fmtStamp(new Date(x.synced_at), false) : '–'))}</p>`).join('');
+  el.innerHTML = `${warn ? `<p class="apb-warn" role="note">${esc(warn)}</p>` : ''}${/*html-ok*/ stale /* built above with esc() */}
     <label class="mmain apb-onrow"><span class="swc"><input type="checkbox" id="apb-on" ${p.enabled ? 'checked' : ''} ${warn && !p.enabled ? 'disabled' : ''}><span class="swt" aria-hidden="true"></span></span>
       <span><b>${tr('Clients can book appointments')}</b>${APB.types.length ? '' : `<small class="muted">${tr('A public page without sign-in: free times come from your calendars, every booking is confirmed by e-mail.')}</small>`}</span></label>
     ${link}
