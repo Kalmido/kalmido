@@ -136,7 +136,8 @@ os.environ["KALMIDO_DISPATCH_PUSH_URL"] = "/nowhere"  # set for real below, once
 cfg, prob = ad.load_config(proj)
 check("finish_cmd" not in cfg and "worktree" not in cfg and any("finish_cmd is retired" in x for x in ad.LOGGED),
       f"#7028: finish_cmd / worktree are retired and named: {ad.LOGGED}")
-check(not prob and cfg["lists"] == ["Backlog"] and cfg["places"] == 1 and "nonsense" not in cfg and cfg["stale_h"] == 1,
+# #5199: places is the starter's own ceiling now (default 4), the places come from max_parallel of the work style
+check(not prob and cfg["lists"] == ["Backlog"] and cfg["places"] == 4 and "nonsense" not in cfg and cfg["stale_h"] == 1,
       f"configuration: lists, a wrong type keeps the default, unknown keys left out: {prob} {cfg['places']}")
 
 
@@ -845,6 +846,43 @@ check(STARTS[n][0] == [404] and all(405 not in s[0] for s in STARTS[n:]), f"#406
 check(ar.say("dispatch_state_needs_brief", "de") == "brauchen einen Brief" and all(len(ar.TEXTS[k]) == 6 for k in
       ("dispatch_needs_brief", "dispatch_state_needs_brief", "dispatch_brief_decision", "dispatch_brief_where", "dispatch_brief_size")),
       "#4062: texts in six languages")
+
+# ---- #5199: the places from max_parallel of the work style (one source), capped by the starter's ceiling
+c4 = dict(ad.DEFAULTS)
+check(ad.places_of({}, c4) == (1, "default") and ad.places_of({"work_style": {"max_parallel": 0}}, c4) == (1, "default"),
+      "#5199: no max_parallel (0 / an older server) = one place")
+check(ad.places_of({"work_style": {"max_parallel": 3}}, c4) == (3, "work style") and ad.places_of({"work_style": {"max_parallel": 9}}, c4) == (4, "work style")
+      and ad.places_of({"work_style": {"max_parallel": 9}}, dict(c4, places=2)) == (2, "work style")
+      and ad.places_of({"work_style": {"max_parallel": True}}, c4) == (1, "default"), "#5199: max_parallel capped by places")
+TASKS[:] = [task(531, "One", "L"), task(532, "Two", "L"), task(533, "Three", "L")]
+JOBS.clear()
+state5199 = os.path.join(proj, ".s5199")
+os.makedirs(state5199)
+with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
+    json.dump({"lists": ["Backlog"], "report_at": ""}, f)
+h = Host("on")
+h.state_dir = state5199
+h.agent["work_style"] = {"max_parallel": 2}
+d = ad.Dispatcher(h, proj)
+n = len(STARTS)
+res = d.tick(force=True)
+JOBS[str(500 + len(STARTS))] = {"state": "running", "created": time.time()}
+res = d.tick(force=True)
+check(len(STARTS) == n + 2 and res["places"] == 2, f"#5199: max_parallel 2 = two jobs at once: {STARTS[n:]} {res.get('places')}")
+JOBS[str(500 + len(STARTS))] = {"state": "running", "created": time.time()}
+res = d.tick(force=True)
+check(len(STARTS) == n + 2 and not res["started"], "#5199: both places taken, nothing new")
+h.agent["work_style"] = {"max_parallel": 3}
+real_start = ad.start_job
+ad.start_job = lambda bundle, brief, cfg, env, sd: (None, "slots_full: no job started: all 3 places are taken (3 jobs running).")
+TASKS.append(task(534, "Built", "S"))
+g("commit", "-q", "--allow-empty", "-m", "#534: built")
+res = d.tick(force=True)
+check(res["brakes"] == ["places taken"] and not res["started"] and 534 in res["closed"],
+      f"#5199: 409 slots_full holds only the next build job, closing goes on: {res['brakes']} {res['closed']}")
+ad.start_job = real_start
+check("return 4 if \"HTTP 409\" in str(e) and '\"slots_full\"' in str(e)" in open(os.path.join(MCP, "agent_job.py"), encoding="utf-8").read()
+      and ad.SLOTS_FULL_RC == 4, "#5199: agent_job.py start exits 4 on 409 slots_full, the dispatcher reads it")
 
 print(f"p2481_dispatch: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)
