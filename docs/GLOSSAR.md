@@ -206,6 +206,7 @@ CalDAV, iCal feeds, appointment booking and polls.
 - `kalmido/calendars/pollsv1.py` (`v1`) - Scheduling polls over REST v1 (+ MCP)
 - `kalmido/calendars/pollundo.py` - Undo across devices for scheduling polls (dialog changes, link switch, trash and restore as steps)
 - `kalmido/calendars/subscriptions.py` (`cal`) - External calendars (read-only subscriptions)
+- `kalmido/collab/attskip.py` (`att_skip`) - A file of a mail or a public form that is not filed (storage full, virus) becomes a note on the task and a News item, never silently gone
 
 ### `kalmido/collab/`
 
