@@ -125,6 +125,19 @@ check(rc == 1 and "not noted beside it" in err and "KALMIDO_VERSION=vX.Y.Z" in e
       f"a copy without a noted version: the command with KALMIDO_VERSION, the version before named ({rc} {err[:300]})")
 rc, out, _ = run(loc % (d, "data/backups/kalmido-old.dump"), KALMIDO_VERSION="v2.1300.0")
 check(rc == 0 and "V=v2.1300.0" in out, f"... and with it named it goes ({rc} {out})")
+# reader F1: the note lies in data/backups/ (writable by the app) - only vX.Y.Z / latest-ok/X.Y.Z count
+for bad in ("../../../other/repo/archive/refs/heads/main", "main", "v2.1300.0/../../x", "v2.1300", "-x"):
+    write(os.path.join(d, "data/backups/kalmido-20261118-120000.dump.version"), bad + "\n")
+    rc, out, err = run(loc % (d, "data/backups/kalmido-20261118-120000.dump"))
+    check(rc == 1 and "is no release" in err and "KALMIDO_VERSION=vX.Y.Z" in err and calls() == "", f"F1: a note {bad!r} stops before anything ({rc} {out} {err[:200]})")
+write(os.path.join(d, "data/backups/kalmido-20261118-120000.dump.version"), "latest-ok/2.1300.0\r\n")
+rc, out, _ = run(loc % (d, "data/backups/kalmido-20261118-120000.dump"))
+check(rc == 0 and "V=latest-ok/2.1300.0 " in out, f"F1: a live tag counts ({rc} {out})")
+for bad in ("../../x/y", "v1/../main", "/abs", "x/"):
+    rc, _, err = run('resolve_version', KALMIDO_VERSION=bad)
+    check(rc == 1 and "must be a tag or branch name" in err, f"F1: KALMIDO_VERSION={bad} is refused ({rc})")
+rc, out, _ = run('resolve_version; echo "V=$VERSION"', KALMIDO_VERSION="latest-ok/2.1300.0")
+check(rc == 0 and "V=latest-ok/2.1300.0" in out, "F1: latest-ok/X.Y.Z still passes")
 ext = install(env="DATABASE_URL=postgresql://k:p@db.example.com/k\nCOMPOSE_PROFILES=clamav\n")
 write(os.path.join(ext, "data/backups/kalmido-1.dump"), DUMP, "wb")
 rc, _, err = run(loc % (ext, "data/backups/kalmido-1.dump"), KALMIDO_VERSION="v2.1300.0")
