@@ -137,6 +137,7 @@ async function wkof_load(sp, sig) {
     if (sig.aborted || WKO.dead || !S.me) break;
     if (m.have[f.id] === f.v) continue;
     let r;
+    // #7521: stays a plain fetch - the offline copy's download with its own abort (sig)
     try { r = await fetch(f.url || `/api/wiki/files/${f.id}/${encodeURIComponent(f.name)}`, {headers: {'X-Requested-With': 'kalmido'}, signal: sig, credentials: 'same-origin'}); }
     catch (e) { if (sig.aborted) break; m.st = 'wait'; await wkof_save(m); return; }  // the connection went: on again when it is back
     if ([403, 404, 410].includes(r.status)) { m.list = m.list.filter(x => x.id !== f.id); delete m.have[f.id]; await wkof_save(m); continue; }  // gone / no right / locked by the scan

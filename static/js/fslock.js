@@ -197,7 +197,7 @@ function fslReleased(lid, j, people) {
 const fslLockOf = id => { const d = AB.data; if (!id) return null; const n = d?.node?.id === +id ? d.node : ab_ptItem?.(id) || ab_item(id); return n?.locked ? n.lock_id : null; };
 async function fslFetch(n, v) {
   let r;
-  try { r = await fetch(`/api/files/lock/${n.lock_id}/raw/${n.id}${v ? '?v=' + v : ''}`, {headers: {'X-Requested-With': 'kalmido'}, credentials: 'same-origin'}); } catch { throw new Offline('net'); }
+  try { r = await netRaw(`/api/files/lock/${n.lock_id}/raw/${n.id}${v ? '?v=' + v : ''}`, {headers: {'X-Requested-With': 'kalmido'}, credentials: 'same-origin'}); } catch { throw new Offline('net'); }
   if (!r.ok) throw fslErr(tr('File damaged or missing'), 'file');
   return r.arrayBuffer();
 }
@@ -337,7 +337,7 @@ async function fslMoveOne(n, from, to, target) {
   let f = null;
   if (n.kind === 'file') {
     if (from) { await fslKeys(from, true); f = await fslFileDec(from, await fslFetch({id: n.id, lock_id: from})); }
-    else { const r = await fetch(ab_url(n, true), {credentials: 'same-origin'}); if (!r.ok) throw fslErr(tr('File damaged or missing'), 'file'); f = {name: n.name, type: n.mime, data: new Uint8Array(await r.arrayBuffer())}; }
+    else { const r = await netRaw(ab_url(n, true), {credentials: 'same-origin'}); if (!r.ok) throw fslErr(tr('File damaged or missing'), 'file'); f = {name: n.name, type: n.mime, data: new Uint8Array(await r.arrayBuffer())}; }
   }
   if (to) {
     await fslKeys(to, true); const g = (await fslInfo(to, true)).gen;

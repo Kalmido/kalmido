@@ -272,6 +272,7 @@ function commentTyping() {
   const t = taskById(S.sel); if (!t || !(t.id > 0) || !cmSocial(t) || !OUT.online) return;
   if (CTY.tid === t.id && Date.now() - CTY.at < 5000) return;
   CTY.tid = t.id; CTY.at = Date.now();
+  // #7521: stays a plain fetch - a presence ping, fire and forget (no answer read)
   fetch(`/api/tasks/${t.id}/typing`, {method: 'POST', headers: {'X-Requested-With': 'kalmido'}}).catch(() => {});
 }
 function typingHtml(ags, id) {

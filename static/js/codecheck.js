@@ -44,7 +44,7 @@ async function ckvLocal(/** @type {Cache | null} */ c, /** @type {Record<string,
 }
 // -> {version, v, hash, server, same, checked, bad: [urls], unchecked, total}; throws when the server has no manifest
 async function ckvRun() {
-  const r = await fetch('/api/code-manifest', {cache: 'no-store', credentials: 'same-origin'});
+  const r = await netRaw('/api/code-manifest', {cache: 'no-store', credentials: 'same-origin'});
   if (!r.ok || !/json/.test(r.headers.get('content-type') || '')) throw new Error(tr('This server has no code manifest (before 2.742.0).'));
   const raw = await r.arrayBuffer(), man = JSON.parse(new TextDecoder().decode(raw)), files = man.files || {};
   const got = await ckvLocal(await ckvCache(), files), mine = {...files, ...got};

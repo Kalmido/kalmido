@@ -853,7 +853,7 @@ window.addEventListener('resize', () => { if (TOUR.on) tourGo(TOUR.i); });
 const QUIPS = {data: null, last: -1};
 async function quipsLoad() {
   if (QUIPS.data) return QUIPS.data;
-  try { const r = await fetch('/static/quips.json'); if (r.ok) QUIPS.data = await r.json(); } catch { /* offline, no cache: no line */ }
+  try { const r = await netRaw('/static/quips.json'); if (r.ok) QUIPS.data = await r.json(); } catch { /* offline, no cache: no line */ }
   return QUIPS.data;
 }
 function nextQuip() {

@@ -59,6 +59,7 @@ async function pv_pre(n, body, ac) {
   const st = () => ac.signal.aborted;
   if (n.img) { const im = new Image(); im.className = 'pvimg'; im.alt = n.name || ''; im.src = n.img; await im.decode().catch(() => {}); return st() ? null : {url: n.url, im}; }
   const sp = typeof ofc_spUrl === 'function' ? ofc_spUrl : u => u;
+  // #7521: stays a plain fetch - a download with its own abort (signal); also on the public review page without core.js
   const r = await fetch(sp(n.url), {credentials: 'same-origin', signal: ac.signal}); if (!r.ok || st()) return null;
   const data = new Uint8Array(await r.arrayBuffer()), lib = await pv_timed(pv_load()); if (st()) return null;
   const task = lib.getDocument({data, ...PV_OPEN}), doc = await pv_timed(task.promise, task);
@@ -341,7 +342,7 @@ async function pdfView(o) {
   }
   try {
     if (!navigator.onLine && !o.data) throw new TypeError('offline');
-    const r = o.data ? null : await fetch(url, {credentials: 'same-origin'});  // 2.353.0 A (#2758): o.data = bytes decrypted in the browser
+    const r = o.data ? null : await (typeof netRaw === 'function' ? netRaw : fetch)(url, {credentials: 'same-origin'});  // 2.353.0 A (#2758): o.data = bytes decrypted in the browser
     if (r && !r.ok) throw new Error(r.status === 404 || r.status === 410 ? tr('File damaged or missing') : tr('Could not load the file'));
     const data = o.data || new Uint8Array(await r.arrayBuffer());
     // 2.549.0 (#4578, review): a library import that timed out is forgotten, the next opening tries again

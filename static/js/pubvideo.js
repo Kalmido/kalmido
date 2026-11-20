@@ -132,6 +132,7 @@ try { localStorage.removeItem('vdr-name'); } catch { /* no storage */ }
     const my = ++gen;
     try {
       if (!doc) {
+        // #7521: stays a plain fetch - the public video page loads no core.js (no netRaw)
         const res = await fetch(T.src || '', {credentials: 'same-origin'}); if (!res.ok) throw new Error('http');
         const data = new Uint8Array(await res.arrayBuffer()), lib = await pv_timed(pv_load());
         const task = lib.getDocument({data, ...PV_OPEN});

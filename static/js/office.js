@@ -140,7 +140,7 @@ function ofc_objGo() {
   if (!u || !r.id || r.wsp || !wsOn() || wsCur() !== 'all' || ofc_spaces().length < 2) return false;
   const k = r.tab + '/' + r.id; if (OFC_OBJ.asked.has(k)) return false;
   OFC_OBJ.asked.add(k);
-  fetch(`/api/office/${u}/${r.id}`, {headers: {'X-Requested-With': 'kalmido'}}).then(res => res.ok ? res.headers.get('X-Kalmido-Office-Area') : '', () => '').then(ws => {
+  netRaw(`/api/office/${u}/${r.id}`, {headers: {'X-Requested-With': 'kalmido'}}).then(res => res.ok ? res.headers.get('X-Kalmido-Office-Area') : '', () => '').then(ws => {
     if (S.route?.mod !== 'office' || S.route.id !== r.id || S.route.tab !== r.tab) return;
     if (ws && ofc_spaces().includes(ws)) location.replace(`#office/s/${ws}/${r.tab}/${r.id}`);
     else ofcDraw();

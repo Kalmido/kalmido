@@ -310,7 +310,7 @@ async function signinScreen(tok) {
   document.body.appendChild(el);
   $('#app')?.setAttribute('inert', '');
   try {
-    const post = sw => fetch('/api/auth/link', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify({token: tok, switch: sw})});
+    const post = sw => netRaw('/api/auth/link', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify({token: tok, switch: sw})});
     let r = await post(false), res = await r.json().catch(() => ({}));
     if (res.switch) {  // 2.190.0 A (#2496): another account is signed in on this device: ask before it is replaced
       if (!await askConfirm(tr('Sign in as {0}?', res.name), tr('{0} is signed in on this device. The link signs in {1} instead.', res.current, res.name), {ok: tr('Sign in')})) { location.replace('/'); return; }

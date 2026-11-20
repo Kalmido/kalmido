@@ -114,7 +114,7 @@ function le2eFileHtml(a, del, lid, tid) {
 }
 async function le2fFetch(aid) {
   let r;
-  try { r = await fetch(`/api/attachments/${aid}?dl=1`, {headers: {'X-Requested-With': 'kalmido'}}); } catch { throw new Offline('net'); }
+  try { r = await netRaw(`/api/attachments/${aid}?dl=1`, {headers: {'X-Requested-With': 'kalmido'}}); } catch { throw new Offline('net'); }
   if (!r.ok) throw le2eErr(tr('File damaged or missing'), 'file');
   return r;
 }

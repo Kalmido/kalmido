@@ -14,8 +14,8 @@ function shp_sel(sh) {  // the selected rectangle as row / column ids, or null (
   return {rows: rs.slice(q.r0, q.r1 + 1), cols: cs.slice(q.c0, q.c1 + 1)};
 }
 async function shp_make(sh, o) {  // the PDF's bytes (throws with the server's message)
-  const r = await fetch(`/api/sheets/${sh.id}/print.pdf`, {method: 'POST', credentials: 'same-origin',
-    headers: {'X-Requested-With': 'kalmido', 'Content-Type': 'application/json'}, body: JSON.stringify(o)});
+  const r = await netRaw(`/api/sheets/${sh.id}/print.pdf`, {method: 'POST', credentials: 'same-origin',
+    headers: {'X-Requested-With': 'kalmido', 'Content-Type': 'application/json'}, body: JSON.stringify(o)}, NET_T.long);  // #7521: a PDF is a long task
   if (!r.ok) {
     const j = await r.json().catch(() => null);
     throw new Error(j?.error?.message || j?.message || (typeof j?.error === 'string' ? j.error : '') || httpErrText(r.status));

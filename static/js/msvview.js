@@ -25,7 +25,7 @@ async function msvvFetch(method, url, body) {
   const opt = {method, headers: {'X-Requested-With': 'kalmido'}, redirect: 'manual', credentials: 'same-origin'};
   if (body !== undefined) { opt.body = JSON.stringify(body); opt.headers['Content-Type'] = 'application/json'; }
   let r;
-  try { r = await fetch(url, opt); } catch { const e = new Error(msvvErrText('offline')); e.code = 'offline'; throw e; }
+  try { r = await netRaw(url, opt); } catch { const e = new Error(msvvErrText('offline')); e.code = 'offline'; throw e; }
   const j = await r.json().catch(() => null);
   if (!r.ok || !j || typeof j !== 'object') {
     const e = new Error(j?.error || httpErrText(r.status)); e.status = r.status;

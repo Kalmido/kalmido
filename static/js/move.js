@@ -193,7 +193,7 @@ async function umzUpload(md, file, cur) {
     if (UMZ.up !== id) return;  // cancelled
     const part = file.slice(off, Math.min(file.size, off + chunk));
     let r = null;
-    try { r = await fetch(`/api/account/import/${id}?offset=${off}`, {method: 'PUT', body: part, headers: {'X-Requested-With': 'kalmido', 'Content-Type': 'application/octet-stream'}}); }
+    try { r = await netRaw(`/api/account/import/${id}?offset=${off}`, {method: 'PUT', body: part, headers: {'X-Requested-With': 'kalmido', 'Content-Type': 'application/octet-stream'}}); }
     catch { r = null; }
     if (!r || r.status >= 500 || r.status === 429) {  // (#6583): the network or the server for a moment: the same piece again, with a pause
       if (++fails >= UMZ_TRIES) { if (UMZ.up === id) umzImpDraw(md, {id, state: 'upload', size: file.size, received: off, name: file.name, stalled: true}); return; }

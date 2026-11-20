@@ -104,7 +104,7 @@ async function wki_start(sp, file, replace = false) {
     if (WKI.up !== id) return;  // cancelled
     const part = file.slice(off, Math.min(file.size, off + chunk));
     let r;
-    try { r = await fetch(`/api/wiki/import/upload/${id}?offset=${off}`, {method: 'PUT', body: part, headers: {'X-Requested-With': 'kalmido', 'Content-Type': 'application/octet-stream'}}); }
+    try { r = await netRaw(`/api/wiki/import/upload/${id}?offset=${off}`, {method: 'PUT', body: part, headers: {'X-Requested-With': 'kalmido', 'Content-Type': 'application/octet-stream'}}); }
     catch { r = null; }
     j = r ? await r.json().catch(() => ({})) : {};
     // a lost connection / a server in a restart: the same piece again, waiting longer each time (review L4: at most ~20 min)

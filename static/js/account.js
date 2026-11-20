@@ -257,7 +257,7 @@ function qd_slot(/** @type {string} */ cls) {
 async function inviteScreen(tok) {
   history.replaceState(null, '', location.pathname);  // the token leaves the address bar (and the history) at once
   let info = null;
-  try { const r = await fetch('/api/auth/invite/check', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify({token: tok})}); info = await r.json(); if (!r.ok) info = {error: info.error || httpErrText(r.status)}; } catch { info = {error: tr('Server not reachable.')}; }
+  try { const r = await netRaw('/api/auth/invite/check', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify({token: tok})}); info = await r.json(); if (!r.ok) info = {error: info.error || httpErrText(r.status)}; } catch { info = {error: tr('Server not reachable.')}; }
   await i18nLoad(info.lang || uiLang());
   const el = document.createElement('div');
   el.className = 'modal authscreen';
@@ -285,7 +285,7 @@ async function inviteScreen(tok) {
       if (pw.length < (info.min_password || 8)) { errEl.textContent = tr('Password: at least {0} characters', info.min_password || 8); return; }
       if (pw !== $('#inv-pw2', el).value) { errEl.textContent = tr('The two passwords are not the same'); return; }
       try {
-        const r = await fetch('/api/auth/invite/accept', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify({token: tok, password: pw})});
+        const r = await netRaw('/api/auth/invite/accept', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify({token: tok, password: pw})});
         const res = await r.json().catch(() => ({}));
         if (!r.ok) { errEl.textContent = res.error || httpErrText(r.status); return; }
         if (res.twofa) { await authTwofa(el, logo, res.methods || ['totp']); return; }  // 2.49.0 (#1531): two-factor stays required after a reset
@@ -309,7 +309,7 @@ async function lgo_pending() {
   let p = null;
   try { p = localStorage.getItem(LGO_KEY); } catch { return; }
   if (!p) return;
-  try { if ((await fetch('/api/auth/logout', {method: 'POST', headers: {'X-Requested-With': 'kalmido'}})).ok) localStorage.removeItem(LGO_KEY); } catch { /* still offline: the state load goes the offline way too */ }
+  try { if ((await netRaw('/api/auth/logout', {method: 'POST', headers: {'X-Requested-With': 'kalmido'}})).ok) localStorage.removeItem(LGO_KEY); } catch { /* still offline: the state load goes the offline way too */ }
 }
 async function logout() {
   if (kd_pinNeed()) return kd_pinAsk(logout);  // 2.49.0 (#1551): a child with the parents' PIN
@@ -325,7 +325,7 @@ async function logout() {
   await wpDisable().catch(() => {});  // this device stops getting the pushes of the account that logs out
   await e2eForget();  // 2.42.0 (#828): keys remembered on this device go
   let gone = false;
-  try { gone = (await fetch('/api/auth/logout', {method: 'POST', headers: {'X-Requested-With': 'kalmido'}})).ok; } catch { /* offline */ }
+  try { gone = (await netRaw('/api/auth/logout', {method: 'POST', headers: {'X-Requested-With': 'kalmido'}})).ok; } catch { /* offline */ }
   if (!gone) try { localStorage.setItem(LGO_KEY, '1'); } catch { /* private mode */ }  // 2.743.0 (#4284): the session still lives on the server: the next load ends it first (lgo_pending)
   try { for (const k of await caches.keys()) await caches.delete(k); } catch { /* no Cache Storage */ }  // 2.126.0 D (#1992 O4): the app loads again from the server
   await Promise.race([clearLocal(), new Promise(r => setTimeout(r, 1500))]); location.replace('/');  // 2.143.0 C2 (#2153): the IndexedDB queue is empty before the page goes
@@ -338,7 +338,7 @@ async function authScreen(j) {
   if ($('.authscreen')) return;
   try { localStorage.removeItem(LGO_KEY); } catch { /* private mode */ }  // 2.743.0 (#4284): no session on the server any more
   let info = {};
-  try { info = await (await fetch('/api/auth/info')).json(); } catch { /* offline */ }
+  try { info = await (await netRaw('/api/auth/info')).json(); } catch { /* offline */ }
   await i18nLoad(info.lang || uiLang());
   if ($('.authscreen')) return;
   const kind = info.setup ? 'setup' : j.auth;
@@ -386,7 +386,7 @@ async function authScreen(j) {
       const body = setup ? {username: $('#au-user', el).value.trim(), display_name: $('#au-name', el).value.trim(), password: $('#au-pw', el).value, wizard: true, lang: I18N.code || 'en', tz, ...($('#au-code', el) ? {setup_code: $('#au-code', el).value.trim()} : {})}  // 2.24.0 (UX-22): the language seen here sticks
         : {username: $('#au-user', el).value.trim(), password: $('#au-pw', el).value, remember: $('#au-rem', el).checked, tz};
       try {
-        const r = await fetch(setup ? '/api/auth/setup' : '/api/auth/login', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify(body)});
+        const r = await netRaw(setup ? '/api/auth/setup' : '/api/auth/login', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify(body)});
         const res = await r.json().catch(() => ({}));
         if (!r.ok && res.deleting) { lg_delScreen(el, logo, {username: body.username, password: body.password, at: res.delete_at, by: res.held ? res.delete_by : ''}); return; }  // 2.553.0 (#1413); 2.1298.0 (#6395): by = held
         if (!r.ok) { errEl.textContent = res.error || httpErrText(r.status); return; }
@@ -435,7 +435,7 @@ function pkDefaultName() {
 }
 // POST without the offline queue / session handling (login screen: no session yet)
 async function authPost(url, body) {
-  const r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify(body || {})});
+  const r = await netRaw(url, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify(body || {})});
   const j = await r.json().catch(() => ({}));
   if (!r.ok) { const e = new Error(j.error || httpErrText(r.status)); e.status = r.status; e.j = j; throw e; }
   return j;
@@ -631,7 +631,7 @@ function lg_forgotScreen(el, logo, pre = '') {
     const errEl = $('#fg-err', el), btn = e.target.querySelector('button[type="submit"]');
     btn.disabled = true;
     try {
-      const r = await fetch('/api/auth/forgot', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify({login: $('#fg-login', el).value.trim()})});
+      const r = await netRaw('/api/auth/forgot', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify({login: $('#fg-login', el).value.trim()})});
       const res = await r.json().catch(() => ({}));
       if (!r.ok) { errEl.textContent = res.error || httpErrText(r.status); btn.disabled = false; return; }
       $('.card', el).innerHTML = `${logo}<h2 class="invh">${tr('Check your e-mail')}</h2><p role="status" class="lgsent">${tr('If an account with a stored e-mail address matches, a link to set a new password is on its way.')}</p><p class="muted">${tr('No e-mail after a few minutes? Look in the spam folder or ask an admin.')}</p><button class="btn" type="button" data-au="back">${tr('Back to sign-in')}</button>`;
@@ -656,7 +656,7 @@ function signupScreen(el, logo, info) {
     e.preventDefault();
     const errEl = $('#su-err', el);
     try {
-      const r = await fetch('/api/auth/signup', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'},
+      const r = await netRaw('/api/auth/signup', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'},
         body: JSON.stringify({name: $('#su-name', el).value.trim(), email: $('#su-mail', el).value.trim(), lang: I18N.code || 'en', ...(pw ? {password: $('#su-pw', el).value} : {})})});
       const res = await r.json().catch(() => ({}));
       if (!r.ok) { errEl.textContent = res.error || httpErrText(r.status); return; }
@@ -727,7 +727,7 @@ const SU_ADDS = {team: () => [tr('Agents')], software: () => [tr('a software pro
   office: () => ['clients', 'workload', 'forms', 'office', 'agents'].map(k => tr(FEATS.find(x => x[0] === k)?.[1] || k))};
 async function setupChoices(el, logo) {
   let st = {};
-  try { st = await (await fetch('/api/state?lz=1&lzl=', {headers: {'X-Requested-With': 'kalmido'}})).json(); } catch { /* offline: defaults */ }
+  try { st = await (await netRaw('/api/state?lz=1&lzl=', {headers: {'X-Requested-With': 'kalmido'}})).json(); } catch { /* offline: defaults */ }
   const langs = st.languages || [{code: 'en', name: 'English'}];
   const all = [...SETUP_MAIN, ...SETUP_MODS].map(x => x[0]);
   let lang = I18N.code || 'en', preset = 'me', picked, custOpen = false, start = '';
@@ -808,7 +808,7 @@ async function setupChoices(el, logo) {
       for (const m of {agency: ['a:time', 'fields'], software: ['kanban', 'deps']}[start] || []) picked.add(m);
       draw(); return;
     }
-    const post = async (url, body) => { const r = await fetch(url, {method: url.endsWith('settings') ? 'PATCH' : 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify(body)}); if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || httpErrText(r.status)); };
+    const post = async (url, body) => { const r = await netRaw(url, {method: url.endsWith('settings') ? 'PATCH' : 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify(body)}); if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || httpErrText(r.status)); };
     try {
       if (b.dataset.su === 'go') await post('/api/admin/setup', {lang, collab_all: picked.has('collab'), time_all: picked.has('a:time'), modules: suMods(), sample: start === 'sample', ...(industry.length ? {industries: industry} : {}), ...(start && start !== 'sample' && start !== 'import' ? {project_type: start} : {}), ...(suPurpose() ? {purpose: suPurpose()} : {}), ...(modsAll !== null ? {all_modules: modsAll} : {}), examples: start === 'sample', ...(askOrg && ['team', 'software', 'office'].includes(preset) && orgName.trim() ? {org_name: orgName.trim()} : {})});
       else return;

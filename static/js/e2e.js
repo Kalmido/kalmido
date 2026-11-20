@@ -502,7 +502,7 @@ async function e2eAttOpen(aid) {
   if (!a.enc_mine) { toast(tr('Only the person who attached this encrypted file can open it')); return; }
   if (!await e2eEnsure()) return;
   let r;
-  try { r = await fetch(`/api/attachments/${aid}?dl=1`, {headers: {'X-Requested-With': 'kalmido'}}); } catch { toast(tr('Only available online.')); return; }
+  try { r = await netRaw(`/api/attachments/${aid}?dl=1`, {headers: {'X-Requested-With': 'kalmido'}}); } catch { toast(tr('Only available online.')); return; }
   if (!r.ok) { toast(tr('File damaged or missing')); return; }
   let f;
   try { f = await e2eFileDecrypt(await r.arrayBuffer(), t.id, a.legacy_aad); } catch { toast(tr('Cannot be decrypted')); return; }
