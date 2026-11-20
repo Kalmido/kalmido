@@ -12,7 +12,7 @@
    anything that needs a text). No new kind of decision and no new access: only the existing calls. */
 const MW_GROUPS = [['job', N_('Jobs')], ['approval', N_('Approvals')], ['question', N_('Questions')] /* (#7530): agents' questions with a bound step */, ['confirm', N_('Orders to confirm')], ['gate', N_('Merge and deploy requests')], ['review', N_('Reviews')],
   ['blocked', N_('Blocked')], ['irreversible', N_('One-way steps without a yes')], ['parked', N_('Parked')],
-  ['watch', N_('Stalled jobs and stranded branches')]];  // 2.392.2 (#3365): parked; (#3366): the watchdog's findings; (#7538): confirm (#7528)
+  ['watch', N_('Stalled jobs and stranded branches')]];  // (#3365): parked; (#3366): the watchdog's findings; (#7538): confirm (#7528)
 S.mw = {items: null, counts: {}, total: 0, at: 0, sel: null, done: false, /** @type {Record<string, any>} */ tk: {}, /** @type {Record<string, any>} */ ch: {}};
 const mwKey = x => x.kind + ':' + x.id;
 // the entries in the order the view shows them (by group, within a group as the server sends them: confirm by sender)
