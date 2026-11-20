@@ -463,7 +463,8 @@ document.addEventListener('click', e => {
 // 2.51.0 A (#1348): a choice with href (an office draft card: "Open in the office", "PDF preview") opens that view; only an
 // office document, a list and the PDF preview of a document (new tab) -- the server checks the same pattern
 // 2.153.0 (#2031): + #office/letters/<id> (the card of an agent's letter draft)
-const OA_HREF = /^(#office\/offers\/\d{1,12}|#office\/letters\/\d{1,12}|#l\/\d{1,12}|\/api\/office\/docs\/\d{1,12}\/pdf\?inline=1)$/;
+// (#7326): + with the draft's office area (#office/s/<area>/offers/<id>): opens in that office, the workspace on top stays
+const OA_HREF = /^(#office\/(s\/(private|org:\d{1,9})\/)?(offers|letters)\/\d{1,12}|#l\/\d{1,12}|\/api\/office\/docs\/\d{1,12}\/pdf\?inline=1)$/;
 const oa_linkBtns = cs => `<div class="cchoices oa_links" role="group">${cs.filter(c => OA_HREF.test(c.href)).map(c => `<a class="cchb${c.style === 'primary' ? ' st-primary' : ''}" href="${esc(c.href)}"${c.href[0] === '/' ? ' target="_blank" rel="noopener"' : ''}>${ic(c.href[0] === '/' ? 'pdf' : 'arrow', 's')}<span>${esc(c.label)}</span></a>`).join('')}</div>`;
 async function chatChoice(mid, cid, send = false) {
   const m = S.chat.msgs.find(x => x.id === mid) || (S.chat.apv || []).find(x => x.id === mid) || (S.chat.sug || []).find(x => x.id === mid), st = m && chatChoiceSt(m);

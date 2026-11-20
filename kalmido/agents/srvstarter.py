@@ -212,7 +212,7 @@ def srv_office_gap(c, a, uid):
     u = c.execute("SELECT * FROM users WHERE id=?", (a["user_id"],)).fetchone()
     if not u or "office" not in scopes_effective(c, {"scopes": a["scopes"] or ",".join(SCOPES_AGENT_DEFAULT)}, u):
         return "scope"
-    oid = ofa_area(c, a)  # a personal agent: its owner's personal office (none before the office was opened once)
+    oid = ofa_area(c, a, uid)  # a personal agent: its owner's personal office (none before the office was opened once); (#7326): None when off for uid
     if not oid or not office_on(c, uid):
         return "person"
     if office_role(c, uid, oid) not in ("admin", "member"):  # review 2.568.0 (N4): e.g. a team agent of an office the person is not in

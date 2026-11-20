@@ -460,7 +460,7 @@ def lead_spec(paths, schemas, op, ok, errs, ref, pid, q):
     rules = ("The switches of the office (the agent's \"May draft office documents\" and the area's \"Agents may read office "
              "data\") and a person who is an admin of the office. Leads only: never convert, delete or another stage.")
     paths["/office/leads"] = {
-        "get": op("The leads of the office, by follow-up day (2.94.0)", T, ok(o) | errs("400", "403", "404"),
+        "get": op("The leads of the office, by follow-up day (2.94.0)", T, ok(o) | errs("400", "403", "404", "409"),
                   [q("due", "1 = only leads whose follow-up day has come", {"type": "string"}), rb], scope="office", desc=rules),
         "post": op("Add a lead (2.94.0)", T, ok(o, "Created", "201") | errs("400", "403", "404"), body=ref("OfficeLeadInput"),
                    scope="office", desc=rules)}

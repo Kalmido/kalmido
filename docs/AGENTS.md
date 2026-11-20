@@ -2794,6 +2794,15 @@ area's clients, documents or projects answer `404`. 2.223.2: a person other than
 for something lately (a chat message, an @mention, an assignment, a job, *Let an agent draft the answer*; the events of the
 last 48 hours): else `403` ("this person has not asked the agent") -- act for the person who asked you, never pick another one.
 
+(#7326) The agent writes only into an office that is **on** for that person -- the same switches the app uses (the
+organisation's areas, the person's own module switches per workspace; for a personal agent its owner's own office with
+*Also private* in Settings > Modules). Is it off, every office call answers `409` with `error.code` `office_off` and a
+readable text, and nothing is written (before, the draft landed hidden behind the office's `403`): tell the person, do not
+retry. The agent's place never follows the workspace the person has on top: a personal agent stays in its owner's own
+office, an organisation's agent in that organisation. Every answer and chat card links the draft **with its office**:
+`app_url` / the card's *Open in the office* is `#office/s/private/offers/<id>` or `#office/s/org:<id>/letters/<id>`; it
+opens in that office whatever workspace the person has on top, which stays as it is.
+
 **Office access of an agent: the office rights groups (2.187.0).** The office gives each person and agent its areas
 through groups (Settings > Company & office > Rights in the office: levels none / own / view / edit / manage per area). An agent without a group
 has no office access; an agent that had the switch *May draft office documents* on before keeps that previous access
