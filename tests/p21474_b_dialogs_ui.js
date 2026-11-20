@@ -1,5 +1,5 @@
 // kalmido-suite: fresh
-// 2.1474.0 (#6373) UI test: one verb for creating, the close cross of large dialogs. jsdom, invented data only:
+// (#6373) UI test: one verb for creating, the close cross of large dialogs. jsdom, invented data only:
 // - a dialog that creates says "Create" (German "Anlegen"), editing says "Save": new client, new contact, a
 //   household deadline; the German text of "Create" is "Anlegen" (docs/dev/glossar.md)
 // - the short new-client sheet: no resize grip for what waits folded under "More details" (dlg_grows)

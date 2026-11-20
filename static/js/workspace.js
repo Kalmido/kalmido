@@ -153,7 +153,7 @@ async function ws_save(p, from) {
     return false;
   }
   OPT.delete(p);
-  if (WS_HOLD.p === p) { p.v = S.wv || 0; OPT_DONE.add(p); }  // 2.1474 (#7150): kept until a state holds its version
+  if (WS_HOLD.p === p) { p.v = S.wv || 0; OPT_DONE.add(p); }  // (#7150): kept until a state holds its version
   return true;
 }
 // (#7297): wsCur never falls back to "All" without a word: a state whose organisations no longer hold the saved one (the

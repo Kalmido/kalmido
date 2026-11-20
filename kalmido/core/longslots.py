@@ -1,4 +1,4 @@
-"""2.1474.0 (#6408): ONE budget of web threads of this process for every request that holds a thread for long: an agent's
+"""(#6408): ONE budget of web threads of this process for every request that holds a thread for long: an agent's
 long-poll (agents/api.py), a hosted MCP call (agents/mcpremote.py) and an assistant call (assistant/web.py). Before, the three had
 caps of their own (16 + 16 + none) that together passed the 24 threads and filled waitress' queue for people ("Task queue
 depth", live 17.-19.11.2026); now they share LONG_SLOTS, so the reserve of threads stays free for people in the browser.

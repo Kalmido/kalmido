@@ -1,4 +1,4 @@
-// 2.1474 (#7484) UI tests (jsdom), fresh DB: a new note never conflicts with itself
+// (#7484) UI tests (jsdom), fresh DB: a new note never conflicts with itself
 // kalmido-suite: fresh
 // - a new note, the server's answer to "create" already back: typing on (title, then text) saves without a conflict dialog
 //   (rollback test: before, the note kept the device's clock as its base and the next change got a 409 "Changed in the

@@ -1,4 +1,4 @@
-"""2.1474.0 (#6408): the usage of an agent per calendar month (local time) as ONE counter row, written with every usage report
+"""(#6408): the usage of an agent per calendar month (local time) as ONE counter row, written with every usage report
 (agents/usage.py usage_month_add) - the limit check of every agent API call reads it instead of summing the month's reports. The
 first report of a month starts the row from the reports already there (so it also starts right in the middle of a month); a
 month without a row is summed from the reports as before. New table only: an older version ignores it (its reports are then

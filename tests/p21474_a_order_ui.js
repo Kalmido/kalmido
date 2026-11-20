@@ -1,4 +1,4 @@
-// 2.1474 (#7150) UI tests (jsdom), fresh DB: the client orders its own writes and the states it fetches by the server's version
+// (#7150) UI tests (jsdom), fresh DB: the client orders its own writes and the states it fetches by the server's version
 // kalmido-suite: fresh
 // - a write's answer carries X-Kalmido-V = the version it moved the server to (the v of the next GET /api/state); a read and
 //   a refused write carry none

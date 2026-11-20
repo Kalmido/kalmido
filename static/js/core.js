@@ -743,7 +743,7 @@ if (globalThis.navigator?.serviceWorker) navigator.serviceWorker.addEventListene
 // 2.21.0 (#673): before the first render there is no top bar to update (renderTop on an empty state threw, so a start while
 // the server was down showed the error page instead of the cached data); the boot's render shows the state
 function setOnline(b) { if (OUT.online !== b) { OUT.online = b; if (S.booted) renderTop(); if (!b && S.booted && typeof botStartle === 'function') botStartle();  /* 2.165.0 (#2613) */ if (b) flush(); setTimeout(() => typeof staleDraw === 'function' && staleDraw(), 0); } }
-// 2.1474 (#7150): the order of my writes and the states I fetch is the server's: every write's answer carries the version it
+// (#7150): the order of my writes and the states I fetch is the server's: every write's answer carries the version it
 // moved the server to (X-Kalmido-V, core/db.py lv_self_header), S.wv = the highest one heard, S.wfly = my writes still on
 // their way (their version not known yet). A state (or delta) with v < S.wv predates a write of mine (load / lpDelta, applyState).
 // (Was: a client counter S.wseq, a GET fetched up to three times, a finished write kept two minutes.)
@@ -793,13 +793,13 @@ async function rawFetch(method, url, body, key, osp, oq) {  // key: 2.270.0 C (#
   if (typeof le2eOut === 'function') body = await le2eOut(method, url, body);
   const in_ = j => typeof le2eIn === 'function' ? le2eIn(j, url) : j;
   if (method === 'GET') return in_(await rawFetch0(method, url, body, undefined, osp, oq));
-  S.wfly = (S.wfly || 0) + 1;  // 2.1474 (#7150)
+  S.wfly = (S.wfly || 0) + 1;  // (#7150)
   try { return in_(await rawFetch0(method, url, body, key, osp, oq)); }
   catch (e) {  // 2.64.1 (#1817): a move missed texts (a subtask in the trash): fetched, converted, sent once more
     const b2 = e.data?.code === 'list_e2e_move' && e.data.need && typeof le2eFix === 'function' ? await le2eFix(url, body, e.data.need).catch(() => null) : null;
     if (!b2) throw e;
     return in_(await rawFetch0(method, url, b2, key, osp, oq));
-  } finally { S.wfly--; if (!S.wfly && S.wvAgain) ldAgain(); }  // 2.1474 (#7150)
+  } finally { S.wfly--; if (!S.wfly && S.wvAgain) ldAgain(); }  // (#7150)
 }
 // 2.298.0 C (#3187): a status code in words when the server sent no text (413 / 429 / 5xx; any other stays "Error 404").
 function httpErrText(st) {
@@ -861,7 +861,7 @@ async function rawFetch0(method, url, body, key, osp, oq) {
   if (ug) { if (j && typeof j === 'object') Object.defineProperty(j, '_ugid', {value: ug, configurable: true}); if (!(OUT.flushing && key)) histUgid(ug, url); }  // an outbox entry's group: through its answer (e.res)
   if (method !== 'GET' && typeof oun_ok === 'function') oun_ok(method, url, j);  // 2.111.0 A (#2233)
   if (method !== 'GET' && typeof lpOwnNote === 'function') lpOwnNote(r.headers.get('X-Kalmido-Lv'));  // 2.280.0 A (#3109): liveparts.js
-  if (method !== 'GET') wvHeard(+(r.headers.get('X-Kalmido-V') || 0));  // 2.1474 (#7150)
+  if (method !== 'GET') wvHeard(+(r.headers.get('X-Kalmido-V') || 0));  // (#7150)
   return j;
 }
 // 2.284.2: a job number read from a chat text / a job tag / the address: only a positive whole number is asked for (never 0,
@@ -1703,9 +1703,9 @@ function applyState(j) {
   if (j.evsig !== undefined && j.evsig !== S.evsig) { S.evsig = j.evsig; if (S.booted) calInvalidate(); }
   // language changed on another device: switch once its file is loaded (the boot awaits it itself)
   if (S.booted && (j.settings.lang || 'en') !== I18N.code) i18nLoad(j.settings.lang).then(ok => { if (ok) render(); });
-  // 2.1474 (#7150): a finished write of mine stays on top of a state that predates it (v < the write's version) and goes as
+  // (#7150): a finished write of mine stays on top of a state that predates it (v < the write's version) and goes as
   // soon as a state holds it
-  for (const p of OPT_DONE) { if (j.v != null && j.v >= p.v) OPT_DONE.delete(p); else p.put(); }  // 2.607.0 (#4901)
+  for (const p of OPT_DONE) { if (j.v != null && j.v >= p.v) OPT_DONE.delete(p); else p.put(); }  // (#4901)
   for (const p of OPT) p.put();  // 2.41.2 (#1501): own changes still on the way stay on top of a state fetched meanwhile
   if (typeof ws_gone === 'function') ws_gone();  // (#7297): a workspace really gone = switched with a note, never silently
   if (typeof le2eState === 'function') le2eState();  // 2.64.1 (#1817): locked lists, ciphers of the offline cache
@@ -1745,7 +1745,7 @@ function optSet(get, vals) {
 // 2.545.0 (#4483): a reload of the live update while another load() is on its way does not fetch /api/state a second time:
 // it waits for that one and fetches once more only when the version the poll saw (want) is still newer afterwards
 let ld_run = null;
-// 2.1474 (#7150): a state applied while writes of mine were on their way (or older than one): once they are all answered and
+// (#7150): a state applied while writes of mine were on their way (or older than one): once they are all answered and
 // one moved the server past the state shown, the state comes again (one load, drawn as a change from elsewhere)
 // (never a loop: a load begun here that is still older leaves it to the live poll)
 function ldAgain() {
@@ -1767,12 +1767,12 @@ async function ld_go(auto) {
   let j;
   try {
     if (typeof lgo_pending === 'function') await lgo_pending();  // 2.743.0 (#4284): a sign-out made offline ends its session first
-    const q = 'td=2&' + lzQuery();  // 2.575.0 B (#3966): + td; 2.1117.0 (#6023): td=2 = + the points in time without their zone  // 2.369.2 (#3136): + the start set
+    const q = 'td=2&' + lzQuery();  // (#3966): + td; (#6023): td=2 = + the points in time without their zone  // (#3136): + the start set
     j = await api('GET', (auto ? '/api/state?auto=1&' : '/api/state?') + q);
-    // 2.1474 (#7150): older than a write of mine already answered: fetched once more - the server holds it now, so that state
+    // (#7150): older than a write of mine already answered: fetched once more - the server holds it now, so that state
     // has it (its v only grows). (Was: up to three tries while a client counter moved.) A repeat is no herd reload (#3109).
     if (j && !j.brake && j.v != null && j.v < (S.wv || 0)) j = await api('GET', '/api/state?' + q);
-    // 2.350.0 C (#2806): still older, or writes of mine on their way: my own settings win over that answer (it may predate
+    // (#2806): still older, or writes of mine on their way: my own settings win over that answer (it may predate
     // the save) and the state is fetched again once they are all answered (ldAgain)
     if (j && !j.brake && j.v != null && (j.v < (S.wv || 0) || S.wfly)) {
       if (j.settings && S.settings && j.me?.id === S.me?.id) j.settings = {...j.settings, ...S.settings};
@@ -1796,7 +1796,7 @@ async function ld_go(auto) {
     return;
   }
   if (OUT.q.length) {  // flush() reloads once the queue is through
-    if (!S.tasks.size || j?.me?.id !== S.me?.id) { applyState(j); OUT.q.forEach(applyLocal); }  // 2.126.0 D (#1992 O5): another user = applyState's switch
+    if (!S.tasks.size || j?.me?.id !== S.me?.id) { applyState(j); OUT.q.forEach(applyLocal); }  // (#1992 O5): another user = applyState's switch
     flush(); return;
   }
   applyState(j);

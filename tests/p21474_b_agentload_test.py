@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # kalmido-suite: fresh
-"""2.1474.0 (#6408) agents' load on the server.
+"""(#6408) agents' load on the server.
 (1) ONE budget of web threads for long requests - an agent's long-poll, a hosted MCP call and an assistant
 call share it (core/longslots.py), so the rest of the threads stays free for people (waitress queue live 17.-19.11.).
 Before, the three had caps of their own that together passed the threads. The server runs with KALMIDO_AGENT_WAITERS=2:
