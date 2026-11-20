@@ -9,6 +9,9 @@
 // - IndexedDB refusing a write (quota): localStorage as before, logged (console.warn), never silent
 // - (#6340): an offline start names the real age of its state (the header's chip: "State from <day>, <time>"); a page
 //   being hidden writes the newest state at once (an own change made just before is in the next offline start)
+// - (#7549): an indexedDB.open that never answers (WebKit at a start): the app starts all the same - offline without a copy
+//   "Server not reachable" with Try again, offline with the old localStorage copy that copy, online the server's state;
+//   the hang is reported once (clienterr), never a blank page
 // - sign-out (clearLocal): the record goes
 // - an open table polled with nothing changed: {unchanged}, the same sheet object, nothing drawn again; a cell changed on the
 //   server: the poll loads it and draws
@@ -16,6 +19,9 @@
 const {B, login} = require('./boot');
 const F = []; let ok = 0;
 const check = (c, what) => { if (c) ok++; else { F.push(what); console.log('FAIL:', what); } };
+// (#7549): while localStorage t7549hang = 1 every indexedDB.open returns a request that fires no event (as WebKit at a start)
+const HANG = `() => { try { if (localStorage.getItem('t7549hang') !== '1') return; } catch { return; }
+  IDBFactory.prototype.open = function () { return {}; }; }`;
 const firefox = require('./ff')({tag: 'p2663_c_offcache_ui', check, shots: 'P2663C_SHOTS', lazy: true});
 const H = {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'};
 let CK;
@@ -51,6 +57,7 @@ const OFF = `() => { try { if (localStorage.getItem('t2663off') !== '1') return;
   await firefox(async ({cmd, ev, nav, ctx, until, shot}) => {
     const pu = (expr, ms = 15000) => until(expr, {timeout: ms, step: 150});
     await cmd('script.addPreloadScript', {functionDeclaration: OFF});
+    await cmd('script.addPreloadScript', {functionDeclaration: HANG});
     await nav(B + 'static/icon.svg');
     await ev(`(() => { localStorage.clear(); return new Promise(r => { const q = indexedDB.deleteDatabase('kalmido-start'); q.onsuccess = q.onerror = q.onblocked = () => r(1); }); })()`);
     check(await ev(`fetch('/api/auth/login', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify({username: 'alice', password: 'password123'})}).then(r => r.status)`) === 200, 'Firefox: sign-in');
@@ -94,6 +101,31 @@ const OFF = `() => { try { if (localStorage.getItem('t2663off') !== '1') return;
     check(await pu(`typeof OC !== 'undefined' && OC.wrote > 0`), 'online again: written');
     let r3 = null; await until(async () => { r3 = await ev(REC); return r3 && r3.tasks.includes('Water the ferns'); }, {timeout: 15000, step: 200});
     check(r3 && r3.kind === 'o' && !r3.tasks.includes('From the old copy'), 'online again: the record holds the server\'s state ' + JSON.stringify(r3));
+
+    // ---- (#7549): indexedDB.open never answers (WebKit, iOS Safari / PWA at a start). Before: outOpen and the start state's
+    // read waited for it forever - a blank page with the Offline chip, also with the server back
+    const COPY = await ev(`JSON.stringify({...S.lpCache, tasks: S.lpCache.tasks.map(t => t.id === ${T} ? {...t, title: 'From the hung start'} : t)})`);
+    await ev(`(localStorage.removeItem('tasks.cache'), localStorage.setItem('t7549hang', '1'), localStorage.setItem('t2663off', '1'), 1)`);
+    await cmd('browsingContext.reload', {context: ctx, wait: 'complete'});
+    check(await ev(`indexedDB.open('kalmido-start').onsuccess === undefined && !('readyState' in indexedDB.open('x'))`), 'setup (#7549): indexedDB.open answers nothing');
+    check(await pu(`!!document.querySelector('#boot-retry') && document.querySelector('#view')?.textContent.includes('Server not reachable')`, 20000),
+      'hung IndexedDB, offline, no copy (#7549): the start ends with "Server not reachable" and Try again, not a blank page');
+    const hr = await ev(`({off: OUT.online, closed: STORE.closed, warned: typeof OC !== 'undefined' && OC.warned})`);
+    check(hr.off === false && hr.closed === true && hr.warned === true, 'hung IndexedDB (#7549): the outbox goes without it, the start state\'s read is reported once ' + JSON.stringify(hr));
+    await shot('p2663c-hung-offline.png');
+    await ev(`(localStorage.setItem('tasks.cache', ${JSON.stringify(COPY)}), 1)`);
+    await cmd('browsingContext.reload', {context: ctx, wait: 'complete'});
+    check(await pu(`typeof S !== 'undefined' && S.booted && OUT.online === false && !!document.querySelector('#view .trow[data-id="${T}"]')?.textContent.includes('From the hung start')`, 20000),
+      'hung IndexedDB, offline, an old localStorage copy (#7549): the app starts with that copy');
+    await ev(`(localStorage.removeItem('t2663off'), localStorage.removeItem('tasks.cache'), 1)`);
+    await cmd('browsingContext.reload', {context: ctx, wait: 'complete'});
+    check(await pu(`typeof S !== 'undefined' && S.booted && OUT.online && !!document.querySelector('#view .trow[data-id="${T}"]')?.textContent.includes('Water the ferns')`, 20000),
+      'hung IndexedDB, server reachable (#7549): the app starts with the server\'s state');
+    // IndexedDB answers again: back to the record
+    check(await pu(`typeof OC !== 'undefined' && OC.off`, 20000), 'hung IndexedDB (#7549): the start state goes to localStorage meanwhile');
+    await ev(`(localStorage.removeItem('t7549hang'), localStorage.removeItem('tasks.cache'), 1)`);
+    await cmd('browsingContext.reload', {context: ctx, wait: 'complete'});
+    check(await pu(`typeof S !== 'undefined' && S.booted && OUT.online && !STORE.closed && document.querySelector('#view .trow[data-id="${T}"]')?.textContent.includes('Water the ferns')`), 'IndexedDB answers again: a normal start');
 
     // ---- (#6340 D2b): an own change online, then the page is hidden: the start state has it at once (was: only after the
     // delta + 30 s + an idle moment - closed before, the next offline start missed it)
