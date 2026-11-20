@@ -407,8 +407,7 @@ async function dcv_verAfter(id, pv = true) {
   if (DC.doc?.id !== id || !$('.dv-view')) return;
   const was = DC.doc;
   DVW.node = null;
-  const n = was.file ? await rawFetch('GET', `/api/files/nodes/${id}`).catch(() => null) : null;
-  const d = was.file ? (n?.kind === 'file' ? dc_fileDoc(n) : null) : await rawFetch('GET', `/api/docs/${id}`).catch(() => null);
+  const d = await dc_reRead(was);  // #7590: the one way of reading the open item again (docs.js)
   if (!d || DC.doc?.id !== id) return;
   d._fv = pv ? Date.now() : was._fv;
   DC.doc = d;

@@ -53,6 +53,13 @@ const dc_thumbUrl = (d, l) => (d.file ? `/api/files/nodes/${d.id}/thumb?v=${enco
 // 2.583.0 (#4832): a file of the file store that is no document, in the shape the document view draws (no fields: "Recognise")
 const dc_fileDoc = n => ({id: n.id, name: n.name, mime: n.mime || '', size: n.size || 0, version: n.version || 1, role: n.role, org_id: n.org_id || null,
   parent_id: n.parent_id, updated_at: n.updated_at, owner: n.owner, up: n.up, locked: n.locked, _enc: n._enc, file: true, state: 'none', tags: [], thumb: /^image\//.test(n.mime || '')});
+// #7590: the open view reads its item again the way it opened it: a plain file of the file store (d.file) over its node, a
+// document over /api/docs - never a document read for a plain file (404, "Not found" over the sheet); null when it is gone
+const dc_reRead = async was => {
+  if (!was.file) return rawFetch('GET', `/api/docs/${was.id}`).catch(() => null);
+  const n = await rawFetch('GET', `/api/files/nodes/${was.id}`).catch(() => null);
+  return n?.kind === 'file' ? {...dc_fileDoc(n), shared: n.shared} : null;
+};
 
 // ---- 2.428.0 (#3579): the sort of the list, sorted by the server (the pages stay right), remembered per device
 const DC_SORTS = [['date', N_('Document date')], ['added', N_('Date of arrival')], ['sender', N_('Sender')], ['amount', N_('Amount')], ['due', N_('Due date')], ['title', N_('Title')],
@@ -799,7 +806,10 @@ async function dc_mdChange(e) {
   await dc_patch(id, {[f]: dc_val(f, el)}, label);
 }
 async function dc_c168Refresh(id) {  // 2.210 C (#2761): re-read the open document and the list ("shared" mark)
-  try { const d = await api('GET', `/api/docs/${id}`); if (DC.doc?.id === id) { DC.doc = d; dc_mdDraw($('.dc-md')); } const i = DC.docs.findIndex(x => x.id === id); if (i >= 0) { DC.docs[i].shared = d.shared; if (typeof dc_draw === 'function') dc_draw(); } } catch { /* shown */ }
+  const was = DC.doc?.id === id ? DC.doc : DC.docs.find(x => x.id === id) || {id};
+  const d = await dc_reRead(was); if (!d) return;  // #7590: a plain file over its node
+  if (DC.doc?.id === id) { DC.doc = {...d, _fv: DC.doc._fv}; dc_mdDraw($('.dc-md')); }
+  const i = DC.docs.findIndex(x => x.id === id); if (i >= 0) { DC.docs[i].shared = d.shared; if (typeof dc_draw === 'function') dc_draw(); }
 }
 // 2.554.0 A (#4469): "New task" from the button "Task…" (docsplit.js menu) and the plain button
 async function dc_newTask(d, md) {
