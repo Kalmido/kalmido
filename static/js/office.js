@@ -1121,9 +1121,9 @@ function biz_paint() {
   const rights = typeof orr_html === 'function' && OFC.info.rights;  // 2.470.0 (#3596): members too, their "My rights" (was a tab of the old page)
   // 2.470.0 (#3596): the areas are put in order before the drawing: setHtml keeps input being typed, and a field moved afterwards would lose the focus
   const t = document.createElement('template');
-  // 2.555.0 (#4664): no "Applies to" with the workspace menu (it offered "All workspaces"); (#7556): the office tabs pick the
+  // (#4664): no "Applies to" with the workspace menu (it offered "All workspaces"); (#7556): the office tabs pick the
   // area (with one office its name as plain text), the "Switch to …" hint of the office pages (pb_hintHtml) is not here
-  t.innerHTML = `${/*html-ok*/ biz_spTabs() /* escaped inside */ || `<p class="sbizws muted">${esc(tr('Workspace: {0}', biz_areaName()))}</p>`}${typeof ocf_chooseHtml === 'function' ? ocf_chooseHtml(true) : '' /* 2.470.0 (#3596): were on the old page */}${ofcSettingsHtml()}
+  t.innerHTML = `${/*html-ok*/ biz_spTabs() /* escaped inside */ || `<p class="sbizws muted">${esc(tr('Workspace: {0}', biz_areaName()))}</p>`}${typeof ocf_chooseHtml === 'function' ? ocf_chooseHtml(true) : '' /* (#3596): were on the old page */}${ofcSettingsHtml()}
     ${/*html-ok*/ rights ? sf_html('biz/rights', 'key', `<h3 id="s-biz-rights" class="sbizg">${esc(tr('Rights|office'))}</h3>`, `<p class="shint">${esc(tr('Who may see and change which part of the office.'))}</p><div class="row"><a class="btn sm" href="#office/rights" data-bizgo>${ic('shield', 's')} ${esc(tr('Rights in the office'))}</a></div>`) : ''}`;
   const form = $('#ofc-set', t.content);
   for (const [k, i, n] of OST_SUBS) {
