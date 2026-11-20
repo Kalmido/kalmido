@@ -987,10 +987,14 @@ def _last_factor_guard(c, u, removing):
 
 
 def _end_other_sessions(c, uid):
-    """A second factor was just turned on: sessions elsewhere (possibly opened with a leaked password) end."""
+    """A second factor was just turned on: sessions elsewhere (possibly opened with a leaked password) end. #6499 (decision
+    16.11.2026): so do the person's own API tokens (scan inbox keys too) and app passwords - a way in made from such a session
+    must not outlive it (an agent's tokens belong to the agent's account and stay; the dialog names it, acctset.js)."""
     tok = request.cookies.get(COOKIE)
     from ..accounts.sessions import ses_end  # 2.190.0 A (#1991): with the push subscriptions made in them
     ses_end(c, uid, keep=_token_hash(tok) if tok else None)
+    c.execute("DELETE FROM app_passwords WHERE user_id=?", (uid,))
+    c.execute("DELETE FROM api_tokens WHERE user_id IN (SELECT id FROM users WHERE id=? AND COALESCE(kind, 'user')<>'agent')", (uid,))
 
 
 @app.get("/api/me/2fa")

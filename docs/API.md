@@ -63,7 +63,13 @@ Create a token under **Settings > Connections** (API tokens, webhooks and the to
 - **Only from** (optional): IP addresses or networks (`203.0.113.0/24`); requests from anywhere else get `403`. Behind a
   reverse proxy the client address comes from `X-Forwarded-For` of the trusted proxies (`KALMIDO_TRUSTED_PROXIES`), so
   it is only as reliable as that setup: the proxy must replace or append the header, never pass on the client's own.
-- **Expires**: in 30 days, 90 days, a year, or never.
+- **Expires**: in 30 days, 90 days (the default), a year, or never. `POST /api/me/tokens` without `expires_days` makes a
+  token that ends after 90 days; `expires_days: null` (or `0`) is “never”, chosen on purpose.
+- **Confirmation**: creating a token, giving one more rights (a scope, more projects, other addresses), an app password,
+  an agent or its new token, a setup code and connecting an app through the hosted MCP access need a fresh sign-in (at most
+  10 minutes old) or the current password in the body (`password`): else `403` with `password_needed` (an account without
+  a password: `reauth_needed`, sign in again). Switching on the first second factor ends your other sessions, API tokens and
+  app passwords.
 
 The token looks like `abk_` followed by 43 random characters (256 bits). It is **shown once**; Kalmido only keeps its
 SHA-256 hash, so a lost token cannot be shown again: revoke it and create a new one. The list shows the first

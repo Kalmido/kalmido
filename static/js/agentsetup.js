@@ -110,7 +110,7 @@ function ains_setupModal(a, base) {
       const dir = $('#ains-dir', md).value.trim(); if (!dir) { need($('#ains-dir', md)); return; }
       b.disabled = true; show('');
       try {
-        const r = await api('POST', base + '/setup-code', {os, folder: dir});
+        const r = await reauthReq('POST', base + '/setup-code', {os, folder: dir});  // #6499 (integrations.js)
         $('#ains-cmd', md).value = ains_command(os, location.origin, r.code, dir, $('#ains-tpl', md).value, $('#ains-prof', md).value); $('#ains-cmd', md).classList.remove('off');
         $('#ains-how', md).textContent = os === 'windows' ? tr('Open PowerShell on the computer, paste the command and press Enter.') : tr('Open the Terminal on the computer, paste the command and press Enter.');
         $('#ains-out', md).hidden = false;

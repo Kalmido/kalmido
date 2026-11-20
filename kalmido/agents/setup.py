@@ -166,6 +166,10 @@ def _my(aid):
 def ains_my_code(aid):
     g.idem_no_body = True  # (#6558): the setup code is shown once, never kept with an idempotency key
     c = _my(aid)
+    from ..accounts.oidc import creator_reauth  # #6499: a new way into the account confirms the sign-in once more
+    e = creator_reauth(c, body())
+    if e:
+        return e
     return ains_code_new(c, aid)
 
 
@@ -188,6 +192,10 @@ def ains_admin_code(aid):
     c = db()
     with system_ctx(c):  # the instance admin manages agent accounts (any organisation; structure, no content), like the token route
         need_agent_admin(c, aid, cred=True)  # 2.485.0 (#3939): no setup code through support access
+        from ..accounts.oidc import creator_reauth  # #6499: a new way into the account confirms the sign-in once more
+        e = creator_reauth(c, body())
+        if e:
+            return e
         return ains_code_new(c, aid)
 
 
