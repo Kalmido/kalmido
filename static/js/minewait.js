@@ -77,7 +77,7 @@ function viewMineWait() {
   if (mwWide() && !mwSelItem()) S.mw.sel = mwKey(mwFlat()[0]);  // a computer: the list on the left, the first entry open on the right
   const x = mwSelItem();
   if (!mwWide()) return x ? `<div class="mwv mwone">${/*html-ok*/ mwPanel(x) /* escaped inside */}</div>` : `<div class="mwv">${/*html-ok*/ mwList() /* escaped inside */}</div>`;
-  return `<div class="mwv mwsplit"><div class="mwl">${/*html-ok*/ mwList() /* escaped inside */}</div><div class="mwr">${/*html-ok*/ x ? mwPanel(x) : '' /* escaped inside */}</div></div>`;
+  return `<div class="mwv mwsplit"><div class="mwl">${/*html-ok*/ mwList() /* escaped inside */}</div>${/*html-ok*/ gcol_html('mw-list') /* the grip's fixed markup (render.js) */}<div class="mwr">${/*html-ok*/ x ? mwPanel(x) : '' /* escaped inside */}</div></div>`;
 }
 
 // ---- (#7538) the entry
