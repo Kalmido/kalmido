@@ -659,6 +659,29 @@ told = "\n".join(t for _, t in h.api.chats[nchat:])
 check(len(okruns()) == 2 and d.reg["jobs"]["601"]["approved"] == "failed" and "exit 3" in told and told.count(PR7) == 1,
       f"#7562: a failing command -> told once, no endless retry {len(okruns())} {told!r}")
 os.remove(okflag + ".fail")
+# reader F3: an address without a number and no number on the card -> the command does not run with an empty {number}
+d.reg["jobs"]["601"].pop("approved")
+d.reg["jobs"]["601"]["pr"] = "https://git.example.com/o/r/pull-requests/overview"
+cardc("approved", url="https://git.example.com/o/r/pull-requests/overview")
+d.reg["told"].pop("approved:601", None)  # one card, one message: a new case for the test
+nchat = len(h.api.chats)
+d.tick(force=True)
+told = "\n".join(t for _, t in h.api.chats[nchat:])
+check(len(okruns()) == 2 and d.reg["jobs"]["601"]["approved"] == "failed" and "empty {number}" in told, f"F3: no run with an empty {{number}} {told!r}")
+# the card's number wins over the address
+d.reg["jobs"]["601"].pop("approved")
+COMMENTS[301][0]["suggestion"]["number"] = 42
+d.tick(force=True)
+check(okruns()[-1][2] == "42" and d.reg["jobs"]["601"]["approved"] == "done", f"F3: the card's number {okruns()[-1]}")
+# reader F4: a command that does not split ends no round, it is told once
+d.reg["jobs"]["601"].pop("approved")
+os.environ["KALMIDO_DISPATCH_APPROVED_CMD"] = 'gh pr edit "{number}'
+d.reg["told"].pop("approved:601", None)
+nchat = len(h.api.chats)
+d.tick(force=True)
+told = "\n".join(t for _, t in h.api.chats[nchat:])
+check(d.reg["jobs"]["601"]["approved"] == "failed" and "quotation" in told.lower(), f"F4: a broken command is a failure told once {told!r}")
+d.reg["jobs"]["601"]["pr"] = PR7
 d.reg["jobs"]["601"]["approved"] = "done"
 cardc("approved", url=PR7)
 os.environ.pop("KALMIDO_DISPATCH_APPROVED_CMD")

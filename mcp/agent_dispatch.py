@@ -103,7 +103,9 @@ DEFAULTS = {
                               # its address; {branch} {base} {title} are filled in per argument, the body comes on stdin;
                               # only from KALMIDO_DISPATCH_PR_CMD
     "approved_cmd": "",       # (#7562): run ONCE after the person's yes on the card "Ready to merge" (state approved), so the
-                              # one who integrates sees the yes at the git server (e.g. a label on the pull request); "" = nothing;
+                              # one who integrates learns of the yes at the git server (e.g. a label on the pull request); "" = nothing.
+                              # A NOTICE, no approval: the build job's user and token could set such a label too (reader F1) -
+                              # whoever merges on it needs a guard the build agent cannot write (a person's review on the branch);
                               # {url} {number} {branch} {base} {title} filled in per argument, no shell, no stdin; never merges;
                               # only from KALMIDO_DISPATCH_APPROVED_CMD
     "brief_extra": "",        # more text for every brief (the project's rules)
@@ -1012,25 +1014,32 @@ APPROVED_WAIT_D = 30  # (#7562): a card without a decision this many days after 
 APPROVED_RX = re.compile(r"\{(url|number|branch|base|title)\}")
 
 
-def approved_args(cfg, url, branch, base, title):
+def approved_args(cfg, url, branch, base, title, number=None):
     """(#7562): approved_cmd as an argument list (no shell); the placeholders filled in per argument in ONE pass (a title
-    that itself contains "{url}" stays text)."""
+    that itself contains "{url}" stays text). number: the card's (the server read it from the repository), else the
+    address's last digits. ValueError: the command does not split (quotes), or a placeholder it uses is empty (reader F3:
+    `gh pr edit ""` would pick the pull request of the current branch)."""
     import shlex
-    m = re.search(r"(\d+)/?$", url or "")
-    vals = {"url": url or "", "number": m.group(1) if m else "", "branch": branch, "base": base, "title": title}
-    return [APPROVED_RX.sub(lambda x: vals[x.group(1)], a) for a in shlex.split(cfg["approved_cmd"])]
+    m = re.search(r"/(\d+)/?$", url or "")
+    num = str(number) if isinstance(number, int) and not isinstance(number, bool) and number > 0 else m.group(1) if m else ""
+    vals = {"url": url or "", "number": num, "branch": branch or "", "base": base or "", "title": title or ""}
+    args = shlex.split(cfg["approved_cmd"])
+    empty = sorted({k for a in args for k in APPROVED_RX.findall(a) if not vals[k]})
+    if empty:
+        raise ValueError("empty " + ", ".join("{" + k + "}" for k in empty))
+    return [APPROVED_RX.sub(lambda x: vals[x.group(1)], a) for a in args]
 
 
 def card_state(api, tid, url):
-    """(#7562): the state (open / approved / rejected) of the agent's card "Ready to merge" for the pull request url on task
-    tid; None = no such card readable (yet)."""
+    """(#7562): (state open / approved / rejected, the card's suggestion) of the agent's card "Ready to merge" for the pull
+    request url on task tid; (None, None) = no such card readable (yet)."""
     r = api.req("GET", f"/tasks/{int(tid)}/comments") or {}
-    st = None
+    st, card = None, None
     for k in (r.get("data", []) if isinstance(r, dict) else r) or []:
         sug = k.get("suggestion") if isinstance(k, dict) else None
         if isinstance(sug, dict) and sug.get("kind") == "merge_request" and sug.get("pr_url") == url and (k.get("author") or {}).get("agent"):
-            st = sug.get("state") or "open"
-    return st
+            st, card = sug.get("state") or "open", sug
+    return st, card
 
 
 # #7170: https:// or ssh:// with an optional user and port, or the scp form user@host:owner/repo
@@ -1516,10 +1525,16 @@ class Dispatcher:
         if now - float(e["carded_at"]) > APPROVED_WAIT_D * 86400:
             e["approved"] = "expired"
             return
+        api = self.data_api()  # reader F5: the lists' content through the round's client (a team agent: the chosen person)
+        if api is None:
+            return
         try:
-            st = card_state(self.host.api, tids[0], e["pr"])
+            st, card = card_state(api, tids[0], e["pr"])
         except (ApiError, OSError, ValueError) as x:  # an unreadable comment list never ends the round
+            e["card_err"] = int(e.get("card_err") or 0) + 1
             log(f"card of {e['pr']}: {type(x).__name__}")
+            if e["card_err"] == CARD_TRIES * 3:  # told once when it keeps failing, then looked at again as before
+                self.finding(res, f"approvedread:{jid}", self.say("dispatch_approved_failed", f"#{jid}", e["pr"], "the card cannot be read: " + type(x).__name__))
             return
         if st == "rejected":
             e["approved"] = "rejected"
@@ -1530,12 +1545,20 @@ class Dispatcher:
         self.save()
         w.done.append(f"approved_cmd for {e['pr']}")
         repo = ((e.get("card") or {}).get("repo")) or self.project_dir
-        args = approved_args(cfg, e["pr"], e.get("branch") or f"job/{jid}", base_of(cfg, repo), e.get("pr_title") or "")
-        try:
-            p = subprocess.run(args, cwd=repo, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=180, env=pr_env(cfg))
-            why = "" if p.returncode == 0 else f"exit {p.returncode}"
-        except (OSError, subprocess.SubprocessError, ValueError) as x:
-            why = type(x).__name__
+        # reader F2: the same guards as pr_cmd - the push address the person fixed, nothing in the repository's config that runs
+        # a command or redirects (a command that reads its repository from the remotes would else go elsewhere)
+        ok, why = push_url_ok(cfg, repo)
+        bad = unsafe_git_config(repo) if ok else []
+        why = why or ("the repository's config sets " + ", ".join(bad) if bad else "")
+        if not why:
+            try:  # reader F4: a command that does not split is a failure told once, never an ended round
+                args = approved_args(cfg, e["pr"], e.get("branch") or f"job/{jid}", base_of(cfg, repo), e.get("pr_title") or "", (card or {}).get("number"))
+                p = subprocess.run(args, cwd=repo, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=180, env=pr_env(cfg))
+                why = "" if p.returncode == 0 else f"exit {p.returncode}"
+            except ValueError as x:
+                why = str(x) or "ValueError"
+            except (OSError, subprocess.SubprocessError) as x:
+                why = type(x).__name__
         e["approved"] = "failed" if why else "done"
         if why:
             self.finding(res, f"approved:{jid}", self.say("dispatch_approved_failed", f"#{jid}", e["pr"], why))
