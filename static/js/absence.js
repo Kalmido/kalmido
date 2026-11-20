@@ -93,6 +93,9 @@ function ab2_sheet(it) {
   md.classList.add('ab2md');
   const sync = () => { const one = $('#ab2-from', md).value && $('#ab2-from', md).value === $('#ab2-to', md).value; $('#ab2-halfrow', md).hidden = !one; if (!one) $('#ab2-half', md).value = ''; };
   sync();
+  // #6342: what the dialog opened with (its version) and its form read once: the save sends only what differs from it
+  const open = it ? {kind: it.kind, start_date: it.start_date, end_date: it.end_date, half_day: it.half_day || '', note: it.note || '', updated_at: it.updated_at} : null;
+  const form0 = ab2_form(md);
   md.addEventListener('change', e => { if (e.target.id === 'ab2-from' && $('#ab2-to', md).value < e.target.value) { $('#ab2-to', md).value = e.target.value; dpSync($('#ab2-to', md)); } sync(); });
   md.addEventListener('click', async e => {
     const k = e.target.closest('[data-k]');
@@ -100,16 +103,29 @@ function ab2_sheet(it) {
     const b = e.target.closest('[data-m]'); if (!b) return;
     if (b.dataset.m === 'close') { md.remove(); return; }
     if (b.dataset.m === 'del') { md.remove(); ab2_delete(it); return; }
-    const v = {kind: $('.ab2kinds button.on', md)?.dataset.k || 'vacation', start_date: $('#ab2-from', md).value, end_date: $('#ab2-to', md).value || $('#ab2-from', md).value, half_day: $('#ab2-half', md).value, note: $('#ab2-note', md).value};
+    const v = ab2_form(md);
     if (!it && $('#ab2-who', md)) v.user_id = +$('#ab2-who', md).value;
     if (!it && AB2.data?.org_id) v.org = AB2.data.org_id;
     b.disabled = true;
     try {
       if (it) {
-        const before = {kind: it.kind, start_date: it.start_date, end_date: it.end_date, half_day: it.half_day, note: it.note};
-        await api('PATCH', `/api/team/absences/${it.id}`, v);
-        const put = x => async () => { await api('PATCH', `/api/team/absences/${it.id}`, x); ab2_reload(); };
-        histAdd({label: tr('Absence changed'), srv: true, undo: put(before), redo: put(v)});  // 2.809.0 (#5476): srv = the server lists the step (hub/absundo.py)
+        // #6342: the core's way (objsave.js saveDialog, docs/dev/kern.md 4/6): only the fields changed in the dialog, with the
+        // version it read; another device saved meanwhile -> 409, the merge bar marks their fields, nothing of theirs is overwritten
+        const url = `/api/team/absences/${it.id}`, o0 = md._objBase || open;
+        await loadModule('objsave');
+        const sent = Object.keys(objDiff(md._abBase || form0, v)), r = await saveDialog(url, o0, v, {base: md._abBase || form0});
+        b.disabled = false;
+        if (r?.conflict) {
+          md._objBase = r.conflict.cur; md._abBase = objBase(form0, r.conflict.mine);
+          objMerge(md, r.conflict, () => {}, {field: f => md.querySelector(AB2_FIELD[f] || '#ab2-' + f), take: () => { md.remove(); ab2_sheet({...it, ...r.conflict.cur}); }});
+          return;
+        }
+        if (r !== o0) {
+          const before = Object.fromEntries(sent.map(f => [f, o0[f] ?? ''])), after = Object.fromEntries(sent.map(f => [f, v[f]]));  // the undo: only what this save changed
+          let at = r.updated_at;
+          const then = j => { at = j?.updated_at || at; ab2_reload(); }, label = ab2_span(it);
+          histAdd({label: tr('Absence changed'), srv: true, undo: () => undoStep(url, before, at, {now: after, label, then}), redo: () => undoStep(url, after, at, {now: before, label, then})});  // 2.809.0 (#5476): srv = the server lists the step (hub/absundo.py)
+        }
       } else {
         const r = await api('POST', '/api/team/absences', v);
         AB2.req = r.status === 'pending';  // 2.125.0 A (#2117): a request, not yet away
@@ -117,8 +133,13 @@ function ab2_sheet(it) {
           redo: async () => { await api('POST', `/api/team/absences/${r.id}/restore`); ab2_reload(); }});
       }
       md.remove(); ab2_reload(); toast(!it && AB2.req ? tr('Holiday requested') : tr('Saved'));
-    } catch { b.disabled = false; /* api() said it */ }
+    } catch (x) { b.disabled = false; if (!x?.shown && x?.message !== 'auth') toast(errText(x, tr('The change could not be saved'))); }
   });
+}
+// #6342: the dialog's fields in the shape the server reads; AB2_FIELD = where the merge bar marks a field
+const AB2_FIELD = {kind: '.ab2kinds', start_date: '#ab2-from', end_date: '#ab2-to'};
+function ab2_form(md) {
+  return {kind: $('.ab2kinds button.on', md)?.dataset.k || 'vacation', start_date: $('#ab2-from', md).value, end_date: $('#ab2-to', md).value || $('#ab2-from', md).value, half_day: $('#ab2-half', md).value, note: $('#ab2-note', md).value};
 }
 
 async function ab2_delete(it) {

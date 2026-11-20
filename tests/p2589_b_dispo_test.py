@@ -244,4 +244,31 @@ check(A.post(B + f"/api/team/dispo/bookings/{fid}/fill", json={"kind": "slot"}).
 check(Fr.post(B + f"/api/team/dispo/bookings/{anyid}/fill", json={"kind": "slot"}).status_code == 404, "Frida: Alpha's place 404")
 check(A.get(B + f"{D}/{FQ}/tasks").status_code == 404, "Alice: Frida's quotation 404")
 
+
+# ------------------------------------------------------------ #6342: two devices on one booking (version check, only the changed fields)
+def two_devices(S, who, oid, rid):
+    r = S.post(B + "/api/team/dispo/bookings", json={"title": "Two devices", "start": "2027-05-03", "end": "2027-05-04", "status": "option",
+                                                      "org": oid, "resources": [{"kind": "user", "id": rid}]})
+    check(r.status_code == 201, f"{who}: a booking {r.text[:200]}")
+    bk = r.json()["bookings"][0]
+    seen = bk.get("updated_at")
+    check(bool(seen), f"{who}: the booking carries its version {bk}")
+    u = B + f"/api/team/dispo/bookings/{bk['id']}?all=1"
+    r = S.patch(u, json={"start": "2027-05-10", "end": "2027-05-11", "status": "firm", "expect_updated_at": seen})  # device B moves it
+    check(r.ok and r.json()["bookings"][0]["start"] == "2027-05-10", f"{who}: B moves it and makes it firm {r.text[:200]}")
+    r = S.patch(u, json={"note": "Bring the long lens", "expect_updated_at": seen})  # device A: only the note, its old version
+    check(r.status_code == 409 and r.json().get("current", {}).get("start") == "2027-05-10", f"{who}: A's old version: 409 with the current booking {r.text[:200]}")
+    cur = r.json().get("current", {})
+    r = S.patch(u, json={"note": "Bring the long lens", "expect_updated_at": cur.get("updated_at")})
+    j = r.json()["bookings"][0] if r.ok else {}
+    check(r.ok and j["note"] == "Bring the long lens" and j["start"] == "2027-05-10" and j["end"] == "2027-05-11" and j["status"] == "firm",
+          f"{who}: only the note changed, B's period and status stay {r.text[:200]}")
+    r = S.patch(u, json={"title": "x", "expect_updated_at": seen})
+    check(r.status_code == 409, f"{who}: the undo of the first change after another one: 409, nothing written")
+    check(S.patch(u, json={"title": "Two devices 2"}).ok, f"{who}: without a version (old clients): as before")
+
+
+two_devices(A, "alice", ORG, ids["bob"])
+two_devices(Fr, "frida", PERS, FID)
+
 raise SystemExit(kt.done("p2589_b_dispo"))

@@ -243,5 +243,24 @@ r = fb(Fr, DS, [FID, BOB, CAROL, DAVE])
 check(r.ok and [p["user_id"] for p in r.json()["people"]] == [FID], "the freelancer's bar: only herself, nobody else by id " + r.text[:200])
 check(slots(r.json(), FID) == [("00:00", "24:00", "away"), ("09:00", "09:30", "busy")], f"her own spans ({slots(r.json(), FID)})")
 
+# ================================================================== #6342: two devices on one absence (version, only the changed fields)
+for who, s in (("carol", Ca), ("freelancer", Fr)):
+    d0 = (D + timedelta(days=40)).isoformat()
+    r = s.post(B + "/api/team/absences", json={"kind": "vacation", "start_date": d0, "end_date": d0})
+    ab = r.json() if r.status_code in (200, 201) else {}
+    seen = ab.get("updated_at")
+    check(bool(seen), f"{who}: the absence carries its version {r.text[:200]}")
+    u = B + f"/api/team/absences/{ab.get('id')}"
+    d1, d2 = (D + timedelta(days=42)).isoformat(), (D + timedelta(days=43)).isoformat()
+    r = s.patch(u, json={"start_date": d1, "end_date": d2, "expect_updated_at": seen})  # device B moves it
+    check(r.ok and r.json()["start_date"] == d1, f"{who}: B moves it {r.text[:200]}")
+    r = s.patch(u, json={"note": "Ferienhaus", "expect_updated_at": seen})  # device A: only the note, its old version
+    check(r.status_code == 409 and r.json().get("current", {}).get("start_date") == d1, f"{who}: A's old version: 409 with the current absence {r.text[:200]}")
+    r = s.patch(u, json={"note": "Ferienhaus", "expect_updated_at": r.json().get("current", {}).get("updated_at")})
+    check(r.ok and r.json()["note"] == "Ferienhaus" and r.json()["start_date"] == d1 and r.json()["end_date"] == d2,
+          f"{who}: only the note changed, B's period stays {r.text[:200]}")
+    check(s.patch(u, json={"note": "x", "expect_updated_at": seen}).status_code == 409, f"{who}: the undo of the first change after another one: 409")
+    check(s.patch(u, json={"note": "ohne Version"}).ok, f"{who}: without a version (old clients): as before")
+
 print(f"p2155_b_absence_cal: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)
