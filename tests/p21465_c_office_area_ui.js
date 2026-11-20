@@ -74,6 +74,16 @@ const viewTxt = d => (d.querySelector('#view')?.textContent || '').replace(/\s+/
   check((inB.docs || []).some(x => x.id === made?.id) && !(inA.docs || []).some(x => x.id === made?.id), '(b) it landed in Beta\'s office (shown), not in Alpha (saved by the other tab)');
   w.eval(`OFD.list = null; go('office/s/${WB}/offers')`);
   check(await until(() => /Aus dem ersten Tab/.test(viewTxt(d))), '(b) Beta\'s list shows it');
+  // #7574 (the race behind the flaky step above, made certain): a list load still running when the list is discarded never
+  // puts its older answer over it - the held answer comes back after a new quotation and the discard, the list loads again
+  await w.eval(`window.__api0 = api; window.__held = null; api = (m, u, ...a) => { const p = __api0(m, u, ...a); if (m !== 'GET' || !/^\\/api\\/office\\/docs\\?kind=offer/.test(u) || window.__held) return p; window.__held = 1; return new Promise(r => { window.__open = () => r(p); }); }; ofdLoadList(true); 0`);
+  check(await until(() => w.eval('OFD.loading && typeof __open === "function"')), '#7574: a list load is held open');
+  await w.eval("__api0('POST', '/api/office/docs', {kind: 'offer', lang: 'en', project_title: 'Neu waehrend der Ladung', items: []})");
+  w.eval(`OFD.list = null; ofdDraw(); __open()`);
+  check(await until(() => /Neu waehrend der Ladung/.test(viewTxt(d)) && !w.eval('OFD.loading')), '#7574: the list discarded during the load shows the new quotation, not the older answer');
+  await sleep(400);
+  check(/Neu waehrend der Ladung/.test(viewTxt(d)), '#7574: and it stays');
+  w.eval('api = __api0');
   w.close();
 
   // ================= route.wsp: an area whose office is off
