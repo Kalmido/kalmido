@@ -232,6 +232,15 @@ document.addEventListener('click', e => {
   e.preventDefault(); e.stopPropagation();
   textView(o);
 }, true);
+// #7310: the preview windows (text file, PDF, Word / Excel) wider by the corner of the one grip (grip.js, docs/dev/kern.md
+// "Resizing: the one grip"): a centred card (mode dialog, both edges move), at least today's width (w rem), at most the
+// window; the height stays (PDF and Word / Excel take the full height, a text file its content). Phones: no grip (grip.js).
+// key: pv-text / pv-pdf / pv-doc (--g-<key>-w, read by app.css / pdf.css)
+function tv_grip(m, key, w) {
+  const box = $('.tvbox', m); if (!box) return;
+  const h = () => box.getBoundingClientRect().height / (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
+  grip_corner(box, {key, mode: 'dialog', minW: w, minH: h, maxH: h});
+}
 async function textView(o) {
   $('.lightbox')?.remove();
   let mode = o.md && LS.get('tvMode', 'fmt') !== 'src' ? 'fmt' : 'src', text = null, fail = '';
@@ -250,6 +259,7 @@ async function textView(o) {
       <button type="button" class="iconbtn" data-tv="x" title="${esc(tr('Close'))}" aria-label="${esc(tr('Close'))}">${ic('x')}</button></div>
       ${o.agent ? `<div class="tvnote">${ic('bot', 's')}<span>${esc(tr('Created by agent {0}. Check it before you run anything from it.', o.agent))}</span></div>` : ''}
       <div class="tvbody">${body()}</div></div>`;
+    tv_grip(m, 'pv-text', 56);  // #7310: the window wider by its corner (each draw builds a new box)
     if (o.aid) dpvSumMount(m, o);  // 2.92.0 C (#1926): "Summarise" by an agent (docpreview.js)
   };
   draw();

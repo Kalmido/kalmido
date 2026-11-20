@@ -11137,7 +11137,7 @@
   "Also works: CSV export (you select the columns) – the account balance only when the CSV has a balance column.": "Va bene anche: esportazione CSV (assegni tu le colonne) – il saldo solo se il CSV ha una colonna del saldo.",
   "Select files": "Scegli file",
   "or drop them here": "o trascinali qui",
-  "Skipped: {0}": "Saltati: {0}",
+  "Skipped: {0}": "Saltata: {0}",
   "The columns apply to every CSV file.": "Le colonne valgono per tutti i file CSV.",
   "Not a bank statement (only XML, CSV or ZIP)": "Non è un estratto conto (solo XML, CSV o ZIP)",
   "Channel type": "Tipo",
