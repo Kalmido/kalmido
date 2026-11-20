@@ -10,6 +10,7 @@ freelancer-matrix: tokens (a person without an organisation: the same confirmati
  - an account without a password and an old session: 403 reauth_needed
  - switching on the authenticator app the first time: the own API tokens and app passwords end (an agent's token stays)
 usage: p6499_creator_reauth_test.py <datadir>      (KMT_NOSTART=1 / P6499_NOSTART=1: a running server)"""
+import sys
 import base64
 import hashlib
 import hmac
@@ -118,4 +119,4 @@ check(toks(ALICE) == 0 and not dbx("SELECT 1 FROM app_passwords WHERE user_id=?"
       f"2FA on: alice's API tokens and app passwords ended ({toks(ALICE)})")
 check(toks(AG) == 1, "2FA on: her agent's token belongs to the agent and stays")
 check(A2.get(B + "/api/state").ok, "2FA on: this session stays")
-done("p6499_creator_reauth")
+sys.exit(done("p6499_creator_reauth"))
