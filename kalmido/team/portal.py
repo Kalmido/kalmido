@@ -123,6 +123,7 @@ PT_LOGIN_TTL = 30 * 60     # s: a sign-in link is valid this long, once
 PT_COOKIE_DAYS = 7
 PT_COOKIE = "kalmido_portal"
 PT_MAIL_GAP = 600          # s: at most one mail per ticket in this time (answers in between go out together)
+PT_LINK_DAYS = 90          # (#6626): the status link ends this many days after the task was done (reopened = valid again)
 PT_PAD = 0.35              # s: the sign-in request answers no faster than this (found / unknown look alike)
 PT_TYPES = {"bug": N_("Bug report"), "feature": N_("Feature request")}
 _PT_EDITS = ("content", "md_subtasks", "tidy")  # history kinds after which the description is no longer the reporter's text
@@ -140,9 +141,32 @@ def _pt_space_sql(p="p.", l="l."):
     return f"(({l}org_id={p}org_id OR ({p}org_id IS NULL AND {l}org_id IS NULL AND {l}owner_id={p}owner_id)) AND {l}e2e IS NULL)"
 
 
+def _pt_link_sql(p="p.", t="t."):
+    """(#6626): the status link still works: the team did not end it (revoked_at) and the task is not done for longer than
+    PT_LINK_DAYS (tasks.completed_at; reopening clears it, so the link works again until PT_LINK_DAYS after the next done).
+    One parameter: _pt_link_cut()."""
+    return f"({p}revoked_at IS NULL AND ({t}completed_at IS NULL OR {t}completed_at > CAST(? AS TIMESTAMPTZ)))"
+
+
+def _pt_link_cut():
+    return iso(now_utc() - timedelta(days=PT_LINK_DAYS))
+
+
+def pt_link_state(p):
+    """(#6626): 'live', 'ended' (by the team) or 'expired' (done longer than PT_LINK_DAYS) of a ticket row with completed_at;
+    and the end of a live link of a done task (ISO) or None."""
+    if p["revoked_at"]:
+        return "ended", None
+    done = p["completed_at"]
+    if not done:
+        return "live", None
+    until = parse_iso(str(done)) + timedelta(days=PT_LINK_DAYS)
+    return ("live" if until > now_utc() else "expired"), iso(until)
+
+
 def pt_find(c, token):
     """The live ticket of a status-link token (+ the task's fields, the list's owner) or None. Binds the request to the
-    ticket's space as nobody."""
+    ticket's space as nobody. (#6626): an ended or expired link is None as well (the one 404 of every other link)."""
     from flask import g
     if not PT_TOKEN_RE.fullmatch(token or ""):
         return None
@@ -150,8 +174,8 @@ def pt_find(c, token):
         r = c.execute(f"""SELECT p.*, t.title, t.content, t.status, t.ttype, t.assignee_id, t.assignee_group_id, t.list_id AS t_list,
                           t.completed_at, l.owner_id AS l_owner, l.org_id AS l_org FROM portal_tickets p JOIN tasks t ON t.id=p.task_id
                           JOIN lists l ON l.id=t.list_id JOIN users u ON u.id=l.owner_id
-                          WHERE p.token_hash=? AND t.deleted_at IS NULL AND NOT u.disabled AND {_pt_space_sql()}""",
-                      (_token_hash(token),)).fetchone()
+                          WHERE p.token_hash=? AND t.deleted_at IS NULL AND NOT u.disabled AND {_pt_space_sql()} AND {_pt_link_sql()}""",
+                      (_token_hash(token), _pt_link_cut())).fetchone()
     if not r:
         return None
     acx_anon_bind(c, r["org_id"])  # ... then the page reads as nobody, inside exactly the ticket's space
@@ -429,6 +453,14 @@ def _pt_mail_bg(to, subject, text, html_body, unsub=None):
         mail_bg_failed("portal", ex)  # (#6385): a passing failure of the mail server is tried again
 
 
+def pt_mail_out(c, em=None):
+    """Mails go out (integrations/mail.py MAIL_OUT_ON) and, with em, the day's mails to that address are not used up
+    (admin/hosting.py mail_budget). (#6626): the one place of these two higher-layer imports for the portal's mails."""
+    from ..admin.hosting import mail_budget
+    from ..integrations.mail import MAIL_OUT_ON
+    return bool(MAIL_OUT_ON) and (em is None or bool(mail_budget(c, None, em)))
+
+
 def _pt_mail_html(lines, url, button, foot="", subject=""):
     """foot is ready HTML (the callers escape it). 2.420.0 B (#3499): the shared mail frame (was a bare violet one)."""
     return mail_html(subject, lines, button, url, Safe(foot) if foot else None)
@@ -458,8 +490,6 @@ def pt_limit_note(c, org_id, owner_id):
 @app.post("/p/<token>/login")
 def pt_login_ask(token):
     from flask import redirect, request
-    from ..admin.hosting import mail_budget
-    from ..integrations.mail import MAIL_OUT_ON
     t0 = time.monotonic()
     c = db()
     p, bad = pt_open(c, token)
@@ -474,7 +504,7 @@ def pt_login_ask(token):
     if hit_limit("ptl:" + rate_ip(), PT_LOGIN_IP, PT_LOGIN_WIN):
         return _pt_rt().pub_limited(lg)
     mail = None
-    if eh and MAIL_OUT_ON and not hit_limit(f"ptla:{eh}", PT_LOGIN_ADDR, PT_LOGIN_WIN):
+    if eh and pt_mail_out(c) and not hit_limit(f"ptla:{eh}", PT_LOGIN_ADDR, PT_LOGIN_WIN):
         with_ticket = c.execute(f"""SELECT 1 FROM portal_tickets p JOIN tasks t ON t.id=p.task_id JOIN lists l ON l.id=t.list_id
                                     WHERE p.email_hash=? AND p.org_id IS NOT DISTINCT FROM ? AND p.owner_id IS NOT DISTINCT FROM ?
                                     AND t.deleted_at IS NULL AND {_pt_space_sql()} LIMIT 1""", (eh, p["org_id"], p["owner_id"])).fetchone()
@@ -482,7 +512,7 @@ def pt_login_ask(token):
         full = bool(with_ticket) and hit_limit(f"ptls:{space}", PT_LOGIN_SPACE, PT_LOGIN_WIN)
         if full:  # 2.138.4 C (#2380): tell the space's admins / owner (committed below)
             pt_limit_note(c, p["org_id"], p["owner_id"])
-        if with_ticket and not full and mail_budget(c, None, em):
+        if with_ticket and not full and pt_mail_out(c, em):
             tok = secrets.token_urlsafe(32)
             now = now_utc()
             c.execute("INSERT INTO portal_logins(email_hash,org_id,owner_id,token_hash,created_at,expires_at) VALUES(?,?,?,?,?,?)",
@@ -598,7 +628,7 @@ def pt_login(tok):
 
 def pt_my_tickets(c, eh, org_id, owner_id):
     """The tickets of one address in one space (newest first), live ones only."""
-    return c.execute(f"""SELECT p.*, t.title, t.status, t.ttype, t.assignee_id, t.assignee_group_id FROM portal_tickets p
+    return c.execute(f"""SELECT p.*, t.title, t.status, t.ttype, t.assignee_id, t.assignee_group_id, t.completed_at FROM portal_tickets p
                          JOIN tasks t ON t.id=p.task_id JOIN lists l ON l.id=t.list_id JOIN users u ON u.id=l.owner_id
                          WHERE p.email_hash=? AND p.org_id IS NOT DISTINCT FROM ? AND p.owner_id IS NOT DISTINCT FROM ? AND p.claimed=1
                          AND t.deleted_at IS NULL AND NOT u.disabled AND {_pt_space_sql()} ORDER BY p.id DESC LIMIT 200""",
@@ -625,9 +655,11 @@ def pt_portal():
     for r in rows:
         st = pt_state(c, r)
         kind = PT_TYPES.get(r["ttype"] or "")
-        items.append(f'<li><a href="/p/{e(pt_token(c, r))}"><b>{e(r["title"])}</b><span class="sub">'
-                     f'{e(" · ".join(x for x in (tr(kind, lg=lg) if kind else "", pt_day(r["created_at"], lg)) if x))}</span></a>'
-                     f'<span class="ptst ptst-{st}">{e(tr(PT_STATE_TXT[st], lg=lg))}</span></li>')
+        inner = (f'<b>{e(r["title"])}</b><span class="sub">'
+                 f'{e(" · ".join(x for x in (tr(kind, lg=lg) if kind else "", pt_day(r["created_at"], lg)) if x))}</span>')
+        # (#6626): an ended or expired status link is no link here either (it would be the 404); the report stays listed
+        head = f'<a href="/p/{e(pt_token(c, r))}">{inner}</a>' if pt_link_state(r)[0] == "live" else f"<span>{inner}</span>"
+        items.append(f'<li>{head}<span class="ptst ptst-{st}">{e(tr(PT_STATE_TXT[st], lg=lg))}</span></li>')
     from ..office.portaldocs import kp_portal_html
     docs = kp_portal_html(c, who, lg)  # 2.120.0 B (#2088): the documents of the address (None = off: the page as before)
     tickets = f'<ul class="ptall">{"".join(items)}</ul>' if items else f'<p class="empty">{e(tr("No reports for this address.", lg=lg))}</p>'
@@ -682,8 +714,8 @@ def pt_client_for(c, list_row, email):
 
 
 def pt_ticket_of(c, tid):
-    """The live ticket of task tid (its list still in the ticket's space) or None."""
-    return c.execute(f"""SELECT p.* FROM portal_tickets p JOIN tasks t ON t.id=p.task_id JOIN lists l ON l.id=t.list_id
+    """The live ticket of task tid (its list still in the ticket's space) or None. (#6626): + the task's completed_at and title."""
+    return c.execute(f"""SELECT p.*, t.completed_at, t.title FROM portal_tickets p JOIN tasks t ON t.id=p.task_id JOIN lists l ON l.id=t.list_id
                          WHERE p.task_id=? AND {_pt_space_sql()}""", (tid,)).fetchone()
 
 
@@ -700,7 +732,11 @@ def pt_ticket_info(c, tid, uid):
         cl = c.execute("SELECT name FROM clients WHERE id=?", (p["client_id"],)).fetchone()
         d["client_name"] = cl["name"] if cl else None
     if w:
-        d.update(email=pt_email(c, p), url=pt_status_url(pt_token(c, p)), notify=bool(p["notify"]), last_seen_at=p["last_seen_at"])
+        st, until = pt_link_state(p)  # (#6626): the link's state; the link itself only while it works
+        d.update(email=pt_email(c, p), notify=bool(p["notify"]), last_seen_at=p["last_seen_at"], link=st, link_until=until,
+                 link_days=PT_LINK_DAYS)
+        if st == "live":
+            d["url"] = pt_status_url(pt_token(c, p))
         if p["via"] == "mail":
             d["ref"] = pt_ref(c, p)  # 2.553.0 B (#3460)
     return d
@@ -722,7 +758,10 @@ def pt_comment_flag(c, tid, uid, v):
 
 @app.patch("/api/tasks/<int:tid>/ticket")
 def pt_ticket_set(tid):
-    """{notify: bool}: mails to the reporter on / off (people who may change the task)."""
+    """{notify: bool}: mails to the reporter on / off (people who may change the task). (#6626): {link: "end" | "on" | "new"}:
+    end the status link (the page is the one 404 at once), "on" = the undo of "end" (the same link again), "new" = a new
+    link (a new token, the old one is dead at once) mailed to the reporter's address when there is one; a task done longer
+    than PT_LINK_DAYS keeps its link expired (409: reopen it first)."""
     from flask import jsonify
     c = db()
     need_task(c, tid, write=True)
@@ -730,6 +769,8 @@ def pt_ticket_set(tid):
     b = body()
     if not p:
         return err(tr("This task has no client report"), 404)
+    if set(b) == {"link"}:
+        return pt_link_set(c, tid, p, b["link"])
     if set(b) - {"notify"} or not isinstance(b.get("notify"), bool):
         return err(tr("Expected {0}", '{"notify": true|false}'))
     if b["notify"] and not p["email"]:
@@ -738,6 +779,49 @@ def pt_ticket_set(tid):
     bump(c)
     c.commit()
     return jsonify(pt_ticket_info(c, tid, me()))
+
+
+def pt_link_set(c, tid, p, what):
+    """(#6626): PATCH /api/tasks/<tid>/ticket {link}: see pt_ticket_set. The caller checked the right to change the task."""
+    from flask import jsonify
+    if what not in ("end", "on", "new"):
+        return err(tr("Expected {0}", '{"link": "end"|"on"|"new"}'))
+    st, _ = pt_link_state(p)
+    if what in ("on", "new") and st == "expired":
+        return err(tr("The task was done more than {0} days ago, its status link has expired. Reopen the task to give the client a link again.", PT_LINK_DAYS), 409)
+    mail = None
+    if what == "end":
+        c.execute("UPDATE portal_tickets SET revoked_at=? WHERE id=? AND revoked_at IS NULL", (iso(now_utc()), p["id"]))
+    elif what == "on":
+        c.execute("UPDATE portal_tickets SET revoked_at=NULL WHERE id=?", (p["id"],))
+    else:
+        tok = secrets.token_urlsafe(24)
+        c.execute("UPDATE portal_tickets SET token=?, token_hash=?, revoked_at=NULL WHERE id=?",
+                  (seal(c, "portal-token", tok), _token_hash(tok), p["id"]))
+        mail = pt_new_link_mail(c, p, tok)
+    bump(c)
+    c.commit()
+    if mail:
+        bgj_add("mail:portal", *mail)  # the queue in the database (the worker sends it)
+    out = pt_ticket_info(c, tid, me())
+    if what == "new":
+        out["mailed"] = bool(mail)
+    return jsonify(out)
+
+
+def pt_new_link_mail(c, p, tok):
+    """(#6626): the mail with a new status link to the reporter's address (None: no address, mails off, no budget today)."""
+    em = pt_email(c, p)
+    if not em or not pt_mail_out(c, em):
+        return None
+    lg = p["lang"] or lang(c, p["owner_id"] or me())
+    url, stop = pt_mail_url(c, {"id": p["id"], "token_hash": _token_hash(tok)}, tok), pt_status_url(tok) + "/stop"
+    ttl = " ".join((p["title"] or "").split())
+    lines = [tr("Here is the new link to your report “{0}”.", ttl, lg=lg), tr("The previous link no longer works.", lg=lg)]
+    foot = tr("You get this e-mail because you sent the report.", lg=lg)
+    subj = tr("New link to your report: {0}", ttl, lg=lg)[:200]
+    return (em, subj, "\n\n".join(lines + [tr("Status and answers: {0}", url, lg=lg), foot]),
+            _pt_mail_html(lines, url, tr("Show the report", lg=lg), html.escape(foot), subj), stop)
 
 
 def pt_client_tickets(c, uid, cid):
@@ -759,9 +843,7 @@ PT_MAIL_HOOK = {}  # 2.553.0 B (#3460): integrations/reqmail.py (out = the mail 
 # ---- mails to the reporter: a public answer and "done" (only with notify and an address; at most one mail per ticket
 # within PT_MAIL_GAP -- what happened in between goes out together). The watchdog (notify/push.py) calls this.
 def pt_mail_tick(c):
-    from ..admin.hosting import mail_budget
-    from ..integrations.mail import MAIL_OUT_ON
-    if not MAIL_OUT_ON:
+    if not pt_mail_out(c):
         return
     now = now_utc()
     cut = iso(now - timedelta(seconds=PT_MAIL_GAP))
@@ -770,12 +852,13 @@ def pt_mail_tick(c):
         rows = c.execute(f"""SELECT p.*, t.title, t.status, l.owner_id AS l_owner, l.req_mail_done AS l_done FROM portal_tickets p JOIN tasks t ON t.id=p.task_id
                              JOIN lists l ON l.id=t.list_id JOIN users u ON u.id=l.owner_id
                              WHERE p.notify=1 AND p.email!='' AND t.deleted_at IS NULL AND NOT u.disabled AND {_pt_space_sql()}
+                             AND {_pt_link_sql()}
                              AND NOT (COALESCE(p.via, '')='mail' AND COALESCE(p.unverified, 0)=1 AND COALESCE(p.claimed, 0)=0)
                              AND (p.last_mail_at IS NULL OR p.last_mail_at<=?)
                              AND ((t.status=2 AND p.mailed_status!=2) OR (t.status!=2 AND p.mailed_status=2) OR EXISTS(
                                SELECT 1 FROM obj_comments k WHERE k.kind='task' AND k.ref_id=p.task_id AND COALESCE((k.extra->>'portal')::boolean, false)
                                AND k.user_id IS NOT NULL AND k.deleted_at IS NULL AND k.created_at>COALESCE(NULLIF(CAST(p.last_mail_at AS text), '')::timestamptz, p.created_at::timestamptz)))
-                             ORDER BY p.id LIMIT 100""", (cut,)).fetchall()
+                             ORDER BY p.id LIMIT 100""", (_pt_link_cut(), cut)).fetchall()  # (#6626): no mails with a dead link
         for p in rows:
             since = parse_iso(p["last_mail_at"] or p["created_at"])
             new = [a for a in pt_answers(c, p["task_id"]) if not a["customer"] and parse_iso(a["at"]) > since]
@@ -786,7 +869,7 @@ def pt_mail_tick(c):
                 c.execute("UPDATE portal_tickets SET mailed_status=? WHERE id=?", (p["status"], p["id"]))
                 continue
             em = pt_email(c, p)
-            if em and not mail_budget(c, None, em):  # review: the day's mails to this address are used up -> try again later
+            if em and not pt_mail_out(c, em):  # review: the day's mails to this address are used up -> try again later
                 continue
             c.execute("UPDATE portal_tickets SET last_mail_at=?, mailed_status=? WHERE id=?", (iso(now), p["status"], p["id"]))
             if not em:
