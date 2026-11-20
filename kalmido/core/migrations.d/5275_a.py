@@ -90,16 +90,19 @@ BEGIN
   UPDATE public_links SET cv_show = jsonb_set(kalmido_otg_j(cv_show), '{tag}', to_jsonb(n))::text
     WHERE list_id = lid AND cv_show ILIKE '%"tag"%' AND jsonb_typeof(kalmido_otg_j(cv_show)) = 'object' AND kalmido_otg_j(cv_show)->'tag' = to_jsonb(o);
   -- #6289: the person's own rules of My tasks (user_mine_rules, 2.823) name the tag too: trigger ltag and condition tag_id, and
-  -- the once-markers ltag:<id> follow (else a moved task would be moved again). A tag id is unique, the list is not needed:
-  -- only a rule whose owner saw tag o when making it names o (minerules.py _see_tag), and the rewrite only keeps naming the
-  -- same tag under its new id - it shows nobody anything; what the person sees of it decides the read (minerules.py
-  -- _tag_names: project role / membership of the label's organisation, else "Tag missing") (reader F1).
-  UPDATE user_mine_rules SET trig_val = n::text WHERE trig = 'ltag' AND trig_val = o::text;
-  UPDATE user_mine_rules SET conds = jsonb_set(kalmido_otg_j(conds), '{tag_id}', to_jsonb(n))::text
-    WHERE conds ILIKE '%tag_id%' AND jsonb_typeof(kalmido_otg_j(conds)) = 'object' AND kalmido_otg_j(conds)->'tag_id' = to_jsonb(o);
-  DELETE FROM user_mine_rule_runs a WHERE a.key = 'ltag:' || o AND EXISTS (SELECT 1 FROM user_mine_rule_runs b
-    WHERE b.rule_id = a.rule_id AND b.task_id = a.task_id AND b.key = 'ltag:' || n);
-  UPDATE user_mine_rule_runs SET key = 'ltag:' || n WHERE key = 'ltag:' || o;
+  -- the once-markers ltag:<id> follow (else a moved task would be moved again). Only when o is no organisation's label (reader
+  -- F1): a project tag of lid that becomes a label or another tag (kalmido_otg_joined, otg_merge, the move) is gone for
+  -- everybody, so every rule that names it means the new id. A label that a project leaves (kalmido_otg_left, a label or an
+  -- organisation deleted) lives on for the other projects - the rules of other people keep naming it (a deleted one: the
+  -- rule says "Tag missing", minerules.py _tag_names, which also decides what a person sees of a tag).
+  IF NOT EXISTS (SELECT 1 FROM obj_tags WHERE id = o AND scope_kind = 'org') THEN
+    UPDATE user_mine_rules SET trig_val = n::text WHERE trig = 'ltag' AND trig_val = o::text;
+    UPDATE user_mine_rules SET conds = jsonb_set(kalmido_otg_j(conds), '{tag_id}', to_jsonb(n))::text
+      WHERE conds ILIKE '%tag_id%' AND jsonb_typeof(kalmido_otg_j(conds)) = 'object' AND kalmido_otg_j(conds)->'tag_id' = to_jsonb(o);
+    DELETE FROM user_mine_rule_runs a WHERE a.key = 'ltag:' || o AND EXISTS (SELECT 1 FROM user_mine_rule_runs b
+      WHERE b.rule_id = a.rule_id AND b.task_id = a.task_id AND b.key = 'ltag:' || n);
+    UPDATE user_mine_rule_runs SET key = 'ltag:' || n WHERE key = 'ltag:' || o;
+  END IF;
 END $$;
 CREATE OR REPLACE FUNCTION kalmido_otg_left(lid BIGINT, o BIGINT) RETURNS INTEGER LANGUAGE plpgsql AS $$
 DECLARE r RECORD; i BIGINT; n INTEGER := 0;

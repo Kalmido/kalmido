@@ -275,6 +275,15 @@ check(apply([G3], Gi).get("moved") == 0 and sec_of(G3, Gi) == GNOW, "#6289: the 
 G4 = Gi.post(B + "/api/tasks", json={"title": "Rush job 2", "list_id": GT}).json()["id"]
 check(Gi.patch(B + f"/api/tasks/{G4}", json={"ltags": ["rush"]}).ok and apply([G4], Gi).get("moved") == 1 and sec_of(G4, Gi) == GSOON,
       "#6289: a task that gets the label afterwards: the rule fires again")
+# reader F1: another project leaves the organisation (its label becomes a project tag there): the label lives on, the rule
+# keeps naming it
+GT2 = Gi.post(B + "/api/lists", json={"name": "Second shoot", "org_id": OG}).json()["id"]
+G5 = Gi.post(B + "/api/tasks", json={"title": "Rush elsewhere", "list_id": GT2}).json()["id"]
+check(Gi.patch(B + f"/api/tasks/{G5}", json={"ltags": ["rush"]}).ok, "setup: a task with the label in a second project")
+r = Gi.patch(B + f"/api/lists/{GT2}", json={"org_id": None})
+rr = {x["id"]: x for x in rules(Gi)}
+check(r.ok and rr[GR]["trigger"].get("tag_id") == LB and rr[GR2]["conditions"].get("tag_id") == LB and not rr[GR]["tag_missing"],
+      f"#6289 (reader F1): a project leaving keeps the rules on the label {r.status_code} {rr[GR]['trigger']}")
 kt.dbx("UPDATE user_mine_rules SET trig_val='99999999' WHERE id=?", (GR,))
 check(next(x for x in rules(Gi) if x["id"] == GR)["tag_missing"] and not next(x for x in rules(Gi) if x["id"] == GR2)["tag_missing"],
       "#6289: a rule whose tag is gone says 'Tag missing'")
