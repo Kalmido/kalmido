@@ -242,6 +242,21 @@ const J = o => JSON.stringify(o);
   check(!!await until(() => w.eval(`typeof DC === 'object' && (DC.docs || []).some(x => x.id === ${doc.id})`), 80), 'F6: the documents list under All still shows it');
   w.close();
 
+  // ================= #7611: Files under "All workspaces": the overview has no Upload of its own (no place to put it), the +
+  // never stays from the space shown before (it clicked a file field the overview does not have); a space has it again
+  await set('alice', {workspace: 'all', ws_mods_off: {}});
+  w = await boot({user: 'alice', hash: 'ablage', allWs: true}); d = w.document;
+  check(await until(() => d.querySelector('#view .abovr'), 80), '#7611: Files under All shows the overview of the spaces');
+  w.eval("go(ab_home('private'))");
+  check(await until(() => d.querySelector('#ab-file') && w.eval('!!newCur()'), 80), '#7611: in Private the area\'s Upload is there with its file field');
+  w.eval("go('ablage')");
+  check(await until(() => d.querySelector('#view .abovr') && !d.querySelector('#ab-file'), 80), '#7611: back on the overview of All');
+  check(await until(() => w.eval('!newCur()'), 40), '#7611: the overview offers no Upload that does nothing (the + / the head\'s New are gone)');
+  check(w.eval('newRun()') === false, '#7611: a tap on the + there runs nothing silently');
+  w.eval("go(ab_home('private'))");
+  check(await until(() => d.querySelector('#ab-file') && w.eval('!!newCur()'), 80), '#7611: Private again: Upload with its file field');
+  w.close();
+
   console.log(`p21465_b_wsnew_ui: ${ok} ok, ${F.length} failed`);
   process.exit(F.length ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });
