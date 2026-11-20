@@ -132,7 +132,7 @@ function ofm_adm() {
   const ws = ofm_ws();
   // the contacts / clients pages without the office loaded: its role once per workspace and session, quietly (a 4xx
   // leaves the menu as it is); the office itself reads it with its settings (ofcInfo)
-  if (officeOn() && !OFM_ASKED.has(ws)) {  // 2.152.2 (#2632): also while the office script is there without its settings yet
+  if (officeOn() && !OFM_ASKED.has(ws)) {  // (#2632): also while the office script is there without its settings yet
     OFM_ASKED.add(ws);
     // 2.1437.0 (#7297 c): the request names the area of its key (never the server's saved setting: an answer for the old
     // workspace stored under the new key gave a member admin points or took them from an admin)
@@ -148,7 +148,7 @@ function ofm_adm() {
       // #7387: the office refuses me altogether (office groups without any right): no entry for it under "All" (ofm_allPanelHtml)
       if (e?.status === 403) { const no = ofm_get('ofmNo'); if (!no[ws]) { no[ws] = 1; ofm_put('ofmNo', no); if (asked) sbb_officeSync(); } }
       setTimeout(() => OFM_ASKED.delete(ws), 30000);
-    });  // 2.1437.0 (#7297 c): not "never again in this session"
+    });  // (#7297 c): not "never again in this session"
   }
   return !!ofm_get('ofmAdm')[ws];
 }
@@ -969,7 +969,7 @@ function ofm_panelHtml(sp = '') {
     return OFM_GROUPS.map(g => {
       const gi = its.filter(i => i.group === g[0]), k = 'office:' + (sp ? sp + ':' : '') + g[0], on = gi.some(i => i.key === cur), solo = !!g[3]; if (!gi.length) return '';
       return `<div class="sgroup sbbp" data-ofmg="${g[0]}">${solo ? '' : sbb_head(k, tr(g[2]), gi.length, on && sbb_folded(k))}${/*html-ok*/ !solo && sbb_folded(k) ? '' : gi.map(i => (typeof oft_rowHtml === 'function' && oft_rowHtml(i, i.key === cur, sp)) || sbb_row(at(i.go), i.icon, tr(i.name), i.key === cur, `data-ofm="${i.key}" data-navk="office:${i.key}"`)).join('') /* rows of the tree and sbb_row, their names escaped there */}</div>`;
-    }).join('');  // 2.351.0 A (#3312): a document area opens as a tree (office_tree.js: its folders, 20 newest, More…); no group "Folders"
+    }).join('');  // (#3312): a document area opens as a tree (office_tree.js: its folders, 20 newest, More…); no group "Folders"
   });
 }
 // #7387 (owner decision 19.11.2026): under "All workspaces" with several offices the panel and the phone's drawer show one
