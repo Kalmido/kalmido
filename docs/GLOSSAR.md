@@ -235,6 +235,7 @@ News, comments, the team chat and the browser encryption ("e2e") of lists and ch
 - `kalmido/collab/reactions.py` (`ltag`) - Reactions on comments, tidy suggestions and shared list tags
 - `kalmido/collab/recent.py` - "Recently edited" over Knowledge, Files and Reading: one read-only route GET /api/recent for the overview and the start page block
 - `kalmido/collab/replies.py` (`reply`) - Replies to one message -- task comments, team chat and agent chat
+- `kalmido/collab/tcvtrack.py` - #6232: the kind 'tchat_msg' (the earlier versions of a team chat message, collab/teamchat.py tcv_keep) is known to the shared core from t...
 - `kalmido/collab/tcxcore.py` (`tcx`) - The shared core, stage 5 -- the team chat
 - `kalmido/collab/teamchan.py` (`tcx`) - Team chat channels anyone may open, group conversations of three or more people, files in team chat messages
 - `kalmido/collab/teamchat.py` (`tchat`) - Team chat (rooms and direct messages)
