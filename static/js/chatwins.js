@@ -234,7 +234,7 @@ async function cw_tload(k, st) {
   e2eFromCache(st.msgs);
   const last = st.msgs[st.msgs.length - 1], w = cw_win(k);
   if (w && !w.c && last && (!j.room.last_read || last.id > j.room.last_read) && !document.hidden) {  // seen in an open window = read
-    try { const r = await rawFetch('POST', `/api/team/rooms/${rid}/read`, {last_id: last.id}); if (S.team) S.team.unread = r.unread; } catch { /* offline */ }
+    try { const r = await rawFetch('POST', `/api/team/rooms/${rid}/read`, {last_id: last.id}); tcUnreadTake(r); } catch { /* offline */ }  // #6337 (F1)
     const rr = (S.tc.rooms || []).find(x => x.id === rid); if (rr) { rr.unread = 0; rr.mention = false; }
     renderSide(); renderTabs();
   }

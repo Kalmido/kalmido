@@ -376,9 +376,19 @@ def tchat_unread_both(c, uid):
     """2.149.0 C (#2507): (tchat_unread, tchat_dm_unread) from one tchat_rooms (/api/state read it twice)."""
     if not tchat_on(c, uid):
         return 0, 0
-    rooms = tchat_rooms(c, uid, full=False)  # 2.281.0 B (#3110): no writes, no previews
+    return tchat_unread_of(tchat_rooms(c, uid, full=False))  # 2.281.0 B (#3110): no writes, no previews
+
+
+def tchat_unread_of(rooms):
+    """(unread, dm_unread) of rooms already counted (tchat_rooms): the team chat's number and the direct messages at the bell."""
     return (sum(x["unread"] for x in rooms if not x["muted"] or x["mention"]),
             sum(x["unread"] for x in rooms if x["kind"] in ("dm", "group") and not x["muted"]))
+
+
+def tchat_unread_head(c, uid):
+    """#6337 (F1): {unread, dm_unread} for the answers of /api/team and the read routes -- the browser takes both, so the bell
+    (dm_unread) follows a new or read direct message without a full state (from the same one tchat_rooms as unread, #6400)."""
+    return dict(zip(("unread", "dm_unread"), tchat_unread_both(c, uid)))
 
 
 def tchat_sig(c, uid):
@@ -606,8 +616,9 @@ def tchat_overview():
     c.commit()  # channels are created on first sight
     ppl = sorted(tchat_coworkers(c, uid))
     names = user_names(c, ppl)
+    unread, dm = tchat_unread_of(rooms)  # #6337 (F1): + dm_unread, the bell's direct messages
     return jsonify(rooms=rooms, people=[{"id": p, "name": names.get(p, "?")} for p in ppl], users={str(k): v for k, v in names.items()},
-                   unread=sum(x["unread"] for x in rooms if not x["muted"] or x["mention"]), avatars=avatar_map(c, uid))
+                   unread=unread, dm_unread=dm, avatars=avatar_map(c, uid))
 
 
 @app.post("/api/team/dm")
@@ -1209,7 +1220,7 @@ def tchat_read(rid):
     if lid and not c.execute("SELECT 1 FROM tchat_msgs WHERE room_id=? AND id>?", (rid, max(lr, lid))).fetchone():
         push_handled(c, me(), [], (f"team-{rid}",))  # 2.19.0 (#668): read here = its notification closes elsewhere
     c.commit()
-    return jsonify(ok=True, last_id=max(lr, lid), muted=muted, unread=tchat_unread(c, me()))
+    return jsonify(ok=True, last_id=max(lr, lid), muted=muted, **tchat_unread_head(c, me()))  # #6337 (F1): + dm_unread
 
 
 # ---- 2.139.0 A (#2127): threads. A message answers in a thread when it carries thread_of = the id of the thread's first
@@ -1319,7 +1330,7 @@ def tth_read(c, rid, b):
         osn_mark(c, "tchat_thread", root["id"], me(), lid)
         tcm_seen(c, me(), rid, lid, root["id"])  # 2.1037.0 (#5800)
     c.commit()
-    return jsonify(ok=True, thread=root["id"], last_id=tth_last_read(c, root["id"], me()), unread=tchat_unread(c, me()))
+    return jsonify(ok=True, thread=root["id"], last_id=tth_last_read(c, root["id"], me()), **tchat_unread_head(c, me()))  # #6337 (F1)
 
 
 # ---- 2.139.0 A (#2129): "Read by". The read marks are there (2.981.0 #5286: obj_seen kind tchat, in a thread tchat_thread); a

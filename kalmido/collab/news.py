@@ -603,13 +603,23 @@ def news_sig(c, uid):
     return news_sig_fmt(c.execute(*news_sig_q(uid)).fetchone())
 
 
+NEWS_SIG_COLS = 4  # the columns of news_sig_q (/api/version reads them inside its one statement)
+
+
 def news_sig_q(uid):
-    """2.149.0 C (#2507): the query of news_sig (one row, 2 columns; /api/version runs it inside one statement)."""
-    return "SELECT COUNT(*), COALESCE(MAX(id),0) FROM notifications WHERE user_id=? AND read_at IS NULL", (uid,)
+    """2.149.0 C (#2507): the query of news_sig (one row, NEWS_SIG_COLS columns; /api/version runs it inside one statement).
+    #6337 (F6, decision of 12.11.2026: the bell's number is the same on every device): besides my unread items (count, newest
+    id) it moves with every item of mine that goes (dismissed on another device: the count of all my items, index-only on
+    notifications_user) and with "seen for today" of the deadline lines (the sum of my marks obj_seen kind 'due', at most two
+    rows) -- so each read / seen / dismissed reaches my other devices through the 4-second poll."""
+    return ("SELECT (SELECT COUNT(*) FROM notifications WHERE user_id=? AND read_at IS NULL), "
+            "(SELECT COALESCE(MAX(id),0) FROM notifications WHERE user_id=? AND read_at IS NULL), "
+            "(SELECT COUNT(*) FROM notifications WHERE user_id=?), "
+            "(SELECT COALESCE(SUM(seen_id),0) FROM obj_seen WHERE kind='due' AND user_id=?)", (uid, uid, uid, uid))
 
 
 def news_sig_fmt(r):
-    return f"{r[0]}.{r[1]}"
+    return f"{r[0]}.{r[1]}.{r[2]}.{r[3]}"
 
 
 def news_org_mine(c, uid, data, memo):
@@ -1080,7 +1090,8 @@ def news_dismiss():
 
 @app.post("/api/news/read")
 def news_read():
-    """{ids: [...]} or {all: true}: marks my items read (other users' ids are ignored). No version bump."""
+    """{ids: [...]} or {all: true, max_id?}: marks my items read (other users' ids are ignored). No version bump: the News
+    signature (news_sig) moves, the other devices follow through /api/version."""
     from ..notify.push import push_handled
     b = body()
     c = db()
@@ -1099,10 +1110,16 @@ def news_read():
         c.commit()
         return jsonify(ok=True, **news_counts(c, uid))
     if b.get("all"):
+        # #6337 (F2): {all: true, max_id: <the highest id the device showed>} = the upper bound, like the team chat's read mark
+        # last_id: an item that arrived after the list was drawn (never shown here) stays unread. Without max_id: all (old clients).
+        top = b.get("max_id")
+        if top is not None and (isinstance(top, bool) or not isinstance(top, int) or top < 0):
+            return err(tr("Invalid value: {0}", "max_id"))
+        cap, args = ("", ()) if top is None else (" AND id<=?", (top,))
         tids |= {r[0] for r in c.execute("SELECT DISTINCT task_id FROM notifications WHERE user_id=? AND read_at IS NULL "
-                                         "AND task_id IS NOT NULL", (uid,))}
-        marked = [r[0] for r in c.execute("SELECT id FROM notifications WHERE user_id=? AND read_at IS NULL ORDER BY id DESC LIMIT 5000", (uid,))]
-        c.execute("UPDATE notifications SET read_at=? WHERE user_id=? AND read_at IS NULL", (ts, uid))
+                                         "AND task_id IS NOT NULL" + cap, (uid, *args))}
+        marked = [r[0] for r in c.execute("SELECT id FROM notifications WHERE user_id=? AND read_at IS NULL" + cap + " ORDER BY id DESC LIMIT 5000", (uid, *args))]
+        c.execute("UPDATE notifications SET read_at=? WHERE user_id=? AND read_at IS NULL" + cap, (ts, uid, *args))
     else:
         try:
             ids = [int(x) for x in (b.get("ids") or [])][:1000]

@@ -1771,6 +1771,7 @@ function dayTick() {
   S.dayNow = d;
   if (typeof calInvalidate === 'function') calInvalidate();
   renderSide(); renderTop(); renderTabs(); badgeSync(); viewSafeRender();
+  if (collab() && typeof loadNews === 'function') loadNews();  // #6337 (F6): the bell's deadline lines are counted for the new day (the News counts come with the feed)
 }
 setInterval(() => { if (!document.hidden) dayTick(); }, 60000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) dayTick(); });
