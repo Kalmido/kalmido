@@ -183,6 +183,13 @@ function stl_extra(t) {
   x.push(tr('With {0}|lies with', who));
   return x;
 }
+// the history arrived (collab.js loadTimeline): the line again, in place (its open / closed state kept)
+function stl_refresh(id) {
+  const el = document.querySelector('#detail #d-stages'), t = taskById(id); if (!el || !t || S.sel !== id) return;
+  const box = document.createElement('div'); box.innerHTML = stl_html(t);  // html-ok: stl_html builds every part escaped
+  const nu = box.firstElementChild; if (!nu) return;
+  nu.open = el.open; el.replaceWith(nu);
+}
 function stl_html(t) {
   if (!(t?.id > 0) || t.context || isMs(t)) return '';
   const st = stl_model(t); if (!st) return '';
