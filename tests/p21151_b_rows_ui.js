@@ -125,14 +125,16 @@ const closePop = w => w.eval('closePop()');
   w.close();
 
   // ================= the computer: unchanged
+  const SB = (await call('POST', '/api/sections', {name: 'Summer', list_id: L})).id;  // (#7519): a second section, so a move is possible
   w = await boot({hash: 'l/' + L}); d = w.document;
   await until(() => d.querySelector(`#view .trow[data-id="${T1}"] .rpin`));
   check(d.querySelector(`#view .trow[data-id="${T1}"] .rpin`), 'computer: the row keeps its pin');
-  w.eval(`sectionMenu(document.querySelector('#view .ghead[data-section="${SA}"]'), ${SA})`);
+  w.eval(`sh_menu(document.querySelector('#view .ghead[data-section="${SA}"]'), 'list', ${SA})`);  // (#7519): the one menu of a section's head
   const di = await until(() => items(d).length && items(d));
-  check(di && di.includes('Move left / up') && di.includes('Move right / down'), 'computer: the section menu keeps Move left / right ' + di);
+  check(di && (di.includes('Move up') || di.includes('Move down')), 'computer: the section menu keeps Move up / down (#7519: one text for both heads) ' + di);
   closePop(w);
   w.close();
+  await call('DELETE', `/api/sections/${SB}`);
   w = await boot({hash: 't/' + T1}); d = w.document;
   await until(() => d.querySelector(`#d-tl-items .cm[data-cid="${CM.id}"] [data-act="cm-copy"]`));
   w.eval(`document.querySelector('#d-tl-items .cm[data-cid="${CM.id}"] [data-act="cm-copy"]').click()`);

@@ -6,6 +6,8 @@ no container.
  - a new moActive() / mseOn() / .mbcol / data-key^="ms:" in a drop path file (dnd.js, a new file) is red with the line, exit 1
  - a comment line or a trailing // comment does not count; the adapter files of ALLOW (mineorder.js ...) stay quiet
  - --update only shrinks: a place taken out lowers the count, a file without places drops out, nothing is ever added
+ - (#7519) render.js (allowed: it draws My tasks) may not draw a section's head itself: mseOn( / .mosec / mseHeadHtml /
+   mseMenu there are red; moActive() there stays allowed
  - the check is a step of the CI lint and kern.md names it
 usage: check_drop_core_test.py"""
 import json
@@ -65,6 +67,13 @@ try:
     rc, out = run(d)
     check(rc == 1 and "static/js/palette.js" in out, f"a new file with .mbcol: red ({out})")
     js("palette.js", "function nudge() { return 1; }\n")
+    js("render.js", "function rv() { return moActive() ? 1 : 0; }\n")
+    rc, out = run(d)
+    check(rc == 0, f"#7519: render.js draws My tasks: moActive() there stays allowed ({out})")
+    js("render.js", "function rv(g) { return g.mosec ? mseHeadHtml(g) : ''; }\n")
+    rc, out = run(d)
+    check(rc == 1 and "static/js/render.js:1" in out and "sh_head" in out, f"#7519: a section's head drawn by render.js itself: red ({out})")
+    js("render.js", "function rv(g) { return sh_head(g).menu; }\n")
     rc, out = run(d, "--update")
     check(rc == 0 and json.load(open(os.path.join(d, "tools", "drop_core_baseline.json"))) == {},
           f"--update shrinks: the place taken out drops out ({out})")

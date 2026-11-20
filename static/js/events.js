@@ -739,7 +739,7 @@ document.addEventListener('click', async e => {
       const lid = S.route.key === 'inbox' ? inbox().id : +S.route.key.slice(2);
       await sectionCreate(lid, n.trim()); break;
     }
-    case 'section-menu': e.stopPropagation(); sectionMenu(a, id); break;
+    case 'section-menu': e.stopPropagation(); sh_menu(a, a.dataset.sk, id); break;  // (#7519): the one menu of a section's head (dragmulti.js)
     case 'nav-back': bnBack(true); break;
     case 'nav-fwd': bnFwd(true); break;  // #7395
     case 'hist-undo': case 'hist-redo': if (!histHeld()) { if (act === 'hist-undo' && histBtn('undo').list) histListOpen(a, histBtn('undo').mark); else histStep(act.slice(5)); } break;  // (#5250): nothing to undo here: the list "Recent steps" (#6344: an older step of elsewhere marked)
