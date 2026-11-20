@@ -1730,7 +1730,8 @@ def lv_self_header(resp):
     if n is not None and resp.status_code < 400:
         resp.headers["X-Kalmido-Lv"] = f"self:{n}"
     v = g.get("lv_v")
-    if v and resp.status_code < 400 and request.method != "GET":
+    # only the web app reads it: a public link, a token or a sync does not get to count the server's writes
+    if v and resp.status_code < 400 and request.method != "GET" and g.get("auth_via") in ("session", "proxy"):
         resp.headers["X-Kalmido-V"] = str(v)
     return resp
 
