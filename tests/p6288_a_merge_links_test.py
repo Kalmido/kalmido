@@ -103,6 +103,8 @@ check(row(L2) == ("client", CA, "task", TK2, False), f"B's link to a task leaves
 check(row(L3) == ("task", TK2, "client", CA, False) and row(L4) is None, f"the double fell together {row(L3)} {row(L4)}")
 check(row(L5) is None, "the link between A and B is gone (A to itself)")
 check(row(L7) == ("task", TK3, "client", CA, False) and row(L6) is None, f"the live link wins over the one in the trash {row(L7)} {row(L6)}")
+pr = sql("SELECT ref_id FROM purged_rows WHERE tbl='obj_links' AND ref_id IN (?, ?, ?)", (L4, L5, L6))
+check(not pr, f"#6357 (reader F3): the links the merge folded are not noted as deleted for good (a restore keeps them) {pr}")
 lk = A.get(B + f"/api/obj/client/{CA}/links").json().get("links") or []
 check(sorted((x["dir"], x["other"]["id"]) for x in lk) == sorted([("in", TK1), ("out", TK2), ("in", TK2), ("in", TK3)]),
       f"A lists all of them {[(x['dir'], x['other']['id']) for x in lk]}")
