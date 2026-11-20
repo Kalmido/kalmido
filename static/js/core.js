@@ -725,13 +725,24 @@ async function docsAll(url, f = rawFetch) {
 // (header X-Kalmido-Office-Space, office/model.py office_space); '' = the server's choice from the setting workspace
 // 2.1392.0 (#6717): under "All" with exactly one area that has the office on, that office opens directly (no overview,
 // office.js ofc_allOvr) - its area goes with every office request too (the server never guesses between several offices)
+// (#7313): the address's area counts only when it is mine and its office is on for me (ofc_spaces); another one = no office
+// (office.js ofc_wspBad shows a note) - never silently the only other office under that address
+const ofc_spRoute = () => { const w = S.route?.wsp || ''; return w && typeof ofc_spaces === 'function' && ofc_spaces().includes(w) ? w : ''; };
+const ofc_spOne = () => typeof ofc_spaces === 'function' && ofc_spaces().length === 1 ? ofc_spaces()[0] : '';
 const ofc_spOpen = () => S.route?.mod !== 'office' || typeof wsCur !== 'function' || wsCur() !== 'all' ? ''
-  : S.route.wsp || (typeof ofc_spaces === 'function' && ofc_spaces().length === 1 ? ofc_spaces()[0] : '');
+  : S.route.wsp ? ofc_spRoute() : ofc_spOne();
+// (#7313 F12): outside the office under "All" the office of what the page shows (wscolor.js wso_cur: the open client, contact,
+// document, project ...) when its office is on for me, else the only office on for me; '' = none (the server asks, 400)
+const ofc_spObj = () => { if (typeof wso_cur !== 'function' || typeof ofc_spaces !== 'function') return ''; let w = ''; try { w = wso_cur(); } catch { /* a page not ready */ } return w && ofc_spaces().includes(w) ? w : ''; };
 // (#7297): under a chosen workspace its area goes along too, with EVERY office request (whatever page asks, e.g. the
 // office menu's role from #clients): the office never depends on the saved setting the server got (a failed or late PATCH,
 // the split view's right half that sends none, miniwin.js MW_GUARD); the server checks the membership (office_space)
-const ofc_spCur = () => typeof wsCur !== 'function' ? '' : wsCur() !== 'all' ? wsCur() : ofc_spOpen();
-const ofc_spHdr = url => /^\/api\/(office\/|docs[/?])/.test(String(url || '')) ? ofc_spCur() : '';  // (#4823): + /api/docs/ (docs/area.py ar_office: receipts sorted into the open office)
+const ofc_spCur = () => typeof wsCur !== 'function' ? '' : wsCur() !== 'all' ? wsCur() : S.route?.mod === 'office' ? ofc_spOpen() : ofc_spObj() || ofc_spOne();
+// (#7313 F13): a link into the office names its area under "All workspaces" (#office/s/<area>/<tail>, like ablage.js ab_rcGo);
+// ws = 'org:<id>' | 'private' | an object's org_id (null / 0 = Private)
+const ofc_link = (tail, ws) => { const w = typeof ws === 'string' && ws ? ws : ws ? 'org:' + +ws : 'private'; return typeof wsCur === 'function' && wsCur() === 'all' && (typeof ofc_spaces !== 'function' || ofc_spaces().includes(w)) ? `office/s/${w}/${tail}` : 'office/' + tail; };
+const ofc_spHdr = url => /^\/api\/(office\/|docs[/?]|search(\?|$))/.test(String(url || '')) ? ofc_spCur() : '';  // (#7313 F12): + /api/search (office/search.py bs_office_oid: the hits of the office shown)
+  // (#4823): + /api/docs/ (docs/area.py ar_office: receipts sorted into the open office)
 // 2.577.0 (#4638, review): links, window.open, images and pdfView cannot send the header: the same area as ?_osp= (once);
 // raw fetch() calls outside rawFetch0 go through ofc_spFetch (header); any <a href="/api/office/..."> gets it on its click
 const ofc_spUrl = url => { const u = String(url || ''), sp = ofc_spHdr(u); return sp && !/[?&]_osp=/.test(u) ? `${u}${u.includes('?') ? '&' : '?'}_osp=${encodeURIComponent(sp)}` : u; };
@@ -1585,6 +1596,7 @@ function applyState(j, w0) {  // w0: S.wseq when its GET /api/state started (ld_
   S.lists = j.lists; S.inboxNames = j.inbox_names || []; S.sections = j.sections; S.habits = j.habits; S.habitsTrash = j.habits_trash || []; S.pomo = j.pomo;
   S.notes = j.notes || []; S.team = j.team || {enabled: false, unread: 0};  // 2.17.0 (#442 #419)
   S.pomoToday = j.pomo_today; S.avatars = j.avatars || {}; S.colors = j.colors || {}; S.share = j.share || null; S.settings = j.settings; S.mineOrder = moFromState(j); S.languages = j.languages || [{code: 'en', name: 'English'}]; LS.set('lang', j.settings.lang || 'en'); document.documentElement.lang = j.settings.lang || 'en'; S.counts = j.counts; S.v = j.v; S.ntfyUrl = j.ntfy_url;
+  wsp_state(j);  // (#7309): the modules on per workspace (accounts/wsplace.py), areas.js wsp_list reads them
   S.omitNames = j.omit_names || ['not included'];  // 2.1336.0 (#6804): the names of "not included.txt" in every language (wikie2e.js)
   S.trashPurge = j.trash_purge !== false;  // 2.223.3 A (#2877)
   lookAdopt();  // 2.143.0 D (#2155)
