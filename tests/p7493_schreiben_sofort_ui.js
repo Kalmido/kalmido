@@ -79,12 +79,13 @@ async function run(user) {
   check(+s.items?.[0]?.qty === 2 && s.items?.[1]?.title === 'Shoot extended', `B: both on the server (${s.items?.[0]?.qty}, ${s.items?.[1]?.title})` + tag);
 
   // ================= C. three services added quickly
+  const n0 = w.__n;
   for (const n of ['Ton', 'Maske', 'Grading']) await pick(n);
   check(titles(d).slice(3).join() === 'Ton,Maske,Grading', 'C: three lines at once, in order: ' + titles(d).join() + tag);
   check(rows(d).slice(3).every(r => r.classList.contains('rw-saving')), 'C: all three say "Saving…"' + tag);
   for (let t = 0; t < 200 && w.eval('OFD_W.pend'); t++) { if (w.__q.length) w.__go(); await sleep(50); }  // each held save through, none let through ahead
   check(await idle(), 'C: saved' + tag);
-  check(w.__n <= 9, `C: the waiting changes joined one save (${w.__n} saves in all)` + tag);
+  check(w.__n - n0 === 2, `C: the first add went at once, the two that waited joined one save (${w.__n - n0} saves)` + tag);
   s = await call('GET', `/api/office/docs/${doc.id}`);
   check(s.items?.map(x => x.title).join() === 'Concept,Shoot extended,Licht,Ton,Maske,Grading', 'C: on the server the same lines, none twice: ' + s.items?.map(x => x.title).join() + tag);
   check(titles(d).join() === s.items?.map(x => x.title).join() && !d.querySelector('#ofd-pos .rwmark'), 'C: the view the same, no mark' + tag);
@@ -97,6 +98,12 @@ async function run(user) {
   check(await until(() => rows(d)[6]?.classList.contains('rw-failed')), 'D: the line says "Not saved"' + tag);
   check(titles(d)[6] === 'Licht' && !!rows(d)[6].querySelector('[data-rwagain="ofd"]'), 'D: the line stays, with "Try again"' + tag);
   check(!d.querySelector('#ofd-pos.rwcalc'), 'D: no "Calculating…" while nothing waits' + tag);
+  w.eval("ofdPatch({project_title: 'Spot 2'})");  // a save of the head: its answer brings the stored positions
+  check(await until(() => w.__q.length === 1), 'D: the head\'s save is on its way' + tag);
+  w.__go();
+  check(await until(() => w.eval('OFD.saving') === 0), 'D: the head is saved' + tag);
+  await w.eval(`ofdLoadDoc(${doc.id}, true)`);  // "Check again" / a reload of the document
+  check(titles(d)[6] === 'Licht' && rows(d)[6]?.classList.contains('rw-failed'), 'D: the unsaved line stays through another answer and a reload: ' + titles(d).join() + tag);
   click(w, rows(d)[6].querySelector('[data-rwagain="ofd"]'));
   check(await until(() => w.__q.length === 1), 'D: Try again sends it' + tag);
   check(rows(d)[6]?.classList.contains('rw-saving'), 'D: the line says "Saving…" again' + tag);

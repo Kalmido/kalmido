@@ -164,7 +164,7 @@ async function ofdLoadDoc(id, force) {
   OFD.docLoading = true; OFD.docId = id;
   OFD.docErr = 0;
   const wk = ofc_wsKey();
-  try { const d = await api('GET', `/api/office/docs/${id}`); if (wk !== ofc_wsKey()) { OFD.docLoading = false; return; } if (OFD.doc?.id !== d.id) OFD_W.reset(); /* #7493: the marks of another document */ OFD.doc = d; /* (#7313 F15): another office meanwhile: dropped */ OFD.viaFolder.delete(id); OFD.err = ''; OFD.conflict = null; if (OFD.doc?.kind && OFD.doc.kind !== OFD.kind) { OFD.kind = OFD.doc.kind; OFD.list = null; } }
+  try { const d = await api('GET', `/api/office/docs/${id}`); if (wk !== ofc_wsKey()) { OFD.docLoading = false; return; } if (OFD.doc?.id !== d.id) OFD_W.reset(); /* #7493: the marks of another document */ else if (!OFD_W.last()) Object.assign(d, {items: OFD.doc.items, updated_at: OFD.doc.updated_at}); /* #7493: unsaved / waiting rows stay with the version they build on (changed elsewhere: Try again = the conflict bar) */ OFD.doc = d; /* (#7313 F15): another office meanwhile: dropped */ OFD.viaFolder.delete(id); OFD.err = ''; OFD.conflict = null; if (OFD.doc?.kind && OFD.doc.kind !== OFD.kind) { OFD.kind = OFD.doc.kind; OFD.list = null; } }
   catch (x) {  // 2.199.0 B (#2742): no office right for it, but a shared folder holds it -> read through the folder (its PDF too)
     OFD.doc = null; OFD.err = ofcErrHere(x); OFD.docErr = id;
     // 2.351.0 A (#2823): a draft with edit through the folder is edited (saved over the folder way, ofd_viaUrl)

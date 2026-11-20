@@ -1826,7 +1826,10 @@ function rwRows(o) {
   // the row of saves of this object (every save of it goes here, also one without rows)
   W.run = fn => { W.pend++; const p = W.chain.then(fn, fn), dn = () => { W.pend--; }; p.then(dn, dn); W.chain = p.catch(() => { /* the caller reports it */ }); return p; };
   W.state = it => it ? W.st.get(rwKey(it)) || '' : '';
-  W.last = () => !(W.pend > 1) && !W.dirty.size;  // no further save of the object waits
+  W.failed = () => [...W.st.values()].includes('failed');
+  // no further save of the object waits and no row is unsaved: only then may an answer stand for the local state (a failed
+  // row stays until it is saved or the person takes the stored state)
+  W.last = () => !(W.pend > 1) && !W.dirty.size && !W.failed();
   // one save of the rows' newest state: joins the one that waits, else a new one at the end of the row
   W.mark = keys => { for (const k of keys) { W.st.set(k, 'saving'); W.dirty.add(k); } W.calc = true; };
   W.save = (keys = []) => {
