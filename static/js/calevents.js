@@ -37,11 +37,12 @@ const evWritable = () => (S.evcals || []).filter(c => evWrite(c) && !c.hidden &&
 // at all yet and the space the editor would make one in (wsNewOrg) lets me add (like the contacts' ctCanNew). No = every
 // "new event" entry is left out (button, round +, dragging over free time, the quick sheet's "Event", "Schedule as an
 // event"): a reader of shared calendars gets no calendar made behind her back
-const evNewSpace = () => { const o = wsNewOrg(); return o ? 'org:' + o : 'private'; };
+// (#7309 F4): the shared place (workspace.js wsNewSpace: Events on and writable there; null = several, the server's 400 asks)
+const evNewSpace = () => wsNewSpace('events');
 const evShown = () => (S.evcals || []).some(c => !c.hidden && wsObjIn(c));
 // 2.1238.0 (#6161, review fund 3): like the contacts (F8): a reader of shared calendars whose own space lets them add (their
 // Private, an organisation as member) keeps the entries - the event goes into a calendar of their own; an organisation's reader does not
-const evCanNew = () => evOn() && (evWritable().length > 0 || canWrite(evNewSpace()));
+const evCanNew = () => evOn() && (evWritable().length > 0 || wsCanNew('events'));
 // the calendar's ONE read hint (roHintHtml): calendars of the shown workspace there, but none to write in
 const evRoHint = () => evOn() && !evCanNew() && evShown() ? roHintHtml() : '';
 const EV_PS = [['accepted', N_('Accept'), 'check'], ['tentative', N_('Maybe'), 'help'], ['declined', N_('Reject'), 'x']];
@@ -394,7 +395,7 @@ async function evEditor(o = {}) {
   if (!ev && !o.dvw && !evCanNew()) { toast(tr('You can only read this calendar')); return; }
   // #6154: a calendar of its own is made only for a NEW event where the person may add (evCanNew above); an event opened to
   // read (its calendar not among the loaded ones) never makes one behind the reader's back
-  if (!cals.length && !o.dvw && !ev) { try { const c = await api('POST', '/api/evcals', {name: tr('Calendar'), org_id: wsNewOrg()}); await load(); cals.push(c); } catch { return; } }
+  if (!cals.length && !o.dvw && !ev) { try { const sp = evNewSpace(), c = await wsp_post('/api/evcals', {name: tr('Calendar'), ...(sp ? {space: sp} : {})}); if (!c) return; await load(); cals.push(c); } catch { return; } }  // (#7309 F4): named, or the server asks (space_needed)
   const t0 = today();
   const st = ev ? {...ev} : {title: o.title || '', all_day: !!o.all_day, start: o.start || `${S.calSel || t0}T09:00`, end: o.end || '', location: o.location || '',
     description: o.description || '', rrule: '', reminders: o.all_day ? [-540] : [15], attendees: [], cal_id: o.cal_id || +LS.get('evCal', 0) || cals[0].id,
@@ -856,9 +857,9 @@ async function evCalsModal() {
     if (b.dataset.evc === 'booking') { md.remove(); apbOpen(); }  // 2.94.0 B (#1929): apptbook.js (lazy module calendar)
     if (b.dataset.evc === 'subs') { md.remove(); settingsModal('calendars'); }
     if (b.dataset.evc === 'new') {
-      const n = await wsAskNew(tr('New calendar'));  // 2.30.0 (#1036): with its workspace
+      const n = await wsAskNew(tr('New calendar'), 'events');  // (#1036): with its workspace; (#7309 F4): where Events is on for me
       if (!n) return;
-      try { await api('POST', '/api/evcals', n); } catch { return; }
+      try { if (!await wsp_post('/api/evcals', n)) return; } catch { return; }
       refresh();
     }
   });

@@ -85,6 +85,7 @@ People and organisations: sign-in, sessions, workspaces, roles, invitations, per
 - `kalmido/accounts/users.py` (`user`) - Users and the own account (admin user management, passwords, deletion)
 - `kalmido/accounts/whatsnew.py` (`wn`) - "New for you" -- after an update every person sees once the sentences written for users of the versions since the version they saw last
 - `kalmido/accounts/wsareas.py` (`wsa`) - Areas switched on and off per workspace
+- `kalmido/accounts/wsplace.py` - THE place for "is module X on for person P in a workspace" and "where does a new X of P go". Two questions, one answer for the server and...
 
 ### `kalmido/admin/`
 

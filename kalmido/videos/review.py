@@ -1085,7 +1085,7 @@ def vdr_move_space(vid):
     write_lock(c, f"video_review_{int(vid)}")  # 2.122.4 (#2215): a customer decision does not land in the old workspace mid-move
     b = body()
     b = b if isinstance(b, dict) else {}
-    to = smv_target(c, uid, b.get("to"))
+    to = smv_target(c, uid, b.get("to"), "videos")
     smv_same(r["org_id"], to)
     if r["org_id"] is None and r["created_by"] != uid and r["owner_id"] != uid:
         raise Denied(403, tr(VDR_ONLY))

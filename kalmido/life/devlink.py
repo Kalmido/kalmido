@@ -23,6 +23,7 @@ from ..core.db import body, bump, db, iso, now_utc
 from ..core.i18n import tr
 from ..core.access import Denied, need_task
 from ..accounts.session import me
+from ..accounts.modcards import mc_need_private_office  # (#7309 F7)
 from ..core.errors import BadInput
 from ..tasks.tasks import one_task
 from ..tasks.validation import as_int, log_act
@@ -225,6 +226,7 @@ def dl_device_to_office(tid):
         raise BadInput(tr("Invalid data"))
     oid = as_int(b.get("office_id", 0), "office_id", 0)
     if oid == 0:
+        mc_need_private_office(c, uid)  # (#7309 F7): office_id 0 = my own office, never while "Also private" is off
         oid = pb_personal(c, uid)
     if office_role(c, uid, oid) != "admin":
         raise Denied(403, tr("Only admins of this office can add equipment"))

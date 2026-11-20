@@ -85,8 +85,8 @@ def op_books_trash(c, uid):
 
 
 def op_book_new(c, uid, b):
-    _unknown(b, ("name", "color", "org_id"))  # 2.30.0 (#1036): org_id = its workspace
-    bid = book_create(c, uid, b)
+    _unknown(b, ("name", "color", "org_id", "space"))  # (#1036): org_id = its workspace; (#7309): or space
+    bid = book_create(c, uid, b, ask=True)  # (#7309): a person's request -> the shared place (400 space_needed to choose)
     bump(c)
     c.commit()
     return book_public(c, c.execute("SELECT * FROM books WHERE id=?", (bid,)).fetchone(), uid)

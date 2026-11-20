@@ -160,7 +160,7 @@ async function bm_del(id, x0 = null) {
 async function bm_move(x) {
   const from = bm_spOrg(x.space);
   const req = (to, extra) => rawFetch('POST', '/api/bookmarks/move-space', {ids: [x.id], to: smv_ws(to), ...extra});
-  const r = await smv_open({what: qn(x.title), from, check: to => req(to, {dry: 1}),
+  const r = await smv_open({mod: 'reading', what: qn(x.title), from, check: to => req(to, {dry: 1}),
     run: async to => { try { return await req(to, {}); } catch (e) { toast(errText(e, tr('The move was not saved'))); throw e; } }});
   if (!r || !r.ok) return false;
   await bm_reload();
