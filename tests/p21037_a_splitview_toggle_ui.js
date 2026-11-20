@@ -2,7 +2,7 @@
 // kalmido-suite: fresh
 // Invented data only. alice has no organisation (freelancer-matrix: Geteilte Ansicht).
 // - a narrow window (1200 px): no button in the bar, no gap; Shift+V does nothing
-// - a wide window: the button sits next to the bell, not pressed; a mouse click: the right half comes with Today (nothing shown there
+// - a wide window: the button sits next to the bell (#7395: only the Back / Forward arrows between), not pressed; a mouse click: the right half comes with Today (nothing shown there
 //   before), the button is pressed (aria-pressed), the switch in Settings > Appearance shows "on"; a click again: the right half goes
 // - switching on again shows the right half's last page (splR): the project's title there
 // - Shift+V switches on and off; Shift+V while typing in a field types a V and switches nothing; Shift+V with the focus in the right half
@@ -42,7 +42,8 @@ execFileSync('bash', [path.join(__dirname, 'start.sh'), DATA], {stdio: 'ignore'}
     const gone = () => until(`!document.querySelector('#splitpane') && !document.documentElement.classList.contains('split-on')`);
     const BTN = '.splbtn';
     const btn = () => ev(`(() => { const b = [...document.querySelectorAll('${BTN}')].find(x => x.offsetParent !== null); if (!b) return null; const r = b.getBoundingClientRect();
-      return {pressed: b.getAttribute('aria-pressed'), on: b.classList.contains('on'), title: b.title, w: Math.round(r.width), bell: !!b.nextElementSibling && b.nextElementSibling.classList.contains('bell')}; })()`);
+      return {pressed: b.getAttribute('aria-pressed'), on: b.classList.contains('on'), title: b.title, w: Math.round(r.width), bell: (() => { let n = b.nextElementSibling; if (n && n.classList.contains('bnnav')) n = n.nextElementSibling; return !!n && n.classList.contains('bell'); })(),
+        next: b.nextElementSibling ? b.nextElementSibling.className : null}; })()`);
     // a real key press (Shift held for the letter); the browser sends it to whatever has the focus
     const shiftV = async () => {
       await cmd('input.performActions', {context: ctx, actions: [{type: 'key', id: 'k', actions: [{type: 'keyDown', value: ''}, {type: 'keyDown', value: 'V'}, {type: 'keyUp', value: 'V'}, {type: 'keyUp', value: ''}]}]});
@@ -65,7 +66,8 @@ execFileSync('bash', [path.join(__dirname, 'start.sh'), DATA], {stdio: 'ignore'}
     await load('#today'); await booted();
     const b0 = await until(() => btn());
     check(b0 && b0.pressed === 'false' && !b0.on && b0.w > 10, 'wide: the split view button shows, not pressed ' + JSON.stringify(b0));
-    check(b0 && b0.bell, 'wide: the button sits right before the bell ' + JSON.stringify(b0));
+    // #7395 (younger, 19.11.2026): Back / Forward sit directly before the bell, the split button right before them
+    check(b0 && b0.bell, 'wide: the button sits right before the bell (only the Back / Forward arrows between, #7395) ' + JSON.stringify(b0));
     check(b0 && /Split view/.test(b0.title) && /V/.test(b0.title), 'wide: its tooltip names the split view and the key ' + JSON.stringify(b0 && b0.title));
     check(await ev(`!document.querySelector('#splitpane')`), 'wide, off: no right half');
 
