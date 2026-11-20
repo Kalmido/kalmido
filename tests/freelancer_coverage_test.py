@@ -535,6 +535,7 @@ ROUTES = {
     "POST /api/templates": "lists", "POST /api/templates/{}/apply": "lists", "POST /api/v1/filters": "lists",
     "POST /api/v1/folders/delete": "lists", "POST /api/v1/folders/rename": "lists", "POST /api/v1/layouts/proposals": "lists",
     "PUT /api/tasks/{}/irreversible": "tasks", "DELETE /api/tasks/{}/irreversible": "tasks", "POST /api/tasks/{}/irreversible-yes": "tasks",  # 2.392.0 C (#3370)
+    "POST /api/tasks/{}/confirm": "tasks", "DELETE /api/tasks/{}/confirm": "tasks", "POST /api/tasks/{}/reject": "tasks",  # 2.1494.0 (#7528): tests/p7528_confirm_api_test.py (frida without an organisation)
     "PUT /api/tasks/{}/delivery": "tasks", "DELETE /api/tasks/{}/delivery": "tasks",  # 2.392.2 (#3365)
     "GET /api/tasks/{}/decisions": "tasks", "POST /api/tasks/{}/decisions": "tasks", "GET /api/v1/tasks/{}/decisions": "tasks", "POST /api/v1/tasks/{}/decisions": "tasks",
     "POST /api/v1/lists": "lists", "POST /api/v1/lists/{}/deployments": "lists", "POST /api/v1/lists/{}/duplicate": "lists",

@@ -21,7 +21,7 @@ const NEWS_CHIPS = [['mention', 'at', N_('Mentions'), ['mention']], ['comment', 
   ['agents', 'bot', N_('Agents'), ['approval', 'agentask', 'proposal', 'usage']], ['share', 'users', N_('Sharing'), ['share', 'role', 'unshare', 'owner', 'orgjoin', 'orgjoinres', 'orgrole', 'orgdelnotice', 'orggone', 'whorgcut', 'integfail']],
   ['followup', 'hourglass', N_('Follow-ups'), ['followup']]];
 NEWS_CHIPS[0][3].push('chatmention');  // 2.1037.0 (#5800): a mention in the team chat is a mention
-NEWS_CHIPS.find(x => x[0] === 'share')?.[3].push('oxdone', 'umzdone');  // #6581: my export is ready / failed, beside the other notices of an organisation; #6583: my import
+NEWS_CHIPS.find(x => x[0] === 'share')?.[3].push('oxdone', 'umzdone', 'wspstill');  // #6581: my export is ready / failed, beside the other notices of an organisation; #6583: my import
 const newsKindOk = (it, k = S.nf.kind) => { const c = k && NEWS_CHIPS.find(x => x[0] === k); return !c || c[3].includes(it.kind); };
 function newsChipsHtml(items, attr) {
   const k = S.nf.kind, have = NEWS_CHIPS.filter(c => c[0] === k || (items || []).some(it => c[3].includes(it.kind)));
@@ -344,6 +344,7 @@ function newsText(it, U) {
     case 'filereq': { const d = it.data || {}; return trnh('{0} file arrived through {1}', '{0} files arrived through {1}', d.n || 1, q(d.title || '')) + (d.name ? ' · ' + q(d.name) : ''); }  // (#2097)
     case 'oxdone': return esc(d.text || '');  // #6581: written in the person's language by the server (admin/orgexport.py ox_tell)
     case 'umzdone': return esc(d.text || '');  // #6583: the same for my import (admin/acctimport.py umz_tell)
+    case 'wspstill': return esc(d.text || '');  // #7392: what keeps running in my private office (accounts/wsplace.py wsp_still_tell)
     case 'integfail': return esc(d.text || '') + (d.what === 'mailbox' || d.what === 'git' || d.what === 'hookin' ? ' ' + esc(tr('Check the connection in the settings, or remove it.')) : '');  // 2.1111.0 (#5963): the way to the solution  // 2.367.3 (#2971): written in the person's language by the server (collab/integfail.py)
     case 'fetcherr': return trh('Receipt fetcher {0}: {1}', q(d.portal || ''), d.error || '');  // (#3453): docfetch.js
     case 'docflow': return d.flow ? trh('Flow {0}: {1}', q(d.flow), q(d.name || '')) : trh('Document flow: {0}', q(d.name || ''));  // (#4803): docs/flows.py
@@ -373,6 +374,7 @@ const NEWS_ICON = {job_watch: 'clock', playbook_proposal: 'book', orglist: 'arch
 /** @type {any} */ (NEWS_ICON).integfail = 'alert';  // 2.367.3 (#2971)
 /** @type {any} */ (NEWS_ICON).oxdone = 'download';  // #6581
 /** @type {any} */ (NEWS_ICON).umzdone = 'upload';  // #6583
+/** @type {any} */ (NEWS_ICON).wspstill = 'receipt';  // #7392
 // 2.361.0 (#2920 / #2922): what of a person is in an organisation (accounts/orgleave.py OLV_STAYS, the same words)
 const OLV_WORDS = {files: n => trn('{0} file', '{0} files', n), wiki_pages: n => trn('{0} knowledge page', '{0} knowledge pages', n),
   tables: n => trn('{0} table', '{0} tables', n), bookmarks: n => trn('{0} bookmark', '{0} bookmarks', n), polls: n => trn('{0} poll', '{0} polls', n),
@@ -560,6 +562,7 @@ async function newsOpen(i, opts) {
   if (it.kind === 'integfail') { const d = it.data || {}; if (d.list && listById(d.list)) go('l/' + d.list); else if (d.ws) loadModule('hubmailbox').then(hmb_load).then(() => hmb_dialog(d.ws)); else if (d.go) go(String(d.go)) /* (#6547): the document / letter / filing whose mail came back */; else settingsModal(d.focus); return; }  // (#2971): where to repair it
   if (it.kind === 'oxdone') { if (it.data?.own) go('office/settings'); else settingsModal('org'); return; }  // #6581: where the export is downloaded
   if (it.kind === 'umzdone') { settingsModal('data'); return; }  // #6583: the import's result and its report
+  if (it.kind === 'wspstill') { settingsModal('modules'); return; }  // #7392: where "Also private" is switched on again
   if (it.kind === 'fetcherr') { settingsModal('fetcher'); return; }  // 2.425.0 C (#3453): the receipt fetcher's portals
   if (it.kind === 'docflow' && it.data?.doc) { go('docs/' + it.data.doc); return; }  // 2.581.0 (#4803): the document
   if (it.kind === 'tsheet') { tsl_open(it.data); return; }  // 2.125.0 B (#2119): the time page on that month
@@ -583,7 +586,7 @@ async function newsOpen(i, opts) {
 // ---- 2.122.0 (#2314): phones: a sideways swipe on the task opened from the news goes to the next (left) / previous (right)
 // UNREAD news in the order and with the filter (tab, kind, workspace) of the list; it is marked read like on opening. None left:
 // a short notice, the view stays. Same exceptions as the swipe on tasks (detail.js, #1071); the swipe on the list rows stays.
-const NSW_SKIP = /^(orglogin|orgjoinres|orgrole|proposal|playbook_proposal|evinvite|evchange|apbooking|calsub|docpaid|docoverdue|offerexp|evshare|abshare|connreq|connok|orgjoin|lytpl|dispo|usage|upscan|signup|delhold|support|leavereq|leavedecide|tsheet|wiki_shared|orgdelnotice|orggone|whorgcut|integfail|oxdone|umzdone)$/;  // the kinds without a 'what next' switch (#2117, #2119, #6581, #6583)
+const NSW_SKIP = /^(orglogin|orgjoinres|orgrole|proposal|playbook_proposal|evinvite|evchange|apbooking|calsub|docpaid|docoverdue|offerexp|evshare|abshare|connreq|connok|orgjoin|lytpl|dispo|usage|upscan|signup|delhold|support|leavereq|leavedecide|tsheet|wiki_shared|orgdelnotice|orggone|whorgcut|integfail|oxdone|umzdone|wspstill)$/;  // the kinds without a 'what next' switch (#2117, #2119, #6581, #6583)
 const nswOn = () => !!S.nswTask && S.sel === S.nswTask;
 function nswTarget(dir) {
   const its = S.nf.items || [], cur = its.findIndex(x => x.id === S.nswId);
@@ -772,6 +775,10 @@ function actText0(a, U) {
     case 'review': return rvw_actText(d, who, q, U);  // 2.60.0 C (#1512)
     case 'irreversible': return d.on === 0 ? trh('{0} took the one-way mark off', who) : d.reason ? trh('{0} marked this as a one-way step: {1}', who, q(d.reason)) : trh('{0} marked this as a one-way step', who);  // (#3370)
     case 'irreversible_yes': return trh('{0} gave the yes to this one-way step', who);
+    case 'confirmed': return trh('{0} confirmed the task as an order', who);  // (#7528)
+    case 'confirmed_off': return trh('{0} took the confirmation as an order back', who);
+    case 'confirmed_lapsed': return trh('{0} changed the text: the confirmation as an order ended', who);
+    case 'rejected': return trh('{0} rejected the task as an order: {1}', who, q(d.reason || ''));
     case 'delivery': return !d.state ? trh('{0} cleared the delivery state', who) : d.state === 'parked' ? (d.note ? trh('{0} parked the task: {1}', who, q(d.note)) : trh('{0} parked the task', who))  // (#3365)
       : d.state === 'waiting' ? trh('{0} set the task to waiting for {1}', who, q(d.task ? '#' + d.task : d.note || '')) : trh('{0} set the task to in progress', who);
     case 'decision': return trh('{0} recorded a decision', who);

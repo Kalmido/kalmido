@@ -255,7 +255,8 @@ UMZ_DROP = {
               # set but empty ("") would bring one in locked, with its plain texts: the lock state never comes from a file
               "e2e", "e2e_gen", "e2e_rotate", "e2e_reenc", "e2e_at"},
     "tasks": {"rotation", "approval", "fam", "tt_id", "nag_at", "wait_fired",
-              "irreversible_yes_at", "acceptance_of"},  # 2.392.0 C (#3370): a yes is given here, an environment id means nothing here
+              "irreversible_yes_at", "acceptance_of",  # (#3370): a yes is given here, an environment id means nothing here
+              "confirmed_by", "confirmed_at", "confirmed_sig"},  # (#7528): a confirmation is given here too
     # 2.370.2 (#3088): client_ref like the notes'; 2.972.0 (#5272): the rows go into obj_comments (kind task), extra is set by
     # the caller from the file's portal / rule_name (a proposal or a choice of the old server never comes along)
     "obj_comments": {"mentions", "extra", "ext_name", "client_ref", "kind"},

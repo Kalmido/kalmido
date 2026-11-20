@@ -35,6 +35,7 @@ from ..lists.ownership import list_owner_set
 from ..tasks.validation import as_int, NAG_VALUES, PRIORITIES, TICKET_TYPES, TT_KEY_RE, valid_date
 from ..tasks.tasks import clear_waiting, set_waiting, task_create, task_update
 from ..tasks.oneway import dec_list, irr_apply, irr_view  # 2.392.0 C (#3370)
+from ..core.boundyes import by_view  # (#7528)
 from ..tasks.deliver import dv_apply, dv_filter, dv_view  # 2.392.2 (#3365)
 from ..tasks.ticketkey import tk_ids_ordered, tk_key, tk_parse  # 2.390.0 (#3353)
 from ..tasks.roadmap import list_shift, roadmap_build
@@ -357,6 +358,8 @@ def task_core(r, tags, fields):
             "locked": bool(r["locked"]) if "locked" in r.keys() else False,
             "points": r["points"] if "points" in r.keys() else None,  # 2.60.0 (#1511): story points (null = none)
             "irreversible": irr_view(r) if "irreversible" in r.keys() else None,  # 2.392.0 C (#3370): {reason, yes_by, yes_at}, null = no one-way step
+            # (#7528): a decider confirmed the text as an order {by, at} (null = not, or the text changed since); read only
+            "confirmed": r["confirmed"] if "confirmed" in r.keys() else by_view(r, "confirm") if "confirmed_at" in r.keys() else None,
             "delivery": dv_view(r),  # 2.392.2 (#3365): {state, note, job_id, task_id, since, by}, null = nothing said
             "remind_at": r["remind_at"] if "remind_at" in r.keys() else None,  # 2.111.0 C (#2057): fixed-time reminder
             "section_at": r["section_at"] if "section_at" in r.keys() else None,  # 2.553.0 C (#3538): since when in its board column (null = not known)

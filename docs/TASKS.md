@@ -163,6 +163,25 @@ small **×** next to it (*Show progress* in the project's … menu or the projec
 | <img src="fields.png" alt="Project timeline with blocked tasks; task panel with custom fields (phase, budget, effort, preview link) and tracked time"> | <img src="overview.png" alt="Where is it stuck overview: overdue by assignee, waiting and unassigned tasks per project"> |
 | Custom fields, dependencies, progress and status | *Where is it stuck?* |
 
+## Confirm a task as an order (2.1494.0)
+
+A task someone else wrote (a member, an agent, a form, a mail) is information until a decider takes it on. Project owners,
+project admins and admins see **Confirm…** in the header of such an open task's panel (on a phone: in the task's menu "…"):
+
+- **Confirm as an order** - your yes to the title and description as they are now. The panel shows *Confirmed as an order*
+  with your name and the time, the history keeps it, agents read it (`confirmed`). You can *Withdraw* it.
+- The yes belongs to the text: when anyone but you changes the title or the description, it ends (the history names who
+  changed the text); your own direct edits in the app keep it; anything else ends it - an applied agent proposal, undo / redo, a list rule, a
+  change through your own access token - and you confirm again. If the text
+  changed while you were reading it, confirming says so and shows the new text first; confirming needs a connection.
+- **Reject…** - closes the task as *won't do* with your reason (required) in its history. A task an agent wrote starts locked;
+  rejecting it takes the lock off.
+- **Template not filled in** - a ticket (bug, feature or an own type with a template) whose template sections are still
+  empty says which ones, before you decide.
+
+Agents, tokens, child accounts and support sessions can neither confirm nor reject. Without an organisation it works the
+same in your own projects.
+
 ## Recurring tasks
 
 *This page since 2.1067.0 (#5819).*

@@ -388,6 +388,12 @@ own = {"created_by": 7, "by_creator": True}
 check(ad.author_of({**own, "updated_by": 7}, 7) == "" and ad.author_of({**own, "updated_by": 8}, 7) == "edited"
       and ad.author_of({**own, "updated_by": None}, 7) == "edited" and ad.author_of(own, 7) == "",
       "#6677: author_of: updated_by another account / no person = edited, a server without updated_by = as before")
+# 2.1494.0 (#7528): the person's own confirmation as an order makes another hand's text theirs; someone else's does not
+check(ad.author_of({"created_by": 8, "by_creator": True, "confirmed": {"by": 7, "at": "2026-11-20T10:00:00Z"}}, 7) == ""
+      and ad.author_of({**own, "updated_by": 8, "confirmed": {"by": 7, "at": "x"}}, 7) == ""
+      and ad.author_of({"created_by": 8, "by_creator": True, "confirmed": {"by": 9, "at": "x"}}, 7) == "other"
+      and ad.author_of({"created_by": 8, "confirmed": {"by": 7}}, None) == "other" and ad.author_of({"created_by": 8, "confirmed": None}, 7) == "other",
+      "#7528: author_of: confirmed by the person = theirs; by another decider or without a known person = as before")
 st = ad.classify([{**task(301, "Rewritten by bob"), "updated_by": 8}, {**task(302, "Still mine"), "updated_by": 7}],
                  {"done": {}, "branch": {}}, {}, {"jobs": {}}, dict(ad.DEFAULTS), 7)
 check(st == {301: "foreign", 302: "ready"}, f"#6677: a task rewritten by another member is foreign, never started: {st}")

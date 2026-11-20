@@ -81,6 +81,7 @@ ORDER = (
     "accounts.mailfail",  # (#6385): a failed mail of the queue (tried again, told to its person), below every area's mail kind
     "accounts.oidc",
     "core.access",
+    "core.boundyes",  # (#7528): the rules and the reading of a person's yes bound to a text (writing: tasks.boundyes)
     "core.objexport",  # 2.1093.0 (#5289): the export register of the shared core (no imports from the app)
     "core.objfollow",  # 2.972.0 (#5285): following an object in the shared core (one table obj_follow: watching + the bell)
     "core.objnotifcap",  # 2.981.0 (#5287): the owner's notification ceilings in the shared core (obj_notif_cap)
@@ -125,6 +126,7 @@ ORDER = (
     "lists.listtrash",  # 2.102.0 A (#1988)
     "tasks.validation",
     "tasks.tasks",
+    "tasks.boundyes",  # (#7528): a person's yes bound to a text (one-way yes, confirmation)
     "tasks.oneway",  # 2.392.0 C (#3370): the one-way mark and the decisions of a task
     "tasks.deliver",  # 2.392.2 (#3365): the delivery state of a task (in progress, parked, waiting)
     "tasks.roadmap",

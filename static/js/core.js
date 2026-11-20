@@ -931,7 +931,7 @@ async function rawFetch0(method, url, body, key, osp, oq, lim) {
 // 2.284.2: a job number read from a chat text / a job tag / the address: only a positive whole number is asked for (never 0,
 // NaN or "undefined"); such lookups go through rawFetch (no toast: they run in the background on every drawing)
 const jobNoOk = n => Number.isInteger(n) && n > 0 && n <= 2147483647;
-const queueable = (method, url) => method !== 'GET' && /^\/api\/(tasks|habits\/\d+\/log|time\/(start|stop|entries))/.test(url) && !/\/(comments|seen|timeline)$/.test(url);
+const queueable = (method, url) => method !== 'GET' && /^\/api\/(tasks|habits\/\d+\/log|time\/(start|stop|entries))/.test(url) && !/\/(comments|seen|timeline|confirm|reject)$/.test(url);  // (#7528, F2): a decider's yes / no only online, never queued
 // 2.25.0 (UX-56): a write of the open task that reached the server shows "Saved" in its header for a moment
 const savedPingOff = debounce(el => el.classList.remove('on'), 1600);  // 2.599.0 (#4506)
 function savedPing() {

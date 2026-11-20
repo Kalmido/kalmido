@@ -251,7 +251,8 @@ def task_batch():
                     continue
             if action == "patch":
                 pv, cf = (data.get("prev") or {}).get(str(tid)) if isinstance(data.get("prev"), dict) else None, []
-                e = apply_update(c, tid, {**{k: v for k, v in data.items() if k != "prev"}, **({"_prev": pv} if isinstance(pv, dict) else {})}, cf, lock=True)
+                e = apply_update(c, tid, {**{k: v for k, v in data.items() if k != "prev"}, **({"_prev": pv} if isinstance(pv, dict) else {})}, cf, lock=True,
+                                 carry_yes=True)  # (#7528): the multi-select edit is a direct edit (undo / redo below is not)
                 for x in cf:  # 2.270.0 D (#3028): changed elsewhere meanwhile: kept, reported
                     conflict(tid, x["field"], x["server"], x["mine"])
                 if e:

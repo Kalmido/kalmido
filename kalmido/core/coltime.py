@@ -165,6 +165,7 @@ CT_C = {
     ("tasks", "completed_at"): "ts",
     ("tasks", "delivery_at"): "ts",
     ("tasks", "irreversible_yes_at"): "ts",
+    ("tasks", "confirmed_at"): "ts",  # (#7528)
     ("tasks", "review_at"): "ts",
     ("tasks", "section_at"): "ts",
     ("tasks", "sprint_at"): "ts",

@@ -1013,6 +1013,7 @@ function taskMenu(anchor, id, o = {}) {
     // 2.25.0 (UX-11): opened by a long press: the title on top, then "Select" (more tasks follow with a tap)
     ...(o.select ? [{label: t.title.length > 60 ? t.title.slice(0, 59) + '…' : t.title, cls: 'mhead', dis: true, fn: () => {}}, {label: tr('Select'), icon: 'select', act: 'cm-select' /* 2.1151.0 B (#3835): as cm_selHead */, fn: () => { S.multiMode = true; S.multi.add(id); S.multiLast = id; render(); }}, '-'] : []),
     ...tp_menuItems(t, anchor),  // 2.46.4 (#1751): "Open details" in a list where a tap ticks off
+    ...cf_menuItems(t),  // (#7528): Confirm as an order / Reject on top (the phone; the computer: the panel's header)
     {head: tr('Plan|nav')},
     // date
     ...(inPanel ? [] : [quickDueRow(id), {label: tr('New date…'), icon: 'clock', keys: 's', next: 1, fn: () => snoozeSheet(id, anchor)}]),

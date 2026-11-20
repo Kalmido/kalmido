@@ -134,7 +134,7 @@ WH_DIFF_COLS = ("title", "due", "due_time", "start", "priority", "assignee_id", 
                 "points")
 
 
-def log_changes(c, tid, old, act=None):
+def log_changes(c, tid, old, act=None, carry_yes=False):
     """Compares the task row before a change (old) with the stored row now and logs what a person
     would care about."""
     from ..tasks.lifecycle import _norm
@@ -160,6 +160,9 @@ def log_changes(c, tid, old, act=None):
         # description" brings it back); cut like md_subtasks, a merged entry keeps the text before the first edit (log_act)
         prev = old["content"] or ""
         log_act(c, tid, "content", {"prev": prev[:20000]} if prev.strip() else None)
+    if ch("title") or ch("content"):  # (#7528): a yes bound to the text stays only with its confirmer's direct edit, else ends
+        from .boundyes import by_text_written
+        by_text_written(c, tid, old, new, text_hand_now(), carry=carry_yes)
     if ch("due") or ch("due_time") or ch("start"):
         log_act(c, tid, "snooze" if act == "snooze" and new["due"] else "dep_shift" if act == "dep_shift" else "due",
                 {"due": new["due"], "time": new["due_time"], "start": new["start"]})
@@ -469,6 +472,55 @@ def ticket_template(c, lid, kind):
                          (t.org_id=l.org_id OR (l.org_id IS NULL AND t.org_id IS NULL AND t.owner_id=l.owner_id))""", (lid, kind)).fetchone()
         return t["tpl"] if t else ""
     return tr(TICKET_TPL[kind])
+
+
+# (#7528): matched with fullmatch on the stripped line - no \s* around a lazy group, so a long line costs linear time, not
+# quadratic (reader F1: "# x" + 20,000 spaces took 10 s); a line longer than TPL_LINE_MAX is never a heading or a placeholder
+TPL_HEAD_RE = re.compile(r"\*\*(.+?)\*\*:?|#{1,6}\s+(\S.*)")
+TPL_EMPTY_RE = re.compile(r"(?:\d+\.|[-*+](?:\s*\[[ xX]?\])?)?")
+TPL_LINE_MAX = 300
+
+
+def _tpl_head(ln):
+    """The heading text of a template / description line (bold line or # heading), else None."""
+    ln = ln.strip()
+    if len(ln) > TPL_LINE_MAX:
+        return None
+    m = TPL_HEAD_RE.fullmatch(ln)
+    return (m.group(1) or m.group(2)).strip() if m else None
+
+
+def _tpl_empty(ln):
+    """True for an empty line or a bare placeholder such as "1." or "- [ ]"."""
+    ln = ln.strip()
+    return len(ln) <= TPL_LINE_MAX and TPL_EMPTY_RE.fullmatch(ln) is not None
+
+
+def _tpl_sections(text):
+    """{heading (lower case): its lines} of a markdown text whose sections start with a bold line or a # heading."""
+    out, cur = {}, None
+    for ln in (text or "").replace("\r\n", "\n").split("\n"):
+        h = _tpl_head(ln)
+        if h is not None:
+            cur = h.lower()
+            out.setdefault(cur, [])
+        elif cur is not None:
+            out[cur].append(ln)
+    return out
+
+
+def tpl_unfilled(c, t):
+    """(#7528): the headings of the ticket template of task row t whose section is missing or empty in its description
+    (only placeholders such as "1." or "- [ ]"); [] without a template, with a filled one or for a text with the lock."""
+    content = t["content"] or ""
+    if content.startswith("e2e1:"):
+        return []
+    tpl = ticket_template(c, t["list_id"], (t["ttype"] if "ttype" in t.keys() else "") or "")
+    heads = [h for ln in (tpl or "").split("\n") if (h := _tpl_head(ln))]
+    if not heads:
+        return []
+    have = _tpl_sections(content)
+    return [h for h in heads if all(_tpl_empty(x) for x in have.get(h.lower(), []))]
 
 
 def spt_clean(v):

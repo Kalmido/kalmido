@@ -19,6 +19,8 @@ from ..tasks.tasks import WEB_COMMENT
 from ..tasks.validation import ACT_NOTES  # 2.394.0 C (#3377)
 from ..tasks.attachments import save_attachments
 from ..tasks.oneway import dec_list, gate_irreversible
+from ..core.boundyes import by_decider  # (#7528)
+from ..tasks.validation import tpl_unfilled  # (#7528)
 from .replies import reply_check, with_replies
 from ..core.errors import BadInput, web_fields  # 2.149.0 G (#2517): pulled up from functions
 from ..core.objcomments import (ocm_add, ocm_after, ocm_edit, ocm_kind, ocm_list, ocm_need_say, ocm_old_cols, ocm_restore,
@@ -229,6 +231,7 @@ def timeline(tid):
     for p in ppl:
         if p["id"] in ag:
             p["agent"] = True
+    trow_now = c.execute("SELECT * FROM tasks WHERE id=?", (tid,)).fetchone()
     return jsonify(comments=comments, activity=acts, users={str(k): v for k, v in user_names(c, ids).items()},
                    people=ppl, seen=seen, moderator=role in MANAGE_ROLES,
                    agents=sorted(i for i in ids | {p["id"] for p in ppl} if i in ag),
@@ -239,7 +242,9 @@ def timeline(tid):
                    ticket=pt_ticket_info(c, tid, me()),  # 2.63.0 B (#1513): a customer's report (box in the task panel)
                    mail_reporter=MAIL_REPLY["info"](c, tid, me()) if MAIL_REPLY else None,  # 2.393.2 B (#3375)
                    decisions=dec_list(c, tid),  # 2.392.0 C (#3370): the section at the top of the task panel
-                   may_yes=is_approver(c, c.execute("SELECT * FROM tasks WHERE id=?", (tid,)).fetchone(), me(), assignee=False))  # who gives the yes to a one-way task
+                   # who gives the yes to a one-way task and confirms / rejects a task as an order (#7528: tasks/boundyes.py)
+                   may_yes=by_decider(c, trow_now, g.user),
+                   tpl_empty=tpl_unfilled(c, trow_now))  # (#7528): the ticket template's empty sections ("not filled in")
 
 
 @app.post("/api/tasks/<int:tid>/seen")

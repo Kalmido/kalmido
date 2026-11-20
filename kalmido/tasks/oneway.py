@@ -2,7 +2,8 @@
 
 A person or an agent with write access marks a task as a one-way step (tasks.irreversible, with a reason). Where the list has
 lists.irreversible_needs_yes on, the integrate / deploy gates (agents/gates.py) stay shut until an approver said yes to that
-task (agents/taskdec.py; tasks.irreversible_yes_by / _at). A new reason or a new mark takes the yes back. Only people take a
+task (agents/taskdec.py; tasks.irreversible_yes_by / _at). A new reason or a new mark takes the yes back. (#7528): the
+yes is the kind "irreversible" of the shared block "a person's yes bound to a text" (tasks/boundyes.py), as the confirmation. Only people take a
 mark off, and with the switch on only approvers: an agent cannot open its own gate.
 
 task_decisions: the log of a task (text, by_id, created_at); a new entry can supersede an older one, which stays readable.
@@ -15,6 +16,8 @@ from ..core.db import iso, iso_ms, now_utc
 from ..core.errors import BadInput
 from ..core.i18n import tr
 from ..core.pg import insert_id
+from ..core.boundyes import by_view
+from ..tasks.boundyes import by_drop, by_give
 from ..tasks.validation import log_act
 
 IRR_REASON_MAX, IRR_LIST_MAX = 500, 100  # IRR_LIST_MAX: as the deploy checklist
@@ -26,7 +29,8 @@ def irr_view(r):
     """The mark of a task row for the API: {reason, yes_by, yes_at}, None = not marked."""
     if not r["irreversible"]:
         return None
-    return {"reason": r["irreversible_reason"] or "", "yes_by": r["irreversible_yes_by"], "yes_at": r["irreversible_yes_at"]}
+    yes = by_view(r, "irreversible") or {}
+    return {"reason": r["irreversible_reason"] or "", "yes_by": yes.get("by"), "yes_at": yes.get("at")}
 
 
 def irr_needs_yes(c, lid):
@@ -93,8 +97,8 @@ def irr_apply(c, tid, v):
             return
         if not irr_may_clear(c, t):
             raise Denied(403, tr("Only the project owner, a project admin or an admin can decide"))
-        c.execute("""UPDATE tasks SET irreversible=0, irreversible_reason='', irreversible_yes_by=NULL, irreversible_yes_at=NULL,
-                     updated_at=? WHERE id=?""", (now, tid))
+        by_drop(c, tid, "irreversible")
+        c.execute("UPDATE tasks SET irreversible=0, irreversible_reason='', updated_at=? WHERE id=?", (now, tid))
         log_act(c, tid, "irreversible", {"on": 0})
         return
     if not isinstance(v, dict) or set(v) - {"reason"} or not isinstance(v.get("reason", ""), str):
@@ -106,15 +110,14 @@ def irr_apply(c, tid, v):
         raise Denied(409, le2b_off())
     if t["irreversible"] and reason == (t["irreversible_reason"] or ""):
         return
-    c.execute("""UPDATE tasks SET irreversible=1, irreversible_reason=?, irreversible_yes_by=NULL, irreversible_yes_at=NULL,
-                 updated_at=? WHERE id=?""", (reason, now, tid))
+    by_drop(c, tid, "irreversible")  # a new mark or reason: the yes belonged to the text before
+    c.execute("UPDATE tasks SET irreversible=1, irreversible_reason=?, updated_at=? WHERE id=?", (reason, now, tid))
     log_act(c, tid, "irreversible", {"on": 1, "reason": reason})
 
 
 def irr_yes(c, tid, uid):
-    """An approver's yes to the marked task (the caller checked that and commits)."""
-    c.execute("UPDATE tasks SET irreversible_yes_by=?, irreversible_yes_at=?, updated_at=? WHERE id=?", (uid, iso(now_utc()), iso(now_utc()), tid))
-    log_act(c, tid, "irreversible_yes", {})
+    """An approver's yes to the marked task (the caller checked boundyes.by_decider and commits)."""
+    by_give(c, tid, "irreversible", uid)
 
 
 def dec_list(c, tid, current=False):

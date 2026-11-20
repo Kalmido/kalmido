@@ -225,7 +225,8 @@ What a launcher has to do is listed in [`launcher_capabilities/`](launcher_capab
 `KALMIDO-DISPATCH.json` (2.1400: in the runner's state folder; one in the project folder may only tighten) off mechanically: it closes tasks whose commit (`#ID` in the subject) is in
 `close_ref`, starts ONE job per free place for the next bundle (2.1368.0: in its own working copy; the ended job's branch
 gets the project's `check_cmd` run by the dispatcher, green = one pull request with an approval card, red = none, never a merge) (2.1308.0: only tasks the person wrote themselves, `by_creator`;
-2.1375.0: and whose title and description the person wrote last, `updated_by`; comments of other
+2.1375.0: and whose title and description the person wrote last, `updated_by`; 2.1494.0: or that the person confirmed as an
+order, `confirmed.by`; comments of other
 accounts go into the brief fenced as data; 2.1394.0: a task whose dependency field names an open task not built yet
 waits; with `same_file` on, tasks naming the same file share a bundle), guards the jobs and posts one day report. A dry run changes
 nothing. `python3 agent_dispatch.py --dry-run` runs one round by hand. Details:
