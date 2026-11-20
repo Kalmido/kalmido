@@ -29,7 +29,7 @@ UMZ_BUILD_TABLES = ('budget_cats', 'budget_entries', 'budget_recurring', 'fs_ver
 
 # every table with a person, organisation, list or task column that is not in the account export
 UMZ_LEFT_TABLES = {
-    "agent_audit": _AGENT, "agent_burst_held": _SERVER, "agent_decisions": _AGENT, "agent_jobs": _AGENT, "agent_job_tasks": _AGENT, "job_watch": _AGENT, "agent_list_access": _AGENT, "agent_rules": _AGENT, "agent_usage": _AGENT,
+    "agent_audit": _AGENT, "agent_burst_held": _SERVER, "agent_decisions": _AGENT, "agent_jobs": _AGENT, "agent_job_tasks": _AGENT, "job_watch": _AGENT, "agent_list_access": _AGENT, "agent_rules": _AGENT, "agent_usage": _AGENT, "agent_usage_month": _AGENT,
     "agents": _AGENT, "folder_agents": _AGENT, "oauth_codes": _AGENT, "oauth_grants": _AGENT,  # 2.488.0 (#3363): accesses of MCP clients to agents
     "agent_server": _AGENT, "agent_runs": _AGENT,  # 2.557.0 B (#4670): a server agent's settings (its key sealed) and runs
     "task_offer_links": _ORG,  # 2.537.0 C (#3433): where a task came from in a quotation; 2.654.0 (#4585): it hangs on the office's quotation, so it moves with the organisation export (the account export carries no office to link to)

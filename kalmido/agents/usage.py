@@ -143,13 +143,48 @@ def usage_period(period, now=None):
     return d.isoformat(), d.isoformat(), datetime.combine(d + timedelta(days=1), datetime.min.time(), TZ)
 
 
+USAGE_MONTH_COLS = "input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost_usd, calls"
+
+
+def usage_month_add(c, aid, day, f, cost):
+    """(#6408): one usage report of agent aid on local day `day` goes into its counter row of that month (agent_usage_month).
+    The first report of a month starts the row from the month's reports (the new one already among them: started in the
+    middle of a month or after a version without the row); every further one adds its numbers. Same transaction as the
+    report: a second report at the same time waits at the key and then adds."""
+    month = day[:7]
+    first, nxt = month + "-01", (date.fromisoformat(month + "-01") + timedelta(days=32)).replace(day=1).isoformat()
+    n = c.execute(f"""INSERT INTO agent_usage_month(agent_id, month, {USAGE_MONTH_COLS})
+                      SELECT ?, ?, COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0), COALESCE(SUM(cache_read_tokens),0),
+                             COALESCE(SUM(cache_write_tokens),0), SUM(cost_usd), COUNT(*)
+                      FROM agent_usage WHERE agent_id=? AND day>=? AND day<?
+                      ON CONFLICT (agent_id, month) DO NOTHING""", (aid, month, aid, first, nxt)).rowcount
+    if not n:
+        c.execute("""UPDATE agent_usage_month SET input_tokens=input_tokens+?, output_tokens=output_tokens+?,
+                     cache_read_tokens=cache_read_tokens+?, cache_write_tokens=cache_write_tokens+?,
+                     cost_usd=CASE WHEN CAST(? AS DOUBLE PRECISION) IS NULL THEN cost_usd ELSE COALESCE(cost_usd,0)+? END, calls=calls+1
+                     WHERE agent_id=? AND month=?""",
+                  (f["input_tokens"], f["output_tokens"], f["cache_read_tokens"], f["cache_write_tokens"], cost, cost, aid, month))
+
+
+def usage_month_sum(c, aid, first):
+    """(#6408): the USAGE_SUM row of agent aid for the month that starts on local day `first` - its counter row, or summed from
+    the reports while the month has none yet (no report since the row exists: few or no rows to sum)."""
+    r = c.execute("""SELECT calls, input_tokens AS input, output_tokens AS output, cache_read_tokens AS cache_read,
+                            cache_write_tokens AS cache_write, cost_usd AS cost FROM agent_usage_month WHERE agent_id=? AND month=?""",
+                  (aid, first[:7])).fetchone()
+    return r if r else c.execute(f"SELECT {USAGE_SUM} FROM agent_usage WHERE agent_id=? AND day>=?", (aid, first)).fetchone()
+
+
 def usage_state(c, a):
     """Where agent a stands against its limits in the current period, or None without limits."""
     lim = usage_limits(a)
     if not lim:
         return None
     key, first, end = usage_period(lim["period"])
-    r = c.execute(f"SELECT {USAGE_SUM} FROM agent_usage WHERE agent_id=? AND day>=?", (a["user_id"], first)).fetchone()
+    if lim["period"] == "month":  # (#6408): every agent API call checks this - the counter row, not the month's reports
+        r = usage_month_sum(c, a["user_id"], first)
+    else:
+        r = c.execute(f"SELECT {USAGE_SUM} FROM agent_usage WHERE agent_id=? AND day>=?", (a["user_id"], first)).fetchone()
     t = usage_totals(r)
     used = round(t["cost"] or 0, 6) if lim["metric"] == "cost" else t["tokens"]
     pct = lambda x: round(100 * used / x, 1) if x else None  # noqa: E731
@@ -389,7 +424,9 @@ def usage_cleanup(c, force=False):
     if not force and time.time() - USAGE_CLEAN["at"] < 3600:
         return 0
     USAGE_CLEAN["at"] = time.time()
-    n = c.execute("DELETE FROM agent_usage WHERE day<?", ((local_now().date() - timedelta(days=USAGE_KEEP_DAYS)).isoformat(),)).rowcount
+    cut = (local_now().date() - timedelta(days=USAGE_KEEP_DAYS)).isoformat()
+    n = c.execute("DELETE FROM agent_usage WHERE day<?", (cut,)).rowcount
+    c.execute("DELETE FROM agent_usage_month WHERE month<?", (cut[:7],))  # (#6408): the counter rows of months fully gone
     c.commit()
     return n
 
@@ -455,6 +492,7 @@ def v1_agent_usage_post():
                        cost_usd,task_id,list_id,job_id,note,day,created_at,run_class,run_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (aid, model.strip(), f["input_tokens"], f["output_tokens"], f["cache_read_tokens"], f["cache_write_tokens"],
                      None if cost is None else float(cost), tid, lid, jid, note.strip(), day, ts, rcls, rid_))
+    usage_month_add(c, aid, day, f, None if cost is None else float(cost))  # (#6408)
     usage_alerts(c, aid)
     budget_alerts(c, aid)  # 2.236.0 B (#2904)
     if tid:
@@ -818,10 +856,14 @@ def agents_usage_get():
     today = local_now().date()
     d_win, d30, d7 = (today - timedelta(days=days - 1)).isoformat(), (today - timedelta(days=29)).isoformat(), \
         (today - timedelta(days=6)).isoformat()
-    rows = c.execute(f"""SELECT agent_id, task_id, list_id, model, day, input_tokens, output_tokens, cache_read_tokens,
-                                cache_write_tokens, cost_usd, flow, web_searches, web_fetches FROM agent_usage
-                         WHERE agent_id IN ({','.join('?' * len(ids)) or 'NULL'}) AND day>=?""",
-                     (*ids, min(d_win, d30))).fetchall() if ids else []
+    # (#6408): summed in SQL per agent, day, task, list, model and routine - the checks below only need these keys, so the
+    # numbers are the same as row by row, but Python gets one row per group, not every report of 30-90 days of every agent
+    rows = c.execute("""SELECT agent_id, task_id, list_id, model, day, flow, COALESCE(SUM(input_tokens),0) AS input_tokens,
+                                COALESCE(SUM(output_tokens),0) AS output_tokens, COALESCE(SUM(cache_read_tokens),0) AS cache_read_tokens,
+                                COALESCE(SUM(cache_write_tokens),0) AS cache_write_tokens, SUM(cost_usd) AS cost_usd, COUNT(*) AS calls,
+                                COALESCE(SUM(web_searches),0) AS web_searches, COALESCE(SUM(web_fetches),0) AS web_fetches FROM agent_usage
+                         WHERE agent_id = ANY(CAST(? AS BIGINT[])) AND day>=? GROUP BY agent_id, task_id, list_id, model, day, flow""",
+                     (st_ids(ids), min(d_win, d30))).fetchall() if ids else []
     roles, tvis = {}, {}
 
     def role(lid):
@@ -846,7 +888,7 @@ def agents_usage_get():
         dst["cache_read"] += r["cache_read_tokens"]
         dst["cache_write"] += r["cache_write_tokens"]
         dst["tokens"] += r["input_tokens"] + r["output_tokens"] + r["cache_write_tokens"]
-        dst["calls"] += 1
+        dst["calls"] += r["calls"]  # (#6408): a group of reports
         dst["web_searches"] += r["web_searches"] or 0  # 2.571.0 D (#4676): the provider's web tools of a server agent
         dst["web_fetches"] += r["web_fetches"] or 0
         if r["cost_usd"] is not None:
