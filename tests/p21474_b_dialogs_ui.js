@@ -50,14 +50,15 @@ const tall = (w, md, h) => { const c = md.querySelector(':scope > .card'); c.get
   md = await until(() => d.querySelector('.modal [data-ctm2="save"]') && last(d));
   check(text(md?.querySelector('[data-ctm2="save"]')) === 'Create', 'new contact: "Create" (was "Save"): ' + text(md?.querySelector('[data-ctm2="save"]')));
   md?.remove();
+  await until(() => (w.S.evcals || []).length);
   w.eval('evEditor({})');
   md = await until(() => d.querySelector('.modal [data-evm="save"]') && last(d));
-  check(text(md?.querySelector('[data-evm="save"]')) === 'Create', 'new event: "Create" (was "Save"): ' + text(md?.querySelector('[data-evm="save"]')));
+  check(text(md?.querySelector('[data-evm="save"]')) === 'Create', 'new event: "Create" (was "Save"): ' + text(md?.querySelector('[data-evm="save"]')) + ' ' + text(d.querySelector('#toast')) + ' ' + (w.S.evcals || []).length);
   // the event editor draws its own cross: a large one keeps exactly one
-  tall(w, md, 700); w.eval('dlgCross([...document.querySelectorAll(".modal")].pop(), true)');
-  check([...md.querySelectorAll('button')].filter(b => b.getAttribute('aria-label') === 'Close' && !b.closest('.foot')).length === 1 && !md.querySelector('.dlgx'),
+  if (md) tall(w, md, 700); w.eval('dlgCross([...document.querySelectorAll(".modal")].pop(), true)');
+  check(md && [...md.querySelectorAll('button')].filter(b => b.getAttribute('aria-label') === 'Close' && !b.closest('.foot')).length === 1 && !md.querySelector('.dlgx'),
     'a dialog with its own cross keeps its one');
-  md.remove();
+  md?.remove();
   w.eval('dlModal()');
   md = await until(() => d.querySelector('.modal #dl-err') && last(d));
   check(text(md?.querySelector('[data-m="save"]')) === 'Create', 'household deadline: "Create" (was "Add")');
