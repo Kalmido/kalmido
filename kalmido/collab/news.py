@@ -1133,7 +1133,7 @@ def news_read():
             c.execute(f"UPDATE notifications SET read_at=? WHERE user_id=? AND read_at IS NULL AND id IN ({q})",
                       (ts, uid, *part))
     # #6337 (F2): with max_id only the tasks of the items read close elsewhere; "*" only without an upper bound
-    push_handled(c, uid, sorted(tids), ("*",) if b.get("all") and b.get("max_id") is None else ())  # 2.19.0 (#668): "all read" closes them all
+    push_handled(c, uid, sorted(tids), ("*",) if b.get("all") and b.get("max_id") is None else ())  # (#668): "all read" closes them all
     c.commit()
     return jsonify(ok=True, **news_counts(c, uid), **({"marked": marked} if b.get("all") else {}))
 
