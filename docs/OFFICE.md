@@ -1223,7 +1223,7 @@ adds `gross`), `POST /api/office/fixed-costs/import/preview` (multipart `file`),
 *Since 2.90.*
 
 The tab **Bookkeeping** (admins of the office; without an organisation your private office) covers the running bookkeeping
-of a self-employed person. **Photograph receipt** opens the camera on a phone (the file dialog on a desktop, PDF too): the
+of a self-employed person. **Photograph receipt** opens the camera on a phone, **Upload files** the file dialog (a computer shows only this one, PDF too): the
 receipt goes into your documents, amount and date are recognised in the background, and you add the category and the VAT
 rate (19 / 7 / 0 % or unknown). The **income/expense statement** of a year counts payments received on your invoices
 (cash principle, split by VAT rate) against your receipts, the depreciation of your equipment, travel expenses and the
@@ -2952,9 +2952,8 @@ new template dialog) takes over
 one of thirteen short samples in the office's document language (or another one) as an own, freely editable template of
 the current area (organisation or private): service agreement, order confirmation, non-disclosure agreement, cover
 letter, payment reminder, dunning letter, notice of termination, power of attorney, handover record, credit note
-cover letter, data processing agreement, privacy notice and consent to data processing. With the industry Film & Video
-three more follow (2.385.0, #2293): filming permission, location agreement and model release (legal, with signature);
-without the industry they are neither listed nor accepted as `starter`. What no variable knows (an
+cover letter, data processing agreement, privacy notice and consent to data processing. No industry adds samples (#6842:
+the film samples of #2293 are gone again; a template an office made from one stays its own). What no variable knows (an
 invoice number, a deadline) stays as `[placeholder]` in square brackets.
 Samples are sample text, no legal advice; the picker marks the legal ones (contracts, dunning, termination, power of
 attorney) to be checked before use. The samples live in the code (`kalmido/office/doctpl_samples.py`), never in the

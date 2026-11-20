@@ -108,20 +108,15 @@ function bkTabHtml() {
 }
 // the upload of receipts (camera / files); 2.276.0 A (#3039): also on top of Office > Receipts (office_receipts.js rcp_tabHtml)
 // 2.591.0 (#4892): the camera button only on touch devices (capture= does nothing on a desktop); there "Upload files" is the main button
-// 2.892.0 (#5453): on a touch device ONE button "Upload receipt" -- its sheet offers the camera or the files (the two inputs
-// stay, hidden); empty = show the line on where the receipt goes (the caller knows whether the office holds receipts yet)
+// (#6842): the decision of #4892 again - a phone "Photograph receipt" + "Upload files" as before, a computer only "Upload files"
+// (#5453 / #6151 had made it one button "Upload receipt" with a sheet); the receipts list and the bookkeeping draw the same;
+// empty = show the line on where the receipt goes (the caller knows whether the office holds receipts yet)
 function bkPhotoHtml(empty) {
   if (empty === undefined) empty = !(typeof BK !== 'undefined' && BK.info?.receipts || []).length;
   const hint = empty ? `<span class="muted bk-photohint">${tr('The receipt is saved in the file store (folder “{0}”) and listed under Office > Receipts; amount and date are recognised.', tr('Documents|folder'))}</span>` : '';  // 2.298.0 A2 (#3186): only while empty
-  if (isTouch()) return `<div class="bk-photo"><button type="button" class="btn pri bk-shot" data-bk="up" aria-haspopup="menu">${ic('upload')}<span>${tr('Upload receipt')}</span></button>
-    <input type="file" id="bk-file" accept="image/*,application/pdf,.xml,application/xml,text/xml" capture="environment" multiple hidden aria-label="${esc(tr('Photograph receipt'))}">
-    <input type="file" id="bk-files" accept="${esc(BK_ACCEPT)}" multiple hidden aria-label="${esc(tr('Upload files'))}">${/*html-ok*/ hint/* the span above */}</div>`;
-  // 2.1185.0 (#6151): one word in every width: "Upload receipt" (a computer said "Upload files")
-  return `<div class="bk-photo"><label class="btn pri bk-files">${ic('upload')}<span>${tr('Upload receipt')}</span><input type="file" id="bk-files" accept="${esc(BK_ACCEPT)}" multiple hidden></label>${/*html-ok*/ hint/* the span above */}</div>`;
+  const t = isTouch();
+  return `<div class="bk-photo">${t ? `<label class="btn pri bk-shot">${ic('camera')}<span>${tr('Photograph receipt')}</span><input type="file" id="bk-file" accept="image/*,application/pdf,.xml,application/xml,text/xml" capture="environment" multiple hidden></label>` : ''}<label class="btn${t ? '' : ' pri'} bk-files">${ic('upload')}<span>${tr('Upload files')}</span><input type="file" id="bk-files" accept="${esc(BK_ACCEPT)}" multiple hidden></label>${/*html-ok*/ hint/* the span above */}</div>`;
 }
-// 2.892.0 (#5453): the sheet of the one upload button: camera or files (the click on the hidden input stays inside the tap)
-const bkUpMenu = b => menu(b, [{label: tr('Photograph receipt'), icon: 'camera', fn: () => $('#bk-file')?.click()},
-  {label: tr('Select files'), icon: 'upload', sub: tr('Photos, PDF, e-invoice or ZIP'), fn: () => $('#bk-files')?.click()}], null, null, tr('Upload receipt'));
 // 2.147.0 (#2461): the export for any tax advisor -- the booking list of the year as CSV, or with invoices and receipts as ZIP
 function bkExportHtml() {
   if (!ofcFeat('books.export_csv')) return '';
@@ -667,7 +662,6 @@ document.addEventListener('click', e => {
   const b = e.target.closest('[data-bk]'); if (!b || (S.route?.mod !== 'office' && !b.closest('.ostax'))) return;  // 2.365.2 D (#2789): + Settings > Company & office
   const k = b.dataset.bk;
   if (k === 'rc') { bkSheet(+b.dataset.id, false); return; }
-  if (k === 'up') { bkUpMenu(b); return; }  // 2.892.0 (#5453)
   if (k === 'einv') { bkEinvTake(+b.dataset.id, b); return; }
   if (k === 'bill') { bkBillModal(null); return; }
   if (k === 'basis') { bkSetUndo('vat_basis', b.dataset.v); return; }

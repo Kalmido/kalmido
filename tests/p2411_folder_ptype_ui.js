@@ -2,7 +2,7 @@
 // 2.411.0 UI test (#3516: a new list in a folder takes the folder's project type), own container (start.sh), jsdom. Invented data only.
 // - the folder settings have the select "Project type" (saving it stores the folder default ptype)
 // - "New project" in a folder with a software project type starts as that type: "Progress and status" on, the card
-//   Software chosen, the standard sections ticked; created, the list is a software project
+//   Software chosen, the standard sections not ticked (#6842); created, the list is a software project
 // - a folder without a type keeps the dialog as before (a simple list); the person picks "Blank" in the typed folder = no type
 // P4: a person without an organisation gets the same (freelancer-matrix: lists)
 const {execFileSync} = require('child_process');
@@ -46,7 +46,7 @@ const click = (w, el) => el.dispatchEvent(new w.MouseEvent('click', {bubbles: tr
     await until(() => d.querySelector('.modal #l-name'));
     const md = () => [...d.querySelectorAll('.modal')].pop();
     const st = w.eval(`(() => { const m = [...document.querySelectorAll('.modal')].pop(); return {card: m.querySelector('.ptcard.on')?.dataset.pt, secs: m.querySelector('#l-ptsecs')?.checked, shown: !m.querySelector('.lptype')?.hidden}; })()`);
-    check(st.card === 'software' && st.secs && st.shown, `${u}: New project in the folder starts as Software with its sections ` + JSON.stringify(st));
+    check(st.card === 'software' && st.secs === false && st.shown, `${u}: New project in the folder starts as Software, the standard sections not ticked (#6842) ` + JSON.stringify(st));
     md().querySelector('#l-name').value = 'Fresh';
     click(w, md().querySelector('[data-m="save"]'));
     const x = await until(async () => ((await call(ck, 'GET', '/api/state')).lists || []).find(l => l.name === 'Fresh'));

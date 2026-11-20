@@ -77,7 +77,7 @@ const FEAT = 'cal,comments,collab,office,clients';
         vw: innerWidth, vh: innerHeight, kind: el.dataset.kind}; })()`);
     const t = await frame('today'), l = await frame('list'), p = await frame('project');
     await shot('p2391-r-celebration-project.png');
-    check(Math.abs(l.bw - Math.min(200, Math.max(110, l.vw * 0.16))) < 8 && Math.abs(l.bx - l.vw / 2) < 4 && l.by < l.vh / 2, '#1292 / 2.136.0 (#2193): the bot figure (up to 200 px), in the middle ' + JSON.stringify(l));
+    check(Math.abs(l.bw - Math.max(110, Math.min(l.vw * 0.25, l.vh * 0.4))) < 8 && Math.abs(l.bx - l.vw / 2) < 4 && l.by < l.vh / 2, '#1292 / #6842: the bot figure about a quarter of the width (at most 40 % of the height), in the middle ' + JSON.stringify(l));
     check(t.bw < l.bw && l.bw < p.bw && t.n < l.n && l.n < p.n, '#1292: three levels today < list < project (size, amount) ' + JSON.stringify([t.bw, l.bw, p.bw, t.n, l.n, p.n]));
     check(p.kop > 0.9 && p.kw > p.bw * 0.3, '#1292: a big check has popped up ' + JSON.stringify([p.kop, p.kw]));
     check(p.colors >= 5, '#1292: colourful confetti ' + p.colors);

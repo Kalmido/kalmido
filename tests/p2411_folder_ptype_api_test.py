@@ -2,7 +2,7 @@
 # kalmido-suite:
 """2.411.0 API tests (#3516: a new list in a folder takes the folder's project type), own container (start.sh). Invented data only.
  - the folder default "Project type" (PUT /api/folders/props {ptype}): a new list in the folder (and its subfolder) is a project
-   of that type with its standard sections, ticket types (software) and the type's modules; an unknown type = 400
+   of that type without its standard sections (#6842, only with sections: true), ticket types (software) and the type's modules; an unknown type = 400
  - a type chosen in the request goes first (ptype "agency"); ptype "" = chosen: no type
  - without a folder default: the type the person's projects in the folder share (typed ones all one type and more than the
    untyped ones); mixed types = no type
@@ -46,7 +46,9 @@ def case(s, who):
     x = lst(s, lid)
     check(x and x.get("ptype") == "software" and x.get("kind") == "project" and x.get("tickets") in (1, True),
           f"{who}: a new list in the folder is a software project with ticket types {x and (x.get('ptype'), x.get('kind'), x.get('tickets'))}")
-    check("Backlog" in secs(s, lid) and "Review" in secs(s, lid), f"{who}: with the type's standard sections {secs(s, lid)}")
+    check(not secs(s, lid), f"{who}: #6842: without the type's standard sections (#972: only when asked) {secs(s, lid)}")
+    ws = new(s, name="With sections", folder="Kalmido", sections=True)
+    check("Backlog" in secs(s, ws) and (lst(s, ws) or {}).get("ptype") == "software", f"{who}: asked for (sections: true) the folder's type brings its sections {secs(s, ws)}")
     sub = new(s, name="Sub", folder="Kalmido/Web")
     x = lst(s, sub) or {}
     check(x.get("ptype") == "software", f"{who}: a subfolder follows its folder {x.get('folder')!r} {x.get('ptype')!r}")

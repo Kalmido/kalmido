@@ -878,7 +878,8 @@ const CELE_IN = 0.2, CELE_OUT = 0.78, CELE_BURST = 0.24;  // arrives / leaves / 
 const CELE_HOPS = 2;
 const celeLerp = (a, b, t) => a + (b - a) * t;
 const celeEase = t => 1 - Math.pow(1 - t, 3), celeEaseIn = t => t * t * t;
-const celeBotW = (vw, tier) => Math.round(Math.min(200, Math.max(110, vw * 0.16)) * tier.s);
+// (#6842): about a quarter of the width (#1292; was 16 %, at most 200 px), never taller than 40 % of the height
+const celeBotW = (vw, tier, vh = innerHeight || 900) => Math.round(Math.max(110, Math.min(vw * 0.25, vh * 0.4)) * tier.s);
 function celeCenter(vw, vh, bw) { return {x: vw / 2 - bw / 2, y: vh * 0.4 - bw / 2}; }  // the figure's box (1:1) in the middle
 // the figure at progress p (0..1): pops up (from small, below), hops in the middle, lifts off and fades
 function botAt(p, vw, vh, bw = 150) {
@@ -921,7 +922,7 @@ function celebrate(kind, {name = '', frame = null, force = false} = {}) {
     q.addEventListener('pointerdown', celeEnd);
     return q;
   }
-  const vw = innerWidth || 1440, vh = innerHeight || 900, dur = tier.ms, bw = celeBotW(vw, tier);
+  const vw = innerWidth || 1440, vh = innerHeight || 900, dur = tier.ms, bw = celeBotW(vw, tier, vh);
   const el = document.createElement('div');
   el.className = 'cele'; el.dataset.kind = kind; el.setAttribute('aria-hidden', 'true');
   el.innerHTML = `<div class="cbot">${botFig('erledigt', 'cbotfig')}</div><div class="ccheck">${CHECK_SVG}</div>`;

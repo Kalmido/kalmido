@@ -743,7 +743,7 @@ function sbiGrid() {  // the grid's emojis: in line mode one per line icon (the 
   }
   return out;
 }
-// 2.411.0 (#3516): a new project in a folder with a project type (folderPtype) starts as that type with its standard sections,
+// 2.411.0 (#3516): a new project in a folder with a project type (folderPtype) starts as that type (#6842: sections not ticked),
 // chosen in the dialog (the person can pick another one; once picked by hand a folder change keeps it)
 function lmFolderPtype(md, folder) {
   if (!md || $('.lhdr', md) || md._ptUser || !$('.ptcards', md)) return;
@@ -752,7 +752,7 @@ function lmFolderPtype(md, folder) {
   $$('.ptcard', md).forEach(x => { x.classList.toggle('on', x === card); x.setAttribute('aria-checked', x === card); });
   $('.ptsecs', md).hidden = !PTYPE_SECS[t]; $('#l-ptsecsl', md).textContent = ptSecsLine(t);
   $('.ptbug', md).hidden = t !== 'software';  // 2.473.0 (#3378)
-  if ($('#l-ptsecs', md)) $('#l-ptsecs', md).checked = !!t;
+  if ($('#l-ptsecs', md)) $('#l-ptsecs', md).checked = t === 'social';  // (#6842): the standard sections only when ticked (#972), as on picking a card
   if ($('#l-tickets', md)) { $('#l-tickets', md).checked = t === 'software'; $('#l-tickets', md).closest('.row').hidden = !!t; }
 }
 // 2.1.2 (#349): hand a list to another person. j = GET /api/lists/{id}/owner (mode owner | takeover, candidates: active
