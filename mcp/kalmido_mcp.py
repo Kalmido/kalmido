@@ -3418,6 +3418,7 @@ TOOL_SCOPES["structure"] += ("project_overview_append", "project_overview_replac
 # 2.306.0 E (#2741): the scope of the route each of these calls (tools/list hid nothing for them on a read token)
 TOOL_SCOPES["structure"] += ("set_deployment", "duplicate_list", "set_task_sprint", "set_list_review")
 TOOL_SCOPES["tasks:write"] += ("review_task", "set_working", "end_working")  # 2.407.0 (#3513): the working mark writes to the task
+TOOL_SCOPES["structure"] += ("copy_client",)  # #7295: POST /clients/{id}/copy asks structure like create_client (p2306_e_mcp_scope)
 TOOL_SCOPES["tasks:write"] += ("create_image_reviews",)  # (#7532): the image / PDF sign-offs write to the task, a read token does not see the tool
 TOOL_SCOPES["files:read"] += ("list_documents", "get_document")
 TOOL_SCOPES["files:write"] += ("update_document",)
