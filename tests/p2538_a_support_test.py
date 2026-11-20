@@ -14,7 +14,8 @@ tenant-matrix: support
    admin grants support access for it, the support session may
  - 2.538.0 (#4365, review F4-F6): one trip / fixed cost deleted and the number range jump 403 (person without an organisation);
    an event, a contact, a notepad into the organisation's calendar / address book / project 403 without its grant, fine with it
- - 2.538.0 (#4365): the office of her workspace (org:CO): a draft 403 without the organisation's grant, 201 with it and in her
+ - 2.538.0 (#4365): the office of her workspace (org:CO): no draft there without the organisation's grant (#7285: since #6977 it
+   lands in her personal office), 201 with it and in her
    own office; reminder fee, master data import, fixed costs / trips deleted 403; a reminder draft stays; /api/state and /api/me
    say support_session
 usage: p2538_a_support_test.py <datadir>"""
@@ -178,9 +179,11 @@ check(r.ok, f"cara's own session moves it there {r.status_code} {r.text[:100]}")
 # 2.538.0 (#4365): the office takes its organisation from the workspace (org:CO): no write there without the organisation's grant
 r = Cc.post(B + "/api/office/docs", json={"project_title": "Studio job"})
 check(r.status_code == 201, f"cara's own session: a draft in the organisation's office {r.status_code} {r.text[:100]}")
+# #7285: since #6977 the session without the organisation's grant does not see the organisation; the office falls back to
+# her personal office (201 there, like "a draft in her own office" below) - the organisation's office gets nothing
 r = Y.post(B + "/api/office/docs", json={"project_title": "Studio help"})
-check(refused(r), f"support session: a draft in the organisation's office without its own support access 403, {r.status_code} {r.text[:100]}")
-check(kt.dbx("SELECT COUNT(*) FROM office_docs WHERE org_id=? AND project_title='Studio help'", (CO,)) == [(0,)], "no draft was made there")
+check(r.status_code == 201, f"support session without the organisation's support access: a draft only in her personal office, {r.status_code} {r.text[:100]}")
+check(kt.dbx("SELECT COUNT(*) FROM office_docs WHERE org_id=? AND project_title='Studio help'", (CO,)) == [(0,)], "no draft was made in the organisation's office")
 r = Y.get(B + "/api/office/docs")
 check(r.ok, f"support session: reading the organisation's office stays {r.status_code}")
 # 2.538.0 (#4365, review F5): the organisation of a calendar, an address book, a project's notepad decides too
