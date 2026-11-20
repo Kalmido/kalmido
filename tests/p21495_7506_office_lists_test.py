@@ -29,8 +29,8 @@ ALICE = A.get(B + "/api/state").json()["me"]["id"]
 ORG = A.post(B + "/api/admin/orgs", json={"name": "Alpha Example", "admin_id": ALICE}).json()["id"]
 A.patch(B + "/api/settings", json={"workspace": f"org:{ORG}"})
 FID, Fr = freelancer(B, A, features=FEAT)
-O = "/api/office"
-K = O + "/cards"
+OF = "/api/office"
+K = OF + "/cards"
 TODAY = testclock.today()
 Y = TODAY.year - 1  # closed years only: nothing of the test lies in the future
 TIMING = re.compile(r'db;dur=[\d.]+;desc="n=(\d+)"')
@@ -64,25 +64,25 @@ def strip(e):
 
 
 def cashbook(who, s):
-    books = s.get(B + O + "/cashbooks").json()["books"]
+    books = s.get(B + OF + "/cashbooks").json()["books"]
     bid = books[0]["id"]
-    r = s.patch(B + O + f"/cashbooks/{bid}", json={"opening": "500.00", "opening_day": f"{Y - 3}-01-01"})
+    r = s.patch(B + OF + f"/cashbooks/{bid}", json={"opening": "500.00", "opening_day": f"{Y - 3}-01-01"})
     check(r.ok, f"{who}: the opening of the box four years back {r.text[:200]}")
     ids = {}
     for y in range(Y - 3, Y + 1):
         for i, (d, a) in enumerate((("in", "40.00"), ("out", "12.50"), ("out", "7.30"))):
-            r = s.post(B + O + f"/cashbooks/{bid}/entries", json={"day": f"{y}-0{i + 3}-1{i}", "dir": d, "amount": a, "text": f"Example {y} {i}"})
+            r = s.post(B + OF + f"/cashbooks/{bid}/entries", json={"day": f"{y}-0{i + 3}-1{i}", "dir": d, "amount": a, "text": f"Example {y} {i}"})
             assert r.status_code == 201, r.text
             ids[(y, i)] = r.json()["id"]
     # a cancellation in the year of the entry, one of an old entry booked a year later
-    r1 = s.post(B + O + f"/cash-entries/{ids[(Y - 2, 1)]}/cancel", json={"day": f"{Y - 2}-11-02"})
-    r2 = s.post(B + O + f"/cash-entries/{ids[(Y - 1, 2)]}/cancel", json={"day": f"{Y}-01-05"})
+    r1 = s.post(B + OF + f"/cash-entries/{ids[(Y - 2, 1)]}/cancel", json={"day": f"{Y - 2}-11-02"})
+    r2 = s.post(B + OF + f"/cash-entries/{ids[(Y - 1, 2)]}/cancel", json={"day": f"{Y}-01-05"})
     check(r1.status_code == 201 and r2.status_code == 201, f"{who}: two cancellations {r1.text[:150]} {r2.text[:150]}")
-    full = {e["id"]: strip(e) for e in s.get(B + O + f"/cashbooks/{bid}/entries?from={Y - 3}-01-01&to={Y}-12-31").json()["entries"]}
+    full = {e["id"]: strip(e) for e in s.get(B + OF + f"/cashbooks/{bid}/entries?from={Y - 3}-01-01&to={Y}-12-31").json()["entries"]}
     check(len(full) == 14, f"{who}: every entry of four years in the full list ({len(full)})")
     seen = 0
     for y in range(Y - 3, Y + 1):
-        j = s.get(B + O + f"/cashbooks/{bid}/entries?year={y}").json()
+        j = s.get(B + OF + f"/cashbooks/{bid}/entries?year={y}").json()
         got = {e["id"]: strip(e) for e in j["entries"]}
         seen += len(got)
         check(got and all(full[i] == e for i, e in got.items()),
@@ -92,14 +92,14 @@ def cashbook(who, s):
     c1 = full[ids[(Y - 2, 1)]]
     check(c1.get("cancelled_by") and full.get(r1.json()["entry"]["id"], {}).get("storno_of"),
           f"{who}: the cancelled entry and its cancellation point at each other {c1}")
-    y1 = {e["id"]: e for e in s.get(B + O + f"/cashbooks/{bid}/entries?year={Y - 1}").json()["entries"]}
+    y1 = {e["id"]: e for e in s.get(B + OF + f"/cashbooks/{bid}/entries?year={Y - 1}").json()["entries"]}
     check(y1[ids[(Y - 1, 2)]].get("cancelled_by"), f"{who}: cancelled by an entry of the next year, the link stays in the year view {y1[ids[(Y - 1, 2)]]}")
-    j = s.get(B + O + f"/cashbooks/{bid}/entries?year={Y}").json()
-    bk = next(b for b in s.get(B + O + "/cashbooks").json()["books"] if b["id"] == bid)
+    j = s.get(B + OF + f"/cashbooks/{bid}/entries?year={Y}").json()
+    bk = next(b for b in s.get(B + OF + "/cashbooks").json()["books"] if b["id"] == bid)
     # 500 + 4 * (40 - 12.50 - 7.30) + the two cancellations back (+12.50 +7.30)
     check(bk["entries"] == 14 and bk["balance"] == j["balance"] == "600.60",
           f"{who}: the box overview counts and adds up every year like the list {bk} {j['balance']}")
-    r = s.get(B + O + f"/cashbook.csv?book_id={bid}&year={Y - 1}")
+    r = s.get(B + OF + f"/cashbook.csv?book_id={bid}&year={Y - 1}")
     check(r.ok and r.text.count("Example") >= 3 and ("cancel" in r.text.lower() or "storn" in r.text.lower()), f"{who}: the year's CSV with the change log {r.status_code} {r.text[-300:]}")
 
 
@@ -154,14 +154,14 @@ def cashflow(who, s):
     ]
     tids = []
     for frm, items in trips:
-        r = s.post(B + O + "/trips", json={"date_from": frm, "dest": "Example Town", "purpose": "job", "items": items})
+        r = s.post(B + OF + "/trips", json={"date_from": frm, "dest": "Example Town", "purpose": "job", "items": items})
         check(r.status_code == 201, f"{who}: a trip {r.text[:200]}")
         tids.append(r.json()["id"] if r.ok else None)
-    cf = s.get(B + O + f"/cashflow?from={m}&months=3").json()
+    cf = s.get(B + OF + f"/cashflow?from={m}&months=3").json()
     got = sorted((e["date"], e["amount"], e["trip_id"]) for e in cf.get("entries", []) if e.get("kind") == "trip")
     check(got == [(f"{Y}-06-02", "110.00", tids[0]), (f"{Y}-07-04", "44.00", tids[2])],
           f"{who}: the travel receipts of the period, nothing of another year {got}")
-    cf = s.get(B + O + f"/cashflow?from={Y - 1}-06&months=1").json()
+    cf = s.get(B + OF + f"/cashflow?from={Y - 1}-06&months=1").json()
     got = [(e["date"], e["amount"]) for e in cf.get("entries", []) if e.get("kind") == "trip"]
     check(got == [(f"{Y - 1}-06-10", "23.00")], f"{who}: the year before shows its own {got}")
 
