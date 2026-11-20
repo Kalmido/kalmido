@@ -4633,7 +4633,10 @@ class Runner:
                 if word in YES_WORDS or word in NO_WORDS:
                     pend = [m for m, q in d["perms"].items() if str(q.get("uid")) == str(uid)]
                     late = [m for m, q in d["perm_expired"].items() if str(q.get("uid")) == str(uid) and time.time() - q["at"] < 300]
-                    if len(pend) == 1 and answers_question(x, pend[0]) and not self.newer_card(x, uid, pend[0]):
+                    # #7190 (F3 of the review of job/5545): a background job's question comes unasked in the middle of a talk -- a
+                    # bare yes / no answers it only as a reply to it (or its button), never an "ok" meant for something else
+                    if (len(pend) == 1 and answers_question(x, pend[0]) and not self.newer_card(x, uid, pend[0])
+                            and (not d["perms"][pend[0]].get("job") or str((x.get("message") or {}).get("reply_to") or "") == str(pend[0]))):
                         self.resolve_perm(pend[0], "allow" if word in YES_WORDS else "deny")
                         continue
                     if (not pend and late and answers_question(x, late[-1]) and not self.newer_card(x, uid, late[-1])
@@ -4967,7 +4970,8 @@ class Runner:
             if not mid:
                 raise ValueError("no person to ask")
             with self.state.lock:
-                self.state.data["perms"][mid] = {"pid": nonce, "uid": uid, "at": time.time()}
+                # #7190 (F3 of the review of job/5545): a job's question is answered by a button or a reply to it only
+                self.state.data["perms"][mid] = {"pid": nonce, "uid": uid, "at": time.time(), **({"job": True} if rq.get("job_q") else {})}
                 self.state.save()
             log(f"permission question {mid} asked ({rq.get('tool_name')})")
         except Exception as e:
@@ -5000,7 +5004,7 @@ class Runner:
             except OSError:
                 pass
             return
-        self.perm_request(dict(rq, uid=str(j.get("chat_user") or ""), label=f"job #{int(jid)}"), nonce, conn)
+        self.perm_request(dict(rq, uid=str(j.get("chat_user") or ""), label=f"job #{int(jid)}", job_q=True), nonce, conn)
 
     def ensure_perm_watch(self):
         if self.perm_thread or not PERM_RELAY or not self.is_claude():

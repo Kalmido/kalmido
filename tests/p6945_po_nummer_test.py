@@ -12,6 +12,8 @@ fixture; freelancer-matrix: office). Invented companies, people and numbers only
  - the invoice from the quotation carries it; finalised, the suggested mail subject is "Rechnung <no> – Ihre Bestellnummer PO"
  - search: the office search and the document list find a document by its PO number; the hit names "PO ..."
  - API: GET /api/v1/lists/<id> carries po_number, PATCH sets it
+ - #7190 (F1 / F2 of the review of job/5545): a person without a role in the project does not set its PO from a document; a
+   PO change by a person without a role in an office leaves that office's drafts; a draft that follows is in the office log
 usage: p6945_po_nummer_test.py <datadir>"""
 import os
 import sys
@@ -140,9 +142,55 @@ def run(S, who):
     r = requests.patch(B + f"/api/v1/lists/{P3}", headers=T, json={"po_number": "PO-778", "expect_updated_at": r.json().get("updated_at")})
     ok(r.ok and r.json().get("po_number") == "PO-778" and doc(OF3).get("order_ref") == "PO-778",
        f"PATCH /api/v1/lists sets it; the draft with the old one follows: {r.status_code} {r.text[:200]} {doc(OF3).get('order_ref')!r}")
+    return OF
 
 
-run(A, "organisation")
+def in_ct(code):
+    import subprocess
+    ct = os.environ.get("KALMIDO_TEST_CONTAINER", "kalmido-test")
+    r = subprocess.run(["docker", "exec", ct, "python3", "-c", code], capture_output=True, text=True, timeout=120)
+    check(r.returncode == 0, f"in the container: {r.stderr[-400:]}")
+    return r.stdout.strip().splitlines()[-1] if r.stdout.strip() else ""
+
+
+def outsiders(S):
+    """#7190 (F1 / F2 of the review of job/5545): a person without a role in the project / the office changes nothing there."""
+    import json
+    r = S.post(B + D, json={"project_title": "Fremdtest", "lang": "de"})
+    did = r.json()["id"]
+    r = S.post(B + f"{D}/{did}/project", json={"create": {"name": "Fremdprojekt"}})
+    lid = r.json().get("list_id")
+    code = f"""import app, json
+from flask import g
+from kalmido.core.config import app as flask_app
+from kalmido.core.db import connect
+from kalmido.core.pg import system_ctx
+from kalmido.lists.projpo import ppo_drafts, ppo_from_doc
+c = connect()
+with flask_app.test_request_context("/"):
+    with system_ctx(c):
+        c.execute("UPDATE office_docs SET order_ref='PO-X' WHERE id=?", ({did},))
+        g.user = c.execute("SELECT * FROM users WHERE id=?", ({FID},)).fetchone()
+        a = ppo_from_doc(c, {FID}, {did})
+        po1 = c.execute("SELECT po_number FROM lists WHERE id=?", ({lid},)).fetchone()[0]
+        b = ppo_drafts(c, {lid}, "PO-X", "PO-Y", uid={FID})
+        ref = c.execute("SELECT order_ref FROM office_docs WHERE id=?", ({did},)).fetchone()[0]
+        g.user = c.execute("SELECT * FROM users WHERE id=?", ({ALICE},)).fetchone()
+        ctl = ppo_from_doc(c, {ALICE}, {did})
+        c.rollback()
+print(json.dumps([a, po1, b, ref, ctl]))"""
+    out = in_ct(code)
+    a, po1, b, ref, ctl = json.loads(out) if out.startswith("[") else [0, 0, 0, 0, 0]
+    check(a is None and po1 == "", f"#7190 F1: an outsider's document order reference does not set the project's PO {a} {po1!r}")
+    check(b == [] and ref == "PO-X", f"#7190 F2: a PO change by a person without an office role leaves the office's drafts {b} {ref!r}")
+    check(ctl == lid, f"#7190 F1: the project's admin still sets it (control) {ctl}")
+
+
+OFL = run(A, "organisation")
+log = (A.get(B + OFC + "/log", params={"limit": 500}).json().get("log") or [])
+check(any(x.get("doc_id") == OFL and x.get("action") == "update" and "PO-5000" in str(x.get("detail")) for x in log),
+      f"#7190 F2: a draft that follows the project's PO is in the office log {[x for x in log if x.get('doc_id') == OFL][:3]}")
+outsiders(A)
 run(Fr, "freelancer")
 print(f"p6945_po_nummer: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)

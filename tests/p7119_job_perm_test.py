@@ -9,6 +9,7 @@ run, over a second local channel of the runner. Without a server: a stub API, th
  - a job that ended / a job this host does not know: denied at once, nobody asked
  - a job of a person who is not the operator: denied with the operator note
  - the key of a chat run does not open the jobs' channel and the other way round
+ - #7190: a bare ok / ja in the chat never answers a job's question, a reply to the question does
  - the job's model process gets the hook's names, never KALMIDO_JOB_PERM_* or an inherited run channel
 """
 import importlib.util
@@ -139,9 +140,29 @@ r.intercept([{"event": "chat_choice", "data": {"message_id": int(mid), "permissi
 dd = result(p)
 check(dd["behavior"] == "deny" and "denied by the person" in dd["message"], f"deny reaches the job's hook: {dd}")
 
+# #7190 (F3 of the review of job/5545): a bare "ok" / "ja" in the chat never answers a job's question (it comes unasked in
+# the middle of a talk); a reply to the question does
+p = hook(je)
+check(asked(3), "the job asks again")
+mid = next(iter(r.state.data["perms"]))
+
+
+def say(body, reply_to=None, n=[0]):
+    n[0] += 1
+    m = {"id": int(mid) + n[0], "body": body, **({"reply_to": int(reply_to)} if reply_to else {})}
+    return r.intercept([{"event": "chat", "data": {"message": m, "user": {"id": 7}}}])
+
+
+left = say("ok")
+check(mid in r.state.data["perms"] and len(left) == 1, "#7190: a bare ok does not answer the job's question (a normal message)")
+say("ja")
+check(mid in r.state.data["perms"], "#7190: a bare ja neither")
+say("ja", reply_to=mid)
+check(result(p)["behavior"] == "allow", "#7190: a yes as a reply to the job's question answers it")
+
 # no answer in time = no
 p = hook(je, timeout="3")
-check(asked(3), "third question, nobody answers")
+check(asked(4), "fourth question, nobody answers")
 dd = result(p)
 check(dd["behavior"] == "deny" and "in time" in dd["message"], f"no answer in time: denied, never yes: {dd}")
 for q in r.state.data["perms"].values():
@@ -150,8 +171,8 @@ r.perm_expire()
 
 # the request names another person and label: the runner takes both from the job's record
 p = hook(dict(je, KALMIDO_PERM_UID="99", KALMIDO_RUN_LABEL="chat"))
-check(asked(4), "fourth question")
-uid, body = r.api.perms[3]
+check(asked(5), "fifth question")
+uid, body = r.api.perms[4]
 check(uid == 7 and "job #55" in body, f"person and label from the job's record, not the request: {uid} {body!r}")
 for q in r.state.data["perms"].values():
     q["at"] = 0
