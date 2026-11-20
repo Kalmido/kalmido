@@ -35,7 +35,25 @@ def dname_clean(raw, fallback=""):
     name = str(raw or "").strip()[:DNAME_MAX]
     if "<" in name or ">" in name:
         return None, tr("The display name cannot contain < or >.")
+    if name_mail_bad(name):  # #6549: the name stands in front of the address of every mail the person sends
+        return None, tr("The display name cannot contain @ or a web address.")
     return name or fallback, None
+
+
+_URLISH = re.compile(r"://|\bwww\.|[^\s./]\.[a-z]{2,24}(?:[/:?#]|$|\s)", re.I)
+
+
+def name_urlish(name):
+    """Fable F5 (#6549 moved here from accounts/cinvite.py): a name that looks like a link or a web address ("://", "www.",
+    "example.com")."""
+    return bool(_URLISH.search(str(name or "")))
+
+
+def name_mail_bad(name):
+    """#6549: a sender name a mail must not carry in front of its address: an @, < or > or a web address -- else a mail
+    from the server's address reads '"service@paypal.com" <server-address>' at the recipient."""
+    name = str(name or "")
+    return "@" in name or "<" in name or ">" in name or name_urlish(name)
 
 
 # ---------------------------------------------------------------- auth

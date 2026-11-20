@@ -24,7 +24,7 @@ from ..core.i18n import browser_lang, lang, md_plain, tr, trn
 from ..core.db import body, bump, connect, db, err, inbox_default, iso, local_now, now_utc, uset, usettings
 from ..core.db import DbError  # 2.1337.0 (#6600)
 from ..core.movelock import mv_refused, mv_strict  # 2.1337.0 (#6600): the mail of a moving organisation waits
-from ..accounts.session import GATE, me
+from ..accounts.session import GATE, me, name_mail_bad
 from ..accounts.mailtok import mtk_new, mtk_plain, mtk_where  # 2.674.0 (#4382 finding 5)
 from ..accounts.bgjobs import bgj_fn
 from ..accounts.mailfail import MAIL_RETRY, mail_bg_failed, smtp_down, smtp_err  # (#6385)
@@ -1012,6 +1012,8 @@ def mail_message(to, subject, text, html_body=None, images=None, from_name=None,
     subject, text = le2b_net(subject), le2b_net(text)  # 2.64.1 B (#1817): never a ciphertext of a list with the lock in a mail
     html_body = le2b_net(html_body) if html_body else html_body
     frm = (smtp or SMTP)["from"]
+    if from_name and name_mail_bad(from_name):  # #6549: no '"service@paypal.com" <our address>' -- the bare address then
+        from_name = None
     m = email.message.EmailMessage()
     m["From"], m["To"], m["Subject"] = (email.utils.formataddr((from_name, frm)) if from_name else frm), to, subject
     if cc:
