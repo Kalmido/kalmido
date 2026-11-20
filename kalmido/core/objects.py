@@ -118,7 +118,7 @@ from .access import Denied, act_for, acx_of, acx_org_ok, acx_sup_write_row, acx_
 from .db import LV_AREA_KEYS, insert_id, iso, now_iso, now_utc
 from .errors import BadInput
 from .i18n import tr
-from .pg import st_ids, system_ctx, table_columns, write_lock
+from .pg import qi, st_ids, system_ctx, table_columns, write_lock
 from ..files.fsref import FSR, _api_way as fsr_api_way, fs_ref_node, fs_ref_node_role, fs_ref_register
 from ..files.store import _free_name, _FsPre, fs_chain, fs_chains, fs_log_add, fs_visible_sql_c, safe_fs_name
 from ..files.store import fs_role  # 2.649.0 (#5051): _take_public
@@ -132,7 +132,7 @@ from ..accounts.orgretain import obj_share_gone  # 2.924.0 (#5069)
 from .objhooks import BOUNDARY  # 2.649.0 (#5051)
 from .objexport import OEX_KEYS, obj_export  # 2.1093.0 (#5289): export= of a kind
 from .undogroups import ug_drop  # 2.747.0 (#5249): a person's step groups go where their undo rows go
-from .objhooks import FOLLOW, OBJ, REVOKE, UNSHARE  # 2.1168.0 (#4782): + UNSHARE; kind -> the registered hooks; what a person loses (core/objhooks.py: accounts reads them)
+from .objhooks import FOLLOW, OBJ, PERSON_KEEP, REVOKE, UNSHARE  # #6610: + PERSON_KEEP; 2.1168.0 (#4782): + UNSHARE; kind -> the registered hooks; what a person loses (core/objhooks.py: accounts reads them)
 OBJ_RANK = {None: 0, "view": 1, "edit": 2, "manage": 3}
 OBJ_ROLES = ("view", "edit", "manage")
 OBJ_REVOKED_DAYS = 30  # rows taken away stay restorable this long (obj_revoked)
@@ -1214,6 +1214,11 @@ def obj_revoke_person(c, uid, org, reason, heir=None, role=None):
         elif reason == "role" and uid and org:
             # 2.649.0 (#5051): the public links / file requests of a node they can no longer share / write in die
             out.update(_take_public(c, "created_by=? AND org_id=?", (int(uid), int(org)), reason, by, int(org), uid=uid))
+            if heir and heir != uid and role in ("guest", "accounting", "readonly"):  # #6610: they own nothing there (as leaving)
+                for reg in OBJ.values():
+                    if reg["base_role"] is None:  # the default rules: the organisation's object stays with it, the heir owns it
+                        out[reg["kind"]] = c.execute(f"UPDATE {qi(reg['table'], {r['table'] for r in OBJ.values()})} SET owner_id=? WHERE org_id=? AND owner_id=?",
+                                                     (int(heir), int(org), int(uid))).rowcount
             if role in ("guest", "accounting"):  # F5 (#2822): the open channels they had joined
                 # 2.565.0 (#4719): like #4698 b (accounts/orgs.py org_open_chan_off) every row of them and their personal agents,
                 # and their shares on those rooms' nodes too (the core's members) -- restorable, nothing stays to reopen the room
@@ -1340,6 +1345,19 @@ def obj_public(c, uid, kind, row, role=None):
 
 
 BOUNDARY.append(obj_boundary_take)  # 2.649.0 (#5051): accounts/tenancy.py boundary_repair
+def obj_person_keep(c, by, kind, rid, target, role):
+    """#6610 (core/objhooks.obj_person_keep): target keeps role on (kind, rid) of a kind with node_shares after it was handed
+    over from them -- the share row on its reference node (made at the top of its workspace when missing). The caller
+    (accounts/orgs.py org_role_down) checked the right."""
+    if not obj_reg(kind).get("node_shares"):
+        raise ValueError(f"obj_person_keep {kind}: only for kinds registered with node_shares=True")
+    with system_ctx(c):  # the node of an organisation's calendar / book is structure (the admin changing the role need not see it)
+        n = obj_node(c, by, kind, rid, make=True)
+        if n is not None:
+            obj_node_person_put(c, by, n, target, role)
+
+
+PERSON_KEEP.append(obj_person_keep)  # #6610
 REVOKE.append(obj_revoke_person)  # core/objhooks.person_revoked (accounts calls it without importing the domain layer)
 FOLLOW.append(obj_node_follow)  # 2.566.0 (#4712, review F1): accounts/orgretain.py obj_nodes_follow
 UNSHARE.append(obj_node_unshare)  # 2.1168.0 (#4782, Fable review F2): accounts/orgs.py _obj_expired_drop

@@ -67,6 +67,7 @@ function wsPaneWire(md) {
     }
     const r = e.target.dataset?.wsrole; if (!r) return;
     const oid = +e.target.closest('[data-oid]').dataset.oid;
+    if (!await wsRoleDownOk(md, oid, +r, e.target.value)) { wsPaneDraw(md); return; }  // #6610: cancelled = the old role shows again
     try { await api('PUT', `/api/orgs/${oid}/members`, {user_id: +r, role: e.target.value}); toast(tr('Saved')); } catch { /* shown */ }
     wsPaneDraw(md);
   });
@@ -106,6 +107,19 @@ function wsPaneWire(md) {
     } catch { /* api() showed it */ }
     wsPaneDraw(md);
   });
+}
+// #6610: a role change down to guest / accounting / read-only hands what the person owns in the organisation to the admin
+// changing it (accounts/orgs.py org_role_down) -- the dialog names it first; nothing to hand over = no question
+const ROLE_DOWN = ['guest', 'accounting', 'readonly'];
+async function wsRoleDownOk(md, oid, uid, role) {
+  if (!ROLE_DOWN.includes(role)) return true;
+  const o = (($('#s-ws', md)._j || {}).orgs || []).find(x => x.id === oid), m = o?.members.find(x => x.id === uid);
+  const li = await api('GET', `/api/orgs/${oid}/leave-info?uid=${uid}&down=1`).catch(() => null), th = li?.to_heir || {};
+  const given = [th.lists ? trn('{0} project', '{0} projects', th.lists) : '', th.calendars ? trn('{0} calendar', '{0} calendars', th.calendars) : '', th.books ? trn('{0} address book', '{0} address books', th.books) : ''].filter(Boolean).join(', ');
+  if (!given) return true;
+  const ro = role === 'readonly';  // canwrite-ok: the organisation role being handed out names the text, it decides no write entry
+  return askConfirm(tr('Change the role of {0}?', m?.name || ''), (ro ? tr('{0} owns things in this organisation that this role cannot own. They go to {1}: {2}. {0} stays in them and reads them.', m?.name || '', li.heir || tr('an admin'), given)
+    : tr('{0} owns things in this organisation that this role cannot own. They go to {1}: {2}. {0} stays in them and may edit them.', m?.name || '', li.heir || tr('an admin'), given)), {ok: tr('Change role')});
 }
 // 2.538.0 (#4369): the line in the leave dialog when unsent changes of the organisation wait on this device
 const outOrgWarnHtml = n => n ? `<div class="shint keep olvrow warn">${ic('alert', 's')} ${esc(trn('{0} change of this organisation has not been sent yet; it is discarded when you leave.', '{0} changes of this organisation have not been sent yet; they are discarded when you leave.', n))}</div>` : '';
