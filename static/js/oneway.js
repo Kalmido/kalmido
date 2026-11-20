@@ -33,12 +33,16 @@ function ow_draw() {
 // menu (phone, and wherever the header shows no button).
 const cf_may = t => !!t && t.id > 0 && !t.context && S.tl.id === t.id && !!S.tl.may_yes;
 const cf_ask = t => cf_may(t) && t.status === 0 && !t.confirmed && t.created_by !== S.me?.id;  // a stranger's text, open
-function cf_barHtml(t) {
+// reader F9 (job/6017): the text the panel drew (renderDetail), which the yes goes to - never the store's newer copy; the bar's
+// own class ordbar (cfbar is the conflict bar, which holds the panel's redraw: liveparts.js lpDetail)
+const CF_SEEN = new Map();
+function cf_barHtml(t, drawn = false) {
+  if (drawn && t?.id > 0) CF_SEEN.set(t.id, {title: typeof t._enc?.title === 'string' ? t._enc.title : t.title, content: typeof t._enc?.content === 'string' ? t._enc.content : t.content});
   const c = t?.confirmed;
-  if (c) return `<section class="owbar cfbar" aria-label="${esc(tr('Order|task'))}">${ic('check', 's')}<div class="owt"><b>${esc(tr('Confirmed as an order'))}</b><span class="muted">${esc(uname(c.by, S.tl.id === t.id ? S.tl.users : null))} · ${esc(fmtWhen(c.at))}</span></div>${cf_may(t) ? `<div class="owb"><button type="button" class="btn sm" data-tcf="off">${esc(tr('Withdraw'))}</button></div>` : ''}</section>`;
+  if (c) return `<section class="owbar ordbar" aria-label="${esc(tr('Order|task'))}">${ic('check', 's')}<div class="owt"><b>${esc(tr('Confirmed as an order'))}</b><span class="muted">${esc(uname(c.by, S.tl.id === t.id ? S.tl.users : null))} · ${esc(fmtWhen(c.at))}</span></div>${cf_may(t) ? `<div class="owb"><button type="button" class="btn sm" data-tcf="off">${esc(tr('Withdraw'))}</button></div>` : ''}</section>`;
   if (!cf_ask(t)) return '';
   const te = S.tl.tpl_empty || [];
-  return `<section class="owbar cfbar cfopen" aria-label="${esc(tr('Order|task'))}">${ic('alert', 's')}<div class="owt"><b>${esc(tr('Not confirmed as an order'))}</b>${te.length ? `<span class="cftpl">${esc(tr('Template not filled in: {0}', te.join(', ')))}</span>` : ''}</div></section>`;
+  return `<section class="owbar ordbar ordopen" aria-label="${esc(tr('Order|task'))}">${ic('alert', 's')}<div class="owt"><b>${esc(tr('Not confirmed as an order'))}</b>${te.length ? `<span class="ordtpl">${esc(tr('Template not filled in: {0}', te.join(', ')))}</span>` : ''}</div></section>`;
 }
 const cf_headHtml = t => cf_ask(t) && !isMobile() ? `<button type="button" class="btn sm dcfb" data-tcf="menu" aria-haspopup="menu" title="${esc(tr('Confirm as an order or reject'))}">${ic('check', 's')}<span>${esc(tr('Confirm…'))}</span></button>` : '';
 const cf_items = t => [{label: tr('Confirm as an order'), icon: 'check', cls: 'cf-yes', fn: () => cf_yes(t.id).catch(() => {})},
@@ -48,9 +52,13 @@ async function cf_yes(id) {
   const t = taskById(id); if (!t) return;
   // (#7528, reader F2): the yes goes to the text shown here, in the server's form (a locked list's ciphers in _enc); changed
   // since (or the description not loaded): 409, said by api(), the task reloads
-  const shown = k => typeof t._enc?.[k] === 'string' ? t._enc[k] : t[k];
+  const seen = CF_SEEN.get(id);
+  if (!seen || S.detailStale === id) {  // the panel shows an older state than the store: draw it, the person reads it, then confirms
+    S.detailStale = 0; if (S.sel === id) renderDetail();
+    toast(tr('The text changed since you read it: look at it again, then confirm')); return;
+  }
   let j;
-  try { j = await api('POST', `/api/tasks/${id}/confirm`, {title: shown('title') ?? '', content: shown('content') ?? null}); }
+  try { j = await api('POST', `/api/tasks/${id}/confirm`, {title: seen.title ?? '', content: seen.content ?? null}); }
   catch (x) { try { putTask(await rawFetch('GET', `/api/tasks/${id}`)); } catch { /* the next sync brings it */ } if (S.sel === id) renderDetail(); await loadTimeline(id); throw x; }
   if (j.confirmed) t.confirmed = j.confirmed; else delete t.confirmed;
   ow_draw(); toast(tr('Confirmed as an order')); await loadTimeline(id);

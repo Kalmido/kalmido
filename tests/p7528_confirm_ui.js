@@ -45,7 +45,7 @@ const cookie = async user => { const r = await fetch(B + 'api/auth/login', {meth
   };
   const ready = async o => { await o.until(`typeof S !== 'undefined' && !!S.booted && !!document.querySelector('#top h1')`); await o.idle(); };
   const open = async (o, id) => { await o.ev(`(() => { openDetail(${id}); return 1; })()`); await o.until(`S.sel === ${id} && S.tl.id === ${id} && !!S.tl.activity`); await o.idle(); };
-  const bar = `(() => { const b = document.querySelector('#d-cf .cfbar'); return b ? {open: b.classList.contains('cfopen'), text: b.textContent.replace(/\\s+/g, ' ').trim()} : null; })()`;
+  const bar = `(() => { const b = document.querySelector('#d-cf .ordbar'); return b ? {open: b.classList.contains('ordopen'), text: b.textContent.replace(/\\s+/g, ' ').trim()} : null; })()`;
   const pick = async (o, label) => {
     await o.until(`[...document.querySelectorAll('#pop:not(.hidden) [role="menuitem"]')].some(x => (x.querySelector('.ml') || x).textContent.trim() === ${JSON.stringify(label)})`);
     return o.ev(`(() => { const b = [...document.querySelectorAll('#pop [role="menuitem"]')].find(x => (x.querySelector('.ml') || x).textContent.trim() === ${JSON.stringify(label)}); b?.click(); return !!b; })()`);
@@ -65,13 +65,13 @@ const cookie = async user => { const r = await fetch(B + 'api/auth/login', {meth
     await shot('p7528-1440-open.png');
     const rc = await realClick(o, '#d-cfh .dcfb');
     check(rc.ok && await pick(o, 'Confirm as an order'), `${tag}: the button's menu offers "Confirm as an order" ` + JSON.stringify(rc));
-    check(await until(`(() => { const b = document.querySelector('#d-cf .cfbar'); return !!b && !b.classList.contains('cfopen') && /Confirmed as an order/.test(b.textContent) && /Alice/.test(b.textContent); })()`)
+    check(await until(`(() => { const b = document.querySelector('#d-cf .ordbar'); return !!b && !b.classList.contains('ordopen') && /Confirmed as an order/.test(b.textContent) && /Alice/.test(b.textContent); })()`)
       && !await ev(`!!document.querySelector('#d-cfh .dcfb')`), `${tag}: confirmed: the bar names Alice, the button is gone ` + JSON.stringify(await ev(bar)));
     check(await until(`(S.tl.activity || []).some(a => a.kind === 'confirmed')`) && /confirmed the task as an order/.test(await ev(`document.querySelector('#d-hist-items, #d-tl-items')?.textContent || document.querySelector('#detail')?.textContent || ''`)),
       `${tag}: the history line`);
     await shot('p7528-1440-confirmed.png');
     await ev(`(() => { document.querySelector('#d-cf [data-tcf="off"]').click(); return 1; })()`);
-    check(await until(`!!document.querySelector('#d-cf .cfbar.cfopen') && !!document.querySelector('#d-cfh .dcfb')`), `${tag}: "Withdraw": open again, the button is back`);
+    check(await until(`!!document.querySelector('#d-cf .ordbar.ordopen') && !!document.querySelector('#d-cfh .dcfb')`), `${tag}: "Withdraw": open again, the button is back`);
     // reject: an empty reason closes nothing, a reason closes it as won't do
     await realClick(o, '#d-cfh .dcfb'); await pick(o, 'Reject…');
     check(await until(`!!document.querySelector('.modal #cdlg-in')`), `${tag}: "Reject…" asks for the reason`);
@@ -83,10 +83,10 @@ const cookie = async user => { const r = await fetch(B + 'api/auth/login', {meth
     await ev(`(() => { const i = document.querySelector('.modal #cdlg-in'); i.value = 'We keep the old export'; i.dispatchEvent(new Event('input', {bubbles: true})); document.querySelector('.modal [data-cd="yes"]').click(); return 1; })()`);
     check(await until(`taskById(${T1}).status === -1`), `${tag}: with a reason: closed as won't do`);
     check(await until(`(S.tl.activity || []).some(a => a.kind === 'rejected' && a.data && a.data.reason === 'We keep the old export')`), `${tag}: the history keeps the reason ` + await hist(o, 'rejected'));
-    check(!await ev(`!!document.querySelector('#d-cfh .dcfb') || !!document.querySelector('#d-cf .cfbar')`), `${tag}: a closed task: no button, no bar`);
+    check(!await ev(`!!document.querySelector('#d-cfh .dcfb') || !!document.querySelector('#d-cf .ordbar')`), `${tag}: a closed task: no button, no bar`);
     await shot('p7528-1440-rejected.png');
     await open(o, T3);
-    check(!await ev(`!!document.querySelector('#d-cfh .dcfb') || !!document.querySelector('#d-cf .cfbar')`), `${tag}: her own task: neither button nor bar`);
+    check(!await ev(`!!document.querySelector('#d-cfh .dcfb') || !!document.querySelector('#d-cf .ordbar')`), `${tag}: her own task: neither button nor bar`);
   });
 
   // ================= phone: the task's menu
@@ -96,11 +96,11 @@ const cookie = async user => { const r = await fetch(B + 'api/auth/login', {meth
     await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: 390, height: 760}});
     await o.nav(B + `#l/${L}`); await ready(o);
     await open(o, T2);
-    await until(`!!document.querySelector('#d-cf .cfbar.cfopen')`);
+    await until(`!!document.querySelector('#d-cf .ordbar.ordopen')`);
     check(!await ev(`!!document.querySelector('#d-cfh .dcfb')`), `${tag}: no header button on a phone`);
     await ev(`(() => { document.querySelector('#detail [data-act="task-menu"]').click(); return 1; })()`);
     check(await pick(o, 'Confirm as an order'), `${tag}: the task's menu offers "Confirm as an order"`);
-    check(await until(`!!taskById(${T2}).confirmed && !!document.querySelector('#d-cf .cfbar:not(.cfopen)')`), `${tag}: confirmed over the menu`);
+    check(await until(`!!taskById(${T2}).confirmed && !!document.querySelector('#d-cf .ordbar:not(.ordopen)')`), `${tag}: confirmed over the menu`);
     await shot('p7528-390-confirmed.png');
   }, true);
 
@@ -113,7 +113,7 @@ const cookie = async user => { const r = await fetch(B + 'api/auth/login', {meth
     const T4 = (await call(CA, 'POST', '/api/tasks', {title: 'Alice asks bob', list_id: L})).id;
     await o.ev(`refreshNow().then(() => 1)`); await until(`!!taskById(${T4})`);
     await open(o, T4);
-    check(await ev(`S.tl.may_yes`) === false && !await ev(`!!document.querySelector('#d-cfh .dcfb') || !!document.querySelector('#d-cf .cfbar.cfopen')`), `${tag}: no button, no open bar`);
+    check(await ev(`S.tl.may_yes`) === false && !await ev(`!!document.querySelector('#d-cfh .dcfb') || !!document.querySelector('#d-cf .ordbar.ordopen')`), `${tag}: no button, no open bar`);
     await ev(`(() => { document.querySelector('#detail [data-act="task-menu"]').click(); return 1; })()`);
     await until(`!!document.querySelector('#pop:not(.hidden) [role="menuitem"]')`);
     check(!await ev(`!!document.querySelector('#pop .cf-yes, #pop .cf-no')`), `${tag}: no entry in the task's menu`);

@@ -130,7 +130,9 @@ function mwKeys(x) {
 }
 function mwActs(x) {
   const b = (a, h, pri = false) => `<button type="button" class="btn${pri ? ' pri' : ''}" data-mw="${/*html-ok*/ a /* a fixed action name of this file */}" data-k="${esc(mwKey(x))}">${/*html-ok*/ h /* the callers pass esc() / icons */}</button>`;
-  if (x.kind === 'job') return x.proposal ? waitJobBtns({id: x.id, kind: x.proposal})  // a proposal opens its own dialog
+  // a proposal opens its own dialog (agents.js): no note as mine (reader F10, job/6017) - once decided there, the entry shows
+  // "Already decided elsewhere" with Next, as any change from outside this view
+  if (x.kind === 'job') return x.proposal ? waitJobBtns({id: x.id, kind: x.proposal})
     : b('jb-yes', `${thumbIc(true)} ${esc(tr('Approve'))}`, true) + b('jb-no', `${thumbIc(false)} ${esc(tr('Reject'))}`);  // jobDo through mwDecide (F7)
   if (x.kind === 'approval' && x.source === 'comment') {
     const ch = S.mw.ch[x.id];
@@ -209,8 +211,6 @@ async function mwReject(tid) {
   delete S.mw.tk[tid]; toast(tr('Rejected: closed as won’t do')); await mwSettled(); return true;
 }
 document.addEventListener('click', e => {
-  const po = /** @type {any} */ (e.target).closest?.('.mwp [data-act="prop-open"]');  // a proposal is decided in its own dialog: that entry is mine
-  if (po) S.mw.mine = {k: po.closest('.mwp')?.dataset.k || '', at: Date.now()};
   const b = /** @type {any} */ (e.target).closest?.('[data-mw]'); if (!b || !b.closest('.mwv')) return;
   const a = b.dataset.mw, x = b.dataset.k ? mwFlat().find(y => mwKey(y) === b.dataset.k) : mwSelItem();
   if (a === 'open') { S.mw.sel = b.dataset.k; S.mw.done = false; S.mw.gone = null; mwRedraw(); return; }
