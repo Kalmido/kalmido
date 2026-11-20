@@ -400,7 +400,7 @@ def state():
             "drop_token_set": bool(not u["kid"] and u["drop_token_hash"]), "drop_token_at": "" if u["kid"] else (u["drop_token_at"] or ""),
             # 2.1313.0 (#6557): the token may also send to the agents (to=agent); hint = not yet told that this can be switched off
             **drop_agent_of(u),
-            "workspaces": (ws := workspaces_for(c, uid)), "sgen": session_gen(u, ws), "remember": session_remember(c),  # (#6500): + remember; 2.28.0 (#935): my organisations [{id, name, icon, role}]; 2.238.0 B (#2872): + the sign-in mark
+            "workspaces": (ws := workspaces_for(c, uid)), "sgen": session_gen(u, ws), "remember": session_remember(c),  # (#6500): + remember; (#935): my organisations [{id, name, icon, role}]; (#2872): + the sign-in mark
             "since": str(u["created_at"] or "")[:10],  # 2.364.0 B (#3031): the account's first day (Today's review from the second week)
             **office_moving(c, uid),  # (#6937): the own personal office is moving (read only): the bar (render.js mvSync)
             "support_session": sga_is_support(c)},  # 2.538.0 (#4365): the app hides what a support session may not fetch

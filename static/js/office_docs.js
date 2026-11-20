@@ -1102,9 +1102,9 @@ addEventListener('fdw-sent', e => {
 });
 async function ofdChange0(e) {
   const t = e.target;
-  if (t.id === 'ofd-trial') { OFD.trial = t.value; LS.set('ofdTrial', t.value); ofd_refilter(); return; }  // 2.144.10 C (#2576)
+  if (t.id === 'ofd-trial') { OFD.trial = t.value; LS.set('ofdTrial', t.value); ofd_refilter(); return; }  // (#2576)
   if (t.id === 'ofd-src') { OFD.src = t.value; ofd_refilter(); return; }  // (#6701)
-  if (t.dataset.oflt && !S.route.id) { OFD.flt[t.dataset.oflt] = t.value; ofd_refilter(); return; }  // 2.351.0 A (#3312)
+  if (t.dataset.oflt && !S.route.id) { OFD.flt[t.dataset.oflt] = t.value; ofd_refilter(); return; }  // (#3312)
   if (t.id === 'ofd-status' && !OFD.doc) { OFD.status = t.value; ofd_refilter(); return; }
   if (t.id === 'ofd-status' && OFD.doc && S.route.id !== OFD.doc.id) { OFD.status = t.value; ofd_refilter(); return; }
   if (!OFD.doc) return;

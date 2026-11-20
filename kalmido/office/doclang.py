@@ -143,7 +143,7 @@ DPK_WORDS = (N_("Quotation|pack"), N_("Quotation No.|pack"), N_("Invoice|pack"),
              N_("Description|pack"), N_("Unit price|pack"), N_("Net total|pack"), N_("Gross total|pack"), N_("Duration of licence|pack"),
              N_("Territorial rights|pack"), N_("Rights by medium|pack"), N_("Service date|pack"),
              N_("Regarding the invoice referenced above we issue the following credit note:|pack"),
-             # 2.1477.0 (#7523): the bank line sits at the bottom of the reminder (the texts above stay for copied text blocks)
+             # (#7523): the bank line sits at the bottom of the reminder (the texts above stay for copied text blocks)
              N_("Please transfer the outstanding amount within {days} days to the bank account below.|pack"),
              N_("Please transfer the total amount outstanding within {days} days to the bank account below. If you have already arranged payment, please disregard this letter.|pack"),
              N_("This is our final request to transfer the total amount outstanding within {days} days to the bank account below. If payment is not received by then, we will take legal action without further notice; any costs arising from this will be charged to you.|pack"))

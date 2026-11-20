@@ -15,11 +15,11 @@ async function rk_cfGet() {
   const q = rk_cfQ(); RKF.q = q;
   const [j, fj, ck] = await Promise.allSettled([api('GET', '/api/office/cashflow?' + q), api('GET', '/api/office/fixed-costs'), api('GET', '/api/office/cashflow/check')]);
   if (j.status === 'rejected') throw j.reason;
-  const fixErr = fj.status === 'rejected' ? ofcErrHere(fj.reason) : null;  // 2.1076.0 (#5450): the fixed costs' own failure stays in their part
+  const fixErr = fj.status === 'rejected' ? ofcErrHere(fj.reason) : null;  // (#5450): the fixed costs' own failure stays in their part
   return () => {
     if (RKF.q !== q) return;
-    RKF.data = j.value; RKF.err = null; RKF.fixed = fj.value?.items || []; RKF.agr = fj.value?.agreements || []; RKF.fixErr = fixErr;  // 2.92.0 A (#1925): agr
-    RKF.check = ck.status === 'fulfilled' ? ck.value : null;  // 2.67.0 (#1838)
+    RKF.data = j.value; RKF.err = null; RKF.fixed = fj.value?.items || []; RKF.agr = fj.value?.agreements || []; RKF.fixErr = fixErr;  // (#1925): agr
+    RKF.check = ck.status === 'fulfilled' ? ck.value : null;  // (#1838)
   };
 }
 async function rk_cfLoad() { try { (await rk_cfGet())(); } catch (x) { RKF.err = ofcErrHere(x); } ofcDraw(); }

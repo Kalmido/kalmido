@@ -180,7 +180,7 @@ async function ofcLoad(kind, force) {
   ofcDraw();
 }
 function ofcDraw() { if ($('#s-biz')) biz_paint(); if (S.route.mod !== 'office') return; const el = $('#view'); if (el) keepFocus(el, () => ofcPaint(el)); ost_markBack(); wso_sync(); /* 2.1254.0 (#6180): the page's organisation after a load */ }
-// 2.122.2 (#2327): a redraw of the same office view keeps the scroll position (the page and, on touch tablets, .ofbody).
+// (#2327): a redraw of the same office view keeps the scroll position (the page and, on touch tablets, .ofbody).
 // #7495: the 4 s hold of the old page (OFCP.stale) and the replay of a tap on it are gone - a reload keeps the data
 // themselves (ofcRefetch below), so the page never turns into the loading block and a tap on it works as always.
 const OFCP = {key: null};
@@ -293,7 +293,7 @@ function viewOffice() {
   const ro = ['readonly', 'accounting'].includes(OFC.info?.role)  // 2.143.0 A (#2151): reads only (create / delete hidden in app.css)
     || (!!ofr_grp() && !!ofr_area(tab) && ['none', 'view'].includes(ofr_lvOf(ofr_area(tab))) && !(tab === 'receipts' && OFC.info?.submit));  // 2.356.0 D (#3129): hands in  // 2.187.0 A (#2476): the group's level of this area
   // 2.147.2 A (#2500): the role words here, not oinvRoleSel (settings module): a direct start of the office threw and stayed on "Loading…"
-  const html = `<div class="dash office" data-ofctab="${tab}"${ro ? ' data-ofcro="1"' : ''}>${OFC.info && typeof tri_stripHtml === 'function' ? tri_stripHtml() : '' /* 2.417.0 C (#3445): the test mode strip */}<div class="ofchead">${/*html-ok*/ OFC.info && !(typeof ofd_phoneDoc === 'function' && ofd_phoneDoc()) /* 2.936.0 (#5448): an open document on a phone: its head only; ofc_headHtml escapes */ ? ofc_headHtml(ro) : ''}</div><div class="ofcbody${hbusy ? ' ofcheld' : ''}"${hbusy ? ' aria-busy="true"' : ''}${ofcDocTab(tab) && !body ? ' data-fl-fill' : ''}>${/*html-ok*/ ofcHeldErr(tab) /* escaped in errorState */}${body}</div></div>`;
+  const html = `<div class="dash office" data-ofctab="${tab}"${ro ? ' data-ofcro="1"' : ''}>${OFC.info && typeof tri_stripHtml === 'function' ? tri_stripHtml() : '' /* (#3445): the test mode strip */}<div class="ofchead">${/*html-ok*/ OFC.info && !(typeof ofd_phoneDoc === 'function' && ofd_phoneDoc()) /* (#5448): an open document on a phone: its head only; ofc_headHtml escapes */ ? ofc_headHtml(ro) : ''}</div><div class="ofcbody${hbusy ? ' ofcheld' : ''}"${hbusy ? ' aria-busy="true"' : ''}${ofcDocTab(tab) && !body ? ' data-fl-fill' : ''}>${/*html-ok*/ ofcHeldErr(tab) /* escaped in errorState */}${body}</div></div>`;
   if (ofcDocTab(tab) && OFC.info && typeof ofdOffersTab === 'function') setTimeout(() => { const el = $('.office .ofcbody .pboffers') || $('.office .ofcbody'); if (el && ofcTab() === tab) ofdOffersTab(el); }, 0);  // 2.47.3 (#1360): below the hint
   return html;
 }
@@ -1407,7 +1407,7 @@ function ofcColorLight(c) {
 document.addEventListener('input', e => {
   const t = e.target;
   if (t.dataset?.grow) ofcGrow(t, +t.dataset.grow || 3);
-  if (t.id === 'ofc-q') { OFC.q = t.value; const w = $('#view .ofclistw'); if (w) fl_set(w, ofcListBody(w.dataset.kind)); else ofcDraw(); }  // 2.144.2 B (#1644)
+  if (t.id === 'ofc-q') { OFC.q = t.value; const w = $('#view .ofclistw'); if (w) fl_set(w, ofcListBody(w.dataset.kind)); else ofcDraw(); }  // (#1644)
   else if (t.id === 'os-color') { const nt = $('#os-color-note'); if (nt) nt.hidden = !ofcColorLight(t.value); const sw = $('.ofcsw'); if (sw) sw.style.background = /^#[0-9a-fA-F]{6}$/.test(t.value.trim()) ? t.value.trim() : 'var(--accent)'; }
   else if (t.dataset?.scheme) ofcSchemePv(t);  // 2.40.0 (#1382): every number scheme with its preview
 });

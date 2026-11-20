@@ -495,7 +495,7 @@ const MO_KEPT = N_('Your order of My tasks was changed on another device: that o
 // sent to and goes with the session, notify/push.py webpush_user) go too
 async function authGone() {
   try { outSync(); } catch { /* storage gone */ }
-  const keep = !!(OUT.q.length || (S.conflicts || []).length || fdAny());  // 2.527.0 (#4304 A5): + input kept for after the sign-in
+  const keep = !!(OUT.q.length || (S.conflicts || []).length || fdAny());  // (#4304 A5): + input kept for after the sign-in
   // the push subscription only here (wpDisable asks the server, which answers 401 again)
   const pushOff = async () => { const sub = typeof wpSub === 'function' ? await wpSub() : null; await sub?.unsubscribe(); };
   const all = Promise.allSettled([clearLocal(keep), pushOff(), typeof e2eForget === 'function' && e2eForget()]);
