@@ -382,7 +382,8 @@ FQ = r.json()["id"] if r.status_code == 201 else 0
 check(r.status_code == 201 and Fr.get(B + f"{D}/{FQ}/terms").json()["terms"]["date"] == "2026-09-30", "freelancer: the quotation has the terms")
 check(Fr.get(B + f"{D}/{FQ}/render").json().get("terms_line") == "Our terms and conditions (as of 30.09.2026) apply, see attachment."
       or Fr.get(B + f"{D}/{FQ}/render").json().get("terms_line", "").startswith("Our terms and conditions (as of "), "freelancer: the English line")
-check(Fr.post(B + f"{D}/{FQ}/finalize").ok, "freelancer: finalises")
+r = Fr.post(B + f"{D}/{FQ}/finalize")
+check(r.ok, f"freelancer: finalises {r.status_code} {r.text[:300]}")
 n2 = len(mails())
 r = Fr.post(B + f"{D}/{FQ}/send", json={"to": "client@example.com"})
 check(r.ok and "Terms-2026-09-30.pdf" in (mails()[n2:] or [{"raw": ""}])[0]["raw"], "freelancer: the mail carries Terms-2026-09-30.pdf")
