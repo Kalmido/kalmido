@@ -1402,7 +1402,8 @@ the app are unchanged). Without one the write answers `400` with
 with an old one it answers `409` `conflict` with the state now under `current` (read it, decide anew, never just resend).
 
 **An organisation that is moving** (2.1337.0, #6600): an admin of an organisation can start its move (Settings > Organisation >
-Data, *Move the organisation*) before exporting it to another server. Until an admin ends the move, every write into the
+Data, *Move the organisation*) before exporting it to another server; a person without an organisation the same for their own
+office (Settings > Company & office > Data, *Move the office*, #6937). Until an admin ends the move, every write into the
 organisation answers `423` - in the REST API `{"error": {"code": "org_moving", "message": "The organisation is moving: it is
 read-only."}}`, in the app's own routes `{"error": "...", "code": "org_moving"}` - for people, agents, API tokens, public forms,
 booking pages, file requests and incoming hooks alike; reading, downloads and the organisation's export stay possible. Its

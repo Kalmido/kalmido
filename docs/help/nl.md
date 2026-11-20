@@ -309,7 +309,7 @@ het meteen weer. Een los project deel je op dezelfde manier via zijn eigen menu.
 Wat er dan gebeurt: wie de link heeft kan het project lezen, zonder inloggen, alleen-lezen, zonder reacties, toegewezenen
 of bestanden. **Uitschakelen** beëindigt de link meteen.
 
-<!-- help: team#how-to-move-the-company-to-another-server src=7feca89b2e -->
+<!-- help: team#how-to-move-the-company-to-another-server src=12d13760a6 -->
 ## Met het bedrijf naar een andere server verhuizen
 
 1. Maak op de nieuwe server (je eigen server of app.kalmido.com) een lege organisatie aan en nodig de leden uit onder
@@ -328,3 +328,7 @@ of bestanden. **Uitschakelen** beëindigt de link meteen.
 Wat er daarna gebeurt: factuurnummers geeft vanaf nu alleen de nieuwe server. Vraag de admin van de oude server om de oude
 organisatie te verwijderen; **Verhuizing beëindigen** alleen als je toch daar blijft. Voor een nieuwe bedrijfsnaam is
 geen verhuizing nodig - wijzig de naam. Twee bedrijven kun je niet zonder verlies samenvoegen, en één niet splitsen.
+
+Zonder organisatie, alleen met je eigen kantoor: open Instellingen > Bedrijf & kantoor > Gegevens, kies
+**Kantoor verhuizen** en **Verhuizing starten**; daarna **Kantoor exporteren** en **Alles exporteren**, en importeer
+beide op de nieuwe server. Je privégebied buiten het kantoor blijft bewerkbaar.
