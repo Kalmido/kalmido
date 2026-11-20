@@ -595,6 +595,10 @@ SCHEMA_GUARD_SUITES = ("rls_direct",)
 # missing RM_LEFT count / data-rowmenu showed up only in the full CI (red five times since 09.11., last #6136). Along with any
 # changed client script (seconds, static)
 JS_GUARD_SUITES = ("p2695_a_rowmenu_coverage",)
+# #6861: the office word guard reads de.json and static/i18n/neu/*.json; new texts map to no suite ("keys added only"), so a
+# wrong word (Büro-Einstellungen) showed up only in the nightly CI, three times (#4960, #5585, #6527). Along with any changed
+# translation file (seconds, static)
+I18N_GUARD_SUITES = ("p2925_a_words",)
 APP_PREFIXES = ("kalmido/", "static/")
 # 2.501.0 (#4016): files the push stage sends to the full run, for --touched only (the small runs; select() and the CI stay as they
 # are): 330 einreihen checks ran only a sample because schema.py / db.py / app.css (272 times), translations (194), start files
@@ -786,8 +790,9 @@ def touched(repo, files, base=None, head=None):
     css = any(f == "static/app.css" or (f.startswith("static/css/") and f.endswith(".css")) for f in files)
     schema = any(f == "kalmido/core/schema.py" or f.startswith("kalmido/core/migrations.d/") for f in files)  # #5674
     js = any(f.startswith("static/js/") and f.endswith(".js") for f in files)  # #5354
+    i18n = any(f.startswith("static/i18n/") and f.endswith(".json") for f in files)  # #6861
     for s in ALWAYS_SUITES + (APP_GUARD_SUITES if any(f.startswith(APP_PREFIXES) for f in files) else ()) + (CSS_GUARD_SUITES if css else ()) \
-            + (SCHEMA_GUARD_SUITES if schema else ()) + (JS_GUARD_SUITES if js else ()):
+            + (SCHEMA_GUARD_SUITES if schema else ()) + (JS_GUARD_SUITES if js else ()) + (I18N_GUARD_SUITES if i18n else ()):
         if files and s in repo.group_of:  # an unknown name: p2381_a_guards fails
             why.setdefault(s, "guard, always (#2853)")
     # a chosen suite that reads a state file of its group (ids.json, cal_ids.json ...) needs the suites before it that
