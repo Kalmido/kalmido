@@ -118,7 +118,7 @@ SETTINGS_DEFAULTS = {"pack": "DE", "company": {"name": "", "lines": [], "contact
                      # 2.113.1 (#2251): day rate and factor of "share by amount" (an industry pack's option); None = the
                      # pack's values. prod_quotient / producing_rate above keep their old meaning for older documents
                      "share_rate": None, "share_factor": None,
-                     # 2.47.3 (#1360): small business (section 19 UStG): new documents without VAT + the note (also orgs).
+                     # (#1360): small business (section 19 UStG): new documents without VAT + the note (also orgs).
                      # #6533: no default -- None = not chosen yet (counts as no; the card "Set up your office" asks once);
                      # small_business_from = the day it applies from ("" = always, as before): evaluations of a period before
                      # it count as before (small_at), the lock of #6475 asks it at the invoice date
@@ -796,7 +796,7 @@ def office_settings_clean(c, oid, b, cur):
                 except ValueError:
                     raise BadInput(tr("Invalid value: {0}", k)) from None
             out[k] = v
-        elif k == "vat_basis":  # 2.90.0 A (#1921); #6533: "" = not chosen yet (an office's own export carries it back)
+        elif k == "vat_basis":  # (#1921) A; #6533: "" = not chosen yet (an office's own export carries it back)
             if v not in ("ist", "soll", ""):
                 raise BadInput(tr("Invalid value: {0}", k))
             out[k] = v

@@ -973,7 +973,7 @@ def umz_preview(c, uid, man, data, can_invite, files=None):
                        "need_address": not _email(p.get("email")), "by_login": not hit})  # by_login: the admin may type a user name
     eid = man.get("export_id") if isinstance(man.get("export_id"), str) and UMZ_EID_RE.fullmatch(man.get("export_id")) else ""
     skey, sold = umz_src(man, eid), umz_src_old(man)  # (#6593): + the address key of an import before the instance key
-    earlier = umz_again(c, uid, (skey, sold), eid)  # 2.362.3 (#3098): the same source, not only the same file
+    earlier = umz_again(c, uid, (skey, sold), eid)  # (#3098): the same source, not only the same file
     targets = umz_targets(c, uid)
     oi = data.get("oi") if isinstance(data.get("oi"), dict) else {}
     # 2.1316.0 (#6577): the target check of the office part (numbers, locked months) for each target, the originals that are missing
@@ -1337,7 +1337,7 @@ UMZ_INVALID = N_("{1} entries in {0} have no valid value in a required field and
 
 
 def umz_refused(run):
-    """2.531.0 (#4317) F11: the rows the database refused in this run, one warning per area, and the counting ends.
+    """(#4317) F11: the rows the database refused in this run, one warning per area, and the counting ends.
     (#6593, audit #4808 T21): + the rows umz_row left out because a required column had no valid value (umz_invalid)."""
     rej, _L.rej = getattr(_L, "rej", None) or {}, None
     bad, _L.bad = getattr(_L, "bad", None) or {}, None
@@ -1436,7 +1436,7 @@ def umz_src(man, eid):
 
 
 def umz_src_old(man):
-    """The address key of 2.362.3 (#3098): server address + account id of an account export, '' without one. (#6593): an
+    """The address key of (#3098): server address + account id of an account export, '' without one. (#6593): an
     import before the instance key recorded this one, so a newer file of the same account still finds it (umz_srcs)."""
     url, oid = _txt((man.get("source") or {}).get("url"), 300).strip().rstrip("/").lower(), _oid((man.get("user") or {}).get("id"))
     if man.get("format") != UMZ_FORMAT or not url or not oid:
@@ -2867,7 +2867,7 @@ def umz_run(uid, iid, opts):
             run.kind = man.get("kind") or "account"
             run.invites = int(opts.get("invites") or 0)  # 2.1402.0 (#6579): counted by umz_go
             src = umz_src(man, st.get("export_id") or "")
-            # 2.362.3 (#3098); (#6593): the imports into this target (any of its admins), mine = my own export of this server
+            # (#3098); (#6593): the imports into this target (any of its admins), mine = my own export of this server
             umz_have(c, run, uid, umz_earlier(c, uid, (src, umz_src_old(man)), st.get("export_id") or "", opts["org"]),
                      mine=src in (umz_src({"format": UMZ_FORMAT, "source": {"url": PUBLIC_URL, "instance": umz_instance(c)}, "user": {"id": uid}}, ""),
                                   umz_src_old({"format": UMZ_FORMAT, "source": {"url": PUBLIC_URL}, "user": {"id": uid}})))
