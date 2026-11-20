@@ -18,6 +18,8 @@ async function ab2_load() {
   AB2.wsp = tm_wsp();
   try { const j = await api('GET', '/api/team/absences?' + q); if (seq === AB2.seq) { AB2.data = j; AB2.personal = j.personal || null; }
     if (seq === AB2.seq && !want && AB2.wsp === 'private' && j.personal && j.org_id !== j.personal) { AB2.loading = false; return ab2_load(); }  // 2.543.0 (#4606): Private opened before its id was known
+    const yr = +(j.start || today()).slice(0, 4);  // #7398: the leave balance of the month's year comes along - one draw, not two
+    if (seq === AB2.seq && LV.key !== `${j.org_id || ''}:${yr}`) await lv_load(j.org_id, yr, true);
   } catch { if (seq === AB2.seq) AB2.data = {error: true}; }
   AB2.loading = false;
   if (S.route.mod === 'workload' && WLV.tab === 'abs' && seq === AB2.seq) { const el = $('#view'); if (el) keepFocus(el, () => setHtml(el, viewWorkload())); }
@@ -27,8 +29,8 @@ function ab2_view() {
   if (AB2.data && !AB2.loading && (AB2.wsp || '') !== tm_wsp()) AB2.data = null;  // 2.543.0 (#4606): another space opened
   if (!AB2.data && !AB2.loading) setTimeout(ab2_load, 0);
   const d = AB2.data;
-  if (!d) return `<div class="dash wload ab2">${ab2_tabs('abs')}<p class="muted lempty">${tr('Loading…')}</p></div>`;
-  if (d.error) return `<div class="dash wload ab2">${ab2_tabs('abs')}<div class="empty">${tr('The absences could not be loaded.')}</div></div>`;
+  if (!d) return tm_wait(' ab2', 'abs');  // #7398 (clients.js tm_page): the last tab's content waits dimmed
+  if (d.error) return tm_fail(' ab2', 'abs', tr('The absences could not be loaded.'));
   const first = pd(d.start), days = [];
   for (let x = new Date(first); ds(x) <= d.end; x.setDate(x.getDate() + 1)) days.push(ds(x));
   const hol = Object.fromEntries((d.holidays || []).map(h => [h.date, h.name]));
@@ -55,8 +57,8 @@ function ab2_view() {
   // 2.96.0 D (#1941): the own personal area next to the organisations (the workspace switch on "Private" opens it)
   const areas = [...(d.personal ? [{id: d.personal, name: tr('Private|workspace')}] : []), ...d.orgs];
   const th = tm_head(d, true);  // 2.543.0 (#4606): "All workspaces": the overview of the areas, or the path back above the open one
-  if (th?.ovr) return `<div class="dash wload ab2">${ab2_tabs('abs')}${th.ovr}</div>`;
-  return `<div class="dash wload ab2">${ab2_tabs('abs')}${th?.crumb || ''}<div class="clhead"><h3 class="ab2mon">${esc(mon)}</h3><span class="spacer"></span>
+  if (th?.ovr) return tm_page(' ab2', 'abs', th.ovr);
+  return tm_page(' ab2', 'abs', `${th?.crumb || ''}<div class="clhead"><h3 class="ab2mon">${esc(mon)}</h3><span class="spacer"></span>
       ${areas.length > 1 && !th ? `<select id="ab2-org" aria-label="${esc(tr('Workspace'))}">${areas.map(o => `<option value="${o.id}" ${o.id === d.org_id ? 'selected' : ''}>${esc(o.name)}</option>`).join('')}</select>` : ''}
       <button class="iconbtn" data-act="ab2-move" data-d="-1" aria-label="${esc(tr('Earlier'))}" title="${esc(tr('Earlier'))}">${ic('left', 's')}</button><button class="btn sm" data-act="ab2-move" data-d="0">${tr('This month')}</button><button class="iconbtn" data-act="ab2-move" data-d="1" aria-label="${esc(tr('Later'))}" title="${esc(tr('Later'))}">${ic('right', 's')}</button>
       <button class="btn sm pri" data-act="ab2-new">${ic('plus', 's')} ${tr('Enter an absence')}</button></div>
@@ -66,7 +68,7 @@ function ab2_view() {
     <h4 class="ab2h">${tr('Absences this month')}</h4>
     ${list ? `<ul class="ab2list">${list}</ul>` : `<p class="muted">${tr('Nobody is away this month.')}</p>`}
     ${hl ? `<h4 class="ab2h">${tr('Public holidays')}</h4><ul class="ab2hol">${hl}</ul>` : ''}
-    <div class="ab2foot">${stSel}</div></div>`;
+    <div class="ab2foot">${stSel}</div>`);
 }
 
 function ab2_span(it) {

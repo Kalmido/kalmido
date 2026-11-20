@@ -92,7 +92,7 @@ document.addEventListener('click', e => {
   if (!a || !sh || !$('#view')?.contains(a)) return;
   if (a.dataset.shb === 'add') { shbAdd(sh, false); return; }
   const id = +a.dataset.id;
-  if (id !== sh.id) shbOpen(id);
+  if (id !== sh.id) { if (S.route.sh !== id) tabh_wait('sheet', a.closest('.shvwrap'), a); shbOpen(id); }  // #7398 (render.js tabh_wait): the tab at once, the sheet shown waits dimmed
   else if (sh.can_write) shbMenu(sh, id, a);
 });
 document.addEventListener('dblclick', e => {

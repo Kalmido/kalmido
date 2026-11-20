@@ -829,8 +829,8 @@ document.addEventListener('click', async e => {
     case 'te-resume': { const en = findEntry(+a.dataset.eid); if (en) timerStart(en.task_id ? {task_id: en.task_id} : {list_id: en.list_id}, en.note); break; }
     case 'te-more': S.te.all = true; drawTaskTime(); break;
     case 'te-open': if (id) openTaskById(id); break;
-    case 'tv-period': S.tv.period = a.dataset.k; LS.set('timePeriod', S.tv.period); if (S.tv.period !== 'custom' && !S.tv.client) lyOptSet('time', 'bar', 'period', S.tv.period); if (S.tv.period === 'custom' && !S.tv.from) { [S.tv.from, S.tv.to] = [addDays(today(), -29), today()]; LS.set('timeFrom', S.tv.from); LS.set('timeTo', S.tv.to); } renderView(); break;
-    case 'tv-scope': S.tv.scope = a.dataset.k; LS.set('timeScope', S.tv.scope); renderView(); break;
+    case 'tv-period': tabh_arm('time'); S.tv.period = a.dataset.k; LS.set('timePeriod', S.tv.period); if (S.tv.period !== 'custom' && !S.tv.client) lyOptSet('time', 'bar', 'period', S.tv.period); if (S.tv.period === 'custom' && !S.tv.from) { [S.tv.from, S.tv.to] = [addDays(today(), -29), today()]; LS.set('timeFrom', S.tv.from); LS.set('timeTo', S.tv.to); } renderView(); break;  // #7398 (render.js tabh_*): the report stays, dimmed, until the period's is there
+    case 'tv-scope': tabh_arm('time'); S.tv.scope = a.dataset.k; LS.set('timeScope', S.tv.scope); renderView(); break;
     case 'tv-lists': tvListsMenu(a); break;
     case 'tv-toggle': { const k = a.dataset.key; S.collapsed.has(k) ? S.collapsed.delete(k) : S.collapsed.add(k); LS.set('collapsed', [...S.collapsed]); renderView(); break; }
     case 'tv-entries': S.tv.entries = !S.tv.entries; LS.set('timeEntries', S.tv.entries); lyOptSet('time', 'entries', 'open', S.tv.entries); renderView(); break;

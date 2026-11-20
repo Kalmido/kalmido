@@ -59,7 +59,8 @@ const FEAT = 'collab,comments,sheets';
   // another sheet: a tap opens it
   [...d.querySelectorAll('#view .shbtab')].find(b => !b.classList.contains('on'))?.click();
   check(await until(() => w.location.hash === '#sheets/' + S.id), 'a tap opens the first sheet ' + w.location.hash);
-  await until(() => d.querySelector('#view .shbtab.on')?.textContent.trim() === 'Sheet 1');
+  // #7398: the tab is marked at once while the last sheet waits dimmed (render.js tabh_wait) - wait for the sheet itself
+  await until(() => d.querySelector('#view .shbtab.on')?.textContent.trim() === 'Sheet 1' && w.eval('SHV.sh?.id') === S.id && !d.querySelector('#view .shvwrap[aria-busy]'));
   d.querySelector('#view .shbtab.on')?.click();
   await until(() => items(d).length);
   const m1 = items(d).map(b => b.textContent.trim());

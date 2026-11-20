@@ -205,8 +205,8 @@ function viewWorkload() {
   if (WLV.data && !WLV.loading && (WLV.wsp || '') !== tm_wsp()) WLV.data = null;  // 2.543.0 (#4606): another space opened
   if (!WLV.data && !WLV.loading) setTimeout(wlLoad, 0);
   const d = WLV.data;
-  if (!d) return `<div class="dash wload"><p class="muted lempty">${tr('Loading…')}</p></div>`;
-  if (d.error) return `<div class="dash wload"><div class="empty">${tr('The workload could not be loaded.')}</div></div>`;
+  if (!d) return tm_wait('', 'wl');  // #7398: was without the tab row
+  if (d.error) return tm_fail('', 'wl', tr('The workload could not be loaded.'));
   // 2.380.0 A (#3408): short two-line week heads (start above, "– end" below), never wider than the column
   const wd = x => pd(x).toLocaleDateString(LOCALE(), {day: 'numeric', month: 'numeric'});
   const wk = w => `<span class="wlw1">${esc(wd(w.start))}</span><span class="wlw2">– ${esc(wd(w.end))}</span>`;
@@ -218,14 +218,14 @@ function viewWorkload() {
   };
   const rows = d.people.map(p => `<tr><th scope="row"><span class="wlp">${av(p.id, p.display_name)}<span class="wln"><b>${esc(p.display_name)}</b><button type="button" class="linkbtn wlcap" data-act="wl-cap" data-uid="${p.id}" ${p.own || S.me?.is_admin ? '' : 'disabled'} title="${esc(tr('Hours per week'))}">${esc(tr('{0} h / week', fmtNum(p.capacity_h, 1)))}</button></span></span></th>${p.weeks.map((c, i) => cell(p, c, i)).join('')}<td class="wlc wlnd">${p.nodate.tasks ? `<button type="button" class="wlb" data-act="wl-cell" data-uid="${p.id}" data-w="nd"><span class="wlt">${esc(trn('{0} task', '{0} tasks', p.nodate.tasks))}</span></button>` : ''}</td></tr>`).join('');
   const th = tm_head(d);  // 2.543.0 (#4606)
-  if (th?.ovr) return `<div class="dash wload">${ab2_tabs('wl')}${th.ovr}</div>`;
-  return `<div class="dash wload">${ab2_tabs('wl')}${th?.crumb || ''}<div class="clhead"><span class="spacer"></span>
+  if (th?.ovr) return tm_page('', 'wl', th.ovr);
+  return tm_page('', 'wl', `${th?.crumb || ''}<div class="clhead"><span class="spacer"></span>
       ${d.orgs.length > 1 && !wlWsOrg() && !th ? `<select id="wl-org" aria-label="${esc(tr('Workspace'))}">${d.orgs.map(o => `<option value="${o.id}" ${o.id === d.org_id ? 'selected' : ''}>${esc(o.name)}</option>`).join('')}</select>` : ''}
       <button class="iconbtn" data-act="wl-move" data-d="-1" aria-label="${esc(tr('Earlier'))}" title="${esc(tr('Earlier'))}">${ic('left', 's')}</button><button class="btn sm" data-act="wl-move" data-d="0">${tr('This week')}</button><button class="iconbtn" data-act="wl-move" data-d="1" aria-label="${esc(tr('Later'))}" title="${esc(tr('Later'))}">${ic('right', 's')}</button>
       <a class="btn sm" href="/api/workload/export.xlsx?${new URLSearchParams({weeks: WLV.weeks, ...(WLV.start ? {start: WLV.start} : {}), ...(wlOrg() ? {org: wlOrg()} : {})})}" download>${ic('download', 's')} ${tr('Excel (XLSX)')}</a></div>
     <div class="muted wlnote">${tr('Only what you can see.')}<div class="shint">${tr('Open tasks assigned to each person, by their planned start, else their due date (overdue ones count this week), with their duration as the estimate.')}</div></div>
     <div class="wlwrap"><table class="wltable"><thead><tr><th scope="col">${tr('Person')}</th>${d.weeks.map(w => `<th scope="col" title="${esc(pd(w.start).toLocaleDateString(LOCALE(), {day: 'numeric', month: 'short'}) + ' – ' + pd(w.end).toLocaleDateString(LOCALE(), {day: 'numeric', month: 'short'}))}">${wk(w)}</th>`).join('')}<th scope="col">${tr('No date')}</th></tr></thead><tbody>${rows || `<tr><td colspan="${d.weeks.length + 2}" class="muted">${tr('Nobody to show.')}</td></tr>`}</tbody></table></div>
-    <p class="muted wllegend"><span class="wlk lv-ok"></span>${tr('below 80 %')} <span class="wlk lv-warn"></span>${tr('80–100 %')} <span class="wlk lv-over"></span>${tr('over capacity')}</p></div>`;
+    <p class="muted wllegend"><span class="wlk lv-ok"></span>${tr('below 80 %')} <span class="wlk lv-warn"></span>${tr('80–100 %')} <span class="wlk lv-over"></span>${tr('over capacity')}</p>`);
 }
 async function wlCap(uid) {
   const p = WLV.data?.people.find(x => x.id === uid); if (!p) return;
@@ -332,7 +332,7 @@ document.addEventListener('click', async e => {
   const k = a.dataset.act, id = +a.dataset.id || 0;
   if (k === 'client-new') clientModal(null);
   else if (k === 'client-edit') { let c = CLV.data && CLV.data.id === id ? CLV.data : null; if (!c) { try { c = await api('GET', `/api/clients/${id}`); } catch { return; } } clientModal(c); }
-  else if (k === 'client-month') { const cur = CLV.data?.stats?.month || today().slice(0, 7), d = pd(cur + '-01'); d.setMonth(d.getMonth() + +a.dataset.d); CLV.month = ds(d).slice(0, 7); clReload(); }
+  else if (k === 'client-month') { const cur = CLV.data?.stats?.month || today().slice(0, 7), d = pd(cur + '-01'); d.setMonth(d.getMonth() + +a.dataset.d); CLV.month = ds(d).slice(0, 7); CLV.data = null; clLoad(); ms_clDraw(); }  // #7398: only the card loads (the list does not depend on the month); the card waits dimmed (clientpage.js), drawn once when it is there
   else if (k === 'client-sheet') { let c = CLV.data && CLV.data.id === id ? CLV.data : null; if (!c) { try { c = await api('GET', `/api/clients/${id}${CLV.month ? '?month=' + CLV.month : ''}`); } catch { return; } } clientSheet(c); }
   else if (k === 'wl-move') { const d = +a.dataset.d; WLV.start = d === 0 ? null : addDays(WLV.data?.weeks?.[0]?.start || today(), 7 * d * WLV.weeks); WLV.data = null; wlLoad(); }
   else if (k === 'wl-cap') wlCap(+a.dataset.uid);
@@ -373,6 +373,12 @@ function ab2_tabs(cur) {
   const t = (k, label) => `<button type="button" data-act="ab2-tab" data-v="${k}" class="${cur === k ? 'on' : ''}" aria-pressed="${cur === k}">${esc(tr(label))}</button>`;
   return `<div class="seg ab2tabs" role="group" aria-label="${esc(tr('Team'))}">${t('wl', N_('Workload'))}${t('abs', N_('Absences'))}${dp_on() ? t('dispo', N_('Disposition')) : ''}</div>`;
 }
+// #7398: the page of a team tab - the tab row, then its content. Drawn with its data, the content is kept (render.js tabh_*,
+// key team); a switch arms it, and while the new tab loads its place shows the last tab's content, dimmed, instead of
+// "Loading…" (the tab row stays the same node, the page keeps its height and scroll position, then the new content is drawn once)
+const tm_page = (cls, cur, body) => `<div class="dash wload${/*html-ok*/ cls /* a fixed class from the callers */}">${/*html-ok*/ ab2_tabs(cur) /* built from esc() / tr() */}${/*html-ok*/ tabh_keep('team', body) /* the tab's page, drawn from escaped parts */}</div>`;
+const tm_wait = (cls, cur) => `<div class="dash wload${/*html-ok*/ cls /* a fixed class from the callers */}">${/*html-ok*/ ab2_tabs(cur) /* built from esc() / tr() */}${/*html-ok*/ tabh_held('team') || `<p class="muted lempty">${tr('Loading…')}</p>` /* the kept page, drawn before from escaped parts */}</div>`;
+const tm_fail = (cls, cur, txt) => (tabh_drop('team'), `<div class="dash wload${/*html-ok*/ cls /* a fixed class from the callers */}">${/*html-ok*/ ab2_tabs(cur) /* built from esc() / tr() */}<div class="empty">${esc(txt)}</div></div>`);
 // ---- 2.543.0 (#4606): "All workspaces" with more than one area of the shown tab: Workload, Absences and Disposition show the
 // overview of the areas (areas.js spo_html, like Knowledge and the file store) instead of a picker or silently one area; a tap
 // opens #workload/s/<space> (the three tabs keep it), the path above it leads back. A workspace chosen = as before.
@@ -403,10 +409,10 @@ function ab2_dayHint(a) {
 document.addEventListener('click', e => {
   const a = e.target.closest?.('[data-act="ab2-tab"]'); if (!a || a.disabled) return;
   e.preventDefault(); e.stopPropagation();
-  WLV.tab = a.dataset.v; const el = $('#view'); if (el) setHtml(el, viewWorkload());
+  tabh_arm('team'); WLV.tab = a.dataset.v; const el = $('#view'); if (el) keepFocus(el, () => setHtml(el, viewWorkload()));  // #7398: morphed (the tab row stays), the last tab's content waits dimmed
 });
-window.ab2_view = () => { ld_later('team'); return `<div class="dash wload ab2">${ab2_tabs('abs')}<p class="muted lempty">${tr('Loading…')}</p></div>`; };
-window.dp_view = () => { ld_later('team'); return `<div class="dash wload dp">${ab2_tabs('dispo')}<p class="muted lempty">${tr('Loading…')}</p></div>`; };
+window.ab2_view = () => { ld_later('team'); return tm_wait(' ab2', 'abs'); };
+window.dp_view = () => { ld_later('team'); return tm_wait(' dp', 'dispo'); };
 // assigning: the warning when the person is away (absence.js) - only where it can apply, so a solo user loads nothing
 window.ab2_warnAssign = (uid, t) => { if (uid && collab() && (t?.due || t?.plan_start)) loadModule('team').then(() => ab2_warnAssign(uid, t), () => {}); };
 // the notification row "leave" (account.js matrix): a new request (admins), the decision on my own

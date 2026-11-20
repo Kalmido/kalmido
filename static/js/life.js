@@ -395,7 +395,7 @@ function viewReview() {
   const label = !r ? '' : r.from === r.to ? fmtDayAbs(r.from) : fmtDayAbs(r.from) + ' – ' + fmtDayAbs(r.to);
   const nav = `<span class="fwnav"><button type="button" class="iconbtn" data-act="rv-move" data-d="-1" aria-label="${esc(RV.period === 'week' ? tr('Previous week') : tr('Previous day'))}" title="${esc(RV.period === 'week' ? tr('Previous week') : tr('Previous day'))}">${ic('left', 's')}</button><b class="rvlab" aria-live="polite">${esc(label)}</b><button type="button" class="iconbtn" data-act="rv-move" data-d="1" aria-label="${esc(RV.period === 'week' ? tr('Next week') : tr('Next day'))}" title="${esc(RV.period === 'week' ? tr('Next week') : tr('Next day'))}">${ic('right', 's')}</button>${RV.date !== today() ? `<button type="button" class="btn sm" data-act="rv-today">${tr('Today')}</button>` : ''}</span>`;
   const head = `<div class="dashhead rvhead">${seg}${nav}<span class="spacer"></span>${lyCustomBtn('review')}</div>`;  // 2.43.0 (#1452)
-  if (!r) return `<div class="dash review">${head}<p class="muted lempty">${tr('Loading…')}</p></div>`;
+  if (!r) return `<div class="dash review">${head}${/*html-ok*/ tabh_held('review') || `<p class="muted lempty">${tr('Loading…')}</p>` /* the kept cards, drawn before from escaped parts */}</div>`;  // #7398 (render.js tabh_*): a period switch keeps the last cards, dimmed, until the new review is there
   const li = (arr, f) => arr.length ? `<ul class="flist">${arr.slice(0, 30).map(f).join('')}</ul>${arr.length > 30 ? `<p class="muted">${esc(trn('and {0} more', 'and {0} more', arr.length - 30))}</p>` : ''}` : '';
   const tl = x => `<a href="#t/${x.task_id}" class="frow"><span class="ft"><b>${esc(x.title)}</b><span class="muted">${esc(lname(listById(x.list_id)) || '')}</span></span>${x.due ? `<span class="fwhen rvwhen">${esc(dayLabel(x.due))}</span>` : ''}</a>`;  // 2.223.0 B (#2822): the date as in the task list
   const card = (k, icon, title, body, n) => `<section class="dcard fcard lcard rv-${k}" aria-labelledby="rvh-${k}"><h2 id="rvh-${k}">${ic(icon, 's')}<span>${esc(title)}</span><span class="dcn">${n}</span></h2>${body}</section>`;
@@ -408,12 +408,12 @@ function viewReview() {
     <textarea id="rv-text" data-day="${jsel}" rows="6" maxlength="20000" placeholder="${esc(tr('What happened, what went well, what is on your mind?'))}" aria-label="${esc(tr('Journal of {0}', fmtDayAbs(jsel)))}">${esc(je.text)}</textarea>
     <p class="muted rvpriv">${rvPrivHtml(r.journal_sealed)}</p></section>` : rv_org() ? `<p class="muted rvpriv rvorg">${ic('lock', 's')} ${esc(tr('Only you see this review. Your journal stays in Private.'))}</p>` : '';  // 2.398.0 (#3406)
   // 2.43.0 (#1452): the cards are blocks of the view builder (width, height, order, hide at their "…" menu)
-  return `<div class="dash fam review">${head}${lyHtml('review', {
+  return `<div class="dash fam review">${head}${/*html-ok*/ tabh_keep('review', lyHtml('review', {
     done: card('done', 'done', tr('Done'), li(r.done, x => `<li>${tl(x)}</li>`) || `<p class="muted">${tr('Nothing ticked off yet.')}</p>`, r.done.length),
     open: card('open', 'alert', tr('Still open'), li(r.open, x => `<li>${tl(x)}</li>`) || `<p class="muted">${tr('Nothing left over.')}</p>`, r.open.length),
     moved: r.moved.length ? card('moved', 'skip', tr('Moved'), li(r.moved, x => `<li>${tl(x)}</li>`), r.moved.length) : '',
     next: card('next', 'cal', tr('Coming up'), li(r.next, x => `<li>${tl(x)}</li>`) || `<p class="muted">${tr('Nothing due in the next seven days.')}</p>`, r.next.length),
-    ...(r.journal || rv_org() ? {journal} : {})})}</div>`;
+    ...(r.journal || rv_org() ? {journal} : {})})) /* the view builder's blocks, built from esc() / tr() */}</div>`;
 }
 // ---- 2.140.0 C (#2133): the journal history: all entries (newest first), search, mood filter, export, mood statistics
 const JH = {q: '', mood: 0, days: 30, from: '', to: '', items: [], next: null, loaded: false, loading: false, stats: null, seq: 0, t: null, sealed: null};
@@ -438,14 +438,14 @@ function jhListHtml() {
 function jhStatsHtml() {
   const s = JH.stats;
   const seg = `<div class="seg" role="radiogroup" aria-label="${esc(tr('Period'))}">${[30, 90, 365].map(n => `<button type="button" role="radio" data-act="rv-hdays" data-n="${n}" class="${JH.days === n ? 'on' : ''}" aria-checked="${JH.days === n}">${esc(trn('{0} day', '{0} days', n))}</button>`).join('')}</div>`;
-  if (!s) return seg + `<p class="muted lempty">${tr('Loading…')}</p>`;
-  if (!s.rated) return seg + `<p class="muted lempty">${tr('No moods in this period.')}</p>`;
+  if (!s) return seg + (tabh_held('jhstats') || `<p class="muted lempty">${tr('Loading…')}</p>`);  // #7398: a period switch keeps the last statistics, dimmed
+  if (!s.rated) return seg + tabh_keep('jhstats', `<p class="muted lempty">${tr('No moods in this period.')}</p>`);
   const mx = Math.max(1, ...Object.values(s.dist));
   const bars = MOODS.map(([v, e, w]) => `<div class="jhbar" title="${esc(tr(w))}"><span aria-hidden="true">${e}</span><span class="jhtrack"><i style="width:${Math.round(100 * s.dist[v] / mx)}%"></i></span><span class="mono">${s.dist[v]}</span></div>`).join('');
   const n = s.series.length, pts = s.series.map((x, i) => [n > 1 ? 8 + 284 * i / (n - 1) : 150, 92 - (x.avg - 1) * 21]);
   const line = `<svg class="jhline" viewBox="0 0 300 100" preserveAspectRatio="none" role="img" aria-label="${esc(tr('Average mood over time'))}"><polyline fill="none" vector-effect="non-scaling-stroke" points="${pts.map(p => p.join(',')).join(' ')}"/>${pts.map(p => `<circle cx="${p[0]}" cy="${p[1]}" r="2.5"/>`).join('')}</svg>`;
   const lab = s.period === 'month' ? tr('Average per month') : tr('Average per week');
-  return `${seg}<p class="jhavg"><b>${fmtNum(s.avg, 1)}</b> <span class="muted">${esc(tr('average of {0} rated days', s.rated))}</span></p><div class="jhbars">${bars}</div><p class="muted jhlab">${esc(lab)}</p>${line}`;
+  return seg + tabh_keep('jhstats', `<p class="jhavg"><b>${fmtNum(s.avg, 1)}</b> <span class="muted">${esc(tr('average of {0} rated days', s.rated))}</span></p><div class="jhbars">${bars}</div><p class="muted jhlab">${esc(lab)}</p>${line}`);
 }
 function viewJournalHist() {
   if (!JH.loaded && !JH.loading) setTimeout(() => { jhLoad(); jhStats(); }, 0);
@@ -476,8 +476,8 @@ async function jhLoad(more) {
   JH.loaded = true; JH.loading = false; jhDrawList();
 }
 async function jhStats() {
-  try { JH.stats = await api('GET', '/api/life/journal/stats?days=' + JH.days); } catch { JH.stats = null; return; }
-  const el = $('#jh-stats'); if (el && RV.period === 'hist') setHtml(el, jhStatsHtml());
+  try { JH.stats = await api('GET', '/api/life/journal/stats?days=' + JH.days); } catch { JH.stats = null; tabh_drop('jhstats'); return; }
+  const el = $('#jh-stats'); if (el && RV.period === 'hist') fl_set(el, jhStatsHtml());  // #7398: morphed - the period row stays the same nodes
 }
 document.addEventListener('input', e => {
   if (e.target.id !== 'jh-q') return;
@@ -573,13 +573,13 @@ document.addEventListener('click', async e => {
   else if (k === 'life-kksync') { a.disabled = true; try { await api('POST', '/api/life/karakeep/sync', {}); toast(tr('Bookmarks are being fetched in the background')); await load(); } catch { /* api() said it */ } a.disabled = false; lifeReload(); }
   else if (k === 'life-touch') { const cr = await careSet(+a.dataset.cid, {last: 'today'}); if (cr) toast(tr('Noted: in touch today')); }
   else if (k === 'life-mods') settingsModal('modules');
-  else if (k === 'rv-period') { RV.period = a.dataset.p; RV.data = null; renderView(); }
+  else if (k === 'rv-period') { tabh_arm('review'); RV.period = a.dataset.p; RV.data = null; renderView(); }  // #7398: the last cards wait dimmed
   else if (k === 'rv-move') { RV.date = addDays(RV.date || today(), (RV.period === 'week' ? 7 : 1) * +a.dataset.d); RV.edit = null; renderView(); $(`#view [data-act="rv-move"][data-d="${a.dataset.d}"]`)?.focus(); }
   else if (k === 'rv-today') { RV.date = today(); RV.edit = null; renderView(); }
   else if (k === 'rv-hopen') { RV.period = 'day'; RV.date = a.dataset.day; RV.edit = a.dataset.day; RV.data = null; renderView(); }
   else if (k === 'rv-hmore') jhLoad(true);
   else if (k === 'rv-hmood') { JH.mood = +a.dataset.v; renderView(); jhLoad(); }
-  else if (k === 'rv-hdays') { JH.days = +a.dataset.n; JH.stats = null; renderView(); jhStats(); }
+  else if (k === 'rv-hdays') { tabh_arm('jhstats'); JH.days = +a.dataset.n; JH.stats = null; renderView(); jhStats(); }
   else if (k === 'rv-jday') { RV.edit = a.dataset.day; renderView(); $(`#view [data-act="rv-jday"][data-day="${a.dataset.day}"]`)?.focus(); }
   else if (k === 'rv-mood') {
     const ta = $('#rv-text'), day = ta?.dataset.day; if (!day) return;

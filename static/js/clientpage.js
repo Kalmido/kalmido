@@ -151,7 +151,8 @@ function ms_clView() {
   // #7399: while another client loads, the card on screen stays (dimmed, busy) instead of "Loading…"
   const pick = `<div class="ctcard ctnone ctpick muted">${ic('brief')}${tr('Select a client')}</div>`;
   const dim = h => h.replace(/^<(\w+) class="ctcard /, '<$1 aria-busy="true" class="ctcard ctwait ');
-  const was = !d && id && !mob ? MSC.cardHtml && $('#view .msclcard[data-ck]') ? dim(MSC.cardHtml) : $('#view .ctcard.ctpick') ? dim(pick) : '' : '';
+  // #7398: the same client again (its month switched) keeps its card on a phone too
+  const was = !d && id ? MSC.cardHtml && (!mob ? $('#view .msclcard[data-ck]') : $(`#view .msclcard[data-ck="${+id}"]`)) ? dim(MSC.cardHtml) : !mob && $('#view .ctcard.ctpick') ? dim(pick) : '' : '';
   const card = !id ? (mob ? '' : pick)
     : !d ? was || `<div class="ctcard ctnone muted">${tr('Loading…')}</div>`
     : d.error ? `<div class="ctcard ctnone muted">${ic('brief')}${tr('This client does not exist or you cannot see it.')}${mob ? `<a class="btn" href="#clients">${tr('All clients')}</a>` : ''}</div>` : (MSC.cardHtml = ms_clCard(d));

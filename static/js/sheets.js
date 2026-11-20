@@ -171,6 +171,7 @@ function viewSheets() {
   if (!r.sh) return shvOverview(null);
   if (SHV.errFor !== r.sh + ':' + S.v && (!SHV.sh || SHV.sh.id !== r.sh || (SHV.sh._v !== S.v && !SHV.ed))) shvLoad(r.sh);
   const sh = SHV.sh && SHV.sh.id === r.sh ? SHV.sh : null;
+  if (!sh && !(SHV.err && SHV.errFor === r.sh + ':' + S.v)) { const still = tabh_still('sheet'); if (still) return still; }  // #7398: a sheet tab tapped - the last sheet stays in place, dimmed, until the new one is there
   if (!sh) return `<div class="shvwrap"><div class="shvtop"><a class="btn sm" href="#sheets" data-navup>${ic('back', 's')}${tr('Tables')}</a></div><p class="muted lempty" role="status">${SHV.err && SHV.errFor === r.sh + ':' + S.v ? esc(SHV.err) : tr('Loading…')}</p></div>`;
   if (sh.kind === 'pivot') { if (typeof spv_html === 'function') return spv_html(sh); ld_later('sheetpivot'); return `<p class="muted lempty" role="status">${tr('Loading…')}</p>`; }  // 2.671.0 (#3463 b): sheetpivot.js
   return shvSheetHtml(sh);
