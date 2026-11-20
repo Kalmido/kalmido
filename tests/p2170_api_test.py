@@ -302,11 +302,15 @@ check(not task_by("After removing"), "a removed address is dead")
 A.post(B + "/api/tasks", json={"title": "Call the tax office", "list_id": P, "due": time.strftime("%Y-%m-%d")})
 A.patch(B + "/api/settings", json={"digest_mail": "1", "digest_time": "00:00"})
 out = os.path.join(DATA, "mail", "out.jsonl")
-mails = until(lambda: [json.loads(x) for x in open(out)] if os.path.exists(out) else [], 30)
+# the security mails of #6354 (a new API token above) share the stub: count only the other mails
+def _plain():
+    return [m for m in (json.loads(x) for x in open(out))
+            if "A new API token" not in m["raw"]] if os.path.exists(out) else []
+mails = until(_plain, 30)
 check(mails and mails[0]["to"] == ["alice@example.test"] and "Call the tax office" in mails[0]["raw"] and "Today" in mails[0]["raw"], f"the daily summary by mail {mails[:1]}")
 time.sleep(3)
-check(len([json.loads(x) for x in open(out)]) == 1, "once a day")
-check(A.post(B + "/api/me/mail/test").ok and len(open(out).readlines()) == 2, "Send now")
+check(len(_plain()) == 1, "once a day")
+check(A.post(B + "/api/me/mail/test").ok and len(_plain()) == 2, "Send now")
 check(Bo.post(B + "/api/me/mail/test").status_code == 409, "without an e-mail address: 409")
 
 # ================================================================== #475 the dashboard setting
