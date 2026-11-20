@@ -18,7 +18,7 @@ if (!process.env.P2351B_NOSTART) execFileSync('bash', [path.join(__dirname, 'sta
 let CK;
 const call = async (method, url, body, ck = CK) => { const r = await fetch(B + url.replace(/^\//, ''), {method, headers: {...H, Cookie: ck}, body: body ? JSON.stringify(body) : undefined}); return {...(await r.json().catch(() => ({}))), http: r.status}; };
 const until = (fn, n) => require('./boot').until(fn, {timeout: n ? n * 150 : 15000, step: 150});  // 2.358.0 (#3286): the shared wait of tests/boot.js (default at least 15 s); an explicit n/ms keeps its window
-const rowOf = (d, txt) => [...d.querySelectorAll('#side .sbbt')].find(r => r.querySelector('.sbbtn .n')?.textContent === txt);
+const rowOf = (d, txt) => [...d.querySelectorAll('#side .ctfpanel .sbbt')].find(r => r.querySelector('.sbbtn .n')?.textContent === txt);  // #7387: the folders' part (the office's entries per office stand above it under "All")
 const menuItems = d => [...d.querySelectorAll('#pop:not(.hidden) [role="menuitem"] .ml')].map(x => x.textContent);
 function dnd(w, from, to, y) {  // a mouse drag of node from onto node to at height y (0..1) of it
   to.getBoundingClientRect = () => ({top: 100, height: 20, left: 0, width: 200, right: 200, bottom: 120});
