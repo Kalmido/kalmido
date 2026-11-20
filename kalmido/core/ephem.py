@@ -125,6 +125,11 @@ def eph_drop(ns, key):
     _run(lambda c, now: c.execute("DELETE FROM eph_state WHERE ns=? AND k=?", (ns, eph_hash(ns, key))).rowcount, 0)
 
 
+def eph_drop_uid(ns, uid):
+    """#6498: every row of account uid in ns (a reset / a new password ends the open sign-in tickets of the account)."""
+    _run(lambda c, now: c.execute("DELETE FROM eph_state WHERE ns=? AND uid=?", (ns, uid)).rowcount, 0)
+
+
 def eph_count_up(ns, key):
     """Counter of a live row plus one: the new count (None = no live row). Atomic: two wrong codes at once count two."""
     def fn(c, now):

@@ -617,7 +617,8 @@ fieldset[disabled] .rowgrip{cursor:auto}
 .wev b{font-weight:600;font-size:var(--fs-xs);color:var(--text2)}
 
 /* timeline */
-.tl{--tl-name:10.625rem;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.tl{--tl-name:var(--g-tl-name,10.625rem);position:relative;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}  /* #7308: the grip's width (timeline.js tl_nameGrip) */
+.tlngrip{position:absolute;top:0;left:calc(var(--tl-name) - .3125rem);z-index:4}
 .tl-row{display:flex;height:2.75rem;border-bottom:1px solid var(--line)}
 .tl-name{position:sticky;left:0;z-index:3;flex:0 0 var(--tl-name);width:var(--tl-name);background:var(--bg2);padding:0 .625rem;display:flex;align-items:center;font-size:var(--fs-m);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-right:1px solid var(--line);cursor:pointer}
 .tl-name:hover{color:var(--accent)}
@@ -688,6 +689,7 @@ fieldset[disabled] .rowgrip{cursor:auto}
   @media (max-width:23rem){ .week:not(.oneday) .wad .ev{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} }  /* 2.458.0 (#3855): the narrow columns of a phone: cut with "…", no break inside a word */
   .wbody{height:calc(100dvh - 18.75rem)}
   .tl{--tl-name:6.75rem}
+  .tlngrip{display:none}  /* #7308: phones keep the narrow name column */
   .tl-name{font-size:var(--fs-s);padding:0 .375rem}
   .featgrid{grid-template-columns:1fr}
   #mbar{left:.625rem;right:.625rem;width:auto;margin:0;justify-content:space-between}
@@ -1569,7 +1571,7 @@ div.calerr{font-size:var(--fs-s);padding:.25rem 0}
 /* Settings > Data > Import (package C) */
 
 /* ---- roadmap (D3): "All" as a timeline. Rows are absolutely placed (virtualised) at a fixed height (--rh) */
-.tl.rm{--tl-name:13rem}
+.tl.rm{--tl-name:var(--g-rm-name,13rem)}
 .tl.rm .tl-track{background-size:var(--grid) 100%}
 .tl.rm .tl-bar{top:.3125rem;height:calc(var(--rh) - .625rem)}
 .rm-hname{font-size:var(--fs-xs);color:var(--faint);cursor:default}
@@ -5162,7 +5164,7 @@ a.nitem.ndm{text-decoration:none;color:inherit}
 
 /* ---------- 2.30.0 (#1035 #380): text file viewer (Markdown / source), Markdown tables, quotes, rules ---------- */
 .lightbox.tview{padding:2rem}
-.tvbox{display:flex;flex-direction:column;width:min(56rem,100%);max-height:100%;background:var(--bg2);color:var(--text);border-radius:var(--r-l);box-shadow:var(--shadow);overflow:hidden}
+.tvbox{position:relative;display:flex;flex-direction:column;width:min(var(--g-pv-text-w,56rem),100%);max-height:100%;background:var(--bg2);color:var(--text);border-radius:var(--r-l);box-shadow:var(--shadow);overflow:hidden}
 .tvbar{display:flex;align-items:center;gap:.375rem;padding:.5rem .5rem .5rem 1rem;border-bottom:1px solid var(--line);flex:none}
 .tvname{display:flex;flex-direction:column;min-width:0;flex:0 1 auto}
 .tvname b{font-size:var(--fs-b);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -5178,6 +5180,7 @@ a.nitem.ndm{text-decoration:none;color:inherit}
 @media (max-width:767px){
   .lightbox.tview{padding:0}
   .tvbox{width:100%;max-height:none;height:100%;border-radius:0;padding-top:var(--safe-t)}
+  .tvbox > .grip-c{display:none}  /* #7310: phones keep the full-screen window */
   .tvbar{flex-wrap:wrap;padding:.375rem .375rem .375rem .875rem}
   .tvbar .iconbtn{padding:.625rem}
   .tvseg{order:9;margin:0 0 .25rem}

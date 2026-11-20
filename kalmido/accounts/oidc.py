@@ -742,6 +742,20 @@ def oidc_reauth(c, b):
     return _reauth(u, b)
 
 
+def creator_reauth(c, b):
+    """#6499 (decision 16.11.2026): a new way into the account (an API token or wider rights for one, an app password, an agent
+    or its new token, a setup code, the consent of the hosted MCP access) asks the sign-in once more - this browser's sign-in is
+    fresh (reauth_fresh: at most REAUTH_FRESH_MIN minutes, a password / 2FA / passkey sign-in or the OIDC step-up) or the request
+    carries the current password (403 password_needed without, rate-limited like a login); an account without a password needs
+    the fresh sign-in (403 reauth_needed). The login proxy signs in on every request. An error response or None."""
+    if g.get("auth_via") == "proxy" or g.get("reauth_ok") or reauth_fresh(c):
+        return None
+    e = oidc_reauth(c, b)
+    if e is None:
+        g.reauth_ok = True  # confirmed once in this request (a route that calls another, e.g. the server code -> token_create)
+    return e
+
+
 def _oidc_alert():
     """The security alert of a changed provider setting (the admins' news)."""
     from ..notify.alerts import aa_now

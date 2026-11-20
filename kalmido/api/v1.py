@@ -18,6 +18,7 @@ from ..core.numtext import user_num
 from ..core.db import body, bump, db, err, gsetting, inbox_default, iso, local_now, now_utc, parse_iso, test_seconds, uset, usettings
 from ..accounts.session import _rate_blocked, _rate_fail, _token_hash, FAIL_WINDOW, client_ip, me, rate_ip
 from ..accounts.login import twofa_methods
+from ..accounts.oidc import creator_reauth  # #6499
 from ..core.access import collab_all, Denied, list_role, my_inbox, need_collab, need_list, need_task, need_time, time_all, token_lists, live_sql, tvis, vis_search_lids, vis_sql  # 2.955.0 (#5276): live_sql
 from ..core.serializers import load_tasks, rel_of
 from ..core.objfollow import OFL_WATCHING_SQL, ofl_bells_here  # 2.972.0 (#5285); 2.981.0 (#5287): a project's bell
@@ -668,21 +669,29 @@ def tokens_list():
 
 @app.post("/api/me/tokens")
 def token_create():
-    """{name, scopes: [read, write, admin-read], expires_days: null | 1..3650} -> the token, shown this once."""
+    """{name, scopes: [read, write, admin-read], expires_days: null | 1..3650, password?} -> the token, shown this once.
+    #6499: without the field expires_days the token ends after TOKEN_DAYS_DEFAULT days (null / 0 = never, chosen on purpose);
+    the sign-in is confirmed once more (accounts/oidc.py creator_reauth)."""
     from ..api.scopes import ips_clean, scopes_clean
     need_api()
     b, c = body(), db()
+    e = creator_reauth(c, b)
+    if e:
+        return e
     name = str(b.get("name") or "").strip()[:60]
     if not name:
         return err(tr("Name missing"))
     scopes = scopes_clean(b.get("scopes") or ["read"], g.user)
     ips = ips_clean(b.get("allowed_ips"))
     lids = token_lists_clean(c, b.get("list_ids"))  # 2.30.0 (#919)
-    days = b.get("expires_days")
+    days = b.get("expires_days", TOKEN_DAYS_DEFAULT)  # #6499: a personal token ends after 90 days unless "never" is chosen
     exp = None
     if days not in (None, "", 0):
         exp = iso(now_utc() + timedelta(days=as_int(days, tr("Expiry"), 1, 3650)))
     return token_insert(c, name, scopes, exp, ips, lids)
+
+
+TOKEN_DAYS_DEFAULT = 90  # #6499 (decision 16.11.2026): the expiry of a new personal token without expires_days
 
 
 def token_insert(c, name, scopes, exp, ips, lids):
@@ -701,6 +710,22 @@ def token_insert(c, name, scopes, exp, ips, lids):
     return jsonify({**token_public(c.execute("SELECT * FROM api_tokens WHERE id=?", (tid,)).fetchone()), "token": tok}), 201
 
 
+def _token_wider(c, r, b):
+    """#6499: does PATCH body b give token row r more than it has: a scope it lacks, more projects (none = all) or other
+    addresses (any change of the address list counts, its meaning is not compared)?"""
+    from ..api.scopes import ips_clean, scopes_clean
+    def full(s):  # the legacy umbrella "write" stands for every write scope
+        return set(s) | set(SCOPES_WRITE) if "write" in s else set(s)
+    if "scopes" in b and not full(scopes_clean(b["scopes"], g.user)) <= full(api_scopes(r["scopes"])):
+        return True
+    if "list_ids" in b:
+        old = {x for x in (r["list_ids"] or "").split(",") if x.strip()}
+        new = {x for x in (token_lists_clean(c, b["list_ids"]) or "").split(",") if x.strip()}
+        if old and (not new or not new <= old):
+            return True
+    return "allowed_ips" in b and ips_clean(b["allowed_ips"]) != (r["allowed_ips"] or "")
+
+
 @app.patch("/api/me/tokens/<int:tid>")
 def token_update(tid):
     """2.15.0 (#479): {scopes?, allowed_ips?, name?} -- change what one of my tokens may do (the token itself stays)."""
@@ -710,11 +735,15 @@ def token_update(tid):
     r = c.execute("SELECT * FROM api_tokens WHERE id=? AND user_id=?", (tid, me())).fetchone()
     if not r:
         raise Denied(404)
-    unknown = sorted(k for k in b if k not in ("scopes", "allowed_ips", "name", "list_ids"))
+    unknown = sorted(k for k in b if k not in ("scopes", "allowed_ips", "name", "list_ids", "password"))  # #6499: + the confirmation
     if unknown:
         return err(tr("Invalid value: {0}", ", ".join(unknown)))
     if "docs:upload" in api_scopes(r["scopes"]) and ("scopes" in b or "list_ids" in b):  # 2.207.0 A (#2763): a scan inbox stays upload-only
         return err(tr("A scan inbox key only uploads documents; its permissions cannot be changed"))
+    if _token_wider(c, r, b):  # #6499: wider rights for a token confirm the sign-in once more (a name or narrower rights do not)
+        e = creator_reauth(c, b)
+        if e:
+            return e
     if "scopes" in b:
         c.execute("UPDATE api_tokens SET scopes=? WHERE id=?", (",".join(scopes_clean(b["scopes"], g.user)), tid))
     if "allowed_ips" in b:

@@ -42,6 +42,7 @@ from ..accounts.colors import ACCOUNT_COLORS
 from ..calendars.subscriptions import _CalHTTPConnection, _CalHTTPSConnection, _cal_connector, cal_allow, cal_host_allowed, cal_ip_public, CalError
 from ..core.orgcrypt import oc_dec_k, oc_enc_k, OrgCryptError  # 2.149.0 G (#2517): pulled up from functions
 from ..api.common import hit_limit, v1_call, V1Error  # 2.149.0 G (#2517): pulled up from functions
+from .oidc import creator_reauth  # #6499
 
 MSV_MAX = 10                       # accounts per person
 MSV_TIMEOUT = 8                    # s per request to the other server (socket + whole answer)
@@ -742,7 +743,10 @@ def msv_code():
     from ..api.v1 import token_create
     msv_gate()
     b = body()
-    _unknown(b, ("name",))
+    _unknown(b, ("name", "password"))
+    e = creator_reauth(db(), b)  # #6499: a new token confirms the sign-in once more (the client asks the password, servers.js)
+    if e:
+        return e
     nm = _txt(b.get("name"), 40).strip() if isinstance(b.get("name"), str) else ""
     try:
         j = v1_call(token_create, body={"name": f"Kalmido-App: {nm or tr('other server')}"[:60], "scopes": list(MSV_SCOPES)})

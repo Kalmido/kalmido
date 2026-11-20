@@ -35,6 +35,7 @@ from ..accounts.session import (
     _DUMMY_HASH, _rate_fail, _rate_keys, _rate_over, _rate_reset, client_ip, FAIL_WINDOW, login_known, me,
 )
 from ..accounts.login import login_log_ip, login_log_name, RC_ALPHABET
+from ..accounts.oidc import creator_reauth  # #6499
 from ..core.access import acx_lists_sql, collab_all, Denied, ov_role, plists, pvis, task_visible, tvis, WRITE_ROLES, list_state_sql
 from ..core.pages import valid_url
 from ..tasks.validation import (
@@ -513,7 +514,11 @@ def apppw_post():
     g.idem_no_body = True  # (#6558): the app password is shown once, never kept with an idempotency key
     if g.get("auth_via") not in ("session", "proxy"):  # 2.539.0 B (#4375): only from the web app's sign-in, never a token / app password
         raise Denied(403, tr("App passwords are created only in the web app (Settings > Account > App passwords)"))
-    row, pw = apppw_create(db(), g.user, body().get("name"))
+    c = db()
+    e = creator_reauth(c, body())
+    if e:
+        return e
+    row, pw = apppw_create(c, g.user, body().get("name"))
     return jsonify({**row, "password": pw}), 201
 
 

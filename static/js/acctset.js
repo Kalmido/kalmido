@@ -665,6 +665,8 @@ async function tfaDraw(md, j) {
     : tr('Protects your account if your password gets out: after the password, the sign-in also asks for a code from an app on your phone or for a passkey (fingerprint, face or security key).'));
   box.innerHTML = h;
 }
+// #6499: the first second factor ends the other sessions, the own API tokens, app passwords and feed links (accounts/login.py _end_other_sessions)
+const tfaFirstText = j => j.totp || (j.passkeys || []).length ? '' : tr('Switching it on signs you out everywhere else and ends your API tokens, app passwords and calendar feed links.');
 function tfaWire(md) {
   md.addEventListener('click', async e => {
     const b = e.target.closest('[data-tfa]'); if (!b) return;
@@ -673,7 +675,7 @@ function tfaWire(md) {
     b.disabled = true;
     try {
       if (a === 'totp-on') {
-        const pw = await pwPrompt(tr('Set up the authenticator app')); if (!pw) return;
+        const pw = await pwPrompt(tr('Set up the authenticator app'), {text: tfaFirstText(j)}); if (!pw) return;
         const t = await api('POST', '/api/me/2fa/totp', {password: pw.password});
         const res = await new Promise(done => {
           const m = modal(`<h3>${tr('Set up the authenticator app')}</h3><form class="totpform">${totpSetupHtml(t)}<div class="aerr" role="alert" id="totp-err"></div>
@@ -702,7 +704,7 @@ function tfaWire(md) {
         await rcModal(r.recovery_codes); await tfaDraw(md, r);
       }
       if (a === 'pk-add') {
-        const pw = await pwPrompt(tr('Add a passkey')); if (!pw) return;
+        const pw = await pwPrompt(tr('Add a passkey'), {text: tfaFirstText(j)}); if (!pw) return;
         const o = await api('POST', '/api/me/passkeys/options', {password: pw.password});
         let cred;
         try { cred = await pkCreate(o); } catch (x) { toast(pkErr(x)); return; }

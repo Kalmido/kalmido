@@ -50,6 +50,8 @@ SEC_EVENTS = {
     "2fa_on": (N_("Two-factor sign-in was switched on"), N_("Sign-in codes from an authenticator app were switched on for your account {0}.")),
     "token_new": (N_("A new API token"), N_("The API token “{1}” was created for your account {0}. Scripts and apps can use your account with it.")),
     "apppw_new": (N_("A new app password"), N_("The app password “{1}” was created for your account {0}. Calendar and contacts apps can read your data with it.")),
+    # #6498: the right password, a wrong second factor (from the 3rd try from an unknown address, and at the day's ceiling)
+    "2fa_fail": (N_("Someone knows your password"), N_("Your account {0} was signed in to with the right password but a wrong second factor: {1} wrong tries in 24 hours, the last from address {2}.")),
     "agent_token_new": (N_("A new token for your agent"), N_("A new access token was created for your agent “{1}” (account {0}). The agent works in your name with it.")),
 }
 SEC_NOT_ME = N_("If that was not you: change your password right away and tell an admin.")

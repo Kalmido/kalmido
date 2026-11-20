@@ -1994,7 +1994,7 @@ function agModal(a, done, o = {}) {
       if (!a || un !== a.username) body.username = un;
       const avk = avBox.dataset.pick; if (avk) body.avatar_preset = avk === 'none' ? null : avk;
       b.disabled = true; show('');
-      const r = await calReq(a ? 'PATCH' : 'POST', a ? `/api/admin/agents/${a.id}` : '/api/admin/agents', body);
+      const r = await (a ? calReq : reauthReq)(a ? 'PATCH' : 'POST', a ? `/api/admin/agents/${a.id}` : '/api/admin/agents', body);  // #6499
       md.remove(); done && done(); load().then(render).catch(() => {});
       if (!a && !r.webhook_secret) av_setupOffer(r, `/api/admin/agents/${r.id}`, r.token);  // 2.46.6 (#1709): a polling team agent: set it up now
       else if (!a) secretModal(tr('API token of {0}', r.name), r.token, tr('Copy it now into the agent’s configuration: it is shown only this once.') + (r.webhook_secret ? ' ' + tr('Webhook signing secret: {0}', `<code class="topic">${esc(r.webhook_secret)}</code>`) : '') + ' ' + tr('Then share projects with the agent (project dialog > Sharing).'));

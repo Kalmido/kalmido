@@ -21,6 +21,7 @@ from ..core.config import app, COOKIE
 from ..core.i18n import tr
 from ..core.db import db, err, iso, now_utc
 from ..accounts.session import _token_hash, me
+from ..core.ephem import eph_drop_uid  # #6498
 
 SES_TOUCH = 300  # s: last activity is written at most this often per session
 SES_UA_MAX = 200
@@ -80,13 +81,21 @@ def ses_end(c, uid, hashes=None, keep=None):
     return len(rows)
 
 
+SES_ACCESS_END = []  # #6498 #6499: fn(c, uid) of higher layers run by ses_access_end always (docs/scankeys.py sk_revoke_all)
+
+
 def ses_access_end(c, uid, tokens=True):
     """(#6354): what a new password ends besides the sessions - one place for the own change (PATCH /api/me), the admin's
     reset (PATCH /api/users/<id>) and the reset link (invite.py); the callers end the scan inbox keys first (docs/scankeys.py
-    sk_revoke_all, 2.237.0 C #2865). With tokens (the dialog's tick, 2.539.0 B #4375; a reset always) the app passwords, the person's own API tokens (an agent's
+    sk_revoke_all, 2.237.0 C #2865; since #6499 through SES_ACCESS_END). With tokens (the dialog's tick, 2.539.0 B #4375; a reset always) the app passwords, the person's own API tokens (an agent's
     tokens belong to the agent's account: they stay, 2.360.0 A #2496), the task feed link (users.ical_token_hash), the event
     calendar and absences feed links (ev_cal_feeds, abs_cal_feeds) and the upload token (users.drop_token_hash): someone who
-    was in a session once must not keep reading or writing through a link made then. The caller commits."""
+    was in a session once must not keep reading or writing through a link made then. The caller commits.
+    #6498: always (also without tokens) the account's open sign-in tickets end (the second step or the enrolment begun with
+    the old password, ns pend of core/ephem.py)."""
+    eph_drop_uid("pend", uid)
+    for fn in SES_ACCESS_END:  # the scan inbox keys and receipt fetchers (docs/scankeys.py), also without tokens
+        fn(c, uid)
     if not tokens:
         return
     c.execute("DELETE FROM app_passwords WHERE user_id=?", (uid,))

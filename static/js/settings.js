@@ -689,7 +689,7 @@ function agSetupWire(md) {
         const un = $('#myag-user', md).value.trim().toLowerCase(); if (!un) { need($('#myag-user', md)); return; }
         if (userNameBad(un)) { toast(userNameBad(un)); need($('#myag-user', md)); return; }  // 2.28.0 (#926)
         b.disabled = true;
-        const r = await api('POST', '/api/my/agents', {username: un, display_name: $('#myag-name', md).value.trim(), provider: $('#myag-prov', md)?.value.trim() || ''});
+        let r; try { r = await reauthReq('POST', '/api/my/agents', {username: un, display_name: $('#myag-name', md).value.trim(), provider: $('#myag-prov', md)?.value.trim() || ''}); } catch (x) { toast(errText(x, tr('The change could not be saved'))); throw x; }  // #6499 (integrations.js)
         av_setupOffer(r, `/api/my/agents/${r.id}`, r.token);  // 2.46.6 (#1709): set it up now; the token only on request
         await load(); render();
       }

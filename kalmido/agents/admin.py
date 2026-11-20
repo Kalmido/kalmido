@@ -16,6 +16,7 @@ from ..accounts.pictures import avatar_drop_file, ALL_PRESETS
 from ..accounts.colors import ac_assign
 from ..accounts.orgs import has_workspaces, is_org_admin  # 2.361.4 (#2928)
 from ..accounts.login import seal, unseal
+from ..accounts.oidc import creator_reauth  # #6499
 from ..core.access import Denied, joined_lists_sql, otr_live
 from ..core.serializers import unlink_files
 from ..core.state import visible_lists
@@ -217,6 +218,9 @@ def admin_agent_create():
     need_admin()
     need_api()
     b, c = body(), db()
+    e = creator_reauth(c, b)
+    if e:
+        return e
     if _operator_apart() and ((b.get("owner_id") and b.get("owner_id") != me())
                               or (isinstance(b.get("org_id"), int) and op_foreign_org(c, b["org_id"], grant=False))):
         op_apart_deny()  # 2.399.0 (#2687): hosted: no agent for a client or in a client's organisation by the operator (its token); 2.485.0 (#3939): not even through support access
@@ -448,6 +452,9 @@ def admin_agent_token(aid):
     c = db()
     with system_ctx(c):  # 2.37.0 (#1150): the instance admin manages agent accounts (any organisation; structure, no content)
         need_agent_admin(c, aid, cred=True)  # 2.485.0 (#3939)
+        e = creator_reauth(c, body())
+        if e:
+            return e
         c.execute("DELETE FROM api_tokens WHERE user_id=?", (aid,))
         tok = agent_token_new(c, aid, body().get("expires_days"))
         c.commit()
@@ -775,6 +782,9 @@ def my_agent_create():
     c = db()
     need_person(403, tr("Agents cannot use this endpoint"))
     need_api()
+    e = creator_reauth(c, body())
+    if e:
+        return e
     uid = my_agent_make(c, body())
     tok = agent_token_new(c, uid, name=AGENT_TOKEN_CREATED)
     bump(c)
@@ -961,6 +971,9 @@ def my_agent_token(aid):
     need_api()
     c = db()
     need_own_agent(c, aid)
+    e = creator_reauth(c, body())
+    if e:
+        return e
     c.execute("DELETE FROM api_tokens WHERE user_id=?", (aid,))
     tok = agent_token_new(c, aid, body().get("expires_days"))
     c.commit()
