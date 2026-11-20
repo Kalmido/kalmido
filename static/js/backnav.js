@@ -1,25 +1,50 @@
 // @ts-check
-/* 2.488.0 (#3988): desktop only - a plain Back arrow at the left of the head bar (#top), plus Alt+Left, Cmd+[ and the mouse's
+/* Back and Forward between the views of Kalmido: two arrows right before the bell (#7395), the keys and the mouse buttons.
+   2.488.0 (#3988): a plain Back arrow (since #7395 next to the bell, with Forward), plus Alt+Left, Cmd+[ and the mouse's
    Back button. It is history.back() like the swipe on a phone, but only while there is an earlier view *inside* Kalmido
    (own list of the views visited, never a foreign page or the sign-in); otherwise the arrow is greyed out and the keys do
    nothing (the browser's own jump out of the app is swallowed too, so a browser and the desktop shell behave the same).
    An overlay entry (task panel on touch, shopping mode, job chat, dialogs on touch) counts as "something to go back from":
-   Back closes it first (backclose.js / detail.js handle that popstate), it is not a view of its own. */
-const BN = {i: 0, nt: '', /** @type {Record<number, string>} */ h: {}};  // index of the current view; every history entry of Kalmido carries it as state.bn
+   Back closes it first (backclose.js / detail.js handle that popstate), it is not a view of its own.
+   #7395 (decided 19.11.2026): Back and Forward are two arrows right before the bell (the head bar #kbar on a
+   computer, else #top), the same count of views; Forward while a view after this one was visited in this chain (BN.max; a new
+   view or an overlay cuts it, like the browser); Alt+Right / Cmd+] and the mouse's Forward button. Settings > Appearance
+   "Back and forward arrows in the header" (LOOK_KEYS navArrows): on on computers and tablets, off on phones (the swipe and the
+   system's Back stay there); off = no arrows, the keys still work. The single arrow left of the title is gone. */
+const BN = {i: 0, max: 0, nt: '', /** @type {Record<number, string>} */ h: {}};  // #7395: max = the last view index Forward reaches  // index of the current view; every history entry of Kalmido carries it as state.bn
 // 2.743.0 (#5235): BN.h = the address of each view index visited in this page load (navUp reads the one before)
 const bnHere = () => { BN.h[BN.i] = location.hash.slice(1); };
 const bnOverlay = () => { const s = history.state; return !!(s && (s.f8d || s.jc || s.shop || s.detail)); };
 const bnCan = () => BN.i > 0 || bnOverlay();
+const bnCanFwd = () => BN.i < BN.max && !bnOverlay();  // #7395
 const bnTip = () => isTouch() ? tr('Back') : tr('Back') + ' (' + kbText(IS_MAC ? 'Mod+[' : 'Alt+←') + ')';  // 2.655.0 (#5084)
-function bnBtn() {
-  const t = esc(bnTip());
-  return `<button type="button" class="iconbtn bnback" data-act="nav-back" aria-label="${t}" title="${t}"${bnCan() ? '' : ' disabled'}>${ic('arrowl')}</button>`;
+const bnTipF = () => isTouch() ? tr('Forward') : tr('Forward') + ' (' + kbText(IS_MAC ? 'Mod+]' : 'Alt+→') + ')';
+// #7395: the setting (unset = the device's default: on, a phone off; only a choice that differs from this device's default is kept)
+const bnOn = () => { const v = LS.get('navArrows', null); return typeof v === 'boolean' ? v : !isMobile(); };
+function bnArrowsHtml() {
+  return `<h4>${tr('Navigation')}</h4>
+    <div class="row"><label class="chkl"><input type="checkbox" id="s-navarrows" ${bnOn() ? 'checked' : ''}> ${tr('Back and forward arrows in the header')}</label></div>
+    <div class="shint">${tr('Next to the bell: back to the view before and forward again. Off: the keys Alt+← / Alt+→ (Mac: ⌘[ / ⌘]) still work.')}</div>`;
+}
+document.addEventListener('change', e => {
+  const t = /** @type {any} */ (e.target); if (t?.id !== 's-navarrows') return;
+  e.stopPropagation();
+  setLocal(tr('Back and forward arrows in the header'), bnOn,
+    (/** @type {boolean} */ on) => { if (on === !isMobile()) LS.del('navArrows'); else LS.set('navArrows', on); const c = /** @type {any} */ (document.getElementById('s-navarrows')); if (c) c.checked = on; render(); }, t.checked);
+}, true);
+// the two arrows (#kbar on a computer, #top else: right before the bell); nothing when switched off
+function bnBtns() {
+  if (!bnOn()) return '';
+  return `<span class="bnnav" role="group" aria-label="${esc(tr('Navigation'))}"><button type="button" class="iconbtn bnback" data-act="nav-back" aria-label="${esc(bnTip())}" title="${esc(bnTip())}"${bnCan() ? '' : ' disabled'}>${ic('arrowl')}</button>`
+    + `<button type="button" class="iconbtn bnfwd" data-act="nav-fwd" aria-label="${esc(bnTipF())}" title="${esc(bnTipF())}"${bnCanFwd() ? '' : ' disabled'}>${ic('arrow')}</button></span>`;
 }
 function bnSync() {
-  const el = $('#top [data-act="nav-back"]'); if (!el) return;
-  el.disabled = !bnCan();
+  for (const el of /** @type {any[]} */ ([...document.querySelectorAll('[data-act="nav-back"]')])) el.disabled = !bnCan();
+  for (const el of /** @type {any[]} */ ([...document.querySelectorAll('[data-act="nav-fwd"]')])) el.disabled = !bnCanFwd();
 }
-function bnBack() { if (!isMobile() && bnCan()) history.back(); }
+// btn = the arrow was clicked (also on a phone where it is switched on); the keys and the mouse buttons: computers only
+function bnBack(btn = false) { if ((btn || !isMobile()) && bnCan()) history.back(); }
+function bnFwd(btn = false) { if ((btn || !isMobile()) && bnCanFwd()) history.forward(); }
 // 2.488.0 (#3988, self-review): push or traverse is read from a mark in the entry's own state (state.bn = the view index), not
 // from history.length (it stops growing at 50 entries in Firefox / WebKit, then every new view looked like a step back).
 // The other modules' pushState / replaceState keep their state; the mark rides along. An overlay entry keeps the view index,
@@ -33,6 +58,7 @@ const bnRep = history.replaceState.bind(history);
   history.pushState = (/** @type {any} */ s, /** @type {string} */ t, /** @type {string | URL | null | undefined} */ u) => {
     let h = location.hash; try { h = new URL(u ?? location.href, location.href).hash; } catch { /* keep */ }
     if (h !== location.hash) BN.i++;
+    BN.max = BN.i;  // #7395: a new entry cuts what was ahead (the browser drops it too)
     push(bnKeep(s, BN.i), t, u); bnHere(); setTimeout(bnSync, 0);
   };
 }
@@ -43,11 +69,11 @@ bnHere();
 /** @type {any} */ (window).navigation?.addEventListener?.('navigate', (/** @type {any} */ e) => { BN.nt = e.navigationType || ''; });
 function bnOnNav() {
   const m = bnMark(), rep = BN.nt === 'replace'; BN.nt = '';
-  if (m !== null) BN.i = m;  // back / forward to an entry of Kalmido
-  else { if (!rep) BN.i++; try { bnRep(bnKeep(history.state, BN.i), '', location.href); } catch { /* old browser */ } }  // a new view (location.hash = ...)
+  if (m !== null) { BN.i = m; BN.max = Math.max(BN.max, m); }  // back / forward to an entry of Kalmido
+  else { if (!rep) { BN.i++; BN.max = BN.i; } try { bnRep(bnKeep(history.state, BN.i), '', location.href); } catch { /* old browser */ } }  // a new view (location.hash = ...); #7395: it cuts the views ahead
   bnHere(); bnSync();
 }
-window.addEventListener('popstate', () => { const m = bnMark(); if (m !== null) { BN.i = m; bnHere(); } setTimeout(bnSync, 0); }, true);
+window.addEventListener('popstate', () => { const m = bnMark(); if (m !== null) { BN.i = m; BN.max = Math.max(BN.max, m); bnHere(); } setTimeout(bnSync, 0); }, true);
 // 2.743.0 (#5235): the visible Back arrow of a detail page (contact, client, letter, document, note, team room, wiki page,
 // agent chat) and the "one level up" links (Bookkeeping, Tables, ...) go *up* to their list. Was the view before exactly
 // that list, it is history.back() - so the phone's / browser's Back afterwards leaves the list instead of opening the closed
@@ -71,8 +97,10 @@ const bnField = (/** @type {any} */ t) => !!(t && t.closest && t.closest('input,
 document.addEventListener('keydown', e => {
   if (isMobile() || e.defaultPrevented || e.shiftKey) return;
   const back = (e.key === 'ArrowLeft' && e.altKey && !e.ctrlKey && !e.metaKey) || (e.key === '[' && e.metaKey && !e.altKey && !e.ctrlKey);
-  if (!back || bnField(e.target)) return;
-  e.preventDefault(); bnBack();
+  const fwd = (e.key === 'ArrowRight' && e.altKey && !e.ctrlKey && !e.metaKey) || (e.key === ']' && e.metaKey && !e.altKey && !e.ctrlKey);  // #7395
+  if ((!back && !fwd) || bnField(e.target)) return;
+  e.preventDefault(); if (back) bnBack(); else bnFwd();
 });
-document.addEventListener('mouseup', e => { if (e.button !== 3 || isMobile()) return; e.preventDefault(); bnBack(); });
-for (const ev of ['mousedown', 'auxclick']) document.addEventListener(ev, (/** @type {any} */ e) => { if (e.button === 3 && !isMobile()) e.preventDefault(); });
+// the mouse's Back (3) and Forward (4) buttons; the browser's own step (out of the app too) is swallowed
+document.addEventListener('mouseup', e => { if ((e.button !== 3 && e.button !== 4) || isMobile()) return; e.preventDefault(); if (e.button === 3) bnBack(); else bnFwd(); });
+for (const ev of ['mousedown', 'auxclick']) document.addEventListener(ev, (/** @type {any} */ e) => { if ((e.button === 3 || e.button === 4) && !isMobile()) e.preventDefault(); });

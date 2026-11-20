@@ -115,7 +115,7 @@ const ACCENTS = ['petrol', 'violet', 'raspberry',  // 2.300.0 (#3198): petrol de
   check(/^Deleted · Undo/.test(d.getElementById('srlive').textContent), 'with its Undo');
   // dialogs: role, name, focus inside, Tab kept inside, focus back
   // 2.660.0 (#3799): jsdom 30 applies the CSS to focus(): the first header button that really takes the focus (one hidden at this width does not)
-  const opener = [...d.querySelectorAll('#top button:not(:disabled):not(.bnback)')].find(b => { b.focus(); return d.activeElement === b; });  // 2.488.0 (#3988): the Back arrow is greyed out here (not focusable)
+  const opener = [...d.querySelectorAll('#top button:not(:disabled):not(.bnback):not(.bnfwd)')].find(b => { b.focus(); return d.activeElement === b; });  // 2.488.0 (#3988): the Back arrow is greyed out here (not focusable)
   check(opener && d.activeElement === opener, '#3799: a visible header button holds the focus before the dialog');
   w.eval(`listModal(${L})`); await sleep(250);
   let md = [...d.querySelectorAll('.modal')].pop();
