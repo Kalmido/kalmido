@@ -637,11 +637,13 @@ def client_update(cid):
             h6c_client_move_ok(c, uid, need_client(c, cid, uid))
             if f["org_id"] is None and old["created_by"] != uid:  # #7317: "Private" is its creator's area (pb_cl_sql), never the mover's
                 raise Denied(403, tr(CL_PRIVATE_OWN))
+            if old["org_id"] and not is_org_admin(c, uid, old["org_id"]) and not (f["org_id"] is None and oo_grant(c, old["org_id"], "clients", cid, uid)):
+                # the right first (org_out below uses the release up); #7408: also before the finalised documents' 409,
+                # so a member without the right learns nothing of the office
+                raise oo_denied(c, old["org_id"], f["org_id"] or None, "clients", cid, uid)
             if cl_locked_docs(c, cid):  # 2.126.0 A (#1979 F7): its finalised documents keep it; 2.148.1 B (#2484): also a personal office's
                 raise Denied(409, tr("Finalised documents of this organisation refer to this client, so it stays here. “Move to another workspace…” in the office takes a copy along.")
                              if old["org_id"] else tr(CL_LOCKED_PRIVATE))
-            if old["org_id"] and not is_org_admin(c, uid, old["org_id"]) and not (f["org_id"] is None and oo_grant(c, old["org_id"], "clients", cid, uid)):
-                raise oo_denied(c, old["org_id"], f["org_id"] or None, "clients", cid, uid)  # the right first (org_out below uses the release up)
             live = cl_live_refs(c, cid, old)
             if live:  # #7317: drafts, requests, letters, contracts, series of its office would keep a client that is not there any more
                 raise Denied(409, tr(CL_LIVE_STAYS, ", ".join(tr(x) for x in live)), data={"code": "client_in_use", "what": live})

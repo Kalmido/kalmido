@@ -122,8 +122,11 @@ SETTINGS_DEFAULTS = {"pack": "DE", "company": {"name": "", "lines": [], "contact
                      # 2.113.1 (#2251): day rate and factor of "share by amount" (an industry pack's option); None = the
                      # pack's values. prod_quotient / producing_rate above keep their old meaning for older documents
                      "share_rate": None, "share_factor": None,
-                     # 2.47.3 (#1360): small business (section 19 UStG): new documents without VAT + the note (also orgs)
-                     "small_business": 0,
+                     # (#1360): small business (section 19 UStG): new documents without VAT + the note (also orgs).
+                     # #6533: no default -- None = not chosen yet (counts as no; the card "Set up your office" asks once);
+                     # small_business_from = the day it applies from ("" = always, as before): evaluations of a period before
+                     # it count as before (small_at), the lock of #6475 asks it at the invoice date
+                     "small_business": None, "small_business_from": "",
                      # 2.47.0 (#1216): industry packs switched on (office/packs/industry/<code>.json; "film" = shoot calculation)
                      "industry_packs": [],
                      # 2.47.0 (#1215): an invoice from a quotation with parts: "full" (like the quotation), "title" (the title
@@ -138,8 +141,10 @@ SETTINGS_DEFAULTS = {"pack": "DE", "company": {"name": "", "lines": [], "contact
                      # office/fixedimport.py): on, the person it goes to, the id of the task
                      "cf_check": 0, "cf_check_user": None, "cf_check_task": None,
                      # 2.90.0 A (#1921): bookkeeping light: tax reserve in percent of the net income received (0 = off), VAT
-                     # on payment received ("ist") or on invoicing ("soll") for the VAT return figures
-                     "tax_reserve_pct": 0, "vat_basis": "ist",
+                     # on payment received ("ist") or on invoicing ("soll") for the VAT return figures. #6533: no default ("" =
+                     # not chosen yet; the figures follow the legal rule, accrual "soll", section 13 (1) 1a UStG; cash basis
+                     # needs the tax office's permission, section 20 UStG); offices from before keep "ist" (core/oncesteps.py)
+                     "tax_reserve_pct": 0, "vat_basis": "",
                      # 2.90.0 C (#1922): tax dates as tasks (set only by its own route, office/taxdates.py)
                      "tax_dates": {},
                      # 2.467.0 (#3456): VAT paid to / refunded by the tax office per year (set only by its own route, office/taxforms.py)
@@ -575,6 +580,28 @@ def office_first_invoice(c, oid):
 
 
 # ---------------------------------------------------------------- settings
+def small_at(s, day=None):
+    """#6533: does the small business rule (section 19 UStG) of settings s apply on day (YYYY-MM-DD..., None = today)? The
+    switch alone ("" from) means always, as before; with small_business_from only from that day on."""
+    if not s.get("small_business"):
+        return False
+    f = s.get("small_business_from") or ""
+    return not f or str(day or local_now().date().isoformat())[:10] >= f
+
+
+def small_for(s, start):
+    """#6533: settings s for an evaluation of the period beginning on start (a year, a quarter, a month): small_business as it
+    applies on that day (small_at) -- a period before the day the rule applies from is counted as before. A period the day
+    falls into counts as before too: its documents carry their own VAT (the lock of #6475 asks at each invoice date)."""
+    return {**s, "small_business": 1 if small_at(s, start) else 0}
+
+
+def vat_basis_of(s):
+    """#6533: 'soll' or 'ist' for the VAT figures; not chosen yet = 'soll', the legal rule (section 13 (1) 1a UStG; 'ist'
+    needs the tax office's permission, section 20 UStG)."""
+    return s.get("vat_basis") if s.get("vat_basis") in ("ist", "soll") else "soll"
+
+
 def office_settings(c, oid):
     """The module's settings of organisation oid (dict with every key, defaults from the country pack)."""
     r = c.execute("SELECT data FROM office_settings WHERE org_id=?", (oid,)).fetchone()
@@ -849,6 +876,8 @@ def office_settings_clean(c, oid, b, cur):
             out[k] = v
         elif k == "dunning_grace_days":  # 2.147.1 B (#2054)
             out[k] = int(_num(v, k, 0, 90))
+        elif k == "small_business" and v is None:  # #6533: not chosen yet stays so (an office's own export carries it back)
+            out[k] = None
         elif k in ("subtotals_on", "datev_auto", "producing_on", "raw_on", "small_business", "agents_read", "accept_on", "portal_docs", "sign_offers", "credit_shared"):  # 2.433.0 (#3597): credit_shared  # 2.120.0 B (#2088): portal_docs  # 2.114.4 B (#2270): accept_on  # 2.51.0 A (#1348): agents_read  # 2.40.0 (#1379): the two calculation switches
             out[k] = 1 if v in (1, True, "1", "true") else 0
         elif k.rsplit("_", 1)[0] in CLOSING_BASES:  # 2.460.0 (#3767): every language
@@ -882,8 +911,18 @@ def office_settings_clean(c, oid, b, cur):
             out[k] = dx_settings_clean(v, out.get(k) or {})
         elif k == "tax_reserve_pct":  # 2.90.0 A (#1921): whole percent 0..60
             out[k] = int(round(_num(v, k, 0, 60)))
-        elif k == "vat_basis":  # 2.90.0 A (#1921)
-            if v not in ("ist", "soll"):
+        elif k == "small_business_from":  # #6533: "" or a day YYYY-MM-DD
+            if v is not None and not isinstance(v, str):
+                raise BadInput(tr("Invalid value: {0}", k))
+            v = (v or "").strip()
+            if v:
+                try:
+                    v = date.fromisoformat(v[:10]).isoformat()
+                except ValueError:
+                    raise BadInput(tr("Invalid value: {0}", k)) from None
+            out[k] = v
+        elif k == "vat_basis":  # (#1921) A; #6533: "" = not chosen yet (an office's own export carries it back)
+            if v not in ("ist", "soll", ""):
                 raise BadInput(tr("Invalid value: {0}", k))
             out[k] = v
         elif k == "offer_number_at":

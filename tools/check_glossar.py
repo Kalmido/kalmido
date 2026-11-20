@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """2.757.0 (#5295): every module and script has a line in docs/GLOSSAR.md.
 
-Rule: each kalmido/**/*.py file (except __init__.py and the one-per-task migration fragments in
+Rule: each kalmido/**/*.py file (except __init__.py and the one-per-task fragments in kalmido/core/oncesteps.d/ and
 kalmido/core/migrations.d/) and each static/js/*.js file must appear in docs/GLOSSAR.md as `path` (in backticks, the
 path from the repository root). Exit 1 with the list of the missing ones; entries for files that no longer exist are
 reported too, so the page does not rot. Static: reads files only, imports nothing of the app.
@@ -19,7 +19,7 @@ import sys
 def modules(root):
     out = []
     for base, dirs, files in os.walk(os.path.join(root, "kalmido")):
-        dirs[:] = [d for d in dirs if d not in ("__pycache__", "migrations.d")]
+        dirs[:] = [d for d in dirs if d not in ("__pycache__", "migrations.d", "oncesteps.d")]  # #7445: fragments like migrations.d
         for f in files:
             if f.endswith(".py") and f != "__init__.py":
                 out.append(os.path.relpath(os.path.join(base, f), root).replace(os.sep, "/"))

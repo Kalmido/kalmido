@@ -7,7 +7,8 @@ people only, addresses @example.com.
  - a request (pipeline deal) holds it the same way; the draft and the deal in the trash: the move goes through
  - an admin of the organisation who did not create the client cannot move it into Private (403): there it would be the
    creator's private client; the creator can (released by the admin, #6607)
- - a member without that right gets the 403 before anything of the office is named; only the client's own office counts
+ - a member without that right gets the 403 before anything of the office is named (drafts, and finalised documents, #7408);
+   only the client's own office counts
  - an old case (a client moved before this check, SQL): duplicating its draft is 409, the series of its template invoice
    makes no invoice ("Make now" 409, nothing made)
 tenant-matrix: clients (the organisation's client never lands in another person's private area)
@@ -88,6 +89,17 @@ r = A.post(D, json={"kind": "offer", "client_id": C7})
 check(r.status_code == 201, f"setup: a draft for bob's client {r.status_code}")
 r = Bo.patch(B + f"/api/clients/{C7}", json={"org_id": None})
 check(r.status_code == 403 and "client_in_use" not in r.text and org_of(C7) == ORG, f"no right to take it out: 403 without naming the office's things {r.status_code} {r.text[:200]}")
+# ---- #7408 (reader F4 of job/5793): the same for a FINALISED document - the 403 comes before the 409 that names it
+C8 = client(Bo, "Kunde mit Rechnung von Bob")
+r = A.post(D, json={"kind": "invoice", "client_id": C8, "project_title": "Dreh"})
+check(r.status_code == 201, f"setup: an invoice for bob's client {r.status_code}")
+I8 = r.json()["id"]
+dbx("UPDATE office_docs SET locked_at='2026-11-01T10:00:00', number='RE-7408' WHERE id=?", (I8,))  # finalised (SQL: no company data here)
+r = Bo.patch(B + f"/api/clients/{C8}", json={"org_id": None})
+check(r.status_code == 403 and "Finalised" not in r.text and org_of(C8) == ORG,
+      f"no right to take it out: 403 before the finalised documents' 409 {r.status_code} {r.text[:200]}")
+r = A.patch(B + f"/api/clients/{C8}", json={"org_id": None})
+check(r.status_code == 403 and org_of(C8) == ORG, f"the admin (not the creator) still 403 {r.status_code} {r.text[:200]}")
 # ---- reader F3 (job/5793): only the client's own office counts - an old reference in another office does not hold it
 C5 = A.post(B + "/api/clients", json={"name": "Privater Kunde", "org_id": None}).json()["id"]
 C6 = client(A, "Kunde Sechs")

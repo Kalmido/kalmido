@@ -30,7 +30,7 @@ from .calc import dec, money
 from .homecur import hc_home
 from .abschlag import abs_skonto_rows  # 2.355.0 C (#2840)
 from .euerbasis import eb_income_payment_ids, eb_segments  # 2.603.0 (#4927): the basis of the EUeR per year
-from .model import office_gate, office_need_feature, office_org, office_settings
+from .model import office_gate, office_need_feature, office_org, office_settings, small_for  # #6533: small_for
 from .ledger import ofx_log
 from .oubar import OUB_DATEV_EXP, oub_barrier  # 2.747.0 (#5252): a DATEV export handed out is a barrier of the undo steps
 
@@ -290,7 +290,7 @@ def _case(r, s):
 def dx_rows(c, oid, d_from, d_to, s=None, inside=True, hints_out=None):
     """The booking lines (dicts of DX_COLUMNS names) of the period [d_from, d_to] (ISO dates). 2.120.0 C (#2090): inside =
     with the input side (when switched on in the settings); hints_out (a list) gets its hints."""
-    s = s if s is not None else office_settings(c, oid)
+    s = small_for(s if s is not None else office_settings(c, oid), d_from)  # #6533: the small business rule of the period
     from .bankacc import bka_datev
     st = bka_datev(c, oid, dx_settings(s))  # 2.470.0 (#3596): the ledger account of the default bank account, when it has one
     home = hc_home(s)  # 2.189.0 B (#2475): lines in the home currency (DATEV itself only for EUR, dx_need_eur)

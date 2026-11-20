@@ -152,7 +152,11 @@ const YEAR = new Date().getFullYear();
     // small business + invoice numbers in the head row of Documents & numbers
     await ev(`(() => { ${ROW('biz/docs')}.querySelector('summary').click(); return 1; })()`);
     check(await until(`${ROW('biz/docs')}.open && !!document.querySelector('#os-small')`), 'Dokumente & Nummern opens by a tap');
-    await ev(`(() => { const x = document.querySelector('#os-small'); if (!x.checked) x.click(); const s = document.querySelector('#os-inv-scheme'); s.value = 'RE-{yyyy}-{seq:03}'; s.dispatchEvent(new Event('input', {bubbles: true})); s.dispatchEvent(new Event('change', {bubbles: true})); s.blur(); return 1; })()`);
+    // 2.1458.0 (#6533): small business is a choice without default (select); switching it asks first (the dialog's yes)
+    await ev(`(() => { const x = document.querySelector('#os-small'); if (x.value !== '1') { x.value = '1'; x.dispatchEvent(new Event('change', {bubbles: true})); } return 1; })()`);
+    check(await until(`!!document.querySelector('.cdlg [data-cd="yes"]')`), 'small business: the question before it saves');
+    await ev(`(() => { document.querySelector('.cdlg [data-cd="yes"]').click(); return 1; })()`);
+    await ev(`(() => { const s = document.querySelector('#os-inv-scheme'); s.value = 'RE-{yyyy}-{seq:03}'; s.dispatchEvent(new Event('input', {bubbles: true})); s.dispatchEvent(new Event('change', {bubbles: true})); s.blur(); return 1; })()`);
     check(await until(`api('GET', '/api/office/settings').then(j => !!j.settings && +j.settings.small_business === 1 && j.settings.invoice_scheme === 'RE-{yyyy}-{seq:03}')`), 'the office saved small business and the scheme (each field itself)');
     check(await open(o, 'biz', '.smodal #s-biz #ofc-set #s-biz-docs') && await until(`${ROW('biz/docs')}.querySelector('.sfst').textContent.trim() === 'Kleinunternehmer · RE-${YEAR}-###'`), 'Dokumente & Nummern says "Kleinunternehmer · RE-<year>-###" ' + await ev(`${ROW('biz/docs')}?.querySelector('.sfst')?.textContent`));
     check(await ev(`${ROW('biz/docs')}.open`), 'the group opened by a tap stays open (the person\'s setting)');

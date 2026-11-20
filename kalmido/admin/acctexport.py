@@ -6,7 +6,7 @@ The person (cookie session only: agents and tokens never) starts it in Settings 
 waits UMZ_KEEP_H hours and the watchdog removes it after that. The download is the plain ZIP (the person's own data).
 
 ZIP layout (format "kalmido-account", v 1; admin/acctimport.py reads it):
-    manifest.json      {format, v, kalmido_version, created_at, source: {url, hosted}, user: {id, name, email},
+    manifest.json      {format, v, kalmido_version, created_at, source: {url, hosted, instance}, user: {id, name, email},
                         tables: {name: rows}, files: [{path, size, sha256}], client_encrypted: {...}, export_id, not_included,
                         personal_office: {rows, files} (2.362.2 #3099, only with one)}
     data/<table>.json  one JSON array per table: the tables of GET /api/export.json (accounts/settings.py
@@ -48,7 +48,7 @@ from datetime import timedelta
 from flask import g, jsonify, Response
 
 from ..core.config import app, APP_VERSION, ATT_DIR, PUBLIC_URL, SECRET_KEY
-from ..core.db import connect, db, err, iso, now_utc
+from ..core.db import connect, db, err, gsetting, iso, now_utc  # (#6593): + gsetting
 from ..core.objexport import oex_acct  # 2.1097.0 (#5949): the parts of the core's tables (the export register)
 from ..core.pg import snapshot_level, system_ctx
 from ..core.i18n import N_, lang, tr
@@ -288,6 +288,24 @@ def umz_clean(table, r):
     if table == "webhooks" and "url" in d:
         d["url_hint"] = cal_url_hint(d.pop("url"))  # review N5: a Slack / Teams webhook address is itself the secret
     return umz_export_clean(table, d)
+
+
+UMZ_INST_RE = re.compile(r"[0-9a-f]{32}")
+
+
+def umz_instance(c):
+    """(#6593): the fixed random key of this server (settings instance_key, made once at the start, core/db.py): the manifest's
+    source.instance, so the import tells two servers apart that share an address (two own servers on http://localhost:3040).
+    '' when there is none (a database from before the start that makes it)."""
+    v = gsetting(c, "instance_key")
+    return v if isinstance(v, str) and UMZ_INST_RE.fullmatch(v) else ""
+
+
+def umz_ver(v):
+    """(#6593): a Kalmido version "2.1458.0" as (2, 1458, 0), None for anything else (a test file's "test", a missing VERSION)."""
+    m = re.fullmatch(r"(\d{1,6})\.(\d{1,6})\.(\d{1,6})", v.strip()) if isinstance(v, str) else None
+    t = tuple(int(x) for x in m.groups()) if m else None
+    return t if t and t != (0, 0, 0) else None
 
 
 def umz_email_hash(email, salt=None):
@@ -794,7 +812,7 @@ def umz_build(c, uid, stream, export_id):
         docs = umz_private_docs(c, zf, out, uid, have)  # 2.1334.0 (#6585)
         manifest = {
             "format": UMZ_FORMAT, "v": UMZ_V, "kalmido_version": APP_VERSION, "created_at": iso(now_utc()),
-            "source": {"url": PUBLIC_URL, "hosted": bool(hosted())},
+            "source": {"url": PUBLIC_URL, "hosted": bool(hosted()), "instance": umz_instance(c)},  # (#6593): + instance
             "user": {"id": u["id"], "name": u["display_name"] or u["username"], "email": u["email"] or "",
                      **({"avatar": avatar} if avatar else {})},
             "people_salt": salt,  # 2.239.0 A (#2882): email_hash = HMAC-SHA256 with this key (umz_email_hash)

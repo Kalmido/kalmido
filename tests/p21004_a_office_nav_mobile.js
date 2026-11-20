@@ -32,7 +32,7 @@ const FEAT = 'cal,comments,collab,office,clients';
   check((await call('POST', '/api/users', {username: 'frida', display_name: 'frida', password: 'password123', email: 'frida@example.com', orgs: []})).http < 300, 'user frida');
   const FK = await login('frida');
   await call('PATCH', '/api/settings', {lang: 'en', tour: 'done', features: FEAT}, FK);
-  await call('PUT', '/api/office/settings', {pack: 'DE', company_fields: {name: 'Studio Beispiel', street: 'Hafenstrasse 12', zip: '20457', city: 'Hamburg', country: 'DE', tax_number: '12/345/67890', iban: 'DE02120300000000202051', bic: 'BYLADEM1001', bank_name: 'Beispielbank'}}, FK);
+  await call('PUT', '/api/office/settings', {pack: 'DE', company_fields: {name: 'Studio Beispiel', street: 'Hafenstrasse 12', zip: '20457', city: 'Hamburg', country: 'DE', tax_number: '12/345/67890', iban: 'DE02120300000000202051', bic: 'BYLADEM1001', bank_name: 'Beispielbank'}, small_business: 0, vat_basis: 'soll'}, FK);  // #6533: chosen, so no card "Set up your office" above the list
   const CL = (await call('POST', '/api/clients', {name: 'Beispielkunde AG', street: 'Marktstrasse 5', zip: '50667', city: 'Koeln', country: 'DE'}, FK)).id;
   const Q = (await call('POST', '/api/office/docs', {client_id: CL, project_title: 'Imagefilm'}, FK)).id;
   await call('PUT', `/api/office/docs/${Q}/items`, {items: [{kind: 'service', title: 'Kamera', qty: 2, unit: 'day', rate: 800}]}, FK);
