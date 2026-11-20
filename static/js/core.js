@@ -763,7 +763,8 @@ async function rawFetch0(method, url, body, key, osp, oq) {
   if (r.type !== 'opaqueredirect' && ctype.includes('text/html') && r.status >= 400 && r.status !== 401 && r.status !== 403) { const e = new Error(httpErrText(r.status)); e.status = r.status; e.data = {}; throw e; }
   // 2.359.0 A (#3024): the session ended in the middle of a write: the write and typed text not saved yet go into the queue
   // first (sent after the next sign-in of the same account; another account is asked first), then the page reloads
-  const keepW = () => { if (!oq && method !== 'GET' && queueable(method, url) && !(body instanceof FormData)) outStash([{method, url, body: outPrev(method, url, body), uid: S.me?.id, k: key || outKey()}]);  // (#6332): not an outbox entry (oq), with the key the write was sent with if (typeof savesStash === 'function') savesStash(false); };
+  // (#6332): not an outbox entry (oq), stashed with the key the write was sent with
+  const keepW = () => { if (!oq && method !== 'GET' && queueable(method, url) && !(body instanceof FormData)) outStash([{method, url, body: outPrev(method, url, body), uid: S.me?.id, k: key || outKey()}]); if (typeof savesStash === 'function') savesStash(false); };
   if (r.type === 'opaqueredirect' || ctype.includes('text/html')) {
     if (r.type === 'opaqueredirect' || r.status === 401 || r.status === 403) { keepW(); await authGone(); }  // 2.306.0 B (#2889); N25: not for any other page (captive portal, proxy error): only reload
     location.reload();  // login session expired -> login page
