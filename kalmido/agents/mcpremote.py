@@ -581,6 +581,8 @@ def _token_code(c, cl, f, fail):
     c.execute("UPDATE oauth_codes SET grant_id=? WHERE code_hash=?", (gid, h))
     out = _issue(c, gid, row["agent_id"], cl["name"])
     c.commit()
+    from ..accounts.secmail import sec_agent_token  # (#6354): a new MCP access is told to the person who connected it
+    sec_agent_token(c, row["agent_id"], row["user_id"])
     return _no_store(out)
 
 

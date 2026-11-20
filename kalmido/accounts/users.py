@@ -455,12 +455,8 @@ def user_update(uid):
             return err(tr("Password: at least {0} characters", MIN_PASSWORD))
         c.execute("UPDATE users SET password_hash=? WHERE id=?", (generate_password_hash(pw) if pw else None, uid))
         ses_end(c, uid)  # 2.190.0 A (#1991)
-        # 2.190.0 A (#2496): the app passwords (CalDAV/CardDAV) go too. 2.360.0 A (#2496): and a person's own API tokens
-        # (an agent's tokens belong to the agent's account: they stay)
-        c.execute("DELETE FROM app_passwords WHERE user_id=?", (uid,))
-        c.execute("DELETE FROM api_tokens WHERE user_id IN (SELECT id FROM users WHERE id=? AND COALESCE(kind, 'user')<>'agent')", (uid,))
-        from ..docs.scankeys import sk_revoke_all  # 2.237.0 C (#2865): and the scan inbox keys
-        sk_revoke_all(c, uid)
+        from .sessions import ses_access_end  # (#6354): app passwords, own API tokens, scan keys, feed links, upload token
+        ses_access_end(c, uid)
     if "ntfy_topic" in b:
         topic = str(b["ntfy_topic"] or "").strip()
         if topic and not NTFY_TOPIC_RE.fullmatch(topic):
@@ -818,13 +814,10 @@ def me_update():
         c.execute("UPDATE users SET password_hash=? WHERE id=?", (generate_password_hash(pw), u["id"]))
         tok = request.cookies.get(COOKIE)  # other sessions end, this one stays
         ses_end(c, u["id"], keep=_token_hash(tok) if tok else None)  # 2.190.0 A (#1991): with their push subscriptions
-        from ..docs.scankeys import sk_revoke_all  # 2.237.0 C (#2865): the scan inbox keys go (a new setup code is made)
-        sk_revoke_all(c, u["id"])
         # 2.539.0 B (#4375): the dialog's tick "end all app passwords and API tokens" (set by default); without the field
-        # (API) they end too - the safe default. An agent account's own tokens stay, as with the reset.
-        if b.get("revoke_tokens", True) is not False:
-            c.execute("DELETE FROM app_passwords WHERE user_id=?", (u["id"],))
-            c.execute("DELETE FROM api_tokens WHERE user_id IN (SELECT id FROM users WHERE id=? AND COALESCE(kind, 'user')<>'agent')", (u["id"],))
+        # (API) they end too - the safe default. (#6354): the tick ends the feed links and the upload token too
+        from .sessions import ses_access_end
+        ses_access_end(c, u["id"], tokens=b.get("revoke_tokens", True) is not False)
     bump(c)
     c.commit()
     if "password" in b:  # 2.266.0 (#2963)

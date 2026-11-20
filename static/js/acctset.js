@@ -141,7 +141,8 @@ function accountHtml() {
     <div class="row"><button type="button" class="btn sm" data-act="lt-sigset">${ic('edit', 's')} ${tr('Edit signature…')}</button> <button type="button" class="btn sm" data-act="ofm-sigset">${ic('edit', 's')} ${tr('E-mail signature…')}</button></div>
     <div class="shint">${tr('Greeting, name and picture under your letters (the same dialog as in the Office, Letters).')}</div>` : ''}${''/* 2.365.2 C (#2789) */}
     ${pw ? `<div class="row pwrow"><label for="a-cur">${tr('Password')}</label><input type="text" class="cfhid" hidden tabindex="-1" aria-hidden="true" autocomplete="username" value="${esc(S.me?.username || '')}" readonly><span class="pwcol"><input type="password" id="a-cur" placeholder="${tr('current password')}" aria-label="${esc(tr('current password'))}" autocomplete="current-password"><input type="password" id="a-new" placeholder="${tr('new password')}" aria-label="${esc(tr('new password'))}" autocomplete="new-password"><button class="btn sm" data-acc="pw">${tr('Change')}</button></span></div>${''/* 2.1391.0 (#6130): the two fields one under the other, never cut off */}
-    <div class="featgrid"><label class="wide"><input type="checkbox" id="a-pwrev" checked><span>${tr('End all app passwords and API tokens')}<small class="muted">${tr('Ticked: calendar and contacts apps and scripts must be connected again afterwards (new app password, new token).')}</small></span></label></div>` : ''}
+    <div class="featgrid"><label class="wide"><input type="checkbox" id="a-pwrev" checked><span>${tr('End all app passwords and API tokens')}<small class="muted">${tr('Ticked: calendar and contacts apps and scripts must be connected again afterwards (new app password, new token).')} ${tr('Calendar feed links and the upload token end too; make new ones where you use them.')}</small></span></label></div>
+    <div class="shint">${tr('Passkeys and your own agents keep working after a new password: remove the ones you do not know under Two-factor authentication (below) and under Your agents.')} <button type="button" class="linkbtn" data-acc="pw-agents">${tr('Your agents…')}</button></div>` : ''}${''/* (#6354): the other ways in - the existing lists, no second one */}
     ${tfaHtml()}
     ${typeof sesHtml === 'function' ? sesHtml() : ''}${''/* 2.115.0 B (#2062): active sessions */}${typeof sgvHtml === 'function' ? sgvHtml() : ''}${''/* 2.485.0 (#3939): support access (hosted) */}
     ${e2eHtml()}${''/* 2.42.0 (#828, #909) */}
@@ -455,6 +456,7 @@ function accountWire(md) {
         await api('PATCH', '/api/me', {current_password: $('#a-cur', md).value, password: nw, revoke_tokens: $('#a-pwrev', md)?.checked !== false});  // 2.539.0 B (#4375)
         $('#a-cur', md).value = ''; $('#a-new', md).value = ''; toast(tr('Password changed'));
       }
+      if (a === 'pw-agents') settingsModal('agentsetup');  // (#6354): the own agents' list (pause, new token, delete)
       if (a === 'logout') logout();
       if (a === 'shell-server') { const u = shellServerUrl(); if (u) location.href = u; }  // 2.435.0 B (#3578)
       if (a === 'user-new') userModal(null, () => { drawUsers(); orgsDraw(md); });  // 2.58.0 (#1724): the organisations' member counts follow at once

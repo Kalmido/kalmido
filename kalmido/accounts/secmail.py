@@ -10,6 +10,9 @@ unsubscribe (like the password reset), with a link to Settings > Account (passwo
   disabled        an admin deactivated the account               approved        an admin approved the registration
   orgjoin         2.367.4 (#2974): an organisation invites the account (no warning line, the link opens the app)
   support         2.1350.0 (#6502): the account opened support access to itself  support_org  ... to an organisation
+  passkey_new     (#6354): a passkey was added            2fa_on          app codes were switched on
+  token_new       an own API token was created             apppw_new       an app password was created
+  agent_token_new a token of one of the person's agents was created (to the owner)
 Nothing without outgoing e-mail (MAIL_OUT_ON), for agents or without an address. The mail goes out in the background
 (bgjobs kind "mail:security", one try: never twice; integrations/mail.py registers it) after the request. A new device = a browser (User-Agent) that is not among the last
 SEC_DEVICES of the account (setting sec_devices, hashes only); the first sign-in after the update only stores it."""
@@ -42,6 +45,12 @@ SEC_EVENTS = {
     # 2.1350.0 (#6502): support access was opened from the account (accounts/supportgrant.py sga_mail)
     "support": (N_("Support access opened"), N_("Support access to your account {0} was opened until {1}. You can end it at any time under Settings > Account.")),
     "support_org": (N_("Support access opened"), N_("Your account {0} opened support access to the organisation {1} until {2}. Any admin of the organisation can end it at any time.")),
+    # (#6354): every new way into the account is told too - a passkey made with a stolen password outlives the password change
+    "passkey_new": (N_("A passkey was added"), N_("The passkey “{1}” was added to your account {0}. It signs in without the password.")),
+    "2fa_on": (N_("Two-factor sign-in was switched on"), N_("Sign-in codes from an authenticator app were switched on for your account {0}.")),
+    "token_new": (N_("A new API token"), N_("The API token “{1}” was created for your account {0}. Scripts and apps can use your account with it.")),
+    "apppw_new": (N_("A new app password"), N_("The app password “{1}” was created for your account {0}. Calendar and contacts apps can read your data with it.")),
+    "agent_token_new": (N_("A new token for your agent"), N_("A new access token was created for your agent “{1}” (account {0}). The agent works in your name with it.")),
 }
 SEC_NOT_ME = N_("If that was not you: change your password right away and tell an admin.")
 
@@ -104,6 +113,19 @@ def sec_mail(c, uid, ev, *args, to=None, also=None):
         return True
     except Exception as e:  # noqa: BLE001 - a security mail never breaks the action itself
         print("security mail not queued:", ev, db_log_err(e), flush=True)
+        return False
+
+
+def sec_agent_token(c, aid, uid=None):
+    """(#6354): a new token of agent aid -> mail "agent_token_new" to uid (default: the agent's owner; a team agent without
+    an owner and without uid: nobody). After the commit; never raises."""
+    try:
+        r = c.execute("SELECT a.owner_id, COALESCE(NULLIF(u.display_name, ''), u.username) AS name FROM agents a JOIN users u ON u.id=a.user_id"
+                      " WHERE a.user_id=?", (aid,)).fetchone()
+        to = uid or (r["owner_id"] if r else None)
+        return sec_mail(c, to, "agent_token_new", r["name"] if r else "?") if to else False
+    except Exception as e:  # noqa: BLE001
+        print("security mail not queued: agent_token_new", db_log_err(e), flush=True)
         return False
 
 
