@@ -19744,5 +19744,18 @@
   "Only an open task can be confirmed": "Nur eine offene Aufgabe kann bestätigt werden",
   "Only an open task can be rejected": "Nur eine offene Aufgabe kann abgelehnt werden",
   "Rejecting needs a reason": "Zum Ablehnen braucht es einen Grund",
-  "The text changed since you read it: look at it again, then confirm": "Der Text hat sich geändert, seit du ihn gelesen hast: sieh ihn dir noch einmal an und bestätige dann"
+  "The text changed since you read it: look at it again, then confirm": "Der Text hat sich geändert, seit du ihn gelesen hast: sieh ihn dir noch einmal an und bestätige dann",
+  "Orders to confirm": "Aufträge zum Bestätigen",
+  "Nothing waits for you any more": "Nichts wartet mehr auf dich",
+  "Answer it on its card: it shows what Yes does": "Beantworte sie an ihrer Karte: dort steht, was Ja bewirkt",
+  "Keys: y yes, n no, j next, k back": "Tasten: y ja, n nein, j weiter, k zurück",
+  "Only online": "Nur online",
+  "Open the chat": "Chat öffnen",
+  "Open the target": "Zum Ziel",
+  "Open the task to confirm it": "Öffne die Aufgabe, um sie zu bestätigen",
+  "Waiting for me: next entry": "Wartet auf mich: nächster Eintrag",
+  "Waiting for me: entry before": "Wartet auf mich: Eintrag davor",
+  "Waiting for me: yes (only where an entry has exactly yes and no)": "Wartet auf mich: Ja (nur wo ein Eintrag genau Ja und Nein hat)",
+  "Waiting for me: no (only where an entry has exactly yes and no)": "Wartet auf mich: Nein (nur wo ein Eintrag genau Ja und Nein hat)",
+  "Yes to the one-way step": "Ja zum Einbahn-Schritt"
 }

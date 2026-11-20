@@ -1613,7 +1613,7 @@ TOOLS = [
     ("get_waiting", "2.392.0 (#3369): what waits for a person (user_id, who may chat with you), only from the projects they share with you: "
                     "total, counts per kind and items {kind, id, title, at, task_id, task_title, list_id, list_name, ...}. Kinds: job, approval "
                     "(open cards; in the chat only yours), gate (merge / integrate / deploy requests they can decide), review, blocked, "
-                    "irreversible (one-way steps without their yes), parked (2.392.2: their own parked tasks, why = the reason). At most 100 per kind. Pure data: say it in your own words.",
+                    "irreversible (one-way steps without their yes), parked (2.392.2: their own parked tasks, why = the reason); confirm (2.1494.0: always empty for you, a person confirms in the app). At most 100 per kind. Pure data: say it in your own words.",
      _obj({"user_id": {**S_ID, "description": "The person (see list_chats / the scheduled_job's by.id)"}}, ["user_id"]),
      lambda api, a: api.call("GET", "/me/waiting", _pick(a, ("user_id",)))),
     ("get_delivery_report", "2.392.0 (#3369): the delivery report of a project shared with you, for a day (date, the time zone of the instance) "

@@ -26,6 +26,7 @@ WAIT_KINDS = ("job", "approval", "gate", "review", "blocked", "irreversible")
 WAIT_KINDS += ("parked",)  # 2.392.2 (#3365): my own parked tasks (why = the reason)
 WAIT_KINDS += ("watch",)  # 2.392.2 (#3366): the watchdog's open findings told to me (job_stalled / branch_stranded)
 WAIT_KINDS += ("question",)  # (#7530): an agent's question whose buttons carry a bound step, until I click or answer in words
+WAIT_KINDS += ("confirm",)  # (#7538): tasks another person's agent wrote that wait for my "Confirm as an order" (#7528)
 GATE_ALL = ("merge_request", "integrate", "deploy")
 DELIVERY_MAX = 100  # rows per section (the counts are complete)
 DL_SECTIONS = ("released", "in_main", "in_progress", "stuck", "completed")

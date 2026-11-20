@@ -3298,6 +3298,19 @@ body.in-chat #top{display:none}
 .wcb{display:flex;gap:.375rem;flex-wrap:wrap}
 @media (pointer:coarse){ .wcb .btn,.waitcard .linkbtn,.mwa{min-height:2.75rem} }
 .menu-list .mwait .ml{white-space:normal}
+/* (#7538): working through "Waiting for me" - a computer: list left, entry right; a phone: the entry fills the view */
+.mwsplit{display:grid;grid-template-columns:minmax(16rem,22rem) minmax(0,1fr);gap:1rem;align-items:start}
+.mwsplit .mwl{display:flex;flex-direction:column;gap:.75rem;min-width:0}
+.mwsplit .mwr{position:sticky;top:.5rem;min-width:0}
+.mwg .wcrow.on{background:var(--bg3,var(--bg));border-radius:.5rem}
+.mwg button.mwa{border:0;background:none;padding:0;font:inherit;cursor:pointer}
+.mwp{display:flex;flex-direction:column;gap:.5rem;border:1px solid var(--line2);border-radius:var(--r-l);background:var(--bg2);padding:1rem;outline:none}
+.mwp .mwpt{margin:0;font-size:var(--fs-l);overflow-wrap:anywhere}.mwp .mwph,.mwp .mwpk{font-size:var(--fs-s)}
+.mwp .mwtx{border-left:.1875rem solid var(--line2);padding:.25rem .75rem;overflow-wrap:anywhere}
+.mwp .mwtxc{white-space:pre-wrap;margin-top:.25rem;max-height:40vh;overflow:auto}
+.mwp .mwpb,.mwp .mwpn{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}.mwp .mwpn .spacer{flex:1}
+.mwone .mwp{min-height:60vh}.mwone .mwpn{margin-top:auto}
+@media (pointer:coarse){ .mwp .btn{min-height:2.75rem} }
 /* helper texts behind (i): the button next to its heading / label, the shared tooltip */
 .shint.iisrc{display:none}
 .ib{display:inline-flex;align-items:center;justify-content:center;gap:.25rem;vertical-align:middle;width:1.375rem;height:1.375rem;margin:0 0 0 .25rem;padding:0;border:0;border-radius:50%;background:none;color:var(--muted);cursor:help;flex:none;position:relative}

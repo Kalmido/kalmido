@@ -18,8 +18,14 @@ const panelShows = (d, title) => { const p = d.querySelector('#detail'); return 
 const noPanel = (w, d) => !w.eval('S.sel') && !d.querySelector('#app').classList.contains('detail-open');
 
 async function tapRow(w, d, label, T, title) {
-  const a = await until(() => [...d.querySelectorAll('.mwg a.mwa')].find(x => x.getAttribute('href') === `#t/${T}`));
-  check(!!a, `${label}: the row of the completed task is in the view`);
+  // 2.1494.0 (#7538): the row opens its entry in the view, the entry's link leads to the task
+  const k = await until(() => w.eval(`(S.mw.items || []).filter(x => x.task_id === ${T}).map(mwKey)[0] || ''`));
+  const r = k && await until(() => d.querySelector(`.mwg [data-mw="open"][data-k="${k}"]`) || (d.querySelector(`.mwp[data-k="${k}"]`) && d.querySelector('.mwp a.mwgo')));
+  check(!!r, `${label}: the row of the completed task is in the view`);
+  if (!r) return;
+  if (r.dataset?.mw === 'open') { r.click(); await idle(w); }
+  const a = await until(() => d.querySelector(`.mwp a.mwgo[href="#t/${T}"]`));
+  check(!!a, `${label}: its entry links to the task`);
   if (!a) return;
   a.click();
   check(!!(await until(() => panelShows(d, title))), `${label}: a tap opens the completed task, the panel is not empty: "${d.querySelector('#detail').textContent.slice(0, 80)}"`);
@@ -30,7 +36,7 @@ async function tapRow(w, d, label, T, title) {
   check(w.eval('S.sel') === T && panelShows(d, title), `${label}: it stays open after the next reload`);
   w.eval('closeDetail()'); await idle(w);
   check(noPanel(w, d), `${label}: closes as any other task`);
-  check(!!(await until(() => [...d.querySelectorAll('.mwg a.mwa')].some(x => x.getAttribute('href') === `#t/${T}`))), `${label}: the row stays in the view`);
+  check(!!(await until(() => d.querySelector(`.mwg [data-mw="open"][data-k="${k}"], .mwp a.mwgo[href="#t/${T}"]`))), `${label}: the row (or its entry) stays in the view`);
 }
 
 (async () => {

@@ -1738,7 +1738,9 @@ client". Kalmido writes no prose itself: you get the data and formulate the text
   comment), `gate` (`merge_request`, `integrate`, `deploy`), `review`, `blocked` and `irreversible`, at most 100 per kind, only what
   that person sees and can settle (`blocked`, #7284: tasks with a waiting note, and tasks waiting on another task only when assigned
   to that person). You get only the projects they share with you and, from the chat, only your own cards. A personal
-  token reads its own (leave `user_id` out), within the token's projects.
+  token reads its own (leave `user_id` out), within the token's projects. 2.1494.0 (#7538): the kind `confirm` (tasks another
+  person's agent wrote into a project the person decides, waiting for their *Confirm as an order*) is in `counts` too, but always
+  empty here: the confirmation is a person's step in the app, never a token's or an agent's.
 - **Delivery report of a project** `GET /lists/{id}/delivery-report?date=YYYY-MM-DD` or `?since=<ISO>`, by default the last 24 hours
   (`lang`; MCP `get_delivery_report`, scope read; 2.392.0, #3369). `released` (a tag first seen in the period), `in_main`, `in_progress`,
   `stuck` (`reason`: `branch`, `job`, `waiting`, `blocked`), `completed`, `counts`, `repository` and `markdown` with fixed headings. It

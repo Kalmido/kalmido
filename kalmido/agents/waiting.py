@@ -19,7 +19,8 @@ from ..api.common import v1_args, v1_view
 from ..collab.cchoice import lv_jload, lv_may_decide, lv_state
 from ..collab.comments import user_names
 from ..collab.liste2eguard import le2b_locked_lists
-from ..core.access import Denied, live_sql, task_visible, token_lists, tvis
+from ..core.access import MANAGE_ROLES, Denied, list_roles, live_sql, task_visible, token_lists, tvis
+from ..core.boundyes import by_decider, by_valid
 from ..core.config import app
 from ..core.db import db, inbox_default
 from ..core.objcomments import OCM_TS  # 2.972.0 (#5272): the old time form of a comment
@@ -244,6 +245,37 @@ def _watch(s):
     return out[:WAIT_MAX]
 
 
+def _confirm(s):
+    """(#7538, decision of 20.11.2026): the tasks that wait for uid's "Confirm as an order" (#7528) -- open tasks an
+    agent of someone else (another person's agent, a team agent) wrote into a project uid decides (owner, project admin, an
+    admin: by_decider, the same rule as POST /api/tasks/<id>/confirm), without a valid confirmation. The own agents' tasks stay
+    out (they write on the person's behalf). Sorted by sender, so an agent's bundled proposals stand one after another; then
+    newest first. Never for an agent or a token (by_decider: no decider's yes there, so nothing waits)."""
+    c, uid = s.c, s.uid
+    if s.agent_id is not None:
+        return []
+    u = c.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
+    roles = list_roles(c, uid, s.lids)
+    lids = [x for x in s.lids if roles.get(x) in MANAGE_ROLES or (u and u["is_admin"])]
+    if not lids or not u:
+        return []
+    ql = ",".join(str(int(x)) for x in lids)
+    rows = c.execute(f"""SELECT t.*, l.name AS list_name, l.is_inbox FROM tasks t JOIN lists l ON l.id=t.list_id
+                         JOIN users au ON au.id=t.created_by LEFT JOIN agents ag ON ag.user_id=au.id
+                         WHERE au.kind='agent' AND (ag.owner_id IS NULL OR ag.owner_id<>?) AND t.status=0 AND t.deleted_at IS NULL
+                         AND t.completed_at IS NULL AND t.list_id IN ({ql}) AND {s.vis}
+                         ORDER BY t.created_by, t.id DESC LIMIT {WAIT_SCAN}""", (uid,)).fetchall()
+    rows = [r for r in rows if not by_valid(r, "confirm")]
+    names, out = user_names(c, list({r["created_by"] for r in rows})), []
+    for r in rows:
+        if by_decider(c, r, u):
+            out.append(_item("confirm", r["id"], r["title"], r["created_at"], r, agent_id=r["created_by"],
+                             agent_name=names.get(r["created_by"], "")))
+            if len(out) >= WAIT_MAX:
+                break
+    return out
+
+
 def _no_request_texts(c, items):
     """A list with the lock: what an agent wrote into its request stays out; the task's own title is the cipher the app opens."""
     locked = le2b_locked_lists(c, {x["list_id"] for x in items if x["list_id"]})
@@ -260,7 +292,7 @@ def waiting_for(c, uid, *, agent_id=None):
     s = _Scope(c, uid, agent_id)
     by = {"job": _jobs(s), "approval": sorted(_chat_cards(s) + _comment_cards(s), key=lambda x: x["at"] or "", reverse=True)[:WAIT_MAX],
           "gate": _gates(s), "review": _reviews(s), "blocked": _blocked(s), "irreversible": _irreversible(s), "parked": _parked(s),
-          "watch": _watch(s), "question": _questions(s)}
+          "watch": _watch(s), "question": _questions(s), "confirm": _confirm(s)}
     items = _no_request_texts(c, [x for k in WAIT_KINDS for x in by[k]])
     return {"total": len(items), "counts": {k: len(by[k]) for k in WAIT_KINDS}, "items": items}
 

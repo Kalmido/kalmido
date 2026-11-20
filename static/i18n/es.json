@@ -19744,5 +19744,18 @@
   "Only an open task can be confirmed": "Solo se puede confirmar una tarea abierta",
   "Only an open task can be rejected": "Solo se puede rechazar una tarea abierta",
   "Rejecting needs a reason": "Para rechazar hace falta un motivo",
-  "The text changed since you read it: look at it again, then confirm": "El texto ha cambiado desde que lo leíste: revísalo de nuevo y luego confirma"
+  "The text changed since you read it: look at it again, then confirm": "El texto ha cambiado desde que lo leíste: revísalo de nuevo y luego confirma",
+  "Orders to confirm": "Encargos por confirmar",
+  "Nothing waits for you any more": "Ya no te espera nada",
+  "Answer it on its card: it shows what Yes does": "Respóndela en su tarjeta: allí se ve lo que hace Sí",
+  "Keys: y yes, n no, j next, k back": "Teclas: y sí, n no, j siguiente, k atrás",
+  "Only online": "Solo en línea",
+  "Open the chat": "Abrir el chat",
+  "Open the target": "Ir al destino",
+  "Open the task to confirm it": "Abre la tarea para confirmarla",
+  "Waiting for me: next entry": "Me espera: siguiente entrada",
+  "Waiting for me: entry before": "Me espera: entrada anterior",
+  "Waiting for me: yes (only where an entry has exactly yes and no)": "Me espera: sí (solo si la entrada tiene exactamente sí y no)",
+  "Waiting for me: no (only where an entry has exactly yes and no)": "Me espera: no (solo si la entrada tiene exactamente sí y no)",
+  "Yes to the one-way step": "Sí al paso sin retorno"
 }
