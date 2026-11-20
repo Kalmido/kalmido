@@ -135,3 +135,63 @@ document.addEventListener('click', async ev => {
     case 'deploy': if (e) env_deploy(e.id, {milestone_id: +b.dataset.ms}, e.name); break;
   }
 });
+
+// ------------------------------------------------------------------ (#7537) the stage line of a task
+// On top of a task's panel, in a project with a repository or environments: one line of stages - created, in progress, built
+// (in the default branch), released (version), every environment of the project in its order (Staging, Live ...), done or
+// rejected - the reached ones ticked, the current (last reached) one stressed. Everything is read from what is there (column
+// meaning sk_task, code.build of the repository, a milestone's environments or an environment's current version equal to the
+// task's version, the delivery state, the reopen lines of the history); nothing is stored and nobody sets it by hand. At the
+// current stage: parked / waiting with its reason, "2× back" (reopened twice) and with whom the task lies now. A phone shows
+// the current stage written out and the others as dots; a tap opens every stage with its date.
+const STL_CSS = `.stl{margin:.1rem 0 .35rem;font-size:var(--fs-s)}.stl>summary{list-style:none;cursor:pointer;display:flex;flex-wrap:wrap;align-items:center;gap:.15rem .3rem}
+.stl>summary::-webkit-details-marker{display:none}.stl .stl-s{display:inline-flex;align-items:center;gap:.2rem;color:var(--fg3)}
+.stl .stl-s.d{color:var(--fg2)}.stl .stl-s.c{color:var(--accent);font-weight:600}.stl .stl-s.c.bad{color:var(--danger)}
+.stl .stl-x{color:var(--fg3)}.stl .stl-ex{color:var(--st-wait-t);font-weight:400}.stl .stl-dot{width:.45rem;height:.45rem;border-radius:50%;background:var(--bg4)}
+.stl .stl-s.d .stl-dot{background:var(--fg3)}.stl .stl-s.c .stl-dot{background:var(--accent)}.stl ol{margin:.3rem 0 0;padding-left:1.2rem}
+.stl li.o{color:var(--fg3)}@media (max-width:640px){.stl .stl-s:not(.c) .stl-n,.stl .stl-x{display:none}}`;
+function stl_css() { if (!document.getElementById('stl-css')) { const s = document.createElement('style'); s.id = 'stl-css'; s.textContent = STL_CSS; document.head.appendChild(s); } }
+const stl_ver = v => String(v || '').replace(/^v/i, '').replace(/(\.0)+$/, '');  // 2.151 == 2.151.0 == v2.151.0 (as gitbuild.gb_key)
+// the stages of t: [{k, label, on, at, bad}] (on = reached); null = no line here (no repository, no environment)
+function stl_model(t) {
+  const repo = listRepos(t.list_id).length > 0, d = ENV.d[t.list_id];
+  if (!d || (!d.busy && d.v !== S.v)) setTimeout(() => env_load(t.list_id), 0);
+  const envs = d?.j?.envs || [];
+  if (!repo && !envs.length) return null;
+  const b = repo ? t.code?.build || {state: 'none'} : null, sk = sk_task(t);
+  const msEnvs = (t.milestone_id && env_ms(t.list_id, t.milestone_id)?.envs) || [];
+  const out = [{k: 'created', label: tr('Created'), on: true, at: t.created_at},
+    {k: 'progress', label: tr('In progress'), on: ['progress', 'review', 'done'].includes(sk) || ['branch', 'main', 'released'].includes(b?.state)}];
+  if (b) out.push({k: 'built', label: tr('Built'), on: ['main', 'released'].includes(b.state)},
+    {k: 'released', label: b.version ? tr('Version {0}', b.version) : tr('Released'), on: b.state === 'released'});
+  for (const e of envs) {
+    const m = msEnvs.find(x => x.name === e.name), c = e.current;
+    const byVer = !!(b?.version && c?.version && stl_ver(c.version) === stl_ver(b.version));
+    out.push({k: 'env', label: e.name, on: !!m || byVer, at: m ? m.since : byVer ? c.at : null});
+  }
+  out.push(t.status === -1 ? {k: 'rejected', label: tr('Rejected'), on: true, at: t.completed_at, bad: true} : {k: 'done', label: tr('Done|section'), on: t.status === 2, at: t.completed_at});
+  return out;
+}
+// what stands at the current stage: parked / waiting with the reason, "2× back", with whom
+function stl_extra(t) {
+  const x = [], ds = typeof dv_state === 'function' ? dv_state(t) : '';
+  if (ds === 'parked') x.push(t.delivery_note ? tr('Parked: {0}', t.delivery_note) : tr('Parked'));
+  else if (ds === 'waiting') x.push(tr('Waiting for {0}', t.delivery_task_id ? '#' + t.delivery_task_id : t.delivery_note || '…'));
+  const back = S.tl.id === t.id ? (S.tl.activity || []).filter(a => a.kind === 'reopen').length : 0;
+  if (back) x.push(tr('{0}× back', back));
+  const who = t.assignee_id ? personNameAny(t.assignee_id) || '?' : t.assignee_group_id ? grpName(t.assignee_group_id) : tr('nobody');
+  x.push(tr('With {0}|lies with', who));
+  return x;
+}
+function stl_html(t) {
+  if (!(t?.id > 0) || t.context || isMs(t)) return '';
+  const st = stl_model(t); if (!st) return '';
+  stl_css();
+  let cur = 0; st.forEach((s, i) => { if (s.on) cur = i; });
+  const ex = stl_extra(t), day = s => s.at ? env_day(s.at) : '';
+  const chain = st.map((s, i) => `${i ? '<span class="stl-x" aria-hidden="true">›</span>' : ''}<span class="stl-s ${i === cur ? 'c' : s.on ? 'd' : 'o'}${s.bad ? ' bad' : ''}" data-stage="${esc(s.k)}">`
+    + `<span class="stl-dot" aria-hidden="true"></span><span class="stl-n">${s.on && i !== cur ? '✓ ' : ''}${esc(s.label)}</span>`
+    + `${i === cur && ex.length ? ` <span class="stl-ex">· ${esc(ex.join(' · '))}</span>` : ''}</span>`).join('');
+  const all = st.map((s, i) => `<li class="${s.on ? 'd' : 'o'}">${esc(s.label)}${day(s) ? ` <span class="muted">· ${esc(day(s))}</span>` : ''}${i === cur ? ` <b>${esc(tr('now'))}</b>` : ''}</li>`).join('');
+  return `<details class="stl" id="d-stages"><summary aria-label="${esc(tr('Stage {0} of {1}: {2}', cur + 1, st.length, st[cur].label) + (ex.length ? ' · ' + ex.join(' · ') : ''))}">${chain}</summary><ol>${all}</ol></details>`;
+}
