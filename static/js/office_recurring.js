@@ -94,8 +94,8 @@ function rinBox(d) {
 // (#7012, audit #5248 B2): "New invoice" > "Recurring invoice (series)…" and the section's button: a new invoice draft is the
 // template, its editor opens and the series sheet over it (the positions are filled in the draft afterwards, the series takes them)
 async function rin_newEmpty() {
-  await tri_new('invoice');
-  const d = OFD.doc; if (d?.kind === 'invoice' && !d.trial) rinSheet(d);
+  const d = await tri_new('invoice');  // only the draft just made (a failed one leaves an open invoice alone)
+  if (d?.kind === 'invoice' && !d.trial) rinSheet(OFD.doc?.id === d.id ? OFD.doc : d);
 }
 // ---- the sheet: a new series from invoice d, or series s changed
 function rinFirstStart(d) {

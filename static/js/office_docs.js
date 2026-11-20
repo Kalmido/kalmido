@@ -1506,6 +1506,7 @@ async function tri_new(kind) {
   try {
     const j = await ofdRefCall('new', ref => rawFetch('POST', '/api/office/docs', {...(kind === 'offer' ? {} : {kind}), ...tri_flag(), client_ref: ref}));
     OFD.doc = j; OFD.list = null; OFD.kind = j.kind || kind; go(ofd_href(j.id, j.kind || kind));
+    return j;  // (#7012): the new draft (a failure = undefined)
   } catch (x) { ofcErr(x); }
 }
 function tri_filterHtml() {

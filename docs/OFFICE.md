@@ -2624,7 +2624,9 @@ none. The print model carries the code's text as `payment.girocode`.
 
 *Since 2.91.*
 
-An invoice can be repeated as a series: in the editor of an invoice choose "Repeat as series", pick the interval (monthly,
+An invoice can be repeated as a series: in the editor of an invoice choose "Repeat as series" - or start one empty with
+**New invoice** > **Recurring invoice (series)…** (also the button in the section "Invoice series", which shows without a
+series too): a new invoice draft is the template and the series sheet opens over it. Pick the interval (monthly,
 quarterly, yearly), the start of the first period of service and an optional start of the last period. On the day of every
 period Kalmido makes a new invoice from the template: a normal invoice with the date of that day, the period of service of
 the period (`service_from` / `service_to`), the next number when it is finalised and the e-invoice (ZUGFeRD / XRechnung)
@@ -3577,8 +3579,13 @@ recorded.
 ## How to: Record a payment
 <!-- user-help: office -->
 
-1. Open the finalised invoice and select **Record payment**.
+1. Open the finalised invoice and select **Record payment** - or in the invoice list open the row's menu (**…**, right
+   click or long press) and select **Record payment…**.
 2. Check the date and the amount and select **Record**.
+
+The look and the numbers of quotations and invoices (letterhead, logo, number schemes, closing texts): **…** > **Layout &
+numbers…** in a quotation or invoice. Your signature picture: **Settings** > **Company & office** > **Documents & numbers** >
+**Signature…**.
 
 Or let the bank statement do it: **Office** > **Bank** > **Import bank statement**, then **Take over** the suggestion that
 matches the invoice.
