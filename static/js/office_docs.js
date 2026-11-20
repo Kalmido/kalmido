@@ -1208,9 +1208,9 @@ function ofdMoreItems(d, inList) {
       d.kind === 'credit' || !rw ? null : {label: tr('Duplicate'), icon: 'copy', fn: async () => { try { const ask = await ofdDupAsk(d); if (!ask) return; const j = await ofdRefCall(`dup${d.id}`, ref => rawFetch('POST', `/api/office/docs/${d.id}/duplicate`, {client_ref: ref, ...ask})); OFD.list = null; OFD.doc = j; toast(tr('Copied as {0}', j.number || tr('Draft'))); go(ofd_href(j.id, j.kind)); } catch (x) { ofcErr(x); } }},
       rw && !inList && d.kind === 'offer' && d.status === 'draft' && !d.locked && !d.via_folder && d.can_edit !== false ? {label: tr('Adjust prices…'), icon: 'calc', act: 'reprice', fn: () => loadModule('reprice').then(() => orp_open(OFD.doc || d), x => ofcErr(x))} : null,  // 2.1041.0 (#5812): Nachkalkulieren (office_reprice.js)
       rw && d.kind === 'offer' && d.client_id && ofcAdmin() && typeof dtFromOffer === 'function' ? {label: tr('Create order confirmation'), icon: 'file', fn: () => dtFromOffer(d)} : null,  // 2.93.0 A (#1927)
-      rw && inList && d.kind === 'offer' ? {label: tr('Create invoice'), icon: 'receipt', fn: () => kvaToInvoice(d, true)} : null,
+      rw && inList && d.kind === 'offer' ? {label: tr('Create invoice'), icon: 'receipt', fn: () => kvaToInvoice(d, true)} : null,  // 2.144.7 (#2572): in the list row menu; the editor has the button in its bar
       // (#7012, audit #5248 B1): an open invoice books its payment from the row too - the same dialog as in the open document
-      rw && inList && ofd_payRow(d) ? {label: tr('Record payment…'), icon: 'plus', fn: () => ofd_payFromRow(d)} : null,  // 2.144.7 (#2572): in the list row menu; the editor has the button in its bar
+      rw && inList && ofd_payRow(d) ? {label: tr('Record payment…'), icon: 'plus', fn: () => ofd_payFromRow(d)} : null,
       !inList ? null : {label: tr('Preview (PDF)'), icon: 'eye', fn: () => ofdPdfOpen(d, false)},  // 2.40.0 (#1364): the PDF, not the JSON print model; 2.138.2 A (#2393): a list row opens marked; 2.380.0 A (#3410): a draft opens at once, too; 2.356.0 C (#3005): the editor has its Preview button, the menu no second one
       !inList ? null : {label: tr('Download PDF'), icon: 'download', fn: () => d.status === 'draft' && !d.locked ? ofdPdfAskGo(d, true) : ofdPdfOpen(d, true)},  // 2.435.0 B (#3618)
       !inList || !rw || !ofdCanSend(d) || d.trial ? null : {label: tr('Send by e-mail…'), icon: 'send', fn: async () => { try { ofdSendDialog(d.timesheet_ok === undefined ? await api('GET', `/api/office/docs/${d.id}`) : d); } catch (x) { ofcErr(x); } }},  // 2.435.0 B (#3618): the list row may lack fields, load the whole document first
@@ -1264,8 +1264,8 @@ async function ofdClick(e) {
   if (a === 'dun-open') { dun_open(); return; }  // 2.147.1 B (#2054): the suggested reminder drafts
   if (a === 'new-inv') {
     menu(b, [{label: tr('Empty invoice'), icon: 'plus', fn: () => tri_new('invoice')}, {label: tr('From time entries…'), icon: 'clock', fn: ofdFromTimeDialog},
-      {label: tr('From a quotation…'), icon: 'receipt', fn: oil_pickOffer},
-      ...(typeof rinOn === 'function' && rinOn() ? [{label: tr('Recurring invoice (series)…'), icon: 'repeat', fn: rin_newEmpty}] : [])]);  // (#7012, audit #5248 B2)  // 2.356.0 C (#3005): a choice of the open quotations (was a text only); 2.417.0 C (#3445): no trial entry (the test mode decides)
+      {label: tr('From a quotation…'), icon: 'receipt', fn: oil_pickOffer},  // (#3005): a choice of the open quotations (was a text only); (#3445): no trial entry (the test mode decides)
+      ...(typeof rinOn === 'function' && rinOn() ? [{label: tr('Recurring invoice (series)…'), icon: 'repeat', fn: rin_newEmpty}] : [])]);  // (#7012, audit #5248 B2)
     return;
   }
   if (a === 'remind') { ofdReminderDialog(); return; }
