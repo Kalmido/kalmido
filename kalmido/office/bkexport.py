@@ -26,7 +26,7 @@ from .books import bk_gaps_text, ofc_meals_euer  # 2.534.0 (#4333): ofc_meals_*;
 from .books import bk_meals_receipts, bk_meals_strict, bk_receipts_basis  # 2.610.0 (#4932); 2.764.0 (#5313): bk_meals_receipts
 from .euerbasis import EB_NORC_LABEL, eb_income_payment_ids, eb_segments  # 2.610.0 (#4932)
 from .calc import dec, dstr, money
-from .model import office_gate, office_need_feature, office_org, office_settings
+from .model import office_gate, office_need_feature, office_org, office_settings, small_for  # #6533: small_for
 from .books import _fx as bk_fx, _home, _split, bk_payments, bk_csv_cell, bk_fx_lines, bk_fx_gross  # 2.369.5 (#2517): pulled up from functions
 from .pdfweb import epdf_name, epdf_doc_files  # 2.369.5 (#2517): pulled up from functions
 from .travel import rk_cat_label, rk_trips  # 2.369.5 (#2517): pulled up from functions
@@ -96,7 +96,7 @@ def bx_rows(c, oid, frm, to, gaps=None):
     year "bank and cash" only payments of a bank / cash booking, the receipts with their line (its day and amount), the
     entertainment receipts through their line, the bank / cash lines without receipt and the money received without invoice
     as rows of their own (type booking); what does not count is named in gaps (open, outside) -> missing.txt."""
-    s = office_settings(c, oid)
+    s = small_for(office_settings(c, oid), frm)  # #6533: the small business rule of the period
     home = _home(s)
     gx = {} if gaps is None else gaps  # what a strict year does not count (open, outside); gaps itself stays as the caller gave it
     segs = eb_segments(s, frm, to)

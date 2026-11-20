@@ -90,7 +90,7 @@ from .isshold import ihd_load
 from .mailstate import oms_public  # (#6820)
 from .issclients import ISC_REF_RE, isc_body, isc_gone, isc_limit_tell, isc_notice, isc_row, isc_text_check
 from .issuers import ISS_ROUTES, _iss_me, _iss_once, _iss_read_logged, _iss_refuse, iss_log, iss_tell
-from .model import UNITS, office_settings, pb_owner
+from .model import UNITS, office_settings, pb_owner, small_at  # #6533: small_at
 
 ISD_POST = "/api/v1/issuer/invoices"
 ISD_LIST = "/api/v1/issuer/docs"
@@ -667,7 +667,7 @@ def _make(c, iss, oid, cl, norm, rows):
         h["order_ref"] = norm["order_ref"]
     if norm["vat_note"]:
         h.update(vat_mode="novat", vat_note=norm["vat_note"])
-    elif not s.get("small_business"):
+    elif not small_at(s):  # #6533: as it applies today (the draft's date)
         h["vat_mode"] = "vat"
     did = doc_create(c, oid, None, h, False, number=False)
     if norm["wish"].get("due_days") is not None:  # (#6819): the payment days the issuer asked for (a person may change them; due_date: docpay.dpy_due_apply)

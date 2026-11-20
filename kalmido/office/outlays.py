@@ -21,6 +21,7 @@ from .calc import dec, money
 from .books import bk_receipts, bk_ws
 from .ledger import _log_public, ofx_items_brief, ofx_log
 from .model import office_gate, office_org, office_settings
+from .model import small_at  # #6533
 from .travel import MAX_ITEMS, _amount, _bill_doc, _fmt_day
 
 AU_ALL = ("0001-01-01", "9999-12-31")
@@ -90,7 +91,7 @@ def au_bill_post():
         raise Denied(404)
     if au_billed(c, oid, ids):
         raise Denied(409, tr("A receipt has already been billed"))
-    small = bool(office_settings(c, oid).get("small_business"))
+    small = small_at(office_settings(c, oid))  # #6533: the invoice made now
     lg = r["lang"] or "de"
     its = [have[i] for i in dict.fromkeys(ids)]
     its.sort(key=lambda x: (x["date"] or "", x["node_id"]))
