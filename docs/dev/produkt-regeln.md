@@ -85,6 +85,10 @@ file. What can be seen in the text of the code is checked by `tools/check_rules.
 - **Plain and modern** (May 2026): one accent, one text colour, one muted colour; status colours only for a status; bold
   only for a selection and titles. Cool greys, never warm ones (22.10.2026: `#eceef2`, `#5f6673`).
 - **App icons instead of emoji** (17.10.2026: `ic(...)`); 👍 and 👎 are the only emoji in texts.
+- **Fields as large as their label** (19.11.2026, #7409): the text in a field or dropdown has the size of its label (`--fs-b`)
+  on every device; 16 px only on iPhone / iPad against Safari's zoom (one detection: `html.vpios` at `--fld-fs`). In dialogs on
+  a phone a dropdown or a number field is as wide as its content (never wider than the row), text fields keep the row's width;
+  one rule in app.css, never per dialog. The 44 px height of touch fields (`--fld-h`) stays.
 
 ## Words
 

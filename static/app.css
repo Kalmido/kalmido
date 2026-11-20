@@ -80,11 +80,14 @@ input,select,textarea{background:var(--bg3);border:1px solid var(--line2);border
 input:focus,select:focus,textarea:focus{border-color:var(--accent)}
 input::placeholder,textarea::placeholder{color:var(--muted)}
 input:placeholder-shown{text-overflow:ellipsis}  /* 2.458.0 (#3855): a hint too long for a narrow field is cut with "…" */
-/* 2.87.9 (#1952): one size and height for the fields of every form (the special fields - quick add, search, chat input, inline titles - have their own class rules and keep them); touch screens 16 px against the iOS zoom */
+/* 2.87.9 (#1952): one size and height for the fields of every form (the special fields - quick add, search, chat input, inline titles - have their own class rules and keep them)
+   #7409: the text in a field is as large as its label (--fs-b) on touch screens too; 16 px only on iPhone / iPad (html.vpios, icons.js
+   VP_IOS), where Safari zooms into a smaller field - the one detection, here at --fld-fs */
 :root{--fld-fs:var(--fs-b);--fld-h:2.25rem;--tb-h:2.5rem}
 /* 2.828.0 (#5446): the z-index scale - raised inside a row, a sticky head, the task detail as a layer, pop-ups, dialogs, toasts */
 :root{--z-row:1;--z-sticky:2;--z-detail:45;--z-pop:63;--z-dialog:70;--z-toast:80}
-@media (pointer:coarse){ :root{--fld-fs:max(1rem,16px);--fld-h:2.75rem} }  /* 2.540.0 (#4472): one height for every control of a toolbar */
+@media (pointer:coarse){ :root{--fld-h:2.75rem} }  /* 2.540.0 (#4472): one height for every control of a toolbar */
+html.vpios{--fld-fs:max(1rem,16px)}
 @media (max-width:767px),(pointer:coarse){ :root{--tb-h:2.75rem} }  /* 2.540.0 (#4472): toolbars on a phone keep the 44 px targets of the phone rules (also without a touch pointer) */
 input:where(:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file],[type=hidden])),select,textarea{font-size:var(--fld-fs)}
 input:where(:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file],[type=hidden])),select{min-height:var(--fld-h);box-sizing:border-box}
@@ -338,6 +341,9 @@ body>.modal{position:fixed;inset:0;max-height:none;max-width:none;margin:0}  /* 
 .modal .row{display:flex;gap:.625rem;align-items:center;margin-bottom:.625rem;flex-wrap:wrap}
 .modal .row label{min-width:8.75rem;color:var(--muted);font-size:var(--fs-m)}
 .modal .row input,.modal .row select{flex:1}
+/* #7409: on a phone a dropdown and a number field in a dialog are as wide as their content (a sensible minimum, never wider
+   than the row), text fields stay as wide as the row - one rule for every dialog */
+@media (max-width:767px){ .modal .row select{flex:0 1 auto;width:auto;min-width:min(7rem,100%);max-width:100%} .modal .row input[type=number]{flex:0 1 7rem;width:7rem;min-width:0;max-width:100%} }
 .modal .foot{display:flex;gap:.5rem;justify-content:flex-end;margin-top:1.125rem;flex-wrap:wrap}
 /* 2.331.0 D (#3308): every dialog footer sticks to the bottom of the card; same resting position as before (no line, so short dialogs look unchanged); 2.725.0 (#5158): the top gap is the old margin (it collapses with the margin above as before), the band above the buttons while stuck is a shadow, the resize grip after the foot takes no room */
 .modal .card>.foot{position:sticky;bottom:-1.25rem;z-index:2;margin:1.125rem -1.25rem -1.25rem;padding:0 1.25rem 1.25rem;background:var(--bg2)} .modal .card>.foot:not(.sfoot,.ppfoot,.stfoot,.clfoot){box-shadow:0 -.75rem 0 var(--bg2)} .modal .card:not(.dlg-sized)>.foot+.dlggrip{margin-top:-2.25rem}
@@ -543,7 +549,7 @@ code.topic{background:var(--bg3);padding:2px .4375rem;border-radius:var(--r-s);f
   .pstats{grid-template-columns:repeat(2,1fr)}
   .hstats{grid-template-columns:repeat(2,1fr)}
   .ghead .gact{opacity:1}
-  /* 2.87.9 (#1952): the 16 px floor against the iOS zoom (#1173) moved to --fld-fs in @media (pointer:coarse) */
+  /* 2.87.9 (#1952): the 16 px floor against the iOS zoom (#1173) moved to --fld-fs (#7409: html.vpios only) */
 }
 
 
@@ -5584,7 +5590,7 @@ section.ofdsec h3{min-height:2.5rem;display:flex;align-items:center}
 .ofdit .ofdpos{flex:0 0 1.75rem;min-height:2.25rem;display:flex;align-items:center;justify-content:center;font-variant-numeric:tabular-nums;color:var(--muted)}
 .ofdit .ofditb{flex:1;min-width:0;display:flex;flex-direction:column;gap:.375rem}
 .ofdit .ofdtt{font-weight:500;width:100%}
-.ofdit .ofddt{width:100%;font-size:var(--fld-fs)}  /* 2.99.0 (#2025): 16 px on touch screens like every field */
+.ofdit .ofddt{width:100%;font-size:var(--fld-fs)}  /* 2.99.0 (#2025): like every field (#7409: 16 px only on iPhone / iPad) */
 .ofdit .ofdnums{display:flex;align-items:center;gap:.375rem;flex-wrap:wrap}
 .ofdit .ofdnums input.numin{width:5rem;flex:0 0 5rem}
 .ofdit .ofdnums input.ofdrate{width:6.5rem;flex-basis:6.5rem}
@@ -6894,7 +6900,7 @@ body.cgdrag .week,body.cgdrag .cal{cursor:grabbing}
 .cgnew .cgin{flex:1 1 6rem;min-width:0;background:transparent;border:0;outline:0;padding:1px 0;font:inherit;font-size:var(--fs-s);font-weight:600;color:var(--text)}
 .cgnew .cgin::placeholder{color:var(--muted);font-weight:400}
 .cgnew .cgdet{flex:0 0 auto}
-@media (pointer:coarse){.cgnew .cgin{font-size:max(1rem,16px)}.cgnew .cgdet{min-height:2.75rem}}
+@media (pointer:coarse){.cgnew .cgin{font-size:var(--fld-fs)}.cgnew .cgdet{min-height:2.75rem}}  /* #7409: the one size of fields (16 px on iPhone / iPad) */
 @media (prefers-reduced-motion:no-preference){.cgnew{animation:cgin .16s ease-out}}
 @keyframes cgin{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}
 /* 2.164.0 (#2625): swipe / pinch in the calendar (calgest.js): the grid keeps up / down for scrolling, sideways and two

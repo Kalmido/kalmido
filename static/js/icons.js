@@ -294,6 +294,7 @@ const isMobile = () => td_rc('mob', () => matchMedia('(max-width:767px)').matche
 // zoom keeps working on iOS. iOS also ignores interactive-widget: bottom sheets follow the visual viewport (--vvb, vvSync)
 // 2.310.0 (#3270): an iPad or an unfolded iPhone can report itself as a Mac with touch points
 const VP_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+if (VP_IOS) document.documentElement.classList.add('vpios');  // #7409: only here the fields keep 16 px (app.css --fld-fs)
 const VIEWPORT = 'width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content' + (VP_IOS ? ', maximum-scale=1' : '');
 // the layout width 900 keeps the iOS zoom stop of #453 too (iOS ignores interactive-widget, harmless)
 // 2.1145.0 (#6075): with the scale spelled out (screen width / 900; no minimum-scale: a split screen / pop-up window narrower than
