@@ -54,7 +54,7 @@ VARS = (
     _v("KALMIDO_UPDATE_URL", "https://api.github.com/repos/Kalmido/kalmido/releases/latest", "Address the update check asks for the latest release.", "core"),
     _v("KALMIDO_SEARCH_INDEX", "0", "Switch: allow search engines to index this server (public links and forms stay noindex).", "core"),
     _v("KALMIDO_ONBOARDING", "1", "Switch: new accounts get a sample list and the welcome tour.", "core"),
-    _v("KALMIDO_IOS_SHORTCUT_URL", "", "Link to an iOS shortcut shown in Settings > Integrations (empty = hidden).", "core"),
+    _v("KALMIDO_IOS_SHORTCUT_URL", "", "Link to an iOS shortcut shown in Settings > Connections (empty = hidden).", "core"),
     _v("PATH", "", "Search path for the helper programs (pg_dump, tesseract); passed on to them unchanged.", "core"),
 
     # ---- login, accounts and proxy
