@@ -89,7 +89,8 @@ DDOC = r.json().get("id") if r.status_code == 201 else None
 check(DDOC, "Delta: a document " + r.text[:160])
 lock_doc(DDOC, "2025-11-20", "RE-2025-042")
 r = A.delete(B + f"/api/admin/orgs/{DEL}", params={"confirm": "1"})
-check(r.ok and r.json().get("retired") is True and r.json().get("retain_until") == "2036-12-31", "Delta: retired " + r.text[:200])
+# #6361: the period follows the kind of the finalised document - this one (no kind given: an offer) is kept 6 years (+1 buffer)
+check(r.ok and r.json().get("retired") is True and r.json().get("retain_until") == "2032-12-31", "Delta: retired " + r.text[:200])
 if not r.ok:
     app_log()
 check(sql("SELECT retired_admins FROM orgs WHERE id=?", (DEL,)) == [(str(DORA),)], "Delta: its admin of that moment is noted")
@@ -97,7 +98,7 @@ check(not sql("SELECT 1 FROM retention_log WHERE subject=?", (f"org:{DEL}",)), "
 check(not sql("SELECT 1 FROM org_members WHERE org_id=?", (DEL,)), "Delta: nobody is a member any more")
 
 ret = Do.get(B + "/api/orgs").json().get("retired") or []
-check([(o["id"], o["name"], o["retain_until"]) for o in ret] == [(DEL, "Delta Film", "2036-12-31")], f"dora: Delta under retired {ret}")
+check([(o["id"], o["name"], o["retain_until"]) for o in ret] == [(DEL, "Delta Film", "2032-12-31")], f"dora: Delta under retired {ret}")
 for who, s in (("bob", Bo), ("alice", A), ("erik", Er)):
     check(not any(o["id"] == DEL for o in (s.get(B + "/api/orgs").json().get("retired") or [])), f"{who}: Delta not under retired")
 
@@ -147,7 +148,7 @@ sql("UPDATE orgs SET retired_admins=? WHERE id=?", (str(DORA), DEL), write=True)
 
 # still within the period: not deleted
 r = A.delete(B + f"/api/admin/orgs/{DEL}")
-check(r.status_code == 409 and "2036-12-31" in r.text, "Delta: not deleted before the period ends " + r.text[:160])
+check(r.status_code == 409 and "2032-12-31" in r.text, "Delta: not deleted before the period ends " + r.text[:160])
 # after the period: no export step, noted as expired (never as a waiver)
 sql("UPDATE orgs SET retain_until='2020-12-31' WHERE id=?", (DEL,), write=True)
 # 2.239.0 (#2874): the manual delete computes the period anew (like the watchdog): the invoice must be old enough, too

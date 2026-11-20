@@ -29,6 +29,7 @@ assert r.ok, r.text
 BOB = r.json()["id"]
 Bo = kt.sess("bob")
 Bo.patch(B + "/api/settings", json={"lang": "en", "tour": "done"})
+A.put(B + "/api/admin/agent-policy", json={"user_agents": True})  # personal agents on (the server's switch)
 
 
 def files(*rels):
