@@ -107,7 +107,12 @@ def main(argv):
     # the app, with absolute /static/ paths made relative (the demo lives in a subfolder) and without the service worker
     # 2.20.0 (#646): the client's modules (static/js, order of the script tags in index.html) become ONE app.js here
     src_html = read(os.path.join(STATIC, "index.html"))
-    mods = re.findall(r'<script src="/static/js/([\w-]+\.js)"(?: defer)?></script>', src_html)  # 2.191.0 B (#2505): defer
+    tag_re = r'<script src="/static/js/([\w-]+\.js)"(?: defer)?></script>'  # (#2505): defer
+    # #6365: a blocking script in <head> (boottheme.js: the theme before the first picture) stays its own file there;
+    # only the block of the body's scripts becomes app.js
+    head_end = src_html.find("</head>")
+    head_mods = re.findall(tag_re, src_html[:head_end]) if head_end >= 0 else []
+    mods = [m for m in re.findall(tag_re, src_html) if m not in head_mods]
     if not mods:
         fail("index.html loads no static/js/ modules")
     app = "\n".join(read(os.path.join(STATIC, "js", m)) for m in mods)
@@ -125,6 +130,9 @@ def main(argv):
     # fetches static/js/<name>.js relative to the demo page
     lazy = re.findall(r"'/static/js/([\w-]+\.js)'", (re.search(r"const LAZY = \[([^\]]*)\]", read(os.path.join(STATIC, "sw.js"))) or fail("sw.js has no LAZY list")).group(1))
     os.makedirs(os.path.join(st, "js"), exist_ok=True)
+    for m in head_mods:
+        write(os.path.join(st, "js", m), read(os.path.join(STATIC, "js", m)))
+        js_all += "\n" + read(os.path.join(STATIC, "js", m))
     for m in lazy:
         write(os.path.join(st, "js", m), read(os.path.join(STATIC, "js", m)))
         js_all += "\n" + read(os.path.join(STATIC, "js", m))
