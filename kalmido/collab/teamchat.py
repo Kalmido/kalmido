@@ -4,7 +4,7 @@ import re
 from flask import g, has_request_context, jsonify, request, Response
 
 from ..core.config import app, APP_NAME, PUBLIC_URL
-from ..core.pg import insert_id, system_ctx, write_lock
+from ..core.pg import insert_id, qi, system_ctx, write_lock
 from ..core.i18n import tr, trn
 from ..core.db import body, db, err, iso, iso_ms, now_utc, usettings, usettings_many
 from ..accounts.session import me
@@ -787,7 +787,6 @@ def csd_dup(c, table, where, args, cid, text):
     """The row of table (where + args = the conversation and the sender) sent with client_id cid and the same text, else
     None (#6332: at any time, was within 10 seconds). Takes the lock that the caller's insert then holds until its commit."""
     write_lock(c, f"csd:{table}:{':'.join(str(a) for a in args)}")
-    from ..core.pg import qi
     r = c.execute(f"SELECT * FROM {qi(table, CSD_TABLES)} WHERE {where} AND client_id=? ORDER BY id DESC LIMIT 1", (*args, cid)).fetchone()
     return r if r and (r["body"] or "") == (text or "") else None
 
