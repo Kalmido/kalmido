@@ -545,7 +545,7 @@ def fs_visible_sql_c(c, uid):
             f"WHERE a.parent_id IS NOT NULL), "
             f"fx(id) AS (SELECT fa.top FROM fa JOIN fs_nodes d ON d.id = fa.id WHERE d.deleted_at IS NOT NULL "
             f"UNION SELECT b.id FROM fs_nodes b JOIN fx ON b.parent_id = fx.id WHERE b.id IN (SELECT id FROM fr)) "
-            f"SELECT id FROM fr WHERE id NOT IN (SELECT id FROM fx){_mail_hidden(c, uid)}{_receipts_hidden_sql(c, uid, ctx.org_ids)}"  # 2.187.1 A (#2735): agents too
+            f"SELECT id FROM fr WHERE id NOT IN (SELECT id FROM fx){_mail_hidden(c, uid)}{_receipts_hidden_sql(c, uid, ctx.org_ids)}"  # (#2735): agents too
             f"{_ref_hidden(c, uid)}{_lock_hidden(c, agent)}{_for_sql(c, uid)})")
 
 

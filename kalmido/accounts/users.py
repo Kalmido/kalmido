@@ -9,7 +9,7 @@ import zipfile
 from flask import g, jsonify, request, Response, send_file
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from ..core.objhooks import obj_gone_drop, obj_private_refs, person_locked, person_revoked, USER_FILES, USER_GONE  # (#6356): USER_FILES; 2.558.0 (#4709): the shared core without importing the domain layer
+from ..core.objhooks import obj_gone_drop, obj_private_refs, person_locked, person_revoked, USER_FILES, USER_GONE  # (#6356): USER_FILES; (#4709): the shared core without importing the domain layer
 from ..core.config import app, COOKIE, EMAIL_RE, MIN_PASSWORD, PUBLIC_URL, USERNAME_RE
 from ..core.i18n import lang, LANGS, N_, tr, trn
 from ..core.db import body, bump, create_user, db, ensure_inbox, err, gsetting, now_utc, uset, usettings, iso
@@ -818,7 +818,7 @@ def me_update():
         c.execute("UPDATE users SET password_hash=? WHERE id=?", (generate_password_hash(pw), u["id"]))
         tok = request.cookies.get(COOKIE)  # other sessions end, this one stays
         ses_end(c, u["id"], keep=_token_hash(tok) if tok else None)  # 2.190.0 A (#1991): with their push subscriptions
-        # 2.539.0 B (#4375): the dialog's tick "end all app passwords and API tokens" (set by default); without the field
+        # (#4375): the dialog's tick "end all app passwords and API tokens" (set by default); without the field
         # (API) they end too - the safe default. (#6354): the tick ends the feed links and the upload token too
         from ..docs.scankeys import sk_revoke_all  # 2.237.0 C (#2865): the scan inbox keys go (a new setup code is made)
         sk_revoke_all(c, u["id"])

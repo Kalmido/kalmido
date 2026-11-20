@@ -92,9 +92,17 @@ def sec_mask_ip(ip):
     return f"{ipaddress.ip_network(f'{a}/48', strict=False).network_address}/48"
 
 
-def sec_mail(c, uid, ev, *args, to=None, also=None):
-    """Queue the security mail ev to uid's address (to: another one, also: one more, e.g. the new address). Never raises."""
+def sec_mail(c, uid, ev, *args, to=None, also=None, agent=None):
+    """Queue the security mail ev to uid's address (to: another one, also: one more, e.g. the new address). agent: the
+    agent's user id - its name is the first argument and uid defaults to its owner (#6354). Never raises."""
     try:
+        if agent is not None:
+            r = c.execute("SELECT a.owner_id, COALESCE(NULLIF(u.display_name, ''), u.username) AS name FROM agents a"
+                          " JOIN users u ON u.id=a.user_id WHERE a.user_id=?", (agent,)).fetchone()
+            uid = uid or (r["owner_id"] if r else None)
+            args = (r["name"] if r else "?",) + args
+            if not uid:
+                return False
         if "mail:security" not in BGJ_FNS or ev not in SEC_EVENTS:  # registered by integrations/mail.py with outgoing mail only
             return False
         u = c.execute("SELECT email, kind FROM users WHERE id=?", (uid,)).fetchone()
@@ -119,14 +127,7 @@ def sec_mail(c, uid, ev, *args, to=None, also=None):
 def sec_agent_token(c, aid, uid=None):
     """(#6354): a new token of agent aid -> mail "agent_token_new" to uid (default: the agent's owner; a team agent without
     an owner and without uid: nobody). After the commit; never raises."""
-    try:
-        r = c.execute("SELECT a.owner_id, COALESCE(NULLIF(u.display_name, ''), u.username) AS name FROM agents a JOIN users u ON u.id=a.user_id"
-                      " WHERE a.user_id=?", (aid,)).fetchone()
-        to = uid or (r["owner_id"] if r else None)
-        return sec_mail(c, to, "agent_token_new", r["name"] if r else "?") if to else False
-    except Exception as e:  # noqa: BLE001
-        print("security mail not queued: agent_token_new", db_log_err(e), flush=True)
-        return False
+    return sec_mail(c, uid, "agent_token_new", agent=aid)
 
 
 def sec_net(ip):

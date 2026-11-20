@@ -100,7 +100,7 @@ def _shared_flags(c, ids):
 def _items(c, rows, parent_role=None, above=None, can=False, roles=None):
     """#6405: roles = {id: role} the caller has already read (the trash); the others are read for the whole listing at once
     (fs_roles_many, the rules of fs_role) instead of a chain and a share query per row.
-    2.558.0 (#4693): above = the folders above the rows (the open folder first; () at a top) whose shares apply to them
+    (#4693): above = the folders above the rows (the open folder first; () at a top) whose shares apply to them
     too: the rows uid may share get share_with (files/fsshnames.py; None = not asked for: v1, search, trash); can: uid may
     manage the shares of the rows without owning them (an area, fs_area_share)."""
     uid = me()

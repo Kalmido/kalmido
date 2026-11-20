@@ -20,7 +20,7 @@ import re
 
 from flask import g, has_request_context
 
-from ..core.objhooks import FOLLOW, KIDS_FIRST, OBJ, ORG_FILES, person_revoked  # (#6356): ORG_FILES; 2.1032.0 (#5788): KIDS_FIRST; 2.558.0 (#4709): the shared core without importing the domain layer
+from ..core.objhooks import FOLLOW, KIDS_FIRST, OBJ, ORG_FILES, person_revoked  # (#6356): ORG_FILES; (#5788): KIDS_FIRST; (#4709): the shared core without importing the domain layer
 from ..core.access import Denied, live_sql
 from ..core.objhooks import obj_rows_drop_many  # 2.1004.0 (#5494)
 from ..core.db import iso, local_now, now_utc  # 2.488.0 (#4004): local_now knows the test clock

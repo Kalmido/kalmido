@@ -1165,7 +1165,7 @@ def init_db(guard=True):
         c.executescript(trigger_skip_present(c, QUICKNOTE_TRIGGER))  # 2.477.0 (#3881): the private list "Notes" stays without members
         c.executescript(trigger_skip_present(c, WIKI_E2E_TRIGGER))  # 2.64.3 (#1817): members of organisations whose knowledge space has the lock
         c.executescript(trigger_skip_present(c, REVOKED_TRIGGER))  # 2.360.0 R (#2496): what was revoked stays revoked after a restore
-        # 2.360.4 (#3243): what was deleted for good stays deleted after a restore; #6357: on every table the core's register
+        # (#3243): what was deleted for good stays deleted after a restore; #6357: on every table the core's register
         # names (objparts.purged_tables: every kind with a trash), only one with the row id the trigger reads
         from .objparts import purged_tables
         have = {r[0] for r in c.execute("SELECT table_name FROM information_schema.columns WHERE table_schema=current_schema() "
