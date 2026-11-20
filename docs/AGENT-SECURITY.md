@@ -440,8 +440,12 @@ as a settings file of their own in the job's folder (`run-settings.json`, with t
 has its own `--settings`). 2.1407.0 (#7119): the job's settings file also carries the permission hook, so a step outside
 the allow list asks in the chat as a run does (*Allow* / *Deny*, only the operator answers, no answer within
 `KALMIDO_PERM_TIMEOUT` = denied, never an automatic yes). The job reaches the runner over a second local channel of its
-own (same checks as above: key both ways, the runner's process, one-time nonce); the runner takes the person to ask from
-the job's record, not from the question. No runner (it restarted while the job ran) or `KALMIDO_PERM_RELAY=0`: the step
+own (key both ways, the runner's process, one-time nonce, as above); the runner takes the person to ask from the job's
+record, not from the question. #7190: unlike the run's channel, the job takes the channel's address and key from the
+environment its command line starts with (`KALMIDO_JOB_PERM_*`, handed down by the runner): whoever controls that
+environment controls the job's whole command already (`KALMIDO_JOB_CMD`), so it is no new boundary, but it is not pinned
+by the runner. A job's question is answered by its button or a reply to the question only; a bare "ok" / "yes" in the chat
+(meant for something else) never answers it. No runner (it restarted while the job ran) or `KALMIDO_PERM_RELAY=0`: the step
 is denied without a question, as before. So a job command with "allow everything" is never needed. It refuses, before the command runs and
 **whatever the allow list or the permission mode say** (also `acceptEdits`, `bypassPermissions`, `dontAsk` and a
 command the person allowed in the chat), these command lines:
