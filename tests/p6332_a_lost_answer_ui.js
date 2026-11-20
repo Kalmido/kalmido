@@ -55,6 +55,8 @@ const lost = () => new Response('<html><body>Bad gateway</body></html>', {status
   check(r[1], 'other files: a new client_id');
   check(r[2], 'another text: a new client_id');
   check(r[3], 'a try that went through (nothing kept): the next message gets a new client_id');
+  const r2 = w.eval(`(() => { const a = csdId('t:2', 'ok', []); csdKeep('t:2', a); CSD.again['t:2'].at -= CSD_AGAIN_MS + 1000; return csdId('t:2', 'ok', []).cid !== a.cid; })()`);
+  check(r2, 'the kept id expires: the same text much later is a new message');
 
   // ================= an upload sent again after a lost answer: attached once
   calls.length = 0;

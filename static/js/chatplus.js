@@ -9,12 +9,14 @@ function csdBusy(k) { return !!(CSD.pend[k] || []).length; }
 // (#6332): the client_id belongs to the message, not to the try: a send that failed (no answer: offline, a lost answer after the
 // server stored it; or refused) keeps its id for the same text and files in the same conversation, so pressing Send again is
 // answered with the stored message (the server checks it without a time window, files too) instead of a second one
+// - only for CSD_AGAIN_MS (reader F3): a press much later with the same text ("ok") is a new message, not the lost one
+const CSD_AGAIN_MS = 5 * 60 * 1000;
 function csdId(k, text, files) {
   const sig = (text || '') + '\u0000' + (files || []).map(f => `${f.name}/${f.size}/${f.lastModified || 0}`).join('|'), a = CSD.again[k];
   delete CSD.again[k];
-  return {cid: a && a.sig === sig ? a.cid : csdCid(), sig};
+  return {cid: a && a.sig === sig && Date.now() - a.at < CSD_AGAIN_MS ? a.cid : csdCid(), sig};
 }
-function csdKeep(k, p) { if (p?.cid) CSD.again[k] = {sig: p.sig, cid: p.cid}; }
+function csdKeep(k, p) { if (p?.cid) CSD.again[k] = {sig: p.sig, cid: p.cid, at: Date.now()}; }
 function csdAdd(k, text, msgs, files) { const p = {...csdId(k, text, files), text, last: msgs.length ? msgs[msgs.length - 1].id : 0}; (CSD.pend[k] = CSD.pend[k] || []).push(p); return p; }
 function csdDone(k, p) { CSD.pend[k] = (CSD.pend[k] || []).filter(x => x !== p); if (!CSD.pend[k].length) delete CSD.pend[k]; }
 // the waiting bubbles of conversation k (one that a refresh already brought along as a real message stays hidden)

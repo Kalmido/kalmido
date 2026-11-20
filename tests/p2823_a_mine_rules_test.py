@@ -278,5 +278,10 @@ check(Gi.patch(B + f"/api/tasks/{G4}", json={"ltags": ["rush"]}).ok and apply([G
 kt.dbx("UPDATE user_mine_rules SET trig_val='99999999' WHERE id=?", (GR,))
 check(next(x for x in rules(Gi) if x["id"] == GR)["tag_missing"] and not next(x for x in rules(Gi) if x["id"] == GR2)["tag_missing"],
       "#6289: a rule whose tag is gone says 'Tag missing'")
+FP = Fr.post(B + "/api/lists", json={"name": "Frida only"}).json()["id"]
+FTAG = Fr.post(B + f"/api/lists/{FP}/tags", json={"name": "geheim"}).json()["id"]
+kt.dbx("UPDATE user_mine_rules SET trig_val=? WHERE id=?", (str(FTAG), GR))
+x = next(x for x in rules(Gi) if x["id"] == GR)
+check(x["tag_missing"] and "tag_name" not in x["trigger"], f"#6289 (reader F2): a tag of a project gina does not see: missing, no name {x['trigger']}")
 
 sys.exit(kt.done("p2823_a_mine_rules"))
