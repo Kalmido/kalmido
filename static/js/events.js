@@ -248,6 +248,7 @@ async function submitQuick(input, extra = {}) {
   if (pasted.length) { S.qfiles[input.id] = []; qFilesDraw(input); }
   if (input.id === 'qsheet' && (cap || S.quickPreset.content || S.quickPreset.url || S.quickPreset.due_time || S.quickPreset.files?.length)) { S.quickPreset = {}; closePop(); }
   if (d.open && input.id === 'qsheet') closePop();  // 2.14.0 (#484): the details take the screen
+  if (created?.id && typeof d.placed === 'function') await d.placed(created);  // (#7512): a section's "+" (e.g. an own section of My tasks)
   if (r.wait && created?.id) { try { putTask(await api('PUT', `/api/tasks/${created.id}/waiting`, {note: r.wait, until: addDays(today(), 7)})); render(); } catch { /* api() said it */ } }  // 2.22.0 (#686)
   if (cap) { captureDone(created, body); return; }
   if (d.open && created?.id) { openDetail(created.id); return; }  // 2.14.0 (#484): "Add and open"
@@ -657,7 +658,7 @@ document.addEventListener('click', async e => {
       if (de && de.scrollHeight > de.clientHeight && de.contains(tl)) de.scrollTo({top: Math.max(0, Math.round(tl.getBoundingClientRect().top - de.getBoundingClientRect().top + de.scrollTop - hh)), behavior});
       else { tl.style.scrollMarginTop = hh + 'px'; tl.scrollIntoView({block: 'start', behavior}); }
     } break; }  // 2.31.0 (#1054): replaces the Details | Comments tabs; 2.31.1: the heading stays below the sticky panel header
-    case 'sec-add': e.stopPropagation(); secAddOpen(+a.dataset.sec || 0); break;
+    case 'sec-add': e.stopPropagation(); secAddOpen(+a.dataset.sec || 0, a.dataset.sk); break;
     case 'c-send': sendComment(); break;
     case 'c-resend': case 'c-pdrop': cmtPendBtn(a); break;  // 2.537.0 (#4569): a comment that was not sent
     case 'c-file-rm': { const arr = S.cfiles[S.sel] || []; arr.splice(+a.dataset.i, 1); $('#c-files').innerHTML = composerFiles(S.sel); break; }

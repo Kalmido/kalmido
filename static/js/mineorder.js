@@ -142,10 +142,15 @@ async function moPut(ids, w) {
   });
 }
 // (#7519): the section side of this adapter (dragmulti.js sh_head / sh_menu): an own section (not "Recently assigned") has the
-// "…" with Rename, Move up / down, Rules… and Delete; no "+" and no grip yet (#7512 / #7518 are this adapter's next abilities)
+// "…" with Rename, Move up / down, Rules… and Delete, and (#7512) the "+"; no grip yet (#7518 is this adapter's next ability)
 const mseSec = {
   of: g => g.mosec || null, byId: id => mseList().find(x => x.id === id), label: s => mseName(s),
-  drag: () => false, add: () => false, menu: s => s.kind !== 'recent',
+  drag: () => false, menu: s => s.kind !== 'recent',
+  // (#7512): the "+" of an own section (not "Recently assigned"): a new task assigned to me, in the project the quick add of My
+  // tasks uses (a ~project typed wins; none = the Inbox), put into this section on top - one step (the creation's Undo)
+  add: (s, v, ro) => !ro && mseOn() && moOwn() && s.kind !== 'recent',
+  newAt: (s, r = {}) => { const d = quickDefaults(); return {list_id: r.list_id || d.list_id || undefined, ...(S.me && collab() ? {assignee_id: S.me.id} : {})}; },
+  placed: (s, t) => mseList().some(x => x.id === s.id) ? moSave(moFlat([t.id], {sid: s.id}), {[t.id]: s.id}) : null,
   pos: s => { const own = mseList().filter(x => x.kind !== 'recent'); return [own.indexOf(s), own.length]; },
   rename: (s, n) => mseRename(s, n), move: (s, d) => mseMove(s, d), del: s => mseDelete(s),
   extra: () => mseOn() ? [{label: tr('Rules…'), icon: 'zap', fn: () => mr_open()}] : [],  // (#4773): the own rules (minerules.js)
