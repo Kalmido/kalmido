@@ -441,7 +441,7 @@ def dsp_edit(bid):
     _clean(b, dict(r))  # bad input says so before any lock
     _may_change(c, uid, [r])
     job = [x[0] for x in c.execute(f"SELECT id FROM hub_bookings WHERE org_id=? AND job=? AND {live_sql()}", (r["org_id"], r["job"]))] if every else []
-    for i in sorted({bid, *job}):  # 2.809.0 (#5476): the bookings' locks in one order; #6342: before the version check
+    for i in sorted({bid, *job}):  # (#5476): the bookings' locks in one order; #6342: before the version check
         write_lock(c, f"hub_bookings-{i}")
     r = _row(c, bid)  # read again under the lock
     if r["deleted_at"]:
@@ -460,7 +460,7 @@ def dsp_edit(bid):
                 write_lock(c, f"hub_bookings-{t['id']}")
         for t in targets:
             _dsp_step(c, uid, t["id"])  # 2.809.0 (#5476): one part per booking (hub/dspundo.py), its state after right away
-            # 2.589.0 (#4571): a change by hand takes the mark of a newer quotation version off; #6342: milliseconds (two saves in one second are two versions)
+            # (#4571): a change by hand takes the mark of a newer quotation version off; #6342: milliseconds (two saves in one second are two versions)
             c.execute(f"UPDATE hub_bookings SET {', '.join(qi(k, DSP_EDIT_COLS) + '=?' for k in v)}, offer_mark='', updated_at=? WHERE id=?", (*v.values(), iso_ms(now_utc()), t["id"]))
             _dsp_done(c)
         if v.get("status") == "firm":

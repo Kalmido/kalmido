@@ -208,7 +208,7 @@ const whHtml = () => S.webhooks?.enabled ? `<h4 id="s-wh-h">${tr('Webhooks')}</h
   <a class="slink" href="${API_DOCS}#webhooks" target="_blank" rel="noopener noreferrer">${tr('How to verify the signature')}</a>
   <div class="members" id="s-whs"><div class="muted mhint">${tr('Loading…')}</div></div>
   <div class="row"><button class="btn sm" data-wh="new">${ic('plus', 's')} ${tr('Add webhook')}</button></div>` : '';
-// ---- 2.166.0 (#2633): API tokens, webhooks and the tokens of my personal agents in one place; (#6368): since then the groups
+// ---- (#2633): API tokens, webhooks and the tokens of my personal agents in one place; (#6368): since then the groups
 // "Other programs" and "Agents" of Settings > Connections (the tab Access is gone, its links land there: settings.js go-access)
 const acz_agHtml = () => aiPaneOn() ? `<h4 id="s-acz-ag-h">${tr('Agent tokens')}</h4>
   <div class="shint">${tr('Each of your agents signs in with its own API token. A new token replaces the old one at once; “Set up on a computer” connects it on another machine.')}</div>

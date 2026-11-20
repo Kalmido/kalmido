@@ -124,7 +124,7 @@ function ab2_sheet(it) {
           const before = Object.fromEntries(sent.map(f => [f, o0[f] ?? ''])), after = Object.fromEntries(sent.map(f => [f, v[f]]));  // the undo: only what this save changed
           let at = r.updated_at;
           const then = j => { at = j?.updated_at || at; ab2_reload(); }, label = ab2_span(it);
-          histAdd({label: tr('Absence changed'), srv: true, undo: () => undoStep(url, before, at, {now: after, label, then}), redo: () => undoStep(url, after, at, {now: before, label, then})});  // 2.809.0 (#5476): srv = the server lists the step (hub/absundo.py)
+          histAdd({label: tr('Absence changed'), srv: true, undo: () => undoStep(url, before, at, {now: after, label, then}), redo: () => undoStep(url, after, at, {now: before, label, then})});  // (#5476): srv = the server lists the step (hub/absundo.py)
         }
       } else {
         const r = await api('POST', '/api/team/absences', v);

@@ -542,7 +542,7 @@ function aiHtml(hint, want) {
     ${collab() ? '' : hint(setLinkHtml(tr('Agents work together with you in shared projects: switch on Collaboration (Settings > Modules) as well.')))}
     <div class="members aglist" id="${adm ? 's-ags' : 's-myags'}"><div class="muted mhint">${tr('Loading…')}</div></div>
     <div class="row aibtns">${adm ? `<button class="btn sm" data-ag="new" aria-haspopup="menu">${ic('plus', 's')} ${tr('Add agent…')}</button>` : `<button class="btn sm" data-aigo="setup">${ic('plus', 's')} ${tr('Personal agent…')}</button>`}<button class="btn sm" data-m="ag-guide" title="${esc(tr('Set up an agent step by step, or let Claude Code do it'))}">${ic('help', 's')} ${tr('How to set one up')}</button></div>
-    ${/*html-ok*/ acz_linkHtml() /* its row from tr() texts */}${''/* 2.166.0 (#2633); (#6368): to Connections > Agents */}
+    ${/*html-ok*/ acz_linkHtml() /* its row from tr() texts */}${''/* (#2633); (#6368): to Connections > Agents */}
     ${agDotsHtml(hint)}
     <h4 id="s-agsteps-h">${tr('Steps in the chat')}</h4>
     <div class="row"><label class="chkl swl"><span class="swc"><input type="checkbox" id="s-agsteps" ${S.settings?.agent_steps_always === '1' ? 'checked' : ''}><span class="swt" aria-hidden="true"></span></span><span>${tr('Always show steps')}</span></label></div>
@@ -1031,13 +1031,13 @@ function settingsModal(focus) {
       , intr_row('dav', 'sync', N_('Calendar apps (CalDAV)'), caldavHtml(hint)), intr_row('apw', 'key', N_('App passwords'), apwHtml())  // (#6368): the app passwords were in Account
       , intr_row('share', 'phone', N_('Share from your phone'), shareHtml(hint))])
       + intr_grp('mail', N_('E-mail'), [intr_row('mail', 'send', N_('Tasks by e-mail'), `<h4 id="s-mail-h">${tr('Tasks by e-mail')}</h4><div id="s-mail"></div>`)
-      , intr_row('scan', 'download', N_('Documents: inboxes'), feat('docs') && typeof dsc_integrHtml === 'function' ? dsc_integrHtml(false) : '')])  // 2.353.0 B (#2773): docscan.js, drawn by dsc_integrDraw
+      , intr_row('scan', 'download', N_('Documents: inboxes'), feat('docs') && typeof dsc_integrHtml === 'function' ? dsc_integrHtml(false) : '')])  // (#2773): docscan.js, drawn by dsc_integrDraw
       + intr_grp('grid', N_('Other programs'), [intr_row('api', 'key', N_('API tokens'), apiHtml()), intr_row('wh', 'sync', N_('Webhooks'), whHtml())  // (#6368): were the tab Access (#2633)
-      , intr_row('fetch', 'receipt', N_('Receipt fetcher'), feat('docs') && typeof fx_html === 'function' ? fx_html() : '')  // 2.625.0 (#4489): its own row (was inside dsc_integrHtml)
+      , intr_row('fetch', 'receipt', N_('Receipt fetcher'), feat('docs') && typeof fx_html === 'function' ? fx_html() : '')  // (#4489): its own row (was inside dsc_integrHtml)
       , intr_row('pl', 'file', N_('Paperless-ngx'), feat('docs') && typeof pl_setHtml === 'function' ? pl_setHtml() : '')
-      , intr_row('kk', 'bookmark', N_('Karakeep'), kks_html()), intr_row('nwl', 'megaphone', N_('Newsletter service'), nwls_html()), intr_row('apb', 'clock', N_('Booking page'), apbs_html())  // 2.365.2 B (#2789): integrations.js
+      , intr_row('kk', 'bookmark', N_('Karakeep'), kks_html()), intr_row('nwl', 'megaphone', N_('Newsletter service'), nwls_html()), intr_row('apb', 'clock', N_('Booking page'), apbs_html())  // (#2789): integrations.js
       , intr_row('bmlet', 'globe', N_('Save button for the browser'), bmls_html())
-      , intr_row('pep', 'building', N_('E-invoice (Peppol)'), biz_integrHtml())])  // 2.365.2 D (#2789): the office's Peppol access (lives in Company & office)
+      , intr_row('pep', 'building', N_('E-invoice (Peppol)'), biz_integrHtml())])  // (#2789): the office's Peppol access (lives in Company & office)
       + intr_grp('bot', N_('Agents'), [intr_row('aczag', 'bot', N_('Agent tokens'), acz_agHtml())]),
     data: `<h4 id="s-imp-h">${tr('Import')}</h4>
       ${hint(tr('You see a preview first; an import can be undone for 24 hours. Nothing inside the file is fetched from the internet.'))}${nwls_impLinkHtml()}
@@ -1100,16 +1100,16 @@ function settingsModal(focus) {
   // 2.365.2 (#2789): what was set inside a module: Company & office (the office's settings, following the workspace) and Documents
   pane.biz = typeof biz_paneHtml === 'function' ? biz_paneHtml() : '';
   pane.docs = typeof dcs_paneHtml === 'function' ? dcs_paneHtml() : '';
-  pane.data += biz_dataHtml();  // 2.365.2 D (#2789): the office's data (its Peppol access: Connections, #6368)
+  pane.data += biz_dataHtml();  // (#2789): the office's data (its Peppol access: Connections, #6368)
   pane.help += aboutHtml(chk, hint);
   const secs = SET_SECS.filter(([k]) => pane[k]);
-  let cur = {tabbar: S.me?.kid ? 'look' : 'nav', sidebar: 'look', layout: 'modules', collab: 'modules', focus: 'modules', time: 'modules', templates: 'data', sample: 'data', newskinds: 'notify', agents: 'ai', agentdots: 'ai', usage: 'ai', activity: S.me?.is_admin ? 'org' : 'ai', agentpolicy: 'org', server: 'users', signin: 'users', agentsafe: 'ai', agentsetup: 'ai', assistant: 'ai', share: 'integr', ical: 'integr', calendars: 'integr', webhooks: 'integr', access: 'integr', caldav: 'integr', paperless: 'integr', scans: 'integr', tokens: 'integr', apppw: 'integr', about: 'help', groups: 'org', users: 'org', odata: S.me?.is_admin ? 'users' : 'org', backup: 'users', dayplan: 'general'}[focus] || (INTB_FOCUS[focus] ? 'integr' : focus);  // 2.364.0 C (#3041): people, groups, agent rules under Organisation; 2.582.0 (#4827): backup / old odata of a server admin = Server > Backup
+  let cur = {tabbar: S.me?.kid ? 'look' : 'nav', sidebar: 'look', layout: 'modules', collab: 'modules', focus: 'modules', time: 'modules', templates: 'data', sample: 'data', newskinds: 'notify', agents: 'ai', agentdots: 'ai', usage: 'ai', activity: S.me?.is_admin ? 'org' : 'ai', agentpolicy: 'org', server: 'users', signin: 'users', agentsafe: 'ai', agentsetup: 'ai', assistant: 'ai', share: 'integr', ical: 'integr', calendars: 'integr', webhooks: 'integr', access: 'integr', caldav: 'integr', paperless: 'integr', scans: 'integr', tokens: 'integr', apppw: 'integr', about: 'help', groups: 'org', users: 'org', odata: S.me?.is_admin ? 'users' : 'org', backup: 'users', dayplan: 'general'}[focus] || (INTB_FOCUS[focus] ? 'integr' : focus);  // (#3041): people, groups, agent rules under Organisation; (#4827): backup / old odata of a server admin = Server > Backup
   if (focus === 'codecheck') cur = 'help';  // 2.766.0 (#5220): the hint of the service worker (upbar.js)
   if (/^biz-/.test(focus || '')) { S.bizJump = focus.slice(4); cur = 'biz'; }  // 2.365.2 D (#2789): a part of Company & office (office.js biz_jump scrolls there)
   if (!secs.some(([k]) => k === cur)) cur = LS.get('settingsSec', 'general') === 'access' ? 'integr' : LS.get('settingsSec', 'general');  // (#6368): the old tab Access
   if (!secs.some(([k]) => k === cur)) cur = 'general';
   const md = modal(`<div class="shdr"><button type="button" class="iconbtn sback" data-m="s-index" title="${esc(tr('All settings'))}" aria-label="${esc(tr('All settings'))}">${ic('back', 's')}</button><h3>${tr('Settings')}</h3><span class="ssaved" role="status" aria-live="polite"></span><span class="spacer"></span><span class="ssearch">${ic('search', 's')}<input type="search" id="s-search" name="kalmido-settings-search" data-1p-ignore data-lpignore="true" data-bwignore readonly placeholder="${esc(tr('Search settings'))}" aria-label="${esc(tr('Search settings'))}" autocomplete="off" aria-controls="s-sres"></span><div class="ssres hidden" id="s-sres" role="listbox" aria-label="${esc(tr('Search settings'))}"></div><button class="iconbtn" data-m="close" aria-label="${tr('Close')}" title="${tr('Close')}">${ic('x')}</button></div>
-    <div class="sbody"><nav class="snav" role="tablist" aria-label="${tr('Settings')}">${secs.map(([k, i, n]) => `<button role="tab" id="st-${k}" aria-controls="sp-${k}" aria-selected="${k === cur}" data-sec="${k}" class="${k === cur ? 'on' : ''}">${ic(i, 's')}<span>${tr(n)}</span>${SET_DESC[k] ? `<small class="sndesc">${esc(tr(SET_DESC[k]))}</small>` : ''}</button>`).join('')}</nav>${mvOn() ? `<button type="button" class="snmv" data-mv="off">${ic('eye', 's')}<span>${tr('Show administration again')}</span></button>` : ''/* 2.436.0 (#3620): the way back, under the areas */}
+    <div class="sbody"><nav class="snav" role="tablist" aria-label="${tr('Settings')}">${secs.map(([k, i, n]) => `<button role="tab" id="st-${k}" aria-controls="sp-${k}" aria-selected="${k === cur}" data-sec="${k}" class="${k === cur ? 'on' : ''}">${ic(i, 's')}<span>${tr(n)}</span>${SET_DESC[k] ? `<small class="sndesc">${esc(tr(SET_DESC[k]))}</small>` : ''}</button>`).join('')}</nav>${mvOn() ? `<button type="button" class="snmv" data-mv="off">${ic('eye', 's')}<span>${tr('Show administration again')}</span></button>` : ''/* (#3620): the way back, under the areas */}
       <div class="spanes">${secs.map(([k]) => `<section class="spane ${k === cur ? '' : 'hidden'}" role="tabpanel" id="sp-${k}" aria-labelledby="st-${k}" data-pane="${k}">${pane[k]}</section>`).join('')}</div></div>`);
   md.classList.add('smodal');
   md.dataset.dlgsz = 'settings';  // 2.805.0 (#5357): the size grip (dialogs.js dlg_sizer)
@@ -1171,7 +1171,7 @@ function settingsModal(focus) {
     if (k === 'ai') aiSubShow(md);  // 2.5.1 (#393): only the shown sub-tab loads
     if (k === 'users' || k === 'org') admSubShow(md, null, false, k);
     if (k === 'ai' || k === 'users') asst_paneDraw(md);  // 2.75.0 (#1411); 2.489.0 (#2664): the assistant lives in Agents
-    if (k === 'account') { tfaDraw(md); epvDraw(md); e2eDraw(md); if (typeof msvDraw === 'function') msvDraw(md); if (typeof sesDraw === 'function') sesDraw(md); if (typeof sgvDraw === 'function') sgvDraw(md); }  // 2.73.0 A (#661): + Servers; 2.115.0 B (#2062): + sessions
+    if (k === 'account') { tfaDraw(md); epvDraw(md); e2eDraw(md); if (typeof msvDraw === 'function') msvDraw(md); if (typeof sesDraw === 'function') sesDraw(md); if (typeof sgvDraw === 'function') sgvDraw(md); }  // (#661): + Servers; (#2062): + sessions
     $(`.snav [data-sec="${k}"]`, md)?.scrollIntoView({block: 'nearest', inline: 'nearest'});
   };
   // ---- autosave
@@ -1340,7 +1340,7 @@ function settingsModal(focus) {
   });
   if (S.me?.is_admin) hostWire(md);
   aiuWire(md, only => { const box = $('#s-aiu', md); if (only && box && S.aiu.data) box.innerHTML = aiuHtml(S.aiu.data, Math.max(240, Math.min(720, (box.clientWidth || 560) - 8))); else aiuDraw(md); });  // 2.1.1 (#326)
-  if (cur === 'account' && S.me) { tfaDraw(md); epvDraw(md); e2eDraw(md); if (typeof msvDraw === 'function') msvDraw(md); if (typeof sesDraw === 'function') sesDraw(md); }  // 2.73.0 A (#661); 2.115.0 B (#2062): + sessions
+  if (cur === 'account' && S.me) { tfaDraw(md); epvDraw(md); e2eDraw(md); if (typeof msvDraw === 'function') msvDraw(md); if (typeof sesDraw === 'function') sesDraw(md); }  // (#661); (#2062): + sessions
   if (S.me) { tfaWire(md); tokWire(md); apwWire(md); e2eWire(md); }  // 2.42.0 (#828): + end-to-end encryption
   if (S.me?.is_admin) oidcWire(md);
   if (S.me?.is_admin) { aaWire(md); bkWire(md); orphWire(md); }
@@ -1443,7 +1443,7 @@ function settingsModal(focus) {
     if (b.dataset.m === 'hints-reset') { LS.del('hintsSeen'); toast(tr('Done')); render(); return; }
     if (b.dataset.m === 'ag-guide') { aiSubShow(md, 'setup', true); return; }  // 2.4.2 (#392); 2.7.2 (#420): the Set up tab
     if (b.dataset.m === 'go-nav') { $('.snav [data-sec="nav"]', md)?.click(); setTimeout(() => { const d = $('[data-navsec="tabbar"]', md); if (d) { d.open = true; d.scrollIntoView?.({block: 'start'}); } }, 50); return; }  // sprung-ok: the person asked for this place  // 2.1297.0 (#6129): the bottom bar lives under Navigation only
-    if (b.dataset.m === 'go-access') { $('.snav [data-sec="integr"]', md)?.click(); setTimeout(() => intr_open(md, b.dataset.to || '#s-api-h')?.scrollIntoView({block: 'start'}), 0); return; }  // sprung-ok: the person clicked the link to this place  // 2.166.0 (#2633); (#6368): the tab Access is part of Connections
+    if (b.dataset.m === 'go-access') { $('.snav [data-sec="integr"]', md)?.click(); setTimeout(() => intr_open(md, b.dataset.to || '#s-api-h')?.scrollIntoView({block: 'start'}), 0); return; }  // sprung-ok: the person clicked the link to this place  // (#2633); (#6368): the tab Access is part of Connections
     if (b.dataset.m === 'go-share') { $('.snav [data-sec="integr"]', md)?.click(); setTimeout(() => intr_open(md, '#s-share-h')?.scrollIntoView?.({block: 'start'}), 50); return; }  // 2.7.0 (#405 S3)
     if (b.dataset.m === 'go-modules') { $('.snav [data-sec="modules"]', md)?.click(); setTimeout(() => $('[data-pane="modules"] [data-modrow="agents"]', md)?.scrollIntoView?.({block: 'center'}), 50); return; }  // 2.6.0 (K09)
     if (b.dataset.m === 'cele-try') { const k = ['project', 'list', 'today'][(b._cele = ((b._cele ?? -1) + 1) % 3)]; celebrate(k, {force: true, name: k === 'project' ? tr('Example project') : tr('Example list')}); return; }  // 2.39.1 (#1292): each try shows the next level
