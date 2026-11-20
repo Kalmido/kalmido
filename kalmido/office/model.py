@@ -330,8 +330,7 @@ def _office_obj(c, uid, orgs):
 
 def pb_used(c, uid):
     """(#7313): does uid's personal office hold data -- documents, master data, receipts' purchases, bank, cash book or
-    private clients (not the trash)? The same question as accounts/orgs.py _office_keep_on_join (2.356.0 B, #2932): an
-    office opened once and left empty is no office to choose between."""
+    private clients (not the trash)? (2.356.0 B, #2932): an office opened once and left empty is no office to choose between."""
     with system_ctx(c):  # the person's own area
         pid = c.execute("SELECT id FROM orgs WHERE personal_of=?", (uid,)).fetchone()
         if not pid:

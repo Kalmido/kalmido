@@ -19,7 +19,8 @@ function cl_iconPickHtml(cur) {
 function cl_newWs() {
   if (typeof wsOn !== 'function' || !wsOn()) return {};
   const sps = wsp_list('clients', true), cur = wsCur();
-  const open = cur === 'all' && S.route?.mod === 'office' && typeof ofc_sp === 'function' ? ofc_sp() : cur !== 'all' ? cur : '';
+  const sp = S.route?.mod === 'office' && typeof ofc_sp === 'function' ? ofc_sp() : '';  // (#7328): the office open by its address, under any workspace
+  const open = sp || (cur !== 'all' ? cur : '');
   const ws = open && sps.includes(open) ? open : sps.length === 1 ? sps[0] : '';
   return ws ? {ws} : sps.length > 1 ? {choose: sps} : {};
 }

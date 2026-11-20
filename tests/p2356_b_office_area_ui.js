@@ -1,7 +1,7 @@
 // kalmido-suite: fresh
 // 2.356.0 B (#2932) UI test, jsdom: the office header always names its workspace.
 // - a person without an organisation: no area in the office header (2.936.0, #5448: one office = no chip; was "Private" as text)
-// - the same person with an own office joins an organisation: the office stays "Private", the header now carries the
+// - the same person with an own office joins an organisation (#7328: the workspace stays; she picks Private): the header now carries the
 //   workspace switch itself (data-act ws-menu); switching to the organisation shows its name there and ONE hint
 //   ("This office belongs to the workspace …", setting office_ws_hint), switching back shows no second hint
 // freelancer-matrix: office
@@ -32,10 +32,12 @@ const until = async (fn, n = 60) => { for (let i = 0; i < n; i++) { const x = aw
   check(h0 && !d.querySelector('.office .ofchead .ofcws') && /^Admin/.test(h0.textContent.trim()), 'without an organisation: no area chip, the header starts with the role ' + d.querySelector('.office .ofchead')?.outerHTML);
   w.close();
 
-  // ================= joins an organisation (made with her as its admin): the office stays private, the header is the switch
+  // ================= joins an organisation (made with her as its admin): the workspace on top stays (#7328), in Private the
+  // header is the switch
   const org = await call('POST', '/api/admin/orgs', {name: 'Alpha Studio', admin_id: fr.id});
   check(org.id, 'setup: an organisation with frida as its admin');
-  check((await call('GET', '/api/state', null, FK)).settings.workspace === 'private', '#2932: the workspace stays private');
+  check(['all', '', undefined].includes((await call('GET', '/api/state', null, FK)).settings.workspace), '#7328: the join leaves the workspace as it was (was #2932: switched to Private)');
+  await call('PATCH', '/api/settings', {workspace: 'private'}, FK);
   w = await boot({user: 'frida', hash: 'office/offers'}); d = w.document;
   const a1 = await until(() => d.querySelector('.office .ofchead button.ofcws'));
   check(a1 && a1.dataset.act === 'ws-menu' && /Private/.test(a1.textContent), '#2932: the office header: "Private" with the workspace switch ' + (a1 && a1.outerHTML));

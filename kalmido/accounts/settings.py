@@ -776,7 +776,6 @@ RS_ITEMS = (
     ("side", N_("Only favourites in the sidebar"), ("fav_only",)),
     ("side", N_("Folded folders"), ("folders_closed",)),
     ("side", N_("Active sidebar view"), ("side_view",)),
-    ("side", N_("Shown workspace"), ("workspace",)),
     ("start", N_("Start page"), ("start_page",)),
     ("views", N_("Arrangement and block settings of the views"), ("dashboard", *LAYOUT_KEYS, "wgstd_hide")),
     ("views", N_("Menus and tab bar"), ("nav_order", "nav_menus")),

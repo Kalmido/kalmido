@@ -790,18 +790,21 @@ async function docsAll(url, f = rawFetch) {
 // (office.js ofc_wspBad shows a note) - never silently the only other office under that address
 const ofc_spRoute = () => { const w = S.route?.wsp || ''; return w && typeof ofc_spaces === 'function' && ofc_spaces().includes(w) ? w : ''; };
 const ofc_spOne = () => typeof ofc_spaces === 'function' && ofc_spaces().length === 1 ? ofc_spaces()[0] : '';
-const ofc_spOpen = () => S.route?.mod !== 'office' || typeof wsCur !== 'function' || wsCur() !== 'all' ? ''
-  : S.route.wsp ? ofc_spRoute() : ofc_spOne();
+// (#7328): the address's area counts under a chosen workspace too (a link into the office of another workspace opens there,
+// the switch on top stays); without one a chosen workspace's own office ('' = wsCur, ofc_spCur)
+const ofc_spOpen = () => S.route?.mod !== 'office' || typeof wsCur !== 'function' ? ''
+  : S.route.wsp ? ofc_spRoute() : wsCur() !== 'all' ? '' : ofc_spOne();
 // (#7313 F12): outside the office under "All" the office of what the page shows (wscolor.js wso_cur: the open client, contact,
 // document, project ...) when its office is on for me, else the only office on for me; '' = none (the server asks, 400)
 const ofc_spObj = () => { if (typeof wso_cur !== 'function' || typeof ofc_spaces !== 'function') return ''; let w = ''; try { w = wso_cur(); } catch { /* a page not ready */ } return w && ofc_spaces().includes(w) ? w : ''; };
 // (#7297): under a chosen workspace its area goes along too, with EVERY office request (whatever page asks, e.g. the
 // office menu's role from #clients): the office never depends on the saved setting the server got (a failed or late PATCH,
 // the split view's right half that sends none, miniwin.js MW_GUARD); the server checks the membership (office_space)
-const ofc_spCur = () => typeof wsCur !== 'function' ? '' : wsCur() !== 'all' ? wsCur() : S.route?.mod === 'office' ? ofc_spOpen() : ofc_spObj() || ofc_spOne();
+const ofc_spCur = () => typeof wsCur !== 'function' ? '' : S.route?.mod === 'office' && S.route.wsp ? ofc_spOpen() : wsCur() !== 'all' ? wsCur() : S.route?.mod === 'office' ? ofc_spOpen() : ofc_spObj() || ofc_spOne();  // (#7328): the address's area first
 // (#7313 F13): a link into the office names its area under "All workspaces" (#office/s/<area>/<tail>, like ablage.js ab_rcGo);
-// ws = 'org:<id>' | 'private' | an object's org_id (null / 0 = Private)
-const ofc_link = (tail, ws) => { const w = typeof ws === 'string' && ws ? ws : ws ? 'org:' + +ws : 'private'; return typeof wsCur === 'function' && wsCur() === 'all' && (typeof ofc_spaces !== 'function' || ofc_spaces().includes(w)) ? `office/s/${w}/${tail}` : 'office/' + tail; };
+// ws = 'org:<id>' | 'private' | an object's org_id (null / 0 = Private). (#7328): under a chosen workspace too when the area
+// is another one (devlink.js, life.js, favtiles.js: was wsSet, the switch on top jumped); its own workspace = the plain address
+const ofc_link = (tail, ws) => { const w = typeof ws === 'string' && ws ? ws : ws ? 'org:' + +ws : 'private', cur = typeof wsCur === 'function' ? wsCur() : 'all'; return cur !== w && (typeof ofc_spaces !== 'function' || ofc_spaces().includes(w)) ? `office/s/${w}/${tail}` : 'office/' + tail; };
 const ofc_spHdr = url => /^\/api\/(office\/|docs[/?]|search(\?|$))/.test(String(url || '')) ? ofc_spCur() : '';  // (#7313 F12): + /api/search (office/search.py bs_office_oid: the hits of the office shown)
   // (#4823): + /api/docs/ (docs/area.py ar_office: receipts sorted into the open office)
 // 2.577.0 (#4638, review): links, window.open, images and pdfView cannot send the header: the same area as ?_osp= (once);
@@ -2246,7 +2249,7 @@ function parseHash() {
   if (a === 'ablage' && b === 'recent') return {mod: 'ablage', key: 'ablage', nid: null, zle: true};  // 2.880.0 (#5561): the page "Recently edited"
   if (a === 'ablage') return {mod: 'ablage', key: 'ablage', nid: +b || null, ...(/^aus-[a-z]{2,12}$/.test(b || '') ? {aus: b.slice(4)} : {})};  // 2.48.0 (#1207): ablage/<folder or file id>; 2.429.0 (#3580): ablage/aus-<key> (a collection)
   if (a === 'office' && b === 's') { const p = h.split('/'); return {mod: 'office', key: 'office', wsp: p[2] || '', tab: p[3] || '', id: +p[4] || null}; }  // 2.577.0 (#4638): office/s/<space>[/<tab>[/<id>]] under "All workspaces"
-  if (a === 'office' && b && S.route?.mod === 'office' && S.route.wsp && typeof wsCur === 'function' && wsCur() === 'all') {  // 2.577.0 (#4638): a link inside an open area keeps it (the address says it too)
+  if (a === 'office' && b && S.route?.mod === 'office' && S.route.wsp && typeof wsCur === 'function' && (wsCur() === 'all' || wsCur() !== S.route.wsp)) {  // 2.577.0 (#4638): a link inside an open area keeps it (the address says it too); (#7328): also another workspace's office under a chosen one
     history.replaceState(history.state, '', '#office/s/' + S.route.wsp + '/' + h.slice(7));
     return {mod: 'office', key: 'office', wsp: S.route.wsp, tab: b, id: +(h.split('/')[2]) || null};
   }

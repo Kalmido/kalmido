@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 # kalmido-suite: fresh
 """2.356.0 B (#2932): joining an organisation keeps a freelancer's own office. Invented names only.
+(#7328): the join never switches the workspace on top any more (was: "all" -> "private" when the own office held data, on
+every device and without a word). Under "All" the server never guesses between the two offices: the app names the office
+with every request (header X-Kalmido-Office-Space), a request naming none gets 400 office_no_area.
  - a person without an organisation (freelancer fixture) has a client and a quotation in the personal office, accepts an
-   invitation into an organisation: the setting "workspace" becomes "private", GET /api/office/settings stays the personal
-   office (personal 1, admin), the quotation is still listed and a new quotation is numbered in the personal office
+   invitation into an organisation: the setting "workspace" stays "all", the personal office named (header "private") is
+   still hers (personal 1, admin), the quotation is still listed and a new quotation is numbered in the personal office
  - counter-check: a person whose personal office is empty (opened once, no data) joins: nothing changes, the office is
    the organisation's as before
  - a workspace chosen before the join stays as it is; the setting office_ws_hint (the office's one-time hint) is a flag
@@ -55,16 +58,19 @@ PID = st.get("org_id")
 check(st.get("personal") == 1 and PID and PID != ORG, f"before: the personal office {st.get('personal')} {PID}")
 kt.proved()  # 2.1021.0 (#5775): an organisation admin invites by address only an account that proved it
 check(Bo.put(B + f"/api/orgs/{ORG}/members", json={"email": "frida@example.com"}).ok and org_join(B, "frida", ORG), "frida accepts the invitation")
-check(ws(Fr) == "private", f"#2932: the workspace stays the private one after the join: {ws(Fr)!r}")
+check(ws(Fr) in ("all", "", None), f"#7328: the join leaves the workspace on top as it was ('all'): {ws(Fr)!r}")
 r = Fr.get(B + O + "/settings")
+check(r.status_code == 400 and r.json().get("code") == "office_no_area", f"#7328: under 'All' with two offices nothing named = no guess: {r.status_code} {r.text[:120]}")
+PV = {"X-Kalmido-Office-Space": "private"}
+r = Fr.get(B + O + "/settings", headers=PV)
 j = r.json() if r.ok else {}
 check(r.ok and j.get("org_id") == PID and j.get("personal") == 1 and j.get("role") == "admin",
-      f"#2932: the office stays the personal one: {r.status_code} org {j.get('org_id')} personal {j.get('personal')} role {j.get('role')}")
-r = Fr.get(B + D + "?kind=offer")
+      f"#2932: the own office is still hers: {r.status_code} org {j.get('org_id')} personal {j.get('personal')} role {j.get('role')}")
+r = Fr.get(B + D + "?kind=offer", headers=PV)
 check(r.ok and Q in [x["id"] for x in r.json().get("docs", [])], f"#2932: the own quotation is still listed {r.status_code}")
-r = Fr.post(B + D, json={"kind": "offer", "client_id": CL, "project_title": "Zweiter Film"})
+r = Fr.post(B + D, json={"kind": "offer", "client_id": CL, "project_title": "Zweiter Film"}, headers=PV)
 Q2 = r.json().get("id") if r.ok else None
-j = Fr.get(B + D + "?kind=offer").json()
+j = Fr.get(B + D + "?kind=offer", headers=PV).json()
 check(r.ok and j.get("org_id") == PID and Q2 in [x["id"] for x in j.get("docs", [])],
       f"#2932: a new quotation lands in the personal office {r.status_code} {r.text[:120]} org {j.get('org_id')}")
 check(any(o.get("id") == ORG for o in Fr.get(B + "/api/state").json()["me"].get("workspaces") or []), "frida is a member of Alpha")
@@ -89,6 +95,10 @@ check(r.ok and r.json().get("org_id") == ORG and r.json().get("personal") == 0, 
 r = A.post(B + "/api/admin/orgs", json={"name": "Beta Werk", "admin_id": FID})
 check(r.status_code == 201, f"a second organisation, frida its admin {r.status_code}")
 check(ws(Fr) == f"org:{ORG}", f"#2932: a chosen workspace is not overwritten by a further membership: {ws(Fr)!r}")
+# (#7328): a further organisation joined under "All" (her own office holds data, she is in Alpha already) leaves "All"
+check(Fr.patch(B + "/api/settings", json={"workspace": "all"}).ok, "frida back to All workspaces")
+r = A.post(B + "/api/admin/orgs", json={"name": "Delta Werk", "admin_id": FID})
+check(r.status_code == 201 and ws(Fr) == "all", f"#7328: joining a third organisation under 'All' leaves 'All' ({r.status_code} {ws(Fr)!r})")
 check(Fr.patch(B + "/api/settings", json={"office_ws_hint": "1"}).ok and Fr.get(B + "/api/state").json()["settings"].get("office_ws_hint") == "1",
       "#2932: the hint flag office_ws_hint is stored")
 check(Fr.patch(B + "/api/settings", json={"office_ws_hint": "x"}).status_code == 400, "#2932: office_ws_hint is a flag (0/1)")
