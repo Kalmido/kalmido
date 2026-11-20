@@ -1770,6 +1770,12 @@ mean as a parameter (`ar_office(c, uid, to)`, `ar_here` for a request); none ask
 recogniser of an invoice is `area.ar_kind` (also the move of old receipts, `docs/areamove.py`). Test:
 `tests/p7325_a_area_to_test.py`.
 
+Agents in the office (#7326): an agent keeps its own workspace (its organisation; a personal agent without one its owner's
+own office, `office/agentdocs.py ofa_home`) and writes there only while the office is on for the person it works for --
+`ofa_on_for` asks `wsp_on(c, uid, "office", oid)`, no second gate (`modcards.mc_gate` leaves `/api/v1` out); off = `409
+office_off`. Its links carry the office (`ofa_href`: `#office/s/<area>/...`). Links into another workspace's office in the
+browser go the same way (`core.js ofc_link`, #7328): the address names the area, the workspace on top stays.
+
 ## Resizing: the one grip (#7293)
 
 Everything a person can make wider, taller or bigger uses **one grip**, no drag handling of its own: a grip between two
