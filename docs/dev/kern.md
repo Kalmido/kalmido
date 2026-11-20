@@ -1436,7 +1436,9 @@ unique per scope under `lower()`. It replaced `list_tags`, `task_list_tags` and 
   project that leaves its organisation keeps the labels as project tags, and one that joins an organisation gives its project
   tags named like a label to that label: the trigger `kalmido_otg_org_moved` on every change of `lists.org_id` and before an
   organisation is deleted (review F1 / F6, `kalmido_otg_left` / `kalmido_otg_joined`; rules and shared views follow through
-  `kalmido_otg_rekey`, the one rewrite the app's `otg_rekey_refs` calls too, always per list).
+  `kalmido_otg_rekey`, the one rewrite the app's `otg_rekey_refs` calls too, always per list; #6289: the person's own rules of
+  My tasks, `user_mine_rules` trigger `ltag` and condition `tag_id`, and their once-markers follow there as well - a new place
+  that names a tag id belongs into this one function).
 - Reading: `obj_tags_of(c, ids)` (bulk, in the project's order), `obj_tag_sql(col, by)` (the filter part: filters, data lock,
   shared views, API v1), `otg_in_list(c, tag_id, lid, full=)` / `otg_list_sql(full=)` (a tag a task of the list may carry:
   rules, shared views). For a reader pass `full=lists/orglabels.py olb_full(c)`: the labels of organisations the person
