@@ -29,7 +29,7 @@ from ..files.scan import sc_guard  # 2.306.0: pulled up from functions (layers b
 from ..files.store import fs_chain, fs_deleted, fs_log_add, fs_role, fs_roles_many, fs_visible_ids, fs_visible_sql, fs_version_row, need_node
 from . import store as S
 from .ingest import docs_ingest, docs_kick
-from .area import ar_sql, ar_to_req, ar_upload_need, ar_view  # 2.522.0 (#4433); (#7325): ar_to_req; (#7321)
+from .area import ar_sql, ar_to_req, ar_upload_need, ar_view  # (#4433); (#7325): ar_to_req; (#7321)
 from .maillink import ml_token_new  # 2.424.0 B (#3450)
 from .ocr import ocr_available
 from .pagesize import pg_ok  # 2.905.0 (#5393)
