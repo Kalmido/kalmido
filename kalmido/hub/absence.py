@@ -19,9 +19,10 @@ from datetime import date, timedelta
 from flask import g, jsonify, request
 
 from ..core.config import app
-from ..core.pg import insert_id, system_ctx, write_lock
+from ..core.pg import insert_id, qi, system_ctx, ts_canon, write_lock
 from ..core.i18n import lang, tr
-from ..core.db import body, bump, db, iso, local_now, now_utc, usettings
+from ..core.db import body, bump, db, iso, iso_ms, local_now, now_utc, usettings
+from ..core.conflict import ccf_check  # #6342
 from ..core.access import Denied
 from ..core.orgcrypt import oc_dec_fields, oc_enc_fields
 from ..accounts.session import me, user_public
@@ -146,7 +147,17 @@ def abs_public(r, full, c=None):
          "half_day": r["half_day"] or "", "status": r["status"] or "approved"}  # 2.125.0 A (#2117)
     if full:
         d.update(kind=r["kind"], note=r["note"] or "", decision_note=r["decision_note"] or "")
+        d["updated_at"] = abs_version(r)  # #6342: the version its dialog sends back (expect_updated_at)
     return d
+
+
+ABS_EDIT_COLS = ("kind", "start_date", "end_date", "half_day", "note", "status", "updated_at")  # #6342: what abs_edit writes (qi)
+
+
+def abs_version(r):
+    """#6342: an absence's version: its updated_at; a row of before migrations.d/6342.py (none yet) = its created_at."""
+    k = r.keys()
+    return ts_canon(("updated_at" in k and r["updated_at"]) or r["created_at"])
 
 
 def abs_clean(b, cur=None):
@@ -332,13 +343,18 @@ def abs_edit(aid):
     r = _row(c, aid)
     if r["deleted_at"] or not _may_edit(c, uid, r):
         raise Denied(404 if r["deleted_at"] else 403)
-    p = abs_clean(body(), dict(r))
+    b = body()
+    # #6342: only the fields sent change; expect_updated_at = the version the dialog read: another one now -> 409 with the
+    # absence under `current` (core/conflict.py ccf_check, under the lock above), nothing written
+    ccf_check(b, abs_version(r), "current", lambda: {**abs_public(r, True, c), "can_edit": True})
+    p = abs_clean(b, dict(r))
     v = oc_enc_fields(c, r["org_id"], "hub_absences", p)
     from .leave import lv_requested, lv_status_edit
     v.update(lv_status_edit(c, uid, r, p))  # 2.125.0 A (#2117): a member's changed vacation asks again
     if v:
         _abs_step(c, uid, aid)  # 2.809.0 (#5476): the person's step (hub/absundo.py)
-        c.execute(f"UPDATE hub_absences SET {', '.join(k + '=?' for k in v)} WHERE id=?", (*v.values(), aid))
+        v["updated_at"] = iso_ms(now_utc())  # #6342: milliseconds (two saves in one second are two versions)
+        c.execute(f"UPDATE hub_absences SET {', '.join(qi(k, ABS_EDIT_COLS) + '=?' for k in v)} WHERE id=?", (*v.values(), aid))
         if v.get("status") == "pending" and r["status"] != "pending":
             lv_requested(c, _row(c, aid))
         bump(c)

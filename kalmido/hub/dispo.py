@@ -21,9 +21,10 @@ from datetime import date, datetime, timedelta
 from flask import Response, g, jsonify, request
 
 from ..core.config import app, APP_NAME
-from ..core.pg import insert_id, write_lock
+from ..core.pg import insert_id, qi, write_lock
 from ..core.i18n import dec_comma, lang, tr
-from ..core.db import body, bump, db, iso, local_now, now_utc
+from ..core.db import body, bump, db, iso, iso_ms, local_now, now_utc
+from ..core.conflict import ccf_check  # #6342
 from ..core.access import Denied, live_sql, need_feat
 from ..accounts.session import me, user_public
 from ..core.errors import BadInput
@@ -171,6 +172,8 @@ def dsp_public(r, conf=None):
          "kind": r["resource_kind"], "rid": r["resource_id"], "label": r["res_label"], "status": r["status"],
          "note": r["note"] or "", "list_id": r["list_id"], "event_id": r["event_id"]}
     k = r.keys()
+    if "updated_at" in k:  # #6342: the version the dialog sends back (expect_updated_at)
+        d["updated_at"] = r["updated_at"]
     if "offer_root" in k:  # 2.589.0 (#4571): from a quotation (its crew function, a mark a newer version left)
         d.update(offer=bool(r["offer_root"]), offer_mark=r["offer_mark"] or "", slot=r["slot_name"] or "")
     if "qty" in k:  # 2.1378.0 (#4566 A): the quantity of a device from a quotation (1 for anything else)
@@ -426,27 +429,39 @@ def dsp_create():
 
 @app.patch("/api/team/dispo/bookings/<int:bid>")
 def dsp_edit(bid):
-    """{title?, start?, end?, status?, note?, all?: true (the whole job)}"""
+    """{title?, start?, end?, status?, note?, all?: true (the whole job; or ?all=1), expect_updated_at?}
+    #6342: only the fields sent change; expect_updated_at = the booking's version the dialog read: another one now -> 409 with
+    the booking under `current`, nothing written (conflict.py ccf_check under the bookings' locks)."""
     c, uid = _gate()
     r = _row(c, bid)
     if r["deleted_at"]:
         raise Denied(404)
     b = body()
-    v = _clean(b, dict(r))
-    targets = [x for x in c.execute("SELECT * FROM hub_bookings WHERE org_id=? AND job=? AND deleted_at IS NULL", (r["org_id"], r["job"]))] if b.get("all") else [r]
+    every = bool(b.get("all")) or request.args.get("all") == "1"
+    _clean(b, dict(r))  # bad input says so before any lock
     _may_change(c, uid, [r])
+    job = [x[0] for x in c.execute("SELECT id FROM hub_bookings WHERE org_id=? AND job=? AND deleted_at IS NULL", (r["org_id"], r["job"]))] if every else []
+    for i in sorted({bid, *job}):  # 2.809.0 (#5476): the bookings' locks in one order; #6342: before the version check
+        write_lock(c, f"hub_bookings-{i}")
+    r = _row(c, bid)  # read again under the lock
+    if r["deleted_at"]:
+        raise Denied(404)
+    ccf_check(b, r["updated_at"], "current", lambda: dsp_public(r))
+    v = _clean(b, dict(r))
+    targets = [x for x in c.execute("SELECT * FROM hub_bookings WHERE org_id=? AND job=? AND deleted_at IS NULL", (r["org_id"], r["job"]))] if every else [r]
     skipped = 0
     if any(t["created_by"] != uid for t in targets) and not abs_admin(c, uid, r["org_id"]):
         # 2.360.0 R (#2496, review): the whole job by a member: their own bookings change, other people's stay (counted)
         own = [t for t in targets if t["created_by"] == uid]
         skipped, targets = len(targets) - len(own), own
     if v:
-        for t in sorted(targets, key=lambda t: t["id"]):  # 2.809.0 (#5476): the bookings' locks in one order
-            write_lock(c, f"hub_bookings-{t['id']}")
+        for t in sorted(targets, key=lambda t: t["id"]):  # a booking that joined the job meanwhile (its lock after the others)
+            if t["id"] not in job and t["id"] != bid:
+                write_lock(c, f"hub_bookings-{t['id']}")
         for t in targets:
             _dsp_step(c, uid, t["id"])  # 2.809.0 (#5476): one part per booking (hub/dspundo.py), its state after right away
-            # 2.589.0 (#4571): a change by hand takes the mark of a newer quotation version off
-            c.execute(f"UPDATE hub_bookings SET {', '.join(_q(k) + '=?' for k in v)}, offer_mark='', updated_at=? WHERE id=?", (*v.values(), iso(now_utc()), t["id"]))
+            # 2.589.0 (#4571): a change by hand takes the mark of a newer quotation version off; #6342: milliseconds (two saves in one second are two versions)
+            c.execute(f"UPDATE hub_bookings SET {', '.join(qi(k, DSP_EDIT_COLS) + '=?' for k in v)}, offer_mark='', updated_at=? WHERE id=?", (*v.values(), iso_ms(now_utc()), t["id"]))
             _dsp_done(c)
         if v.get("status") == "firm":
             for t in targets:
@@ -461,8 +476,7 @@ def dsp_edit(bid):
     return jsonify(bookings=[dsp_public(x, conf.get(x["id"])) for x in rows], skipped=skipped)
 
 
-def _q(k):
-    return '"end"' if k == "end" else k
+DSP_EDIT_COLS = ("title", "start", "end", "status", "note")  # #6342: what _clean returns (qi quotes "end")
 
 
 @app.post("/api/team/dispo/bookings/<int:bid>/fill")
@@ -491,7 +505,7 @@ def dsp_fill(bid):
     write_lock(c, f"hub_bookings-{bid}")  # 2.809.0 (#5476): the person's step (hub/dspundo.py) under the booking's lock
     _dsp_step(c, uid, bid)
     c.execute("UPDATE hub_bookings SET resource_kind=?, resource_id=?, res_label=?, offer_mark='', updated_at=? WHERE id=?",
-              (pick[0], pick[1], label[:200], iso(now_utc()), bid))
+              (pick[0], pick[1], label[:200], iso_ms(now_utc()), bid))
     x = dict(_row(c, bid))
     _notify(c, x)
     bump(c)

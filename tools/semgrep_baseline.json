@@ -1822,22 +1822,6 @@
   },
   {
    "rule": "semgrep.kalmido-sql-ident-without-qi",
-   "file": "kalmido/hub/absence.py",
-   "code": "c.execute(f\"UPDATE hub_absences SET {', '.join(k + '=?' for k in v)} WHERE id=?\", (*v.values(), aid))",
-   "reason": "Existing SQL text before qi() (#5296): the interpolated name comes from fixed code, a registry or the schema, never from a request; listed, not rewritten (decision 08.11.2026); a touched place moves to qi().",
-   "date": "2026-11-09",
-   "task": 5296
-  },
-  {
-   "rule": "semgrep.kalmido-sql-ident-without-qi",
-   "file": "kalmido/hub/dispo.py",
-   "code": "c.execute(f\"UPDATE hub_bookings SET {', '.join(_q(k) + '=?' for k in v)}, offer_mark='', updated_at=? WHERE id=?\", (*v.values(), iso(now_utc()), t[\"id\"]))",
-   "reason": "Existing SQL text before qi() (#5296): the interpolated name comes from fixed code, a registry or the schema, never from a request; listed, not rewritten (decision 08.11.2026); a touched place moves to qi().",
-   "date": "2026-11-09",
-   "task": 5296
-  },
-  {
-   "rule": "semgrep.kalmido-sql-ident-without-qi",
    "file": "kalmido/hub/hubmail.py",
    "code": "n += c.execute(f\"UPDATE hub_mails SET {', '.join(k + '=?' for k in cols)} WHERE id=? AND \"",
    "reason": "Existing SQL text before qi() (#5296): the interpolated name comes from fixed code, a registry or the schema, never from a request; listed, not rewritten (decision 08.11.2026); a touched place moves to qi().",

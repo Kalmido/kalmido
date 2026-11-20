@@ -184,6 +184,9 @@ function dp_editSheet(b) {
     <div class="foot">${can ? `<button class="btn danger" data-m="del">${ic('trash', 's')} ${tr('Delete')}</button>` : ''}<span class="spacer"></span>${S.industry?.code === 'film' ? `<button class="btn" data-m="callsheet">${ic('file', 's')} ${tr('Call sheet')}</button>` : ''}<button class="btn" data-m="close">${can ? tr('Cancel') : tr('Close')}</button>${can ? `<button class="btn pri" data-m="save">${ic('check', 's')} ${tr('Save')}</button>` : ''}</div>`);
   md.classList.add('ab2md', 'dpmd');
   if (!can) $$('input, select, .dpstat button', md).forEach(x => { x.disabled = true; });
+  // #6342: what the dialog opened with (its version) and its form read once: the save sends only what differs from it
+  const url = `/api/team/dispo/bookings/${b.id}?all=1`, open = {title: b.title, start: b.start, end: b.end, status: b.status, note: b.note || '', updated_at: b.updated_at};
+  const form0 = dp_editForm(md, b.status);
   md.addEventListener('change', e => {  // 2.589.0 (#4571)
     const sel = e.target.closest?.('.dpfill'); if (!sel) return;
     const x = job.find(y => y.id === +sel.dataset.id); if (!x) return;
@@ -206,18 +209,35 @@ function dp_editSheet(b) {
     if (k.dataset.m === 'callsheet') { md.remove(); cs_open(b.job, d.org_id); return; }  // 2.855.0 (#1956): lazyload.js loads callsheet.js
     if (k.dataset.m === 'delone') { del(+k.dataset.id, false); return; }
     if (k.dataset.m === 'del') { del(b.id, true); return; }
-    const t0 = $('#dpe-t0', md).value, t1 = $('#dpe-t1', md).value, a = $('#dpe-from', md).value, z = $('#dpe-to', md).value || a;
-    const v = {title: $('#dpe-title', md).value.trim(), start: a + (t0 ? 'T' + t0 : ''), end: z + (t1 ? 'T' + t1 : t0 ? 'T23:59' : ''), status: $('.dpstat button.on', md)?.dataset.s || b.status, note: $('#dpe-note', md).value, all: true};
-    const before = {title: b.title, start: b.start, end: b.end, status: b.status, note: b.note || '', all: true};
+    // #6342: the core's way (objsave.js saveDialog, docs/dev/kern.md 4/6): only the fields changed in the dialog, with the version
+    // it read; another device saved meanwhile -> 409, the merge bar marks their fields, nothing of theirs is overwritten
+    const v = dp_editForm(md, b.status), o0 = md._objBase || open;
     k.disabled = true;
     try {
-      const r = await api('PATCH', `/api/team/dispo/bookings/${b.id}`, v);
-      const put = x => async () => { await api('PATCH', `/api/team/dispo/bookings/${b.id}`, x); dp_reload(); };
-      histAdd({label: tr('Booking changed'), srv: true, undo: put(before), redo: put(v)});
+      await loadModule('objsave');
+      const sent = Object.keys(objDiff(md._dpBase || form0, v)), r = await saveDialog(url, o0, v, {base: md._dpBase || form0});
+      k.disabled = false;
+      if (r?.conflict) {
+        md._objBase = r.conflict.cur; md._dpBase = objBase(form0, r.conflict.mine);
+        objMerge(md, r.conflict, () => {}, {field: f => md.querySelector(DPE_FIELD[f] || '#dpe-' + f), take: () => { md.remove(); dp_editSheet({...b, ...r.conflict.cur}); }});
+        return;
+      }
+      if (r === o0) { md.remove(); return; }  // nothing changed
+      const before = Object.fromEntries(sent.map(f => [f, o0[f] ?? ''])), after = Object.fromEntries(sent.map(f => [f, v[f]]));  // the undo: only what this save changed
+      let at = (r.bookings || []).find(x => x.id === b.id)?.updated_at;
+      const then = j => { at = (j?.bookings || []).find(x => x.id === b.id)?.updated_at || at; dp_reload(); };
+      const label = b.title || tr('Booking changed');
+      histAdd({label: tr('Booking changed'), srv: true, undo: () => undoStep(url, before, at, {now: after, label, then}), redo: () => undoStep(url, after, at, {now: before, label, then})});
       // 2.360.0 R (#2496): bookings of colleagues in the job stay as they were (only their author or an admin changes them)
       md.remove(); dp_reload(); toast(r?.skipped ? trn('Saved. {0} booking of someone else stays as it was', 'Saved. {0} bookings of others stay as they were', r.skipped) : tr('Saved'));
-    } catch { k.disabled = false; /* api() said it */ }
+    } catch (x) { k.disabled = false; if (!x?.shown && x?.message !== 'auth') toast(errText(x, tr('The change could not be saved'))); }
   });
+}
+// #6342: the dialog's fields in the shape the server reads (the whole job: url ?all=1); DPE_FIELD = where the merge bar marks a field
+const DPE_FIELD = {start: '#dpe-from', end: '#dpe-to', status: '.dpstat'};
+function dp_editForm(md, st) {
+  const t0 = $('#dpe-t0', md).value, t1 = $('#dpe-t1', md).value, a = $('#dpe-from', md).value, z = $('#dpe-to', md).value || a;
+  return {title: $('#dpe-title', md).value.trim(), start: a + (t0 ? 'T' + t0 : ''), end: z + (t1 ? 'T' + t1 : t0 ? 'T23:59' : ''), status: $('.dpstat button.on', md)?.dataset.s || st, note: $('#dpe-note', md).value};
 }
 
 function dp_reload() { DPV.data = null; DPV.free = null; if (S.route.mod === 'workload') dp_load(); }

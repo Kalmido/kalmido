@@ -2,7 +2,8 @@
 // kalmido-suite: fresh
 // "Create tasks" shows the shoot part as a shoot day (its date from the period of service, "2 × Camera" open places, ticked);
 // applying pencils it in; the disposition shows the group "Open places" with a row per crew function, the booking sheet fills
-// a place with a person (Undo opens it again). The module off: the preview shows only the hint. Invented names only.
+// a place with a person (Undo opens it again); #6342: another device moves the job while the sheet is open - saving the note shows
+// the merge bar, then only the note is saved. The module off: the preview shows only the hint. Invented names only.
 const path = require('path');
 const {execFileSync} = require('child_process');
 const {boot, sleep, B, login} = require('./boot');
@@ -66,6 +67,27 @@ const dstr = x => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0'
   await until(() => [...d.querySelectorAll('#view .dpres span, #view .dpbk')].length);
   await w.eval("histStep('undo')");
   check(await until(async () => { const j = await call('GET', `/api/team/dispo?start=${D1}&days=7`); return (j.bookings || []).find(x => x.id === bid)?.kind === 'slot'; }), 'Undo opens the place again');
+
+  // ================= #6342: another device moves the job while the sheet is open; saving only the note keeps the move
+  w.eval(`DPV.data = null; dp_reload()`);
+  await until(() => w.eval(`!!(DPV.data && DPV.data.bookings.find(x => x.id === ${bid}))`));
+  w.eval(`dp_editSheet(DPV.data.bookings.find(x => x.id === ${bid}))`);
+  const em2 = await until(() => d.querySelector('.dpmd #dpe-note') && d.querySelector('.dpmd'));
+  const D3 = dstr(new Date(t.getFullYear(), t.getMonth(), t.getDate() + 22)), D4 = dstr(new Date(t.getFullYear(), t.getMonth(), t.getDate() + 23));
+  const mv = await call('PATCH', `/api/team/dispo/bookings/${bid}?all=1`, {start: D3, end: D4, status: 'firm'});  // the other device
+  check(mv.status === 200, 'the other device moves the job ' + mv.status);
+  em2.querySelector('#dpe-note').value = 'Bring the long lens';
+  em2.querySelector('[data-m="save"]').click();
+  const bar = await until(() => em2.querySelector('.obj-merge'));
+  const now1 = (await call('GET', `/api/team/dispo?start=${D3}&days=7`)).bookings?.find(x => x.id === bid);
+  check(bar && em2.isConnected && now1?.start === D3 && now1?.status === 'firm' && !now1?.note, 'saved on the old version: the merge bar, the move stays, nothing written ' + JSON.stringify(now1));
+  bar?.querySelector('[data-om="mine"]')?.click();
+  em2.querySelector('[data-m="save"]').click();
+  const saved = await until(async () => { const b = (await call('GET', `/api/team/dispo?start=${D3}&days=7`)).bookings?.find(x => x.id === bid); return b?.note === 'Bring the long lens' ? b : null; });
+  check(saved && saved.start === D3 && saved.end === D4 && saved.status === 'firm' && !d.querySelector('.dpmd'), 'keep mine + save: only the note, the period and status of the other device stay ' + JSON.stringify(saved));
+  await w.eval("histStep('undo')");
+  const back = await until(async () => { const b = (await call('GET', `/api/team/dispo?start=${D3}&days=7`)).bookings?.find(x => x.id === bid); return b && !b.note ? b : null; });
+  check(back && back.start === D3 && back.status === 'firm', 'Undo takes only the note back ' + JSON.stringify(back));
   w.close();
 
   // ================= the module off: only the hint
