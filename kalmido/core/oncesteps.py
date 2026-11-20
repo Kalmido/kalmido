@@ -135,6 +135,15 @@ def migr_origin6643(c):  # (#6643): the outside origin of the tasks made before 
     gset(c, "migr_origin6643", "1")
 
 
+def migr_tcvorg6232(c):  # (#6232): history rows of team chat messages that stayed with the organisation before a project move
+    # Since #6232 kalmido_orw_carry (core/orgrows.py) carries them along; the rows written before it get their project's
+    # organisation once (the channel of a project: tchat_rooms kind 'list'; a private project: NULL).
+    with pg_system_ctx(c):  # every organisation's history rows (row-level security)
+        c.execute("""UPDATE obj_history h SET org_id=l.org_id FROM tchat_msgs m JOIN tchat_rooms r ON r.id=m.room_id AND r.kind='list'
+                     JOIN lists l ON l.id=r.list_id WHERE h.kind='tchat_msg' AND h.ref_id=m.id AND h.org_id IS DISTINCT FROM l.org_id""")
+    gset(c, "migr_tcvorg6232", "1")
+
+
 STEPS = [  # (phase, key, once, f): the order of init_db (2.1356.0, #6824); 2.1380.0 (#6826): the one-shots before MIN_FROM are gone
     ("cdn_backfill", "migr_upg2103", True, migr_upg2103),
     ("cdn_backfill", "migr_upg2360", True, migr_upg2360),
@@ -145,6 +154,7 @@ STEPS = [  # (phase, key, once, f): the order of init_db (2.1356.0, #6824); 2.13
     ("cdn_backfill", "migr_textby6677", True, migr_textby6677),
     ("cdn_backfill", "migr_srvorg6363", True, migr_srvorg6363),
     ("cdn_backfill", "migr_origin6643", True, migr_origin6643),
+    ("cdn_backfill", "migr_tcvorg6232", True, migr_tcvorg6232),
 ]
 
 

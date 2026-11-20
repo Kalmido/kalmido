@@ -1065,7 +1065,8 @@ def tchat_edit(mid):
 TCV_KIND = "tchat_msg"
 
 
-def _tcv_reg():
+def tcv_reg():
+    """The kind of the core (#6232: collab/tcvtrack.py calls it at the start of every process; tcv_keep as before)."""
     from ..core.writes import OBJ_TRACK, obj_track  # core/writes.py -> core/objects.py -> ...: a cycle at the top (as wiki/wkhist.py)
     if TCV_KIND not in OBJ_TRACK:
         obj_track(TCV_KIND, "tchat_msgs", area="team")
@@ -1082,7 +1083,7 @@ def tcv_org(c, r):
 def tcv_keep(c, r, m):
     """Message row m (as stored, before the edit) of room r into the history. Caller holds the message's lock and commits."""
     from ..core.writes import obj_history_add
-    _tcv_reg()
+    tcv_reg()
     before = {"enc": m["enc"]} if m["enc"] else {"body": m["body"] or ""}
     obj_history_add(c, me(), TCV_KIND, m["id"], before, {}, action="edit", org_id=tcv_org(c, r))
 

@@ -8,7 +8,8 @@ the second floor under the app's own scope (core/access.py vis_sql, which stays 
 Who writes it: the database, never the app. A BEFORE trigger sets org_id from the parent on every INSERT and on every move to
 another parent (list_id, task_id, cal_id, book_id) -- also a value the writer put there itself is replaced. An AFTER trigger on the
 parent carries a changed organisation to its children (a list / calendar / address book moved between organisations, or
-between private and an organisation; a task moved to a list of another workspace takes its comments along). A trigger and not the
+between private and an organisation; a task moved to a list of another workspace takes its comments along; #6232: a list takes the
+history rows of its team chat channel's messages along, obj_history kind tchat_msg). A trigger and not the
 write paths in the app: there are some forty INSERT / move paths of these four tables (imports, mail, git, forms, portal, rules,
 templates, the office, the version before ...), one missed path would leave a row without its organisation or with a stale one.
 
@@ -56,6 +57,9 @@ BEGIN
   PERFORM set_config('app.role', 'system', true);
   IF TG_TABLE_NAME = 'lists' THEN
     UPDATE tasks SET org_id = NEW.org_id WHERE list_id = NEW.id AND org_id IS DISTINCT FROM NEW.org_id;
+    -- #6232: the earlier versions of the messages of the project's channel (collab/teamchat.py tcv_org) follow the project
+    UPDATE obj_history SET org_id = NEW.org_id WHERE kind = 'tchat_msg' AND org_id IS DISTINCT FROM NEW.org_id
+      AND ref_id IN (SELECT m.id FROM tchat_msgs m JOIN tchat_rooms r ON r.id = m.room_id WHERE r.kind = 'list' AND r.list_id = NEW.id);
   ELSIF TG_TABLE_NAME = 'tasks' THEN
     UPDATE obj_comments SET org_id = NEW.org_id WHERE kind = 'task' AND ref_id = NEW.id AND org_id IS DISTINCT FROM NEW.org_id;
   ELSIF TG_TABLE_NAME = 'ev_cals' THEN
