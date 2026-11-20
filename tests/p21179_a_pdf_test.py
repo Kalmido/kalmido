@@ -7,7 +7,8 @@ it; the print model of a person without organisation is covered by the API suite
    reference line: the note stands small beside the totals; with a right entered the appendix stays
  - 2 with sections the discount on the whole quotation is no row of the last section: the totals read "Summe Positionen",
    "Rabatt 5 %", "Summe netto"; the overview has no part "Rabatt"
- - 3 the totals move down at most PDF_SUM_FILL_MAX (25 mm) beyond the wished gap (was: to the page bottom)
+ - 3 the totals move down at most PDF_SUM_FILL_MAX (25 mm) beyond the wished gap (was: to the page bottom); (#7523):
+   with a block glued to the footer (order confirmation, payment block) they go all the way down to it (no second hole)
  - 4 an invoice with a due text and a bank line prints ONE block "Zahlung" (due text, bank line, reference = the invoice
    number) above the footer, after the closing; no due text below the totals any more
  - 5 the standard invoice closing thanks (pack de / en and the translation of every app language)
@@ -124,23 +125,52 @@ check(not pdfcheck.problems(data), f"#6174 2: clean {pdfcheck.problems(data)[:3]
 
 # ---------------------------------------------------------------- 3. the totals move down at most 25 mm beyond the wish
 check(abs(getattr(pdf, "PDF_SUM_FILL_MAX", 0) - 25 * MM) < 0.01, "#6174 3: PDF_SUM_FILL_MAX = 25 mm")
-_, pg = lay(model(n=2, rights={}))
-lp, tot = find(pg, "Leistung 2"), find(pg, "Summe netto")
+# (#7523): the limit holds only without a footer-glued block (no order confirmation, no payment block)
+_, pg0 = lay(model(n=2, rights={}, accept_on=0))
+lp, tot = find(pg0, "Leistung 2"), find(pg0, "Summe netto")
 gap = tot[0][1]["y"] - lp[0][1]["y"] if lp and tot and lp[0][0] == tot[0][0] else None
 check(gap is not None and gap < pdf.PDF_SUM_GAP + 25 * MM + 15 * MM,
-      f"#6174 3: a short quotation has no hole between table and totals ({gap and round(gap / MM)} mm)")
+      f"#6174 3: a short quotation without order confirmation has no hole between table and totals ({gap and round(gap / MM)} mm)")
+# (#7523): with the order confirmation (glued to the footer) totals + closing go all the way down: one hole above
+# the totals, none between the greeting and the order confirmation
+_, pg = lay(model(n=2, rights={}))
+tot, co, acc = find(pg, "Summe netto"), find(pg, "Erika Beispiel"), find(pg, "AUFTRAGSERTEILUNG")
+d = acc[0][1]["y"] - co[-1][1]["y"] if acc and co and acc[0][0] == co[-1][0] else None
+check(d is not None and 0 < d < 25 * MM, f"#7523 3: greeting -> order confirmation close together, was about 45 mm ({d and round(d / MM, 1)} mm)")
+check(tot and len(pg) == 1, f"#7523 3: still one page ({len(pg)})")
 
 # ---------------------------------------------------------------- 9. the order confirmation at the bottom
 acc = find(pg, "AUFTRAGSERTEILUNG")
 foot = pg[-1]["foot"]
-check(acc and foot and acc[0][0] == len(pg) and foot - acc[0][1]["y"] < 30 * MM and acc[0][1]["y"] - tot[0][1]["y"] > 30 * MM,
+check(acc and foot and acc[0][0] == len(pg) and foot - acc[0][1]["y"] < 30 * MM and acc[0][1]["y"] > tot[0][1]["y"],  # #7523: no hole needed
       f"#6174 9: the order confirmation right above the footer ({acc and foot and round((foot - acc[0][1]['y']) / MM)} mm)")
+
 
 # ---------------------------------------------------------------- 8. intro -> table 10 mm
 check(abs(getattr(pdf, "PDF_INTRO_GAP", 0) - 10 * MM) < 0.01, "#6174 8: PDF_INTRO_GAP = 10 mm")
 it, th = find(pg, "vielen Dank für Ihre Anfrage."), find(pg, "LEISTUNG")
 d = th[0][1]["y"] - it[0][1]["y"] if it and th else None
 check(d is not None and 8 * MM < d < 14 * MM, f"#6174 8: intro -> table head about 10 mm ({d and round(d / MM, 1)} mm, was about 18)")
+
+
+# ---------------------------------------------------------------- 3b. (#7523): a reminder with one invoice
+rem = model("reminder", 0, rights={}, title="Zahlungserinnerung", lines=[],
+            closing="Wir bitten Sie darum, den offenen Betrag innerhalb von 7 Tagen auf unser unten genanntes Bankkonto zu überweisen.",
+            totals={"rows": [["Offener Betrag", money(1190), True]], "show_tax_lines": False},
+            reminder={"columns": ["Rechnung", "Datum", "Fällig", "Offen"],
+                      "rows": [{"number": "RE-2026-100", "date_text": "01.10.2026", "due_text": "15.10.2026", "open_text": money(1190)}]},
+            payment={"text": DUE, "iban": IBAN, "bic": "BYLADEM1001", "bank_name": "Beispielbank"})
+data, pg = lay(rem)
+hd, bank, row, ob = find(pg, "ZAHLUNG"), find(pg, "Beispielbank · IBAN", True), find(pg, "RE-2026-100"), find(pg, "Offener Betrag")
+check(len(pg) == 1 and len(hd) == 1 and bank and row and ob, f"#7523 3b: one page with the invoice row, the open amount and the payment block ({len(pg)})")
+if len(pg) == 1 and hd and bank and row and ob:
+    above = max(t["y"] + t["size"] for t in pg[0]["texts"] if t["y"] < hd[0][1]["y"] - 1)  # the greeting's last line
+    check(0 < hd[0][1]["y"] - above < 15 * MM, f"#7523 3b: greeting end -> payment block (bank line) under 15 mm ({(hd[0][1]['y'] - above) / MM:.1f} mm, was about 34)")
+    ref = find(pg, "Verwendungszweck:", True)
+    check(ref and ref[0][1]["y"] > bank[0][1]["y"] and 0 < pg[0]["foot"] - ref[0][1]["y"] < 15 * MM,
+          f"#7523 3b: the bank line (with its reference) right above the footer ({ref and (pg[0]['foot'] - ref[0][1]['y']) / MM:.1f} mm)")
+    check(ob[0][1]["y"] - row[0][1]["y"] > 40 * MM, f"#7523 3b: the one hole sits between the table and the open amount ({(ob[0][1]['y'] - row[0][1]['y']) / MM:.0f} mm)")
+check(not pdfcheck.problems(data), f"#7523 3b: clean {pdfcheck.problems(data)[:3]}")
 
 # ---------------------------------------------------------------- 4. the invoice: one payment block
 inv = model("invoice", 3, rights={}, closing="Vielen Dank für Ihren Auftrag und die angenehme Zusammenarbeit.",
