@@ -32,7 +32,7 @@ FID, F = freelancer(B, A)
 
 
 def age(uid):  # the session was opened long ago (the open computer, a stolen cookie)
-    dbx("UPDATE sessions SET created_at=?, stepup_at=NULL, stepup_for=NULL WHERE user_id=?", (OLD, uid))
+    dbx("UPDATE sessions SET created_at=?, stepup_for='' WHERE user_id=?", (OLD, uid))
 
 
 def toks(uid):
