@@ -340,6 +340,9 @@ jobs:
         run: python tools/check_nosham.py
       - name: Links, tags, comments, read marks, versions, following only in the shared core (2.755.0, #5267)
         run: python tools/check_core_crosscut.py
+      # #7352 (step 4 of audit #5731): a drop / menu / keyboard path asks the drop core's adapter, not "is this My tasks?" itself
+      - name: No new special way of My tasks beside the drop core - tools/drop_core_baseline.json only shrinks (#7352)
+        run: python tools/check_drop_core.py -v
       - name: New columns with real types - TIMESTAMPTZ, BOOLEAN, JSONB (2.755.0, #5305)
         run: python tools/check_coltypes.py
       - name: No new handwritten trash filter - live_sql() of core/access.py; tools/live_filter_baseline.json only shrinks (2.773.0, #5292)
