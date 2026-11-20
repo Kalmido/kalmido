@@ -120,7 +120,7 @@ def migr_srvorg6363(c):  # (#6363): the Kalmido AI per organisation (orgs.srv_ag
     gset(c, "migr_srvorg6363", "1")
 
 
-def migr_origin6643(c):  # (#6643): the outside origin of the tasks made before 2.1269.0 (#6431), once from their history
+def migr_origin6643(c):  # (#6643): the outside origin of the tasks made before the marks of #6431, once from their history
     # A task without a source key (tasks.tt_id NULL) whose "created" entry says it came through the inbound webhook (via webhook),
     # a public form (form) or an error report (report) gets 'origin:<webhook|form|errors>:<task id>' as agents/core.py
     # task_mark_origin writes it today (read by api/v1.py tt_origin: origin + untrusted for agents). No history = left as it is.
