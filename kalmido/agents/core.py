@@ -126,7 +126,7 @@ JOB_LOG_MAX, JOB_TITLE_MAX, AGENT_NOTE_MAX, STATUS_TEXT_MAX = 8000, 200, 2000, 2
 CHAT_MAX, CHAT_KEEP = 8000, 1000                            # characters per message, messages per person and agent
 AGENT_WAIT_MAX = 60                                         # s: long-polling (GET /api/v1/agent/events?wait=)
 AGENT_WAITERS_PER = 2                                       # concurrent long-polls per agent
-# 2.391.0 A (#3360) / (#6408): the places on the whole process are core/longslots.py LONG_SLOTS - one budget shared with hosted
+# (#3360) / (#6408): the places on the whole process are core/longslots.py LONG_SLOTS - one budget shared with hosted
 # MCP calls and assistant calls (web threads less 8, at least 6, at most half; KALMIDO_AGENT_WAITERS overrides)
 AGENT_WAITERS_ALL = LONG_SLOTS
 WAKE_LIMIT = 20                                             # wake requests per person within 10 minutes

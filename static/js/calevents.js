@@ -827,7 +827,7 @@ async function evCalsModal() {
       // #6154: mine = I made it (owner_id); read-only in its organisation the server sends role view for it too (events/model.py
       // ev_role: the organisation caps the owner), so it reads like a shared one - but it is no share I could leave
       const own = c.role === 'owner', mng = own && evWrite(c), mine = c.owner_id === S.me?.id;
-      menu(m, [...cvxNarrowItems(`e:${c.id}`, !c.hidden), mng && {label: tr('Rename…'), icon: 'edit', fn: async () => { const n = await askPrompt(tr('Rename the calendar'), c.name, {input: {max: 100}, ok: tr('Rename')}); if (n && n.trim()) evCalRename(c.id, n.trim(), redraw); }},  // 2.46.2 (#1659): at once
+      menu(m, [...cvxNarrowItems(`e:${c.id}`, !c.hidden), mng && {label: tr('Rename…'), icon: 'edit', fn: async () => { const n = await askPrompt(tr('Rename the calendar'), c.name, {input: {max: 100}, ok: tr('Rename')}); if (n && n.trim()) evCalRename(c.id, n.trim(), redraw); }},  // (#1659): at once
         mng && {label: tr('Colour…'), icon: 'palette', next: 1, fn: () => calColorPop(m, c.color, async col => { try { await evcPatch(c.id, {color: col}); } catch { return; } refresh(); })},
         mng && wsOn() && {label: tr('Workspace…'), icon: 'brief', next: 1, fn: () => wsMoveMenu(m, c.org_id, async org => { try { await evcPatch(c.id, {org_id: org}); } catch { return; } refresh(); })},
         mng && collab() && {label: tr('Share…'), icon: 'users', fn: async () => evShareModal(c, await usersP, refresh)},

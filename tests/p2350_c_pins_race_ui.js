@@ -4,7 +4,7 @@
 // - a page state that predates the last pin (an overlapping reload) no longer sends an older whole list: the next pin
 //   keeps the earlier one on the server (the pin goes as a single entry, set_delta)
 // - a reload whose answers are crossed by a write three times in a row keeps the own pins (it used to put the older
-//   settings back after the third try); 2.1474 (#7150): ordered by the server's version, the older answer is fetched once more
+//   settings back after the third try); (#7150): ordered by the server's version, the older answer is fetched once more
 //   (not three times), still older: the own settings win and the state comes again on its own afterwards
 const {execFileSync} = require('child_process');
 const path = require('path');

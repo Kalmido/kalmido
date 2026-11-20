@@ -66,7 +66,7 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
       // the first delta reads the old change, its answer is held back until the second one is through; a write of this
       // window meanwhile (a read mark in the background) would send lpDelta the full way and hide the race: S.wv is put
       // back to its value at the delta's start before the answer is let through (no write of mine, the case of #6335 B5);
-      // 2.1474 (#7150): S.wv (the server version of my last write) instead of the old client counter S.wseq
+      // (#7150): S.wv (the server version of my last write) instead of the old client counter S.wseq
       const gate = `(() => { const a0 = window.__api0 || api; window.__api0 = a0; window.__got = 0; window.__gate = null; api = function (m, u) { const p = a0.apply(this, arguments); if (!String(u).includes('/api/state/delta')) return p; api = a0; window.__w = S.wv || 0; p.then(() => { window.__got = 1; }, () => {}); return new Promise(res => { window.__gate = () => p.then(res, () => res(null)); }); }; return 1; })()`;
       await ev(gate);
       await call(CA, 'PATCH', `/api/tasks/${T5}`, {title: 'B5 old'});

@@ -149,8 +149,8 @@ const SMALL = sel => `(() => [...document.querySelectorAll('${sel}')].filter(e =
   check(d.querySelectorAll('.tl-grp .tl-ms, .tl-dia').length === 2 && d.querySelectorAll('.tl-msl').length === 2, 'milestones as markers / diamonds in the timeline: ' + d.querySelectorAll('.tl-ms, .tl-dia').length);
   check(d.querySelector('.tl-ms.done') && /Beta/.test(d.querySelector('.tl-ms.done').title), 'a reached milestone looks done');
   await call('PATCH', `/api/lists/${P}`, {view: 'list'});
-  // 2.607.0 (#4901, CI red p271_ui): a load() under way when the view is switched: its older state must not put the view back
-  // to "list". 2.1474 (#7150): ordered by the server's version (X-Kalmido-V), no client counter: the GET begun before the click
+  // (#4901, CI red p271_ui): a load() under way when the view is switched: its older state must not put the view back
+  // to "list". (#7150): ordered by the server's version (X-Kalmido-V), no client counter: the GET begun before the click
   // is answered with the server's state of that moment after the switch's write was answered; that state is older than the
   // write, so it is fetched once more (exactly one more GET) and the finished write stays on top meanwhile (OPT_DONE).
   w.eval('load().then(() => render())');

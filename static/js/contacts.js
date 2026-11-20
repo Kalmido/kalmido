@@ -1238,7 +1238,7 @@ async function ctBooksModal() {
       const b = ctBook(+m.dataset.cbmenu); if (!b) return;
       // 2.1238.0 (#6161, Stufe 1): the owner's entries only where canWrite says yes (an organisation's reader changes nothing)
       const own = b.role === 'owner', mng = own && ctWrite(b);
-      menu(m, [mng && {label: tr('Rename…'), icon: 'edit', fn: async () => { const n = await askPrompt(tr('Rename the address book'), b.name, {input: {max: 100}, ok: tr('Rename')}); if (n && n.trim()) { const nm = n.trim(); optWrite(optSet(() => ctBook(b.id), {name: nm}), () => api('PATCH', `/api/books/${b.id}`, {name: nm}), () => { draw(); ctDraw(); }).catch(() => {}); } }},  // 2.46.2 (#1659): at once
+      menu(m, [mng && {label: tr('Rename…'), icon: 'edit', fn: async () => { const n = await askPrompt(tr('Rename the address book'), b.name, {input: {max: 100}, ok: tr('Rename')}); if (n && n.trim()) { const nm = n.trim(); optWrite(optSet(() => ctBook(b.id), {name: nm}), () => api('PATCH', `/api/books/${b.id}`, {name: nm}), () => { draw(); ctDraw(); }).catch(() => {}); } }},  // (#1659): at once
         mng && wsOn() && !b.org_owned && {label: tr('Workspace…'), icon: 'brief', next: 1, fn: () => wsMoveMenu(m, b.org_id, async org => { try { await api('PATCH', `/api/books/${b.id}`, {org_id: org}); } catch { return; } refresh(); })},
         mng && collab() && {label: tr('Share…'), icon: 'users', fn: () => ctShareModal(b, users, names, refresh)},
         ...(typeof ctf_bookItems === 'function' ? ctf_bookItems(b, m) : []),  // 2.351.0 B (#2749): into a folder of the address book
