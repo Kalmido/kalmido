@@ -5,7 +5,7 @@
 const {execFileSync} = require('child_process');
 const path = require('path');
 const {JSDOM, VirtualConsole} = require('jsdom');
-const {boot, errs: bootErrs, sleep} = require('./boot');
+const {boot, errs: bootErrs, sleep, untilEl} = require('./boot');
 const B = process.env.BASE || `http://127.0.0.1:${process.env.KALMIDO_TEST_PROXY_PORT || 3041}/`;
 const CT = process.env.KALMIDO_TEST_CONTAINER || 'kalmido-test';
 const F = []; let ok = 0; const errs = [];
@@ -65,8 +65,12 @@ async function submit(w, code) {
 
   // ---- 2: the admin sees the warning about the missing server key (start.sh sets none)
   w = await boot({user: 'alice'}); d = w.document;
-  await w.eval(`settingsModal('users')`); await sleep(800);  // 2.53.0 (#1410): settings.js loads on demand (own jsdom page, no boot())
-  const warn = d.querySelector('.smodal [data-admp="server"] .shkey');
+  // 2.53.0 (#1410): settings.js loads on demand (own jsdom page, no boot()); waits for the drawn warnings, not a fixed 800 ms
+  await w.eval(`settingsModal('users')`); await untilEl(w, '.smodal [data-admp="server"] .shkey', /server key is missing/, 15000);
+  // (#7578): since #6871 the test mode's warning (.shkey.shtest - the test container always runs with KALMIDO_TEST=1) stands
+  // first; the key warning is the one that names the key (was: the first .shkey, red in merge queue run 44749344922)
+  const warn = [...d.querySelectorAll('.smodal [data-admp="server"] .shkey')].find(e => /server key is missing/.test(e.textContent));
+  check(!!d.querySelector('.smodal [data-admp="server"] .shkey.shtest[role="alert"]'), 'Administration > Server: the test mode (KALMIDO_TEST=1) is named too (#6871)');
   check(warn && warn.getAttribute('role') === 'alert' && /server key is missing/.test(warn.textContent) && /KALMIDO_SECRET_KEY/.test(warn.textContent), 'Administration > Server: red warning without a server key');
   w.close();
 
