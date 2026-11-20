@@ -87,7 +87,8 @@ function viewHelp() {
   hv_load();
   const {key} = hv_route();
   const search = key ? '' : `<div class="ctsearch hvsearch">${ic('search', 's')}<input type="search" id="hv-q" value="${esc(HV.q)}" placeholder="${esc(tr('Search the help…'))}" aria-label="${esc(tr('Search the help'))}" autocomplete="off"></div>`;
-  return `<div class="hvpage">${/*html-ok*/ search}<div class="hvbody">${/*html-ok*/ hv_inner()/* built escaped */}</div></div>`;
+  const human = key ? '' : supHelpHtml(), hum = human && '<section class="hvhuman">' + human + '</section>';  // (#6534): hosted, "Help from a person" above the topics
+  return `<div class="hvpage">${/*html-ok*/ hum/* supHelpHtml escapes its values */}${/*html-ok*/ search}<div class="hvbody">${/*html-ok*/ hv_inner()/* built escaped */}</div></div>`;
 }
 function hv_draw() {
   const b = $('#view .hvbody'); if (!b || S.route.key !== 'help') return;

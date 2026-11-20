@@ -28,6 +28,7 @@ from ..core.objcomments import ocm_add, ocm_extra, ocm_need_say, ocm_row, OCM_CO
 from ..tasks.validation import log_act  # 2.369.5 (#2517): pulled up from functions
 from ..collab.reactions import with_reactions  # 2.369.5 (#2517): pulled up from functions
 from ..collab.replies import with_replies  # 2.369.5 (#2517): pulled up from functions
+from ..collab.cstep import cst_choices, cst_has, cst_may, cst_of, cst_run  # (#7530): answer buttons with a bound step
 
 CHOICE_KEYS = ("choices", "multi", "approval", "expires_in")
 
@@ -41,8 +42,9 @@ def lv_jload(v):
         return None
 
 
-def lv_choices_in(b, agent):
-    """The stored json of choices / multi / approval / expires_in of a new comment, or None. Only agents (else 403)."""
+def lv_choices_in(b, agent, c=None, tid=None):
+    """The stored json of choices / multi / approval / expires_in of a new comment, or None. Only agents (else 403).
+    (#7530): an option's bound step `do` is checked against the task tid of the comment (collab/cstep.py)."""
     from ..agents.chat import chat_approval_clean, chat_choices_clean
     if not any(b.get(k) not in (None, "", [], False) for k in CHOICE_KEYS):
         return None
@@ -57,6 +59,8 @@ def lv_choices_in(b, agent):
         raise BadInput(tr("Invalid value: {0}", "expires_in"))
     if v and json.loads(v).get("permission"):  # a permission question belongs to the chat (its host waits there)
         raise BadInput(tr("Invalid value: {0}", "choices"))
+    if v and cst_has(json.loads(v)):
+        v = json.dumps(cst_choices(c, json.loads(v), tid), ensure_ascii=False)
     return v
 
 
@@ -77,7 +81,9 @@ def lv_state(r, ch, ans, newest):
         return "withdrawn" if not ch.get("outcome") else "expired"
     if ch.get("approval"):
         return "expired" if ch.get("expires_at") and ch["expires_at"] <= iso_ms(now_utc()) else "open"
-    return "expired" if newest and newest > r["id"] else "open"
+    # (#7530): a question with bound steps stays answerable after newer comments (an answer in words leaves the buttons;
+    # a click on a task that moved on meanwhile keeps the task as it is, collab/cstep.py)
+    return "expired" if newest and newest > r["id"] and not cst_has(ch) else "open"
 
 
 def lv_with_choices(c, tid, rows, dicts):
@@ -149,9 +155,17 @@ def lv_answer(c, r, uid, ids, via="button", proof=None):
     ids = [x for x in valid if x in ids]
     from ..agents.apvdiff import apvd_need_proof
     apvd_need_proof(c, f"comment:{r['id']}", uid, ch, ids, proof)  # 2.1386.0 (#6623): Yes only with the proof of the description
+    step = cst_of(ch, ids)  # (#7530): the bound step of the chosen option, run below with this person's rights
+    if step:
+        cst_may(c, r["task_id"])  # 403 with the reason: nothing is stored
     ans = {"ids": ids, "at": iso_ms(now_utc()), "user_id": uid, "via": via}
-    c.execute("UPDATE obj_comments SET extra = jsonb_set(extra, '{choice}', CAST(? AS JSONB)) WHERE id=? AND extra->'choice' IS NULL",
-              (json.dumps(ans), r["id"]))  # 2.972.0 (#5272): written once
+    if not c.execute("UPDATE obj_comments SET extra = jsonb_set(extra, '{choice}', CAST(? AS JSONB)) WHERE id=? AND extra->'choice' IS NULL",
+                     (json.dumps(ans), r["id"])).rowcount:  # (#5272): written once; (#7530) a second click: 409, its step never runs
+        raise Denied(409, tr("This question was answered already"))
+    done = cst_run(c, r["task_id"], step) if step else None
+    if done:
+        ans["step"] = {**step, **done}
+        c.execute("UPDATE obj_comments SET extra = jsonb_set(extra, '{choice}', CAST(? AS JSONB)) WHERE id=?", (json.dumps(ans), r["id"]))
     if ch.get("approval"):  # 2.1068.0 (#5831): the change the person decided on stays readable at the card (short)
         from ..agents.apvdiff import apvd_snapshot
         snap = apvd_snapshot(c, uid, ch, r["created_at"])
@@ -162,7 +176,8 @@ def lv_answer(c, r, uid, ids, via="button", proof=None):
     ap = ch.get("approval")
     approval = ("approved" if ids == ["yes"] else "rejected") if ap else None
     log_act(c, r["task_id"], "choice", {"comment": r["id"], "ids": ids, "labels": labels,
-                                        **({"approval": approval, "title": ap.get("title", "")} if ap else {})}, uid=uid)
+                                        **({"approval": approval, "title": ap.get("title", "")} if ap else {}),
+                                        **({"step": ans["step"]} if done else {})}, uid=uid)  # (#7530): the step it ran (or skipped)
     said = None
     if not ap:  # a suggestion / answer button: the person's comment with that text, as if typed (the thread shows it)
         said = ocm_add(c, "task", r["task_id"], uid, ", ".join(labels), parent_id=r["id"])  # 2.972.0 (#5272)
@@ -173,7 +188,8 @@ def lv_answer(c, r, uid, ids, via="button", proof=None):
         k = ocm_row(c, said or r["id"])
         answer = {"comment_id": r["id"], "choice_ids": ids, "labels": labels, "via": via,
                   "user": {"id": uid, "name": user_names(c, [uid]).get(uid, "")},
-                  **({"approval": approval, "approval_request": {"title": ap.get("title", ""), "what": ap.get("what", "")}} if ap else {})}
+                  **({"approval": approval, "approval_request": {"title": ap.get("title", ""), "what": ap.get("what", "")}} if ap else {}),
+                  **({"step": ans["step"]} if done else {})}  # (#7530): {kind, ..., state done | skipped, why?}
         agent_emit(c, aid, "comment", agent_task_data(c, r["task_id"], aid, comment=agent_comment(c, k), answer=answer))
     return r2, said
 

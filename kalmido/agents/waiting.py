@@ -19,7 +19,7 @@ from ..api.common import v1_args, v1_view
 from ..collab.cchoice import lv_jload, lv_may_decide, lv_state
 from ..collab.comments import user_names
 from ..collab.liste2eguard import le2b_locked_lists
-from ..core.access import Denied, token_lists, tvis
+from ..core.access import Denied, live_sql, task_visible, token_lists, tvis
 from ..core.config import app
 from ..core.db import db, inbox_default
 from ..core.objcomments import OCM_TS  # 2.972.0 (#5272): the old time form of a comment
@@ -27,7 +27,8 @@ from ..core.errors import BadInput
 from ..core.i18n import tr
 from ..integrations.delivery import GATE_ALL, WAIT_KINDS, WAIT_MAX
 from ..tasks.briefing import brief_blocked, brief_lists
-from .chat import chat_approvals_of
+from .chat import _jload, chat_approvals_of
+from ..collab.cstep import cst_has  # (#7530)
 from .core import agent_shares, is_agent, is_approver, job_may_act, job_words_muted, need_person
 from .watch import watch_open
 from .srvteam import srv_prop_team_ids  # 2.569.0 B (#4675): a server agent's proposal in a team project; 2.611.0 D (#4784): all at once
@@ -140,6 +141,34 @@ def _comment_cards(s):
     return out
 
 
+def _questions(s):
+    """(#7530): an agent's open question whose buttons carry a bound step (collab/cstep.py) -- in a task's comments where I may
+    answer, in my own agent chat -- until I click one or answer in words (a later comment of a person on the task / my later
+    message in that chat: the next word is the agent's; the buttons stay answerable there)."""
+    c, uid, out = s.c, s.uid, []
+    rows = _comment_rows(s, """k.extra->'choice' IS NULL AND k.extra->'choices'->>'approval' IS NULL AND k.extra->'choices'->>'withdrawn_at' IS NULL
+                               AND CAST(k.extra->'choices' AS TEXT) ILIKE ? AND NOT EXISTS (SELECT 1 FROM obj_comments k2 JOIN users u ON u.id=k2.user_id
+                               WHERE k2.kind='task' AND k2.ref_id=k.ref_id AND k2.id>k.id AND """ + live_sql("k2") + """ AND COALESCE(u.kind, 'user')<>'agent')""",
+                        ('%"do"%',))
+    names = user_names(c, [r["user_id"] for r in rows if r["user_id"]])
+    for r in rows:
+        if cst_has(lv_jload(r["choices"])) and r["user_id"] in names and task_visible(c, r["tid"], uid, write=True):
+            out.append(_item("question", r["id"], "", r["created_at"], _task_of(r), source="comment", agent_id=r["user_id"],
+                             agent_name=names.get(r["user_id"], "")))
+    q = f"""SELECT m.* FROM agent_chat m WHERE m.user_id=? {'AND m.agent_id=?' if s.agent_id else ''} AND m.sender='agent' AND m.choice IS NULL
+            AND m.choices IS NOT NULL AND m.choices->>'withdrawn_at' IS NULL AND CAST(m.choices AS TEXT) ILIKE ?
+            AND NOT EXISTS (SELECT 1 FROM agent_chat x WHERE x.agent_id=m.agent_id AND x.user_id=m.user_id AND x.sender='user' AND x.id>m.id)
+            ORDER BY m.id DESC LIMIT {WAIT_MAX}"""
+    ms = [m for m in c.execute(q, (uid, s.agent_id, '%"do"%') if s.agent_id else (uid, '%"do"%')) if cst_has(_jload(m["choices"]))]
+    tasks = s.tasks(m["task_id"] for m in ms)
+    an = user_names(c, [m["agent_id"] for m in ms])
+    for m in ms:
+        if not s.hidden(m["task_id"], tasks):
+            out.append(_item("question", m["id"], m["body"][:200], m["created_at"], tasks.get(m["task_id"]), source="chat",
+                             agent_id=m["agent_id"], agent_name=an.get(m["agent_id"], "")))
+    return sorted(out, key=lambda x: x["at"] or "", reverse=True)[:WAIT_MAX]
+
+
 def _gates(s):
     c, uid, out, memo = s.c, s.uid, [], {}
     rows = _comment_rows(s, "k.extra->>'suggestion' ILIKE ?", ('%"state": "open"%',))
@@ -231,7 +260,7 @@ def waiting_for(c, uid, *, agent_id=None):
     s = _Scope(c, uid, agent_id)
     by = {"job": _jobs(s), "approval": sorted(_chat_cards(s) + _comment_cards(s), key=lambda x: x["at"] or "", reverse=True)[:WAIT_MAX],
           "gate": _gates(s), "review": _reviews(s), "blocked": _blocked(s), "irreversible": _irreversible(s), "parked": _parked(s),
-          "watch": _watch(s)}
+          "watch": _watch(s), "question": _questions(s)}
     items = _no_request_texts(c, [x for k in WAIT_KINDS for x in by[k]])
     return {"total": len(items), "counts": {k: len(by[k]) for k in WAIT_KINDS}, "items": items}
 

@@ -213,49 +213,56 @@ check(ag.get(B + f"{V1}/{RH['id']}").ok, "setup: visible while it is a normal li
 sql("UPDATE lists SET life='health' WHERE id=?", (LH,), write=True)
 check(ag.get(B + f"{V1}/{RH['id']}").status_code == 404 and ag.get(B + V1, params={"list_id": LH}).json()["data"] == [], "a health list: 404")
 
-
-
-def agw(method, path, **k):
-    """(#6453, #7142): cutbot now reads three projects (L, LA, LH above) and a sign-off's comment route names no project for
-    the gate (a review at a task keeps video_reviews.list_id empty): a target the gate cannot name is a card as soon as the
-    agent has more than one source. The agent (no control level chosen = "free") asks with that card, alice says Yes, the
-    step runs and its answer is the route's own (kt.circle_yes)."""
-    from kt import circle_yes
-    r = ag.request(method, B + path, **k)
-    e = (r.json().get("error") or {}) if r.status_code == 409 else {}
-    check(isinstance(e, dict) and e.get("circle") == "wider", f"cutbot's {method} {path} asks for the circle's card {r.status_code} {r.text[:200]}")
-    return circle_yes(r, dict(ag.headers), AG, A, B + "/api/v1", ALICE, base=B)
-
-
 # ---------------------------------------------------------------- input
 check(ag.get(B + V1).status_code == 400 and ag.get(B + V1, params={"task_id": T, "list_id": L}).status_code == 400, "exactly one of task_id / list_id")
 check(ag.get(B + V1, params={"task_id": "x"}).status_code == 400 and ag.get(B + V1, params={"client_id": CL}).status_code == 400, "a bad / unknown parameter: 400")
-check(agw("POST", f"{V1}/{RT['id']}/comments", json={"body": "x", "kind": "y"}).status_code == 400, "an unknown field: 400")
-check(agw("POST", f"{V1}/{RT['id']}/comments", json={"body": "  "}).status_code == 400, "an empty comment: 400")
-check(agw("POST", f"{V1}/{RT['id']}/comments", json={"body": "x", "at_sec": 90000}).status_code == 400, "a timecode beyond 24 h: 400")
-check(agw("PATCH", f"{V1}/{RT['id']}/comments/{c1}", json={"done": "yes"}).status_code == 400, "done must be a boolean")
+check(ag.post(B + f"{V1}/{RT['id']}/comments", json={"body": "x", "kind": "y"}).status_code == 400, "an unknown field: 400")
+check(ag.post(B + f"{V1}/{RT['id']}/comments", json={"body": "  "}).status_code == 400, "an empty comment: 400")
+check(ag.post(B + f"{V1}/{RT['id']}/comments", json={"body": "x", "at_sec": 90000}).status_code == 400, "a timecode beyond 24 h: 400")
+check(ag.patch(B + f"{V1}/{RT['id']}/comments/{c1}", json={"done": "yes"}).status_code == 400, "done must be a boolean")
 
 # ---------------------------------------------------------------- writing
-r = agw("POST", f"{V1}/{RT['id']}/comments", json={"at_sec": 41.5, "body": "Zusammenfassung: Logo größer (00:42), Schnitt bei 01:23 weicher"})
+r = ag.post(B + f"{V1}/{RT['id']}/comments", json={"at_sec": 41.5, "body": "Zusammenfassung: Logo größer (00:42), Schnitt bei 01:23 weicher"})
 check(r.status_code == 201, f"the agent comments at a timecode {r.status_code} {r.text[:200]}")
 mine = r.json().get("comment") or {} if r.status_code == 201 else {}
 check(mine.get("agent") and mine.get("author") == "Cutbot" and mine.get("author_id") == AG and mine.get("timecode") == "00:41" and not mine.get("customer"),
       f"author = the agent {mine}")
 row = sql(f"SELECT author_id, ext_name FROM {VC} WHERE id=?", (mine.get("id", 0),))
 check(len(row) == 1 and row[0][0] == AG and row[0][1] is None, "stored as the agent's")
-r = agw("POST", f"{V1}/{RT['id']}/comments", json={"parent_id": c1, "body": "Vorschlag: zwei Frames länger"})
+r = ag.post(B + f"{V1}/{RT['id']}/comments", json={"parent_id": c1, "body": "Vorschlag: zwei Frames länger"})
 check(r.status_code == 201 and r.json()["comment"]["parent_id"] == c1 and r.json()["comment"]["at_sec"] is None, "an answer to a team comment")
-r = agw("POST", f"{V1}/{RT['id']}/comments", json={"parent_id": CC, "body": "Wird im nächsten Schnitt größer"})
+# (#7478): the review hangs at a task (video_reviews.list_id empty); the gate names the task's project, whose readers read
+# every place of cutbot (L, LA): no card above. An answer to the customer's comment shows on the live customer page: public
+r = ag.post(B + f"{V1}/{RT['id']}/comments", json={"parent_id": CC, "body": "Wird im nächsten Schnitt größer"})
+e = (r.json().get("error") or {}) if r.status_code == 409 else {}
+check(isinstance(e, dict) and e.get("circle") == "public", f"#7478: an answer to the customer (live link) asks with a public card {r.status_code} {r.text[:200]}")
+from kt import circle_yes  # noqa: E402
+r = circle_yes(r, dict(ag.headers), AG, A, B + "/api/v1", ALICE, base=B)
 check(r.status_code == 201, f"an editing agent answers the customer {r.status_code}")
 check(any(y["body"] == "Wird im nächsten Schnitt größer" for x in r.json()["review"]["comments"] if x["id"] == CC for y in x["replies"]), "the answer sits at the customer's comment")
-r = agw("PATCH", f"{V1}/{RT['id']}/comments/{c1}", json={"done": True})
+r = ag.patch(B + f"{V1}/{RT['id']}/comments/{c1}", json={"done": True})
 check(r.ok and next(x for x in r.json()["comments"] if x["id"] == c1)["done"], "done (someone else's comment, the agent may change the list)")
-r = agw("PATCH", f"{V1}/{RT['id']}/comments/{c1}", json={"done": False})
+r = ag.patch(B + f"{V1}/{RT['id']}/comments/{c1}", json={"done": False})
 check(r.ok and not next(x for x in r.json()["comments"] if x["id"] == c1)["done"], "open again")
 check(any(x["author"] == "Cutbot" for x in A.get(B + f"/api/videos/{RT['id']}").json()["comments"]), "the app sees the agent's comments")
 # the customer page shows the agent's answer (the team's answer), never its internal comment
 pg = requests.get(B + "/s/q/" + TOK, allow_redirects=False)
 check(pg.status_code == 200 and "Wird im nächsten Schnitt größer" in pg.text and "Zusammenfassung" not in pg.text, "customer page: the answer only")
+# (#7478): done / open of the customer's comment shows on the customer page too: public; the comment id read as the route
+# reads it (reader F1: "+id" / " id" reach the same comment, so they ask the same card; an id the route refuses is its 400)
+for cid in (CC, f"+{CC}", f"%20{CC}"):
+    r = ag.patch(B + f"{V1}/{RT['id']}/comments/{cid}", json={"done": True})
+    e = (r.json().get("error") or {}) if r.status_code == 409 else {}
+    check(isinstance(e, dict) and e.get("circle") == "public", f"#7478: done of the customer's comment {cid!r}: public card {r.status_code} {r.text[:200]}")
+check(ag.patch(B + f"{V1}/{RT['id']}/comments/%C2%B2", json={"done": True}).status_code == 400, "an id the route cannot read: 400, not 500")
+SID = SIG.json().get("id") if SIG.ok else 0
+check(A.post(B + f"/api/videos/{RT['id']}/signoffs/{SID}/revoke").ok, "setup: the customer link switched off")
+# (reader F4): without a live link it stays public - a link made later shows the whole customer thread
+r = ag.post(B + f"{V1}/{RT['id']}/comments", json={"parent_id": CC, "body": "Kommt in v2"})
+e = (r.json().get("error") or {}) if r.status_code == 409 else {}
+check(isinstance(e, dict) and e.get("circle") == "public", f"#7478: no live link - an answer to the customer still asks with a public card {r.status_code} {r.text[:200]}")
+r = circle_yes(r, dict(ag.headers), AG, A, B + "/api/v1", ALICE, base=B)
+check(r.status_code == 201, f"#7478: after the Yes the answer is there {r.status_code} {r.text[:200]}")
 # scope comments missing
 check(ro.post(B + f"{V1}/{RR['id']}/comments", json={"body": "x"}).status_code == 403, "without the scope comments: 403")
 cr = A.post(B + f"/api/videos/{RR['id']}/comments", json={"body": "Ton prüfen"}).json()["comment_id"]
@@ -266,11 +273,25 @@ cv_team = A.post(B + f"/api/videos/{RV['id']}/comments", json={"body": "Farben p
 r = vw.post(B + f"{V1}/{RV['id']}/comments", json={"body": "Notiz für den Schnitt", "at_sec": 3})
 check(r.status_code == 201, f"a viewer agent comments (like viewers in the app) {r.status_code}")
 VMINE = r.json()["comment"]["id"] if r.status_code == 201 else 0
-check(vw.post(B + f"{V1}/{RV['id']}/comments", json={"parent_id": CV, "body": "x"}).status_code == 403, "a viewer agent: no answer to the client (403)")
+r = vw.post(B + f"{V1}/{RV['id']}/comments", json={"parent_id": CV, "body": "x"})
+e = (r.json().get("error") or {}) if r.status_code == 409 else {}
+check(isinstance(e, dict) and e.get("circle") == "public", f"#7478 (reader F4): an answer to the client asks with a public card first {r.status_code} {r.text[:200]}")
+r = circle_yes(r, dict(vw.headers), VW, A, B + "/api/v1", ALICE, base=B)
+check(r.status_code == 403, f"a viewer agent: no answer to the client, also after the Yes (403) {r.status_code} {r.text[:200]}")
 check(vw.post(B + f"{V1}/{RV['id']}/comments", json={"parent_id": cv_team, "body": "ok"}).status_code == 201, "but an answer to a team comment")
 check(vw.patch(B + f"{V1}/{RV['id']}/comments/{cv_team}", json={"done": True}).status_code == 403, "a viewer agent: done of another's comment 403")
 check(vw.patch(B + f"{V1}/{RV['id']}/comments/{VMINE}", json={"done": True}).ok, "its own comment: done")
 check(vw.get(B + f"{V1}/{RT['id']}").status_code == 404, "the viewer agent sees nothing of the other list")
+# reader F7: the gate tells nothing about a sign-off of somebody else's project - a customer's comment there answers as a
+# team comment does (never circle "public", which would show which foreign sign-offs have customer comments)
+CX = customer_comment(R2, "Fremder Kunde", 5.0)
+cx_team = Ca.post(B + f"/api/videos/{R2['id']}/comments", json={"body": "intern"}).json()["comment_id"]
+ra_ = ag.patch(B + f"{V1}/{R2['id']}/comments/{CX}", json={"done": True})
+rb_ = ag.patch(B + f"{V1}/{R2['id']}/comments/{cx_team}", json={"done": True})
+ea, eb = [((x.json().get("error") or {}) if x.status_code == 409 else {}) for x in (ra_, rb_)]
+check(ra_.status_code == rb_.status_code and ra_.status_code in (404, 409) and (ea.get("circle") if isinstance(ea, dict) else None) != "public"
+      and (ea.get("circle") if isinstance(ea, dict) else None) == (eb.get("circle") if isinstance(eb, dict) else None),
+      f"F7: a foreign sign-off: the customer's comment answers like a team comment {ra_.status_code} {ra_.text[:160]} / {rb_.status_code} {rb_.text[:160]}")
 
 # ---------------------------------------------------------------- a person's own token: the same routes
 tok = A.post(B + "/api/me/tokens", json={"name": "script", "scopes": ["read", "comments"]}).json().get("token")

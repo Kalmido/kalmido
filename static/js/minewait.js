@@ -2,7 +2,7 @@
 /* 2.392.0 D (#3369): the view "Waiting for me" (#mine_wait): everything that waits for me over every workspace, from GET
    /api/inbox (agents/waiting.py). Each row leads to its target; waiting jobs keep their buttons. The sidebar row counts all of
    it, the card in Today (agents.js, waitCard) links here instead of repeating it. */
-const MW_GROUPS = [['job', N_('Jobs')], ['approval', N_('Approvals')], ['gate', N_('Merge and deploy requests')], ['review', N_('Reviews')],
+const MW_GROUPS = [['job', N_('Jobs')], ['approval', N_('Approvals')], ['question', N_('Questions')] /* (#7530): agents' questions with a bound step */, ['gate', N_('Merge and deploy requests')], ['review', N_('Reviews')],
   ['blocked', N_('Blocked')], ['irreversible', N_('One-way steps without a yes')], ['parked', N_('Parked')],
   ['watch', N_('Stalled jobs and stranded branches')]];  // 2.392.2 (#3365): parked; (#3366): the watchdog's findings
 S.mw = {items: null, counts: {}, total: 0, at: 0};

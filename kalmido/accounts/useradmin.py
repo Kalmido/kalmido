@@ -11,6 +11,7 @@ from ..core.db import body, db, err, iso, now_utc, parse_iso, USER_DEFAULTS
 from ..core.pg import like_escape, system_ctx
 from ..core.rls import org_tables
 from ..core.access import Denied, list_role, my_inbox
+from ..core.support import support_ask  # (#6534): hosted = the support instead of "the server admin"
 from ..accounts.session import me, user_public
 from .orgretain import _until  # 2.186.0 A (#2566)
 from .orgs import _operator_apart, op_apart_deny, op_foreign_account  # 2.399.0 (#2687); 2.539.0 (#4374): _operator_apart
@@ -22,6 +23,8 @@ UA8_FILTERS = ("people", "active", "disabled", "admin", "invited", "pending", "a
 UA8_MAX_PAGE = 200
 UA8_MAX_BULK = 200
 UA8_PRIVATE = N_("The account still has things in its private workspace (projects, basket, calendars, files ...): only a server admin can delete it. You can remove it from your organisation.")
+# (#6534): hosted, the support deletes it (the operator's address as the last value)
+UA8_PRIVATE_H = N_("The account still has things in its private workspace (projects, basket, calendars, files ...): only the support can delete it ({0}). You can remove it from your organisation.")
 
 
 def ua8_where(q, flt, own=None):
@@ -197,11 +200,12 @@ def ua8_may_approve(c, u, uid):
 def ua8_may_delete(c, u, uid):
     """Who deletes account uid: 'instance' or the id of the organisation whose admin deletes it (ua8_decider; the others: only
     "Remove from the organisation")."""
-    who = ua8_decider(c, u, uid, tr("Only a server admin can delete this account (it belongs to another organisation too or is a server admin). You can remove it from your organisation."))
+    who = ua8_decider(c, u, uid, support_ask(c, N_("Only a server admin can delete this account (it belongs to another organisation too or is a server admin). You can remove it from your organisation."),
+                                           N_("Only the support can delete this account ({0}): it belongs to another organisation too. You can remove it from your organisation.")))  # (#6534)
     if who != "instance":
         areas = ua8_private_areas(c, uid)  # review N1: deleting the account would delete its private space too
         if areas:  # 2.148.1 B (#2479): 409 with the areas by name
-            raise Denied(409, tr(UA8_PRIVATE_AREAS, ", ".join(areas)))
+            raise Denied(409, support_ask(c, UA8_PRIVATE_AREAS, UA8_PRIVATE_AREAS_H, ", ".join(areas)))  # (#6534)
     return who
 
 
@@ -302,6 +306,7 @@ UA8_AREAS = (
         "AND EXISTS (SELECT 1 FROM tchat_msgs m WHERE m.room_id=r.id) LIMIT 1"),
 )
 UA8_PRIVATE_AREAS = N_("The account still has things in its private workspace ({0}): only a server admin can delete it. You can remove it from your organisation.")
+UA8_PRIVATE_AREAS_H = N_("The account still has things in its private workspace ({0}): only the support can delete it ({1}). You can remove it from your organisation.")  # (#6534)
 
 
 # 2.239.0 C (#2866): office tables that hold the office's settings / structure (made by itself), not the person's records
@@ -406,7 +411,7 @@ def ua8_lists_settle(c, u, by, rx_how=None):
     lists = ua8_owned(c, uid)
     mode = request.args.get("lists") or ""
     if by != "instance" and any(not lr["org_id"] for lr in lists):  # private stays private (ua8_may_delete refused already)
-        raise Denied(409, tr(UA8_PRIVATE))  # 2.148.1 B (#2479): 409 like ua8_may_delete
+        raise Denied(409, support_ask(c, UA8_PRIVATE, UA8_PRIVATE_H))  # (#6534); 409 like ua8_may_delete (#2479)
     if mode == "transfer":
         if by == "instance" and op_foreign_account(c, uid):  # 2.399.0 (#2687): hosted: a client's projects never go by the operator's hand
             op_apart_deny()

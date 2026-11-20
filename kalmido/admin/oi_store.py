@@ -549,7 +549,7 @@ def _video_comment(c, run, src, d, ctx):
     person or nobody, like every author column; nobody keeps the name: ext_name)."""
     num = (int, float)
     an = {"version_id": run.m("video_versions", src.get("version_id")) if src.get("version_id") is not None else None}
-    for k, col in (("t", "at_sec"), ("page", "page"), ("x", "pos_x"), ("y", "pos_y")):
+    for k, col in (("t", "at_sec"), ("page", "page"), ("x", "pos_x"), ("y", "pos_y"), ("w", "pos_w"), ("h", "pos_h")):  # (#7532): + an area
         v = src.get(col)
         an[k] = v if isinstance(v, num) and not isinstance(v, bool) else None
     an = {k: v for k, v in an.items() if v is not None}

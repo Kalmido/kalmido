@@ -255,6 +255,7 @@
  "POST /ticket-types": "create",
  "POST /time/entries": "create",
  "POST /time/timer": "create",
+ "POST /videos": "create",
  "POST /videos/{}/comments": "create",
  "POST /wiki/pages": "create",
  "POST /wiki/pages/{}/append": "text",

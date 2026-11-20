@@ -297,7 +297,8 @@ CTL_OBJ = (
     ("/team/rooms/{}", "rid", "SELECT list_id FROM tchat_rooms WHERE id=?"),
     ("/team/messages/{}", "mid", "SELECT r.list_id FROM tchat_msgs m JOIN tchat_rooms r ON r.id=m.room_id WHERE m.id=?"),
     ("/time/entries/{}", "eid", "SELECT list_id FROM time_entries WHERE id=?"),
-    ("/videos/{}", "vid", "SELECT list_id FROM video_reviews WHERE id=?"),
+    # (#7478): a review at a task keeps list_id empty (videos/review.py vdr_target): its project is the task's; at a client: none
+    ("/videos/{}", "vid", "SELECT COALESCE(v.list_id, t.list_id) FROM video_reviews v LEFT JOIN tasks t ON t.id=v.task_id WHERE v.id=?"),
     ("/attachments/{}", "aid", "SELECT t.list_id FROM attachments x JOIN tasks t ON t.id=x.task_id WHERE x.id=?"),
 )
 
@@ -372,6 +373,13 @@ def ctl_lists(c, aid, path, b, va=None):
                     lids = sorted(set(lids) | {r[0]})
                 else:
                     unknown = True
+    if path == "/videos" and b.get("task_id") is not None:  # (#7532, reader F2): sign-offs at a task -> the task's project
+        t = _ctl_int(b["task_id"])
+        r = c.execute("SELECT list_id FROM tasks WHERE id=?", (t,)).fetchone() if t else None
+        if r and r[0] and list_role(c, r[0], aid):
+            lids = sorted(set(lids) | {r[0]})
+        else:
+            unknown = True
     if "list_id" in b and b["list_id"] is not None:  # a body naming a project (create there, move there)
         t = _ctl_int(b["list_id"])
         if t and list_role(c, t, aid):

@@ -16,6 +16,7 @@ from ..core.schema import USER_DEFAULTS
 from ..core.i18n import LANGS, N_, tr
 from ..core.db import body, bump, connect, db, err, gset, gsetting, iso, now_utc, parse_iso, uset
 from ..core.pg import write_lock  # 2.528.0 (#4305)
+from ..core.support import HOSTED, support_email  # (#6534)
 from ..core.env import env_str
 from ..core.pgbus import bus_on, bus_send  # 2.622.0 (#3891)
 from ..accounts.session import GATE, me
@@ -80,6 +81,8 @@ def about_info(c, u):
     from ..admin.backup import BK_ON_ENV
     from ..api.v1 import PUB_ENV
     d = {"version": APP_VERSION, "legal": legal_links(c)}  # 2.306.0 B (#2887): privacy / imprint links in Settings > Help
+    if u:  # (#6534): every signed-in person learns whether this is a hosted server and where its support is (a way to a person)
+        d.update(hosted=HOSTED, support=support_email(c))
     if u and u["is_admin"]:
         info = update_state(c)
         latest, cur = semver(info.get("latest")), semver(APP_VERSION)

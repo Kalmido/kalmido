@@ -133,11 +133,32 @@ function ccApvState(ch, ans, st, t) {
 // pen next to an open suggestion: its html, or ''), send (the attributes of "Send" with multi), done (the text after an answer)}
 // 2.565.0 (#4713): a long label (up to 200 characters) -> class cchl: the button takes the full width on a phone
 const ccIsLong = c => String(c.label || '').length > 40;
+// (#7530): the bound step of an option (collab/cstep.py), shown at its button before the click; an option without one in a
+// question with steps reads "answer only". After the click the answer line says what ran, or that the task had moved on.
+function cstLabel(d) {
+  if (!d) return tr('answer only');
+  switch (d.kind) {
+    case 'section': return tr('to the column “{0}”', d.name || '');
+    case 'state': return d.state === 'done' ? tr('mark as done') : tr('mark as in progress');
+    case 'wont': return tr('will not be done: {0}', d.reason || '');
+    case 'park': return tr('park: {0}', d.reason || '');
+    case 'wait': return tr('wait until {0}', fmtDayAbs(d.until));
+    case 'tag': return tr('tag “{0}”', d.tag || '');
+  }
+  return '';
+}
+function cstDone(st, agent) {
+  if (!st) return '';
+  if (st.state === 'skipped' && st.why === 'moved') return st.kind === 'tag' ? tr('The tag is no longer in the task\'s project – nothing was set, your answer went to {0}', agent || tr('the agent')) : tr('The task moved to another project – the column did not fit, your answer went to {0}', agent || tr('the agent'));  // reader F11, F14
+  if (st.state === 'skipped') return st.why === 'done' ? tr('Already done – your answer went to {0}', agent || tr('the agent')) : tr('Already in progress – your answer went to {0}', agent || tr('the agent'));
+  return tr('Done: {0}', cstLabel(st));
+}
 function ccButtons(o) {
   const {ch, ans} = o, ids = new Set(ans?.ids || []), multi = !!ch.multi, sel = o.sel || new Set();
-  const btn = c => `<button type="button" class="cchb${ccIsLong(c) ? ' cchl' : ''} ${c.style ? 'st-' + esc(c.style) : ''} ${ids.has(c.id) || sel.has(c.id) ? 'on' : ''}" ${o.attrs(c.id)} ${ans ? 'disabled' : ''} ${multi ? `aria-pressed="${sel.has(c.id)}"` : ''}>${ids.has(c.id) ? ic('check', 's') : ''}<span>${esc(c.label)}</span></button>`;
+  const steps = ch.choices.some(c => c.do);  // (#7530)
+  const btn = c => `<button type="button" class="cchb${ccIsLong(c) || steps ? ' cchl' : ''} ${c.style ? 'st-' + esc(c.style) : ''} ${ids.has(c.id) || sel.has(c.id) ? 'on' : ''}" ${o.attrs(c.id)} ${ans ? 'disabled' : ''} ${multi ? `aria-pressed="${sel.has(c.id)}"` : ''}>${ids.has(c.id) ? ic('check', 's') : ''}<span>${esc(c.label)}</span>${steps ? `<small class="cstep${c.do ? '' : ' none'}">${esc(cstLabel(c.do))}</small>` : ''}</button>`;
   const pen = c => { const p = o.pen ? o.pen(c) : ''; return p ? `<span class="cchw${ccIsLong(c) ? ' cchl' : ''}">${btn(c)}${p}</span>` : btn(c); };
-  return `<div class="cchoices ${ans ? 'done' : ''}" role="group" aria-label="${esc(tr('Answer'))}">${ch.choices.map(ans ? btn : pen).join('')}${multi && !ans && o.send ? `<button type="button" class="btn sm pri cchsend" ${o.send} ${sel.size ? '' : 'disabled'}>${ic('send', 's')} ${tr('Send')}</button>` : ''}${ans ? `<small class="muted cchans">${esc(o.done || tr('Answered'))} · ${fmtWhen(ans.at)}</small>` : ''}</div>`;
+  return `<div class="cchoices ${ans ? 'done' : ''}" role="group" aria-label="${esc(tr('Answer'))}">${ch.choices.map(ans ? btn : pen).join('')}${multi && !ans && o.send ? `<button type="button" class="btn sm pri cchsend" ${o.send} ${sel.size ? '' : 'disabled'}>${ic('send', 's')} ${tr('Send')}</button>` : ''}${ans ? `<small class="muted cchans">${esc(o.done || tr('Answered'))} · ${fmtWhen(ans.at)}${ans.step ? ' · ' + esc(cstDone(ans.step, o.agent)) : ''}</small>` : ''}</div>`;
 }
 
 // ---- comments: the card under an agent's comment
@@ -148,6 +169,7 @@ function ccCmtState(c) {
   if (c.choice) return 'answered';
   if (c.choice_state && c.choice_state !== 'open') return c.choice_state;
   if (ch.approval) return ch.expires_at && Date.parse(ch.expires_at) <= Date.now() ? 'expired' : 'open';
+  if ((ch.choices || []).some(x => x.do)) return 'open';  // (#7530): with bound steps the buttons stay answerable (an answer in words too)
   return (S.tl.comments || []).some(x => x.id > c.id && !x.choices?.approval) ? 'expired' : 'open';  // #1037
 }
 // may I press? people who can edit the task (the server also asks whether the agent takes instructions from me)
@@ -166,7 +188,7 @@ function ccCommentHtml(c, ro = false) {
   if (st !== 'open' && st !== 'answered') return '';  // expired / withdrawn: gone, as in the chat
   if (st === 'open' && !can) return '';
   return ccButtons({ch, ans, sel: S.ccPick[c.id], attrs, send: `data-cc="send" data-cid="${c.id}"`,
-    done: ans?.user_name ? tr('Answered by {0}', ans.user_name) : '',
+    done: ans?.user_name ? tr('Answered by {0}', ans.user_name) : '', agent: uname(c.user_id, S.tl.users || {}),
     pen: x => `<button type="button" class="cchpen" data-ccpen="${c.id}" data-ch="${esc(x.id)}" title="${esc(tr('Edit before sending'))}" aria-label="${esc(tr('Edit before sending: {0}', x.label))}">${ic('edit', 's')}</button>`});
 }
 async function ccAnswer(cid, id, send = false) {

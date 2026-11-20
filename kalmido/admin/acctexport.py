@@ -70,6 +70,7 @@ from ..accounts.settings import SETTINGS_SERVER_ONLY, umz_export_clean, umz_expo
 from ..accounts.settings import EjTooBig, ej_response, ej_text, ej_too_big  # (#6586): the file of export.json
 from ..calendars.subscriptions import cal_url_hint  # 2.369.5 (#2517): pulled up from functions
 from ..core.orgcrypt import oc_dec_fields  # 2.369.5 (#2517): pulled up from functions
+from ..core.support import SUP_EXPORT_FAILED, SUP_EXPORT_SPACE, support_ask  # (#6534): hosted = the support instead of "the server admin"
 from ..wiki.wkhist import wsb_body_or  # 2.369.5 (#2517): pulled up from functions
 from ..life.budget import bud_export  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.bgjobs import bgj_add, bgj_busy, bgj_drop, bgj_fn  # 2.370.3 (#2760)
@@ -964,7 +965,7 @@ def umz_status(uid):
            if st.get(k) is not None}
     if st.get("state") == "failed":
         out["error"] = tr("The export was interrupted. Please start it again.") if st.get("error") == "interrupted" else \
-            tr("The export failed. Please try again later or ask the server admin (server log).")
+            support_ask(db(), *SUP_EXPORT_FAILED)
     if st.get("state") == "done" and isinstance(st.get("fit"), dict):
         out.update(umz_fit_view(st["fit"]))
     return out
@@ -1060,7 +1061,7 @@ def umz_start():
     need += c.execute("SELECT COALESCE(SUM(size),0) FROM sheet_files WHERE owner_id=? AND org_id IS NULL", (uid,)).fetchone()[0] or 0
     need += c.execute("SELECT COALESCE(SUM(size),0) FROM template_files WHERE user_id=?", (uid,)).fetchone()[0] or 0  # #3134
     if not umz_space_ok(UMZ_DIR, need * 1.1):
-        return err(tr("There is not enough space on the server for the export. Please ask the server admin."), 507)
+        return err(support_ask(db(), *SUP_EXPORT_SPACE), 507)
     c.rollback()
 
     def guard(qc):  # 2.370.3 (#2760): under the queue's lock of this person: one export at a time in every process

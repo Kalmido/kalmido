@@ -11,6 +11,8 @@ from datetime import timedelta
 from flask import g, jsonify, request
 
 from ..core.env import env_int  # (#6615): a wrong value = one warning with its name
+from ..core.objcomments import ocm_intent_in, OCM_INTENT_OPEN  # (#7534): the kind of a person's message
+from ..collab.cstep import cst_choices, cst_has, cst_may, cst_of, cst_run  # (#7530): answer buttons with a bound step
 from ..core.config import app, ATT_DIR, MAX_FILE_MB
 from ..core.pgbus import bus_on, bus_send  # 2.622.0 (#3891)
 from ..core.objhooks import USER_FILES  # (#6356)
@@ -253,6 +255,9 @@ def chat_dict(r, rx=None, files=None, api=False, newest=None, edits=False):
             # 2.1086.0 (#5860): "Show me" -- the steps of an agent's message (api/showme.py; null = none)
             # 2.1239.0 (#6261): the model of an agent's message ({model?, effort?, klasse?, grund?}; null = none)
             "run_meta": chat_run_meta_out(r),
+            # (#7534): a person's kind of message (question | instruction | proposal | note; only when chosen); awaiting: set by
+            # chat_intent_wait (an open kind the agent has not answered with reply_to yet)
+            **({"intent": r["intent"]} if "intent" in r.keys() and r["intent"] else {}),
             "show": shw_out(r["show_steps"] if "show_steps" in r.keys() and r["sender"] == "agent" else None, api),
             "attachments": [{**f, "url": (f"/api/v1/chat-attachments/{f['id']}" if api else f"/api/chat-files/{f['id']}")}
                             for f in (files or {}).get(r["id"], [])]}
@@ -331,7 +336,7 @@ def choice_state(r, ch, ans, newest=None):
         return "withdrawn" if not ch.get("outcome") else ("answered" if ch["outcome"] in ("allowed", "denied") else "expired")
     if ch.get("permission") or ch.get("approval"):  # 2.35.0 (#1103): approval requests too
         return "expired" if ch.get("expires_at") and ch["expires_at"] <= iso_ms(now_utc()) else "open"
-    if _newer_than(newest, r):  # 2.233.0 A (#2848): ended by a newer message, still answerable while collected (chatprefs.py)
+    if _newer_than(newest, r) and not cst_has(ch):  # (#2848): ended by a newer message, still answerable while collected (chatprefs.py); (#7530): not with bound steps
         return "collected" if r["id"] in newest.get("coll", ()) else "expired"
     return "open"
 
@@ -360,7 +365,24 @@ def chat_one(c, r, api=False, edits=False):
     """chat_dict of one row with its reactions and files (edits: the earlier versions, for the person only)."""
     d = chat_dict(r, chat_reactions_of(c, [r["id"]]), chat_files_of(c, [r["id"]]), api=api,
                   newest=chat_newest(c, r["agent_id"], r["user_id"]), edits=edits)
+    chat_intent_wait(c, [d])
     return jn9_chat_jobs(c, [d], r["agent_id"] if api else r["user_id"])[0]  # 2.59.0 (#1827): api = the agent reads it
+
+
+def chat_intent_wait(c, msgs):
+    """(#7534): awaiting (true / false) and answer (the id of the agent's answer, else null) on the person's messages with a
+    kind: a question / instruction / proposal is open until the agent answered exactly it (its message with reply_to = this
+    id); a note never is."""
+    ids = [m["id"] for m in msgs if m.get("intent") and m.get("from") == "user"]
+    if not ids:
+        return msgs
+    ans = {}
+    for r in c.execute("SELECT reply_to, MIN(id) FROM agent_chat WHERE sender='agent' AND reply_to = ANY(CAST(? AS BIGINT[])) GROUP BY reply_to", (ids,)):
+        ans[r[0]] = r[1]
+    for m in msgs:
+        if m["id"] in ids:
+            m.update(awaiting=m["intent"] in OCM_INTENT_OPEN and m["id"] not in ans, answer=ans.get(m["id"]))
+    return msgs
 
 
 def jn9_chat_jobs(c, msgs, uid):
@@ -506,7 +528,8 @@ def chat_choices_clean(v, multi, permission=None, expires_in=None):
             if not isinstance(href, str) or not NOTIFY_HREF_RE.fullmatch(href) or permission:
                 raise BadInput(tr("Invalid value: {0}", "choices"))
         out.append({"id": x["id"], "label": str(x.get("label", x["id"])).strip()[:CHOICE_LABEL_MAX], **({"style": st} if st != "default" else {}),
-                    **({"href": href} if href else {})})
+                    **({"href": href} if href else {}),
+                    **({"do": x["do"]} if x.get("do") is not None else {})})  # (#7530): a bound step, checked by the caller (collab/cstep.py cst_choices)
     if multi not in (None, True, False, 0, 1):
         raise BadInput(tr("Invalid value: {0}", "multi"))
     d = {"choices": out, "multi": bool(multi)}
@@ -599,13 +622,19 @@ def _approval_of(ids):
     return "approved" if ids in (["allow"], ["yes"]) else "rejected" if ids in (["deny"], ["no"]) else None
 
 
-def chat_choice_answer(c, m, ch, ids, uid, via, collected=False):
+def chat_choice_answer(c, m, ch, ids, uid, via, collected=False, step=None):
     """Stores the person's answer on agent message m (open buttons) and sends the agent 'chat_choice'. 2.30.0 (#1041): on a
     permission question also the 'reaction' event a 👍 / 👎 sends (approval approved / rejected, via button), so hosts
     that listen for reactions keep working; a 👍 / 👎 answers it the other way round (via reaction). One answer per message:
     act once per message_id."""
     ans = {"ids": ids, "at": iso_ms(now_utc()), "user_id": uid, **({"via": via} if ch.get("permission") or ch.get("approval") else {})}
-    c.execute("UPDATE agent_chat SET choice=? WHERE id=?", (json.dumps(ans), m["id"]))
+    if not c.execute("UPDATE agent_chat SET choice=? WHERE id=? AND choice IS NULL", (json.dumps(ans), m["id"])).rowcount:
+        raise Denied(409, tr("This question was answered already"))  # (#7530): written once, a second click runs no step
+    if step:  # (#7530): the bound step on the message's task, with this person's rights (checked by chat_choice_set)
+        ans["step"] = {**step, **cst_run(c, m["task_id"], step)}
+        c.execute("UPDATE agent_chat SET choice=? WHERE id=?", (json.dumps(ans), m["id"]))
+        log_act(c, m["task_id"], "choice", {"chat": m["id"], "ids": ids, "labels": [x["label"] for x in ch["choices"] if x["id"] in ids],
+                                            "step": ans["step"]}, uid=uid)
     if ch.get("approval"):  # 2.1068.0 (#5831): the change the person decided on stays readable at the card (short)
         from .apvdiff import apvd_snapshot
         snap = apvd_snapshot(c, uid, ch, m["created_at"])
@@ -616,7 +645,8 @@ def chat_choice_answer(c, m, ch, ids, uid, via, collected=False):
     m2 = c.execute("SELECT * FROM agent_chat WHERE id=?", (m["id"],)).fetchone()
     labels = [x["label"] for x in ch["choices"] if x["id"] in ids]
     who = {"id": uid, "name": user_names(c, [uid]).get(uid, "")}
-    data = {"message_id": m["id"], "choice_ids": ids, "labels": labels, "message": chat_one(c, m2, api=True), "user": who}
+    data = {"message_id": m["id"], "choice_ids": ids, "labels": labels, "message": chat_one(c, m2, api=True), "user": who,
+            **({"step": ans["step"]} if step else {})}  # (#7530)
     if collected:  # 2.233.0 A (#2848): a press on an older, collected suggestion (newer messages came after it)
         data["collected"] = True
     if ch.get("permission"):
@@ -654,7 +684,12 @@ def chat_choice_set(c, m, uid, ids, proof=None):
         raise BadInput(tr("Invalid value: {0}", "choice_ids"))
     from .apvdiff import apvd_need_proof
     apvd_need_proof(c, f"chat:{m['id']}", uid, ch, [x for x in valid if x in ids], proof)  # 2.1386.0 (#6623): Yes only with the proof of the description
-    m2 = chat_choice_answer(c, m, ch, [x for x in valid if x in ids], uid, "button", collected=st == "collected")
+    step = cst_of(ch, ids)  # (#7530): the option's bound step -- the person must be allowed to change the task (else 403, nothing stored)
+    if step:
+        if not m["task_id"]:
+            raise Denied(409, tr("The task of this question is gone"))
+        cst_may(c, m["task_id"])
+    m2 = chat_choice_answer(c, m, ch, [x for x in valid if x in ids], uid, "button", collected=st == "collected", step=step)
     bump(c)
     return m2
 
@@ -743,7 +778,13 @@ def chat_post(c, aid, uid, sender, b, files, allowed_keys=("body", "task_id")):
             raise Denied(409, tr("Answer the open approval requests first (at most {0})", APPROVAL_OPEN_MAX))
     else:
         choices = chat_choices_clean(b.get("choices"), b.get("multi"), b.get("permission"), b.get("expires_in")) if sender == "agent" else None
+        if choices:  # (#7530): a bound step acts only on the task of this message (none: 400)
+            choices = json.dumps(cst_choices(c, json.loads(choices), tid), ensure_ascii=False)
+    intent = ocm_intent_in(b.get("intent"), sender != "user")  # (#7534): only a person's message has a kind; unknown: 400
     r = chat_add(c, aid, uid, sender, text, tid, choices)
+    if intent:
+        c.execute("UPDATE agent_chat SET intent=? WHERE id=?", (intent, r["id"]))
+        r = c.execute("SELECT * FROM agent_chat WHERE id=?", (r["id"],)).fetchone()
     if orig:
         c.execute("UPDATE agent_chat SET reply_to=? WHERE id=?", (orig["id"], r["id"]))
         r = c.execute("SELECT * FROM agent_chat WHERE id=?", (r["id"],)).fetchone()
@@ -1032,6 +1073,7 @@ def agent_chat_get(aid):
         if r["job_id"]:
             d["job_steps"] = jc.get(r["job_id"], 0)
         msgs.append(d)
+    chat_intent_wait(c, msgs)  # (#7534)
     rc = chat_rule_cards(c, [d["id"] for d in msgs if d["kind"] == "rule"], me())
     for d in msgs:
         if d["kind"] == "rule":  # 2.1269.0 (#6451): the server's card of a proposed standing rule (its state now)
@@ -1148,7 +1190,7 @@ def agent_chat_post(aid):
     if not shared:
         return chat_unshared_answer(c, a)
     try:
-        fb, files = chat_input(("body", "task_id", "reply_to", "client_id", "job_id"))  # 2.62.0 (#1530): client_id
+        fb, files = chat_input(("body", "task_id", "reply_to", "client_id", "job_id", "intent"))  # (#1530): client_id; (#7534): intent
         b = fb if fb is not None else body()
         from ..agents.jobchat import jcs_job_in
         job = jcs_job_in(c, aid, b.get("job_id"), me())  # 2.153.0 (#1962): typed in the job's own chat
@@ -1168,7 +1210,8 @@ def agent_chat_post(aid):
         return err(str(e))
     except BadInput as e:
         return err(str(e))
-    chat_emit(c, aid, r)
+    if r["intent"] != "note":  # (#7534): a note wakes nothing (the agent reads it with its conversation, GET /agent/chats)
+        chat_emit(c, aid, r)
     c.commit()
     chat_unlink_trimmed()
     return jsonify(chat_one(c, r, edits=True)), 201
@@ -1225,6 +1268,8 @@ def chat_emit(c, aid, r):
     """The 'chat' event for the agent about a person's message r (with its files: REST addresses)."""
     tid = r["task_id"]
     data = {"message": chat_one(c, r, api=True), "user": {"id": r["user_id"], "name": user_names(c, [r["user_id"]]).get(r["user_id"], "")}}
+    if "intent" in r.keys() and r["intent"]:
+        data["intent"] = r["intent"]  # (#7534): the person's kind of message, also on the event itself (as message.intent)
     data.update(chat_drop_mark(r))  # 2.1313.0 (#6557): also on the event itself (the launcher frames it as data, agent_run.py untrusted_hint)
     if tid:
         data.update(agent_task_data(c, tid, aid))

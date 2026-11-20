@@ -35,7 +35,9 @@ function vdr_listHtml(rows, k, id, add) {
   const li = rows.map(r => `<li><button type="button" class="vdrrow" data-vdr="open" data-id="${r.id}">${ic(r.kind === 'image' ? 'picture' : r.kind === 'pdf' ? 'pdf' : vdr_isAud(r.versions?.[r.versions.length - 1]) ? 'music' : 'film', 's')}<span class="vdrrt"><b>${esc(r.title)}</b>
     <small class="muted">${esc([`v${r.version}`, tr(VDR_ST[r.state] || r.state), r.open_comments ? trn('{0} open comment', '{0} open comments', r.open_comments) : ''].filter(Boolean).join(' · '))}</small></span>
     <span class="vdrst st-${esc(r.state)}" aria-hidden="true"></span></button></li>`).join('');
-  return (li ? `<ul class="vdrrows" role="list">${li}</ul>` : '')
+  const nm = rows.filter(r => r.kind === 'image' || r.kind === 'pdf').length;  // (#7532): many images -> an overview of tiles
+  return (nm >= 2 ? `<button type="button" class="btn sm vdrgridb" data-vdr="grid" data-k="${esc(k)}" data-i="${esc(id)}">${ic('grid', 's')} ${esc(tr('Overview of the images ({0})', nm))}</button>` : '')
+    + (li ? `<ul class="vdrrows" role="list">${li}</ul>` : '')
     + (add ? `<button type="button" class="btn sm vdradd" data-vdr="new" data-k="${k}" data-i="${id}">${ic('plus', 's')} ${tr('Add video or audio link')}</button>`
       + ` <button type="button" class="btn sm vdradd" data-vdr="newfile" data-k="${k}" data-i="${id}">${ic('plus', 's')} ${tr('Add image, PDF or audio')}</button>` : '');  // 2.641.0 (#4769); 2.658.0 (#5015): + audio
 }
@@ -85,6 +87,7 @@ function vdr_cache(r, gone) {
   }
   if (r.task_id) vdr_redrawTask(r.task_id);
   vdr_redrawView();
+  if (VDR.grid?.md.isConnected) vdr_gridDraw();  // (#7532): the overview's counts follow
 }
 const vdr_forget = () => { VDR.by = {}; };
 // 2.1002.0 (#5490): deleting / restoring a review is a step of the server (core/undoweb.py): after an undo / redo the shown
@@ -203,6 +206,8 @@ async function vdr_open(id, have) {
   vdr_draw(st, true);
   md.addEventListener('click', e => vdr_click(e, st));
   md.addEventListener('change', e => { if (e.target.id === 'vdr-ver') { st.ver = +e.target.value; st.reply = null; st.pt = null; st.page = 1; vdr_draw(st, true); } });
+  md.addEventListener('change', e => { if (e.target.id === 'vdr-cmpv') { st.cmpv = +e.target.value; vdr_draw(st, true); } });  // (#7532): the version compared with
+  md.addEventListener('pointerdown', e => vdr_dragStart(e, st));  // (#7532): drag an area
   md.addEventListener('focusin', e => {  // typing pauses the player and keeps its time for the comment
     if (e.target.id !== 'vdr-in' || st.frozen != null) return;
     st.ctl?.pause(); st.frozen = st.ctl ? st.ctl.cur : 0; vdr_atDraw(st);
@@ -217,11 +222,12 @@ function vdr_draw(st, player) {
   $('.vdrvsel', md).innerHTML = r.versions.length > 1 ? `<label class="sr" for="vdr-ver">${tr('Version')}</label><select id="vdr-ver">${r.versions.slice().reverse().map(x => `<option value="${x.id}" ${x.id === v.id ? 'selected' : ''}>v${x.n}</option>`).join('')}</select>` : `<span class="vdrv1">v${v ? v.n : 1}</span>`;
   $('.vdrstate', md).innerHTML = `<span class="vdrchip st-${esc(r.state)}">${esc(tr(VDR_ST[r.state] || r.state))}</span>`
     + (v && v.id !== r.versions[r.versions.length - 1].id ? `<span class="muted">${esc(tr('An older version: its comments stay here'))}</span>` : '')
+    + (vdr_cmpOk(st) ? `<button type="button" class="btn sm vdrcmpb ${st.cmp ? 'on' : ''}" data-vdr="cmp" aria-pressed="${esc(!!st.cmp)}">${ic('columns', 's')} ${tr('Compare versions')}</button>` : '')
     + (ro ? '' : `<span class="spacer"></span>${r.state === 'open' ? `<button type="button" class="btn sm" data-vdr="state" data-st="approved">${ic('check', 's')} ${tr('Mark as approved')}</button>`
       : `<button type="button" class="btn sm" data-vdr="state" data-st="open">${ic('undo', 's')} ${tr('Back to review')}</button>`}`);
   if (player && v && v.kind && v.kind !== 'video') {  // 2.641.0 (#4769): an image / PDF with its points instead of the player
     st.ctl?.stop(); st.ctl = null; st.frozen = null;
-    $('.vdrpl', md).innerHTML = vdr_mediaHtml(v);
+    $('.vdrpl', md).innerHTML = st.cmp && vdr_cmpOk(st) ? vdr_vsHtml(st, v) : vdr_mediaHtml(v);  // (#7532): two versions side by side
     vdr_mediaLoad(st);
   } else if (player) {
     st.ctl?.stop();
@@ -250,7 +256,8 @@ function vdr_cmpDraw(st) {
   const rep = st.reply && st.r.comments.find(c => c.id === st.reply);
   $('.vdrcmp', st.md).innerHTML = `${rep ? `<div class="vdrrep muted">${ic('reply', 's')}<span>${esc(tr('Answer to {0}', rep.author))}</span><button type="button" class="linkbtn" data-vdr="noreply">${tr('Cancel')}</button></div>` : ''}
     <div class="vdrin">${timed ? `<button type="button" class="vdrat on" data-vdr="at" aria-pressed="true" title="${esc(tr('Tap to comment without a time'))}">${ic('clock', 's')}<span></span></button>` : ''}
-    ${vdr_media(v) && !st.reply ? `<button type="button" class="vdrat vdrptb ${st.pt ? 'on' : ''}" data-vdr="pt" aria-pressed="${!!st.pt}" title="${esc(st.pt ? tr('Tap to comment without a point') : tr('Tap on the image to set a point'))}">${ic('mappin', 's')}<span>${esc(st.pt ? tr('at point {0}', vdr_nextMark(st)) : tr('without point'))}</span></button>` : '' /* 2.641.0 (#4769) */}
+    ${/*html-ok*/ vdr_media(v) && !st.reply ? `<button type="button" class="vdrat vdrptb ${st.pt ? 'on' : ''}" data-vdr="pt" aria-pressed="${!!st.pt}" title="${esc(st.pt ? tr('Tap to comment without a point') : tr('Tap on the image to set a point'))}">${ic('mappin', 's')}<span>${esc(vdr_ptLabel(st))}</span></button>
+      <button type="button" class="vdrat vdrareab ${st.area ? 'on' : ''}" data-vdr="area" aria-pressed="${esc(!!st.area)}" title="${esc(tr('Drag over the image to mark an area'))}">${ic('area', 's')}<span>${esc(tr('Area|image'))}</span></button>` : '' /* (#4769); (#7532): + an area */}
     <textarea id="vdr-in" rows="2" maxlength="2000" placeholder="${esc(rep ? tr('Your answer') : timed ? tr('Comment at this moment') : vdr_media(v) ? tr('Tap on the image, then write') : tr('Comment'))}" aria-label="${esc(tr('Comment'))}"></textarea>
     <button type="button" class="btn pri sm" data-vdr="send" aria-label="${esc(tr('Send'))}">${ic('send', 's')}</button></div>`;
   vdr_atDraw(st);
@@ -262,7 +269,7 @@ function vdr_cmsDraw(st) {
     const mine = c.author_id && c.author_id === uid, can = r.can_write || mine;
     return `<li class="vdrc ${c.done ? 'done' : ''} ${c.customer ? 'cust' : ''}" data-cid="${c.id}">
       <div class="vdrch">${!reply && c.at_sec != null ? `<button type="button" class="vdrtc" data-vdr="seek" data-at="${c.at_sec}" aria-label="${esc(tr('Jump to {0}', vdr_tc(c.at_sec)))}">${esc(vdr_tc(c.at_sec))}</button>` : ''}
-        ${!reply && c.at_sec == null && (c.mark || c.page) ? `<button type="button" class="vdrtc vdrpb" data-vdr="pin" data-id="${c.id}" aria-label="${esc(c.mark ? tr('Show point {0}', c.mark) : tr('Page {0}', c.page))}">${esc([c.page ? tr('p. {0}|page', c.page) : '', c.mark ? String(c.mark) : ''].filter(Boolean).join(' · '))}</button>` : '' /* 2.641.0 (#4769) */}
+        ${!reply && c.at_sec == null && (c.mark || c.page) ? `<button type="button" class="vdrtc vdrpb" data-vdr="pin" data-id="${c.id}" aria-label="${esc(c.mark ? (c.pos?.w ? tr('Show area {0}', c.mark) : tr('Show point {0}', c.mark)) : tr('Page {0}', c.page))}">${esc([c.page ? tr('p. {0}|page', c.page) : '', c.mark ? String(c.mark) : ''].filter(Boolean).join(' · '))}</button>` : '' /* (#4769) */}
         <b>${esc(c.author || tr('Unknown'))}${c.customer ? ` (${esc(tr('Guest'))})` : ''}</b><small class="muted">${esc(fmtWhen(c.created_at))}</small><span class="spacer"></span>
         ${!reply ? `<button type="button" class="iconbtn" data-vdr="reply" data-id="${c.id}" aria-label="${esc(tr('Reply'))}" title="${esc(tr('Reply'))}">${ic('reply', 's')}</button>` : ''}
         ${!reply && can ? `<button type="button" class="iconbtn vdrdone ${c.done ? 'on' : ''}" data-vdr="done" data-id="${c.id}" aria-pressed="${c.done}" aria-label="${esc(c.done ? tr('Mark as open') : tr('Mark as done'))}" title="${esc(c.done ? tr('Mark as open') : tr('Mark as done'))}">${ic('check', 's')}</button>` : ''}
@@ -303,7 +310,7 @@ async function vdr_send(st) {
   const ta = $('#vdr-in', st.md), text = (ta?.value || '').trim();
   if (!text) { ta?.focus(); return; }
   const v = vdr_v(st), at = v.timed && st.at && !st.reply ? Math.round((st.frozen != null ? st.frozen : st.ctl ? st.ctl.cur : 0) * 10) / 10 : null;
-  const pos = vdr_media(v) && st.pt ? (v.kind === 'pdf' ? {page: st.pt.page, x: st.pt.x, y: st.pt.y} : {x: st.pt.x, y: st.pt.y}) : null;  // 2.641.0 (#4769)
+  const pos = vdr_media(v) && st.pt ? {...(v.kind === 'pdf' ? {page: st.pt.page} : {}), x: st.pt.x, y: st.pt.y, ...(st.pt.w ? {w: st.pt.w, h: st.pt.h} : {})} : null;  // (#4769); (#7532): + w / h of an area
   const body = st.reply ? {parent_id: st.reply, body: text} : pos ? {version_id: v.id, pos, body: text} : {version_id: v.id, at_sec: at, body: text};
   let j; try { j = await vdr_req(st, 'POST', `/api/videos/${st.r.id}/comments`, body); } catch (e) { toast(errText(e, tr('The comment could not be saved'))); return; }
   st.reply = null; st.frozen = null; st.pt = null;
@@ -342,6 +349,8 @@ async function vdr_click(e, st) {
   if (a === 'pin') { vdr_pinGo(st, id); return; }
   if (a === 'mk') { vdr_cmHl(st, id); return; }
   if (a === 'pg') { vdr_pageGo(st, st.page + (+b.dataset.d || 0)); return; }
+  if (a === 'area') { st.area = !st.area; vdr_cmpDraw(st); vdr_areaSync(st); if (st.area) toast(tr('Drag over the image to mark an area')); return; }  // (#7532)
+  if (a === 'cmp') { st.cmp = !st.cmp; vdr_draw(st, true); return; }
   try {
     if (a === 'done') {
       const was = !!r.comments.find(c => c.id === id)?.done, set = v => vdr_after(rid, 'PATCH', `/api/videos/${rid}/comments/${id}`, {done: v});
@@ -450,8 +459,9 @@ function vdr_mediaHtml(v) {
     <div class="vdrpgmsg muted">${esc(tr('Loading…'))}</div>` : ''}${stage}</div>`;
 }
 function vdr_mediaLoad(st) {
-  const v = vdr_v(st), box = $('.vdrstage', st.md); if (!box) return;
+  const v = vdr_v(st), box = $('[data-vdr-stage]', st.md); if (!box) return;  // (#7532): the stage of comments (compare: the right one)
   const img = $('img', box);
+  vdr_areaSync(st);
   if (img) img.addEventListener('error', () => { $('.vdrpl', st.md).innerHTML = `<div class="vdrnolink">${ic('info', 's')}<p>${esc(tr('File damaged or missing'))}</p></div>`; }, {once: true});
   if (v.kind === 'pdf') vdr_pageGo(st, st.page || 1);
 }
@@ -503,18 +513,21 @@ function vdr_ptDraw(st) {
   const b = $('[data-vdr="pt"]', st.md); if (!b) return;
   b.classList.toggle('on', !!st.pt); b.setAttribute('aria-pressed', String(!!st.pt));
   b.title = st.pt ? tr('Tap to comment without a point') : tr('Tap on the image to set a point');
-  $('span', b).textContent = st.pt ? tr('at point {0}', vdr_nextMark(st)) : tr('without point');
+  $('span', b).textContent = vdr_ptLabel(st);
 }
+const vdr_ptLabel = st => st.pt ? (st.pt.w ? tr('at area {0}', vdr_nextMark(st)) : tr('at point {0}', vdr_nextMark(st))) : tr('without point');
 // the next point's number (the comments with a point of this version + 1)
 const vdr_nextMark = st => vdr_top(st).filter(c => c.mark).length + 1;
 function vdr_pinsDraw(st) {
   const v = vdr_v(st), el = $('.vdrpins', st.md); if (!el || !vdr_media(v)) return;
   const pdf = v.kind === 'pdf', ms = vdr_top(st).filter(c => c.mark && (!pdf || c.page === st.page));
-  el.innerHTML = ms.map(c => `<button type="button" class="vdrpin ${c.done ? 'done' : ''}" data-vdr="mk" data-id="${c.id}" style="left:${(c.pos.x * 100).toFixed(2)}%;top:${(c.pos.y * 100).toFixed(2)}%" aria-label="${esc(tr('Point {0}', c.mark) + ': ' + c.body.slice(0, 60))}" title="${esc(c.body.slice(0, 80))}">${c.mark}</button>`).join('')
+  el.innerHTML = ms.filter(c => c.pos?.w).map(c => vdr_boxHtml(c.pos, c.done ? 'done' : '')).join('') + (st.pt?.w && (!pdf || st.pt.page === st.page) ? vdr_boxHtml(st.pt, 'new') : '')  // (#7532): areas under the numbers
+    + ms.map(c => `<button type="button" class="vdrpin ${c.done ? 'done' : ''}" data-vdr="mk" data-id="${c.id}" style="left:${(c.pos.x * 100).toFixed(2)}%;top:${(c.pos.y * 100).toFixed(2)}%" aria-label="${esc(tr('Point {0}', c.mark) + ': ' + c.body.slice(0, 60))}" title="${esc(c.body.slice(0, 80))}">${c.mark}</button>`).join('')
     + (st.pt && (!pdf || st.pt.page === st.page) ? `<span class="vdrpin new" style="left:${(st.pt.x * 100).toFixed(2)}%;top:${(st.pt.y * 100).toFixed(2)}%" aria-hidden="true">${vdr_nextMark(st)}</span>` : '');
 }
 function vdr_stageTap(e, st) {  // a tap on the image / page (not on a point): the point of the next comment
   const box = e.target.closest('[data-vdr-stage]'); if (!box || e.target.closest('.vdrpin') || st.reply) return false;
+  if (st.dragged) { st.dragged = false; return true; }  // (#7532): the click after dragging an area
   const v = vdr_v(st), r = box.getBoundingClientRect();
   if (!r.width || !r.height || (v.kind === 'pdf' && !$('canvas', box))) return true;
   const cl = x => Math.round(Math.max(0, Math.min(1, x)) * 10000) / 10000;
@@ -544,7 +557,8 @@ function vdr_newFile(k, id, st) {
   const sp = st ? (st.r.org_id ? 'org:' + st.r.org_id : 'private') : vdr_space(k, id), ps = {parent: null, q: '', n: 0};
   const md = modal(`<form class="vdrform vdrfile" novalidate><h3 id="vdr-ft">${st ? tr('New version') : tr('Add image, PDF or audio')}</h3>
     <div class="shint">${esc(tr('Images (JPG, PNG, WebP), PDFs and audio files (MP3, M4A, AAC, WAV, OGG, Opus, FLAC). The file stays in the file store; comments sit at a point or, for audio, at a second.'))}</div>
-    <label class="btn pri vdrup">${ic('upload', 's')} ${tr('Upload a file')}<input type="file" id="vdr-file" class="sr" accept="${VDR_ACCEPT}"></label>
+    <label class="btn pri vdrup">${ic('upload', 's')} ${st ? tr('Upload a file') : tr('Upload files')}<input type="file" id="vdr-file" class="sr" accept="${VDR_ACCEPT}" ${st ? '' : 'multiple'}></label>${''/* (#7532): many at once = one approval each */}
+    <div class="vdrupmsg muted" role="status" aria-live="polite" hidden></div>
     <p class="muted mhint">${esc(tr('Uploads go into the folder “Approvals” of the file store. Who may not see the file there does not see the approval.'))}</p>
     <h4>${tr('From the file store')}</h4>
     <div class="ctsearch">${ic('search', 's')}<input id="vdr-fq" type="search" placeholder="${esc(tr('Find a file'))}" aria-label="${esc(tr('Find a file'))}" autocomplete="off"></div>
@@ -581,7 +595,9 @@ function vdr_newFile(k, id, st) {
   };
   const title = () => ($('#vdr-ttl', md)?.value || '').trim();
   $('#vdr-file', md).addEventListener('change', e => {
-    const f = e.target.files?.[0]; if (!f) return;
+    const fl = [...(e.target.files || [])];
+    if (fl.length > 1 && !st) { vdr_upMany(k, id, fl, md); return; }  // (#7532)
+    const f = fl[0]; if (!f) return;
     const fd = new FormData();
     fd.append('file', f, f.name);
     if (!st) { fd.append(k, String(id)); if (title()) fd.append('title', title()); }
@@ -613,7 +629,111 @@ function vdr_fileVersion(st, j, payload) {  // a new version from a file: shown 
     redo: async () => { const x = await vdr_after(rid, 'POST', `/api/videos/${rid}/versions`, payload instanceof FormData ? {file_id: fid} : payload); nid = x.new_version; return {skipped: []}; }}));
 }
 document.addEventListener('click', e => {  // the sections (task, project, client)
-  const b = e.target.closest('[data-vdr="open"],[data-vdr="new"],[data-vdr="newfile"]'); if (!b || b.closest('.vdrdlg')) return;
+  const b = e.target.closest('[data-vdr="open"],[data-vdr="new"],[data-vdr="newfile"],[data-vdr="grid"],[data-vdrgf]'); if (!b || b.closest('.vdrdlg')) return;
   e.preventDefault();
-  if (b.dataset.vdr === 'open') vdr_open(+b.dataset.id); else if (b.dataset.vdr === 'newfile') vdr_newFile(b.dataset.k, +b.dataset.i); else vdr_new(b.dataset.k, +b.dataset.i);
+  if (b.dataset.vdrgf) { if (VDR.grid) { VDR.grid.f = b.dataset.vdrgf; vdr_gridDraw(); } return; }  // (#7532): the overview's filter
+  if (b.dataset.vdr === 'grid') vdr_grid(b.dataset.k, +b.dataset.i);
+  else if (b.dataset.vdr === 'open') vdr_open(+b.dataset.id); else if (b.dataset.vdr === 'newfile') vdr_newFile(b.dataset.k, +b.dataset.i); else vdr_new(b.dataset.k, +b.dataset.i);
 });
+
+// ---- (#7532) an area instead of a point: drag over the image / page (mouse or pen always; a finger after "Area", so the
+// page still scrolls under a finger otherwise). x / y = the top left corner, w / h its size, all 0..1 of the image / page;
+// the area's number sits on its corner like a point's. The server stores it in pos (videos/vdmedia.py vdm_pos).
+const VDR_DRAG_MIN = 8;  // px: less is a tap (a point)
+const vdr_cl = x => Math.round(Math.max(0, Math.min(1, x)) * 10000) / 10000;
+const vdr_pc = n => (n * 100).toFixed(2) + '%';
+const vdr_boxHtml = (p, cls) => `<span class="vdrbox ${esc(cls)}" style="left:${esc(vdr_pc(p.x))};top:${esc(vdr_pc(p.y))};width:${esc(vdr_pc(p.w))};height:${esc(vdr_pc(p.h))}" aria-hidden="true"></span>`;
+function vdr_areaSync(st) { for (const b of $$('[data-vdr-stage]', st.md)) b.classList.toggle('vdrareaon', !!st.area); }
+function vdr_dragStart(e, st) {
+  st.dragged = false;  // a click without a drag before it is a tap again (a drag's own click may not come)
+  const box = e.target.closest?.('[data-vdr-stage]');
+  if (!box || box.closest('.vdrvsa') || e.target.closest('.vdrpin') || st.reply || e.button > 0 || !vdr_media(vdr_v(st))) return;
+  if (e.pointerType === 'touch' && !st.area) return;
+  const v = vdr_v(st), r = box.getBoundingClientRect();
+  if (!r.width || !r.height || (v.kind === 'pdf' && !$('canvas', box))) return;
+  const x0 = e.clientX, y0 = e.clientY;
+  let on = false;
+  const at = (cx, cy) => {
+    const ax = vdr_cl((Math.min(x0, cx) - r.left) / r.width), ay = vdr_cl((Math.min(y0, cy) - r.top) / r.height);
+    return {x: ax, y: ay, w: vdr_cl((Math.max(x0, cx) - r.left) / r.width) - ax, h: vdr_cl((Math.max(y0, cy) - r.top) / r.height) - ay, page: v.kind === 'pdf' ? st.page : null};
+  };
+  const move = ev => {
+    if (!on && Math.abs(ev.clientX - x0) < VDR_DRAG_MIN && Math.abs(ev.clientY - y0) < VDR_DRAG_MIN) return;
+    on = true; ev.preventDefault();
+    const p = at(ev.clientX, ev.clientY);
+    if (p.w > 0 && p.h > 0) { st.pt = p; vdr_pinsDraw(st); }
+  };
+  const end = ev => {
+    box.removeEventListener('pointermove', move); box.removeEventListener('pointerup', end); box.removeEventListener('pointercancel', end);
+    if (!on) return;
+    st.dragged = ev.type === 'pointerup';  // the click that follows is no tap
+    const p = at(ev.clientX, ev.clientY);
+    st.pt = p.w > 0.002 && p.h > 0.002 ? p : null;
+    vdr_pinsDraw(st); vdr_ptDraw(st);
+    if (st.pt) $('#vdr-in', st.md)?.focus({preventScroll: true});
+  };
+  try { box.setPointerCapture(e.pointerId); } catch { /* a synthetic event */ }
+  box.addEventListener('pointermove', move); box.addEventListener('pointerup', end); box.addEventListener('pointercancel', end);
+}
+
+// ---- (#7532) two versions of the same image next to each other (computer) or one above the other (phone): the chosen one
+// on the right with its points (comments go there), another version on the left to compare (default: the one before)
+const vdr_imgs = st => st.r.versions.filter(x => x.kind === 'image' && x.content);
+const vdr_cmpOk = st => { const v = vdr_v(st); return !!v && v.kind === 'image' && vdr_imgs(st).length > 1; };
+function vdr_vsHtml(st, v) {
+  const others = vdr_imgs(st).filter(x => x.id !== v.id);
+  const o = others.find(x => x.id === st.cmpv) || others.filter(x => x.n < v.n).pop() || others[0];
+  st.cmpv = o.id;
+  return `<div class="vdrvs"><figure class="vdrvsa"><figcaption><label class="sr" for="vdr-cmpv">${tr('Compare with')}</label><select id="vdr-cmpv">${others.slice().reverse().map(x => `<option value="${esc(x.id)}" ${x.id === o.id ? 'selected' : ''}>v${esc(x.n)}</option>`).join('')}</select></figcaption>
+    <div class="vdrstage vdrstage-ro"><img src="${esc(o.content)}" alt="${esc(o.file_name || '')}" draggable="false"></div></figure>${''/* sprung-ok: inside the fixed compare box (videorev.css .vdrvs, max-height like the stage) */}
+    <figure class="vdrvsb"><figcaption>v${esc(v.n)}</figcaption>${/*html-ok*/ vdr_mediaHtml(v)/* escapes its values */}</figure></div>`;
+}
+
+// ---- (#7532) the overview of many images: one tile per image / PDF approval of a place (task, project, client) with its
+// title and the number of open comments; filter all / with / without open comments. A tile opens the approval.
+const VDR_GF = [['all', N_('All')], ['with', N_('With comments')], ['without', N_('Without comments')]];
+function vdr_grid(k, id) {
+  if (VDR.grid) VDR.grid.md.remove();
+  const md = modal(`<div class="lhdr"><h3 id="vdr-gh">${tr('Overview of the images')}</h3><span class="spacer"></span><button class="iconbtn" data-m="close" aria-label="${esc(tr('Close'))}" title="${esc(tr('Close'))}">${ic('x')}</button></div>
+    <div class="vdrgf" role="group" aria-label="${esc(tr('Filter'))}"></div><ul class="vdrgrid" role="list"></ul>`);
+  md.classList.add('vdrgmd');
+  md.setAttribute('aria-labelledby', 'vdr-gh');
+  md.addEventListener('click', e => { if (e.target.closest('[data-m="close"]')) md.remove(); });
+  VDR.grid = {md, k, id, f: 'all'};
+  onRemove(md, () => { if (VDR.grid?.md === md) VDR.grid = null; });
+  vdr_gridDraw();
+}
+function vdr_gridDraw() {
+  const g = VDR.grid; if (!g) return;
+  const all = (VDR.by[vdr_key(g.k, g.id)] || []).filter(r => r.kind === 'image' || r.kind === 'pdf');
+  const rows = all.filter(r => g.f === 'all' || (g.f === 'with') === (r.open_comments > 0));
+  const n = {all: all.length, with: all.filter(r => r.open_comments > 0).length}; n.without = n.all - n.with;
+  $('.vdrgf', g.md).innerHTML = VDR_GF.map(([f, l]) => `<button type="button" class="chip ${g.f === f ? 'on' : ''}" data-vdrgf="${esc(f)}" aria-pressed="${esc(g.f === f)}">${esc(tr(l))} <span class="muted">${esc(n[f])}</span></button>`).join('');
+  const tile = r => {
+    const v = r.versions?.[r.versions.length - 1];
+    const th = v?.kind === 'image' && v.content ? `<img src="${esc(v.content)}" alt="" loading="lazy" draggable="false" width="240" height="180">` : ic(r.kind === 'pdf' ? 'pdf' : 'picture', 'l');
+    return `<li><button type="button" class="vdrtile" data-vdr="open" data-id="${esc(r.id)}"><span class="vdrth">${/*html-ok*/ th/* built escaped */}</span>
+      <span class="vdrtt"><b>${esc(r.title)}</b><span class="vdrtc2 ${r.open_comments ? 'has' : ''}">${esc(r.open_comments ? trn('{0} open comment', '{0} open comments', r.open_comments) : tr('No open comments'))}</span></span></button></li>`;
+  };
+  $('.vdrgrid', g.md).innerHTML = rows.length ? rows.map(tile).join('') : `<li class="muted vdrempty">${esc(tr('No images here.'))}</li>`;
+}
+
+// ---- (#7532) many files at once: one approval per file (its name as the title), one after the other; one undo step for all
+async function vdr_upMany(k, id, files, md) {
+  const msg = $('.vdrupmsg', md), err = $('.calerr', md), made = [];
+  $('#vdr-file', md).disabled = true; err.hidden = true; msg.hidden = false;
+  for (const [i, f] of files.entries()) {
+    msg.textContent = tr('Uploading {0} of {1}…', i + 1, files.length);
+    const fd = new FormData();
+    fd.append('file', f, f.name); fd.append(k, String(id));
+    try { const r = await rawFetch('POST', '/api/videos', fd); made.push(r); vdr_cache(r); } catch (x) { err.textContent = `${f.name}: ${x.message}`; err.hidden = false; }
+  }
+  msg.hidden = true; $('#vdr-file', md).disabled = false;
+  if (!made.length) return;
+  if (err.hidden) md.remove();
+  const ids = made.map(r => r.id), label = trn('{0} approval created', '{0} approvals created', made.length);
+  histToast(label, histAdd({label, ids: [], snaps: [], lids: [],
+    undo: async () => { for (const i of ids) { await rawFetch('DELETE', `/api/videos/${i}`); vdr_closeIf(i); } for (const r of made) vdr_cache(r, true); return {skipped: []}; },
+    redo: async () => { for (const i of ids) vdr_cache(await rawFetch('POST', `/api/videos/${i}/restore`)); return {skipped: []}; }}));
+  if (made.length > 1) vdr_grid(k, id); else vdr_open(made[0].id, made[0]);
+}

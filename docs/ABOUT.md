@@ -82,6 +82,16 @@ security review (separate agent, black-box + code review) was run and all findin
 automated scanners (bandit, pip-audit, semgrep, OWASP ZAP baseline; CodeQL and Trivy reporting) run too. There has been no independent human
 security audit yet — reviews and reports are welcome ([SECURITY.md](../SECURITY.md)).
 
+## Help from a person
+
+*(#6534)* On a hosted server (a server run as a service, such as app.kalmido.com) **Help from a person** stands on top of
+*Settings > Help* and of the Help page: a button writes a mail to the server's support, and below it **Allow support
+access** opens *Settings > Account > Support access*, where you let the support look at your account for a limited time.
+**Contact support** is also in the command palette and, on a phone, in the *More* menu. **Report a problem** writes to the
+support there too (on a self-hosted server it opens the project's public issues instead); the links to the source code and
+the device details of *About* sit under **Technical details**. A self-hosted server has no support address: ask the person
+who runs it.
+
 ## Contributing and contact
 
 Issues, translations and pull requests are welcome, see [CONTRIBUTING.md](../CONTRIBUTING.md) and

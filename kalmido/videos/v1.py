@@ -4,8 +4,10 @@ A connected agent summarises the customer's feedback for the edit or adds notes 
 language model. What a token sees: the reviews at a task / list its account sees (review.py vdr_may with api=True). An AGENT
 sees a review only when its task or list is shared with it (its list limit, never a health list, never another workspace);
 reviews at a client only or at nothing (after a move) are for people in the app -- for every token, so the API answers the
-same for an agent and a person's script. Never in the answer: the customer links (their token, signer data). No creating,
-changing, deleting a review, no new version, no decision in the customer's name: that stays with people.
+same for an agent and a person's script. Never in the answer: the customer links (their token, signer data). No changing,
+deleting a review, no new version, no decision in the customer's name: that stays with people. (#7532): creating is open for
+images / PDFs of the file store only, many at once (POST /api/v1/videos, e.g. the pictures of a walk-through): one review per
+file at a task / project the token's account may change, each file seen by it (need_node) and of the same workspace.
 Writing: a comment / answer (author = the token's account) by everybody who sees the review (like the app); an answer to a
 CUSTOMER's comment shows on the customer page, so it needs the right to change the task / list (like the portal answers of
 tasks); done / not done: its author or who may change it.
@@ -14,7 +16,7 @@ account also sees the file (videos/vdmedia.py)."""
 from flask import jsonify
 
 from ..core.config import app
-from ..core.access import access_note, Denied
+from ..core.access import access_note, Denied, need_feat
 from ..core.db import db
 from ..core.i18n import N_, tr
 from ..accounts.session import me
@@ -23,9 +25,11 @@ from ..api.common import v1_args, v1_json, v1_view
 from ..core.errors import reject_unknown
 from ..accounts.orgroles import need_org_say  # 2.607.0 (#4549)
 from .vdmedia import vdm_send, vdm_version_row  # 2.641.0 (#4769)
-from .review import VDC_SEL, vdc_set_done, vdr_comment_add, vdr_comment_row, vdr_dict, vdr_list_of, vdr_may, vdr_reload, vdr_tc, vdr_touch, vdr_versions
+from .vdmedia import vdm_file_version  # (#7532)
+from .review import vdr_is_agent, VDC_SEL, vdc_set_done, vdr_comment_add, vdr_make, vdr_target, vdr_comment_row, vdr_dict, vdr_list_of, vdr_may, vdr_reload, vdr_tc, vdr_touch, vdr_versions
 
 VDR_V1_LIMIT = 200
+VDR_V1_BATCH = 50  # (#7532): files per POST /api/v1/videos
 VDR_V1_CUSTOMER = N_("Only people who may change the task answer the client")  # the portal answers' text (team/portal.py)
 
 
@@ -102,6 +106,37 @@ def vdr_v1_list():
     return jsonify(data=[vdr_v1_dict(c, r) for r in rows.fetchall() if vdr_may(c, uid, r, api=True)], next_cursor=None)
 
 
+@app.post("/api/v1/videos")
+@v1_view
+def vdr_v1_create():
+    """(#7532) {task_id | list_id, files: [{file_id, title?}] (1..VDR_V1_BATCH)}: one image / PDF sign-off per file of the file
+    store, all or none (a file that is no image / PDF / audio, not yours to see or of another workspace refuses the whole batch)."""
+    v1_args(())
+    b = v1_json()
+    reject_unknown(b, ("task_id", "list_id", "files"))
+    fs = b.get("files")
+    if not isinstance(fs, list) or not 1 <= len(fs) <= VDR_V1_BATCH or not all(isinstance(f, dict) for f in fs):
+        raise BadInput(tr("Invalid value: {0}", "files"))
+    for f in fs:
+        reject_unknown(f, ("file_id", "title"))
+        if f.get("title") is not None and not isinstance(f["title"], str):
+            raise BadInput(tr("Invalid value: {0}", "title"))
+    if b.get("client_id") is not None or sum(1 for k in ("task_id", "list_id") if b.get(k) not in (None, "")) != 1:
+        raise BadInput(tr("Invalid value: {0}", "task_id / list_id"))
+    c, uid = db(), me()
+    if not vdr_is_agent(c, uid):  # reader F10: a person's token like the app (videos/review.py) - the module Approval off = 409
+        need_feat("videos")
+    place = vdr_target(c, uid, {k: b[k] for k in ("task_id", "list_id") if b.get(k) not in (None, "")})
+    links = [vdm_file_version(c, place[0], f.get("file_id")) for f in fs]  # every file checked before the first review
+    ids = [vdr_make(c, uid, place, link, f.get("title")) for f, link in zip(fs, links)]
+    rows = [vdr_reload(c, i) for i in ids]
+    if not all(vdr_may(c, uid, r, api=True) for r in rows):  # an agent sees what it made (else it could not read it back)
+        raise Denied(404)
+    access_note(vdr_list_of(c, rows[0]), True)
+    c.commit()
+    return jsonify(data=[vdr_v1_dict(c, r) for r in rows]), 201
+
+
 @app.get("/api/v1/videos/<int:vid>")
 @v1_view
 def vdr_v1_get(vid):
@@ -174,7 +209,8 @@ def vdr_v1_spec(paths, schemas, op, ok, errs, ref, pid, q):
         "id": {"type": "integer"}, "version_id": {"type": "integer"}, "version": {"type": ["integer", "null"], "description": "v1, v2 ... as a number"},
         "parent_id": {"type": ["integer", "null"]}, "at_sec": {"type": ["number", "null"], "description": "Seconds from the start; null = no timecode"},
         "pos": {"type": ["object", "null"], "description": "2.641.0: the place -- video {t: seconds}, image {x, y}, PDF {page, x?, y?}; x / y = 0..1 "
-                                                             "of the width / height of the image or page (0, 0 = top left); null = none"},
+                                                             "of the width / height of the image or page (0, 0 = top left); null = none. "
+                                                             "(#7532): + w, h = an area (x / y its top left corner, inside the image)"},
         "page": {"type": ["integer", "null"], "description": "PDF: the page (1 = the first)"},
         "mark": {"type": ["integer", "null"], "description": "The number of its point on the image / page (per version)"},
         "timecode": {"type": "string", "description": "mm:ss or h:mm:ss, empty without a timecode"}, "body": {"type": "string"},
@@ -202,6 +238,18 @@ def vdr_v1_spec(paths, schemas, op, ok, errs, ref, pid, q):
         [q("task_id", "The reviews at this task", {"type": "integer"}), q("list_id", "The reviews at this list and at its tasks", {"type": "integer"})],
         desc="Exactly one of task_id / list_id. Only reviews whose task / list you see; an agent: shared with it. Reviews at a client "
              "only are for people in the app. Kalmido stores no video: versions are links.")}
+    paths["/videos"]["post"] = op(
+        "Create image / PDF sign-offs from files of the file store, many at once (#7532)", T,
+        ok({"type": "object", "properties": {"data": {"type": "array", "items": ref("VideoReview")}}}, "Created", "201") | errs("400", "403", "404", "409"),
+        [], body={"type": "object", "required": ["files"], "properties": {
+            "task_id": {"type": "integer"}, "list_id": {"type": "integer"},
+            "files": {"type": "array", "minItems": 1, "maxItems": 50, "items": {"type": "object", "required": ["file_id"], "properties": {
+                "file_id": {"type": "integer", "description": "An image (JPG, PNG, WebP), PDF or audio file of the file store you see"},
+                "title": {"type": "string", "maxLength": 200, "description": "Default: the file's name"}}}}}},
+        scope="tasks:write",
+        desc="Exactly one of task_id / list_id (a task / project you may change). One sign-off per file, all or none: a file you do not "
+             "see (404), of another workspace (409) or of another type (400) refuses the whole batch. Upload the files first (the "
+             "file tools), e.g. the pictures of a walk-through. Links (videos) stay with people.")
     paths["/videos/{id}"] = {"get": op(
         "A video sign-off with its versions and comments (2.99.1)", T, ok(ref("VideoReview")) | errs("404"), [vid],
         desc="The comments by version and timecode, each with its answers; customer = written by the customer. Never the customer "
@@ -212,7 +260,8 @@ def vdr_v1_spec(paths, schemas, op, ok, errs, ref, pid, q):
         | errs("400", "403", "404"), [vid],
         body={"type": "object", "required": ["body"], "properties": {
             "body": {"type": "string", "maxLength": 2000}, "at_sec": {"type": ["number", "null"], "minimum": 0, "maximum": 86400},
-            "pos": {"type": "object", "description": "2.641.0: instead of at_sec -- video {t}, image {x, y}, PDF {page, x?, y?} (x / y 0..1)"},
+            "pos": {"type": "object", "description": "2.641.0: instead of at_sec -- video {t}, image {x, y}, PDF {page, x?, y?} (x / y 0..1); "
+                                                     "(#7532) + w, h (both, > 0, x + w and y + h at most 1) = an area instead of a point"},
             "version_id": {"type": "integer", "description": "Default: the newest version"},
             "parent_id": {"type": "integer", "description": "Answer this top-level comment (its version and timecode)"}}},
         scope="comments",

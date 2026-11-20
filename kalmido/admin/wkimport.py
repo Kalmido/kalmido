@@ -36,6 +36,7 @@ from ..core.i18n import BG_LANG, N_, lang, tr_stored
 from ..core.pg import system_ctx
 from ..core.serializers import unlink_files
 from ..core.zipread import ZipOver, zip_guard  # 2.1282.0 (#6426): the check before zipfile
+from ..core.support import SUP_IMPORT_SPACE, support_ask  # (#6534): hosted = the support instead of "the server admin"
 from ..api.common import import_upload_rate  # 2.1282.0 (#6426)
 from ..accounts.session import me
 from ..wiki import wikiatt
@@ -300,7 +301,7 @@ def wki_new():
     import_upload_rate(uid)  # 2.1282.0 (#6426)
     quota_guard(c, uid, size)  # the files in it count against the storage (checked again per file in the run)
     if not umz_space_ok(WKI_DIR, size * 2):
-        return err(tr("There is not enough space on the server for the import. Please ask the server admin."), 507)
+        return err(support_ask(db(), *SUP_IMPORT_SPACE), 507)
     _settle(uid)
     if _busy(uid):
         return err(tr("An import is already running"), 409)

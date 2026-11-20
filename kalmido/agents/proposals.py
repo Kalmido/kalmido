@@ -40,7 +40,7 @@ from ..agents.core import (
 )
 from ..collab.reactions import clean_suggestion, tidy_apply
 from ..agents.chat import (
-    chat_delivered, chat_dict, chat_file_access, chat_newest, jn9_chat_jobs, chat_file_delete, chat_files_of, chat_input, chat_one, chat_post,
+    chat_delivered, chat_dict, chat_intent_wait, chat_file_access, chat_newest, jn9_chat_jobs, chat_file_delete, chat_files_of, chat_input, chat_one, chat_post,
     chat_react_req, chat_reactions_of, chat_run_meta, chat_set_run_meta, chat_set_source, chat_source, chat_unlink_trimmed, cx_notice_post, APPROVAL_PUSH_HOUR,
 )
 from ..agents.chat import CHAT_UNSHARED_SQL  # 2.777.0 C (#5378)
@@ -1501,7 +1501,7 @@ def v1_agent_chats():
         from ..collab.chatpins import cpin_agent_list
         uid = as_int(a["user_id"], "user_id", 1)
         extra["pins"] = cpin_agent_list(c, aid, uid, api=True) if agent_shares(c, aid, uid) else []
-    return jsonify(data=jn9_chat_jobs(c, [{**chat_dict(r, rx, fs, api=True, newest=nw[r["user_id"]]), "user": {"id": r["user_id"], "name": names.get(r["user_id"], "")}} for r in rows], aid),  # 2.59.0 (#1827)
+    return jsonify(data=jn9_chat_jobs(c, chat_intent_wait(c, [{**chat_dict(r, rx, fs, api=True, newest=nw[r["user_id"]]), "user": {"id": r["user_id"], "name": names.get(r["user_id"], "")}} for r in rows]), aid),  # (#7534): awaiting  # (#1827)
                    cursor=rows[-1]["id"] if rows else since, has_more=more, **extra)
 
 

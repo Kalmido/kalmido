@@ -8349,4 +8349,20 @@ time,.meta .dt,.dpbtn,.remchips button,.dprow .dpt,.dprow .dps,.fwhen{font-famil
 .remblk>summary{cursor:pointer;display:flex;align-items:center;gap:.5rem;font-size:var(--fs-s);color:var(--muted);padding:.375rem 0}
 .pnagl{white-space:normal}
 #p-nag,#p-rep{min-width:0;max-width:100%;text-overflow:clip}
+/* (#7534): the kind of a person's text to an agent -- four small switches above the box (one line on a phone, scrolls
+   sideways if narrow), the kind and "waiting for an answer" at the text */
+.intbar{display:flex;gap:.25rem;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding:.25rem .5rem 0}
+.dcomp .intbar{padding:0 0 .25rem}
+.intsw{flex:none;display:inline-flex;align-items:center;box-sizing:border-box;min-height:1.75rem;padding:0 .625rem;font:inherit;font-size:var(--fs-s);
+  border:1px solid var(--line);border-radius:99rem;background:transparent;color:var(--text2);cursor:pointer;white-space:nowrap}
+.intsw.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+@media (pointer:coarse){.intsw{min-height:2.25rem}}
+.intmark{display:flex;flex-wrap:wrap;align-items:center;gap:.375rem;margin-top:.25rem;font-size:var(--fs-s);color:var(--text2)}
+.inttag{border:1px solid var(--line);border-radius:99rem;padding:0 .5rem}
+.intwait,.intans{display:inline-flex;align-items:center;gap:.25rem}
+.intans{background:none;border:0;padding:0;font:inherit;color:var(--accent);cursor:pointer}
+/* (#7530): the bound step of an answer button, small under its label ("answer only" without one) */
+.cchb .cstep{display:block;flex-basis:100%;font-size:var(--fs-xs);color:var(--text2);font-weight:normal}
+.cchb .cstep.none{font-style:italic}
+.cchb:has(.cstep){flex-wrap:wrap;row-gap:0}
 .btn[aria-busy=true]{cursor:progress;opacity:.7}  /* (#7507): busyRun - a dialog save is running */
