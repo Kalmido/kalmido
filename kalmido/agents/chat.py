@@ -1156,7 +1156,7 @@ def agent_chat_post(aid):
         cid = csd_client_id(b)
         dup = cid and csd_dup(c, "agent_chat", "agent_id=? AND user_id=? AND sender='user'", (aid, me()), cid,
                               b.get("body").strip() if isinstance(b.get("body"), str) else "")
-        if dup:  # the same message again within seconds: the stored one, no second event for the agent
+        if dup:  # the same message again (#6332: at any time): the stored one, no second event for the agent
             return jsonify(chat_one(c, dup, edits=True)), 200
         r = chat_post(c, aid, me(), "user", b, files)
         if cid:
@@ -1195,7 +1195,7 @@ def chat_unshared_answer(c, a):
     their own conversation, the fixed answer follows at once; nothing goes to the agent. Files and a task are refused.
     Review F1 (#5378): both rows are marked kind 'unshared' (CHAT_UNSHARED_SQL): no agent route lists, finds or marks them
     delivered -- GET /api/v1/agent/chats, the message search, reactions -- so the text never reaches the agent, also not after a
-    project is shared later. client_id as on the normal way: the same message again within seconds is the stored one."""
+    project is shared later. client_id as on the normal way: the same message again (#6332: at any time) is the stored one."""
     aid = a["user_id"]
     try:
         fb, files = chat_input(("body", "task_id", "reply_to", "client_id", "job_id"))
@@ -1206,7 +1206,7 @@ def chat_unshared_answer(c, a):
         cid = csd_client_id(b)
         dup = cid and csd_dup(c, "agent_chat", "agent_id=? AND user_id=? AND sender='user'", (aid, me()), cid,
                               b.get("body").strip() if isinstance(b.get("body"), str) else "")
-        if dup:  # the same message again within seconds: the stored one, no second answer
+        if dup:  # the same message again (#6332: at any time): the stored one, no second answer
             return jsonify(chat_one(c, dup, edits=True)), 200
         r = chat_post(c, aid, me(), "user", {"body": b.get("body")}, None)
     except UnknownFields as e:

@@ -1041,7 +1041,9 @@ async function sendComment() {
   if (files.length && typeof le2eFileParts === 'function') { try { lf = await le2eFileParts(taskById(tid)?.list_id, files, tid); } catch (x) { toast(errText(x, tr('The file could not be attached'))); return; } }
   if (files.length) { payload = new FormData(); payload.append('body', text); if (rto) payload.append('reply_to', rto); if (pub) payload.append('portal', '1'); if (mrep) payload.append('mail_reporter', '1'); if (lf) lf.forEach(p => { payload.append('file', p.blob, 'encrypted.kenc'); payload.append('le2e_name', p.name); }); else files.forEach((f, i) => payload.append('file', f, f.name || `bild-${Date.now()}-${i}.png`)); }
   // 2.370.2 (#3088): the same text sent again after a failed answer = the same comment
-  const cr = CMT_REF[tid]?.text === raw ? CMT_REF[tid] : (CMT_REF[tid] = {text: raw, ref: Date.now().toString(36) + Math.random().toString(36).slice(2, 10)});
+  // (#6332 F9): and the same files - a changed selection is a new comment (the old ref would hand back the first one)
+  const fsig = files.map(f => `${f.name}/${f.size}/${f.lastModified || 0}`).join('|');
+  const cr = CMT_REF[tid]?.text === raw && CMT_REF[tid].fsig === fsig ? CMT_REF[tid] : (CMT_REF[tid] = {text: raw, fsig, ref: Date.now().toString(36) + Math.random().toString(36).slice(2, 10)});
   if (payload instanceof FormData) payload.append('client_ref', cr.ref); else payload.client_ref = cr.ref;
   if (!files.length) return cmtPendStart(tid, {ref: cr.ref, raw, text, payload, pub, mrep});  // 2.537.0 (#4569): at once in the list
   const btn = $('[data-act="c-send"]'); if (btn) btn.disabled = true;

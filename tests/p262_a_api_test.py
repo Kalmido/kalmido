@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """2.62.0 API tests, part A (#1530, #1848): sending in the chats and pinned chat messages. Invented names only.
  - #1530 client_id: the app sends one key per message; the same text of the same person in the same conversation with the
-   same client_id within seconds returns the stored message (200, no second row, no second agent event); another
+   same client_id (#6332: at any time, also with files) returns the stored message (200, no second row, no second agent event); another
    client_id, another text or no client_id = a new message as before (team chat and agent chat, JSON and multipart)
 usage: p262_a_api_test.py <datadir>      (a fresh container; P262A_NOSTART=1 = the server already runs)"""
 import os
@@ -15,6 +15,7 @@ DATA = sys.argv[1] if len(sys.argv) > 1 else ""
 B = "http://127.0.0.1:" + os.environ.get("KALMIDO_TEST_PORT", "3048")
 V = B + "/api/v1"
 H = {"X-Requested-With": "kalmido"}
+import kt  # noqa: E402
 from kt import FAILS, OKS, check, sess  # 2.192.0 (#2514): shared helpers (tests/kt.py)
 
 
@@ -81,6 +82,15 @@ r6 = Bo.post(B + f"/api/team/rooms/{RID}/messages", json={"body": "Mac back onli
 check(r6.status_code == 201 and r6.json()["user_id"] == BOB, "#1530 team: another person with the same key -> own message")
 check(A.post(B + f"/api/team/rooms/{RID}/messages", json={"body": "x", "client_id": 5}).status_code == 201, "#1530 team: a client_id that is no text is ignored")
 check(requests.post(V + f"/team/rooms/{RID}/messages", headers=CLH, json={"body": "x", "client_id": "a"}).status_code == 400, "#1530 v1: client_id stays unknown for the REST API")
+# (#6332): no time window any more (Send pressed again minutes after an answer that got lost), and with files too
+kt.dbx("UPDATE tchat_msgs SET created_at=? WHERE id=?", ("2020-01-01T00:00:00.000+00:00", r1.json()["id"]), data=DATA)
+r7 = A.post(B + f"/api/team/rooms/{RID}/messages", json={"body": "Mac back online", "client_id": "c-1"})
+check(r7.status_code == 200 and r7.json()["id"] == r1.json()["id"], f"#6332 team: the same client_id long after = the stored message {r7.status_code}")
+n1 = len(room_msgs(A, RID))
+f1 = A.post(B + f"/api/team/rooms/{RID}/messages", data={"body": "Plan", "client_id": "tf-1"}, files={"file": ("plan.txt", b"x", "text/plain")})
+f2 = A.post(B + f"/api/team/rooms/{RID}/messages", data={"body": "Plan", "client_id": "tf-1"}, files={"file": ("plan.txt", b"x", "text/plain")})
+check(f1.status_code == 201 and f2.status_code == 200 and f1.json()["id"] == f2.json()["id"] and len(room_msgs(A, RID)) == n1 + 1,
+      f"#6332 team: a message with files sent again = the stored one, no second row {f1.status_code} {f2.status_code} {f2.text[:200]}")
 
 cur = cursor()
 c1 = A.post(B + f"/api/agents/{CL}/chat", json={"body": "Are you there?", "client_id": "k-1"})

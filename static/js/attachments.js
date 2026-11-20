@@ -47,6 +47,7 @@ function upLimit(files, one) {
 }
 const upFits = f => f.size <= (S.maxFileMb || 50) * 1024 * 1024;
 const upBusy = new Set();  // 2.273.0 D (#3051): one upload at a time per task (F2: another task's files are not dropped)
+const UP_KEY = {sig: '', k: ''};  // (#6332): the files and key of the last upload whose answer did not come (offline / lost)
 async function uploadFiles(taskId, files) {
   files = noEmpty(files);
   if (!files.length) return;
@@ -59,12 +60,17 @@ async function uploadFiles(taskId, files) {
   const fd = new FormData();
   files.forEach((f, i) => fd.append('file', f, f.name || `bild-${Date.now()}-${i}.png`));
   toast(files.length === 1 ? tr('Uploading…') : tr('Uploading {0} files…', files.length));
+  // (#6332): the same files to the same task sent again after a lost answer keep their idempotency key: the server answers
+  // with the first upload instead of attaching them twice; a new selection (or a refusal) gets a new key
+  const sig = taskId + ':' + files.map(f => `${f.name}/${f.size}/${f.lastModified || 0}`).join('|'), key = (UP_KEY.sig === sig && UP_KEY.k) || outKey();
+  UP_KEY.sig = sig; UP_KEY.k = key;
   try {
-    const t = await api('POST', `/api/tasks/${taskId}/attachments`, fd);
+    const t = await api('POST', `/api/tasks/${taskId}/attachments`, fd, {key});
+    UP_KEY.sig = UP_KEY.k = '';
     putTask(t); render(); if (S.sel === taskId) renderDetail();
     toast(files.length === 1 ? tr('Attached') : tr('{0} files attached', files.length));
     return true;
-  } catch (e) { return e?.cancelled ? undefined : false; /* api() already showed the error / offline notice; 2.363.3 (#3134): cancelled = not again on the next flush */ }
+  } catch (e) { if (!(e instanceof Offline)) UP_KEY.sig = UP_KEY.k = ''; return e?.cancelled ? undefined : false; /* api() already showed the error / offline notice; 2.363.3 (#3134): cancelled = not again on the next flush */ }
   finally { upBusy.delete(taskId); }
 }
 // 2.359.0 A (#3023): files of a quick add made offline (the task has only its temporary id): kept in IndexedDB "kalmido-qfiles"
