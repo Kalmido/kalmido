@@ -23,7 +23,8 @@
 /* 2.880.0 (#5561): the overview is one calm list of rows of one kind (spo_html's rows): "Recently edited", the workspaces;
    the trash set off small below it. The page "Recently edited": the arrow back with the heading, the filter chips over the list */
 .zlerows{max-width:none;margin-bottom:.5rem}
-.zlerows .spovr>span{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* #7481: only the row's name grows, not the organisation's letter tile (span.orgini) */
+.zlerows .spovn{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .zletrash{margin:.25rem 0 0}
 .zletrash .linkbtn{display:inline-flex;align-items:center;gap:.375rem;min-height:2.75rem;padding:0 .75rem;font-size:var(--fs-s);color:var(--text2)}
 .zlehead{display:flex;align-items:center;gap:.25rem;margin:0 0 .5rem}

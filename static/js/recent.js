@@ -71,7 +71,7 @@ function zle_emptyHtml(mod) {
 // rows of one kind: "Recently edited" first (opens #<mod>/recent), then the workspaces; the trash small below it
 /** @param {string} mod @param {any} to @param {any[]} rows */
 function zle_ovrHtml(mod, to, rows) {
-  const row = (href, icon, name, attr, after = '') => `<li><a href="${esc(href)}" class="spovr" ${/*html-ok*/ attr}>${/*html-ok*/ icon}<span>${esc(name)}</span>${/*html-ok*/ after}</a></li>`;
+  const row = (href, icon, name, attr, after = '') => `<li><a href="${esc(href)}" class="spovr" ${/*html-ok*/ attr}>${/*html-ok*/ icon}<span class="spovn">${esc(name)}</span>${/*html-ok*/ after}</a></li>`;  // #7481: the name has its own class (the letter tile keeps its size)
   const trash = rows.find(r => r[0] === 'trash');
   return `<div class="zleov" data-zlemod="${esc(mod)}"><section class="spov zlerows" aria-label="${esc(tr('All workspaces'))}"><ul class="spovl">${/*html-ok*/ row('#' + mod + '/recent', ic('clock', 's'), tr('Recently edited'), 'data-zlego="1"')}${/*html-ok*/ rows.filter(r => r[0] !== 'trash').map(([sp, name, icon, after]) => row(spo_href(to, sp), icon, name, `data-spov="${esc(sp)}"${/*html-ok*/ wso_row(sp) /* 2.1241.0 (#6182): an organisation's row wears its stripe */}`, after || '')).join('')}</ul></section>${trash ? `<p class="zletrash"><a href="${esc(spo_href(to, 'trash'))}" class="linkbtn" data-spov="trash">${/*html-ok*/ trash[2]}<span>${esc(trash[1])}</span></a></p>` : ''}</div>`;
 }
