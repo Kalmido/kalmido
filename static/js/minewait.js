@@ -151,7 +151,7 @@ function mwGo(d) {
   const all = mwFlat(), i = all.findIndex(y => mwKey(y) === S.mw.sel), nx = all[i + d];
   if (!nx) return false;
   S.mw.sel = mwKey(nx); S.mw.done = false; mwRedraw();
-  $('#view .mwp')?.focus?.();
+  $('#view .mwp')?.focus?.({preventScroll: true});
   return true;
 }
 // after a decision: the list again from the server; the entry left it, so mwFollow opens the next one
