@@ -1124,7 +1124,7 @@ const bfaFilled = it => it.id || !((it.kind === 'heading' || it.kind === 'text')
 function ofdItemsBody(doc = OFD.doc) {
   return (doc.items || []).filter(bfaFilled).map(it => ({id: it.id, kind: it.kind, service_id: it.service_id, title: it.title, detail: it.detail, qty: it.qty, unit: it.unit, rate: it.rate, tax: it.tax,
     raw_fee: it.raw_fee, producing: it.producing, in_handling: it.in_handling, in_markup: it.in_markup, intext: it.intext, cost: it.cost, discountable: it.discountable, discount_pct: it.discount_pct || 0, ref_part_id: it.ref_part_id, confirm: it.confirm || undefined,
-    ...(doc.kind === 'offer' && it.kind !== 'heading' && it.kind !== 'text' ? {opt: it.opt || ''} : {})}));  // 2.1042.0 (#5815): + discount_pct; 2.1041.0 (#5814): optional / alternative  // 2.47.0 (#1215): + ref_part_id; 2.51.0 A (#1348): + confirm (an agent's mark)
+    ...(doc.kind === 'offer' && it.kind !== 'heading' && it.kind !== 'text' ? {opt: it.opt || ''} : {})}));  // (#5815): + discount_pct; (#5814): optional / alternative; (#1215): + ref_part_id; (#1348): + confirm (an agent's mark)
 }
 // 2.47.0 (#1215): with a part open, positions and calculation values go to the part (office_parts.js)
 const ofdPutItems = () => typeof tpView === 'function' && tpView() ? tpPutItems() : ofdSave('PUT', `/api/office/docs/${OFD.doc.id}/items`, {items: ofdItemsBody(), ...(OFD.doc.kind === 'offer' ? {parts_known: (OFD.doc.parts || []).map(p => p.id)} : {})}, (OFD.doc.items || []).filter(bfaFilled));  // 2.138.0 A (#2239): + parts_known; 2.269.0 A (#3012): + the lines sent
