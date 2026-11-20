@@ -55,7 +55,7 @@ function folderShareModal(f, opt = {}) {
     const cand = (users || []).filter(u => !u.agent && u.id !== S.me?.id && !have.some(p => p.user_id === u.id));
     // #6679: the head names the real owner(s) of the folder's projects (isOwner, #6136); the viewer only when they own one
     const owners = fshOwners(f);
-    box.innerHTML = owners.map(o => `<div class="mrow fshowner" data-owner="${o.id}">${av(o.id, o.name)}<span class="n">${esc(o.name)}${o.id === S.me?.id ? ' ' + tr('(me)') : ''}</span><span class="muted">${tr('Owner')}</span></div>`).join('')
+    box.innerHTML = owners.map(o => `<div class="mrow fshowner">${/*html-ok*/ av(o.id, o.name)/* the avatar helper (core.js av) escapes the name */}<span class="n">${esc(o.name)}${o.id === S.me?.id ? ' ' + tr('(me)') : ''}</span><span class="muted">${tr('Owner')}</span></div>`).join('')
       // 2.1292.0 (#6136): who does not own the folder's projects sees the people only (no role choice, no remove, no add):
       // the server shares only one's own projects of a folder (lists.py folder_people_put)
       + have.map(p => `<div class="mrow" data-uid="${p.user_id}">${avBtn(p.user_id, nm(p))}<span class="n"><span class="fpn">${esc(nm(p))}</span> <small class="muted">${tr('new projects too')}</small></span>${own ? `${roleSel(`data-fprole="${p.user_id}"`, p.role, tr('Role of {0}', nm(p)))}<button class="iconbtn" data-rm="${p.user_id}" title="${esc(tr('Stop sharing'))}" aria-label="${esc(tr('Stop sharing with {0}', nm(p)))}">${ic('x', 's')}</button>` : `<span class="muted" title="${esc(roleHelp(p.role))}">${esc(roleLabel(p.role))}</span>`}</div>`).join('')
