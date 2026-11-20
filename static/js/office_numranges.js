@@ -153,7 +153,7 @@ async function onumDocSave() {
 }
 // the office list follows a change made elsewhere (another device, the console, an agent): load() of the state calls this
 function onumListFresh() {
-  if (typeof OFD !== 'object' || typeof ofcTab !== 'function' || S.route?.mod !== 'office' || !ofcDocTab(ofcTab()) || S.route.id || OFD.loading || !OFD.list) return;
+  if (typeof OFD !== 'object' || typeof ofcTab !== 'function' || S.route?.mod !== 'office' || !ofcDocTab(ofcTab()) || S.route.id || !OFD.list) return;  // #7574: a push during a load is kept (ofdLoadList(true) loads again after it), never dropped
   // 2.138.0 D (#2256, review): every state push calls this -> at most one reload per 5 s, a later push within it reloads at its end
   const f = /** @type {any} */ (onumListFresh);
   const wait = 5000 - (Date.now() - (f.at || 0));
