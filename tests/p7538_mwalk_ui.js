@@ -33,15 +33,17 @@ const key = (w, el, k) => el.dispatchEvent(new w.KeyboardEvent('keydown', {key: 
   const L = (await call(CF, 'POST', '/api/lists', {name: 'Shop', kind: 'project', ptype: 'software'})).id;
   const frida = (await call(CF, 'GET', '/api/state')).me?.id, gert = (await call(CG, 'GET', '/api/state')).me?.id;
   check((await call(CF, 'PUT', `/api/lists/${L}/members`, {user_id: gert, role: 'admin'})).http < 300, 'setup: gert is a project admin');
-  const mkAgent = async (ck, name) => {
+  const mkAgent = async (ck, name, lid) => {  // one agent per project: the own agent writes into a second project
     const a = await call(ck, 'POST', '/api/my/agents', {username: name, display_name: name, scopes: ['read', 'tasks:write', 'comments']});
-    check((await call(ck, 'PUT', `/api/lists/${L}/members`, {user_id: a.id, role: 'edit'})).http < 300, 'setup: agent ' + name);
+    const m = await call(ck, 'PUT', `/api/lists/${lid}/members`, {user_id: a.id, role: 'edit'});
+    check(m.http < 300, 'setup: agent ' + name + ' ' + JSON.stringify(a).slice(0, 200) + ' ' + JSON.stringify(m).slice(0, 200));
     return {Authorization: 'Bearer ' + (await call(ck, 'POST', `/api/my/agents/${a.id}/token`)).token};
   };
-  const GH = await mkAgent(CG, 'gertbot'), FH = await mkAgent(CF, 'fridabot');
+  const L2 = (await call(CF, 'POST', '/api/lists', {name: 'Notes', kind: 'project'})).id;
+  const GH = await mkAgent(CG, 'gertbot', L), FH = await mkAgent(CF, 'fridabot', L2);
   const K1 = (await call(null, 'POST', '/api/v1/tasks', {list_id: L, title: 'Add a gift card', notes: 'Value 10 to 100'}, GH)).id;
   const K2 = (await call(null, 'POST', '/api/v1/tasks', {list_id: L, title: 'Ship to Austria', notes: 'Only parcels'}, GH)).id;
-  const OWN = (await call(null, 'POST', '/api/v1/tasks', {list_id: L, title: 'My bot writes this'}, FH)).id;
+  const OWN = (await call(null, 'POST', '/api/v1/tasks', {list_id: L2, title: 'My bot writes this'}, FH)).id;
   const T = (await call(CF, 'POST', '/api/tasks', {title: 'Check the prices', list_id: L})).id;
   await call(CF, 'POST', `/api/tasks/${T}/review`, {action: 'request', reviewer_id: frida});
   check(K1 > 0 && K2 > 0 && OWN > 0 && T > 0, 'setup: the tasks');
