@@ -260,7 +260,7 @@ function wsBadge(l) {
 // always leads to Start; the workspace is chosen only with the chip in the header (wsChip, always there). The line with the
 // workspace and the arrow under the brand are gone (the chip names it).
 function wsBarHtml() {
-  return `<a href="#home" class="sbbrand" data-go="home" aria-label="${esc(APP_NAME + ' · ' + tr('Start|home'))}" title="${esc(tr('Start|home'))}">${logoSvg(36)}<span class="sbbt">${wordSvg()}</span></a>`;
+  return `<a href="#home" class="sbbrand" data-go="home" aria-label="${esc(APP_NAME + ' · ' + tr('Start|home'))}" title="${esc(tr('Start|home'))}">${logoSvg(36)}<span class="sbbw">${wordSvg()}</span></a>`;  // 2.1493.0 (#7616): .sbbw (was .sbbt, the class of the folder-tree rows)
 }
 // 2.161.2 A (#2608): the brand's bot blinks now and then (every 20-60 s, by chance), never while something is typed, the
 // page is hidden or a menu is open; no timer at all with reduced motion (the system setting; it can change while open)
