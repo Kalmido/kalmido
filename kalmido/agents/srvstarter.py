@@ -51,7 +51,7 @@ from ..agents.agentrules import _insert as ar_insert, ar_changed
 from ..agents.core import agent_projects_count, agent_shared_by, agent_shares, need_person
 from ..api.scopes import scopes_effective
 from ..api.v1 import SCOPES_AGENT_DEFAULT
-from ..office.agentdocs import ofa_agent_on, ofa_area
+from ..office.agentdocs import ofa_agent_on, ofa_home, ofa_on_for
 from ..office.model import office_on, office_role, office_settings
 from ..office.rights import office_can, ofr_groups_of
 
@@ -212,11 +212,13 @@ def srv_office_gap(c, a, uid):
     u = c.execute("SELECT * FROM users WHERE id=?", (a["user_id"],)).fetchone()
     if not u or "office" not in scopes_effective(c, {"scopes": a["scopes"] or ",".join(SCOPES_AGENT_DEFAULT)}, u):
         return "scope"
-    oid = ofa_area(c, a, uid)  # a personal agent: its owner's personal office (none before the office was opened once); (#7326): None when off for uid
+    oid = ofa_home(c, a)  # a personal agent: its owner's personal office (none before the office was opened once)
     if not oid or not office_on(c, uid):
         return "person"
     if office_role(c, uid, oid) not in ("admin", "member"):  # review 2.568.0 (N4): e.g. a team agent of an office the person is not in
         return "member"
+    if not ofa_on_for(c, uid, oid):  # (#7326): the office is off for uid in the agent's area (after "member": not in it says so)
+        return "person"
     if not office_can(c, uid, oid, "offers", "edit"):  # review 2.568.0 (M2): like the route (_v1ctx)
         return "right"
     if not ofa_agent_on(c, a, oid, "offers", "edit"):
