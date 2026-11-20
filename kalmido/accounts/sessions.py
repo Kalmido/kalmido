@@ -86,7 +86,11 @@ def ses_access_end(c, uid, tokens=True):
     sk_revoke_all, 2.237.0 C #2865). With tokens (the dialog's tick, 2.539.0 B #4375; a reset always) the app passwords, the person's own API tokens (an agent's
     tokens belong to the agent's account: they stay, 2.360.0 A #2496), the task feed link (users.ical_token_hash), the event
     calendar and absences feed links (ev_cal_feeds, abs_cal_feeds) and the upload token (users.drop_token_hash): someone who
-    was in a session once must not keep reading or writing through a link made then. The caller commits."""
+    was in a session once must not keep reading or writing through a link made then. The caller commits.
+    #6498: always (also without tokens) the account's open sign-in tickets end (the second step or the enrolment begun with
+    the old password, ns pend of core/ephem.py)."""
+    from ..core.ephem import eph_drop_uid
+    eph_drop_uid("pend", uid)
     if not tokens:
         return
     c.execute("DELETE FROM app_passwords WHERE user_id=?", (uid,))
