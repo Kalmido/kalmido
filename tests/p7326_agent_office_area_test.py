@@ -27,7 +27,7 @@ from kt import B, check  # noqa: E402
 from freelancer_fixture import freelancer  # noqa: E402
 
 V = B + "/api/v1"
-O = "/api/office"
+OF = "/api/office"
 H = {"X-Requested-With": "kalmido"}
 HS = "X-Kalmido-Office-Space"
 PV = {HS: "private"}
@@ -46,11 +46,11 @@ def code(r):
 
 def agent(who, s):
     """A personal agent of person s with both office switches of her own office -> its token."""
-    s.get(B + O + "/settings", headers=PV)  # opens the own office once
+    s.get(B + OF + "/settings", headers=PV)  # opens the own office once
     r = s.post(B + "/api/my/agents", json={"username": f"{who}bot", "display_name": f"{who} Bot", "scopes": ["read", "office"]})
     check(r.status_code == 201, f"{who}: setup: the personal agent {r.text[:200]}")
     aid, tok = r.json()["id"], r.json()["token"]
-    check(s.patch(B + f"{O}/agents/{aid}", json={"office_drafts": True}, headers=PV).ok and s.put(B + O + "/settings", json={"agents_read": 1}, headers=PV).ok,
+    check(s.patch(B + f"{OF}/agents/{aid}", json={"office_drafts": True}, headers=PV).ok and s.put(B + OF + "/settings", json={"agents_read": 1}, headers=PV).ok,
           f"{who}: setup: both office switches of the own office")
     return tok
 
@@ -61,7 +61,7 @@ def offer(tok, cl, title):
 
 
 def own_offers(s):
-    r = s.get(B + O + "/docs?kind=offer", headers=PV)
+    r = s.get(B + OF + "/docs?kind=offer", headers=PV)
     return [x["id"] for x in r.json().get("docs", [])] if r.ok else None
 
 
