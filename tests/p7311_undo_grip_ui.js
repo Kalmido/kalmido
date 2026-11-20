@@ -10,7 +10,7 @@
 //   window (not the root); the list fills the dragged height (no 34rem cap) and still scrolls; its rows still work
 // - closed and opened again: the same size; a double click on the grip: the default again, nothing stored
 // - dragged far: it stops inside the browser window (left and bottom edge)
-// - phone width: the sheet, no grip
+// - phone width: no arrow window (the steps are the page #steps there), no grip on the page
 const {execFileSync} = require('child_process');
 const path = require('path');
 const {sleep, B, login} = require('./boot');
@@ -52,7 +52,7 @@ const M = `JSON.stringify((() => {
       await nav(B + 'static/icon.svg');  // a real new load of the app
       if (clear) { await ev(`(localStorage.clear(), sessionStorage.clear(), 1)`); check(await signIn(ev) === 200, `${W}: login`); }
       await nav(B + '#l/' + L); await idle();
-      check(await until(`!!document.querySelector('#top [data-act="hist-undo"]')`, {timeout: 20000}), `${W}: the arrow`);
+      check(await until(`!!document.querySelector('#top [data-act="hist-undo"]')`, {timeout: 20000}), `${W}: the arrow`);  // the wide layout
     };
     const open = async () => {
       await ev(`(document.querySelector('#top [data-act="hist-undo"]').click(), 1)`);
@@ -106,12 +106,11 @@ const M = `JSON.stringify((() => {
     check(await until(`localStorage.getItem('tasks.grip:undo-win') === null && Math.abs(document.querySelector('#pop').getBoundingClientRect().width - 30 * ${g3.rem}) <= 2`, {timeout: 3000}),
       'a double click: 30rem again, nothing stored ' + JSON.stringify(await get()));
     await ev(`(closePop(), 1)`);
-    // phone width: the sheet, no grip
-    await load(390, false);
-    await ev(`(ul_open(document.querySelector('#top [data-act="hist-undo"]') || document.body), 1)`);  // the long press on the arrow
-    check(await until(`document.querySelectorAll('#pop:not(.hidden).ulwin .ulrow').length >= 10`, {timeout: 10000}), 'phone: the list opens');
-    const g4 = await get();
-    check(g4.sheet && !g4.grip, 'phone: the sheet, no grip ' + JSON.stringify(g4));
+    // phone width: the steps are the page #steps (no arrow window), no grip there
+    await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: 390, height: 844}});
+    await nav(B + '#steps'); await idle();
+    check(await until(`document.querySelectorAll('.ulpage .ulrow').length >= 10`, {timeout: 20000}), 'phone: the page #steps lists the steps');
+    check(await ev(`!document.querySelector('.ulpage .grip') && !document.querySelector('[data-grip="undo-win"]')`), 'phone: no grip');
   });
 
   console.log(`p7311_undo_grip_ui: ${ok} passed, ${F.length} failed`);

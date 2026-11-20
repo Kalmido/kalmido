@@ -138,10 +138,11 @@ c.execute("DELETE FROM office_rgroup_members WHERE org_id=? AND user_id=?", (ORG
 c.commit()
 c.close()
 check(A.patch(B + f"/api/admin/orgs/{ORG}", json={"admins": [ALICE, ERIC]}).ok and rows(ORG, ERIC) == [], "eric is an admin by the whole set, no group row")
+LOG0 = sql("SELECT COUNT(*) FROM office_rights_log WHERE org_id=? AND action='member_start' AND target_user=?", (ORG, ERIC))[0][0]  # his join
 r = A.patch(B + f"/api/admin/orgs/{ORG}", json={"admins": [ALICE]})
 check(r.ok and sql("SELECT role FROM org_members WHERE org_id=? AND user_id=?", (ORG, ERIC)) == [("member",)], f"the whole set demotes eric ({r.status_code} {r.text[:120]})")
 check(rows(ORG, ERIC) == ["staff"], f"#7413: demoted by the whole set, eric starts in Staff ({rows(ORG, ERIC)})")
-check(sql("SELECT COUNT(*) FROM office_rights_log WHERE org_id=? AND action='member_start' AND target_user=?", (ORG, ERIC))[0][0] == 1,
+check(sql("SELECT COUNT(*) FROM office_rights_log WHERE org_id=? AND action='member_start' AND target_user=?", (ORG, ERIC))[0][0] == LOG0 + 1,
       "#7413: the start is in the rights log")
 # #7413: only the groups without special rights can be a start group; a stored "projects" counts as none
 c = dbxm.connect(os.path.join(DATA, "tasks.db"), timeout=10)
