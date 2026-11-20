@@ -19752,5 +19752,7 @@
   "invoice series": "serie di fatture",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "Il cliente di questo documento non è più in questo ufficio (spostato in un altro spazio di lavoro). Scegli prima un altro cliente.",
   "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Il cliente della fattura modello non è più in questo ufficio (spostato in un altro spazio di lavoro). Scegli un'altra fattura modello e riattiva la serie.",
-  "Tag missing: the rule does nothing until you select a tag again": "Tag mancante: la regola non fa nulla finché non scegli di nuovo un tag"
+  "Tag missing: the rule does nothing until you select a tag again": "Tag mancante: la regola non fa nulla finché non scegli di nuovo un tag",
+  "Crew|mail group": "Troupe di ripresa",
+  "Please select a contact": "Scegli un contatto"
 }
