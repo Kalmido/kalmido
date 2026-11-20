@@ -15,7 +15,7 @@ from ..core.pgbus import bus_active, bus_on, bus_send  # 2.622.0 (#3891)
 from ..core.ephem import eph_add  # 2.622.0 (#3891)
 from ..core.i18n import tr
 from ..core.db import db, inbox_default, iso, iso_ms, now_utc, parse_iso  # db: 2.959.0 (#4030)
-from ..core.objcomments import ocm_old_cols  # 2.972.0 (#5272)
+from ..core.objcomments import ocm_extra, ocm_old_cols  # (#5272); (#7534): ocm_extra
 from ..accounts.session import me
 from ..accounts.pictures import avatar_url
 from ..core.dlock import dl_list_locked
@@ -454,7 +454,7 @@ def list_sections(c, uid, lid):
 
 def agent_event_comments(c, tid):
     """The newest AGENT_EVENT_COMMENTS comments of a task, oldest first, text shortened to AGENT_EVENT_COMMENT_CHARS."""
-    rows = c.execute(f"SELECT {ocm_old_cols()} FROM obj_comments WHERE kind='task' AND ref_id=? AND deleted_at IS NULL ORDER BY id DESC LIMIT ?",
+    rows = c.execute(f"SELECT {ocm_old_cols()}, extra->>'intent' AS intent FROM obj_comments WHERE kind='task' AND ref_id=? AND deleted_at IS NULL ORDER BY id DESC LIMIT ?",
                      (tid, AGENT_EVENT_COMMENTS)).fetchall()[::-1]
     names = user_names(c, [r["user_id"] for r in rows])
     ag = agent_ids(c)
@@ -479,6 +479,8 @@ def agent_event_comments(c, tid):
             d.update(origin=o, untrusted=True)
         if r["suggestion"]:
             d["suggestion"] = json.loads(r["suggestion"])
+        if r["intent"]:  # (#7534): a person's kind of answer (a note too: it reaches the agent here, never as an event)
+            d["intent"] = r["intent"]
         out.append(d)
     return out
 
@@ -526,6 +528,7 @@ def agent_comment(c, k):
             "portal": bool(k["portal"]) if "portal" in k.keys() else False,
             **({"ext_name": k["ext_name"]} if "ext_name" in k.keys() and k["ext_name"] else {}),
             **({"origin": o, "untrusted": True} if o else {}),  # 2.1269.0 (#6431): no Kalmido account = text from outside
+            **({"intent": k["intent"]} if "intent" in k.keys() and k["intent"] else {}),  # (#7534): the person's kind of answer
             **_lv_comment_choices(k)}
 
 
@@ -536,17 +539,38 @@ def _lv_comment_choices(k):
     return {"choices": ch, "choice": lv_jload(k["choice"])} if ch else {}
 
 
+def _comment_follow(c, t, cid=None):
+    """The people / agents that follow task t for a comment (assignee, delegated agent, creator, watchers, earlier commenters
+    but the comment cid itself)."""
+    return {t["assignee_id"], t["created_by"], t["delegate_agent_id"]} | wat_users(c, t["id"]) | {r[0] for r in c.execute(
+        "SELECT DISTINCT user_id FROM obj_comments WHERE kind='task' AND ref_id=? AND deleted_at IS NULL AND id!=?", (t["id"], cid or 0))}  # (#3357): + delegated, watchers
+
+
+def agent_hearers(c, t):
+    """(#7534): the agents that would get the 'comment' event of a person's new comment on task t (agent_comment_events
+    without mentions; active, seeing the task) -- the composer shows the kinds of an answer only when one hears it."""
+    if not t:
+        return []
+    ag = agent_ids(c)
+    if not ag:
+        return []
+    hear = (_comment_follow(c, t) | set(listen_agents_of(c, t["list_id"]))) & set(ag)
+    return sorted(a for a in hear if agent_active(agent_row(c, a)) and task_visible(c, t["id"], a, full=True))
+
+
 def agent_comment_events(c, t, cid, mentions, new_mentions, created=True):
     """Comment on task t: 'mention' to newly mentioned agents, 'comment' to agents that follow the task (assignee, delegated
     agent, creator, watchers, earlier commenters). Only agents that see the task with its comments."""
     ag = agent_ids(c)
     if not ag:
         return
-    k = c.execute(f"SELECT {ocm_old_cols()} FROM obj_comments WHERE id=? AND kind='task'", (cid,)).fetchone()  # 2.972.0 (#5272): the old keys
-    follow = {t["assignee_id"], t["created_by"], t["delegate_agent_id"]} | wat_users(c, t["id"]) | {r[0] for r in c.execute(
-        "SELECT DISTINCT user_id FROM obj_comments WHERE kind='task' AND ref_id=? AND deleted_at IS NULL AND id!=?", (t["id"], cid))}  # 2.473.0 (#3357): + delegated, watchers
+    k = c.execute(f"SELECT {ocm_old_cols()}, extra->>'intent' AS intent FROM obj_comments WHERE id=? AND kind='task'", (cid,)).fetchone()  # (#5272): the old keys
+    if k["intent"] == "note":  # (#7534): a note is for the record only: no event, no run (the agent reads it with the task)
+        return
+    follow = _comment_follow(c, t, cid)
     # 2.13.1 (#471): agents set to read every comment of a person in this list ("Agent reads every comment")
     listen = set(listen_agents_of(c, t["list_id"])) if created and k["user_id"] not in ag else set()
+    sent = []
     for aid in sorted(ag):
         if aid in new_mentions:
             ev = "mention"
@@ -556,7 +580,10 @@ def agent_comment_events(c, t, cid, mentions, new_mentions, created=True):
             continue
         if not task_visible(c, t["id"], aid, full=True):
             continue
-        agent_emit(c, aid, ev, agent_task_data(c, t["id"], aid, comment=agent_comment(c, k), **({"where": "comment"} if ev == "mention" else {})))
+        if agent_emit(c, aid, ev, agent_task_data(c, t["id"], aid, comment=agent_comment(c, k), **({"where": "comment"} if ev == "mention" else {}))):
+            sent.append(aid)
+    if created and sent and k["intent"] and k["user_id"] not in ag:  # (#7534): the agents its open kind now waits for
+        ocm_extra(c, cid, "intent_to", sent)
 
 
 def agent_text_mentions(c, lid, text):

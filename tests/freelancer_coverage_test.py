@@ -973,6 +973,7 @@ ROUTES = {
     # 2.99.1 C (#1959): video sign-offs for agents (videos/v1.py; p2991_c_api_test.py)
     "GET /api/v1/videos": "videos", "GET /api/v1/videos/{}": "videos", "POST /api/v1/videos/{}/comments": "videos",
     "PATCH /api/v1/videos/{}/comments/{}": "videos",
+    "POST /api/v1/videos": "videos",  # (#7532): p7532_a_area_test.py (frida's batch at her own task)
     "DELETE /api/sheets/{}": "sheets", "DELETE /api/sheets/{}/columns/{}": "sheets",
     "DELETE /api/sheets/{}/rows/{}": "sheets", "GET /api/sheets": "sheets", "GET /api/sheets/{}": "sheets",
     # 2.558.0 (#4709): the core objects (core/objweb.py)

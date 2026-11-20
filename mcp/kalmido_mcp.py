@@ -293,6 +293,16 @@ def _cd_name(cd):
 # ---------------------------------------------------------------- tools
 
 S_ID = {"type": "integer", "minimum": 1}
+# (#7530): the bound step of an answer button -- one of a fixed list, run by Kalmido after the person's click with the
+# person's rights, only on the task of the question (the comment's task / the chat message's task_id); never free API calls
+S_DO = {"type": "object", "description": "(#7530) the step Kalmido runs after a click on this button, on the task of the question: "
+        "{kind: section, section_id} | {kind: state, state: done | in_progress} | {kind: wont, reason} | {kind: park, reason} | "
+        "{kind: wait, until: YYYY-MM-DD, note?} | {kind: tag, tag}. An option meaning 'leave it as it is' carries {kind: wont, reason}. "
+        "No other object; not with multi or an approval card", "properties": {
+            "kind": {"type": "string", "enum": ["section", "state", "wont", "park", "wait", "tag"]}, "section_id": {"type": "integer"},
+            "state": {"type": "string", "enum": ["done", "in_progress"]}, "reason": {"type": "string", "maxLength": 300},
+            "until": {"type": "string"}, "note": {"type": "string", "maxLength": 300}, "tag": {"type": "string", "maxLength": 40}},
+        "required": ["kind"]}
 _DW_H = {"type": ["integer", "null"], "minimum": 0, "maximum": 8760}  # 2.553.0 C (#3538): a column time limit in hours (null / 0 = none)
 PRIO = {"type": "string", "enum": ["none", "low", "medium", "high", "urgent"]}  # 2.574.0 (#3376): urgent
 STRS = {"type": "array", "items": {"type": "string"}}
@@ -1187,7 +1197,7 @@ TOOLS = [
                        "answer; a press is sent as the person's comment and reaches you as a comment event with answer). Only the newest "
                        "question of a task stays live", "items": {"type": "object", "properties": {
                            "id": {"type": "string", "maxLength": 40}, "label": {"type": "string", "maxLength": 200},
-                           "style": {"type": "string", "enum": ["default", "primary", "danger"]}}, "required": ["id", "label"]}},
+                           "style": {"type": "string", "enum": ["default", "primary", "danger"]}, "do": S_DO}, "required": ["id", "label"]}},
            "multi": {"type": "boolean", "description": "2.41.0: the person may pick several buttons"},
            "portal": {"type": "boolean", "description": "2.63.0: a public answer to the customer of a customer report (the task has a "
                       "ticket, you may change the task): the customer sees it on the status page and gets it by mail. Write it for the "
@@ -1455,7 +1465,7 @@ TOOLS = [
            "permission": {"type": "boolean"}, "expires_in": {"type": "integer", "minimum": 10, "maximum": 604800},
            "choices": {"type": "array", "maxItems": 8, "items": {"type": "object", "properties": {
                "id": {"type": "string", "maxLength": 40}, "label": {"type": "string", "maxLength": 200},
-               "style": {"type": "string", "enum": ["default", "primary", "danger"]}}, "required": ["id", "label"]}},
+               "style": {"type": "string", "enum": ["default", "primary", "danger"]}, "do": S_DO}, "required": ["id", "label"]}},
            "multi": {"type": "boolean"},
            "offer_save": {"type": "boolean", "description": "2.37.0: offer the person the button 'Save as task' under this message"},
            "kind": {"type": "string", "enum": ["message", "notice", "brief"], "description": "2.41.0: notice = a small grey line (session / summary notes); "
@@ -3140,8 +3150,16 @@ TOOLS += [
     ("get_video_review", "2.99.1: one video sign-off with its versions and ALL comments by version and timecode (timecode mm:ss, author, "
                          "customer = written by the customer, done, replies). Use it to sum up the feedback for the edit. 2.641.0: also "
                          "images / PDFs (kind image | pdf; a version names its file_id of the file store, readable with the file tools when "
-                         "shared with you); a comment's pos is {t} | {x, y} | {page, x, y} (x / y 0..1 from the top left), mark = its point's number.",
+                         "shared with you); a comment's pos is {t} | {x, y} | {page, x, y} (x / y 0..1 from the top left), mark = its point's number; "
+                         "(#7532) pos with w / h = an area (x / y its top left corner).",
      _obj({"review_id": S_ID}, ["review_id"]), lambda api, a: api.call("GET", f"/videos/{_id(a, 'review_id')}")),
+    ("create_image_reviews", "(#7532, scope tasks:write): one image / PDF sign-off per file of the file store at a task (task_id) or a "
+                             "project (list_id) you may change, up to 50 at once (e.g. the pictures of a walk-through): files = "
+                             "[{file_id, title?}] (title default: the file's name). Upload the files first with the file tools. All or "
+                             "none: a file you do not see, of another workspace or of another type refuses the whole batch.",
+     _obj({"task_id": S_ID, "list_id": S_ID, "files": {"type": "array", "minItems": 1, "maxItems": 50, "items": {
+         "type": "object", "properties": {"file_id": S_ID, "title": {"type": "string"}}, "required": ["file_id"]}}}, ["files"]),
+     lambda api, a: api.call("POST", "/videos", body=_pick(a, ("task_id", "list_id", "files")))),
     # 2.981.0 (#5273): add_video_comment is add_comment with kind "video"
     ("set_video_comment_done", "2.99.1 (scope comments): mark a comment of a video sign-off done (done: true) or open again (false); "
                                "your own comments, or all when you may change the task / project.",

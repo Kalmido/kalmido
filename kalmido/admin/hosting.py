@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import re
+import sys
 import threading
 import time
 from datetime import timedelta
@@ -10,13 +11,14 @@ from flask import g, has_request_context, jsonify, request
 
 from ..core.errors import Denied  # 2.281.0 E (#3117)
 from ..core.config import app, APP_NAME, PUBLIC_URL, EMAIL_RE
-from ..core.i18n import tr
+from ..core.i18n import N_, tr
 from ..core.db import body, bump, connect, db, err, gset, gsetting, iso, now_utc, parse_iso, usettings
+from ..core.support import HOSTED as CORE_HOSTED, SUPPORT_EMAIL_ENV, support_email  # (#6534): moved to core
 from ..core.instance import LEGAL_ENV, PRIVACY_EMAIL_ENV, legal_url_ok  # 2.306.0 B (#2887): the legal links live in core (layers)
 from ..accounts.session import me
 from ..api.common import v1_args, v1_err, v1_json, v1_view
 from ..api.scopes import need_scope  # 2.360.0 A (#2496)
-from ..core.env import env_bool, env_int, SRV_AGENT_MARK, srv_recipient  # (#6510)
+from ..core.env import env_int, SRV_AGENT_MARK, srv_recipient  # (#6510)
 from ..core.pg import system_ctx  # 2.149.0 G (#2517): pulled up from functions
 from ..core.ephem import eph_within  # 2.642.0 (#4975)
 from ..core.mailbudget import MAIL_DAY_RCPT, MAIL_DAY_SENDER, mail_budget, mail_day_limit, mail_rcpt_key  # noqa: F401  2.1297.0 (#6548): moved to core
@@ -24,6 +26,7 @@ from ..files.store import fs_bytes_of  # 2.369.5 (#2517): pulled up from functio
 from ..accounts.users import need_admin  # 2.369.5 (#2517): pulled up from functions
 from ..collab.news import news_add, notif_ok  # 2.369.5 (#2517): pulled up from functions
 from ..core.schema import USER_DEFAULTS  # 2.369.5 (#2517): pulled up from functions
+from ..notify.alerts import aa_now  # (#6534)
 from ..notify.push import push_prio, push_reachable  # 2.369.5 (#2517): pulled up from functions
 from ..collab.comments import lang_of  # 2.369.5 (#2517): pulled up from functions
 from ..core.errors import UnknownFields  # 2.369.5 (#2517): pulled up from functions
@@ -33,7 +36,7 @@ from ..core.access import otr_live  # 2.1029.0 (#5537)
 # ---- the kind of server (#905). KALMIDO_HOSTED=1: an instance run as a service for others (no private networks behind it):
 # integrations may only reach public HTTPS addresses (the admin's internal-host allow-list does not apply).
 # Self-hosted servers (the default) keep everything as before.
-HOSTED = env_bool("KALMIDO_HOSTED", False)
+HOSTED = CORE_HOSTED  # (#6534): read in core.support
 SELFHOST_DOCS = "https://github.com/Kalmido/kalmido#readme"
 
 
@@ -47,7 +50,6 @@ def hosted():
 # "org": the members of an organisation share quota x members (an organisation's plan). At 80 / 95 % the app warns; at
 # 100 % uploads are refused (413, code quota_exceeded) and nothing is ever deleted; the app offers "Contact support".
 QUOTA_ENV_MB = os.environ.get("KALMIDO_STORAGE_QUOTA_MB", "").strip()
-SUPPORT_EMAIL_ENV = os.environ.get("KALMIDO_SUPPORT_EMAIL", "").strip()[:200]
 # 2.306.0 B (#2887): the operator's privacy statement and imprint (setting in Administration > Server wins, like support_email)
 QUOTA_MAX_MB = 10_000_000
 
@@ -233,10 +235,16 @@ def quota_info(c, uid, cached=False, org=None, extra=0):
             "support": support_email(c)}
 
 
-def support_email(c):
-    """The support address when one is set (setting / KALMIDO_SUPPORT_EMAIL), else '' -- 2.148.1 A (#2490): never an
-    admin's own address (the client then says to ask the admin)."""
-    return gsetting(c, "support_email") or SUPPORT_EMAIL_ENV or ""
+
+SUPPORT_MISSING_NOTE = N_("This server runs as a hosted service (KALMIDO_HOSTED=1) but has no support address: people who are stuck find no one to write to. Set it in Settings > Server > Server or with KALMIDO_SUPPORT_EMAIL.")  # (#6534)
+
+
+def hosting_support_check(c):
+    """(#6534) At the start of a hosted server without a support address: a line in the log and an admin alert (startup.py
+    calls it inside its guarded start-up reports, so it never stops the start)."""
+    if HOSTED and not support_email(c):
+        print("hosting: no support address set (Settings > Server > Server or KALMIDO_SUPPORT_EMAIL)", file=sys.stderr, flush=True)
+        aa_now("storage", "hosting:no-support", SUPPORT_MISSING_NOTE)
 
 
 def quota_guard(c, uid, incoming=None, rate=True):

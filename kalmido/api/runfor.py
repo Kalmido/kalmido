@@ -687,6 +687,7 @@ RUN_ROUTES = {
     "GET /trash": ("cut", "vis_sql() + tvis kalmido/api/scopes.py"),
     "GET /videos": ("cut", "vdr_v1_list kalmido/videos/v1.py -> vdr_may(api) kalmido/videos/review.py (task_visible / list_role; vdm_files"),
     "GET /videos/{}": ("cut", "vdr_v1_need kalmido/videos/v1.py -> vdr_may(api) kalmido/videos/review.py (task_visible / list_role)"),
+    "POST /videos": ("cut", "vdr_v1_create kalmido/videos/v1.py -> vdr_target (task_visible / list_role write); vdm_file_version -> need_node (cap)"),  # (#7532)
     "POST /videos/{}/comments": ("cut", "vdr_v1_need -> vdr_may(api) kalmido/videos/review.py; vdr_comment_add (need_org_say as the agent)"),
     "PATCH /videos/{}/comments/{}": ("cut", "vdr_v1_need -> vdr_may(api) kalmido/videos/review.py; author or write role"),
     "GET /videos/{}/versions/{}/file": ("cut", "vdr_v1_need -> vdr_may(api); vdm_send kalmido/videos/vdmedia.py -> vdm_node (need_node = CAP unless uploaded f"),

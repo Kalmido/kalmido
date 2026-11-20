@@ -396,20 +396,20 @@ def vdr_comment_add(c, r, uid, b, ext_name=None):
         ver = max(vs, key=lambda k: vs[k]["n"]) if vs else None
     if isinstance(ver, bool) or ver not in vs:
         raise BadInput(tr("Invalid value: {0}", "version_id"))
-    at, page, px, py = vdm_pos(vs[ver]["kind"] or "video", b, vdr_at)  # 2.641.0 (#4769): {t} | {x, y} | {page, x, y}
+    at, page, px, py, pw, ph = vdm_pos(vs[ver]["kind"] or "video", b, vdr_at)  # {t} | {x, y} | {page, x, y} (#4769); + w, h (#7532)
     par = b.get("parent_id")
     if par not in (None, "", 0):
         p = c.execute(VDC_SEL + " WHERE id=? AND review_id=? AND deleted_at IS NULL",
                       (par if isinstance(par, int) and not isinstance(par, bool) else -1, r["id"])).fetchone()
         if not p or p["parent_id"]:  # one level of answers
             raise BadInput(tr("Invalid value: {0}", "parent_id"))
-        par, ver, at, page, px, py = p["id"], p["version_id"], None, None, None, None
+        par, ver, at, page, px, py, pw, ph = p["id"], p["version_id"], None, None, None, None, None, None
     else:
         par = None
     if vs[ver]["provider"] == "link":
         at = None
     cid = ocm_add(c, VDC_KIND, r["id"], None if ext_name else uid, text, ext_name=ext_name, parent_id=par, org_id=r["org_id"],
-                  anchor={"version_id": ver, "t": at, "page": page, "x": px, "y": py})  # 2.981.0 (#5273): the comments' core
+                  anchor={"version_id": ver, "t": at, "page": page, "x": px, "y": py, "w": pw, "h": ph})  # (#5273): the comments' core
     vdr_touch(c, r["id"])
     return cid
 
@@ -441,14 +441,27 @@ def vdr_create():
     b = vdm_body()  # 2.641.0 (#4769): JSON {url | file_id} or a multipart upload (file)
     oid, tid, lid, cid = vdr_target(c, uid, b)
     link = vdm_media(c, uid, oid, b, vdr_parse)
-    title = vdr_clean(b.get("title"), VDR_TITLE_MAX) or (link.get("file_name") or tr("Video"))[:VDR_TITLE_MAX]
-    ts = iso(now_utc())
-    vid = insert_id(c, "INSERT INTO video_reviews(org_id, owner_id, task_id, list_id, client_id, title, state, created_by, created_at, updated_at) "
-                       "VALUES(?,?,?,?,?,?,'open',?,?,?)", (oid, None if oid else uid, tid, lid, cid, title, uid, ts, ts))
-    r = vdr_reload(c, vid)
-    vdr_version_add(c, r, link, uid)
+    vid = vdr_make(c, uid, (oid, tid, lid, cid), link, b.get("title"))
     c.commit()
     return jsonify(vdr_dict(c, vdr_reload(c, vid), uid, full=True))
+
+
+def vdr_make(c, uid, place, link, title):
+    """A new review at place (org_id, task_id, list_id, client_id of vdr_target) with its first version `link` -> its id.
+    (#7532): one way for the app's route and the batch of files (POST /api/v1/videos)."""
+    oid, tid, lid, cid = place
+    title = vdr_clean(title, VDR_TITLE_MAX) or (link.get("file_name") or tr("Video"))[:VDR_TITLE_MAX]
+    ts = iso(now_utc())
+    owner = None if oid else uid
+    if owner and vdr_is_agent(c, uid):  # reader F13: an agent's review in a private space belongs to the project's owner (export,
+        # trash, signer data and a review that lost its place stay with the person; created_by stays the agent)
+        pl = lid or (c.execute("SELECT list_id FROM tasks WHERE id=?", (tid,)).fetchone() or [None])[0]
+        r = c.execute("SELECT owner_id FROM lists WHERE id=?", (pl,)).fetchone() if pl else None
+        owner = r["owner_id"] if r and r["owner_id"] else owner
+    vid = insert_id(c, "INSERT INTO video_reviews(org_id, owner_id, task_id, list_id, client_id, title, state, created_by, created_at, updated_at) "
+                       "VALUES(?,?,?,?,?,?,'open',?,?,?)", (oid, owner, tid, lid, cid, title, uid, ts, ts))
+    vdr_version_add(c, vdr_reload(c, vid), link, uid)
+    return vid
 
 
 @app.get("/api/videos/<int:vid>")

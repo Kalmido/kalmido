@@ -8,6 +8,7 @@ from .notify.push import watchdog
 from .notify.alerts import aa_secret_key
 from .calendars.subscriptions import cal_loop, CAL_ON
 from .admin.backup import backup_loop, bk_leftovers_alert, bk_tools_note, BK_ON_ENV
+from .admin.hosting import hosting_support_check  # (#6534)
 from .api.v1 import WH_ON
 from .integrations.webhooks import wh_loop
 from .notify.channels import chn_loop, CH_ON
@@ -119,6 +120,7 @@ if not _OC_CLI and env_bool("TASKS_WATCHDOG", True) and WRK_ROLE != "web":  # 2.
         print("files: folder entry clean-up:", type(e).__name__, flush=True)
     try:
         onc_long_report(_c)  # saved number schemes onc_parse no longer reads -> log + admin alert (nothing is changed)
+        hosting_support_check(_c)  # (#6534): hosted without a support address -> log + admin alert
     except Exception as e:  # noqa: BLE001 - a report, never a reason not to start
         print("office: number scheme check:", type(e).__name__, flush=True)
     finally:

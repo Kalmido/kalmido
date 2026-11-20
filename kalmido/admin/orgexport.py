@@ -62,6 +62,7 @@ from ..accounts.session import me
 from ..lists.listhead import o3c_head_rel  # 2.363.2 (#3106)
 from ..core.orgcrypt import OrgCryptError, _org_admin, oc_dec, oc_dec_row, oc_enabled, oc_read_file, oc_status  # 2.149.0 G (#2517): pulled up from functions
 from ..core.movelock import mv_allow  # 2.1337.0 (#6600): the writes a move allows
+from ..core.support import SUP_EXPORT_FAILED, SUP_EXPORT_SPACE, support_ask  # (#6534): hosted = the support instead of "the server admin"
 from ..files.scan import sc_locked_all  # 2.209.0 D (#1856)
 from .offsite import stepup_download  # 2.223.2 C (#2871): the step-up before a download
 from ..accounts.orgretain import odl_ids  # 2.278.0 A (#3093)
@@ -1550,8 +1551,8 @@ def ox_status(oid):
     out = {k: st.get(k) for k in ("state", "started_at", "done_at", "expires_at", "file", "bytes", "files", "plain", "missing") if st.get(k) is not None}
     if st.get("state") == "failed":
         out["error"] = tr("The export was interrupted. Please start it again.") if st.get("error") == "interrupted" else \
-            tr("There is not enough space on the server for the export. Please ask the server admin.") if st.get("error") == "nospace" else \
-            tr("The export failed. Please try again later or ask the server admin (server log).")  # #6581: nospace
+            support_ask(db(), *SUP_EXPORT_SPACE) if st.get("error") == "nospace" else \
+            support_ask(db(), *SUP_EXPORT_FAILED)  # #6581: nospace
     if st.get("state") == "done" and isinstance(st.get("fit"), dict):  # (#6578)
         from .acctexport import umz_fit_view
         out.update(umz_fit_view(st["fit"]))
@@ -1681,7 +1682,7 @@ def ox_start(oid):
     from .acctexport import umz_space_ok  # #6581: the account export's disk check (acctexport imports this module)
     if not umz_space_ok(EXPORT_DIR, max(0, ox_need_bytes(c, oid) * OX_SPACE_FACTOR - old)):
         c.rollback()
-        return err(tr("There is not enough space on the server for the export. Please ask the server admin."), 507)
+        return err(support_ask(db(), *SUP_EXPORT_SPACE), 507)
     c.rollback()
     mv_allow(c)  # (#6951, reader F1): the export runs while the organisation moves - its queue row too (not strict)
 

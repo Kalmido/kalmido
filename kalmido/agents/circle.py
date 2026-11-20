@@ -16,6 +16,8 @@ content into it. So the control gate (agents/control.py ctl_gate) asks here befo
   PUBLIC   a target people without an account read is the circle "everyone": always a card. A project with a live public
            link; a task with a client report (the portal: its title, state and the answers marked for the client); a
            knowledge page a live share covers (a public link = public, a share with a person outside the space = wider).
+           (#7478) An answer to a customer's comment of a sign-off (videos), and done / open of such a comment or answer:
+           a customer page shows them (circle_video_public; also while no link is live - a later link shows them).
 
 circle_of(...) -> None (free as far as the circles go) | "wider" | "public". The gate turns that into 409 approval_required
 with the field circle; the approval card of such a step carries the same mark (set by the server, never by the agent), the
@@ -155,6 +157,39 @@ def circle_ticket_tasks(c, tids, lids):
     with system_ctx(c):
         return {r[0] for r in c.execute("""SELECT p.task_id FROM portal_tickets p JOIN tasks t ON t.id=p.task_id
                                            WHERE p.task_id = ANY(CAST(? AS BIGINT[])) AND t.list_id = ANY(CAST(? AS BIGINT[]))""", (tids, lids))}
+
+
+def circle_video_public(c, path, va, b, lids):
+    """(#7478) True: the write reaches the customer page of a sign-off (videos/review.py: it shows the customer's own comments
+    and the team's answers to them, with done): an answer to a customer's comment (POST .../comments with parent_id) or done /
+    open of a customer's comment or of an answer to one (PATCH .../comments/{}). Always, also without a live customer link
+    (reader F4: a link made later shows the whole customer thread). The comment id is read exactly as the route reads it
+    (videos/v1.py vdr_v1_id, reader F1: "+7" or "7_0" reach comment 7 there; unreadable = the route's 400 here too).
+    The team's other comments stay internal: their project's circle decides (control.CTL_OBJ /videos/{}).
+    Only for a sign-off of a project of the request the agent sees (lids, reader F7: like circle_ticket_tasks, review G9 -
+    a sign-off of somebody else's project gives no answer here, else the gate would tell which foreign ones have customer
+    comments; the route answers its 404)."""
+    vid = _int(va.get("vid"))
+    if not vid or not (path == "/videos/{}/comments" or path == "/videos/{}/comments/{}"):
+        return False
+    from ..videos.v1 import vdr_v1_id  # here: videos loads the collab modules, which load the agents
+    if path == "/videos/{}/comments":
+        cid = _int(b.get("parent_id"))
+    else:
+        cid = vdr_v1_id(va.get("comment_id"), "comment_id")
+    if not cid:
+        return False
+    lids = sorted({int(x) for x in lids or [] if x})
+    if not lids:
+        return False
+    with system_ctx(c):  # the comment's author kind, whatever the agent's own view of it (the sign-off is in lids: seen)
+        p = c.execute("SELECT COALESCE(v.list_id, t.list_id) FROM video_reviews v LEFT JOIN tasks t ON t.id=v.task_id WHERE v.id=?",
+                      (vid,)).fetchone()
+        if not p or p[0] not in lids:
+            return False
+        x = c.execute("""SELECT k.ext_name, p.ext_name AS par_ext FROM obj_comments k LEFT JOIN obj_comments p ON p.id=k.parent_id
+                         WHERE k.id=? AND k.kind='video' AND k.ref_id=?""", (cid, vid)).fetchone()
+    return bool(x and (x["ext_name"] or (path != "/videos/{}/comments" and x["par_ext"])))
 
 
 def circle_nodes(c, aid):
@@ -480,6 +515,8 @@ def circle_of(c, a, method, path, va, b, lids):
     if lids and circle_public_lists(c, lids):
         return "public"
     if circle_ticket_tasks(c, circle_tasks(c, method, path, va, b), lids):
+        return "public"
+    if circle_video_public(c, path, va, b, lids):
         return "public"
     src = _sources(c, aid)
     if path == "/tasks" and not lids:  # a new task without a project: the agent's own basket

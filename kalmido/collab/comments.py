@@ -23,6 +23,7 @@ from .replies import reply_check, with_replies
 from ..core.errors import BadInput, web_fields  # 2.149.0 G (#2517): pulled up from functions
 from ..core.objcomments import (ocm_add, ocm_after, ocm_edit, ocm_kind, ocm_list, ocm_need_say, ocm_old_cols, ocm_restore,
                                 ocm_row, ocm_row_out, ocm_say_refusal, ocm_text_in, ocm_trash, OCM_MAX, OCM_MENTION_RE)  # 2.972.0 (#5272)
+from ..core.objcomments import ocm_intent_answers, ocm_intent_in, ocm_intent_out  # (#7534)
 
 
 # ---------------------------------------------------------------- comments + activity timeline
@@ -100,6 +101,15 @@ def att_dicts(c, where, args):
     return out
 
 
+def cmt_intents(rows, dicts):
+    """(#7534): intent, awaiting (the agents an open question / instruction / proposal waits for) and answer (the id of
+    their answer) on the comment dicts of rows (same order; core/objcomments.py ocm_intent_out)."""
+    ans = ocm_intent_answers(rows)
+    for r, d in zip(rows, dicts):
+        d.update(ocm_intent_out(r, ans))
+    return dicts
+
+
 def comment_dict(r, atts):
     """A comment row (the old shape of core/objcomments.py ocm_old_cols) -> its JSON with its files. 2.33.0 (#1076): + reply
     (with_replies); 2.50.0 (#329): ext_name; 2.63.0 B (#1513): portal; 2.71.0 A (#1457): rule_name."""
@@ -168,7 +178,7 @@ def timeline(tid):
     from ..personal.timetrack import vis_ids
     from ..tasks.dependencies import DEP_ACTS
     from ..team.portal import pt_ticket_info
-    from ..agents.core import agent_ids, is_approver
+    from ..agents.core import agent_hearers, agent_ids, is_approver
     from ..collab.reactions import with_reactions
     c = db()
     role = need_task(c, tid, write=False, full=True)
@@ -195,7 +205,8 @@ def timeline(tid):
     comments = with_replies(c, "c", with_reactions(c, [comment_dict(r, atts) for r in rows]))
     from .cchoice import lv_with_choices
     lv_with_choices(c, tid, rows, comments)  # 2.41.0 (#1383): answer buttons / approval cards
-    ids = {x["user_id"] for x in comments + acts} | {m for x in comments for m in x["mentions"]} \
+    cmt_intents(rows, comments)  # (#7534): the kind of an answer and whom it waits for
+    ids = {x["user_id"] for x in comments + acts} | {m for x in comments for m in x["mentions"]} | {a for x in comments for a in x.get("awaiting") or []} \
         | {a["data"].get("to") for a in acts if a["kind"] == "assign"} | {a["data"].get("agent") for a in acts} | {a["data"].get("approver") for a in acts} \
         | {a["data"].get("by") for a in acts} | {u["id"] for x in comments for e in x["reactions"] for u in e["users"]} \
         | {x["reply"]["user_id"] for x in comments if x.get("reply")} \
@@ -221,6 +232,7 @@ def timeline(tid):
     return jsonify(comments=comments, activity=acts, users={str(k): v for k, v in user_names(c, ids).items()},
                    people=ppl, seen=seen, moderator=role in MANAGE_ROLES,
                    agents=sorted(i for i in ids | {p["id"] for p in ppl} if i in ag),
+                   hears=agent_hearers(c, trow or c.execute("SELECT * FROM tasks WHERE id=?", (tid,)).fetchone()) if collab_all() else [],  # (#7534)
                    can_write=task_visible(c, tid, me(), write=True),
                    say_no=tr(sn) if (sn := ocm_say_refusal(c, "task", tid, me())) else None,  # 2.607.0 (#4549): the box's hint
                    approver=is_approver(c, c.execute("SELECT * FROM tasks WHERE id=?", (tid,)).fetchone(), me()),  # 2.2.0 (#339)
@@ -247,7 +259,7 @@ def timeline_seen(tid):
 def comment_input():
     """(text, files) from a JSON body or a multipart form (comment with files)."""
     if request.files or request.form:
-        web_fields({k: 1 for k in [*request.form, *request.files]}, {"body", "file", "reply_to", "portal", "client_ref", "mail_reporter"}, "POST /api/tasks/{tid}/comments (form)")
+        web_fields({k: 1 for k in [*request.form, *request.files]}, {"body", "file", "reply_to", "portal", "client_ref", "mail_reporter", "intent"}, "POST /api/tasks/{tid}/comments (form)")
         return (request.form.get("body") or "").strip(), [f for f in request.files.getlist("file") if f and f.filename]
     web_fields(body(), WEB_COMMENT, "POST /api/tasks/{tid}/comments")
     return (body().get("body") or "").strip(), []
@@ -277,7 +289,8 @@ def comment_ref(c, tid):
 def comment_answer(c, tid, r):
     from ..collab.reactions import with_reactions
     from .cchoice import lv_with_choices
-    return jsonify(lv_with_choices(c, tid, [r], with_replies(c, "c", with_reactions(c, [comment_dict(r, att_dicts(c, "comment_id=?", (r["id"],)))])))[0])
+    d = lv_with_choices(c, tid, [r], with_replies(c, "c", with_reactions(c, [comment_dict(r, att_dicts(c, "comment_id=?", (r["id"],)))])))
+    return jsonify(cmt_intents([r], d)[0])  # (#7534): a new comment answered by nobody yet
 
 
 @app.post("/api/tasks/<int:tid>/comments")
@@ -355,15 +368,20 @@ def comment_create(tid):
         return err(str(e))
     from .cchoice import lv_choices_in, lv_with_choices
     try:  # 2.41.0 (#1383): an agent's answer buttons / approval card (the chat's format)
-        chs = lv_choices_in(body(), is_agent(g.user)) if not (request.files or request.form) else None
+        chs = lv_choices_in(body(), is_agent(g.user), c, tid) if not (request.files or request.form) else None
     except BadInput as e:
         return err(str(e))
     if portal and (sug or chs):  # 2.63.0 B (#1513): the customer sees text (and the files are not shown to them)
         return err(tr("Suggestions and answer buttons cannot go to a client"))
     if mrep and (sug or chs):  # the files of the comment stay in Kalmido (the mail carries the text)
         return err(tr("Only a text goes to the reporter by e-mail"))
+    try:  # (#7534): question / instruction / proposal / note -- what the person expects of the agents that hear it
+        intent = ocm_intent_in(request.form.get("intent") if (request.files or request.form) else body().get("intent"), is_agent(g.user))
+    except BadInput as e:
+        return err(str(e))
     cid = ocm_add(c, "task", tid, me(), text, mentions=mentions, parent_id=orig["id"] if orig else None, client_ref=ref,
-                  extra={"suggestion": json.dumps(sug, ensure_ascii=False) if sug else None, "choices": chs, "portal": bool(portal)})
+                  extra={"suggestion": json.dumps(sug, ensure_ascii=False) if sug else None, "choices": chs, "portal": bool(portal),
+                         "intent": intent})
     replied = orig["user_id"] if orig and orig["user_id"] != me() else None
     if sug and sug.get("kind") == "merge_request":
         git_merge_link(c, t, sug)

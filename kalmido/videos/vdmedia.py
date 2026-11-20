@@ -212,32 +212,42 @@ def vdm_num(v, what, lo, hi, integer=False):
 
 
 def vdm_pos(kind, b, at_parse):
-    """(at_sec, page, x, y) of a new comment on a version of `kind` from {pos: {t} | {x, y} | {page, x?, y?}} or the older
-    {at_sec}; all None = without a place. A place that does not fit the medium is refused (BadInput)."""
+    """(at_sec, page, x, y, w, h) of a new comment on a version of `kind` from {pos: {t} | {x, y} | {x, y, w, h} |
+    {page, x?, y?, w?, h?}} or the older {at_sec}; all None = without a place. (#7532): w / h make the point an area
+    (x / y its top left corner, all 0..1 of the image / page, the area inside it); without them it stays a point. A place
+    that does not fit the medium is refused (BadInput)."""
     p = b.get("pos")
     if p in (None, "", {}):
         p = {"t": b.get("at_sec")} if b.get("at_sec") not in (None, "") else {}
-    if not isinstance(p, dict) or set(p) - {"t", "x", "y", "page"}:
+    if not isinstance(p, dict) or set(p) - {"t", "x", "y", "w", "h", "page"}:
         raise BadInput(tr("Invalid value: {0}", "pos"))
     if kind == "video":
         if set(p) - {"t"}:
             raise BadInput(tr("Invalid value: {0}", "pos"))
-        return at_parse(p.get("t")), None, None, None
+        return at_parse(p.get("t")), None, None, None, None, None
     if "t" in p or (("x" in p) != ("y" in p)) or (kind == "image" and "page" in p) or (kind == "pdf" and "x" in p and "page" not in p):
+        raise BadInput(tr("Invalid value: {0}", "pos"))
+    if ("w" in p) != ("h" in p) or ("w" in p and "x" not in p):  # (#7532): an area has both sides and a corner
         raise BadInput(tr("Invalid value: {0}", "pos"))
     x = vdm_num(p["x"], "pos.x", 0, 1) if "x" in p else None
     y = vdm_num(p["y"], "pos.y", 0, 1) if "y" in p else None
+    w = vdm_num(p["w"], "pos.w", 0, 1) if "w" in p else None
+    h = vdm_num(p["h"], "pos.h", 0, 1) if "h" in p else None
+    if w is not None and (not w or not h or x + w > 1.0001 or y + h > 1.0001):  # inside the image, never empty
+        raise BadInput(tr("Invalid value: {0}", "pos"))
     page = vdm_num(p["page"], "pos.page", 1, VDM_PAGE_MAX, integer=True) if "page" in p else None
-    return None, page, x, y
+    return None, page, x, y, w, h
 
 
 def vdm_pos_dict(x):
-    """A comment row's place for the answers: {t} | {x, y} | {page} | {page, x, y} | None."""
+    """A comment row's place for the answers: {t} | {x, y} | {x, y, w, h} | {page} | {page, x, y[, w, h]} | None."""
     if x["at_sec"] is not None:
         return {"t": x["at_sec"]}
     d = {"page": x["page"]} if x["page"] is not None else {}
     if x["pos_x"] is not None:
         d.update(x=x["pos_x"], y=x["pos_y"])
+        if x["pos_w"] is not None:  # (#7532): an area
+            d.update(w=x["pos_w"], h=x["pos_h"])
     return d or None
 
 

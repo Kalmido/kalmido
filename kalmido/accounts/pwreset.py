@@ -15,6 +15,7 @@ from flask import jsonify
 from ..core.config import app, APP_DIR, APP_NAME
 from ..core.i18n import tr
 from ..core.db import body, connect, db, err, iso, now_utc, parse_iso, write_lock
+from ..core.support import HOSTED, support_email  # (#6534)
 from ..accounts.session import _accept_lang, _rate_blocked, _rate_fail, _rate_keys, client_ip
 from ..accounts.login import login_log_ip  # 2.239.0 B (#2888)
 from .bgjobs import bgj_add, bgj_fn
@@ -106,4 +107,5 @@ def pw_forgot():
         bgj_add("mail:pwreset", *m, user_id=m[0])  # 2.193.0 D (#2220): the queue in the database (the worker sends it)
     print("password reset asked from", login_log_ip(client_ip()), "(blocked)" if blocked else "", flush=True)
     time.sleep(max(0.0, PW_PAD + random.uniform(0, 0.05) - (time.monotonic() - t0)))
-    return jsonify(ok=True)
+    # (#6534): hosted, the answer names the support (the same for every request: says nothing about the account)
+    return jsonify(ok=True, **({"support": support_email(db())} if HOSTED else {}))

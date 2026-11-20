@@ -3,6 +3,7 @@
    into a client's account or organisation; here the person opens the door for a limited time (own account, and every
    organisation the person administers), sees until when, ends it at any time and sees what the operator did with it (time,
    who, which kind of request -- never contents). A self-hosted server shows nothing (GET answers hosted=false). */
+const SGV = {jump: false};  // (#6534): opened from "Allow support access" (Help from a person): show the section once it is drawn
 const SGV_HOURS = {1: N_('1 hour'), 24: N_('1 day'), 72: N_('3 days'), 168: N_('7 days')};
 const sgvHtml = () => `<div id="s-sgv" hidden></div>`;
 const sgvWhen = x => { const d = new Date(x); return x && !isNaN(+d) ? fmtStamp(d) : ''; };
@@ -30,6 +31,9 @@ async function sgvDraw(md) {
     <div class="members">${sgvGrantHtml(j.account, 'me', tr('My account'))}${(j.orgs || []).map(o => sgvGrantHtml(o.grant, String(o.org_id), o.name)).join('')}</div>
     <div class="shint">${tr('The operator of this server cannot see into your account or organisation. If you need help, open it here for a limited time: support can then sign you in, reset your password or look at your projects. It closes by itself and you can end it at any time. What support does with it is recorded here: time, method, route and status, never contents. The same reading or refused request within 10 minutes counts once, at most 300 entries are kept (readings go first), the latest 20 are shown, and of earlier access only the number.')}</div>
     ${past.length ? `<details><summary>${tr('Earlier support access')}</summary><ul class="slist">${past.map(p => `<li>${esc(tr('{0} to {1}', sgvWhen(p.created_at), sgvWhen(p.ended_at || p.ends_at)))} · ${esc(trn('{0} access', '{0} accesses', p.uses.length))}</li>`).join('')}</ul></details>` : ''}`;
+  const sa = supAddr();  // (#6534): the hint says to open it when help is needed - and now also whom to write to
+  if (sa) box.querySelector('.shint')?.insertAdjacentHTML('afterend', `<div class="row sgvmail"><a class="btn sm" href="${esc(supMail(false))}">${ic('send', 's')} ${esc(tr('Write to support'))}</a><code class="topic supaddr">${esc(sa)}</code></div>`);
+  if (SGV.jump) { SGV.jump = false; const d = box.closest('details'); if (d) d.open = true; $('#s-sgv-h', md)?.scrollIntoView({block: 'start'}); }  // sprung-ok: the person asked for it (Allow support access)
 }
 document.addEventListener('click', async e => {
   const b = /** @type {any} */ (e.target).closest?.('[data-sgv]'); if (!b) return;

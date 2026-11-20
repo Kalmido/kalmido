@@ -41,6 +41,7 @@ ORDER = (
     "core.longslots",  # (#6408): the one budget of web threads for long requests (agents, hosted MCP, assistant)
     "core.reqtime",  # 2.149.0 B (#2504): request timing (Server-Timing, slow log); first hooks = whole request measured
     "core.db",
+    "core.support",  # (#6534): the hosting switch and the support address (every layer names the support)
     "core.oncesteps",  # 2.1356.0 (#6824): the one-shot data steps of init_db (migr_*) in one ordered list
     "core.usertz",  # 2.368.3 (#2985): the person's clock (time zone, time format)
     "core.errors",  # 2.149.0 G (#2517): BadInput, Denied, UnknownFields (re-exported at the old places)
@@ -301,6 +302,7 @@ ORDER = (
     "tasks.ftsearch",  # 2.116.0 B (#2065): full-text search of tasks + comments (/api/search)
     "collab.chatsave",  # 2.37.0 (#1159)
     "collab.chatpins",  # 2.62.0 (#1848): pinned chat messages (after teamchat / agents.chat)
+    "collab.cstep",  # (#7530): the bound step of an answer button (comments and the agent chat)
     "collab.cchoice",  # 2.41.0 (#1383): answer buttons / approval cards in comments
     "collab.e2e",  # 2.42.0 (#828, #909): end-to-end encryption (keys, encrypted notes / files / DMs)
     "integrations.mailtrim",  # 2.49.0 (#971)

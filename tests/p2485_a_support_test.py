@@ -333,6 +333,8 @@ check(A.patch(B + f"/api/admin/orgs/{CO}", json={"name": "Again"}).status_code =
 kt.fresh(env={"KALMIDO_SECRET_KEY": KEY}, keep=True)
 F2 = login(B, "frida")
 check(F2.get(B + "/api/support-access").json()["hosted"] is False, "self-hosted: hosted=false (the section stays hidden)")
+ab = F2.get(B + "/api/about").json()  # (#6534): self-hosted stays as before: no "Help from a person", GitHub for problems
+check(ab.get("hosted") is False, f"self-hosted: about says hosted=false to a person {ab.get('hosted')}")
 check(F2.post(B + "/api/support-access", json={"hours": 1}).status_code == 409, "self-hosted: no grant (409)")
 # 2.1317.0 (#6496): self-hosted the admin keeps the whole account dialog (kid / parents, a parent's sign-in link, the PIN)
 A = sess("alice")

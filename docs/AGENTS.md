@@ -1130,9 +1130,9 @@ Since 2.0.8 every task event (`mention`, `comment`, `assigned`, `reaction`, `tid
 | Event | When | `data` |
 |---|---|---|
 | `mention` | someone mentions the agent in a comment, or writes `@agentname` in a task title or notes | `task`, `list`, `comment` (or `null`), `where`: `comment` or `task` |
-| `comment` | a new comment on a task the agent follows (assigned to it, created by it, or it commented before); 2.13.1: in a project where the agent **reads every comment**, every comment a person writes there; 2.41.0 (#1383): a person pressed a button under one of the agent's comments ([Answer buttons and approval cards in comments](#answer-buttons-and-approval-cards-in-comments)); 2.63.0 (#1513): the customer of a [customer report](#customer-reports) wrote on its status page | `task`, `list`, `comment`; 2.41.0: `answer` `{comment_id, choice_ids, labels, via, user, approval?, approval_request?}`; 2.63.0: `comment.portal` (the customer sees it), a customer's comment has `author_id` null and `comment.ext_name` |
+| `comment` | a new comment on a task the agent follows (assigned to it, created by it, or it commented before; #7534: never for a comment of the kind `note`, nor `mention`); 2.13.1: in a project where the agent **reads every comment**, every comment a person writes there; 2.41.0 (#1383): a person pressed a button under one of the agent's comments ([Answer buttons and approval cards in comments](#answer-buttons-and-approval-cards-in-comments)); 2.63.0 (#1513): the customer of a [customer report](#customer-reports) wrote on its status page | `task`, `list`, `comment`; 2.41.0: `answer` `{comment_id, choice_ids, labels, via, user, approval?, approval_request?}`; 2.63.0: `comment.portal` (the customer sees it), a customer's comment has `author_id` null and `comment.ext_name` |
 | `assigned` / `unassigned` | a task is assigned to the agent or taken away from it (2.473.0: also delegated to it, then with `delegated: true`: `task.delegate_agent_id` is the agent, the person stays `assignee_id`) | `task`, `list`; 2.236.0: `assigned` also `queue` `{position, active, max_parallel}` and `priority_rule` ([The queue](#the-queue)) |
-| `chat` | a person writes in their chat with the agent | `message` `{id, body, task_id, created_at, attachments}`, `user` `{id, name}`; fetching it marks the message *delivered* (2.7.2); 2.13.1: `attachments` `[{id, name, mime, size, url}]` (images / files, `body` may then be empty); 2.153.0 (#1962): `message.job_id` + `job` (the job) when it was typed in that job's own chat; 2.491.0 (#2849): `reply_style` = the person's wishes for the replies, when set (see *Wishes for the replies*) |
+| `chat` | a person writes in their chat with the agent (#7534: not for a message of the kind `note`) | `message` `{id, body, task_id, created_at, attachments}`, `user` `{id, name}`; (#7534) `intent` + `message.intent` when the person chose a [kind](#the-kind-of-a-persons-text-intent); fetching it marks the message *delivered* (2.7.2); 2.13.1: `attachments` `[{id, name, mime, size, url}]` (images / files, `body` may then be empty); 2.153.0 (#1962): `message.job_id` + `job` (the job) when it was typed in that job's own chat; 2.491.0 (#2849): `reply_style` = the person's wishes for the replies, when set (see *Wishes for the replies*) |
 | `reaction` | someone reacts to one of the agent's comments; 2.7.2: or to one of its chat messages | comments: `task`, `list`, `comment` `{id, text}`, `reaction` `{emoji, user}`, `approval`: `approved`, `rejected` or `null`; chat: `chat_message` `{id, text, from, created_at}`, `reaction`, `approval`, `user`; 2.30.0: `stale: true` when a 👍 / 👎 hit a permission question that is already answered or expired (act on `approval`, never on the emoji) ([Chat reactions](#chat-reactions-and-delivery)) |
 | `job` | someone presses Approve, Reject or Stop on one of the agent's jobs; 2.3.0: a proposal was applied (`approve`) or discarded (`reject`); 2.56.0: someone wrote to a running job from its card (`message`) | `job`, `action`: `approve`, `reject`, `stop` or `message` (2.56.0, with `text`; the job itself does not change), `user`; for proposals also `proposal` `{state: applied \| discarded, created, changed, list_id}` |
 | `tidy` | a person creates a task in a project with tidy mode `suggest` or `auto`; 2.4.1: only to the project's tidy agent (`list.tidy_agent_id`); 2.29.0: not for tasks created in bulk through the API beyond the first five; 2.30.0: also for a task a person moves into the project (not in a bulk move beyond the first five) | `task`, `list`, `mode` |
@@ -1202,6 +1202,30 @@ Example `followup_due` (the agent could nudge the person or write to the client)
  "list": {"id": 18, "name": "House", "agent_tidy": "off", "sections": []},
  "waiting": {"note": "carpenter Meier", "until": "2026-10-07", "since": "2026-09-30T08:00:00+00:00", "by": 1}}
 ```
+
+### The kind of a person's text (intent)
+
+*(#7534)* A person who writes to an agent - a comment on a task the agent hears, a message in its chat - may choose what
+they expect. The event carries it as `intent` (`comment.intent` on `comment` / `mention`, `intent` and `message.intent` on
+`chat`; also on `task.comments` and in `GET /tasks/{id}/comments` / `GET /agent/chats`); no choice = no field, as before.
+
+| `intent` | What it allows you |
+|---|---|
+| `question` | Answer only. A question is never an order: change nothing because of it. |
+| `instruction` | Do it - within your rights and only if its author may give you orders (the server's rule, not this field). |
+| `proposal` | Judge it and answer first (pros, cons, a recommendation, a question back). Do not build it before a person says so. |
+| `note` | For the record: no reaction. A note sends no event and wakes no run; you read it with the task / the conversation. |
+
+The kind never changes rights: whose text is an order still decides the server (owner / confirmation, `origin` /
+`untrusted`); an `instruction` of somebody who gives you no orders stays data. A `question`, `instruction` or `proposal`
+stays open until you answer exactly that text - a comment / chat message with `reply_to` = its id (a later text without the
+reference does not close it). The app shows "waiting for an answer from <agent>" at it until then; comments carry
+`awaiting` (the agent ids it waits for: those that got its event) and `answer` (the id of the answer), chat messages
+`awaiting` (true / false) and `answer`. A `note` is never open.
+
+In the app *(#7534)*: above the box of a task's comments (when an agent hears the task) and of an agent's chat
+stand four small switches **Question**, **Instruction**, **Proposal**, **Note**; tap one before sending (tap again = none).
+The text then shows its kind and "waiting for an answer from <agent>" until the answer, which you reach with one tap.
 
 ### Agent listens in
 
@@ -2306,6 +2330,35 @@ comments carry `choice_can`). A pressed plain button is posted as the person's c
 event `comment` with `answer` (`approval` `approved` / `rejected` and `approval_request` for a card, `labels` for
 buttons); `comment` is the person's new comment, or your card. A 👍 / 👎 on the comment keeps working as before. No
 answer is never a yes. Health projects never reach an agent.
+
+### Answer buttons with a bound step
+
+*(#7530)* An option of your answer buttons - in a comment (`add_comment` / `POST /tasks/{id}/comments` `choices`) or in the
+chat (`send_chat` / `POST /agent/chats/{user_id}` `choices` with `task_id`) - may carry `do`, ONE step of a fixed list that
+Kalmido runs itself after the person's click, with the **person's** rights and without a run of yours:
+
+| `do` | What Kalmido does on the task of the question |
+|---|---|
+| `{kind: "section", section_id}` | moves it into that column of its own project |
+| `{kind: "state", state: "done" \| "in_progress"}` | marks it done, or in progress (the delivery mark) |
+| `{kind: "wont", reason}` | "will not be done" (status -1), the reason in the history |
+| `{kind: "park", reason}` | parks it with that reason |
+| `{kind: "wait", until: "YYYY-MM-DD", note?}` | waiting until that day |
+| `{kind: "tag", tag}` | sets that tag of the project (only a tag the project has - its own or its organisation's label; another name: `400` when you post; is the tag gone from the task's project at the click - deleted, renamed or the task moved - the step is skipped with `why: "moved"` and no tag is made) |
+
+Rules: only these steps (no free API call), only on the task the question hangs on (the comment's task, the chat message's
+`task_id`): a step that names another task / list / path, a column of another project, a chat message without `task_id`, a
+step with `multi`, an approval card or a permission question = `400`. Each option shows its step at its button before the
+click; an option without `do` reads "answer only". **An option that means "leave it as it is / change nothing" carries
+`{kind: "wont", reason}`** - else the task stays open for nobody. A person who cannot change the task sees the button but
+gets `403` with the reason (nothing is stored); the step runs exactly once (a second click: `409`). A task that moved on
+since (done, will not be done, a job works on it) keeps its state: the answer is stored and reaches you, the step is
+skipped and the app says "Already in progress / Already done - your answer went to <agent>". You get the usual event
+(`comment` with `answer`, `chat_choice`) with `step` `{kind, ..., state: "done" | "skipped", why?: "done" | "in_progress" | "moved"}` (`moved`: the task went to another project since the question, the column step does not fit there)
+and the task's history names the step (activity `choice`, `data.step`). A question with steps stays answerable after newer
+comments / messages (no expiry by the next question); a person's answer in words takes it out of "Waiting for me" (kind
+`question` of `GET /me/waiting`) - the next word is yours: read the answer and close the buttons with
+`withdraw_comment_choices` / `withdraw_chat_choices` when it settles them.
 
 ### Replies to one message
 
@@ -3795,14 +3848,14 @@ public. The answer is the same `409 approval_required` with one more field, `cir
 | `circle` | The target | Examples |
 |---|---|---|
 | `wider` | At least one person reads the target who does not read one of the agent's other places | A private project and one shared with a colleague: writing into the shared one. A knowledge folder, a calendar, a channel shared with the agent that a member of the project does not see. A knowledge page shared with a person outside its space. |
-| `public` | People without an account read it | A project with a live public link; a task with a client's report (the portal: its title, state, an answer marked for the client - an internal comment stays free); a knowledge page a public link covers. |
+| `public` | People without an account read it | A project with a live public link; a task with a client's report (the portal: its title, state, an answer marked for the client - an internal comment stays free); a knowledge page a public link covers; an answer to a customer's comment of a sign-off (`/videos/{id}/comments` with `parent_id`) and done / open of such a comment, also while no customer link is live (a link made later shows the whole customer thread; the team's other comments there stay internal). |
 
 What counts: the people (never agents) of each project the agent can really use, and every live share of a folder, page,
 calendar, address book, table or channel with exactly this agent; the agent's chat with its person does not count (that is
 where its orders come from). The direction matters: shared -> private is free, two places with the same people are free, an
 agent with one project gets no card from this rule. Who reads a source: the people with a full role in a project (a
 participant, who sees only the own tasks, is none; nor a member whose share ran out) - on the target side everybody counts.
-A subtask lives in its parent's project: `parent_id` in `POST /tasks`, `PATCH /tasks/{id}` and `POST /tasks/{id}/move` is a
+A sign-off (`/videos/{id}`) lives in its project, at a task in the task's project (only one at a client has none). A subtask lives in its parent's project: `parent_id` in `POST /tasks`, `PATCH /tasks/{id}` and `POST /tasks/{id}/move` is a
 write into the parent's project, whatever `list_id` says. A pair of projects a person approved as a bridge stays approved
 for the people of that moment: once one more person reads one of the two, the way between them needs a card again (and
 adding a person there asks for the approval again). A target without a project is checked the same way where Kalmido can
@@ -5618,8 +5671,9 @@ agent sums up the feedback for the edit or adds notes.
 
 **What an agent sees.** Only sign-offs at a task or project shared with it (its project limit applies, never a health project,
 never another workspace). Sign-offs only at a client, or without a place after a move, are for people in the app. The
-customer link (its token, the signer's data) never comes through the API. Creating, renaming, deleting a sign-off, new
-versions, the customer link and the decision stay with people.
+customer link (its token, the signer's data) never comes through the API. Renaming, deleting a sign-off, new versions,
+the customer link and the decision stay with people; creating a sign-off from a video link too. *Since #7532:* sign-offs of
+images / PDFs of the file store can be created through the API, many at once (one per file, see the table).
 2.623.0: in the app the sign-off is called *Approval* (the API keeps `videos`). It is a module of its own (Settings > Modules,
 on by default); with it off a person cannot create a new one (`POST /api/videos`: 409), the existing ones stay readable and
 commentable, also through this API - an agent's routes do not change.
@@ -5636,6 +5690,7 @@ people (the API has no route for it).
 | One sign-off: versions, state, comments with answers | `GET /api/v1/videos/{id}` | `get_video_review` | read |
 | Comment (optionally at `at_sec`) or answer (`parent_id`) | `POST /api/v1/videos/{id}/comments` | `add_comment` with `kind: "video"`, `id` (2.981.0; was `add_video_comment`) | comments |
 | Mark a comment done / open | `PATCH /api/v1/videos/{id}/comments/{comment_id}` | `set_video_comment_done` | comments |
+| Create image / PDF sign-offs from files of the file store, up to 50 at once (#7532) | `POST /api/v1/videos` `{task_id \| list_id, files: [{file_id, title?}]}` | `create_image_reviews` | tasks:write |
 | The image / PDF / audio file of a version (2.641.0, audio 2.658.0) | `GET /api/v1/videos/{id}/versions/{version_id}/file` | - (the file tools, `file_id`) | read |
 
 - **Comments** come by version and timecode: `{id, version, version_id, at_sec, timecode (mm:ss), author, customer, agent,
@@ -5657,12 +5712,25 @@ people (the API has no route for it).
   `{page}`; `x` / `y` run from 0 to 1 over the width / height of the image or page, from the top left; `page` 1 = the
   first page. `mark` is the number of its point as people see it on the image / page (per version, page by page, oldest
   first). Write a comment at a point with `pos` instead of `at_sec` (a place that does not fit the medium: 400).
+  *Since #7532:* a comment can mark an **area** instead of a point: `pos` `{x, y, w, h}` (PDF `{page, x, y, w, h}`), `x` / `y`
+  its top left corner, `w` / `h` its width / height, all 0..1; both sides, more than 0, and inside the image (`x + w` and
+  `y + h` at most 1) - otherwise 400. Without `w` / `h` it stays a point; `mark` counts points and areas together as before,
+  and the customer page shows an area like a point (its number at the corner). **Many pictures at once** (e.g. the
+  screenshots of a walk-through): upload them with the file tools, then `POST /api/v1/videos` with `task_id` or `list_id`
+  (a task / project you may change) and `files: [{file_id, title?}]` (1 to 50): one sign-off per file, all or none (a file
+  you do not see 404, of another workspace 409, of another type 400). People see them as tiles in the overview of the images
+  with the number of open comments.
   *Since 2.764.0 (#5040):* a sign-off of images / PDFs has a customer link too; the customer's comments there carry their
   point (`pos`, `mark`) like the team's (until 2.763 the link was for videos only).
 - **Audio files of the file store (2.658.0).** An audio file (MP3, M4A, AAC, WAV, OGG / Opus, FLAC, recognised by its
   first bytes) can be a version too: `kind` `video`, `provider` `audio`, `timed` true, comments at a second like an audio link;
   it names its file like an image (`file_id`, `file_no`, `file_name`, `mime`, `content`; `embed` = the same bytes). The same
   rule applies: you see the sign-off only when you see its files.
+
+In the app *(#7532)*: open a sign-off with images or PDFs at a task or project - **Overview of the images (n)**
+shows them as tiles with their open comments (filter All / With / Without comments, a tile opens the image, Back returns);
+drag over the image to mark an **area** (on a phone tap **Area** first, then drag); **Compare versions** puts two versions of
+one image side by side (on a phone one above the other); several files picked at once make one sign-off each.
 
 ## Built-in assistant vs. your own agents
 

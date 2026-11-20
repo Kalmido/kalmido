@@ -39,7 +39,7 @@ from ..tasks.deliver import dv_apply, dv_filter, dv_view  # 2.392.2 (#3365)
 from ..tasks.ticketkey import tk_ids_ordered, tk_key, tk_parse  # 2.390.0 (#3353)
 from ..tasks.roadmap import list_shift, roadmap_build
 from ..tasks.lifecycle import task_complete, task_reopen, trash_task
-from ..collab.comments import att_dicts, comment_create, comment_dict, comment_plain, MAIL_REPLY, user_names
+from ..collab.comments import att_dicts, cmt_intents, comment_create, comment_dict, comment_plain, MAIL_REPLY, user_names
 from ..core.objcomments import ocm_list, ocm_need_say  # 2.972.0 (#5272): the comments' core
 from ..collab.news import bell_custom_clean, bell_custom_of, BELL_MODES, notif_matrix, notif_update
 from ..personal.habits import habit_log, habit_times, need_habit
@@ -1905,6 +1905,8 @@ def v1_comment(c, d, names):
             # 2.41.0 (#1383): answer buttons / approval card of an agent's comment, the answer and its state
             "choices": d.get("choices"), "choice": d.get("choice"), "choice_state": d.get("choice_state"),
             "portal": bool(d.get("portal")),  # 2.63.0 B (#1513): the customer sees it (public answer / their own comment)
+            # (#7534): a person's kind of answer, the agents it waits for (an answer with reply_to = this id closes it)
+            **({"intent": d["intent"], "awaiting": d.get("awaiting") or [], "answer": d.get("answer")} if d.get("intent") else {}),
             **({"origin": o, "untrusted": True} if (o := comment_origin(d)) else {})}  # 2.1269.0 (#6431): no Kalmido account
 
 
@@ -1920,6 +1922,7 @@ def v1_comments(tid):
     names = user_names(c, [r["user_id"] for r in rows])
     from ..collab.cchoice import lv_with_choices
     ds = lv_with_choices(c, tid, rows, with_replies(c, "c", with_reactions(c, [{**comment_dict(r, atts), "task_id": tid} for r in rows])))
+    cmt_intents(rows, ds)  # (#7534)
     return jsonify(data=[v1_comment(c, d, names) for d in ds], next_cursor=None)
 
 
@@ -1929,7 +1932,7 @@ def v1_comment_create(tid):
     v1_args(())
     b = v1_json()
     # 2.2.1 (#359): 400 unknown_field; 2.33.0 (#1076): reply_to; 2.41.0 (#1383): choices / multi / approval / expires_in
-    reject_unknown(b, ("body", "suggestion", "reply_to", "choices", "multi", "approval", "expires_in", "portal", "client_ref", "mail_reporter"))  # 2.63.0 B (#1513): + portal; 2.370.2 (#3088): + client_ref; 2.393.2 B (#3375): + mail_reporter
+    reject_unknown(b, ("body", "suggestion", "reply_to", "choices", "multi", "approval", "expires_in", "portal", "client_ref", "mail_reporter", "intent"))  # (#7534): + intent  # (#1513): + portal; (#3088): + client_ref; (#3375): + mail_reporter
     if not isinstance(b.get("body"), str):
         raise BadInput(tr("Expected {0}", '{"body": "..."}'))
     ref = b.get("client_ref")
@@ -1956,7 +1959,7 @@ def v1_comment_create(tid):
             t = c.execute("SELECT title, list_id FROM tasks WHERE id=?", (tid,)).fetchone()
             need_approval(c, N_("Answer the reporter of the task “{0}” by e-mail"), (t["title"][:80],), list_id=t["list_id"], task_id=tid)
     j = v1_call(comment_create, tid, body={"body": b["body"], **{k: b[k] for k in ("suggestion", "reply_to", "choices", "multi", "approval",
-                                                                                    "expires_in", "portal", "client_ref", "mail_reporter") if k in b}})
+                                                                                    "expires_in", "portal", "client_ref", "mail_reporter", "intent") if k in b}})
     # 2.392.0 B (#3364): partial = what the comment command "partly: rest in Y" did (or why not)
     return jsonify({**v1_comment(c, {**j, "task_id": tid}, user_names(c, [me()])), **({"partial": j["partial"]} if j.get("partial") else {}),
                     **({"mail_reporter": j["mail_reporter"]} if j.get("mail_reporter") else {})}), 200 if again else 201  # 2.393.2 B (#3375)

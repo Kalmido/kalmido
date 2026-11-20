@@ -242,7 +242,7 @@ WEB_LIST_EDIT |= {"ticket_key"}  # 2.390.0 (#3353): the project's ticket key (ow
 WEB_LIST_EDIT |= {"po_number"}  # #6945: the project's PO number (owner / list admins)
 WEB_LIST_EDIT |= {"expect_updated_at"}  # 2.657.0 (#5052): the version of the project's settings read (lists/lists.py lv_check)
 WEB_LIST_EDIT |= {"props"}  # 2.412.0 (#3552): properties against the project type (owner / project admins)
-WEB_COMMENT = frozenset({"body", "suggestion", "reply_to", "choices", "multi", "approval", "expires_in", "mentions", "client_ref", "mail_reporter"})  # 2.393.2 B (#3375): mail_reporter  # 2.64.1 (#1817): mentions  # 2.33.0 (#1076): reply_to; 2.41.0 (#1383): choices
+WEB_COMMENT = frozenset({"body", "suggestion", "reply_to", "choices", "multi", "approval", "expires_in", "mentions", "client_ref", "mail_reporter", "intent"})  # (#7534): intent  # (#3375): mail_reporter  # (#1817): mentions  # (#1076): reply_to; (#1383): choices
 WEB_COMMENT |= {"portal"}  # 2.63.0 B (#1513): an answer the customer sees
 
 
