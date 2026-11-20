@@ -50,7 +50,7 @@ const bfbBooksStale = () => {
 async function bnkGet() {
   const q = 'state=' + BNK.state, imp = !!BNK.showImp; BNK.q = q;
   const [j, im] = await Promise.all([api('GET', '/api/office/bank/tx?' + q), imp ? api('GET', '/api/office/bank/imports').catch(x => ({err: ofcErrHere(x)})) : null]);
-  return () => { if (BNK.q !== q) return; BNK.data = j; BNK.err = null; if (im) { BNK.imports = im.items || []; BNK.impErr = im.err || null; } };  // 2.1076.0 (#5450): a failure is no "No imports yet"
+  return () => { if (BNK.q !== q) return; BNK.data = j; BNK.err = null; if (im) { BNK.imports = im.items || []; BNK.impErr = im.err || null; } };  // (#5450): a failure is no "No imports yet"
 }
 const bnk_norc = () => typeof BNR === 'object' && BNK.state === 'norc';
 const bnk_refetch = () => ofcRefetch('bank', ofcTab() === 'bank' && !!BNK.data && !bnk_norc(), bnkGet, () => { BNK.data = null; });

@@ -11,7 +11,7 @@ async function lbGet(all) {
   const base = all || !LB.base ? await api('GET', '/api/office/vehicles') : LB.base, act = base.vehicles.filter(v => !v.archived);
   const vid = base.vehicles.some(v => v.id === LB.vid) ? LB.vid : (act[0] || base.vehicles[0])?.id || null, y = lbYear();
   const q = `year=${y}` + (vid ? `&vehicle_id=${vid}` : '');
-  const j = vid ? await api('GET', '/api/office/drives?' + q) : null;  // 2.152.0 C (#2169): + closed
+  const j = vid ? await api('GET', '/api/office/drives?' + q) : null;  // (#2169): + closed
   const rep = LB.view === 'report' ? await api('GET', `/api/office/logbook/report?year=${y}`) : null;
   return () => { LB.base = base; LB.vid = vid; LB.rep = rep; LB.err = null; if (j) { LB.drives = j.drives; LB.closed = j.closed || []; LB.q = q; } };
 }
