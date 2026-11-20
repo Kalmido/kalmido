@@ -3314,7 +3314,8 @@ body.in-chat #top{display:none}
 /* (#7556): Settings > Company & office - one tab per office (Private, each organisation), the workspace's symbol and colour */
 .bizsp{display:flex;gap:.375rem;overflow-x:auto;padding:.125rem 0 .5rem;margin:0 0 .5rem;border-bottom:1px solid var(--line);scrollbar-width:thin}
 .bizspt{display:inline-flex;align-items:center;gap:.375rem;flex:none;padding:.375rem .75rem;border:1px solid var(--line2);border-radius:999px;background:none;color:var(--text);font:inherit;cursor:pointer;white-space:nowrap}
-.bizspt.on{background:var(--wsp,var(--bg3,var(--bg2)));border-color:var(--wsp,var(--acc));font-weight:600}
+.bizspt[data-wsc] .orgini{background:var(--wsc);color:var(--bg)}
+.bizspt.on{background:var(--bg3,var(--bg2));border-color:var(--wsc,var(--accent));box-shadow:inset 0 -.1875rem 0 var(--wsc,var(--accent));font-weight:600}
 @media (pointer:coarse){ .bizspt{min-height:2.75rem} }
 /* helper texts behind (i): the button next to its heading / label, the shared tooltip */
 .shint.iisrc{display:none}
