@@ -2746,8 +2746,27 @@ CREATE OR REPLACE TRIGGER kalmido_revoked_app_passwords AFTER DELETE ON app_pass
 # folder also goes when it is merged or dissolved, its content lives on); a merge takes its losers off the list. made = the
 # row's created_at: ids are given out again after a restore. Function re-created, trigger checked on every start.
 # 2.1095.0 (#5306): made in the canonical form whether created_at is TEXT or TIMESTAMPTZ (to_jsonb carries the session's zone).
-PURGED_TABLES = ("orgs", "lists", "tasks", "fs_nodes", "wiki_pages", "events", "sheets", "contacts", "clients", "hub_mails", "office_deals")
-PURGED_TRIGGER = """CREATE OR REPLACE FUNCTION kalmido_purged_note() RETURNS trigger LANGUAGE plpgsql AS $fn$
+# #6357 (decided 16.11.2026, variant A): the list is no longer kept by hand -- core/objparts.py purged_tables() = PURGED_BASE
+# (the tables with a delete way of their own in admin/backup.py bkr_purged_drop, the big ones first) + the table of every
+# kind registered with trash_prune (obj_register / ofk_register / part_kind: everything that has a trash) + PURGED_EXTRA (no
+# trash, but deleted for good by a person: absences / sick notes, the bookings of outsiders). core/db.py init_db puts the
+# trigger on each of them (purged_trigger); tests/p6357_restore_test.py is the guard that no trash kind is missing.
+PURGED_BASE = ("orgs", "lists", "tasks", "fs_nodes", "wiki_pages", "events", "sheets", "contacts", "clients", "hub_mails", "office_deals")
+PURGED_EXTRA = ("hub_absences", "appt_bookings")
+
+
+def purged_made_sql(j):
+    """#6357: the made-at time of a row in the canonical form of purged_rows.made, from its jsonb j (the trigger's
+    to_jsonb(OLD); admin/backup.py compares a restored row by the same text, whatever the type of its created_at)."""
+    return (f"CASE WHEN COALESCE({j}->>'created_at', '') ~ '^[0-9]{{4}}-[0-9][0-9]-[0-9][0-9]' "
+            f"AND pg_input_is_valid({j}->>'created_at', 'timestamptz') "
+            f"THEN to_char(({j}->>'created_at')::timestamptz AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"+00:00\"') "
+            f"ELSE COALESCE({j}->>'created_at', '') END")
+
+
+def purged_trigger(tables):
+    """#6357: the function + one trigger per table of tables (core/objparts.py purged_tables)."""
+    return """CREATE OR REPLACE FUNCTION kalmido_purged_note() RETURNS trigger LANGUAGE plpgsql AS $fn$
 BEGIN
   IF TG_OP = 'INSERT' THEN
     DELETE FROM purged_rows WHERE tbl=TG_TABLE_NAME AND ref_id=NEW.id;
@@ -2759,15 +2778,12 @@ BEGIN
     END IF;
   END IF;
   INSERT INTO purged_rows(tbl, ref_id, made, at)
-    VALUES (TG_TABLE_NAME, OLD.id, CASE WHEN COALESCE(to_jsonb(OLD)->>'created_at', '') ~ '^[0-9]{4}-[0-9][0-9]-[0-9][0-9]'
-              AND pg_input_is_valid(to_jsonb(OLD)->>'created_at', 'timestamptz')
-            THEN to_char((to_jsonb(OLD)->>'created_at')::timestamptz AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"+00:00"')
-            ELSE COALESCE(to_jsonb(OLD)->>'created_at', '') END, to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"+00:00"'))
+    VALUES (TG_TABLE_NAME, OLD.id, """ + purged_made_sql("to_jsonb(OLD)") + """, to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"+00:00"'))
     ON CONFLICT (tbl, ref_id) DO UPDATE SET made=excluded.made, at=excluded.at;
   RETURN NULL;
 END $fn$;
 """ + ";\n".join(f"CREATE OR REPLACE TRIGGER kalmido_purged_{t} AFTER INSERT OR DELETE ON {t} FOR EACH ROW EXECUTE FUNCTION kalmido_purged_note()"
-                 for t in PURGED_TABLES)
+                 for t in tables)
 # 2.390.0 (#3353): the running ticket number of a task in a project with a key (lists.ticket_key). Every way a task is
 # made or moves (app, API, import, agents, rules) passes here: a new task in such a project gets the next number
 # (list_ticket_seq), a task that leaves its project keeps its old key as an alias (task_keys) and gets a new number in the
