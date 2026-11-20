@@ -31,7 +31,7 @@ from ..core.config import app, APP_VERSION, DATABASE_URL
 from ..core.db import connect, db, gset, gsetting, iso, now_utc
 from ..core.db import db_log_err  # 2.239.0 B (#2888): no values of database errors in the log
 from ..core.undogroups import undo_count  # 2.747.0 (#5249): GET /api/admin/retention
-from ..core.longslots import LONG_SLOTS, long_slots
+from ..core.longslots import KIND_RESERVE, LONG_SLOTS, long_slots
 from ..core.pg import POOL_MAX_ALL, WEB_PROC, WEB_PROCS, WEB_THREADS, WEB_THREADS_ALL, connect_direct, pool_stats
 from ..core.reqtime import rt_stats
 from ..accounts.session import _BG_TURN, GATE
@@ -265,7 +265,7 @@ def wrk_health(c):
             "threads": {"configured": WEB_THREADS, "busy": busy["n"], "peak": busy["peak"], "served": busy["served"],
                         "since_s": int(time.time() - busy["since"]),
                         # (#6408): the one budget of long requests (agent long-polls, hosted MCP, assistant) and its places taken
-                        "long": {"budget": LONG_SLOTS, "taken": long_slots()}},
+                        "long": {"budget": LONG_SLOTS, "per_kind": LONG_SLOTS - KIND_RESERVE, "taken": long_slots()}},
             "pool": pool_stats(), "connections": wrk_conn_budget(c),
             "requests": rt_stats(),  # 2.149.0 B (#2504): p50 / p95 / max of the last 1000 requests
             "queue": bgj_counts(c)}  # 2.193.0 D (#2220): the rows of bg_jobs per state (numbers only)
