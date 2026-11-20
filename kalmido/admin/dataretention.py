@@ -36,6 +36,7 @@ from ..core.config import ATT_DIR  # 2.369.5 (#2517): pulled up from functions
 from ..files.store import FS_VERSIONS_KEEP  # 2.369.5 (#2517): pulled up from functions
 from ..integrations.mail import MAIL_OUT_ON, mail_send  # 2.1062.0 (#5786): passed down to oinv_expire (accounts stands below)
 from ..accounts.orginvite import oinv_expire, ojn_purge  # 2.1005.0 (#5118): expired organisation invitations; 2.1062.0 (#5786): never used accounts
+from ..accounts.sessions import ses_end  # (#6500): sessions end with their push subscriptions
 from ..accounts.cinvite import cinv_purge  # 2.1191.0 (#4550): a person's invitation links, used / taken back / run out
 
 # 2.239.0 D (#2874): file store nodes that are office records (receipts assigned or not, filed letters, cash book / equipment /
@@ -144,9 +145,8 @@ def lgc_expired(c, now):
     gone = iso(now - timedelta(days=LGC_REVOKED_DAYS))
     out = {}
     for name, sql, args in (
-            ("sessions", "DELETE FROM sessions WHERE expires_at<?", (iso(now),)),
-            # 2.190.0 A (#1991): push subscriptions of sessions that are gone ('' = made before 2.115, unknown session: stay)
-            ("push_subs", "DELETE FROM push_subs WHERE session_hash<>'' AND session_hash NOT IN (SELECT token_hash FROM sessions)", ()),
+            # (#6500): sessions that ran out, with their push subscriptions - accounts/sessions.py ses_end, the one way
+            ("sessions", lambda: ses_end(c, None, expired=now), ()),
             ("api_tokens", "DELETE FROM api_tokens WHERE expires_at IS NOT NULL AND expires_at<?", (old,)),
             ("oauth_grants", "DELETE FROM oauth_grants WHERE revoked_at<? OR (revoked_at IS NULL AND refresh_expires_at<?)", (gone, gone)),
             ("revoked_creds", "DELETE FROM revoked_creds WHERE exp<?", (gone,)),  # 2.674.0 (#4028): rows without exp stay
@@ -156,7 +156,7 @@ def lgc_expired(c, now):
             # move back is over (TMM_KEEP_H / FSM_KEEP_H = 24 h; two days to be safe)
             ("move_memos", "DELETE FROM space_moves WHERE kind IN ('task','list','files','orgleave') AND at<?", (iso(now - timedelta(days=2)),))):
         with c.savepoint():
-            out[name] = c.execute(sql, args).rowcount or 0
+            out[name] = sql() if callable(sql) else (c.execute(sql, args).rowcount or 0)
     try:
         with c.savepoint():
             out["org_joins"] = ojn_purge(c, now)

@@ -19,13 +19,13 @@ LAYERS = (
     ("integrations", ("integrations", "api", "admin", "paperless", "newsletter")),
     ("agents", ("agents", "assistant", "startup")),
 )
-LAYER_OF = {"api.common": "core", "accounts.orgback": "domain",
+LAYER_OF = {"api.common": "core",
             "core.objects": "domain", "core.writes": "domain", "core.objlight": "domain", "core.objnotify": "domain", "core.objcomments": "domain", "core.objsearch": "domain", "core.objwords": "domain", "core.objweb": "integrations", "core.objcmtweb": "integrations", "core.objlinks": "domain", "core.objlinkweb": "integrations",
             "core.undoweb": "domain",  # 2.747.0 (#5249): the step groups' routes stand on the write path
             "core.undoareas": "domain",  # 2.777.0 (#5254): the areas' undo steps stand on the write path
             "core.addrshare": "domain",  # 2.1071.0 (#5658): the open shares by address replay the areas' share routes
             "tasks.repo": "core",  # 2.1358.0 (#6825): the one way into tasks; core, onboarding and every area create tasks with it
-            "docs.mailnamed": "integrations", "agents.apvdiff": "domain"}  # 2.1034.0 (#5304): admin.migrate (the move from SQLite) is gone; 2.149.0 G (#2517): the v1 helpers are infrastructure; 2.365.1 (#3395): orgback calls every area; 2.558.0 (#4709): the shared core stands on the file store and accounts, its routes on the API
+            "docs.mailnamed": "integrations", "agents.apvdiff": "domain"}  # (#5304): admin.migrate (the move from SQLite) is gone; (#2517): the v1 helpers are infrastructure; (#4709): the shared core stands on the file store and accounts, its routes on the API
 
 ORDER = (
     "core.env",  # 2.149.0 D (#2511): the registry of the environment variables (no imports from the app)
@@ -354,7 +354,6 @@ ORDER = (
     "accounts.supportgrant",  # 2.485.0 (#3939): support access the client grants (hosted)
     "accounts.orginvite",  # 2.115.0 B (#2062): organisation admins invite accounts by e-mail
     "accounts.orgleave",  # 2.361.0 (#2920 / #2922): what leaving / deleting an organisation means for its members
-    "accounts.orgback",  # 2.365.1 (#3395): what a person brought in goes back with their leaving (no routes)
     "family.family",
     "family.web",
     "family.pin",  # 2.49.0 B (#1551)

@@ -62,23 +62,31 @@ def ses_touch(c, token_hash):
         c.commit()  # only the session row is written so far in this request
 
 
-def ses_end(c, uid, hashes=None, keep=None):
-    """Ends sessions and the push subscriptions made in them. uid: the account (None = by the hashes alone, the logout);
-    hashes: the token hashes to end (None = every session of uid); keep: a token hash that stays. The caller commits.
-    Returns the number of sessions ended."""
-    q, a = "SELECT token_hash, user_id FROM sessions WHERE 1=1", []
+def ses_end(c, uid, hashes=None, keep=None, expired=None):
+    """THE way a session ends on the server (#6500): the sessions and the push subscriptions made in them, in one place for
+    every caller (a logout, "end the others", a new password, a disabled account, start_session, the clean-up of
+    admin/dataretention.py, a backup restore). uid: the account (None = by the hashes alone, or every account); hashes: the
+    token hashes to end (None = every session of uid); keep: a token hash that stays; expired: a time - only the sessions
+    that ran out before it, and the subscriptions whose session is gone already (a sign-in of before #6500 left them).
+    '' = a subscription bound to no session (a proxy login, from before 2.115): stays. The send asks the same
+    (notify/push.py webpush_user: only subscriptions of a living session). The caller commits. Returns the sessions ended."""
+    w, a = "TRUE", []
     if uid is not None:
-        q, a = q + " AND user_id=?", a + [uid]
+        w, a = w + " AND user_id=?", a + [uid]
     if hashes is not None:
         hashes = [h for h in hashes if h]
         if not hashes:
             return 0
-        q, a = q + " AND token_hash IN (" + ",".join("?" * len(hashes)) + ")", a + hashes
-    rows = [r for r in c.execute(q, a).fetchall() if r["token_hash"] != keep]
-    for r in rows:
-        c.execute("DELETE FROM sessions WHERE token_hash=?", (r["token_hash"],))
-        c.execute("DELETE FROM push_subs WHERE user_id=? AND session_hash=? AND session_hash!=''", (r["user_id"], r["token_hash"]))
-    return len(rows)
+        w, a = w + " AND token_hash IN (" + ",".join("?" * len(hashes)) + ")", a + hashes
+    if keep:
+        w, a = w + " AND token_hash<>?", a + [keep]
+    if expired is not None:
+        w, a = w + " AND expires_at<?", a + [iso(expired)]
+    c.execute(f"DELETE FROM push_subs WHERE session_hash<>'' AND session_hash IN (SELECT token_hash FROM sessions WHERE {w})", a)
+    n = c.execute(f"DELETE FROM sessions WHERE {w}", a).rowcount or 0
+    if expired is not None:
+        c.execute("DELETE FROM push_subs WHERE session_hash<>'' AND NOT EXISTS (SELECT 1 FROM sessions s WHERE s.token_hash=push_subs.session_hash)")
+    return n
 
 
 SES_ACCESS_END = []  # #6498 #6499: fn(c, uid) of higher layers run by ses_access_end always (docs/scankeys.py sk_revoke_all)

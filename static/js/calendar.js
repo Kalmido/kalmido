@@ -304,7 +304,7 @@ function cevPop(anchor, id) {
     <div class="cevh"><i class="cevdot"></i><b>${esc(cevTitle(e))}</b></div>
     <div class="cevm">${ic('clock', 's')}<span>${esc(cevWhen(e))}</span></div>
     ${e.location ? `<div class="cevm">${ic('mappin', 's')}<span>${esc(e.location)}</span></div>` : ''}
-    <div class="cevm">${ic('cal', 's')}<span>${esc(cevCal(e))} · ${tr('read-only')}</span></div>
+    <div class="cevm">${ic('cal', 's')}<span>${esc(cevCal(e))} · ${tr('read-only')}</span>${/*html-ok*/ cvxTodayBtn(e) /* a button of fixed texts, its values through esc() */}</div>
     ${cevStale(e) ? `<div class="cevm cevstale">${ic('alert', 's')}<span>${esc(cevStale(e))}</span></div>` : '' /* (#6551) */}
     ${desc ? `<div class="cevdesc">${cevLinkify(desc)}${e.description.length > 2000 ? '…' : ''}</div>` : ''}
     ${abcX(e) ? '' : `<div class="cevact"><button class="btn sm" data-cevtask>${ic('plus', 's')} ${tr('Create task from event')}</button></div>`}</div>`);  // 2.155.0 B (#2076)
@@ -521,8 +521,19 @@ function cvxTodayItems() {
     {label: tr('Calendars…'), icon: 'cal', fn: evCalsModal}].filter(Boolean);
 }
 function cvxTodayMenu(anchor) { menu(anchor, cvxTodayItems()); }
-// 2.800.0 (#5460): "Hide on Today" left the event's window (2.443.0 #3740): it switches the whole calendar, so it lives where the
-// calendars are named - the window Calendars (column Today) and the "…" of "Events today" (cvxTodayItems, one entry per calendar)
+// (#3740, decided 30.10.; back with #6841 after #5460 took it out): the switch in an event's window, only "Events today"
+// (the calendar view and planning stay); also in the window Calendars (column Today) and the "…" of "Events today"; '' = no calendar
+function cvxTodayBtn(e) {
+  const k = cvxKey(e);
+  if (!/^([es]:\d+|x:(hol|abs|team))$/.test(k)) return '';
+  const off = cvxList('today_cals_hidden').includes(k);
+  return `<button type="button" class="btn sm cvxthide" data-act="cvx-today-flip" data-key="${esc(k)}" data-name="${esc(cevCal(e))}">${ic(off ? 'eye' : 'eyeoff', 's')} ${off ? tr('Show on Today') : tr('Hide on Today')}</button>`;
+}
+async function cvxTodayFlip(key, name, off = !cvxList('today_cals_hidden').includes(key)) {
+  await cvxOff('today_cals_hidden', key, off);
+  renderView();
+  toast(off ? tr('“{0}” is hidden on Today', name) : tr('“{0}” is shown on Today', name), () => cvxTodayFlip(key, name, !off));
+}
 // the day plan dialog (#956): a fold-out "Calendars" line, each switch = counts as busy when planning (also for an agent)
 function cvxPlanRow(open) {
   const cs = cvxVisibleCals(); if (!cs.length) return '';

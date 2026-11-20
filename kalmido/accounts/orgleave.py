@@ -1,10 +1,9 @@
 """2.361.0 (#2920 / #2922): what leaving or deleting an organisation means for its members -- before it happens.
 
-- Leaving (or being removed): GET /api/orgs/<oid>/leave-info[?uid=<member>] = the projects the person brought in from their
-  private space (they go back there, org_leave), 2.365.1 (#3395) the numbers of what else goes back (back_counts, back_text,
-  accounts/orgback.py) and of what they brought in but cannot go by itself (kept), the projects / calendars / address books
-  that go to an admin, what stays in the organisation (files, knowledge pages, tables, office drafts, absences ... counted per
-  area) and the assignments that end.
+- Leaving (or being removed): GET /api/orgs/<oid>/leave-info[?uid=<member>] = the projects / calendars / address books that
+  go to an admin, what stays in the organisation (files, knowledge pages, tables, office drafts, absences ... counted per
+  area) and the assignments that end. Decision #935 (back with #6840): what the person brought in from their private space
+  stays with the organisation too, nothing goes back by itself (the way back is the request to an admin, accounts/orgout.py).
 - Deleting: odl_delete_info (orgs.py) adds per member what they own in it (olv_members); the instance admin may tell the
   members first (POST /api/admin/orgs/<oid>/delete-notice: a News item with the day, the deletion waits until then), and
   every member gets a News item when it is gone (olv_gone_news, kinds orgdelnotice / orggone, no push).
@@ -52,9 +51,6 @@ OLV_STAYS = (
      "SELECT COUNT(*) FROM time_entries WHERE list_id IN (SELECT id FROM lists WHERE org_id=?) AND user_id=?"),
     ("drives", Nn_("{0} drive", "{0} drives"), "SELECT COUNT(*) FROM office_drives WHERE org_id=? AND user_id=? AND deleted_at IS NULL"),
 )
-OLV_FOLDERS = Nn_("{0} folder", "{0} folders")  # 2.365.1 (#3395): back_text
-OLV_AREAS = {}  # 2.365.1 (#3395): preview, home of accounts/orgback.py (a higher layer: it calls every area and enters itself here)
-OLV_BACK = ("files", "folders", "wiki_pages", "tables", "bookmarks", "polls", "videos")
 OLV_NOTICE_DAYS = 14  # the default period between telling the members and the deletion
 OLV_BACK_H = 24  # how long joining again restores assignments and "coming along" (the undo window of the moves)
 
@@ -68,13 +64,10 @@ def _names(c, ids):
             for r in c.execute(f"SELECT id, username, display_name FROM users WHERE id IN ({','.join('?' * len(ids))})", ids)}
 
 
-def olv_stays(c, oid, uid, skip=(), gone=None):
-    """{key: n} of OLV_STAYS for uid in oid (zeros left out). skip: keys not to count. 2.365.1 (#3395): gone = {key: ids} that
-    do not stay (they go back private)."""
-    gone = gone or {}
+def olv_stays(c, oid, uid, skip=()):
+    """{key: n} of OLV_STAYS for uid in oid (zeros left out). skip: keys not to count."""
     with system_ctx(c):  # numbers only
-        out = {k: c.execute(sql + " AND id != ALL(?)", (int(oid), int(uid), list(gone[k]))).fetchone()[0] if gone.get(k)
-               else c.execute(sql, (int(oid), int(uid))).fetchone()[0] for k, _w, sql in OLV_STAYS if k not in skip}
+        out = {k: c.execute(sql, (int(oid), int(uid))).fetchone()[0] for k, _w, sql in OLV_STAYS if k not in skip}
     return {k: v for k, v in out.items() if v}
 
 
@@ -83,29 +76,19 @@ def olv_text(counts):
     return ", ".join(trn(*w, counts[k]) for k, w, _s in OLV_STAYS if counts.get(k))
 
 
-def olb_text(counts):
-    """"3 files, 1 folder, 2 tables" (translated) of what goes back (olb_preview)."""
-    words = {k: w for k, w, _s in OLV_STAYS} | {"folders": OLV_FOLDERS}
-    return ", ".join(trn(*words[k], counts[k]) for k in OLV_BACK if counts.get(k))
-
-
 def olv_info(c, oid, uid, heir):
-    """What uid leaving oid means (heir = who gets their projects, calendars, address books): back (names of the projects
-    uid brought in, they go back private), to_heir {lists, calendars, books}, heir (name), stays + stays_text, assigned."""
+    """What uid leaving oid means (heir = who gets their projects, calendars, address books): to_heir {lists, calendars,
+    books}, heir (name), stays + stays_text, assigned. (#6840): brought in or made there, every project of the organisation's
+    area goes to the heir (decision #935)."""
     with system_ctx(c):
-        lists = c.execute("SELECT id, name, brought_by, deleted_at FROM lists WHERE owner_id=? AND org_id=? AND NOT is_inbox ORDER BY name",
-                          (uid, oid)).fetchall()
-        back = [x["name"] for x in lists if x["brought_by"] == uid and not x["deleted_at"]]
-        given = sum(1 for x in lists if not (x["brought_by"] == uid and not x["deleted_at"]))
+        given = c.execute("SELECT COUNT(*) FROM lists WHERE owner_id=? AND org_id=? AND NOT is_inbox", (uid, oid)).fetchone()[0]
         cals = c.execute("SELECT COUNT(*) FROM ev_cals WHERE owner_id=? AND org_id=?", (uid, oid)).fetchone()[0]
         books = c.execute("SELECT COUNT(*) FROM books WHERE owner_id=? AND org_id=?", (uid, oid)).fetchone()[0]
         assigned = c.execute("SELECT COUNT(*) FROM tasks WHERE assignee_id=? AND deleted_at IS NULL AND list_id IN "
                              "(SELECT id FROM lists WHERE org_id=? AND owner_id!=?)", (uid, oid, uid)).fetchone()[0]
         hname = _names(c, [heir]).get(heir, "") if heir and heir != uid else ""
-    counts, gone, kept = OLV_AREAS["preview"](c, oid, uid)
-    stays = olv_stays(c, oid, uid, gone=gone)
-    return {"back": back, "back_counts": counts, "back_text": olb_text(counts), "kept": kept,
-            "to_heir": {"lists": given if hname else 0, "calendars": cals if hname else 0, "books": books if hname else 0},
+    stays = olv_stays(c, oid, uid)
+    return {"to_heir": {"lists": given if hname else 0, "calendars": cals if hname else 0, "books": books if hname else 0},
             "heir": hname, "stays": stays, "stays_text": olv_text(stays), "assigned": assigned}
 
 

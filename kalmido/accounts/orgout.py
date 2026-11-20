@@ -82,7 +82,7 @@ def org_out(c, oid, to_oid, kind, name, list_id=None, obj=None, uid=None):
     to_oid (None = private). Nothing to do when oid is no organisation or the target is the same one; else 403 for anybody
     but an admin of oid, and for an admin: log + News to the other admins (the caller commits). 2.361.2 (#2923): obj = the
     id(s) of what goes (kind of OO_KINDS): a member's released request for each of them lets it go private (used up here).
-    2.657.0 (#4828): uid = who moves it (the core's obj_space_set passes its uid); None = the signed-in person (me())."""
+    (#4828): uid = who moves it (the core's obj_space_set passes its uid); None = the signed-in person (me())."""
     real = _org_name(c, oid, to_oid)
     who = me() if uid is None else uid
     if real is None:
@@ -99,12 +99,12 @@ def org_out(c, oid, to_oid, kind, name, list_id=None, obj=None, uid=None):
     oo_note(c, oid, real, kind, name, list_id, to="org" if to_oid else "private", released=bool(grants), uid=who)
 
 
-def oo_note(c, oid, real, kind, name, list_id=None, to="private", back=False, released=False, uid=None):
+def oo_note(c, oid, real, kind, name, list_id=None, to="private", released=False, uid=None):
     """The log row (action moveout) and the News to the other admins of a move out of organisation oid (named real).
-    2.361.0 (#2922): back = a list its owner had brought in went back to their private space (accounts/orgs.py org_leave).
-    2.361.2 (#2923): released = a member's released request let it go. 2.657.0 (#4828): uid = who moved it (None: me())."""
+    (#2923): released = a member's released request let it go. (#4828): uid = who moved it (None: me()).
+    (#6840): the leaving takes nothing out any more (decision #935), so no row says "back" (older rows may)."""
     who = me() if uid is None else uid
-    detail = {"kind": kind, "to": to, **({"released": True} if released else {}), **({"back": True} if back else {})}
+    detail = {"kind": kind, "to": to, **({"released": True} if released else {})}
     c.execute("INSERT INTO org_list_log(org_id,list_id,list_name,action,by_id,owner_id,to_id,created_at,detail) VALUES(?,?,?,?,?,?,?,?,?)",
               (oid, list_id, str(name or "")[:200], "moveout", who, None, None, iso(now_utc()), json.dumps(detail)))
     oo_news(c, oo_admins(c, oid, who), {"action": "moveout", "name": str(name or "")[:200], "org": real, "org_id": oid, "kind": kind})  # 2.540.0 (#4383)

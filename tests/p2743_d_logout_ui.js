@@ -16,7 +16,7 @@ const alive = async ck => (await fetch(B + 'api/state', {headers: {...H, Cookie:
 
 // Cache Storage of one browser (jsdom has none): two caches of the app
 function cacheStore() {
-  const m = new Map([['kalmido-a', 1], ['kalmido-b', 1]]);
+  const m = new Map([['tasks-shell-v1', 1], ['tasks-share', 1]]);  // (#6500): the names of the register (icons.js DEV_STORES)
   return {m, api: {keys: async () => [...m.keys()], delete: async k => m.delete(k), open: async () => ({match: async () => undefined, put: async () => {}, keys: async () => []}), match: async () => undefined}};
 }
 const start = async (hash, asked, answer) => {

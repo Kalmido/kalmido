@@ -867,6 +867,8 @@ function swFixIds(body, fix) {
   return b;
 }
 // (#6334 D2a): what the worker sent is in the offline start state too (static/js/offcache.js, database "kalmido-start"):
+// (#6500): it writes only into a record that is there - none without "Stay signed in" or past 14 days (static/js/core.js
+// devCopyOk, the write gate of the offline copies; the record goes with class copy of static/js/icons.js DEV_STORES)
 // a task the answer brings is put in (a new one, a change), a deleted one goes. Before, the next offline start lacked the tasks
 // made offline (the queue had sent them, the state did not know them; made again = twice). ch: [[id, task | null], ...]
 async function swStartFold(ch) {

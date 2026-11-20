@@ -763,7 +763,7 @@ function bkRestore(md, src) {
       try {
         const r = await suApi('POST', '/api/admin/backups/restore', {...(src.upload ? {upload: src.upload} : {name: src.name}), confirm: $('#bkr-word', m).value.trim(), passphrase: $('#bkr-pass', m)?.value || '', keep_purged: !!$('#bkr-keep', m)?.checked}, tr('Restore'));  // 2.360.0 A (#2496): with the step-up
         m.remove(); md.remove();
-        clearLocal();
+        devEnd('restore');  // (#6500): icons.js DEV_END
         const notes = [r.key_warning, ...r.notes || []].filter(Boolean);  // 2.359.3 (#2893): the server key first, in red
         if (notes.length) await askConfirm(tr('Backup restored. Safety backup: {0}', r.safety), notes.join('\n\n'), {ok: tr('Reload'), danger: !!r.key_warning});  // 2.273.0 A (#3051)
         else toast(tr('Backup restored. Safety backup: {0}', r.safety));

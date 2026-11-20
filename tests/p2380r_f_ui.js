@@ -82,11 +82,11 @@ const FEAT = 'cal,comments,collab,contacts,office,clients,docs,agents,fields,dep
     if (await ev(`document.querySelector('#side [data-g="office:money"]').getAttribute('aria-expanded') === 'false'`)) await click(ev, '#side [data-act="sbb-group"][data-g="office:money"]');
     const side = `[...document.querySelectorAll('#side [data-ofmg="money"] [data-ofm]')].map(b => b.dataset.ofm).join()`;
     check(await ready(ev, `!!document.querySelector('#side [data-ofmg="money"] [data-ofm="bank"]')`, 20), '#3411: Money open');
-    const pts = await ev(`[${side}, ofm_hidden().map(i => i.key)].join()`);  // #3560 on the live train: not used yet = under "Hidden"; 2.448.0 (#3784, in main) nothing starts hidden
-    // 2.448.0 (#3784): back to #3411: every point shows although nothing is used yet, no "Show more"
+    const pts = await ev(side), hid = await ev(`ofm_hidden().map(i => i.key).join()`);
+    // #3560 (newer than #3411, back with #6841): not used yet = they start under "Hidden" of the editor; each may show, no "Show more"
     const may = `ofm_avail().map(i => i.key)`;
-    check(['cashflow', 'kpi', 'travel', 'meals'].every(k => pts.split(',').includes(k)) && (await ev(`['cashflow', 'kpi', 'travel', 'meals'].every(k => ${may}.includes(k))`)) && await ev(`!document.querySelector('[data-act="ofm-more"]')`),
-      '#3784: every point of Money shows, no "Show more", although nothing is used yet ' + pts);  // 2.489.0 (#2648): the subscriptions live in the point "Contracts & subscriptions" (agreements)
+    check(['cashflow', 'kpi', 'travel', 'meals'].every(k => !pts.split(',').includes(k) && hid.split(',').includes(k)) && (await ev(`['cashflow', 'kpi', 'travel', 'meals'].every(k => ${may}.includes(k))`)) && await ev(`!document.querySelector('[data-act="ofm-more"]')`),
+      '#3560: every point of Money can show (under Hidden until used), no "Show more" ' + pts + ' / ' + hid);  // 2.489.0 (#2648): the subscriptions live in the point "Contracts & subscriptions" (agreements)
     await shot('p2380rf-money.png');
     // the switches under Settings > Functions
     await nav(B + '#office/settings');

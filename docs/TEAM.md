@@ -852,7 +852,10 @@ Related changes in the same release:
   *All* or *Private* it is private (it no longer lands in the first organisation by itself).
 - The organisation admins' *Projects of the organisation* acts only on the projects it shows (shared with at least one more
   person): a member's unshared project stays theirs, also in the project trash. When a person leaves or is removed, their projects
-  made in the organisation go to an admin (when removing someone, to another active person you choose instead); what they brought in from their private space goes back there with them; that now shows in the dialog's history, and the person is told in their News.
+  of the organisation go to an admin (when removing someone, to another active person you choose instead), also the ones they
+  once brought in from their private space; tables, files, knowledge pages and the rest they brought in stay with the
+  organisation too (#935, again since #6840). Only their private projects stay theirs. To take something along, a member asks
+  an admin to release it before leaving; the person is told in their News.
 - A project that changes its owner gets a new public link (the old one stops working; the new owner shares the new one) and
   its deploy webhooks switch off; the new owner is told in their News.
 

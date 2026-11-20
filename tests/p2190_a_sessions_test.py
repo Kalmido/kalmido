@@ -158,6 +158,45 @@ left = {x["endpoint"] for x in DB.execute("SELECT endpoint FROM push_subs WHERE 
 check("ran" in out and f"{STUB}/push/orphan" not in left and f"{STUB}/push/old" in left and has_sub(se),
       f"#1991: clean-up: a subscription of a gone session goes, '' and live ones stay {left} {out[-300:]}")
 
+# ================================================================== #6500: push only to devices whose session still lives
+E2 = sess("erin")
+s_live = subscribe(E2)
+eh = hashlib.sha256(b"6500-ended-session").hexdigest()
+DB.execute("INSERT INTO sessions(token_hash,user_id,created_at,expires_at) VALUES(?,?,?,?)",
+           (eh, uid["erin"], "2026-01-01T00:00:00+00:00", "2026-01-02T00:00:00+00:00"))
+DB.execute("INSERT INTO push_subs(user_id,endpoint,p256dh,auth,session_hash,created_at) VALUES(?,?,?,?,?,?)",
+           (uid["erin"], f"{STUB}/push/ended6500", "x", "x", eh, "2026-01-01T00:00:00+00:00"))
+out = box("import kalmido.notify.push as P\nP.WEBPUSH_ON = True\nsent = []\n"
+          "P.webpush_send = lambda sub, payload, prio='4', ttl=86400, topic=None: (sent.append(sub['endpoint']) or (201, None))\n"
+          f"P.webpush_user({uid['erin']}, P.webpush_payload('T', 'x', '4'))\nprint('sent', sorted(sent))")
+check(f"{STUB}/push/ended6500" not in out and "/push/a" in out,
+      f"#6500: a push does not go to a subscription whose session ended, the live one gets it {out[-400:]}")
+check(sess("erin") and not DB.execute("SELECT 1 FROM push_subs WHERE endpoint=?", (f"{STUB}/push/ended6500",)).fetchone() and has_sub(s_live)
+      and not DB.execute("SELECT 1 FROM sessions WHERE token_hash=?", (eh,)).fetchone(),
+      "#6500: the next sign-in ends the sessions that ran out together with their subscriptions (sessions.py ses_end); the live one stays")
+R6 = requests.Session()
+R6.headers.update(H)
+r = R6.post(B + "/api/auth/login", json={"username": "erin", "password": "password123", "remember": False})
+check(r.ok and R6.get(B + "/api/me").json().get("remember") is False and R6.get(B + "/api/state").json()["me"].get("remember") is False,
+      f"#6500: without 'Stay signed in' /api/me and /api/state say remember: false (the client keeps no offline copies) {r.text[:200]}")
+check(E2.get(B + "/api/me").json().get("remember") is True and E2.get(B + "/api/state").json()["me"].get("remember") is True,
+      "#6500: with 'Stay signed in' (the default of the login) remember: true")
+# reader F3 / F4 (2.1488): one helper, one column - sessions.remember; a support session never counts as staying signed in
+# (the operator's browser keeps no copy of the client's account); an older session without the column: its length
+out = box("from kalmido.accounts import session as S\nfrom kalmido.core.db import iso, now_utc\nfrom datetime import timedelta\n"
+          f"uid = {uid['erin']}\nres = []\n"
+          "for i, (rem, via, days) in enumerate([(True, 'password', 30), (True, 'support', 7), (None, 'password', 30), (None, 'password', 1), (False, 'link', 30)]):\n"
+          "    tok = f't6500rem{i}'\n"
+          "    c.execute('INSERT INTO sessions(token_hash,user_id,created_at,expires_at,via,remember) VALUES(?,?,?,?,?,?)', "
+          "(S._token_hash(tok), uid, iso(now_utc()), iso(now_utc() + timedelta(days=days)), via, rem))\n"
+          "    res.append(S.session_remember(c, tok))\n"
+          "    c.execute('DELETE FROM sessions WHERE token_hash=?', (S._token_hash(tok),))\n"
+          "print('rem', res)")
+check("rem [True, False, True, False, False]" in out,
+      f"reader F3/F4: remember column first, support never, an older session by its length (more than 25 h) {out[-300:]}")
+check(DB.execute("SELECT remember FROM sessions WHERE token_hash=?", (hashlib.sha256(R6.cookies.get("kalmido_session").encode()).hexdigest(),)).fetchone()[0] in (False, 0),
+      "reader F4: a sign-in without 'Stay signed in' writes sessions.remember = false")
+
 # ================================================================== #2496: tickets per address
 out = box("from kalmido.core.config import app as fa\nfrom kalmido.accounts import login as L\n"
           "with fa.test_request_context('/', environ_base={'REMOTE_ADDR': '198.51.100.7'}):\n"

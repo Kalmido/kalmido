@@ -343,6 +343,9 @@ jobs:
       # #7352 (step 4 of audit #5731): a drop / menu / keyboard path asks the drop core's adapter, not "is this My tasks?" itself
       - name: No new special way of My tasks beside the drop core - tools/drop_core_baseline.json only shrinks (#7352)
         run: python tools/check_drop_core.py -v
+      # #6500: every store of the browser that holds something of an account stands in ONE register (icons.js DEV_STORES)
+      - name: Every store of the browser in the register of the device's data - tools/devstore_baseline.json only shrinks (#6500)
+        run: python tools/check_devstore.py -v
       - name: New columns with real types - TIMESTAMPTZ, BOOLEAN, JSONB (2.755.0, #5305)
         run: python tools/check_coltypes.py
       - name: No new handwritten trash filter - live_sql() of core/access.py; tools/live_filter_baseline.json only shrinks (2.773.0, #5292)

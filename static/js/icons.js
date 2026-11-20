@@ -431,32 +431,76 @@ document.addEventListener('DOMContentLoaded', () => kb_on('first', 'Escape', () 
 document.addEventListener('scroll', () => iiHide(true), true);
 const hintK = t => `<div class="shint keep">${t}</div>`;  // 2.13.0: a helper line that stays inline (security, data loss, a state)
 const kt = (label, keys) => isTouch() ? label : `${label} (${kbText(keys)})`;  // a label with its keyboard shortcut
-// 2.306.0 B (#2889): tasks.cwins (the open chat windows) no longer stays
-const LS_KEEP = new Set(['tasks.theme', 'tasks.i18n', 'tasks.density', 'tasks.densitySide', 'tasks.densityRows', 'tasks.densSideV', 'tasks.densRowsV', 'tasks.fsize', 'tasks.font', 'tasks.accent', 'tasks.chatHuman', 'tasks.chatAgent', 'tasks.railLabels', 'tasks.accentMig280', 'tasks.pw.det', 'tasks.pw.chat', 'tasks.sideGroups', 'tasks.agband', 'tasks.sideFold', 'tasks.mdOpen', 'tasks.pack', 'tasks.headShow', 'tasks.rings', 'tasks.lookLocal', 'tasks.pwaHint', 'tasks.vmode']);  // 2.310.0 (#3270): + the view of this device; 2.143.0 C (#2153): + the install hint (per device); 2.83.0 C (#1427): + theme, header pictures, rings
-// 2.1378.0 (#6513): THE rule which localStorage keys signing out (clearLocal) wipes -- extend it here, nowhere else: every tasks.*
-// and kalmido.* key with content of the account or its work (kalmido.dlgsize.* dialog sizes, kalmido.amv.undo.<id> the undo rest
-// of the receipt assignment, kalmido.xd the drag token, ...) and the old guest name of the public sign-off page (vdr-name); the
-// device's own look and choices (LS_KEEP) and LS_KEEP_DEVICE stay
-const LS_KEEP_DEVICE = new Set(['kalmido.logoutPending']);  // 2.743.0 (#4284): the sign-out the server did not hear yet (account.js lgo_pending)
-const LS_WIPE_KEYS = new Set(['vdr-name']);
-const lsWiped = k => !!k && (LS_WIPE_KEYS.has(k) || (k.startsWith('tasks.') && !LS_KEEP.has(k)) || (k.startsWith('kalmido.') && !LS_KEEP_DEVICE.has(k)));
-function clearLocal() {
+// ------------------------------------------------------------------ data of the account on this device (#6500)
+// docs/dev/kern.md "Data of the account on this device". Every store of this browser that holds something of an account is
+// an entry of DEV_STORES with its class; tools/check_devstore.py is red for an indexedDB.open / caches.open / storage key no
+// entry covers. A new store or a new "this must stay" is one line here, never a list at an event. The classes:
+//   own     not sent yet: the queue (tasks.outbox, kalmido-outbox, the quick add's offline files kalmido-qfiles, files shared
+//           into the app tasks-share), the conflict copies, kept input (core.js FD_KINDS), the account mark tasks.uid, the
+//           ids of tasks made offline (tasks.idmap*)
+//   copy    the offline copies of the account's data: the start state (kalmido-start, its old localStorage form tasks.cache),
+//           the knowledge pages' copy (kalmido-wiki) and their one stamp tasks.wko; written only while devCopyOk (core.js)
+//   view    the rest of the account in this browser: every other tasks.* / kalmido.* key (vdr-name: the old guest name of the
+//           public sign-off page), the session's keys in sessionStorage, the Cache Storage of the app
+//   secret  the remembered keys (kalmido-e2e with the keys in memory, e2e.js) and this browser's push subscription
+//   device  this device's own look and choices (LS_KEEP), the sign-out the server did not hear yet, the reload guards: stay
+// A name ending in '.' or '-' is a prefix; the longest one that fits decides.
+const LS_KEEP = new Set(['tasks.theme', 'tasks.i18n', 'tasks.density', 'tasks.densitySide', 'tasks.densityRows', 'tasks.densSideV', 'tasks.densRowsV', 'tasks.fsize', 'tasks.font', 'tasks.accent', 'tasks.chatHuman', 'tasks.chatAgent', 'tasks.railLabels', 'tasks.accentMig280', 'tasks.pw.det', 'tasks.pw.chat', 'tasks.sideGroups', 'tasks.agband', 'tasks.sideFold', 'tasks.mdOpen', 'tasks.pack', 'tasks.headShow', 'tasks.rings', 'tasks.lookLocal', 'tasks.pwaHint', 'tasks.vmode']);  // (#3270): + the view of this device; (#2153): + the install hint (per device); (#1427): + theme, header pictures, rings
+const DEV_STORES = [  // [kind (ls localStorage | ss sessionStorage | idb IndexedDB | cache Cache Storage | push), name, class]
+  ['ls', 'tasks.', 'view'], ['ls', 'kalmido.', 'view'], ['ls', 'vdr-name', 'view'],
+  ['ls', 'tasks.outbox', 'own'], ['ls', 'tasks.conflicts', 'own'], ['ls', 'tasks.uid', 'own'], ['ls', 'tasks.idmap', 'own'], ['ls', 'tasks.idmapAt', 'own'],
+  ['ls', 'tasks.cache', 'copy'], ['ls', 'tasks.wko', 'copy'],
+  ...[...LS_KEEP].map(k => ['ls', k, 'device']), ['ls', 'kalmido.logoutPending', 'device'],  // (#4284): account.js lgo_pending
+  ['ss', 'rck-stepup', 'view'], ['ss', 'kalmido-tour-', 'view'], ['ss', 'kalmido.rcl.', 'view'],
+  ['ss', 'kalmido-reloaded', 'device'], ['ss', 'kalmido.booted', 'device'], ['ss', 'kalmido-mwn', 'device'], ['ss', 'kalmido.epv', 'device'], ['ss', 'kalmido-suimport', 'device'],
+  ['idb', 'kalmido-outbox', 'own'], ['idb', 'kalmido-qfiles', 'own'], ['idb', 'kalmido-start', 'copy'], ['idb', 'kalmido-wiki', 'copy'], ['idb', 'kalmido-e2e', 'secret'],
+  ['cache', 'tasks-share', 'own'], ['cache', 'tasks-shell-', 'view'],
+  ['push', 'subscription', 'secret'],
+];
+// THE table: which event ends which classes. Every place that ends an account's time on this device calls devEnd(why) and
+// nothing else (the question before, the download of the waiting changes, leaving the page stay with the caller).
+const DEV_END = {
+  logout: ['own', 'view', 'copy', 'secret'],   // account.js logout (waiting changes: asked first, a copy downloaded)
+  switch: ['own', 'view', 'copy', 'secret'],   // core.js userSwitch: another account in this browser (asked first the same way)
+  restore: ['own', 'view', 'copy', 'secret'],  // acctset.js: a backup restored
+  gone: ['view', 'copy', 'secret'],            // core.js authGone: the session ended (401 on any route); own changes wait for the next sign-in
+  mark: ['copy'],                              // core.js sessGuard / the offline start: another sign-in mark, 14 days without an online sync, no "Stay signed in"
+};
+// the drop of a store that is no key: a module brings its own (devDrop: offcache.js, wiki.js, e2e.js, setcore.js, core.js);
+// without one (the module not loaded) the database / the cache goes as a whole
+const DEV_DROP = {};
+const devDrop = (name, fn) => { DEV_DROP[name] = fn; };
+const devIdbDel = name => new Promise(ok => { try { const r = indexedDB.deleteDatabase(name); r.onsuccess = r.onerror = r.onblocked = () => ok(); } catch { ok(); } });
+const devFits = (k, n) => k === n || (/[.-]$/.test(n) && k.startsWith(n));
+// the class of a key / a name of a kind (null = not the account's: another app on this origin)
+function devCls(kind, k) {
+  let best = null;
+  for (const [kd, n, c] of DEV_STORES) if (kd === kind && k && devFits(k, n) && (!best || n.length > best[0].length)) best = [n, c];
+  return best ? best[1] : null;
+}
+async function devCacheDel(name) { if (typeof caches === 'undefined') return; for (const k of await caches.keys()) if (devFits(k, name)) await caches.delete(k); }
+function devKeys(get, kind, cls) {
   try {
-    const ks = [];
-    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (lsWiped(k)) ks.push(k); }
-    ks.forEach(k => localStorage.removeItem(k));
-  } catch { /* private mode */ }
-  // 2.306.0 B (#2889): the session's own keys too (step-up, tour, receipts filter); the reload guards stay (no reload loop)
-  try {
-    const ss = [];
-    for (let i = 0; i < sessionStorage.length; i++) { const k = sessionStorage.key(i); if (k && (k === 'rck-stepup' || k.startsWith('kalmido-tour-') || k.startsWith('kalmido.rcl.'))) ss.push(k); }
-    ss.forEach(k => sessionStorage.removeItem(k));
-  } catch { /* no storage */ }
-  // 2.169.0 (#2671): the offline copy of the knowledge pages (wiki.js) goes too
-  const wk = (typeof wko_wipe === 'function' ? wko_wipe() : Promise.resolve()).then(() => { try { indexedDB.deleteDatabase('kalmido-wiki'); indexedDB.deleteDatabase('kalmido-qfiles'); } catch { /* no IndexedDB */ } });
-  if (typeof S !== 'undefined') S.lpCache = null;  // 2.663.0 (#4200): no later write of the offline start state (core.js startSave) after this
-  const st = typeof oc_drop === 'function' ? oc_drop() : new Promise(ok => { try { const r = indexedDB.deleteDatabase('kalmido-start'); r.onsuccess = r.onerror = r.onblocked = () => ok(); } catch { ok(); } });  // 2.663.0 (#4200): the offline start state  // 2.359.0 A (#3023): + the quick add's offline files
-  return Promise.all([wk, st, typeof obxClear === 'function' ? obxClear() : Promise.resolve()]);  // 2.143.0 C (#2153): the offline queue in IndexedDB (C2: awaitable)
+    const st = get(), ks = [];
+    for (let i = 0; i < st.length; i++) { const k = st.key(i); if (cls.has(devCls(kind, k))) ks.push(k); }
+    ks.forEach(k => st.removeItem(k));
+  } catch { /* private mode / no storage */ }
+}
+// The keys go at once (a caller may write the next account's mark right after); the stores' drops start at once too and are
+// awaited together, at most 3 s (the caller leaves the page then).
+function devEnd(why) {
+  const cls = new Set(DEV_END[why] || []);
+  devKeys(() => localStorage, 'ls', cls);
+  devKeys(() => sessionStorage, 'ss', cls);
+  const runs = DEV_STORES.filter(([kind, , c]) => kind !== 'ls' && kind !== 'ss' && cls.has(c)).map(([kind, name]) => {
+    try {
+      if (DEV_DROP[name]) return DEV_DROP[name](why);
+      if (kind === 'idb') return globalThis.indexedDB ? devIdbDel(name) : null;
+      if (kind === 'cache') return devCacheDel(name);
+    } catch (e) { console.warn('Kalmido: device store not dropped', name, e); }
+    return null;
+  });
+  return Promise.race([Promise.allSettled(runs), new Promise(ok => setTimeout(ok, 3000))]);
 }
 // design per device: auto (follows the OS) | dark | light; boottheme.js sets it (and html.rebooting) before the first picture (#6365)
 function applyTheme() { bt_theme(); }

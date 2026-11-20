@@ -249,6 +249,7 @@ function lpMorphView() {
 }
 // the offline start cache (the last full state) follows the delta, written at most every 30 s
 function lpCacheFold(c) {
+  devSynced();  // (#6500): an online delta is an online sync (core.js devCopyOk)
   Object.assign(c, {v: S.v, tasks: [...S.tasks.values()], lists: S.lists, counts: S.counts, _at: S.syncOk || Date.now()});  // (#6340): _at = core.js startAt
   if (S.lz) c.lz = {pending: [...S.lz.pending], counts: S.lz.counts}; else delete c.lz;  // (#3136): the loaded lists stay
 }

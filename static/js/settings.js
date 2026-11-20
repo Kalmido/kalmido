@@ -1271,7 +1271,7 @@ function settingsModal(focus) {
     }
   });
   md.addEventListener('keydown', e => { if (e.key === 'Enter' && (SETS[e.target.id] || e.target.id === 'a-name') && isText(e.target)) { e.preventDefault(); e.target.id === 'a-name' ? saveName() : saveEl(e.target); } });
-  md.addEventListener('change', e => { if (['s-collaball', 's-timeall', 's-collaball-a', 's-timeall-a', 's-updcheck', 's-2fareq', 's-pklogin', 's-oidcauto', 's-publinks', 's-mcpr'].includes(e.target.id)) adminSwitch(md, e.target); else if (e.target.dataset?.pubk) sh_pubKind(md, e.target); });  // 2.489.0 C (#2656): + the kinds
+  md.addEventListener('change', e => { if (['s-collaball', 's-timeall', 's-collaball-a', 's-timeall-a', 's-updcheck', 's-2fareq', 's-pklogin', 's-oidcauto', 's-publinks', 's-mcpr', 's-focusw'].includes(e.target.id)) adminSwitch(md, e.target); else if (e.target.dataset?.pubk) sh_pubKind(md, e.target); });  // (#2656): + the kinds
   md.addEventListener('change', async e => {  // 2.7.0 (#407): hours per day / shift for the whole server, one history step
     if (e.target.id !== 's-dayh') return;
     const from = S.timeDayH || 8, to = +String(e.target.value).replace(',', '.');
@@ -1694,6 +1694,7 @@ function instanceHtml(chk, hint) {
     <div class="featgrid">${ad_allSwHtml()}
       <label class="wide"><input type="checkbox" id="s-publinks" ${a.public_links !== false && a.public_links_env !== false ? 'checked' : ''} ${a.public_links_env === false ? 'disabled' : ''}><span>${tr('Allow public links')}<small class="muted">${a.public_links_env === false ? `<span title="KALMIDO_PUBLIC_LINKS=0">${tr('Switched off by the server operator.')}</span>` : tr('Shared with people without an account through a secret link, switched on or off per kind below. Off: every public link stops working at once; nothing is deleted.')}</small></span></label>${sh_pubKindsHtml(a)}
       <label class="wide"><input type="checkbox" id="s-updcheck" ${a.update_check !== false && a.update_env !== false ? 'checked' : ''} ${a.update_env === false ? 'disabled' : ''}><span>${tr('Check for a new version every 6 hours')}<small class="muted">${a.update_env === false ? `<span title="KALMIDO_UPDATE_CHECK=0">${tr('Switched off by the server operator.')}</span>` : tr('The server asks GitHub every 6 hours for the latest release; nothing is installed automatically and the browser never contacts GitHub. The result shows below.')}</small></span></label>
+      <label class="wide"><input type="checkbox" id="s-focusw" ${a.focus_api_write ? 'checked' : ''}><span>${tr('Start and stop focus sessions through the API')}<small class="muted">${tr('Off: scripts with a personal token only read focus sessions and their statistics. On: they may also start, pause, resume and stop them. Agents never reach focus sessions.')}</small></span></label>
     </div>
     ${S.timeAll !== false ? `<h4 id="s-dayh-h">${tr('Time sums')}</h4>
     <div class="row"><label for="s-dayh">${tr('Hours per day')}</label><input id="s-dayh" inputmode="decimal" class="numin" value="${esc(fmtNum(a.time_day_h || S.timeDayH || 8, 2))}"><span class="muted">${tr('h per working day / shift')}</span></div>
@@ -1841,7 +1842,7 @@ function ad_updHtml(hint) {
   return h ? `<h4 id="s-upd-h">${tr('Updates')}</h4>${h}` : '';
 }
 const ADMIN_SW = {'s-collaball': ['collab_all', N_('Collaboration for everyone')], 's-timeall': ['time_all', N_('Time tracking for everyone')], 's-updcheck': ['update_check', N_('Check for a new version every 6 hours')],
-  's-2fareq': ['twofa_required', N_('Require two-factor authentication')], 's-pklogin': ['passkey_login', N_('Passkey sign-in')], 's-oidcauto': ['oidc_autocreate', N_('Create accounts on first OIDC sign-in')], 's-publinks': ['public_links', N_('Allow public links')], 's-mcpr': ['mcp_remote', N_('Hosted MCP access')],
+  's-2fareq': ['twofa_required', N_('Require two-factor authentication')], 's-pklogin': ['passkey_login', N_('Passkey sign-in')], 's-oidcauto': ['oidc_autocreate', N_('Create accounts on first OIDC sign-in')], 's-publinks': ['public_links', N_('Allow public links')], 's-mcpr': ['mcp_remote', N_('Hosted MCP access')], 's-focusw': ['focus_api_write', N_('Start and stop focus sessions through the API')],  // (#6843)
   's-collaball-a': ['collab_all', N_('Collaboration for everyone')], 's-timeall-a': ['time_all', N_('Time tracking for everyone')]};  // 2.46.6 (#1710): the same switches under Administration > Server
 // 2.489.0 C (#2656): "Allow public links" per kind under the instance switch (core/instance.py PUB_KINDS, same order). The
 // server keeps the kinds switched off (public_links_off) and refuses to make or open a link of such a kind; switching one

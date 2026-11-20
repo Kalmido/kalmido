@@ -893,6 +893,25 @@ def start_job(bundle, brief, cfg, env, state_dir):
 # "+VERDICT: green" or "VERDICT: green, but ..." is no verdict)
 VERDICT_RX = re.compile(r"(?i)^[*_`\s]*(?:verdict|urteil)\s*:\s*[*_`]*\s*(green|gr(?:ü|ue)n|ok|findings|open findings|funde|offene funde)[*_`.\s]*$")
 CARD_TRIES = 3  # (#7199, reader F6): rounds an approval card may fail to be written before the person is told without it
+# #7561: the approval card's summary has at most CARD_SUMMARY_MAX characters (the server refuses more, it no longer cuts):
+# a longer one (a bundle of many tasks) keeps its first lines, the whole text goes into details (shown folded, fixed width)
+CARD_SUMMARY_MAX, CARD_DETAILS_MAX = 2000, 10000
+
+
+def card_text(summary, details="", tail=""):
+    """(summary, details) for the card "Ready to merge": both within the server's limits, nothing lost silently. tail (the
+    reading's verdict line) always closes the summary: a long list is cut before it, never the verdict (reader F1 of 2.1488)."""
+    def cut(x):
+        return x if len(x) <= CARD_DETAILS_MAX else x[:CARD_DETAILS_MAX - 1] + "…"
+    tail = "\n" + tail if tail else ""
+    if len(summary) + len(tail) <= CARD_SUMMARY_MAX:
+        return summary + tail, cut(details)
+    note = "\n… (the whole list in the details)"
+    head = summary[:CARD_SUMMARY_MAX - len(note) - len(tail)]
+    head = head.rsplit("\n", 1)[0] if "\n" in head else head
+    return head + note + tail, cut(summary + ("\n\n" + details if details else ""))
+
+
 READ_LINE = {"green": "green - no findings", "findings": "findings - read them before you merge",
              "none": "no verdict - read the pull request yourself"}
 
@@ -1444,10 +1463,12 @@ class Dispatcher:
         reading's verdict (green / findings / none) in its text and summary when the pull request was read first."""
         url, c = e["pr"], e.get("card") or {}
         tids, summary = c.get("tids") or [], c.get("summary") or ""
+        tail = ""
         if verdict:
             r = e.get("read") or {}
             who = f"job #{r['job']}" if r.get("job") else "not started" + (f": {r['why']}" if r.get("why") else "")
-            summary = f"{summary}\nReading ({who}): {READ_LINE.get(verdict, READ_LINE['none'])}."
+            tail = f"Reading ({who}): {READ_LINE.get(verdict, READ_LINE['none'])}."
+        summary, details = card_text(summary, c.get("details") or "", tail)
         if not tids:
             e["carded"] = True
             return
@@ -1455,7 +1476,7 @@ class Dispatcher:
         limited = len(getattr(w, "done", ())) >= getattr(w, "limit", float("inf"))  # the round's write limit: no failure of the card
         if not w(f"approval card for {url} on #{tids[0]}", lambda: api.req("POST", f"/tasks/{int(tids[0])}/comments", {
                 "body": f"Ready to merge: {url}\n\n{summary}",
-                "suggestion": {"kind": "merge_request", "pr_url": url, "summary": summary}})):
+                "suggestion": {"kind": "merge_request", "pr_url": url, "summary": summary, **({"details": details} if details else {})}})):
             if not limited:
                 e["card_fail"] = int(e.get("card_fail") or 0) + 1
             if verdict and int(e.get("card_fail") or 0) < CARD_TRIES:  # reader F5 (2.1413): not written -- again next round

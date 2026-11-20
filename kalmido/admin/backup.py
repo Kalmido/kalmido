@@ -38,6 +38,7 @@ from ..accounts.session import _rate_fail, _rate_keys, GATE, login_wait, set_coo
 from ..accounts.bgjobs import BGJ_FNS, bgj_add, bgj_fn, bgj_pending
 from ..accounts.login import _AUTH_KEY, seal, unseal
 from ..accounts.oidc import oidc_reset
+from ..accounts.sessions import ses_end  # (#6500)
 from ..core.ephem import eph_clear  # 2.622.0 (#3891)
 from ..core.access import Denied, acx_drop
 from ..tasks.validation import valid_hm
@@ -2338,8 +2339,7 @@ def bk_restore(path, pw, admin, via, keep_purged=False):
                         if r[0] not in keep:
                             c.execute("DELETE FROM settings WHERE key=?", (r[0],))
                     gset(c, "version", max(ver, int(gsetting(c, "version") or 0)) + 1)
-                    c.execute("DELETE FROM sessions")
-                    c.execute("DELETE FROM push_subs WHERE session_hash<>''")  # 2.190.0 R (#1991): their sessions ended just now
+                    ses_end(c, None)  # (#1991, #6500): every session, with the push subscriptions made in them
                     bkr_creds_after(c, creds)  # 2.360.0 A (#2496): what was revoked since the backup stays revoked
                     man["_sdl"] = bkr_sdl_after(c, sdl)  # #6357: deletions asked for stay as they are now
                     man["_counters"] = bkr_counters_after(c, counters)  # #6357: no invoice number twice

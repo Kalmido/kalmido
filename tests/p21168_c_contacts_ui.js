@@ -3,7 +3,7 @@
 // Contacts by the room of the content area and a calm phone head:
 // - 1280 (mouse): list beside the card, the list wider than the old 15rem and a long company name not cut; a click opens
 //   the card beside it and its name takes the focus; the arrow keys walk the list (down from the search field); Esc closes
-//   the card and its row keeps the focus; the page is called Contacts; the office hint stands in the list column, once
+//   the card and its row keeps the focus; the page is called Address book with the office on (decision #2647, #6841); the office hint stands in the list column, once
 // - 820 (mouse) with the side panel: the content area is too narrow for both (#view.lsdnar) - the list alone, a row opens the
 //   whole card (wide, no sideways scroll, its way back), Back / Esc return to the list; the hint does not come again
 // - 360 (finger): the bar is one row (search, Filter, New, More), group and address book behind Filter with the number of
@@ -57,7 +57,7 @@ execFileSync('bash', [path.join(__dirname, 'start.sh'), DATA], {stdio: 'ignore'}
     const nm = `(() => { const b = document.querySelector('#view .ctrow[data-ctopen="${C.sw}"] .ctn b'); return b ? {t: b.textContent, sw: b.scrollWidth, cw: b.clientWidth, sh: b.scrollHeight, ch: b.clientHeight} : null; })()`;
     { const n = await ev(nm); check(n && n.t === LONG && n.sw <= n.cw + 1 && n.sh <= n.ch + 1, '1280: the long company name is not cut (it may take a second line) ' + JSON.stringify(n)); }
     check(await ev(`!!document.querySelector('#view .ctlistw > .ct18') && !document.querySelector('#view .ctview > .ct18')`), '1280: the office hint stands in the list column (first visit)');
-    check(/Contacts/.test(await ev(`document.querySelector('#top h1')?.textContent || ''`)) && !/Address book/.test(await ev(`document.querySelector('#top')?.textContent || ''`)), '1280: the page is called Contacts ' + await ev(`document.querySelector('#top h1')?.textContent`));
+    check(/Address book/.test(await ev(`document.querySelector('#top h1')?.textContent?.trim() || ''`)), '1280: with the office on, the page is called Address book like its menu point (decision #2647, #6841) ' + await ev(`document.querySelector('#top h1')?.textContent`));
     await shot('p21168c-1280-list.png');
 
     // open: beside the list, the name takes the focus

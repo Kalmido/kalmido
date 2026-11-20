@@ -861,12 +861,13 @@ def t_request_gate(kind):
 
 
 def t_request_merge(api, a):
-    """2.2.0 (#339): a "ready to merge" comment with the structured field {kind: merge_request, pr_url, summary}. An approver's
-    👍 / 👎 on it arrives as a reaction event (approval approved / rejected, merge_request {pr_url, state})."""
+    """2.2.0 (#339): a "ready to merge" comment with the structured field {kind: merge_request, pr_url, summary, details?}. An
+    approver's 👍 / 👎 on it arrives as a reaction event (approval approved / rejected, merge_request {pr_url, state}).
+    #7561: details = long plain text (SQL, a log) the app shows folded in a fixed-width font; it is not repeated in the body."""
     summary = (a.get("summary") or "").strip()
     body = f"Ready to merge: {a['pr_url']}" + (f"\n\n{summary}" if summary else "")
-    return api.call("POST", f"/tasks/{int(a['task_id'])}/comments",
-                    body={"body": body, "suggestion": {"kind": "merge_request", "pr_url": a["pr_url"], "summary": summary}})
+    sug = {"kind": "merge_request", "pr_url": a["pr_url"], "summary": summary, **_pick(a, ("details",))}
+    return api.call("POST", f"/tasks/{int(a['task_id'])}/comments", body={"body": body, "suggestion": sug})
 
 
 def t_submit_proposal(api, a):
@@ -1220,9 +1221,11 @@ TOOLS = [
     ("request_merge_approval", "Ask for approval to merge your pull request: posts a 'ready to merge' comment on the task "
                                "(structured field kind merge_request). pr_url must be a pull request of a repository connected to "
                                "the task's project (GitLab: .../-/merge_requests/<n>, Bitbucket: .../pull-requests/<n>). Wait for the reaction event with approval 'approved' (👍 by the project owner / a project "
-                               "admin / the assignee / an admin) before you merge; 'rejected' = do not merge.",
+                               "admin / the assignee / an admin) before you merge; 'rejected' = do not merge. summary: at most 2000 "
+                               "characters (longer = an error, nothing is cut); long plain text such as SQL or a log goes into details "
+                               "(shown folded in a fixed-width font with its line breaks).",
      _obj({"task_id": S_ID, "pr_url": {"type": "string", "minLength": 8, "maxLength": 500},
-           "summary": {"type": "string", "maxLength": 2000}}, ["task_id", "pr_url"]), t_request_merge),
+           "summary": {"type": "string", "maxLength": 2000}, "details": {"type": "string", "maxLength": 10000}}, ["task_id", "pr_url"]), t_request_merge),
     ("request_integration_approval", "Ask a person to approve integrating your branch WITHOUT a pull request (e.g. feat/x into main): "
                                      "posts a 'ready to integrate' comment on the task with your evidence (build, start, logs, tests). Integrate "
                                      "only after the reaction event with approval 'approved'; 'rejected' = do not.",
