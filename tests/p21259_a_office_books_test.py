@@ -20,6 +20,8 @@ freelancer-matrix: office
  - #6459: the paid amount is stored on the reminder when it is marked paid; a reminder marked paid before 2.1259 (nothing
    stored) keeps its fee alone; two levels over the same invoice, both paid: the second adds only its fee (interest and
    flat fee were counted with the first)
+ - #6637: the second level with 3.00 more interest, the first opened again and marked paid after it: together they count the
+   fees + the highest interest / flat fee once, whatever the order of the marks
  - the same for a person without an organisation (own office)
 usage: p21259_a_office_books_test.py <datadir>"""
 import json
@@ -294,6 +296,23 @@ def reminder_claims(s, who):
     check(s.post(B + f"{D}/{lv[1][0]}/fee", json={"state": "paid"}).ok, f"{who}: level 3 paid")
     check(s.get(B + f"{D}/{lv[1][0]}").json().get("claim") == "10.00", f"{who}: the paid level 3 shows the 10.00 the books count {s.get(B + f'{D}/{lv[1][0]}').json().get('claim')}")
     check(fee_income(s) - f1 == Decimal("10.00"), f"{who}: level 3 adds its fee 10.00 only, interest and flat fee were counted with level 2 (claim {lv[1][1]}) {fee_income(s) - f1}")
+    # #6637: level 3 counted 3.00 more interest than level 2 (a later day); level 2 opened again and marked paid after level 3:
+    # all levels together count the highest interest / flat fee (level 3's) once, whatever the order (was: level 2 took only
+    # its own interest less what level 3 had counted, the sum stayed 3.00 below the claim)
+    for rid in (lv[1][0], lv[0][0]):
+        check(s.post(B + f"{D}/{rid}/fee", json={"state": ""}).ok, f"{who}: #6637 level opened again")
+    raw = dbxm.q(DATA, "SELECT totals FROM office_docs WHERE id=?", (lv[1][0],))[0][0]
+    tj = raw if isinstance(raw, dict) else json.loads(raw)
+    tj["interest"] = str(Decimal(tj["interest"]) + Decimal("3.00"))
+    dbxm.q(DATA, "UPDATE office_docs SET totals=? WHERE id=?", (json.dumps(tj), lv[1][0]))
+    f2 = fee_income(s)
+    top = lv[1][1] - Decimal("10.00") + Decimal("3.00")  # interest + flat fee of level 3
+    check(s.post(B + f"{D}/{lv[0][0]}/fee", json={"state": "paid"}).ok, f"{who}: #6637 level 2 paid")
+    check(s.post(B + f"{D}/{lv[1][0]}/fee", json={"state": "paid"}).ok, f"{who}: #6637 level 3 paid")
+    check(s.post(B + f"{D}/{lv[0][0]}/fee", json={"state": ""}).ok and s.post(B + f"{D}/{lv[0][0]}/fee", json={"state": "paid"}).ok,
+          f"{who}: #6637 level 2 opened again and marked paid after level 3")
+    got = fee_income(s) - f2
+    check(got == Decimal("15.00") + top, f"{who}: #6637 both levels: fees 15.00 + the highest interest / flat fee {top} once = {Decimal('15.00') + top} {got}")
 
 
 frozen_lines(A, "Alpha")

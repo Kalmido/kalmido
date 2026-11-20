@@ -157,12 +157,13 @@ DUN_RANGE_SQL = "(range_id IS NULL OR range_id IN (SELECT id FROM office_num_ran
 def dun_overdue(c, oid, today, people):
     """2.367.4 (#2972): the bell for the invoices of area oid past their due date that it did not tell about yet: one News item
     per person for the whole run. The caller commits."""
-    from .invoices import inv_money_fields, inv_paid_map, inv_state
+    from .invoices import inv_money_fields, inv_paid_map, inv_state, inv_tiny
     invs = c.execute("SELECT * FROM office_docs WHERE org_id=? AND kind='invoice' AND locked_at IS NOT NULL AND status IN ('issued','sent') AND trial=0 "
                      f"AND COALESCE(due_date, '')<>'' AND due_date<? AND {live_sql()} AND id NOT IN (SELECT doc_id FROM office_dunning_marks WHERE org_id=? AND level=?) "
                      f"AND {DUN_RANGE_SQL} ORDER BY due_date, id LIMIT 2000", (oid, today, oid, DUN_NOTICE, oid)).fetchall()  # 2.1005.0 (#5415): not the trash
     pm = inv_paid_map(c, oid, [r["id"] for r in invs]) if invs else {}
-    new = [r for r in invs if inv_state(r, pm, today) not in ("paid", "cancelled") and float(inv_money_fields(r, pm)["open"]) > 0]
+    new = [r for r in invs if inv_state(r, pm, today) not in ("paid", "cancelled") and float(inv_money_fields(r, pm)["open"]) > 0
+           and not inv_tiny(inv_money_fields(r, pm)["open"])]  # (#6637): a rest below 1.00 is not overdue
     if not new:
         return
     ts = iso(now_utc())
@@ -194,7 +195,7 @@ def dun_news_live(c, uid, data):
 
 def dun_due(c, oid, today, grace):
     """{(client key, currency, level): [invoice ids]} of area oid that get a suggestion today (see the module text)."""
-    from .invoices import inv_money_fields, inv_paid_map, inv_state
+    from .invoices import inv_money_fields, inv_paid_map, inv_state, inv_tiny
     # 2.144.10 B (#2576): the automatic dunning run never picks trial invoices
     invs = c.execute("SELECT * FROM office_docs WHERE org_id=? AND kind='invoice' AND locked_at IS NOT NULL AND status IN ('issued','sent') "
                      f"AND trial=0 AND COALESCE(due_date, '')<>'' AND due_date<? AND {live_sql()} AND {DUN_RANGE_SQL} ORDER BY due_date, id LIMIT 2000",
@@ -212,7 +213,8 @@ def dun_due(c, oid, today, grace):
     t0 = date.fromisoformat(today)
     out = {}
     for r in invs:
-        if inv_state(r, pm, today) in ("paid", "cancelled") or float(inv_money_fields(r, pm)["open"]) <= 0:
+        open_ = inv_money_fields(r, pm)["open"]
+        if inv_state(r, pm, today) in ("paid", "cancelled") or float(open_) <= 0 or inv_tiny(open_):  # (#6637): no reminder for a rest below 1.00
             continue
         mine = rems.get(r["id"], [])
         if any(not x["locked_at"] for x in mine):
