@@ -370,11 +370,11 @@ def files_upload():
                         fs_web_expect(c, same, request.form.get("expect_version"))
                     no = fs_new_version(c, same, data, f.mimetype)
                     fs_log_add(c, same, "version", str(no))
-                    out.append(same)
+                    out.append((same, no))
                 else:
                     nid = fs_put(c, uid, pid, name, data, f.mimetype, org_id=org)
                     fs_log_add(c, nid, "upload")
-                    out.append(nid)
+                    out.append((nid, c.execute("SELECT cur_version FROM fs_nodes WHERE id=?", (nid,)).fetchone()[0]))
                     from ..docs.recog import rc_after_add
                     added += rc_after_add(c, nid, uid)  # (#2759): into a recognising folder = a document
         except ValueError as e:
@@ -390,8 +390,12 @@ def files_upload():
     if added:
         from ..docs.ingest import docs_kick
         docs_kick()
-    rows = [c.execute("SELECT * FROM fs_nodes WHERE id=?", (i,)).fetchone() for i in out]
-    return jsonify(items=_items(c, rows)), 201
+    # #7411: one item per uploaded file, in upload order, with the version THIS file made (two files of one upload with the
+    # same name are one node with two versions: 1 and 2, not twice the node's newest) - the client's Undo counts on it
+    ids = list(dict.fromkeys(i for i, _ in out))
+    rows = [c.execute("SELECT * FROM fs_nodes WHERE id=?", (i,)).fetchone() for i in ids]
+    by = {x["id"]: x for x in _items(c, rows)}
+    return jsonify(items=[{**by[i], "version": no} for i, no in out if i in by]), 201
 
 
 def _versions(c, nid):

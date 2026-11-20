@@ -213,30 +213,44 @@ check(ag.get(B + f"{V1}/{RH['id']}").ok, "setup: visible while it is a normal li
 sql("UPDATE lists SET life='health' WHERE id=?", (LH,), write=True)
 check(ag.get(B + f"{V1}/{RH['id']}").status_code == 404 and ag.get(B + V1, params={"list_id": LH}).json()["data"] == [], "a health list: 404")
 
+
+
+def agw(method, path, **k):
+    """(#6453, #7142): cutbot now reads three projects (L, LA, LH above) and a sign-off's comment route names no project for
+    the gate (a review at a task keeps video_reviews.list_id empty): a target the gate cannot name is a card as soon as the
+    agent has more than one source. The agent (no control level chosen = "free") asks with that card, alice says Yes, the
+    step runs and its answer is the route's own (kt.circle_yes)."""
+    from kt import circle_yes
+    r = ag.request(method, B + path, **k)
+    e = (r.json().get("error") or {}) if r.status_code == 409 else {}
+    check(isinstance(e, dict) and e.get("circle") == "wider", f"cutbot's {method} {path} asks for the circle's card {r.status_code} {r.text[:200]}")
+    return circle_yes(r, dict(ag.headers), AG, A, B + "/api/v1", ALICE, base=B)
+
+
 # ---------------------------------------------------------------- input
 check(ag.get(B + V1).status_code == 400 and ag.get(B + V1, params={"task_id": T, "list_id": L}).status_code == 400, "exactly one of task_id / list_id")
 check(ag.get(B + V1, params={"task_id": "x"}).status_code == 400 and ag.get(B + V1, params={"client_id": CL}).status_code == 400, "a bad / unknown parameter: 400")
-check(ag.post(B + f"{V1}/{RT['id']}/comments", json={"body": "x", "kind": "y"}).status_code == 400, "an unknown field: 400")
-check(ag.post(B + f"{V1}/{RT['id']}/comments", json={"body": "  "}).status_code == 400, "an empty comment: 400")
-check(ag.post(B + f"{V1}/{RT['id']}/comments", json={"body": "x", "at_sec": 90000}).status_code == 400, "a timecode beyond 24 h: 400")
-check(ag.patch(B + f"{V1}/{RT['id']}/comments/{c1}", json={"done": "yes"}).status_code == 400, "done must be a boolean")
+check(agw("POST", f"{V1}/{RT['id']}/comments", json={"body": "x", "kind": "y"}).status_code == 400, "an unknown field: 400")
+check(agw("POST", f"{V1}/{RT['id']}/comments", json={"body": "  "}).status_code == 400, "an empty comment: 400")
+check(agw("POST", f"{V1}/{RT['id']}/comments", json={"body": "x", "at_sec": 90000}).status_code == 400, "a timecode beyond 24 h: 400")
+check(agw("PATCH", f"{V1}/{RT['id']}/comments/{c1}", json={"done": "yes"}).status_code == 400, "done must be a boolean")
 
 # ---------------------------------------------------------------- writing
-r = ag.post(B + f"{V1}/{RT['id']}/comments", json={"at_sec": 41.5, "body": "Zusammenfassung: Logo größer (00:42), Schnitt bei 01:23 weicher"})
+r = agw("POST", f"{V1}/{RT['id']}/comments", json={"at_sec": 41.5, "body": "Zusammenfassung: Logo größer (00:42), Schnitt bei 01:23 weicher"})
 check(r.status_code == 201, f"the agent comments at a timecode {r.status_code} {r.text[:200]}")
 mine = r.json().get("comment") or {} if r.status_code == 201 else {}
 check(mine.get("agent") and mine.get("author") == "Cutbot" and mine.get("author_id") == AG and mine.get("timecode") == "00:41" and not mine.get("customer"),
       f"author = the agent {mine}")
 row = sql(f"SELECT author_id, ext_name FROM {VC} WHERE id=?", (mine.get("id", 0),))
 check(len(row) == 1 and row[0][0] == AG and row[0][1] is None, "stored as the agent's")
-r = ag.post(B + f"{V1}/{RT['id']}/comments", json={"parent_id": c1, "body": "Vorschlag: zwei Frames länger"})
+r = agw("POST", f"{V1}/{RT['id']}/comments", json={"parent_id": c1, "body": "Vorschlag: zwei Frames länger"})
 check(r.status_code == 201 and r.json()["comment"]["parent_id"] == c1 and r.json()["comment"]["at_sec"] is None, "an answer to a team comment")
-r = ag.post(B + f"{V1}/{RT['id']}/comments", json={"parent_id": CC, "body": "Wird im nächsten Schnitt größer"})
+r = agw("POST", f"{V1}/{RT['id']}/comments", json={"parent_id": CC, "body": "Wird im nächsten Schnitt größer"})
 check(r.status_code == 201, f"an editing agent answers the customer {r.status_code}")
 check(any(y["body"] == "Wird im nächsten Schnitt größer" for x in r.json()["review"]["comments"] if x["id"] == CC for y in x["replies"]), "the answer sits at the customer's comment")
-r = ag.patch(B + f"{V1}/{RT['id']}/comments/{c1}", json={"done": True})
+r = agw("PATCH", f"{V1}/{RT['id']}/comments/{c1}", json={"done": True})
 check(r.ok and next(x for x in r.json()["comments"] if x["id"] == c1)["done"], "done (someone else's comment, the agent may change the list)")
-r = ag.patch(B + f"{V1}/{RT['id']}/comments/{c1}", json={"done": False})
+r = agw("PATCH", f"{V1}/{RT['id']}/comments/{c1}", json={"done": False})
 check(r.ok and not next(x for x in r.json()["comments"] if x["id"] == c1)["done"], "open again")
 check(any(x["author"] == "Cutbot" for x in A.get(B + f"/api/videos/{RT['id']}").json()["comments"]), "the app sees the agent's comments")
 # the customer page shows the agent's answer (the team's answer), never its internal comment

@@ -294,13 +294,32 @@ dbq("INSERT INTO org_members(org_id,user_id,role) VALUES(?,?,'member') ON CONFLI
 dbq("UPDATE agents SET org_id=? WHERE user_id=?", (ORG, AG))
 check(AT.post(V + f"/tasks/{T1}/comments", json={"body": "agent", "portal": True}).status_code in (403, 404), "#1513: an agent without the list: no answer")
 assert A.put(B + f"/api/lists/{L}/members", json={"user_id": AG, "role": "edit"}).ok
-r = AT.post(V + f"/tasks/{T1}/comments", json={"body": "We fixed it in the next version.", "portal": True})
+
+
+def kt_circle_yes(*a, **k):
+    from kt import circle_yes
+    return circle_yes(*a, **k)
+
+
+def pub(tid, body):
+    """(#6453, #7142): an answer to the client is a write into a public circle - the agent (no control level chosen = "free")
+    gets 409 approval_required circle public first; alice's Yes on that card runs the step (kt.circle_yes)."""
+    r = AT.post(V + f"/tasks/{tid}/comments", json=body)
+    e = (r.json().get("error") or {}) if r.status_code == 409 else {}
+    check(isinstance(e, dict) and e.get("code") == "approval_required" and e.get("circle") == "public",
+          f"#6453: an agent's answer to the client asks for the public circle's card first {r.status_code} {r.text[:200]}")
+    return kt_circle_yes(r, dict(AT.headers), AG, A, V, ALICE, base=B)
+
+
+r = pub(T1, {"body": "We fixed it in the next version.", "portal": True})
 # 2.126.0 (#1979 G5): an agent's answer to the client waits for a person's approval, then it is posted
 check(r.status_code == 202 and (r.json().get("job") or {}).get("id"), f"#1513: an agent's answer to the client waits for an approval {r.status_code} {r.text[:200]}")
 r = A.post(B + f"/api/agents/jobs/{(r.json().get('job') or {}).get('id')}/action", json={"action": "approve"})
 check(r.ok and r.json().get("state") == "done", f"#1513: approved: the agent's answer is posted {r.text[:200]}")
-check(AT.post(V + f"/tasks/{T1}/comments", json={"body": "q", "portal": True, "choices": ["a", "b"]}).status_code == 400, "#1513: no answer buttons to a customer")
-check(AT.post(V + f"/tasks/{T4}/comments", json={"body": "q", "portal": True}).status_code == 400, "#1513: the API refuses portal without a ticket")
+check(pub(T1, {"body": "q", "portal": True, "choices": ["a", "b"]}).status_code == 400, "#1513: no answer buttons to a customer")
+r = AT.post(V + f"/tasks/{T4}/comments", json={"body": "q", "portal": True})
+r = kt_circle_yes(r, dict(AT.headers), AG, A, V, ALICE, base=B)  # T4's circle may be the team's own: then no card
+check(r.status_code == 400, f"#1513: the API refuses portal without a ticket {r.status_code} {r.text[:200]}")
 cs = AT.get(V + f"/tasks/{T1}/comments").json()["data"]
 check(any(x["portal"] and x["author"].get("customer") for x in cs) and any(not x["portal"] for x in cs), "#1513: v1 comments carry portal (+ customer)")
 check("Team" in P.get(B + f"/p/{TK1}").text and "Helper" not in P.get(B + f"/p/{TK1}").text, "#1513: an agent's answer shows as 'Team'")
