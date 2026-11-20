@@ -13,7 +13,7 @@
    trash; a person's token works the same way
  - POST /drop with to=agent: the files go into the chat with the agent (last chatted / id / username)
    2.1313.0 (#6557): only when the person switched "Also send to agents" on for the token (a new token: off, 403); only a
-   signed-in session switches it (not a personal API token); the message carries origin drop + untrusted (person's view,
+   signed-in session or a proxy sign-in (#6870) switches it (not a personal API token); the message carries origin drop + untrusted (person's view,
    agent's chat list, the 'chat' event); a new token is off again; a token from before 2.1313.0 (on + hint) answers its
    first message with the hint once (users.drop_agent NULL, core/migrations.d/6557.py)
  - the admin storage check includes chat files (a damaged one: reported, 410)
@@ -294,6 +294,21 @@ me = A.patch(B + "/api/me", json={"drop_agent_hint": False}).ok and A.get(B + "/
 check(me and me.get("drop_agent_hint") is False and me.get("drop_agent") is True, "the app clears the hint once shown; the token from before stays on")
 check(A.patch(B + "/api/me", json={"drop_agent": False}).ok and requests.post(B + "/drop", headers={"Authorization": "Bearer " + dt}, data={"text": "x", "to": "agent"}).status_code == 403,
       "switched off again: 403")
+# (#6870): a person signed in through the sign-in proxy switches it and clears the hint like a session (was 403)
+assert A.patch(B + f"/api/users/{ids['alice']}", json={"proxy_login": "alice-px"}).ok
+PX = requests.Session()
+PX.headers.update({**H, "Remote-User": "alice-px"})
+BP = "http://127.0.0.1:" + os.environ.get("KALMIDO_TEST_PROXY_PORT", "3041")
+r = PX.patch(BP + "/api/me", json={"drop_agent": True})
+check(r.ok and A.get(B + "/api/me").json().get("drop_agent") is True, f"proxy sign-in switches it on ({r.status_code} {r.text[:100]})")
+c_ = dbx.connect(os.path.join(DATA, "tasks.db"), timeout=10)
+c_.execute("UPDATE users SET drop_agent=NULL WHERE id=?", (ids["alice"],))
+c_.commit()
+c_.close()
+r = PX.patch(BP + "/api/me", json={"drop_agent_hint": False})
+me = A.get(B + "/api/me").json()
+check(r.ok and me.get("drop_agent_hint") is False and me.get("drop_agent") is True, f"proxy sign-in clears the hint ({r.status_code})")
+check(PX.patch(BP + "/api/me", json={"drop_agent": False}).ok and A.get(B + "/api/me").json().get("drop_agent") is False, "proxy sign-in switches it off")
 
 # ================================================================== storage check, gc, OpenAPI
 r = A.get(B + "/api/admin/storage-check").json()
