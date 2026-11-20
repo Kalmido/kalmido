@@ -262,7 +262,7 @@ def _confirm(s):
     ql = ",".join(str(int(x)) for x in lids)
     rows = c.execute(f"""SELECT t.*, l.name AS list_name, l.is_inbox FROM tasks t JOIN lists l ON l.id=t.list_id
                          JOIN users au ON au.id=t.created_by LEFT JOIN agents ag ON ag.user_id=au.id
-                         WHERE au.kind='agent' AND (ag.owner_id IS NULL OR ag.owner_id<>?) AND t.status=0 AND t.deleted_at IS NULL
+                         WHERE au.kind='agent' AND (ag.owner_id IS NULL OR ag.owner_id<>?) AND t.status=0 AND {live_sql('t')}
                          AND t.completed_at IS NULL AND t.list_id IN ({ql}) AND {s.vis}
                          ORDER BY t.created_by, t.id DESC LIMIT {WAIT_SCAN}""", (uid,)).fetchall()
     rows = [r for r in rows if not by_valid(r, "confirm")]
