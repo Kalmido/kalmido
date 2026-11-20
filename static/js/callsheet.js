@@ -53,7 +53,7 @@ function cs_logoCt(cs, k, md) {
   if (!id) return null;
   return (a.contacts || []).find(x => x.id === id) || [a.client_contact, a.agency_contact, a.agency_default].find(x => x && x.id === id) || null;
 }
-/** askDialog without its typed optional parts (2.1180.0, #6149) */
+/** askDialog without its typed optional parts (#6149) */
 const cs_ask = /** @type {(o: any) => Promise<any>} */ (askDialog);
 /** the inner part of the logo place k */
 function cs_logoCell(cs, k, md) {
@@ -208,7 +208,7 @@ async function cs_open(job, org) {
       toast(tr('The logo is saved as the photo of the contact.'));
     } catch { /* api() said it */ }
   };
-  const cs_logoAsk = async k => {  // no contact chosen yet: the choice first (the contacts the person may change); 2.1180.0 (#6149): askDialog (Enter, focus, error in the dialog)
+  const cs_logoAsk = async k => {  // no contact chosen yet: the choice first (the contacts the person may change); (#6149): askDialog (Enter, focus, error in the dialog)
     const list = (cs.auto?.contacts || []).filter(x => x.can_photo);
     let v = '';
     const ok = await cs_ask({title: tr(CS_LOGO_ALT[k]), ok: tr('Select picture'),
@@ -325,7 +325,7 @@ function cs_mailPreviewHtml(p, pdfUrl) {
 async function cs_mail(job, org) {
   let m;
   try { m = await api('GET', cs_url(job, org, '/mail')); } catch { return; /* api() said it */ }
-  if (!m.sender?.way) {  // 2.1180.0 (#6149): a dialog with the way out (the PDF), not only a toast
+  if (!m.sender?.way) {  // (#6149): a dialog with the way out (the PDF), not only a toast
     if (await cs_ask({title: tr('Send the call sheet'), body: tr('E-mail sending is not set up on this server yet: whoever runs the server sets it up.'), ok: tr('Download PDF'), cancel: tr('Close')})) {
       const x = document.createElement('a'); x.href = cs_url(job, org, '/pdf'); x.download = ''; document.body.append(x); x.click(); x.remove();
     }
@@ -342,7 +342,7 @@ async function cs_mail(job, org) {
     st.text = cs_one('#csm-text', md)?.value ?? st.text;
   };
   const sync = () => { const b = cs_one('[data-csm="preview"]', md); if (b && m.recipients.length) b.disabled = !cs_all('[data-csm-to]', md).some(x => x.checked); };
-  const head = () => { const h = cs_one('h3', card); if (h) { h.tabIndex = -1; h.focus({preventScroll: true}); } };  // 2.1180.0 (#6149): after every step the focus is on the heading
+  const head = () => { const h = cs_one('h3', card); if (h) { h.tabIndex = -1; h.focus({preventScroll: true}); } };  // (#6149): after every step the focus is on the heading
   const form = () => { st.step = 'form'; setHtml(card, cs_mailFormHtml(m, st)); sync(); head(); };
   const req = preview => ({to: [...st.to], subject: st.subject, text: st.text, ...(preview ? {preview: true} : {})});
   form();
@@ -373,7 +373,7 @@ async function cs_mail(job, org) {
             <div class="foot"><span class="spacer"></span><button type="button" class="btn pri" data-csm="cancel">${tr('Close')}</button></div>`);
           head();
         } else { md.remove(); toast(trn('Call sheet sent to {0} recipient', 'Call sheet sent to {0} recipients', r.sent.length)); }
-      } catch (e) { b.disabled = false; setHtml(b, `${ic('send', 's')} ${esc(tr('Send'))}`); err(errText(e)); /* 2.1180.0 (#6149): the symbol stays; the reason also in the dialog */ }
+      } catch (e) { b.disabled = false; setHtml(b, `${ic('send', 's')} ${esc(tr('Send'))}`); err(errText(e)); /* (#6149): the symbol stays; the reason also in the dialog */ }
     }
   });
 }
@@ -407,7 +407,7 @@ function viewProjCs() {
   const l = routeList(), d = S.pcsD[l.id];
   if (!d || (!d.busy && d.v !== S.v)) setTimeout(() => pcs_load(l.id), 0);
   const head = listHead(l, {noPill: true});
-  // 2.1180.0 (#6149): loading / error (with "Try again") / locked / empty from the shared blocks (render.js)
+  // (#6149): loading / error (with "Try again") / locked / empty from the shared blocks (render.js)
   if (!d?.j) {
     const retry = () => { const x = S.pcsD[l.id]; if (x) x.err = ''; pcs_load(l.id, true); viewSafeRender(); };
     return `<div class="pov pcs">${/*html-ok*/ head}${/*html-ok*/ d?.err ? errorState({title: tr('The call sheets could not be loaded'), sub: d.err === 'offline' ? undefined : errText(d.err), size: 'sec', retry}) : loadingHtml('sec')}</div>`;
@@ -422,7 +422,7 @@ function viewProjCs() {
   return `<div class="pov pcs">${/*html-ok*/ head}${/*html-ok*/ bar}${/*html-ok*/ body}</div>`;
 }
 /** "New call sheet": the day, then the shoot day in the background and the call sheet opens */
-async function pcs_new(l) {  // 2.1180.0 (#6149): askDialog (Enter creates, focus back afterwards, an error stays in the dialog)
+async function pcs_new(l) {  // (#6149): askDialog (Enter creates, focus back afterwards, an error stays in the dialog)
   /** @type {any} */ let r;
   const ok = await cs_ask({title: tr('New call sheet'), ok: tr('Create'),
     html: `<div class="row"><label for="pcs-day">${tr('Shoot day')}</label>${/*html-ok*/ dateIn('pcs-day', today())}</div>
