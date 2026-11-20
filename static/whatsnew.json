@@ -1,6 +1,28 @@
 {
  "versions": [
   {
+   "version": "2.1452.0",
+   "date": "2026-11-20",
+   "items": [
+    {
+     "de": "Ohne Seitenleiste (eigenes Fenster) lässt sich die Liste neben Notiz, Wissensseite, Team-Chat und Ablage per Ziehen verbreitern.",
+     "en": "Without the sidebar (own window) the list beside a note, a knowledge page, the team chat and the file store can be made wider by dragging."
+    },
+    {
+     "de": "Am Handy steht bei geöffnetem Kunden oder Kontakt kein grauer Strich mehr am Rand.",
+     "en": "On a phone an open client or contact no longer shows a grey line at its edge."
+    },
+    {
+     "de": "Zwei-Finger-Zoom im Kalender am Handy läuft wieder glatt und folgt den Fingern bis zum Loslassen.",
+     "en": "Two-finger zoom in the calendar on the phone is smooth again and follows your fingers until you let go."
+    },
+    {
+     "de": "Unter „Alle Arbeitsbereiche“ sehen Privat und jede Organisation in der Seitenleiste überall gleich aus: eigenes Symbol, Farbstreifen, Pfeil nur bei Inhalt.",
+     "en": "Under \"All workspaces\" Private and each organisation look the same in the sidebar of every area: own symbol, colour stripe, arrow only with content."
+    }
+   ]
+  },
+  {
    "version": "2.1447.0",
    "date": "2026-11-19",
    "items": [
@@ -1371,32 +1393,6 @@
     {
      "de": "Unter Einstellungen > Darstellung stellst du ein, ab welcher Fensterbreite die Ansicht geteilt wird.",
      "en": "In Settings > Appearance you choose from which window width the view is split."
-    }
-   ]
-  },
-  {
-   "version": "2.1024.0",
-   "date": "2026-11-12",
-   "items": [
-    {
-     "de": "Im Dokument findest du unter „Aktionen“ jetzt „Neue Aufgabe“, „Mit Aufgabe verknüpfen“ und den Favoriten-Stern.",
-     "en": "In a document, \"Actions\" now offers \"New task\", \"Link with a task\" and the favourite star."
-    },
-    {
-     "de": "Gelöschte Freigaben (Video, Bild, PDF, Audio) lassen sich über „Rückgängig“ und „Letzte Schritte“ zurückholen.",
-     "en": "Deleted approvals (video, image, PDF, audio) can be brought back with \"Undo\" and \"Recent steps\"."
-    },
-    {
-     "de": "Die Suche findet Wörter jetzt am Wortanfang und mit ae/oe/ue genauso wie mit Umlauten.",
-     "en": "Search now matches at the start of a word and treats ae/oe/ue like umlauts."
-    },
-    {
-     "de": "Die Wiki-Suche findet auch Text in Seiten, die mit dir geteilt sind.",
-     "en": "The knowledge search also finds text in pages shared with you."
-    },
-    {
-     "de": "Das Zitat des Tages steht nur noch einmal da, in deiner Sprache, darunter der Autor.",
-     "en": "The quote of the day now appears once, in your language, with its author below."
     }
    ]
   }
