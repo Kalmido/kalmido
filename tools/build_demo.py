@@ -107,7 +107,9 @@ def main(argv):
     # the app, with absolute /static/ paths made relative (the demo lives in a subfolder) and without the service worker
     # 2.20.0 (#646): the client's modules (static/js, order of the script tags in index.html) become ONE app.js here
     src_html = read(os.path.join(STATIC, "index.html"))
-    mods = re.findall(r'<script src="/static/js/([\w-]+\.js)"(?: defer)?></script>', src_html)  # 2.191.0 B (#2505): defer
+    mods = re.findall(r'<script src="/static/js/([\w-]+\.js)" defer></script>', src_html)  # 2.191.0 B (#2505): defer
+    # #6365: a blocking script in the head (boottheme.js, before the first picture) stays its own file, loaded where it is
+    head_mods = re.findall(r'<script src="/static/js/([\w-]+\.js)"></script>', src_html)
     if not mods:
         fail("index.html loads no static/js/ modules")
     app = "\n".join(read(os.path.join(STATIC, "js", m)) for m in mods)
@@ -176,6 +178,10 @@ def main(argv):
     html = src_html.replace('.js" defer></script>', '.js"></script>')  # 2.191.0 B (#2505): the demo keeps plain script tags
     html = re.sub(r"<!-- [^\n]*new start scripts go below this line[^\n]*-->\n", "", html)  # 2.476.0 (#3487): the mark of the sorted part
     html = replace(html, "".join(f'<script src="/static/js/{m}"></script>\n' for m in mods), '<script src="/static/app.js"></script>\n', "index.html")
+    for m in head_mods:
+        write(os.path.join(st, "js", m), read(os.path.join(STATIC, "js", m)))
+        js_all += "\n" + read(os.path.join(STATIC, "js", m))
+        html = replace(html, f'<script src="/static/js/{m}"></script>', f'<script src="static/js/{m}"></script>', "index.html")
     html = replace(html, '<link rel="manifest" href="/manifest.json" crossorigin="use-credentials">\n', "", "index.html")
     html = replace(html, "<title>Kalmido</title>",
                    f'<title>Kalmido Demo</title>\n<meta http-equiv="Content-Security-Policy" content="{CSP}">\n'
