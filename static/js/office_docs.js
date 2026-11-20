@@ -682,7 +682,7 @@ function ofd_printSw(d) {
 }
 function ofd_itsWrap(d, rows, inv) {
   if (ofd_readOnly(OFD.doc)) return `<ul class="ofdits" role="list">${/*html-ok*/ rows}</ul>${/*html-ok*/ ofd_printSw(d)}`;  // 2.1238.0 (#6161, Stufe 3): a reader adds no position
-  return `<ul class="ofdits" role="list">${rows}</ul>${/*html-ok*/ ofd_printSw(d)}<div class="ofdadd"><button type="button" class="btn sm pri" data-ofd="it-svc">${ic('plus', 's')}<span>${tr('Add service')}</span></button><button type="button" class="btn sm" data-ofd="it-head">${ic('list', 's')}<span>${tr('Heading')}</span></button><button type="button" class="btn sm" data-ofd="it-text">${ic('note', 's')}<span>${tr('Text block')}</span></button>${inv && d.kind !== 'delivery' ? `<button type="button" class="btn sm" data-ofd="it-disc">${ic('calc', 's')}<span>${tr('Discount')}</span></button>` : ''}</div>`;
+  return `<ul class="ofdits" role="list">${rows}</ul>${/*html-ok*/ ofd_printSw(d)}<div class="ofdadd"><button type="button" class="btn sm pri" data-ofd="it-svc">${ic('plus', 's')}<span>${tr('Add service')}</span></button><button type="button" class="btn sm" data-ofd="it-head">${ic('list', 's')}<span>${tr('Heading')}</span></button><button type="button" class="btn sm" data-ofd="it-text">${ic('note', 's')}<span>${tr('Text block')}</span></button>${inv && d.kind !== 'delivery' ? `<button type="button" class="btn sm" data-ofd="it-disc">${ic('calc', 's')}<span>${tr('Discount')}</span></button>` : ''}</div>${ofd_svcPick()?.length === 0 ? `<p class="shint ofdsvchint">${ic('info', 's')} <a href="#office/services">${esc(tr('No services yet (tab {0}).', tr('Services')))}</a></p>` : ''}`;  // #7596: the way to the templates while there is no service
 }
 // 2.114.3 (#2266): which positions the producing switch counts; in a part whether its producing values are the document's or its own
 function ofdProdHint(d) {
@@ -1851,41 +1851,48 @@ async function ofdReminderDialog() {
   $('#ofd-r-level', md0).addEventListener('change', e => { if (!feeIn.dataset.typed) { feeIn.value = ofdNumIn(+e.target.value >= 2 ? (s.reminder_fee ?? 0) : 0); warn(); } });
   md0.addEventListener('input', warn); md0.addEventListener('change', warn); warn();
 }
+// #7596: the services a position can take (shooting services belong to the shoot calculation only); null while the catalogue loads
+const ofd_svcPick = () => (Array.isArray(OFC.data.services) ? OFC.data.services.filter(s => !s.archived && s.intext !== 'shooting') : null);
+const OFD_BLANK = {kind: 'service', service_id: null, title: '', detail: '', qty: 1, unit: 'day', rate: 0, tax: 'standard', raw_fee: 0, producing: 0, intext: 'intern', cost: 0, discountable: 1};
+// a free position at the end, the cursor in its field "Service" (the picker's "Free position" and the way without the picker)
+async function ofd_addFree(d, sc) { d.items.push({...OFD_BLANK}); await ofdPutItems(); $(`${sc}.ofdits [data-i="${d.items.length - 1}"][data-k="title"]`)?.focus(); }
 // the service picker: search the catalogue, tap = a new position with the service's name (document language), rate and flags
 function ofdServicePicker() {
   const d = typeof tpCur === 'function' ? tpCur() : OFD.doc;  // 2.47.0 (#1215): into an open part
   const tpc = typeof TP === 'object' ? TP.open : null, sc = typeof tpf_sc === 'function' ? tpf_sc() : '';  // 2.113.0 (#2248): the part it was opened in
   const did = OFD.doc?.id;  // #7509: a choice goes into the document as it is at the click (an answer may have come meanwhile), not the one seen at opening
+  // #7596: nothing to choose (no service, no part): no empty sheet - the free position at once; the hint on the templates stands
+  // under the positions (ofd_itsWrap) while there is no service
+  if (d && ofd_svcPick()?.length === 0 && !(typeof tpPickerHtml === 'function' && tpPickerHtml(d))) { ofd_addFree(d, sc); return; }
   const md = modal(`<h3>${tr('Add service')}</h3><div class="ctsearch">${ic('search', 's')}<input id="ofd-sq" type="search" placeholder="${esc(tr('Search'))}" aria-label="${esc(tr('Search services'))}" autocomplete="off"></div><div id="ofd-slist" class="ofdslist"></div>
     <div class="foot"><button type="button" class="btn" data-m="free">${tr('Free position')}</button><span class="spacer"></span><button type="button" class="btn" data-m="close">${tr('Close')}</button></div>`);
   md.classList.add('ofdpick');
   const draw = () => {
     const q = ($('#ofd-sq', md)?.value || '').trim().toLowerCase();
     // 2.47.0 (#1216): services of the kind shooting belong only to the shoot calculation, never among the positions
-    const rows = ofcRows('services').filter(s => !s.archived && s.intext !== 'shooting' && (!q || [s.name_de, s.name_en, s.category].some(v => (v || '').toLowerCase().includes(q))));
+    const rows = (ofd_svcPick() || []).filter(s => (!q || [s.name_de, s.name_en, s.category].some(v => (v || '').toLowerCase().includes(q))));
     const groups = new Map(); for (const s of rows) { const k = s.category || tr('No category'); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(s); }
     $('#ofd-slist', md).innerHTML = rows.length ? [...groups].map(([k, ss]) => `<h4 class="ofcgrp">${esc(k)}</h4><ul class="ofclist" role="list">${ss.map(s => { const ct = d.contract?.rates?.[s.id]; const rate = ct ?? (s.unit === 'hour' && s.hourly_rate != null ? s.hourly_rate : s.daily_rate); return `<li><button type="button" class="ofcrow" data-sid="${s.id}"><span class="ofcn"><b>${esc(ofdSvcName(s, d))}</b><small class="muted">${esc([rate != null ? `${s.unit === 'percent' ? `${fmtNum(rate, 2)} %` : `${ofcMoney(rate)} / ${tr(OFC_UNITS.find(u => u[0] === s.unit)?.[1] || s.unit)}`}` : '', ct != null ? tr('contract rate') : '', ofcTax(s.tax)].filter(Boolean).join(' · '))}</small></span>${ic('plus', 's')}</button></li>`; }).join('')}</ul>`).join('')
       + (typeof tpPickerHtml === 'function' && !q ? tpPickerHtml(d) : '')  // 2.47.0 (#1215): after the services, the parts
-      : (typeof tpPickerHtml === 'function' && tpPickerHtml(d)) || (ofcRows('services').length ? ofcNoHit('', 'row') : emptyState({title: tr('No services yet (tab {0}).', tr('Services')), size: 'row', action: `<a class="btn sm" href="#office/services" data-m="tab">${esc(tr('Services'))}</a>`}));  // 2.1076.0 (#5450): the shared block; the tab is the button  // 2.39.1 (#1220): the tab as a link
+      : (typeof tpPickerHtml === 'function' && tpPickerHtml(d)) || ofcNoHit('', 'row');  // #7596: an empty catalogue never opens the sheet (the hint under the positions links the tab)
   };
   draw();
   if (!Array.isArray(OFC.data.services)) {  // the catalogue may still be loading: show it once it is there
     $('#ofd-slist', md).innerHTML = loadingHtml('row');
-    (async () => { for (let i = 0; i < 60 && !Array.isArray(OFC.data.services) && md.isConnected; i++) { if (!OFC.loading.services) ofcLoad('services', true); await sleep(150); } if (md.isConnected) draw(); })();
+    (async () => { for (let i = 0; i < 60 && !Array.isArray(OFC.data.services) && md.isConnected; i++) { if (!OFC.loading.services) ofcLoad('services', true); await sleep(150); } if (!md.isConnected) return; if (ofd_svcPick()?.length === 0 && !(typeof tpPickerHtml === 'function' && tpPickerHtml(d)) && OFD.doc?.id === did) { md.remove(); ofd_addFree(d, sc); return; } draw(); })();  // #7596: loaded empty = the free position
   }
   md.addEventListener('input', e => { if (e.target.id === 'ofd-sq') draw(); });
   md.addEventListener('click', async e => {
     const b = e.target.closest('[data-sid],[data-m]'); if (!b) return;
     if (typeof TP === 'object') TP.open = tpc;  // 2.113.0 (#2248)
-    if (b.dataset.m === 'close' || b.dataset.m === 'tab') { md.remove(); return; }  // (tab: the link goes on to #office/services)
+    if (b.dataset.m === 'close') { md.remove(); return; }
     if (b.dataset.m === 'part' && typeof tpPick === 'function') { md.remove(); await tpPick(+b.dataset.pid); return; }  // 2.47.0 (#1215)
     if (!OFD.doc || OFD.doc.id !== did) { md.remove(); return; }  // #7509: another document is open now
     const d = typeof tpCur === 'function' ? tpCur() : OFD.doc;
-    const blank = {kind: 'service', service_id: null, title: '', detail: '', qty: 1, unit: 'day', rate: 0, tax: 'standard', raw_fee: 0, producing: 0, intext: 'intern', cost: 0, discountable: 1};
-    if (b.dataset.m === 'free') { d.items.push(blank); md.remove(); await ofdPutItems(); $(`${sc}.ofdits [data-i="${d.items.length - 1}"][data-k="title"]`)?.focus(); return; }
+    if (b.dataset.m === 'free') { md.remove(); await ofd_addFree(d, sc); return; }
     const s = ofcRow('services', +b.dataset.sid); if (!s) return;
     const ct = d.contract?.rates?.[s.id];
-    d.items.push({...blank, cost: null /* 2.47.0 (#1649): the server takes the purchase of the service's role */, service_id: s.id, title: ofdSvcName(s, d), unit: s.unit || 'day', rate: ct ?? (s.unit === 'hour' && s.hourly_rate != null ? s.hourly_rate : s.daily_rate) ?? 0, tax: s.tax || 'standard', raw_fee: s.raw_fee ? 1 : 0, producing: s.producing ? 1 : 0, intext: s.intext || 'intern'});
+    d.items.push({...OFD_BLANK, cost: null /* 2.47.0 (#1649): the server takes the purchase of the service's role */, service_id: s.id, title: ofdSvcName(s, d), unit: s.unit || 'day', rate: ct ?? (s.unit === 'hour' && s.hourly_rate != null ? s.hourly_rate : s.daily_rate) ?? 0, tax: s.tax || 'standard', raw_fee: s.raw_fee ? 1 : 0, producing: s.producing ? 1 : 0, intext: s.intext || 'intern'});
     md.remove(); await ofdPutItems();
     $(`${sc}.ofdits [data-i="${d.items.length - 1}"][data-k="qty"]`)?.focus();
   });

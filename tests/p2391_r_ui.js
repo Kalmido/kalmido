@@ -1,6 +1,7 @@
 // 2.39.1 UI tests, part R, own container (start.sh), Firefox (desktop, mouse, motion allowed):
 // - #1220: the dialog "Add service" covers the whole window, also after the window got bigger or smaller (its class no
-//   longer picks up the 40vh rule of a list); the card sits in the middle; the empty state links to the Services tab
+//   longer picks up the 40vh rule of a list); the card sits in the middle
+// - #7596: no service yet: Add service = a free position at once (cursor in it), the hint under the positions links the tab
 // - #1213: the loading screen (#boot) is gone once the app is drawn; a reload in the same session skips it
 // - #1292: the celebration (2.136.0, #2193: the bot figure instead of the heron) in the middle, a big check, colourful confetti to all
 //   sides, three levels (today < list < project: size and amount), a tap ends it at once
@@ -45,8 +46,22 @@ const FEAT = 'cal,comments,collab,office,clients';
     // ================= #1220 the service picker covers the whole window, before and after a resize
     await vp(900, 560);
     await sleep(300);
+    // ================= #7596: no service yet: "Add service" adds a free position at once (no empty sheet), the cursor in its field
+    // "Service"; the hint on the templates stands under the positions and leads to the tab
+    check(await ready(ev, `Array.isArray(OFC.data.services) && OFC.data.services.length === 0 && !!document.querySelector('.ofdsvchint a[href="#office/services"]')`), '#7596: no service: the hint under the positions links the Services tab');
+    const n7596 = await ev(`document.querySelectorAll('.ofdits .ofdit').length`);
     await ev(`(() => { document.querySelector('[data-ofd="it-svc"]').click(); return 1; })()`);
-    check(await ready(ev, `!!document.querySelector('.modal.ofdpick .card')`), '#1220: the service picker opens');
+    check(await ready(ev, `document.querySelectorAll('.ofdits .ofdit').length === ${n7596} + 1 && document.activeElement?.dataset?.k === 'title' && document.activeElement.closest('.ofdit')`), '#7596: one tap, a new free position, the cursor in its field "Service"');
+    check(await ev(`!document.querySelector('.modal.ofdpick')`), '#7596: no sheet opened');
+    check(await ready(ev, `fetch('/api/office/docs/${offer.id}').then(r => r.json()).then(j => (j.items || []).length === ${n7596} + 1)`), '#7596: the position is saved on the server');
+    await ev(`(() => { document.querySelector('.ofdsvchint a').click(); return 1; })()`);
+    check(await ready(ev, `location.hash === '#office/services'`), '#7596: the hint opens the Services tab');
+    await call(CA, 'POST', '/api/office/services', {name_de: 'Schnitt', name_en: 'Editing', category: 'Post', daily_rate: 700, unit: 'day'});
+    await nav(B + '#office/offers/' + offer.id);
+    check(await ready(ev, `!!document.querySelector('.ofdeditor') && (OFC.data.services || []).length === 1 && !document.querySelector('.ofdsvchint')`, 60), '#7596: with a service the hint is gone');
+    await vp(900, 560); await sleep(300);
+    await ev(`(() => { document.querySelector('[data-ofd="it-svc"]').click(); return 1; })()`);
+    check(await ready(ev, `!!document.querySelector('.modal.ofdpick .card')`), '#1220: the service picker opens (with a service: as before)');
     const geo = `(() => { const m = document.querySelector('.modal.ofdpick'), r = m.getBoundingClientRect(), c = m.querySelector('.card').getBoundingClientRect();
       return {w: Math.round(r.width), h: Math.round(r.height), top: Math.round(r.top), iw: innerWidth, ih: innerHeight, cmid: Math.round(c.top + c.height / 2), cx: Math.round(c.left + c.width / 2)}; })()`;
     const g0 = await ev(geo);
@@ -58,10 +73,8 @@ const FEAT = 'cal,comments,collab,office,clients';
     await vp(700, 480); await sleep(400);
     const g2 = await ev(geo);
     check(g2.w === g2.iw && g2.h === g2.ih, '#1220: after the window got smaller: still the whole window ' + JSON.stringify(g2));
-    // 2.1076.0 (#5450): the shared empty block (render.js emptyState), the tab as its button
-    check(await ev(`!!document.querySelector('.modal.ofdpick .empty a[href="#office/services"]')`), '#1220: the empty state names the Services tab as a link');
-    await ev(`(() => { document.querySelector('.modal.ofdpick .empty a').click(); return 1; })()`);
-    check(await ready(ev, `!document.querySelector('.modal.ofdpick') && location.hash === '#office/services'`), '#1220: the link closes the picker and opens the tab');
+    await ev(`(() => { document.querySelector('.modal.ofdpick [data-m="close"]').click(); return 1; })()`);
+    check(await ready(ev, `!document.querySelector('.modal.ofdpick')`), '#1220: Close closes the picker');
     // every dialog keeps the full backdrop (same modal())
     await vp(1280, 900); await sleep(300);
     const all = await ev(`(() => { const m = modal('<h3>x</h3>'); m.classList.add('ofdpick', 'cdlg'); const r = m.getBoundingClientRect(); m.remove(); return {w: Math.round(r.width), h: Math.round(r.height), iw: innerWidth, ih: innerHeight}; })()`);

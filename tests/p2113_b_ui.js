@@ -95,10 +95,9 @@ const FEATURES = 'cal,collab,comments,contacts,files,clients,office';
   check(d.querySelector(BA) && d.querySelector(BB), 'both stay open after the redraw');
 
   // ---- "Add service" in part 1 lands in part 1
+  // #7596: no service and inside a part no parts to choose: no sheet, the free position at once
   click(w, d.querySelector(`${BA} [data-ofd="it-svc"]`));
-  await until(() => d.querySelector('.ofdpick [data-m="free"], .modal [data-m="free"]'));
-  check(!d.querySelector('.modal [data-m="part"]'), 'the choice inside a part offers no parts');
-  click(w, d.querySelector('.modal [data-m="free"]'));
+  check(!d.querySelector('.modal.ofdpick'), 'nothing to choose inside a part (no service): no sheet');
   x = await until(async () => { const j = await get(); return (part(j, PA).items || []).length === 2 ? j : null; });
   check(x && (part(x, PB).items || []).length === 1 && (x.items || []).length === before.items.length, 'a free position in part 1: only part 1 grows');
   // ---- a heading in part 2
