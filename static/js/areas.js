@@ -67,7 +67,7 @@ const mg_wrap = (mod, html) => mg_areaOf(mod)?.[0] === 'office' && !isMobile() &
 // 2.489.0 (#2664, decision #2647): the address book is no part of Sell any more but an entry of its own (group 'book', [3] = 1:
 // no heading, never folded), below the groups and right above its folders
 /** @type {Array<[string, string, string, number?]>} */
-const OFM_GROUPS = [['sell', 'tag', N_('Sell|office')], ['money', 'wallet', N_('Money|office')], ['admin', 'sliders', N_('Administration|office')], ['book', 'users', N_('Contacts'), 1]];  // 2.1168.0 (#6118): the page is called Contacts, as in the main menu
+const OFM_GROUPS = [['sell', 'tag', N_('Sell|office')], ['money', 'wallet', N_('Money|office')], ['admin', 'sliders', N_('Administration|office')], ['book', 'users', N_('Address book'), 1]];  // decision #2647 (21.10.): Address book in the office menu (back with #6841)
 const ofm_ofc = () => officeOn();
 const ofm_sub = () => typeof OFC !== 'undefined' && !!OFC.info?.submit;  // 2.356.0 D (#3129)
 const ofm_cc = () => typeof OFC !== 'undefined' && !!OFC.info?.cards;  // 2.444.0 (#3447): the person holds a card here
@@ -76,7 +76,7 @@ const OFM_ITEMS = [
   {key: 'offers', go: 'office/offers', icon: 'file', name: N_('Quotations'), group: 'sell', on: ofm_ofc},  // 2.380.0 B (#3409): quotations and invoices are two points
   {key: 'invoices', go: 'office/invoices', icon: 'receipt', name: N_('Invoices'), group: 'sell', on: ofm_ofc, lvk: 'offers'},  // the rights of the quotations' area
   {key: 'clients', go: 'clients', icon: 'brief', name: N_('Clients'), group: 'sell', on: () => clientsOn()},
-  {key: 'contacts', go: 'contacts', icon: 'users', name: N_('Contacts'), group: 'book', on: () => feat('contacts')},  // 2.489.0 (#2664): own entry; 2.1168.0 (#6118): Contacts (was Address book)
+  {key: 'contacts', go: 'contacts', icon: 'users', name: N_('Address book'), group: 'book', on: () => feat('contacts')},  // (#2664): own entry; decision #2647: Address book (#6841)
   {key: 'cashflow', go: 'office/cashflow', need: 'money.cashflow', icon: 'trend', name: N_('Cash flow'), group: 'money', on: ofm_ofc, adm: 1},
   {key: 'kpi', go: 'office/kpi', need: 'money.kpi', icon: 'chart', name: N_('Figures'), group: 'money', on: ofm_ofc, adm: 1},
   {key: 'travel', go: 'office/travel', need: 'money.travel', icon: 'plane', name: N_('Travel expenses'), group: 'money', on: ofm_ofc, adm: 1},
@@ -184,8 +184,10 @@ const ofm_ok = i => { if (MV_OFM.includes(i.key) && mvOfc()) return false; if (i
 // 2.276.0 A (#3039): what the office already holds (GET /api/office/settings used: invoice, receipt, inquiry, meal, travel,
 // sub, fixed), per person and workspace like the role (LS ofmUsed); null = not known yet (everything as before)
 function ofm_used() { return ofm_info() ? ofm_info().used || null : ofm_get('ofmUsed')[ofm_ws()] || null; }
-// 2.380 F (#3411): every point of Money shows at once; 2.448.0 (#3784): also before its first use, a point nobody needs is
-// switched off under Settings > Functions (need: money.*, office_packs.js OCF_FEATS) or hidden in the menu's editor
+// points of Money not used yet start under "Hidden" of the menu's editor (nav_defHid), until used or brought back by hand -
+// decision #3560 (28.10., newer than #3411); back with #6841 after #3784 had shown them all without a decision.
+// A point nobody needs at all is switched off under Settings > Functions (need: money.*, office_packs.js OCF_FEATS)
+const OFM_LATER = {cashflow: u => u.invoice || u.receipt || u.fixed, kpi: u => u.invoice, travel: u => u.travel, meals: u => u.meal, subs: u => u.sub};
 // ---- 2.418.0 (#3560): each person arranges the menus of the areas (navmenu.js draws the editor): the order, the points
 // hidden (only not in the menu: data, function and rights stay, the search finds them) and the points that start hidden but
 // were brought back. User setting nav_menus, json {area: {order, hidden, shown}} (accounts/navmenus.py), the same on phone
@@ -202,9 +204,11 @@ function nav_pref(area) {
 // entry per office under "All"), the open space under "All" (#<view>/s/<space>), else the workspace on top
 const nav_orgOff = (area, key) => { const c = typeof wsCur === 'function' ? wsCur() : '', w = area === 'office' ? ofm_area() : c === 'all' ? S.route?.wsp || '' : c;
   return w.startsWith('org:') && (wsOrg(w.slice(4))?.nav_off || []).includes(area + ':' + key); };
-// hidden by the person: by hand; the parts hidden in the old sidebar settings
+// (#3560): a point of Money the office has not used yet starts hidden (not known yet: shown)
+const nav_defHid = (area, key) => { if (area !== 'office' || !OFM_LATER[key]) return false; const u = ofm_used(); return !!u && !OFM_LATER[key](u); };
+// hidden by the person: by hand, or starting hidden and not brought back; the parts hidden in the old sidebar settings
 // (sidebar "e:<part>", before 2.418.0) count as hidden too until shown again
-const nav_hid = (area, key) => { const p = nav_pref(area); return p.hidden.has(key) || !p.shown.has(key) && area !== 'office' && sideHidden('e:' + key); };
+const nav_hid = (area, key) => { const p = nav_pref(area); return p.hidden.has(key) || !p.shown.has(key) && (nav_defHid(area, key) || area !== 'office' && sideHidden('e:' + key)); };
 const nav_open = (area, key) => area === 'office' ? S.route?.mod === 'office' && S.route.tab === key || S.route?.mod === key && key !== 'office' : S.route?.mod === key;
 // the menus that can be arranged (the editor: navmenu.js, loaded on the first use)
 const NAV_AREAS = ['office', 'life', 'reading', 'time', 'review', 'ablage'];
@@ -242,8 +246,13 @@ document.addEventListener('click', e => {
   const b = e.target.closest?.('[data-act="nav-edit"]'); if (!b) return;
   e.preventDefault(); e.stopPropagation(); nav_edit(b.dataset.area);
 }, true);
-// the choices of the "More" of the office (LS ofmAll / ofmSeen, one device, before 2.418.0): 2.448.0 (#3784) nothing starts hidden any more
-function nav_legacy() { LS.del('ofmAll'); LS.del('ofmSeen'); }
+// the choices of the "More" of the office (LS ofmAll / ofmSeen, one device, before 2.418.0) move once into the setting (#3560)
+function nav_legacy() {
+  const all = LS.get('ofmAll', false), seen = LS.get('ofmSeen', null); if (!all && !seen || !S.settings) return;
+  LS.del('ofmAll'); LS.del('ofmSeen');
+  const ks = Object.keys(OFM_LATER).filter(k => all || (seen || []).includes(k)), p = nav_pref('office');
+  if (ks.length && !p.shown.size && !p.hidden.size) { NAV.o.office = {...(NAV.o.office || {}), shown: ks}; const v = JSON.stringify(NAV.o); S.settings.nav_menus = v; api('PATCH', '/api/settings', {nav_menus: v}).catch(() => {}); }
+}
 // the person's order: named keys first in that order, the others after them in their usual order (rank)
 const nav_sort = (area, xs, key = x => x.key, rank = () => 0) => { const o = nav_pref(area).order, r = x => { const n = o.indexOf(key(x)); return n < 0 ? o.length + rank(x) : n; }; return xs.map((x, i) => [x, i]).sort((a, b) => r(a[0]) - r(b[0]) || a[1] - b[1]).map(a => a[0]); };
 // a tab of the office (OFC_TABS: [key, icon, name, admins only, html, group]) without an entry here joins its group
@@ -301,7 +310,7 @@ const ofm_btn = (i, cur, cls) => `<button type="button" class="${cls} ${i.key ==
 function ofm_detail(mod) {
   let p = null;
   if (mod === 'clients' && S.route.client && S.route.client !== 'mailhub' && typeof CLV !== 'undefined' && CLV.id === S.route.client && CLV.data?.name) p = [tr('Clients'), CLV.data.name];
-  else if (mod === 'contacts' && typeof CT !== 'undefined' && CT.sel && CT.card && !lsd_one()) p = [tr('Contacts'), CT.card.fn || CT.card.org || '?'];  // 2.1168.0 (#6118): one column (phone): the card's back arrow and name are the path, no second one
+  else if (mod === 'contacts' && typeof CT !== 'undefined' && CT.sel && CT.card && !lsd_one()) p = [tr('Address book'), CT.card.fn || CT.card.org || '?'];  // (#6118): one column (phone): the card's back arrow and name are the path, no second one
   // 2.1185.0 (#6151): an open quotation / invoice has no path line any more: the big heading names it and "< Quotations" in its
   // head is its one way back (the path repeated both)
   else if (mod === 'office' && S.route.tab === 'travel' && typeof RK !== 'undefined' && RK.open && typeof rk_trip === 'function' && rk_trip(RK.open)) p = [tr('Travel expenses'), rk_trip(RK.open).dest || tr('Trip')];
