@@ -263,12 +263,14 @@ function fv2_goneKeys() {
   const ctx = {lists: S.lists, c: counts(), people: teamPeople(), allWs: true};
   return fv2_keys().filter(k => { if (k.startsWith('sep:')) return false; if (fv2_isObj(k)) return FV2.gone.includes(k); try { return !fv2_tile(k, ctx); } catch { return true; } });
 }
-// open a favourite that lives in a workspace: the switch follows it (the office answers only for the workspace shown)
+// open a favourite that lives in a workspace. (#7328): one of the office opens its office's own address (office/s/<area>/...,
+// core.js ofc_link) and the switch on top stays; another one under a chosen workspace switches with the note "Switched to X - Back"
 async function fv2_open(b) { await fv2_goWs(b.dataset.fv2Ws, b.dataset.fv2Go, b.dataset.fv2.startsWith('r:office')); }
 // 2.1038.0 (#5811): the same for an entry of a folder tile's menu
 async function fv2_goWs(ws, to, office) {
-  const cur = wsCur();
-  if (ws && wsOn() && ws !== cur && wsOptions().includes(ws) && (cur !== 'all' || office)) await wsSet(ws);
+  const cur = wsCur(), t = String(to || '');
+  if (office && ws && wsOn() && t.startsWith('office/')) { go(ofc_link(t.slice(7), ws)); return; }
+  if (ws && wsOn() && ws !== cur && wsOptions().includes(ws) && cur !== 'all') { await wsSet(ws); ws_autoNote(cur); }
   go(to);
 }
 // the sidebar (renderSide via favSideHtml): no section "Favourites" in any layout -- a computer has them in the head bar, a phone in the row

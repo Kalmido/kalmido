@@ -66,8 +66,7 @@ function dlToOffice(tid) {
 // to the equipment: the office of its workspace, then its editor
 async function dlOpenEquip(tid) {
   const o = DL.byTask[tid]?.link?.other; if (!o || o.state !== 'ok') return;
-  if (typeof wsCur === 'function' && wsCur() !== o.ws && typeof wsSet === 'function') await wsSet(o.ws, {keep: true});  // 2.397.0 (#3404): the link's target wins
-  go('office/equipment');
+  go(ofc_link('equipment', o.ws));  // (#7328): the office of the equipment's workspace by its address; the switch on top stays (was wsSet)
   for (let i = 0; i < 40; i++) {
     await new Promise(r => setTimeout(r, 150));
     const row = typeof ofcRow === 'function' ? ofcRow('equipment', o.equipment_id) : null;

@@ -13,9 +13,9 @@ from ..core.config import app, OFFICE_DIR
 from ..core.pg import insert_id, like_escape, qi, system_ctx
 from ..core.i18n import N_, tr
 from ..core.db import body, bump, db, err, gset, gsetting, iso, now_utc
-from ..core.db import usettings, uset  # 2.356.0 B (#2932)
+from ..core.db import usettings
 from ..accounts.session import me
-from ..core.access import Denied, acx_drop, acx_warm_register, acx_lists_sql, joined_lists_sql, dlg_gone, live_sql, plists, pvis, qn_private, token_lists, otr_live
+from ..core.access import Denied, acx_drop, acx_warm_register, acx_lists_sql, joined_lists_sql, dlg_gone, plists, pvis, qn_private, token_lists, otr_live
 from ..accounts.login import login_log_who  # 2.239.0 B (#2888)
 from ..core.orgcrypt import oc_send_file, oc_write_file, rck_admin_gone, rck_org_admins  # 2.149.0 G (#2517): pulled up from functions; 2.539.0 (#4373): rck_*
 from ..core.errors import BadInput  # 2.149.0 G (#2517): pulled up from functions
@@ -157,7 +157,7 @@ def om_setup_org(c, uid, name):
         if c.execute("SELECT 1 FROM orgs WHERE personal_of IS NULL AND retired_at IS NULL LIMIT 1").fetchone():  # 2.152.0 A
             return None
         oid = insert_id(c, "INSERT INTO orgs(name,icon,created_at) VALUES(?,?,?)", (nm, "", iso(now_utc())))
-        org_member_add(c, oid, uid, "admin", keep_office=False)
+        org_member_add(c, oid, uid, "admin")
     return oid
 
 
@@ -183,13 +183,12 @@ def user_orgs(c, uid, raw=False):
     return sorted(org_roles_cap(c, uid, org_roles_read(c, uid)))  # a write asks the database each time
 
 
-def org_member_add(c, oid, uid, role="member", keep_office=True):
+def org_member_add(c, oid, uid, role="member"):
     """2.36.2 (#1142): add uid to organisation oid (nothing when already in) and refresh the request's access contexts.
-    keep_office=False (2.356.0, review N3): the person creates the organisation herself -- she goes on in it."""
+    (#7328): the workspace on top stays as it is (was 2.356.0 B, #2932: "All" became "Private" when the own office held
+    data, on every device and without a word; under "All" the office shows both offices since #7313)."""
     n = c.execute("INSERT INTO org_members(org_id,user_id,role) VALUES(?,?,?) ON CONFLICT (org_id, user_id) DO NOTHING", (oid, uid, role)).rowcount
     acx_drop()
-    if n == 1 and keep_office:  # 2.356.0 B (#2932): a person with an own office keeps working in it (every way of joining comes here)
-        _office_keep_on_join(c, uid)
     if n == 1:  # 2.363.3 (#3133): back within a day: their assignments and "coming along" return (every way of joining comes here)
         from .orgleave import olv_rejoin
         olv_rejoin(c, oid, uid, role)
@@ -219,28 +218,6 @@ def _office_start(c, oid, uid, role):
         c.execute("INSERT INTO office_rights_log(org_id, by_user, target_user, group_ref, action, before, after, at) VALUES(?,?,?,?,?,?,?,?)",
                   (oid, by, uid, f"tpl:{tpl}", "member_start", "", json.dumps([f"tpl:{tpl}"]), at))
     return True
-
-
-def _office_keep_on_join(c, uid):
-    """2.356.0 B (#2932): uid just joined an organisation. While the setting "workspace" is still unset ("all") and uid
-    has a personal office (office/model.py pb_personal) with data (documents, master data, receipts, bank, cash book or
-    private clients), it becomes "private": the office stays the person's own instead of switching silently to the
-    organisation's (office_where: "all" + one organisation = its office, its numbers). Without such data nothing changes."""
-    with system_ctx(c):  # the person's own setting and area (also when an admin adds the person)
-        if (usettings(c, uid).get("workspace") or "all").strip() not in ("", "all"):
-            return False
-        pid = c.execute("SELECT id FROM orgs WHERE personal_of=?", (uid,)).fetchone()
-        if not pid:
-            return False
-        # 2.905.0 (#5414), 2.1005.0 (#5415): not the trash (master data, document drafts and the purchases on such a draft)
-        used = c.execute(f"SELECT 1 FROM office_docs WHERE org_id=? AND {live_sql()} UNION ALL SELECT 1 FROM office_services WHERE org_id=? AND {live_sql()} "
-                         f"UNION ALL SELECT 1 FROM office_purchases WHERE org_id=? AND doc_id IN (SELECT id FROM office_docs WHERE {live_sql()}) "
-                         "UNION ALL SELECT 1 FROM office_bank_tx WHERE org_id=? "
-                         "UNION ALL SELECT 1 FROM office_cash_entries WHERE org_id=? "
-                         "UNION ALL SELECT 1 FROM clients WHERE org_id IS NULL AND created_by=? LIMIT 1", (pid[0],) * 5 + (uid,)).fetchone()
-        if used:
-            uset(c, uid, "workspace", "private")
-    return bool(used)
 
 
 def org_names(c, uid):
@@ -1124,7 +1101,7 @@ def org_create():
         if adm != me() and _operator_apart():  # 2.399.0 (#2687): hosted: a customer creates its organisation itself (POST /api/orgs)
             c.rollback()
             op_apart_deny()
-        org_member_add(c, oid, adm, "admin", keep_office=adm != me())
+        org_member_add(c, oid, adm, "admin")
         bump(c)
         c.commit()
         print("organisation", oid, "created by", login_log_who(g.user), flush=True)
@@ -1189,7 +1166,7 @@ def org_self_create():
         # the silent "Previous access" with quotations, invoices and the office settings; its admins give more
         oid = insert_id(c, "INSERT INTO orgs(name,icon,domains,created_at,self_made,office_new_tpl) VALUES(?,?,?,?,?,?)",
                         (name, _clean_icon(b.get("icon")), "", iso(now_utc()), uid, "staff"))
-        org_member_add(c, oid, uid, "admin", keep_office=False)
+        org_member_add(c, oid, uid, "admin")
         bump(c)
         c.commit()
         print("organisation", oid, "created by its own admin", login_log_who(g.user), flush=True)

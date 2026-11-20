@@ -129,7 +129,7 @@ function ofcAreaHint() {
 const ofc_spaces = () => mod_spaces('office');
 const ofc_sp = () => { const sp = ofc_spOpen(); return sp && ofc_spaces().includes(sp) ? sp : ''; };  // the open area under "All" ('' = none / not mine)
 // (#7313): an address #office/s/<area> whose area is not mine or whose office is off for me: a note with the offices that are on
-const ofc_wspBad = () => wsOn() && wsCur() === 'all' && !!S.route?.wsp && !ofc_sp();
+const ofc_wspBad = () => wsOn() && !!S.route?.wsp && !ofc_sp();  // (#7328): under a chosen workspace too
 // (#7313 F13): a link to an object without an area (#office/offers/<id> from a chat, a mail, another page) under "All" with
 // several offices: its office is asked once (the server answers in the object's own office and names it, header
 // X-Kalmido-Office-Area) and the address gets the area (#office/s/<area>/<tab>/<id>); unknown / failed = the overview
@@ -148,7 +148,7 @@ function ofc_objGo() {
   return true;
 }
 const ofc_allOvr = () => wsOn() && wsCur() === 'all' && ofc_spaces().length > 1 && !ofc_sp();
-const ofc_allUpHtml = () => ofc_sp() && ofc_spaces().length > 1 ? `<a href="#office" class="linkbtn ofcallup" data-ofcall="up">${esc(tr('All workspaces'))}</a><span class="abcsep" aria-hidden="true">/</span>` : '';  // 2.1392.0 (#6717): not for the only office under "All" (no overview)
+const ofc_allUpHtml = () => wsCur() === 'all' && ofc_sp() && ofc_spaces().length > 1 ? `<a href="#office" class="linkbtn ofcallup" data-ofcall="up">${esc(tr('All workspaces'))}</a><span class="abcsep" aria-hidden="true">/</span>` : '';  // 2.1392.0 (#6717): not for the only office under "All" (no overview)
 const ofc_wsKey = () => (typeof wsCur === 'function' ? wsCur() : '') + (ofc_sp() ? '>' + ofc_sp() : '');  // OFC.ws: the shown office (a workspace, or "All" + an area)
 // 2.1254.0 (#6180): every page of the office (and an open quotation / invoice / receipt / template) reports its organisation (wscolor.js)
 wso_open('office', () => S.route?.mod === 'office' && OFC.info && !OFC.infoErr && !ofc_allOvr() ? ofcWs() : null);

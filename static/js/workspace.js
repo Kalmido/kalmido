@@ -117,6 +117,7 @@ function ws_target(ws) {
   if (mod === 'notes') { const lid = a === 'note' ? (S.notes || []).find(n => n.id === +b)?.list_id : +b || null; return lid != null && ws_listIn(lid, ws) ? null : 'notes'; }
   if (mod === 'agents' && a === 'agents') { const ag = agentById(+b); return ag && wsAgentIn(ag, ws) ? null : 'agents'; }
   if (mod === 'sheets' && b === 'l') return ws_listIn(c, ws) ? null : 'sheets';
+  if (mod === 'office' && b === 's') { const t = h.split('?')[0].split('/')[3]; return t ? 'office/' + t : 'office'; }  // (#7328): another area's office (office/s/<area>/<tab>[/<id>]) -> the new workspace's own, same tab
   if (mod === 'office') return c ? 'office/' + b : null;  // office/<tab> is a part of the office, office/<tab>/<id> one document
   if (mod === 'docs' && (b === 'review' || b === 'docs')) return null;  // a saved filter, no object; 2.752.0 (#4887): #ablage/docs|review
   if (mod === 'docs') return 'ablage/docs';  // 2.752.0 (#4887): a document or a saved view of the other workspace -> All documents
@@ -135,7 +136,7 @@ const WS_HOLD = {p: null};
 function ws_hold(ws) {
   if (WS_HOLD.p) { OPT.delete(WS_HOLD.p); OPT_DONE.delete(WS_HOLD.p); }
   const p = WS_HOLD.p = {ws, put: () => { if (S.settings) S.settings.workspace = ws; }};
-  OPT.add(p); p.put(); LS.set('ws', ws);
+  OPT.add(p); p.put(); ws_own(ws);
   return p;
 }
 // true = saved (or this window's own); false = not saved (from: the workspace before, shown again with a note; null = nothing to take back)
@@ -158,13 +159,21 @@ async function ws_save(p, from) {
 }
 // (#7297): wsCur never falls back to "All" without a word: a state whose organisations no longer hold the saved one (the
 // person left or was removed) switches to "All workspaces" with a note and saves it (applyState calls this after every load)
-const WSG = {names: {}, last: ''};
+// (#7328): own = a counter of this window's own switches (ws_own): a state that brings another workspace than the one shown
+// before, with no own switch in between, was switched from outside (another device, the office's move) -> once "Switched to X - Back"
+const WSG = {names: {}, last: '', own: 0};
+function ws_own(ws) { WSG.last = ws; WSG.own++; }
 function ws_gone() {
   const v = S.settings?.workspace || 'all', prev = WSG.last;
   for (const w of S.me?.workspaces || []) WSG.names['org:' + w.id] = w.name;
   WSG.last = v;
   // (#7313 F16): the server resets the setting itself on leaving (office/model.py _ws_left): the shown one gone = the same note
   if (S.booted && S.workspaces && v === 'all' && prev?.startsWith('org:') && !wsOrg(prev.slice(4)) && WSG.names[prev]) { toast(tr('You are no longer a member of {0}: all workspaces are shown', WSG.names[prev]), null, 9000); return; }
+  if (S.booted && S.workspaces && prev && prev !== v && wsOptions().includes(v) && wsOptions().includes(prev)) {
+    const n = WSG.own;  // an own switch right after this load (the office's move: refreshMe, then ws_hold) says nothing
+    setTimeout(() => { if (WSG.own === n && wsCur() === v) ws_autoNote(prev); }, 0);
+    return;
+  }
   if (!S.booted || !S.workspaces || !v.startsWith('org:') || wsOrg(v.slice(4))) return;  // the last organisation gone too (wsOn() off)
   const nm = WSG.names[v] || tr('Organisation');
   setTimeout(() => {
@@ -182,7 +191,7 @@ async function wsSet(ws, o = {}) {
   if (WSV.ws === from) wsv_save(from);  // 2.397.0 (#3404)
   if (typeof vm_leave === 'function') vm_leave();  // 2.497.0 (#4048): the place of the view left: no route may follow (the page stays)
   let sv = null;
-  if (o.local) { if (WS_HOLD.p) { OPT.delete(WS_HOLD.p); OPT_DONE.delete(WS_HOLD.p); WS_HOLD.p = null; } S.settings.workspace = ws; LS.set('ws', ws); }
+  if (o.local) { if (WS_HOLD.p) { OPT.delete(WS_HOLD.p); OPT_DONE.delete(WS_HOLD.p); WS_HOLD.p = null; } S.settings.workspace = ws; ws_own(ws); }
   else sv = ws_hold(ws);  // (#7297): held over a state load until saved
   // 2.455.0 (#3847): the phone's open drawer stays and shows the new workspace; route() must not close it either
   const hold = !!$('#side.open') && typeof SBM !== 'undefined';

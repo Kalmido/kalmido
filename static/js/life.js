@@ -277,11 +277,9 @@ const lf_costOk = l => typeof officeOn === 'function' && officeOn() && (!l.org_i
 async function lf_tripCost(lid) {
   const l = listById(lid); if (!l) return;
   let j; try { j = await api('POST', `/api/life/trips/${lid}/expenses`, {}); } catch { return; }  // api() said it
-  const ws = wsOf(l);
-  if (wsOn() && wsCur() !== ws && wsOptions().includes(ws)) await wsSet(ws, {keep: true});  // the office of the trip's space (2.397.0, #3404: no kept view in between)
   LF_COST[lid] = j.trip_id;  // 2.173.1 A (#2714)
   window.lf_rkOpen = {trip: j.trip_id, office: j.office_id};  // office_travel.js opens it once that office is loaded
-  go('office/travel');
+  go(wsOn() ? ofc_link('travel', wsOf(l)) : 'office/travel');  // (#7328): the office of the trip's space by its address; the switch on top stays (was wsSet)
   if (j.created) toast(tr('Travel expenses created for {0}', l.name));
 }
 // 2.173.1 A (#2714): the button tells whether travel expenses are linked already (asked once per trip and load, quietly)
