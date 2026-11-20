@@ -735,7 +735,7 @@ def token_update(tid):
     r = c.execute("SELECT * FROM api_tokens WHERE id=? AND user_id=?", (tid, me())).fetchone()
     if not r:
         raise Denied(404)
-    unknown = sorted(k for k in b if k not in ("scopes", "allowed_ips", "name", "list_ids"))
+    unknown = sorted(k for k in b if k not in ("scopes", "allowed_ips", "name", "list_ids", "password"))  # #6499: + the confirmation
     if unknown:
         return err(tr("Invalid value: {0}", ", ".join(unknown)))
     if "docs:upload" in api_scopes(r["scopes"]) and ("scopes" in b or "list_ids" in b):  # 2.207.0 A (#2763): a scan inbox stays upload-only
