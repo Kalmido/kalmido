@@ -52,7 +52,16 @@ async function bkLoadUstva() {
   catch (x) { ofcErr(x); }
   ofcDraw();
 }
-const bkReload = () => { BK.info = null; BK.euer = null; if (typeof RSB === 'object') RSB.inRows = null; if (typeof RKF === 'object') RKF.data = null; if (typeof rclReload === 'function') rclReload(); ofcDraw(); };  // 2.276.0 A (#3039): + the receipts list; 2.356.0 D (#3129): + handed in  // 2.114.1 B (#2018): receipts count in the cash flow
+// #7495: the figures on screen stay (dimmed) until the fresh ones are there
+const bkReload = () => {
+  if (typeof RSB === 'object') RSB.inRows = null; if (typeof RKF === 'object') RKF.data = null; if (typeof rclReload === 'function') rclReload();
+  const y = BK.year;
+  ofcRefetch('books', ofcTab() === 'books' && !!BK.info && !!BK.euer && !BK.err, async () => {
+    const [info, euer] = await Promise.all([api('GET', `/api/office/books?year=${y}`), api('GET', `/api/office/books/euer?year=${y}`)]);
+    const billed = await bkBilledLoad(info);  // 2.121.0 C (#2094)
+    return () => { if (BK.year !== y) return; Object.assign(BK, {info, euer, billed, err: null}); bkAcctLines(); };  // 2.144.2 B (#2352)
+  }, () => { BK.info = null; BK.euer = null; });
+};  // 2.276.0 A (#3039): + the receipts list; 2.356.0 D (#3129): + handed in  // 2.114.1 B (#2018): receipts count in the cash flow
 // 2.979.0 (#5667): an undo / redo the server did: an open receipt sheet (bkRxAfter), the books, the tax forms, the checks and the comparison come again
 histReloader('books', () => { const sh = $('.bk-sheet[data-rxid]'); if (sh) bkRxAfter(+sh.dataset.rxid); if (!BK.info && !BK.euer && !TF.d && !TC.d && !BKC.d) return; BK.ustva = null; TF.d = null; TC.d = null; TF.busy = TC.busy = null; /* #6135: a load under way is old now */ BKC.src = null; bkReload(); });
 // 2.559.0 (#4659): a change of a receipt shows at once (optWrite): the rows of the receipt in the lists on screen (this month,

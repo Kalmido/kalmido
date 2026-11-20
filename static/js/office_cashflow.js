@@ -10,16 +10,22 @@ OFC_TABS.splice(OFC_TABS.findIndex(t => t[0] === 'settings'), 0, ['cashflow', 't
 
 const rk_ym = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 const rk_ymAdd = (ym, n) => { const [y, m] = ym.split('-').map(Number); return rk_ym(new Date(y, m - 1 + n, 1)); };
-async function rk_cfLoad() {
+// #7495 + (#7507): the plan, the fixed costs and the check in one go (were three requests one after the other), each with
+// its own error as before; put = all at once
+async function rk_cfGet() {
   const q = rk_cfQ(); RKF.q = q;
-  // (#7507): the three at once (were one after the other), each with its own error as before
-  const [cf, fx, ck] = await Promise.allSettled([api('GET', '/api/office/cashflow?' + q), api('GET', '/api/office/fixed-costs'), api('GET', '/api/office/cashflow/check')]);
-  if (cf.status === 'fulfilled') { if (RKF.q === q) { RKF.data = cf.value; RKF.err = null; } } else RKF.err = ofcErrHere(cf.reason);
-  if (fx.status === 'fulfilled') { RKF.fixed = fx.value.items || []; RKF.agr = fx.value.agreements || []; RKF.fixErr = null; } else { RKF.fixed = []; RKF.agr = []; RKF.fixErr = ofcErrHere(fx.reason); }  // (#1925): agr; (#5450): + fixErr
-  if (ck.status === 'fulfilled') RKF.check = ck.value; else { RKF.check = null; if (!RKF.err) ofcErr(ck.reason); }  // (#1838); (#7507): said once, not silent
-  ofcDraw();
+  const [j, fj, ck] = await Promise.allSettled([api('GET', '/api/office/cashflow?' + q), api('GET', '/api/office/fixed-costs'), api('GET', '/api/office/cashflow/check')]);
+  if (j.status === 'rejected') throw j.reason;
+  const fixErr = fj.status === 'rejected' ? ofcErrHere(fj.reason) : null;  // (#5450): the fixed costs' own failure stays in their part
+  return () => {
+    if (RKF.q !== q) return;
+    RKF.data = j.value; RKF.err = null; RKF.fixed = fj.value?.items || []; RKF.agr = fj.value?.agreements || []; RKF.fixErr = fixErr;  // (#1925): agr
+    if (ck.status === 'fulfilled') RKF.check = ck.value; else { RKF.check = null; ofcErr(ck.reason); }  // (#1838); (#7507): said once, not silent
+  };
 }
-const rk_cfReload = () => { RKF.data = null; ofcDraw(); };
+async function rk_cfLoad() { try { (await rk_cfGet())(); } catch (x) { RKF.err = ofcErrHere(x); } ofcDraw(); }
+// #7495: a write, an undo or a switch of the months / basis keeps the plan on screen (dimmed) until the fresh one is there
+const rk_cfReload = () => ofcRefetch('cashflow', S.route.mod === 'office' && ofcTab() === 'cashflow' && !!RKF.data, rk_cfGet, () => { RKF.data = null; });
 // 2.979.0 (#5667): an undo / redo the server did: the cash flow plan and the starting balance section come again
 histReloader('cashflow', () => { if (RKF.data) rk_cfReload(); if (CFS.st !== undefined) { if ($('.cfsset')) return cfs_load(); CFS.oid = -1; } });
 const rk_cfQ = () => `from=${RKF.from}&months=${RKF.months}&basis=${RKF.basis}`;  // 2.67.0 (#1838): net | gross
@@ -29,7 +35,8 @@ function rk_cashflowHtml() {
   if (!ofcAdmin()) return ofcLockedHtml();  // 2.356.0 D (#3006): why, and the way to hand in receipts
   if (!RKF.from) RKF.from = rk_ym();
   if (RKF.err) return ofcFail(RKF.err, () => { RKF.err = null; RKF.data = null; });  // 2.1076.0 (#5450)
-  if (!RKF.data || RKF.q !== rk_cfQ()) { setTimeout(() => { if (RKF.q !== rk_cfQ() || !RKF.data) rk_cfLoad(); }, 0); if (!RKF.data) return loadingHtml('big'); }
+  if (!RKF.data) { setTimeout(() => { if (!RKF.data) rk_cfLoad(); }, 0); return loadingHtml('big'); }
+  if (RKF.q !== rk_cfQ()) setTimeout(() => { if (RKF.q !== rk_cfQ()) rk_cfReload(); }, 0);  // #7495: another period / basis: the old plan dimmed until the new one is there
   const d = RKF.data;
   const bar = `<div class="ofcbar rkcfbar"><button class="iconbtn" data-rkf="prev" aria-label="${esc(tr('Earlier'))}" title="${esc(tr('Earlier'))}">${ic('left', 's')}</button><b class="rkcfrange">${esc(rk_month(d.rows[0]?.month))} – ${esc(rk_month(d.rows[d.rows.length - 1]?.month))}</b><button class="iconbtn" data-rkf="next" aria-label="${esc(tr('Later'))}" title="${esc(tr('Later'))}">${ic('right', 's')}</button>
     ${RKF.from !== rk_ym() ? `<button class="btn sm ghost" data-rkf="now">${tr('Today')}</button>` : ''}<span class="spacer"></span>

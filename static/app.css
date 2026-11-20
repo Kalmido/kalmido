@@ -6767,6 +6767,10 @@ button.lnph:hover{border-color:var(--accent)}
 .ppcard.dragging{opacity:.5}
 /* #7390: the rows of the tab shown last wait dimmed until the new tab's list is there (render.js tabh_held) */
 .tabheld{opacity:.5;pointer-events:none}
+/* #7495: an office area fetching again keeps its rows on screen, dimmed (after a short moment: a quick answer does not flicker) and still usable (office.js ofcRefetch) */
+.ofcbody{transition:opacity .2s ease}
+.ofcbody.ofcheld{opacity:.55;transition-delay:.15s}
+.ofcheldErr{margin:0 0 .5rem}
 .ppcard.warn{border-left:.1875rem solid var(--danger,#c0392b)}
 @media (max-width:767px){
   .ppseg{display:flex;overflow-x:auto}

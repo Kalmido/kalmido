@@ -180,38 +180,52 @@ async function ofcLoad(kind, force) {
   ofcDraw();
 }
 function ofcDraw() { if ($('#s-biz')) biz_paint(); if (S.route.mod !== 'office') return; const el = $('#view'); if (el) keepFocus(el, () => ofcPaint(el)); ost_markBack(); wso_sync(); /* 2.1254.0 (#6180): the page's organisation after a load */ }
-// 2.122.2 (#2327): a reload of the same office view (save, archive switch, year) keeps the old content until the new data
-// is there -- no short "Loading…" page that made the browser lose the scroll position -- and the scroll position stays.
-// A view that is still loading after 4 s is drawn anyway (a part that never loads must not freeze the old page).
-// A tap on the old content while it waits (its data is already gone) is held and repeated on the same button of the new
-// content (2.122.2 CI: "Add receipt" / a pipeline card did nothing right after a save).
-const OFCP = {key: null, t: 0, stale: false, replay: null};
-function ofcPaint(el, force) {
+// 2.122.2 (#2327): a redraw of the same office view keeps the scroll position (the page and, on touch tablets, .ofbody).
+// #7495: the 4 s hold of the old page (OFCP.stale) and the replay of a tap on it are gone - a reload keeps the data
+// themselves (ofcRefetch below), so the page never turns into the loading block and a tap on it works as always.
+const OFCP = {key: null};
+function ofcPaint(el) {
   const key = [OFC.info?.org_id ?? '-', S.route.tab || '', S.route.id || ''].join('|');
   const html = mg_wrap('office', viewOffice()), same = OFCP.key === key && !!el.querySelector('.dash.office .ofcbody');
-  // 2.1076.0 (#5450): "still loading" = the shared loading block of a whole page (render.js loadingHtml('big'): eload es-big);
-  // a part that loads inside a ready page (size sec / row) shows its own place and does not hold the old page
-  if (!force && same && html.includes('eload es-big') && !el.querySelector('.dash.office .ofcbody .eload.es-big')) {
-    if (!OFCP.t) OFCP.t = setTimeout(() => { OFCP.t = 0; if (S.route.mod === 'office') { const v = $('#view'); if (v) keepFocus(v, () => ofcPaint(v, true)); } }, 4000);
-    OFCP.stale = true; return;
-  }
-  clearTimeout(OFCP.t); OFCP.t = 0; OFCP.stale = false;
   const top = el.scrollTop, btop = $('.ofbody', el)?.scrollTop || 0; setHtml(el, html); OFCP.key = key;
   if (typeof bnr_grip === 'function') bnr_grip(el);  // #7306: the grip of the receipts beside the bank bookings
   if (same && el.scrollTop !== top) el.scrollTop = top;
   const ob = $('.ofbody', el); if (same && ob && btop && ob.scrollTop !== btop) ob.scrollTop = btop;  // 2.144.1 A (#2445): touch tablets scroll the page in .ofbody
-  const r = OFCP.replay; OFCP.replay = null;
-  if (r && same) { const b = el.querySelector(r); if (b) setTimeout(() => b.click(), 0); }
   ost_markBack();
 }
-document.addEventListener('click', e => {
-  const v = $('#view'); if (!OFCP.stale || !v || !v.contains(e.target) || !v.querySelector('.dash.office')) return;
-  let b = e.target; while (b && b !== v && ![...b.attributes].some(a => a.name.startsWith('data-'))) b = b.parentElement;
-  if (!b || b === v) return;
-  const sel = b.tagName.toLowerCase() + [...b.attributes].filter(a => a.name.startsWith('data-')).map(a => `[${a.name}="${CSS.escape(a.value)}"]`).join('');
-  e.preventDefault(); e.stopPropagation(); OFCP.replay = sel;
-}, true);
-const ofcReload = kind => { if (kind) delete OFC.data[kind]; else OFC.data = {}; if (S.route.mod === 'office') ofcDraw(); };
+// ---- #7495: "the shown state is stale, fetch it again" - the one way an office area reloads what it shows after a write,
+// an undo, a conflict (#7064) or a switch of its filter / period / year. The data on screen stay (a dialog built from them
+// keeps working), the view draws them dimmed and busy (.ofcbody.ofcheld, aria-busy) until the fresh answer is there; an
+// older answer never overwrites a newer one (seq); a failure keeps the rows and puts the reason with "Try again" above
+// them. The big loading block only when nothing is shown yet (first load, another office). The calm view of render.js
+// (docs/dev/kern.md "Calm view") is the pattern: a tab switch holds the last rows (tabh_keep / tabh_held), a reload the data.
+//   key  = the area's data (one record each: 'subs', 'bank', 'logbook' ...); the record belongs to the tab on screen
+//   has  = the view on screen shows these data now (false: drop() + draw, the area loads as on its first view - the tab is
+//          not open, nothing loaded yet)
+//   get  = async () => put: fetches everything the view needs and resolves to a function that puts the answer in place
+//   drop = forgets the data (the old way of the area's reload)
+const OFR = {}, OFR_OID = {v: undefined};  // key -> {seq, tab, busy, err, get, drop}; the office they belong to
+async function ofcRefetch(key, has, get, drop) {
+  if (!has || S.route.mod !== 'office') { if (OFR[key]) delete OFR[key]; drop?.(); if (S.route.mod === 'office') ofcDraw(); return; }
+  const r = OFR[key] || (OFR[key] = {seq: 0}), my = ++r.seq;
+  Object.assign(r, {tab: ofcTab(), busy: true, err: null, get, drop}); ofcDraw();
+  let put = null, err = null;
+  try { put = await get(); } catch (x) { err = ofcErrHere(x) || tr('Could not be loaded'); }
+  if (OFR[key] !== r || my !== r.seq) return;  // a later fetch runs (or the office changed): only its answer counts
+  r.busy = false; r.err = err;
+  if (!err && typeof put === 'function') put();
+  ofcDraw();
+}
+const ofcHeld = tab => Object.entries(OFR).filter(([, r]) => r.tab === tab);
+// a fetch of key runs or failed (its line with "Try again" is up): an area that sees its data not matching its filter yet does not start another
+const ofcHeldBusy = key => !!(OFR[key]?.busy || OFR[key]?.err);
+// the line above the held rows when a fetch failed: the reason and "Try again" (the rows stay)
+const ofcHeldErr = tab => ofcHeld(tab).filter(([, r]) => r.err).map(([k, r]) => `<div class="ofcheldErr" data-k="ofcheld-${esc(k)}">${/*html-ok*/ errorState({sub: r.err, size: 'row', retry: () => ofcRefetch(k, true, r.get, r.drop), action: ofc_noAreaBtns(r.err)})}</div>`).join('');
+// a list of the shared office lists (OFC.data[kind], ofcLoad): kept and fetched again
+const ofcReload = kind => {
+  if (!kind) { OFC.data = {}; for (const k of Object.keys(OFR)) delete OFR[k]; if (S.route.mod === 'office') ofcDraw(); return; }
+  ofcRefetch(kind, ofcTab() === kind && Array.isArray(OFC.data[kind]), async () => { const j = await api('GET', `/api/office/${kind}?archived=1`); return () => { OFC.data[kind] = j.items || []; }; }, () => { delete OFC.data[kind]; });
+};
 const ofcRows = kind => Array.isArray(OFC.data[kind]) ? OFC.data[kind] : [];
 const ofcRow = (kind, id) => ofcRows(kind).find(r => r.id === id);
 // 2.460.0 (#3767): an own text in language lg: de / en in their columns, the others in r.trans[lg][base]; missing = English, then German
@@ -272,10 +286,14 @@ function viewOffice() {
   if (och) body = och + (ofcDocTab(tab) && !body ? OFC_PBOX : body);  // (the quotations fill .pboffers below it)
   const osu = OFC.info && !OFC.infoErr && !och && !S.route.id && (tab === 'start' || ofcDocTab(tab)) ? ofsu_html() : '';  // (#6530): the card "Set up your office"
   if (osu) body = osu + (ofcDocTab(tab) && !body ? OFC_PBOX : body);
+  // #7495: another office drops every held fetch (its answer belongs to the old one); a finished one of another tab goes
+  const oid = OFC.info?.org_id ?? '-'; if (OFR_OID.v !== oid) { OFR_OID.v = oid; for (const k of Object.keys(OFR)) delete OFR[k]; }
+  for (const [k, r] of Object.entries(OFR)) if (r.tab !== tab && !r.busy) delete OFR[k];
+  const hr = OFC.info && !OFC.infoErr ? ofcHeld(tab) : [], hbusy = hr.some(([, r]) => r.busy);  // #7495: a reload in flight (dimmed, busy) or failed (the reason above the rows)
   const ro = ['readonly', 'accounting'].includes(OFC.info?.role)  // 2.143.0 A (#2151): reads only (create / delete hidden in app.css)
     || (!!ofr_grp() && !!ofr_area(tab) && ['none', 'view'].includes(ofr_lvOf(ofr_area(tab))) && !(tab === 'receipts' && OFC.info?.submit));  // 2.356.0 D (#3129): hands in  // 2.187.0 A (#2476): the group's level of this area
   // 2.147.2 A (#2500): the role words here, not oinvRoleSel (settings module): a direct start of the office threw and stayed on "Loading…"
-  const html = `<div class="dash office" data-ofctab="${tab}"${ro ? ' data-ofcro="1"' : ''}>${OFC.info && typeof tri_stripHtml === 'function' ? tri_stripHtml() : '' /* 2.417.0 C (#3445): the test mode strip */}<div class="ofchead">${/*html-ok*/ OFC.info && !(typeof ofd_phoneDoc === 'function' && ofd_phoneDoc()) /* 2.936.0 (#5448): an open document on a phone: its head only; ofc_headHtml escapes */ ? ofc_headHtml(ro) : ''}</div><div class="ofcbody"${ofcDocTab(tab) && !body ? ' data-fl-fill' : ''}>${body}</div></div>`;
+  const html = `<div class="dash office" data-ofctab="${tab}"${ro ? ' data-ofcro="1"' : ''}>${OFC.info && typeof tri_stripHtml === 'function' ? tri_stripHtml() : '' /* 2.417.0 C (#3445): the test mode strip */}<div class="ofchead">${/*html-ok*/ OFC.info && !(typeof ofd_phoneDoc === 'function' && ofd_phoneDoc()) /* 2.936.0 (#5448): an open document on a phone: its head only; ofc_headHtml escapes */ ? ofc_headHtml(ro) : ''}</div><div class="ofcbody${hbusy ? ' ofcheld' : ''}"${hbusy ? ' aria-busy="true"' : ''}${ofcDocTab(tab) && !body ? ' data-fl-fill' : ''}>${/*html-ok*/ ofcHeldErr(tab) /* escaped in errorState */}${body}</div></div>`;
   if (ofcDocTab(tab) && OFC.info && typeof ofdOffersTab === 'function') setTimeout(() => { const el = $('.office .ofcbody .pboffers') || $('.office .ofcbody'); if (el && ofcTab() === tab) ofdOffersTab(el); }, 0);  // 2.47.3 (#1360): below the hint
   return html;
 }
@@ -1392,7 +1410,7 @@ function ofcColorLight(c) {
 document.addEventListener('input', e => {
   const t = e.target;
   if (t.dataset?.grow) ofcGrow(t, +t.dataset.grow || 3);
-  if (t.id === 'ofc-q') { OFC.q = t.value; const w = $('#view .ofclistw'); if (w && !OFCP.stale) fl_set(w, ofcListBody(w.dataset.kind)); else ofcDraw(); }  // 2.144.2 B (#1644)
+  if (t.id === 'ofc-q') { OFC.q = t.value; const w = $('#view .ofclistw'); if (w) fl_set(w, ofcListBody(w.dataset.kind)); else ofcDraw(); }  // 2.144.2 B (#1644)
   else if (t.id === 'os-color') { const nt = $('#os-color-note'); if (nt) nt.hidden = !ofcColorLight(t.value); const sw = $('.ofcsw'); if (sw) sw.style.background = /^#[0-9a-fA-F]{6}$/.test(t.value.trim()) ? t.value.trim() : 'var(--accent)'; }
   else if (t.dataset?.scheme) ofcSchemePv(t);  // 2.40.0 (#1382): every number scheme with its preview
 });

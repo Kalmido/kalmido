@@ -6,7 +6,9 @@ const rk_dv = () => typeof ofcFeat !== 'function' || ofcFeat('books.datev');  //
 const RK = {data: null, loading: false, err: null, year: String(new Date().getFullYear()), filter: 'all', person: '', open: null, view: 'trips', by: 'month', rep: null, sel: new Set(), gen: 0};
 OFC_TABS.splice(OFC_TABS.findIndex(t => t[0] === 'settings'), 0, ['travel', 'plane', N_('Travel expenses'), 1, () => rk_travelHtml(), 'money', 'money.travel']);  // admins only; 2.380 F (#3411): [6] the switch
 const RK_BY = [['month', N_('Month')], ['year', N_('Year')], ['person', N_('Person')], ['project', N_('Project')], ['client', N_('Client')], ['category', N_('Category')], ['purpose', N_('Purpose')]];  // 2.117.0 A (#2292): + purpose
-const rk_reload = () => { RK.data = null; RK.rep = null; RK.gen++; ofcDraw(); };  // CI of the train: gen = a load running during a reload is fetched again
+// #7495: the trips on screen stay (dimmed) until the fresh list is there (gen: a first load running meanwhile is fetched again)
+const rk_reload = () => { RK.rep = null; RK.gen++; ofcRefetch('travel', ofcTab() === 'travel' && !!RK.data, rk_get, () => { RK.data = null; }); };
+const rk_get = async () => { const j = await api('GET', '/api/office/trips' + (RK.year ? `?year=${RK.year}` : '')); return () => { RK.data = j; RK.err = null; if (RK.person && rk_persons().length < 2) RK.person = ''; for (const p of OPT) p.put(); }; };
 // 2.559.0 (#4660): trips, receipts and the tick "in DATEV" show at once (optWrite): the list changes locally, the request runs
 // behind it, a refusal puts the old state back (api() says why). The server's trip from the answer replaces the local one
 // (sums, per diem); the list itself (badge "not in DATEV", evaluation) is fetched again in the background, the rows stay

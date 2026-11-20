@@ -24,14 +24,18 @@ async function bnr_load() {
   }
   ofcDraw();
 }
-const bnr_reload = () => { BNR.data = null; BNR.pick = null; BNR.cand = null; BNR.cnt = undefined; if (typeof BNK === 'object') BNK.data = null; if (typeof bfbBooksStale === 'function') bfbBooksStale(); ofcDraw(); };
+// #7495: a write, an undo or another month / account / direction keeps the bookings on screen (dimmed) until the fresh ones are there
+const bnr_get = async () => { const q = bnr_q(); BNR.q = q; const j = await api('GET', '/api/office/bank/noreceipt?' + q); return () => { if (BNR.q === q) { BNR.data = j; BNR.err = null; } }; };
+const bnr_refetch = () => ofcRefetch('bank-norc', ofcTab() === 'bank' && typeof BNK === 'object' && BNK.state === 'norc' && !!BNR.data, bnr_get, () => { BNR.data = null; });
+const bnr_reload = () => { BNR.pick = null; BNR.cand = null; BNR.cnt = undefined; if (typeof BNK === 'object') BNK.data = null; if (typeof bfbBooksStale === 'function') bfbBooksStale(); bnr_refetch(); };
 // 2.979.0 (#5667): an undo / redo the server did: the bookings without a receipt and the reminder setting come again (shown: at once, else on the next view)
 histReloader('bank-noreceipt', () => { if (BNR.data) bnr_reload(); if (BNR.rem) { if ($('#bnr-every')) bnr_remLoad(); else BNR.rem = null; } });
 
 function bnr_html() {
   if (BNR.oid !== OFC.info?.org_id) Object.assign(BNR, {oid: OFC.info?.org_id, data: null, err: null, month: '', account: '', pick: null, cand: null, rules: undefined, rem: null});
   if (BNR.err) return ofcFail(BNR.err, () => { BNR.err = null; BNR.data = null; });  // 2.1076.0 (#5450)
-  if (!BNR.data || BNR.q !== bnr_q()) { setTimeout(() => { if (BNR.q !== bnr_q() || !BNR.data) bnr_load(); }, 0); if (!BNR.data) return loadingHtml('big'); }
+  if (!BNR.data) { setTimeout(() => { if (!BNR.data) bnr_load(); }, 0); return loadingHtml('big'); }
+  if (BNR.q !== bnr_q()) setTimeout(() => { if (BNR.q !== bnr_q()) bnr_refetch(); }, 0);  // #7495: another month / account / direction: the old rows dimmed
   const d = BNR.data, n = d.counts || {}, out = BNR.dir === 'out';
   const segs = [['out', tr('Payments without a receipt'), n.out], ['in', tr('Income without an invoice'), n.in]];
   const months = d.months || [], accts = d.accounts || [];
