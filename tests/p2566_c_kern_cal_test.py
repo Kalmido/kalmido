@@ -310,7 +310,7 @@ Iv.patch(B + "/api/settings", json={"lang": "en", "features": FEAT, "tour": "don
 check(A.put(B + f"/api/orgs/{ORG}/members", json={"email": "ivy@example.com", "role": "member"}).ok, "ivy (a member of the organisation, alice sees her) joins the organisation")
 
 # ================================================================== review F3: a node in the file store's trash is still the node
-K5 = A.post(B + "/api/evcals", json={"name": "Tidy plan"}).json()["id"]
+K5 = A.post(B + "/api/evcals", json={"name": "Tidy plan", "org_id": ORG}).json()["id"]  # (#7385) named: alice's only organisation
 check(A.put(B + f"/api/evcals/{K5}/members", json={"user_id": BOB, "role": "edit"}).ok
       and A.put(B + f"/api/evcals/{K5}/members", json={"user_id": IVY, "role": "view"}).ok, "F3: a calendar shared with bob and ivy")
 N5 = node("evcal", K5)
@@ -326,7 +326,7 @@ sql("DELETE FROM fs_nodes WHERE id=?", (N5,), write=True)  # the file store's tr
 check(K5 not in ids(Bo.get(B + "/api/evcals")) and K5 not in ids(Iv.get(B + "/api/evcals")),
       "#5069: the node removed for good: bob stays out, ivy's share went with the node")
 check(K5 in ids(A.get(B + "/api/evcals")), "#5069: the owner keeps the calendar")
-B5 = A.post(B + "/api/books", json={"name": "Tidy book"}).json()["id"]
+B5 = A.post(B + "/api/books", json={"name": "Tidy book", "org_id": ORG}).json()["id"]  # (#7385) named: alice's only organisation
 check(A.put(B + f"/api/books/{B5}/members", json={"user_id": IVY, "role": "edit"}).ok, "F3: a book shared with ivy")
 N6 = node("address_book", B5)
 sql("DELETE FROM fs_shares WHERE node_id=? AND user_id=?", (N6, IVY), write=True)

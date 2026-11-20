@@ -171,8 +171,9 @@ def pkgc_spec(paths, schemas, op, ok, errs, ref, pid, nul, page, q):
                      "PATCH deletes only the ids in contacts_removed"},
         "note": {"type": "string"}, "rate": num, "budget_h": num, "budget_amount": num,
         "org_id": nul("integer", description="#7309: the workspace, one of your organisations (null = private; the same as space). Without it: "
-                      "the only workspace where Clients is on for you and you may add; several -> 400 code space_needed with spaces "
-                      "[{ws, name}], send space / org_id then. An agent: its own workspace"),
+                      "the workspace on top / the only workspace where Clients is on for you and you may add; several (#7385: also Private "
+                      "and your one organisation) -> 400 error.code space_needed with error.spaces [{ws, name}], send space / org_id then. "
+                      "An agent: its own workspace"),
         "space": {"type": "string", "description": "#7309: the workspace as private | org:<id> (instead of org_id)"}, "archived": {"type": "boolean"},
         "parent_id": nul("integer", description="#7292: make it a location of this main client (same workspace, one level: the main "
                          "client is no location and this client has no locations itself; null = none)")}}

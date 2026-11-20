@@ -116,7 +116,7 @@ A.put(B + f"/api/lists/{FL}/members", json={"user_id": BOB, "role": "edit"})
 r = A.post(B + "/api/clients", json={"name": "Acme Example", "email": "buyer@example.com", "org_id": ORG})
 ACME = r.json().get("id")
 check(r.status_code == 201 and ACME, "a client of the organisation " + r.text[:200])
-r = Ca.post(B + "/api/clients", json={"name": "Foreign Example", "email": "buyer@example.com"})
+r = Ca.post(B + "/api/clients", json={"name": "Foreign Example", "email": "buyer@example.com", "org_id": ORG2})  # (#7385) names her organisation
 FOREIGN = r.json().get("id")
 check(r.status_code == 201 and dbx("SELECT org_id FROM clients WHERE id=?", (FOREIGN,))[0][0] == ORG2, "the same address at a client of another organisation")
 r = A.post(B + "/api/clients", json={"name": "Solo Example", "email": "solo@example.com", "org_id": None})

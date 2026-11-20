@@ -81,13 +81,13 @@ COMPANY = {"name": "Musterfilm - Beispiel, Probe & Partner eGbR", "street": "Mus
            "managing_directors": "Erika Beispiel, Max Mustermann & Paula Probe", "md_label": "shareholders"}
 
 
-def setup(S, who):
+def setup(S, who, org=None):
     r = S.put(B + O + "/settings", json={"company": {"name": COMPANY["name"]}, "lang": "de", "currency": "EUR", "company_fields": COMPANY,
                                           "prod_quotient": 3, "raw_factor": 0.25, "producing_rate": 600, "producing_on": 1, "raw_on": 1})
     check(r.ok, f"{who}: settings + company fields {r.status_code} {r.text[:200]}")
     st = S.get(B + O + "/settings").json()
     check((st.get("company_fields") or {}).get("phone") == "+4930123456789", f"{who}: #2272 the stored phone stays unspaced {(st.get('company_fields') or {}).get('phone')}")
-    r = S.post(B + "/api/clients", json={"name": "Muster Agentur GmbH", "address": "Agenturweg 5\n50667 Köln"})
+    r = S.post(B + "/api/clients", json={"name": "Muster Agentur GmbH", "address": "Agenturweg 5\n50667 Köln", **({"org_id": org} if org else {})})  # (#7385) names the organisation
     check(r.status_code in (200, 201), f"{who}: a client {r.status_code} {r.text[:200]}")
     return r.json().get("id")
 
@@ -105,8 +105,8 @@ ITEMS = [{"title": "Konzept und Drehbuch", "qty": 3, "unit": "day", "rate": 800,
          {"title": "Schnitt", "qty": 1, "unit": "flat", "rate": 500}]
 
 
-def scenario(S, who):
-    cl = setup(S, who)
+def scenario(S, who, org=None):
+    cl = setup(S, who, org)
     # ------------------------------------------------ a one-page quotation (DE)
     doc = quotation(S, who, cl, "de", ITEMS)
     rd = S.get(B + f"{D}/{doc}/render").json()
@@ -171,7 +171,7 @@ def scenario(S, who):
 
 
 # ---------------------------------------------------------------- an organisation's office
-scenario(A, "org")
+scenario(A, "org", A.get(B + "/api/state").json()["me"]["workspaces"][0]["id"])  # (#7385) alice's only organisation, named
 
 # ---------------------------------------------------------------- a person without an organisation (personal office)
 # freelancer-matrix: office

@@ -115,7 +115,7 @@ check((m.get("labels") or {}).get("qty") == "Qty", f"#1368 6: English quantity c
 
 # ---------------------------------------------------------------- #1368 5: XRechnung credit note
 r = A.post(B + "/api/clients", json={"name": "Amt Beispielstadt", "street": "Rathausplatz 1", "zip": "10115", "city": "Berlin", "country": "DE",
-                                     "buyer_reference": "991-12345-67", "email_invoice": "rechnung@amt.example"})
+                                     "buyer_reference": "991-12345-67", "email_invoice": "rechnung@amt.example", "org_id": 1})  # (#7385) names org 1
 assert r.status_code == 201, r.text
 CLX = r.json()["id"]
 r = A.post(B + D, json={"kind": "invoice", "client_id": CLX, "service_from": "2026-05-01", "items": [{"title": "Beratung", "qty": 1, "rate": 100}]})

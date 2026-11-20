@@ -1648,7 +1648,7 @@ _XV = {"expect_updated_at": {"type": "string", "description": "2.564.0: the upda
 TOOLS += [
     ("list_event_calendars", "2.21.0 (module Events): the event calendars you see (own + shared) with your role.", _obj({}),
      lambda api, a: api.call("GET", "/event-calendars")),
-    ("create_event_calendar", "2.21.0: a new own calendar (2.30.0: org_id = its workspace; default: yours).", _obj({"name": {"type": "string"}, "color": {"type": "string"}, "description": {"type": "string"}, "org_id": {"type": ["integer", "null"], "description": "2.30.0: its workspace (an organisation id of yours; null = private)"}}, ["name"]),
+    ("create_event_calendar", "2.21.0: a new own calendar (2.30.0: org_id = its workspace; #7385: without it the workspace on top / the only one where the module is on, else 400 space_needed with spaces - ask the person and send org_id).", _obj({"name": {"type": "string"}, "color": {"type": "string"}, "description": {"type": "string"}, "org_id": {"type": ["integer", "null"], "description": "2.30.0: its workspace (an organisation id of yours; null = private)"}}, ["name"]),
      lambda api, a: api.call("POST", "/event-calendars", body=_pick(a, ("name", "color", "description", "org_id")))),
     ("update_event_calendar", "2.21.0: rename / recolour a calendar (owner) or hide it from your own views (hidden). "
                               "2.657.0: expect_updated_at = the calendar's updated_at of list_event_calendars, required with name / "
@@ -1702,7 +1702,7 @@ TOOLS += [
      lambda api, a: api.call("GET", f"/tasks/{int(a['task_id'])}/events")),
     ("list_address_books", "2.21.0 (module Contacts, scope contacts): the address books you see.", _obj({}),
      lambda api, a: api.call("GET", "/address-books")),
-    ("create_address_book", "2.21.0: a new own address book (2.30.0: org_id = its workspace; default: yours).", _obj({"name": {"type": "string"}, "color": {"type": "string"}, "org_id": {"type": ["integer", "null"], "description": "2.30.0: its workspace (an organisation id of yours; null = private)"}}, ["name"]),
+    ("create_address_book", "2.21.0: a new own address book (2.30.0: org_id = its workspace; #7385: without it the workspace on top / the only one where the module is on, else 400 space_needed with spaces - ask the person and send org_id).", _obj({"name": {"type": "string"}, "color": {"type": "string"}, "org_id": {"type": ["integer", "null"], "description": "2.30.0: its workspace (an organisation id of yours; null = private)"}}, ["name"]),
      lambda api, a: api.call("POST", "/address-books", body=_pick(a, ("name", "color", "org_id")))),
     ("update_address_book", "2.21.0: rename / recolour an address book, or choose the project for its birthdays (owner). "
                             "2.657.0: expect_updated_at = the address book's updated_at of list_address_books (required).",
@@ -2615,7 +2615,9 @@ TOOLS += [
     ("get_client", "2.23.0: one client with estimate vs. actual per project (the tasks' durations next to the tracked time).",
      _obj({"client_id": S_ID, "month": {"type": "string"}}, ["client_id"]),
      lambda api, a: api.call("GET", f"/clients/{int(a['client_id'])}", _pick(a, ("month",)))),
-    ("create_client", "2.23.0: add a client (contact, hourly rate for projects without one, budget in hours and / or money).",
+    ("create_client", "2.23.0: add a client (contact, hourly rate for projects without one, budget in hours and / or money). "
+                     "#7385: org_id = its workspace; without it the workspace on top / the only one where Clients is on, else 400 space_needed "
+                     "with spaces - ask the person and send org_id.",
      _obj(_CLIENT, ["name"]), lambda api, a: api.call("POST", "/clients", body=_pick(a, tuple(_CLIENT)))),
     ("update_client", "2.23.0: change a client.", _obj({"client_id": S_ID, **_CLIENT_UP}, ["client_id"]),
      lambda api, a: api.call("PATCH", f"/clients/{int(a['client_id'])}", body=_pick(a, tuple(_CLIENT_UP)))),

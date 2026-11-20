@@ -36,10 +36,10 @@ async function editor(user, id) {
 }
 const cdlg = d => d.querySelector('.modal.cdlg');
 
-async function run(user, ck, tag) {
+async function run(user, ck, tag, oid = null) {  // oid: the person's only organisation (#7385)
   await call('GET', '/api/office/settings', null, ck);
   await call('PUT', '/api/office/settings', {lang: 'en', company_fields: COMPANY}, ck);
-  const CL = (await call('POST', '/api/clients', {name: 'Beispielkunde AG', street: 'Marktstraße 5', zip: '50667', city: 'Köln', country: 'DE'}, ck)).id;
+  const CL = (await call('POST', '/api/clients', {name: 'Beispielkunde AG', street: 'Marktstraße 5', zip: '50667', city: 'Köln', country: 'DE', ...(oid ? {org_id: oid} : {})}, ck)).id;  // (#7385) names its workspace
   const mk = (b = {}) => call('POST', '/api/office/docs', {kind: 'invoice', client_id: CL, service_from: '2026-05-01', service_to: '2026-05-31', items: [{title: 'Schnitt', qty: 1, rate: 900}], ...b}, ck);
   // a finalised trial invoice does not count
   const tri = await mk({trial: true});
@@ -136,7 +136,7 @@ async function run(user, ck, tag) {
   CK = await login('alice');
   await call('POST', '/api/admin/setup', {org_name: 'Beispiel Studio', lang: 'en', collab_all: true, modules: ['cal', 'comments']});
   await call('PATCH', '/api/settings', {lang: 'en', tour: 'done', features: FEAT});
-  await run('alice', CK, 'org');
+  await run('alice', CK, 'org', (await call('GET', '/api/state')).me.workspaces[0].id);  // (#7385)
 
   // freelancer-matrix: office (a person without an organisation, her own admin)
   await call('POST', '/api/users', {username: 'frida', display_name: 'Frida', password: 'password123', email: 'frida@example.com', orgs: []});

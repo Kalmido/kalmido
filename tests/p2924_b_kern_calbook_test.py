@@ -190,7 +190,7 @@ assert r.ok, r.text
 IVY = r.json()["id"]
 Iv = sess("ivy")
 Iv.patch(B + "/api/settings", json={"lang": "en", "features": FEAT, "tour": "done"})
-BT = A.post(B + "/api/books", json={"name": "Archive people"}).json()["id"]
+BT = A.post(B + "/api/books", json={"name": "Archive people", "org_id": ORG}).json()["id"]  # (#7385) named: alice's only organisation, as the old default
 check(A.post(B + "/api/contacts", json={"book_id": BT, "fn": "Quinn Example"}).ok, "setup: a contact in alice's private book")
 BD = Iv.post(B + "/api/books", json={"name": "Ivy's people"}).json()["id"]
 check(Iv.post(B + "/api/contacts", json={"book_id": BD, "fn": "Rosa Example"}).ok, "setup: a contact in ivy's private book")

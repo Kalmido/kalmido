@@ -1566,7 +1566,10 @@ deleting, moving into the trash, `bulk_clients` with `untrash` - answers `403` (
 clients of the office area reach an agent read-only through `list_office_data`. Ask the person to delete or restore a client.
 #7309: `create_client` with a person's token names the workspace (`space`: `private` | `org:<id>`, or `org_id`); without one
 the client goes into the only workspace where *Clients* is on for the person and they may add, with several the answer is
-`400` `code: space_needed` with `spaces: [{ws, name}]` - ask the person which one and send it again with `space`.
+`400` `code: space_needed` with `spaces: [{ws, name}]` - ask the person which one and send it again with `space`. #7385: also
+a person in ONE organisation gets this question while *Clients* is on in Private and in the organisation (no default to the
+only organisation any more); the same for new calendars and address books. In API v1 the answer is
+`{"error": {"code": "space_needed", "message", "spaces": [{ws, name}]}}`.
 
 **Locations of a client (#7292).** A client with several locations (e.g. offices in two cities) is a main client plus one
 client per location: `parent_id` names the main client (`create_client` / `update_client`; `null` removes it). One level only,

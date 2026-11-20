@@ -39,7 +39,7 @@ const URL1 = 'https://vimeo.com/123456789';
   const R1 = await call('POST', '/api/videos', {task_id: SW2.id, url: URL1, title: 'Alt Aufgabe'});
   const R2 = await call('POST', '/api/videos', {list_id: P.sw.l, url: URL1, title: 'Alt Projekt'});
   check(R1.id && R2.id, 'existing reviews in the software project');
-  const CL = await call('POST', '/api/clients', {name: 'Kunde Zwei GmbH'});
+  const CL = await call('POST', '/api/clients', {org_id: (await call('GET', '/api/state')).me.workspaces[0].id, name: 'Kunde Zwei GmbH'});  // (#7385): names the only organisation
   check(CL.id, 'a client');
   // after the module goes off: one review each at the agency task / project / client already exists
   const AG2 = await call('POST', '/api/tasks', {title: 'Agentur alt', list_id: P.ag.l});

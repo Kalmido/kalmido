@@ -24,8 +24,9 @@ const until = fn => require('./boot').until(fn, {timeout: 15000, step: 150});
   CK = await login('alice');
   await call('POST', '/api/admin/setup', {org_name: 'Kalmido', lang: 'en', collab_all: true, modules: ['cal', 'comments']});
   await call('PATCH', '/api/settings', {lang: 'en', tour: 'done', features: 'cal,comments,collab,office,clients'});
+  const ORG = (await call('GET', '/api/state')).me.workspaces[0].id;  // (#7385) alice's only organisation: new clients name it
   await call('PUT', '/api/office/settings', {lang: 'en', company_fields: {name: 'Studio Nordlicht GmbH', street: 'Weg 12', zip: '20457', city: 'Hamburg', country: 'DE', email: 'hallo@nordlicht.example', phone: '040 123456', vat_id: 'DE123456789', tax_number: '12/345/67890', iban: 'DE02120300000000202051', bic: 'BYLADEM1001', bank_name: 'Beispielbank'}});
-  const CL = (await call('POST', '/api/clients', {name: 'Beispielkunde AG', street: 'Marktweg 5', zip: '50667', city: 'Koeln', country: 'DE', email: 'kunde@example.com'})).id;
+  const CL = (await call('POST', '/api/clients', {name: 'Beispielkunde AG', org_id: ORG, street: 'Marktweg 5', zip: '50667', city: 'Koeln', country: 'DE', email: 'kunde@example.com'})).id;  // (#7385)
   const inv = await call('POST', '/api/office/docs', {kind: 'invoice', client_id: CL, service_from: '2026-10-01', items: [{title: 'Schnitt', qty: 1, rate: 100}]});
   const fin = await call('POST', `/api/office/docs/${inv.id}/finalize`);
   check(fin.http === 200, 'an invoice finalised ' + JSON.stringify(fin).slice(0, 160));

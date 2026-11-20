@@ -35,7 +35,7 @@ async function otherSave(url, body, was, method = 'PATCH') {
   await call('PATCH', '/api/settings', {lang: 'en', tour: 'done', features: FEAT});
 
   // ================= a generated document: autosave from this tab, then a second tab
-  const CL = (await call('POST', '/api/clients', {name: 'Example Media GmbH'})).id;
+  const CL = (await call('POST', '/api/clients', {org_id: (await call('GET', '/api/state')).me.workspaces[0].id, name: 'Example Media GmbH'})).id;  // (#7385): names the only organisation
   const G = await call('POST', '/api/office/gen-docs', {title: 'Note', body: 'First text', client_id: CL});
   check(G.http === 201 && G.updated_at, 'a document draft ' + G.http);
   let w = await boot({hash: `office/gendocs/${G.id}`}); let d = w.document;

@@ -123,7 +123,7 @@ check(sorted((x["dir"], x["other"]["id"]) for x in lk if x["other"]["kind"] == "
       f"B lists its task links again {[(x['dir'], x['other']['id']) for x in lk]}")
 
 # ================================================================ contacts
-BK = A.post(B + "/api/books", json={"name": "Private book"}).json()["id"]
+BK = A.post(B + "/api/books", json={"name": "Private book", "space": "private"}).json()["id"]  # (#7385) named: Private, as its name and the private list say
 C1, C2 = (A.post(B + "/api/contacts", json={"book_id": BK, "fn": n}).json()["id"] for n in ("Kim Example", "Kim Example (old)"))
 AP = A.post(B + "/api/lists", json={"name": "Alice private", "org_id": None}).json()["id"]
 AT1, AT2 = (A.post(B + "/api/tasks", json={"title": t, "list_id": AP}).json()["id"] for t in ("Call Kim", "Send Kim the plan"))

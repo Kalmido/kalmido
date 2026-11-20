@@ -8,9 +8,8 @@ Two questions, one answer for the server and the browser (docs/dev/kern.md "Wher
     guest, read-only or accounting person) and, in a support session, an organisation with support access.
   - wsp_new(c, uid, mod, named=None): the workspace of something new (an organisation's id, None = Private). The workspace
     the request names wins while mod is on and writable there; nothing named: the workspace on top (setting "workspace")
-    while mod is on and writable there, else exactly ONE such workspace, else (a transition, _wsp_transition) the only
-    organisation I may add to while mod is on there, else a 400 with code space_needed and the list to choose from --
-    never where mod is off, never silently Private. An organisation I am not in = 403. Agents keep their own workspace.
+    while mod is on and writable there, else exactly ONE such workspace, else a 400 with code space_needed and the list
+    to choose from -- never where mod is off, never silently Private, never "the only organisation" (#7385). An organisation I am not in = 403. Agents keep their own workspace.
 /api/state carries wsp / wsp_w (wsp_all) so the browser's mod_spaces reads the same lists (areas.js wsp_list).
 A person without an organisation (or an instance without workspaces) has Private only; nothing asks there (P4)."""
 import json
@@ -47,11 +46,14 @@ _WS_RE = re.compile(r"org:([1-9][0-9]{0,11})")
 
 
 class SpaceNeeded(BadInput):
-    """(#7309): a new entry needs its workspace named -- 400, code space_needed, spaces = [{ws, name}] to choose from."""
+    """(#7309): a new entry needs its workspace named -- 400, code space_needed, spaces = [{ws, name}] to choose from.
+    (#7385): API v1 answers {"error": {"code": "space_needed", "message", "spaces"}} (api/common.py v1_view)."""
+    v1_name = "space_needed"
 
     def __init__(self, spaces):
         super().__init__(tr(WSP_ASK if spaces else WSP_NONE))
         self.spaces = spaces
+        self.v1_extra = {"spaces": spaces}
 
 
 @app.errorhandler(SpaceNeeded)
@@ -228,8 +230,8 @@ def wsp_new(c, uid, mod, named=None):
     """Where a new entry of module mod goes: an organisation's id or None (Private). named ("private" | "org:<id>" | an
     organisation's id; None = nothing named) wins while mod is on and writable there; an organisation uid is not in = 403;
     a member's workspace where mod is off / not writable = 400 space_needed. Nothing named: the only workspace of
-    wsp_spaces(write=True) (the setting on top first; _wsp_transition), else 400 space_needed with the choice. An agent:
-    the named one or its own workspace."""
+    wsp_spaces(write=True) (the setting on top first), else 400 space_needed with the choice (#7385: no longer the only
+    organisation I may add to). An agent: the named one or its own workspace."""
     x = _ctx(c, uid)
     oid = wsp_oid(named) if named is not None else None
     if x.alone:
@@ -254,15 +256,4 @@ def wsp_new(c, uid, mod, named=None):
         return wsp_oid(ws)
     if len(w) == 1:
         return wsp_oid(w[0])
-    t = _wsp_transition(x, w)
-    if t:
-        return t
     _need(c, uid, mod)
-
-
-def _wsp_transition(x, w):
-    """TRANSITION until the follow-up task (old tests and API users): a call without a name still gets the old default,
-    the only organisation the person may add to -- but only while the module is on and writable there (w). The browser
-    always names its workspace (clientdlg.js cl_newWs, areas.js wsp_post), so this never decides for it."""
-    mine = [o for o in x.orgs if x.writes(o)]
-    return mine[0] if len(mine) == 1 and _ws(mine[0]) in w else None

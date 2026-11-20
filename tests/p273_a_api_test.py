@@ -205,7 +205,7 @@ check(A.get(B + f"/api/servers/{SID}/tasks/99999").json().get("code") == "notfou
 r = A.get(B + f"/api/servers/{SID}/search?q=plants")
 check(r.ok and [x["id"] for x in r.json()["tasks"]] == [t1], f"search over there {r.text[:200]}")
 check(A.get(B + f"/api/servers/{SID}/search?q=").status_code == 400, "search without q: 400")
-cal = Bo.post(B + "/api/evcals", json={"name": "Bob cal", "color": "#2dd4bf"}).json()
+cal = Bo.post(B + "/api/evcals", json={"name": "Bob cal", "color": "#2dd4bf", "org_id": ORG}).json()  # (#7385) names his organisation
 D3 = testclock.today() + timedelta(days=3)
 Bo.post(B + "/api/events", json={"title": "Dentist", "cal_id": cal["id"], "start": f"{D3}T15:00", "end": f"{D3}T16:00"})
 r = A.get(B + f"/api/servers/{SID}/events?from={testclock.today()}&to={testclock.today() + timedelta(days=7)}")

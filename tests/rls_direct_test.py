@@ -105,9 +105,9 @@ for s, lid, uid, org in ((Bo, LA, BOB, ALPHA), (Ca, LB, CAROL, BETA)):
     # (state skip: the recognition worker would drop a waiting row whose file does not exist)
     sql("INSERT INTO file_text(kind,ref_id,org_id,ws,state,created_at,updated_at) VALUES('att',?,?,?,'skip','2026-01-01','2026-01-01') ON CONFLICT DO NOTHING",
         (900000 + org, org, f"org:{org}"))
-for s, nm in ((Bo, f"{MARK} cal"), (Ca, "Beta cal")):
-    assert s.post(B + "/api/evcals", json={"name": nm}).ok
-    assert s.post(B + "/api/books", json={"name": nm.replace("cal", "book")}).ok
+for s, o, nm in ((Bo, ALPHA, f"{MARK} cal"), (Ca, BETA, "Beta cal")):  # (#7385) each names its organisation
+    assert s.post(B + "/api/evcals", json={"name": nm, "org_id": o}).ok
+    assert s.post(B + "/api/books", json={"name": nm.replace("cal", "book"), "org_id": o}).ok
 for s, o, nm in ((Bo, ALPHA, f"{MARK} client"), (Ca, BETA, "Beta client")):
     s.post(B + "/api/clients", json={"name": nm, "org_id": o})
 for o in (ALPHA, BETA):

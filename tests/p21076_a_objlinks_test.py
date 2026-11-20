@@ -193,7 +193,7 @@ check(r.status_code == 204 and not live(AL), "planbot removes its link " + r.tex
 
 # ================================================================ the areas on the core
 # a contact's task link (contacts/model.py): rel contact, extra.kind, removed and taken back through the undo list
-BK = A.post(B + "/api/books", json={"name": "Private book"}).json()["id"]
+BK = A.post(B + "/api/books", json={"name": "Private book", "space": "private"}).json()["id"]  # (#7385)
 CT = A.post(B + "/api/contacts", json={"book_id": BK, "fn": "Kim Example"}).json()["id"]
 AP = A.post(B + "/api/lists", json={"name": "Alice private", "org_id": None}).json()["id"]
 AT = A.post(B + "/api/tasks", json={"title": "Call Kim", "list_id": AP}).json()["id"]

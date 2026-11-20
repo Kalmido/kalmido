@@ -272,7 +272,7 @@ def events_spec(paths, schemas, op, ok, errs, ref, pid, nul, page, q):
     paths["/event-calendars"] = {
         "get": op("2.21.0 (module Events): the event calendars the token's user sees (own + shared)", E, ok(ref("EventCalendarPage")), scope=S),
         "post": op("A new own calendar", E, ok(ref("EventCalendar"), "Created", "201") | errs("400", "409"),
-                   body={**cal_in, "properties": {**cal_in["properties"], "space": {"type": "string", "description": "#7309: the workspace as private | org:<id> (instead of org_id); without one: the workspace on top / the only one where the module is on and you may add, else 400 code space_needed with spaces [{ws, name}]"}}, "required": ["name"]}, scope=S)}
+                   body={**cal_in, "properties": {**cal_in["properties"], "space": {"type": "string", "description": "#7309: the workspace as private | org:<id> (instead of org_id); without one: the workspace on top / the only one where the module is on and you may add, else (#7385: also Private and your one organisation) 400 error.code space_needed with error.spaces [{ws, name}]"}}, "required": ["name"]}, scope=S)}
     paths["/event-calendars/{id}"] = {
         "patch": op("Rename / recolour a calendar (owner) or hide it from the own views (anyone who sees it)", E,
                     ok(ref("EventCalendar")) | errs("400", "403", "404", "409"), [cid_p],

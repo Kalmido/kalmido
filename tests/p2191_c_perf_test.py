@@ -210,7 +210,7 @@ for i in range(20):
 for i in range(10):
     check(A.patch(B + f"/api/tasks/{task(A, f'Nag later {i}', OL, due=far, due_time='10:00', assignee_id=uid['bob'])}",
                   json={"nag": "5"}).ok, f"setup: nag on task {i}")
-CAL = Bo.post(B + "/api/evcals", json={"name": "Work", "color": "#2dd4bf"}).json()
+CAL = Bo.post(B + "/api/evcals", json={"name": "Work", "color": "#2dd4bf", "org_id": ORG["Alpha"]}).json()  # (#7385): bob's only organisation
 for i in range(10):
     r = Bo.post(B + "/api/events", json={"title": f"Meeting {i}", "cal_id": CAL["id"], "start": f"{far}T09:00", "end": f"{far}T10:00",
                                          "reminders": [15]})

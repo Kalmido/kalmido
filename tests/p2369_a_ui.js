@@ -26,8 +26,9 @@ const rowsOf = d => [...d.querySelectorAll('.ofdlist .ofdrow')];
   CK = await login('alice');
   await call('POST', '/api/admin/setup', {org_name: 'Kalmido', lang: 'en', collab_all: true, modules: ['cal', 'comments']});
   await call('PATCH', '/api/settings', {lang: 'en', tour: 'done', features: FEAT});
+  const ORG = (await call('GET', '/api/state')).me.workspaces[0].id;  // (#7385) alice's only organisation: new clients name it
   await call('PUT', '/api/office/settings', {lang: 'de', company_fields: {name: 'Example Studio GmbH', street: 'Hafenstraße 12', zip: '20457', city: 'Hamburg', country: 'DE', vat_id: 'DE999999999', iban: 'DE02120300000000202051'}});
-  const client = async name => (await call('POST', '/api/clients', {name, street: 'Marktstraße 5', zip: '50667', city: 'Köln', country: 'DE'})).id;
+  const client = async name => (await call('POST', '/api/clients', {name, org_id: ORG, street: 'Marktstraße 5', zip: '50667', city: 'Köln', country: 'DE'})).id;  // (#7385)
   const CL = await client('Beispielkunde AG'), CL2 = await client('Altkunde GmbH');
   const mk = async c => { const i = await call('POST', '/api/office/docs', {kind: 'invoice', client_id: c, service_from: '2026-05-01', items: [{title: 'Beratung', qty: 1, rate: 100}]}); return call('POST', `/api/office/docs/${i.id}/finalize`); };
   const old = await mk(CL2), tpl = await mk(CL);

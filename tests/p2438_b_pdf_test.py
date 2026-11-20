@@ -245,7 +245,9 @@ A = sess("alice")
 A.post(B + "/api/admin/setup", json={"lang": "en", "collab_all": True})
 A.patch(B + "/api/settings", json={"lang": "en", "features": "cal,comments,collab,office,clients,docs", "tour": "done"})
 ALICE = A.get(B + "/api/state").json()["me"]["id"]
-assert A.post(B + "/api/admin/orgs", json={"name": "Alpha", "admin_id": ALICE}).ok
+r = A.post(B + "/api/admin/orgs", json={"name": "Alpha", "admin_id": ALICE})
+assert r.ok, r.text
+ORG = r.json()["id"]  # (#7385) the organisation's clients name it
 
 
 def items(parts=("Planung", "Elektro", "Akustik"), per=18):
@@ -259,12 +261,13 @@ def items(parts=("Planung", "Elektro", "Akustik"), per=18):
 PARTS = {"Planung": "PLANUNG", "Elektro": "ELEKTRO", "Akustik": "AKUSTIK"}
 
 
-def flow(s, who):
+def flow(s, who, org_id=None):
     r = s.put(B + O + "/settings", json={"lang": "de", "currency": "EUR", "company_fields": {
         "name": "Beispielfilm", "street": "Musterweg 1", "zip": "12345", "city": "Musterstadt", "country": "DE", "tax_number": "12/345/67890",
         "iban": IBAN, "bic": "BYLADEM1001", "bank_name": "Beispielbank"}})
     assert r.ok, r.text
-    r = s.post(B + "/api/clients", json={"name": "Kunde AG", "street": "Kundenweg 5", "zip": "20000", "city": "Beispielstadt", "country": "DE"})
+    sp = {"org_id": org_id} if org_id else {}  # (#7385) named: alice's only organisation (the freelancer has only Private)
+    r = s.post(B + "/api/clients", json={"name": "Kunde AG", "street": "Kundenweg 5", "zip": "20000", "city": "Beispielstadt", "country": "DE", **sp})
     assert r.status_code == 201, r.text
     cl = r.json()["id"]
     r = s.post(B + D, json={"project_title": "Umbau", "client_id": cl, "raw_mode": "none", "producing_on": 0, "service_from": "2026-10-01", "service_to": "2026-10-30"})
@@ -322,7 +325,7 @@ def flow(s, who):
     check(any(n.endswith(".xml") for n in rd.attachments), f"{who} final: the e-invoice stays embedded {list(rd.attachments)}")
 
 
-flow(A, "organisation")
+flow(A, "organisation", ORG)  # (#7385)
 FID, Fr = freelancer(B, A)
 flow(Fr, "freelancer")
 print(f"{OKS[0]} ok, {len(FAILS)} failed")

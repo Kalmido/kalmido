@@ -1742,9 +1742,9 @@ knew "where is the module on"; new entries landed where the list then hid them.
   `mod` is on and writable there; nothing named: the workspace on top (setting `workspace`) while `mod` is on and writable
   there, else exactly ONE workspace of `wsp_spaces(write=True)`; else `SpaceNeeded` = HTTP 400 `{"error", "code":
   "space_needed", "spaces": [{"ws": "org:3", "name": "…"}, …]}` (never where `mod` is off, never silently Private). An
-  organisation I am not in: 403. Agents: their own workspace (`agent_org`). Transition until its follow-up task (old tests
-  and API users): a call without a name still gets the only organisation the person may add to while `mod` is on there
-  (`_wsp_transition`); the browser always names its workspace, so it never decides there.
+  organisation I am not in: 403. Agents: their own workspace (`agent_org`). Since #7385 there is no transition any more: a
+  call without a name is never sent to "the only organisation I may add to" -- a member of one organisation with the module
+  on in Private and in the organisation gets `space_needed` too (API callers name `space` / `org_id`; the browser always does).
 - the request names its workspace in the JSON body as `space` (`"private"` | `"org:<id>"`), multipart as the form field
   `space`; `org_id` stays accepted (the same). `wsp_named(body)` reads it (None = nothing named; `org_id: null` = Private).
 - `wsp_on(c, uid, mod, oid, write=False)`: one workspace (`oid` None = Private); `wsp_private_off(c, uid, mod)`: switched off

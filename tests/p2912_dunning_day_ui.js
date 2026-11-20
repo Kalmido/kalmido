@@ -26,8 +26,8 @@ const REM_DAY = ago(6), DAY1 = ago(4), DAY2 = ago(2);
 const click = (w, el) => el.dispatchEvent(new w.MouseEvent('click', {bubbles: true, cancelable: true}));
 
 // a finalised invoice (30 days ago, overdue) and a finalised reminder with a 5,00 fee (6 days ago)
-async function reminder(ck, who) {
-  const cl = (await call(ck, 'POST', '/api/clients', {name: `${who} Kunde AG`, street: 'Weg 1', zip: '12345', city: 'Musterstadt', country: 'DE'})).id;
+async function reminder(ck, who, oid = null) {  // oid: the person's only organisation (#7385)
+  const cl = (await call(ck, 'POST', '/api/clients', {name: `${who} Kunde AG`, street: 'Weg 1', zip: '12345', city: 'Musterstadt', country: 'DE', ...(oid ? {org_id: oid} : {})})).id;  // (#7385) names its workspace
   const inv = await call(ck, 'POST', '/api/office/docs', {kind: 'invoice', client_id: cl, service_from: ago(30), items: [{title: 'Schnitt', qty: 1, rate: 500}]});
   check(inv.http === 201, `${who}: an invoice ${inv.http} ${JSON.stringify(inv.error || '')}`);
   await call(ck, 'PATCH', `/api/office/docs/${inv.id}`, {date: ago(30)});
@@ -44,8 +44,8 @@ async function reminder(ck, who) {
 
 const feeDay = id => { const x = dbx('SELECT reminder_fee_state AS st, reminder_fee_paid_at AS day FROM office_docs WHERE id=?', [id])[0] || {}; return [x.st || '', x.day || '']; };
 
-async function run(user, ck, who, booked) {
-  const rid = await reminder(ck, who);
+async function run(user, ck, who, booked, oid = null) {  // oid: the person's only organisation (#7385)
+  const rid = await reminder(ck, who, oid);
   const w = await boot({user, hash: 'office/offers/' + rid}), d = w.document;
   const info = () => (d.querySelector('.ofdfeeinfo')?.textContent || '').replace(/\s+/g, ' ');
   check(await until(() => d.querySelector('[data-ofd="fee"][data-st="paid"]')), `${who}: the finalised reminder offers "Fee paid": ${info()}`);
@@ -111,7 +111,7 @@ async function run(user, ck, who, booked) {
     const j = await call(ck, 'GET', `/api/office/books/ledger?year=${day.slice(0, 4)}&journal=1`);
     return (j.journal || []).some(x => x.day === day && x.doc === no && x.credit === '2700' && Number(x.amount) === 5);
   };
-  await run('alice', CA, 'organisation', journal(CA));
+  await run('alice', CA, 'organisation', journal(CA), (await call(CA, 'GET', '/api/state')).me.workspaces[0].id);  // (#7385)
 
   // a person without organisation: the income statement of the year counts it, the day is the stored one (checked above)
   const fu = await call(CA, 'POST', '/api/users', {username: 'frida', display_name: 'Frida', password: 'password123', email: 'frida@example.com', orgs: []});

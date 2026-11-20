@@ -160,7 +160,7 @@ progress_case(Fr, "frida")
 
 
 # ================================================================ #4185 budgets of two projects, formula names, clients
-def budget_case(S, who):
+def budget_case(S, who, org_id=None):
     out, fxt = {}, {}
     for name, vals in (("One", ((10, (6, 3)), (4, ()))), ("Two", ((8, ()), (5, (2,))))):
         P = S.post(B + "/api/lists", json={"name": f"Budget {name} {who}", "ptype": "agency", "time_tracking": True}).json()["id"]
@@ -186,9 +186,10 @@ def budget_case(S, who):
     check(len(fx) == 2 and all(f["options"].get("formula") == fxt.get(f["id"]) for f in fx),
           f"{who}: #4185 the formula text with the field names as the field's own answer {[f['options'].get('formula') for f in fx]} {fxt}")
     # the clients with their lists, from one query
-    c1 = S.post(B + "/api/clients", json={"name": f"Studio North {who}"}).json()["id"]
-    c2 = S.post(B + "/api/clients", json={"name": f"Studio South {who}"}).json()["id"]
-    c3 = S.post(B + "/api/clients", json={"name": f"Studio Empty {who}"}).json()["id"]
+    sp = {"org_id": org_id} if org_id else {}  # (#7385) named: alice's only organisation (frida has only Private)
+    c1 = S.post(B + "/api/clients", json={"name": f"Studio North {who}", **sp}).json()["id"]
+    c2 = S.post(B + "/api/clients", json={"name": f"Studio South {who}", **sp}).json()["id"]
+    c3 = S.post(B + "/api/clients", json={"name": f"Studio Empty {who}", **sp}).json()["id"]
     check(S.patch(B + f"/api/lists/{out['One']}", json={"client_id": c1}).ok and S.patch(B + f"/api/lists/{out['Two']}", json={"client_id": c1}).ok,
           f"{who}: two projects of the first client")
     L3 = S.post(B + "/api/lists", json={"name": f"Brochure {who}"}).json()["id"]
@@ -199,7 +200,7 @@ def budget_case(S, who):
     check(all(set(x) >= {"id", "name", "label", "icon", "color", "org_id", "archived", "lists"} for x in cl.values()), f"{who}: the client keys stay")
 
 
-budget_case(A, "alice")
+budget_case(A, "alice", ORG)  # (#7385)
 budget_case(Fr, "frida")
 
 

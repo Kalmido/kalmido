@@ -121,11 +121,11 @@ if r.ok:
 # 2.924.0 (#5069): person x's share row on the node of calendar / address book ref_id (the membership since stage 7b)
 NODE_SHARE = ("SELECT 1 FROM fs_shares s JOIN fs_nodes n ON n.id=s.node_id WHERE n.kind='ref' AND n.ref_kind='{k}' AND n.ref_id=? "
               "AND s.user_id=?")
-KA = A.post(B + "/api/evcals", json={"name": f"{MARK} cal"}).json()
+KA = A.post(B + "/api/evcals", json={"name": f"{MARK} cal", "org_id": ORG}).json()  # (#7385) names Alpha
 check(KA.get("org_id") == ORG, "setup: the calendar is Alpha's " + str(KA))
 KA = KA["id"]
 EA = A.post(B + "/api/events", json={"title": f"{MARK} event", "start": "2026-10-21T10:00", "end": "2026-10-21T11:00", "cal_id": KA}).json()["id"]
-BA = A.post(B + "/api/books", json={"name": f"{MARK} book"}).json()["id"]
+BA = A.post(B + "/api/books", json={"name": f"{MARK} book", "org_id": ORG}).json()["id"]  # (#7385) names Alpha
 CTA = A.post(B + "/api/contacts", json={"book_id": BA, "given": MARK, "family": "Contact"}).json()["id"]
 for u in (BOB, DAVE, ERIN, FRANK):
     A.put(B + f"/api/evcals/{KA}/members", json={"user_id": u, "role": "view"})

@@ -201,9 +201,9 @@ check(open(os.path.join(odir, os.listdir(odir)[0]), "rb").read(6) == b"KENC1\n",
 r = A.post(B + "/api/life/health", json={"type": "appointment", "title": "Zahnarzt Umzug", "date": "2026-11-03"})
 check(r.status_code == 201, "a health appointment (Home & life) " + r.text[:120])
 LH = (dbx("SELECT id FROM lists WHERE owner_id=? AND life='health'", (ALICE,)) or [{"id": 0}])[0]["id"]
-KA = A.post(B + "/api/evcals", json={"name": "Umzugskalender"}).json()["id"]
+KA = A.post(B + "/api/evcals", json={"name": "Umzugskalender", "org_id": ORG}).json()["id"]  # (#7385) names Alpha
 check(A.post(B + "/api/events", json={"title": "Schluesseluebergabe", "start": "2026-11-02T10:00", "end": "2026-11-02T11:00", "cal_id": KA}).ok, "event")
-BK = A.post(B + "/api/books", json={"name": "Umzugshelfer"}).json()["id"]
+BK = A.post(B + "/api/books", json={"name": "Umzugshelfer", "org_id": ORG}).json()["id"]  # (#7385) names Alpha
 check(A.post(B + "/api/contacts", json={"book_id": BK, "fn": "Hanna Helferin", "emails": [{"value": "hanna@example.com"}]}).status_code == 201, "contact")
 check(A.post(B + "/api/habits", json={"name": "Jeden Tag ein Karton"}).ok, "habit")
 LC = Bo.post(B + "/api/lists", json={"name": "Bob Geheimliste", "org_id": None}).json()["id"]

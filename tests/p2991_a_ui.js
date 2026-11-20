@@ -89,7 +89,8 @@ const until = (fn, n) => require('./boot').until(fn, {timeout: n ? n * 150 : 150
   w.close();
 
   // ================= a project's overview and a client's card
-  const CL = await call('POST', '/api/clients', {name: 'Kunde Eins GmbH'});
+  const ORG = (await call('GET', '/api/state')).me.workspaces[0].id;  // (#7385) alice's only organisation: the new client names it
+  const CL = await call('POST', '/api/clients', {name: 'Kunde Eins GmbH', org_id: ORG});
   await call('POST', '/api/videos', {client_id: CL.id, url: 'https://vimeo.com/123456789', title: 'Kundenfilm'});
   w = await boot({user: 'alice', hash: 'client/' + CL.id}); d = w.document;
   check(await until(() => /Kundenfilm/.test(d.querySelector('.vdrcl')?.textContent || '')), 'the client card shows its video sign-offs '
