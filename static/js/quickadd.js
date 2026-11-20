@@ -31,6 +31,15 @@ function env_taskNote(t) {  // under "Belongs to" in a task's panel: where its m
   const es = t.milestone_id ? env_ms(t.list_id, t.milestone_id)?.envs : null;
   return es?.length ? `<div class="muted envnote">${esc(es.map(env_text).join(' · '))}</div>` : '';
 }
+// (#7537): the stage line on top of a task's panel (envs.js stl_html): the module comes where a project has a repository or a
+// milestone on an environment (envs.js then asks the project's environments itself); elsewhere nothing changes
+function stl_lineHtml(t) {
+  if (typeof stl_html === 'function') return stl_html(t);
+  const lid = t?.list_id;
+  if (t?.id > 0 && !t.context && (listRepos(lid).length || (listById(lid)?.milestones || []).some(m => m.envs?.length) || listById(lid)?.ptype === 'software'))
+    loadModule('envs').then(() => { if (S.sel === t.id) renderDetail(); }, () => {});
+  return '';
+}
 function env_chipText(t) {  // the milestone chip of a task row
   const es = t.milestone_id ? env_ms(t.list_id, t.milestone_id)?.envs : null;
   return es?.length ? ' · ' + es.map(env_text).join(', ') : '';
