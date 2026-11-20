@@ -1,0 +1,42 @@
+{
+  "de": {
+    "Select the workspace first.": "Wähle zuerst den Arbeitsbereich.",
+    "Forward": "Vor",
+    "Back and forward arrows in the header": "Zurück- und Vor-Pfeile in der Kopfzeile",
+    "Next to the bell: back to the view before and forward again. Off: the keys Alt+← / Alt+→ (Mac: ⌘[ / ⌘]) still work.": "Neben der Glocke: zurück zur vorigen Ansicht und wieder vor. Aus: die Tasten Alt+← / Alt+→ (Mac: ⌘[ / ⌘]) gehen weiter.",
+    "Back to the view before": "Zurück zur vorigen Ansicht",
+    "Forward to the next view": "Vor zur nächsten Ansicht"
+  },
+  "es": {
+    "Select the workspace first.": "Elige primero el espacio de trabajo.",
+    "Forward": "Adelante",
+    "Back and forward arrows in the header": "Flechas de atrás y adelante en la cabecera",
+    "Next to the bell: back to the view before and forward again. Off: the keys Alt+← / Alt+→ (Mac: ⌘[ / ⌘]) still work.": "Junto a la campana: volver a la vista anterior y avanzar de nuevo. Desactivado: las teclas Alt+← / Alt+→ (Mac: ⌘[ / ⌘]) siguen funcionando.",
+    "Back to the view before": "Volver a la vista anterior",
+    "Forward to the next view": "Avanzar a la vista siguiente"
+  },
+  "fr": {
+    "Select the workspace first.": "Choisis d’abord l’espace de travail.",
+    "Forward": "Suivant",
+    "Back and forward arrows in the header": "Flèches retour et suivant dans l’en-tête",
+    "Next to the bell: back to the view before and forward again. Off: the keys Alt+← / Alt+→ (Mac: ⌘[ / ⌘]) still work.": "À côté de la cloche : revenir à la vue précédente et avancer de nouveau. Désactivé : les touches Alt+← / Alt+→ (Mac : ⌘[ / ⌘]) fonctionnent toujours.",
+    "Back to the view before": "Revenir à la vue précédente",
+    "Forward to the next view": "Avancer à la vue suivante"
+  },
+  "it": {
+    "Select the workspace first.": "Scegli prima l’area di lavoro.",
+    "Forward": "Avanti",
+    "Back and forward arrows in the header": "Frecce indietro e avanti nell’intestazione",
+    "Next to the bell: back to the view before and forward again. Off: the keys Alt+← / Alt+→ (Mac: ⌘[ / ⌘]) still work.": "Accanto alla campanella: torna alla vista precedente e vai di nuovo avanti. Spento: i tasti Alt+← / Alt+→ (Mac: ⌘[ / ⌘]) funzionano ancora.",
+    "Back to the view before": "Torna alla vista precedente",
+    "Forward to the next view": "Avanti alla vista successiva"
+  },
+  "nl": {
+    "Select the workspace first.": "Kies eerst de werkruimte.",
+    "Forward": "Vooruit",
+    "Back and forward arrows in the header": "Pijlen terug en vooruit in de kop",
+    "Next to the bell: back to the view before and forward again. Off: the keys Alt+← / Alt+→ (Mac: ⌘[ / ⌘]) still work.": "Naast de bel: terug naar de vorige weergave en weer vooruit. Uit: de toetsen Alt+← / Alt+→ (Mac: ⌘[ / ⌘]) werken nog.",
+    "Back to the view before": "Terug naar de vorige weergave",
+    "Forward to the next view": "Vooruit naar de volgende weergave"
+  }
+}
