@@ -38,6 +38,7 @@ from ..core.access import Denied
 from ..core.pg import system_ctx
 from ..accounts.session import me
 from ..accounts.orgs import is_org_admin, user_orgs
+from ..accounts.orgroles import org_role_key
 from ..accounts.spacemove import smv_refuse_agent
 from ..accounts.wsplace import wsp_on
 from ..files.store import fs_log_add, need_node
@@ -50,6 +51,7 @@ from .ingest import doc_after
 from .split import sp_view
 
 AR_AREAS = ("office", "private")
+AR_NO_WRITE = ("guest", "readonly")  # roles that add nothing to an organisation's documents folder (docs/store.py root_add_ok)
 AR_OTHER_OFFICE = N_("This upload is meant for another office than the one open. Reload the page and try again.")  # (#7321)
 AR_OFFICE_OFF = N_("The office is switched off for you in this workspace.")  # (#7321)
 _AR_ORG = re.compile(r"org:([1-9][0-9]{0,11})")
@@ -65,8 +67,8 @@ def ar_office(c, uid, to):
     """(#7325): the office area to ('private' | 'org:<id>' -- named by the caller: the request's office, ar_here, or the
     document's own target, doc_meta.area_to) of person uid as ('own', 'u<uid>', None) | ('org', 'o<oid>', oid), or None when it
     is no office of theirs that is on and writable for them. "On" is ONE question (accounts/wsplace.py wsp_on, the shared place
-    of #7309: the main switch, "Also private", the organisation's areas, my module switches, the role) plus the office groups'
-    right on receipts. Never reads a setting or a request: what is meant is the caller's (#7325, before: _ar_named)."""
+    of #7309: the main switch, "Also private", the organisation's areas, my module switches, the card); writable = a role
+    that adds to the organisation's documents (accounting uploads receipts too) and the office groups' right on receipts. Never reads a setting or a request: what is meant is the caller's (#7325, before: _ar_named)."""
     if not uid or not to:
         return None
     with system_ctx(c):  # the person's own account row (kind, kid): the queue has no request
@@ -80,10 +82,12 @@ def ar_office(c, uid, to):
         if not m or int(m.group(1)) not in user_orgs(c, uid):
             return None
         oid = int(m.group(1))
-    if not wsp_on(c, uid, "office", oid, write=True):
+    if not wsp_on(c, uid, "office", oid):
         return None
     if oid is None:
         return ("own", S.doc_ws(None, uid), None)
+    if org_role_key(c, uid, oid) in (None, *AR_NO_WRITE):
+        return None
     with system_ctx(c):  # review 2.522 (4): the office groups must let the person work on receipts (office_org would say 403)
         if not ofr_allows(c, uid, oid, "receipts", "edit"):
             return None
