@@ -3,12 +3,13 @@
 """(#6408) agents' load on the server.
 (1) ONE budget of web threads for long requests - an agent's long-poll, a hosted MCP call and an assistant
 call share it (core/longslots.py), so the rest of the threads stays free for people (waitress queue live 17.-19.11.).
-Before, the three had caps of their own that together passed the threads. The server runs with KALMIDO_AGENT_WAITERS=2:
- - Administration's health view shows the budget and the places taken per kind (threads.long)
- - two agents waiting for events take both places: a third agent's wait answers busy at once, and an assistant call answers
-   503 at once (was: it ran); a person's normal request still answers
- - when the waits end the places come back: the assistant answers again
- - two assistant calls that hang at the model take both places: an agent's wait answers busy (the budget is shared both ways)
+Before, the three had caps of their own that together passed the threads. No kind takes the whole budget (KIND_RESERVE, reader
+finding F1). The server runs with KALMIDO_AGENT_WAITERS=4 (one kind at most 3):
+ - Administration's health view shows the budget, the places of one kind and the places taken per kind (threads.long)
+ - three agents waiting for events take the places of their kind: a fourth agent's wait answers busy at once, the assistant
+   still answers on the place left to the other kinds; a person's normal request still answers
+ - three assistant calls that hang at the model take the places of their kind: a fourth answers 503 at once, an agent still
+   waits on the place left (the budget is shared both ways, neither locks the other out)
 The model is tests/fake_ai.py (FAKE_TIMEOUT sleeps; KALMIDO_AI_TIMEOUT_S=6 ends the call).
 (2) the month's usage of an agent is one counter row (agent_usage_month), written with every report: the month limit counts
    from it (used, reached -> 429); the first report of a month starts the row from the reports already there (a row deleted =
@@ -28,7 +29,7 @@ import dbx as _dbx
 import requests
 from kt import B, CT, DATA, N, check, dbx, done, fresh, setup, until
 
-fresh(env={"KALMIDO_AGENT_WAITERS": "2", "KALMIDO_AI_BASE_URL": "http://127.0.0.1:8089/v1", "KALMIDO_AI_MODEL": "fake-1",
+fresh(env={"KALMIDO_AGENT_WAITERS": "4", "KALMIDO_AI_BASE_URL": "http://127.0.0.1:8089/v1", "KALMIDO_AI_MODEL": "fake-1",
            "KALMIDO_AI_KEY": "test-key", "KALMIDO_AI_NAME": "Fake-AI", "KALMIDO_AI_TIMEOUT_S": "6"}, prefix="P21474B")
 A = setup()
 A.patch(B + "/api/settings", json={"lang": "en", "assistant_on": "1"})
@@ -45,7 +46,7 @@ r = A.post(B + "/api/assistant/run", json={"kind": "summary", "task_id": T})
 check(r.ok, f"(sanity) the assistant answers ({r.status_code} {r.text[:120]})")
 
 TOK = []
-for i in range(3):
+for i in range(4):
     r = A.post(B + "/api/admin/agents", json={"scopes": ["read"], "username": f"bot{i}", "display_name": f"Bot {i}"})
     assert r.ok, r.text
     TOK.append({"Authorization": "Bearer " + r.json()["token"]})
@@ -56,37 +57,45 @@ def poll(h, wait):
     return requests.get(B + "/api/v1/agent/events", headers=h, params={"since": cur, "wait": wait}, timeout=wait + 30).json()
 
 
-# ---- two waiting agents take both places
+# ---- three waiting agents take the places of their kind
 res = {}
-ths = [threading.Thread(target=lambda i=i: res.__setitem__(i, poll(TOK[i], 12)), daemon=True) for i in (0, 1)]
+ths = [threading.Thread(target=lambda i=i: res.__setitem__(i, poll(TOK[i], 12)), daemon=True) for i in (0, 1, 2)]
 for t in ths:
     t.start()
 def taken():
     return A.get(B + "/api/admin/health").json()["threads"]["long"]
 
 
-check(until(lambda: taken()["taken"] == {"poll": 2}, 8) and taken()["budget"] == 2, f"two agents wait: both places taken ({taken()})")
-check(poll(TOK[2], 1).get("busy") is True, "a third agent's wait answers busy")
-t0 = time.time()
+check(until(lambda: taken()["taken"] == {"poll": 3}, 8) and taken()["budget"] == 4 and taken()["per_kind"] == 3,
+      f"three agents wait: the places of their kind taken ({taken()})")
+check(poll(TOK[3], 1).get("busy") is True, "a fourth agent's wait answers busy")
 r = A.post(B + "/api/assistant/run", json={"kind": "summary", "task_id": T})
-check(r.status_code == 503 and time.time() - t0 < 3, f"the places are taken: the assistant answers 503 at once ({r.status_code} {r.text[:120]})")
+check(r.ok, f"waiting agents do not lock the assistant out: it answers on the place left ({r.status_code} {r.text[:120]})")
 check(A.get(B + "/api/state").ok, "a person's normal request still answers")
 for t in ths:
     t.join(40)
-check(res.get(0, {}).get("busy") is False and res.get(1, {}).get("busy") is False, f"the two waits were not refused ({res})")
-r = A.post(B + "/api/assistant/run", json={"kind": "summary", "task_id": T})
-check(r.ok, f"the waits ended: the assistant answers again ({r.status_code})")
+check(all(res.get(i, {}).get("busy") is False for i in (0, 1, 2)), f"the three waits were not refused ({res})")
 
-# ---- two hanging assistant calls take both places: an agent's wait answers busy
+# ---- three hanging assistant calls take the places of their kind: a fourth answers 503, an agent still waits
 hang = [threading.Thread(target=lambda: A.post(B + "/api/assistant/run", json={"kind": "summary", "task_id": TH}, timeout=40), daemon=True)
-        for _ in (0, 1)]
+        for _ in (0, 1, 2)]
 for t in hang:
     t.start()
-check(until(lambda: taken()["taken"] == {"assistant": 2}, 4), f"two assistant calls at the model: both places taken ({taken()})")
-check(poll(TOK[0], 1).get("busy") is True, "an agent's wait answers busy")
+check(until(lambda: taken()["taken"] == {"assistant": 3}, 4), f"three assistant calls at the model: their places taken ({taken()})")
+t0 = time.time()
+r = A.post(B + "/api/assistant/run", json={"kind": "summary", "task_id": T})
+check(r.status_code == 503 and time.time() - t0 < 3, f"the assistant's places are taken: a fourth call answers 503 at once ({r.status_code} {r.text[:120]})")
+check(poll(TOK[0], 1).get("busy") is False, "an agent still waits on the place left to the other kinds")
 for t in hang:
     t.join(40)
 check(taken()["taken"] == {} and poll(TOK[0], 1).get("busy") is False, "the assistant calls ended: the places are free, the agent waits again")
+
+# ---- reader finding F2: the server version (X-Kalmido-V) only goes to the web app, not to a token's write
+r = A.post(B + "/api/tasks", json={"title": "Session write", "list_id": L})
+check(r.ok and int(r.headers.get("X-Kalmido-V") or 0) > 0, f"a write of the web app carries X-Kalmido-V ({r.status_code} {r.headers.get('X-Kalmido-V')})")
+PT = A.post(B + "/api/me/tokens", json={"name": "f2", "scopes": ["read", "write"]}).json()["token"]
+r = requests.post(B + "/api/v1/tasks", headers={"Authorization": "Bearer " + PT}, json={"title": "Token write", "list_id": L})
+check(r.status_code == 201 and "X-Kalmido-V" not in r.headers, f"a token's write carries none ({r.status_code} {r.headers.get('X-Kalmido-V')})")
 
 # ---- (2) the month counter
 r = A.post(B + "/api/admin/agents", json={"scopes": ["write"], "username": "meter", "display_name": "Meter"})
