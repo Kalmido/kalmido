@@ -95,12 +95,12 @@ check(h.get("file") == "API.md" and "Scan inboxes: folder watcher" in (h.get("pa
       f"a hit carries file, the headings and a snippet: {h}")
 sec = read(ag, SCAN, lang="de")
 txt = sec.get("text", "") if isinstance(sec, dict) else ""
-check(txt.startswith("## Scan inboxes: folder watcher") and "Settings > Integrations > *Documents: inboxes*" in txt,
-      "read: the section with the path of the interface (Settings > Integrations > Documents: inboxes)")
+check(txt.startswith("## Scan inboxes: folder watcher") and "Settings > Connections > *Documents: inboxes*" in txt,
+      "read: the section with the path of the interface (Settings > Connections > Documents: inboxes, #6368)")
 check("never an" in txt and "only a person can create one" in txt, "read: only a person creates a scan inbox, never an agent")
 check("## Help for agents" not in txt and "Web routes of the settings" in txt, "read: up to the next heading of the same rank, not beyond")
 ui = sec.get("ui_terms", {}) if isinstance(sec, dict) else {}
-check(ui.get("Integrations") == "Integrationen" and ui.get("Documents: inboxes") == "Dokumente: Eingänge"
+check(ui.get("Connections") == "Verbindungen" and ui.get("Documents: inboxes") == "Dokumente: Eingänge"
       and ui.get("New scan inbox") == "Neuer Scan-Eingang", f"ui_terms in German: {ui}")
 check(read(ag, SCAN, lang="en").get("ui_terms") == {}, "lang en: no ui_terms (the help is English)")
 check(read(ag, SCAN, lang="xx") == 400, "an unknown lang: 400")
@@ -187,7 +187,7 @@ check(all(mcp.TOOLSET_OF.get(n) == "chat" and mcp.tool_allowed(api, n) for n in 
 r = mcp.TOOL_MAP["search_help"][3](api, {"q": "scan inbox folder"})
 check(r["data"][0]["key"] == USCAN and dev_keys(r, 1) == [SCAN], "MCP search_help (2.1086.0 #5820: the user's section first)")
 r = mcp.TOOL_MAP["read_help"][3](api, {"key": SCAN, "lang": "de"})
-check("Settings > Integrations" in r["text"] and r["ui_terms"].get("Folder watcher") == "Ordner-Wächter", "MCP read_help")
+check("Settings > Connections" in r["text"] and r["ui_terms"].get("Folder watcher") == "Ordner-Wächter", "MCP read_help")
 check(mcp.TOOL_MAP["help_overview"][3](api, {})["features"], "MCP help_overview")
 try:
     mcp.TOOL_MAP["read_help"][3](api, {"key": "../ENV.md"})
@@ -211,7 +211,7 @@ FID, Fl = freelancer(B, A)
 _, FAGT = agent("fridabot", owner=FID)
 for who, t in (("her token", bearer(token(Fl, ("read",)))), ("her own agent", bearer(FAGT))):
     check(dev_keys(search(t, "scan inbox folder"), 1) == [SCAN], f"{who}: search_help (GET /api/v1/search?kind=help)")  # 2.1086.0 (#5820)
-    check("Settings > Integrations" in read(t, SCAN).get("text", ""), f"{who}: read_help (GET /api/v1/help/section)")
+    check("Settings > Connections" in read(t, SCAN).get("text", ""), f"{who}: read_help (GET /api/v1/help/section)")
     check(t.get(V + "/help").status_code == 200, f"{who}: the overview (GET /api/v1/help)")
     check(read(t, "self-hosting") == 404, f"{who}: no operator file")
 

@@ -41,7 +41,7 @@ own project with the same name is reused) or one existing project you can edit. 
 ## Tasks by e-mail
 
 With one mailbox set up (`KALMIDO_MAIL_ADDRESS` + `KALMIDO_IMAP_*`, see *Configuration*), everyone gets a **secret
-address** for new tasks: Settings > Integrations > *Tasks by e-mail* (`tasks+<token>@example.com` lands in your basket,
+address** for new tasks: Settings > Connections > *Tasks by e-mail* (`tasks+<token>@example.com` lands in your basket,
 an address per project lands in that project while you may change it). The subject becomes the title, the text the
 description, attachments become files, "Fwd:" / "WG:" are dropped, the same message never twice. *New address* makes the
 old one stop working. Optionally, mails from your own address (an admin stores it under Settings > Organisation > People) to the plain address go to your basket
@@ -64,7 +64,7 @@ connection* and *Fetch now* share one limit, and an error only says "cannot be r
 
 ## Share from your phone
 
-*Settings > Integrations > Share from your phone*. Every share becomes a task in *your* inbox, files attached; it goes
+*Settings > Connections > Share from your phone*. Every share becomes a task in *your* inbox, files attached; it goes
 to `POST /drop` with your personal upload token (with a login proxy, let `/drop` pass, see above). Chrome passes no
 files to installed web apps via the share sheet (links and text work with *Share > Kalmido*), hence these helpers:
 
@@ -74,8 +74,8 @@ files to installed web apps via the share sheet (links and text work with *Share
 3. Share from any app to HTTP Shortcuts > *Kalmido* (photos and files, also several) or *Kalmido text* (links and text;
    the first line becomes the title, a link the task's link).
 
-The ZIP contains your token: keep it like a password (*New token* next to the token, or *Settings > Account > Advanced >
-Upload token > New token*, invalidates it; then download the ZIP again and update the iPhone shortcut).
+The ZIP contains your token: keep it like a password (*New token* next to the token, or *Settings > Connections > Share from your
+phone > New token*, invalidates it; then download the ZIP again and update the iPhone shortcut).
 
 **iPhone / iPad: Shortcuts app.** Copy the server address (without `/drop`) and the token with the buttons in the
 same place and follow the guide there (*Get Contents of URL* to the address + `/drop`, method `POST`, header

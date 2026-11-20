@@ -46,8 +46,8 @@ const openSettings = async (w, d) => { w.eval(`settingsModal()`); return until((
     for (const q of ['scanner', 'download', 'Scanner']) {
       check(await openSettings(w, d), `${who}: the settings open`);
       type(w, d, q);
-      const hb = hits(d).find(b => /Integrations ›/.test(b.textContent) && /Documents: inboxes/.test(b.textContent));
-      check(!!hb, `${who}: "${q}" finds Integrations › Documents: inboxes ` + JSON.stringify(hits(d).map(b => b.textContent)));
+      const hb = hits(d).find(b => /Connections ›/.test(b.textContent) && /Documents: inboxes/.test(b.textContent));
+      check(!!hb, `${who}: "${q}" finds Connections › Documents: inboxes ` + JSON.stringify(hits(d).map(b => b.textContent)));
       if (hb) {
         click(w, hb);
         check(!!(await until(() => d.querySelector(SCAN))), `${who}: "${q}": the jump marks the folder watcher's section`);
@@ -93,7 +93,7 @@ const openSettings = async (w, d) => { w.eval(`settingsModal()`); return until((
     check(md && md.classList.contains('sidx'), `${who} phone: the overview of the settings is shown`);
     check(ss && w.getComputedStyle(ss).display !== 'none' && !ss.closest('[hidden], .hidden'), `${who} phone: the search field is visible in the head of the overview`);
     type(w, d, 'download');
-    hb = hits(d).find(b => /Documents: inboxes/.test(b.textContent) && /Integrations ›/.test(b.textContent));
+    hb = hits(d).find(b => /Documents: inboxes/.test(b.textContent) && /Connections ›/.test(b.textContent));
     check(!!hb, `${who} phone: "download" finds the folder watcher`);
     if (hb) { click(w, hb); check(!!(await until(() => d.querySelector(SCAN))) && !md.classList.contains('sidx'), `${who} phone: the hit leaves the overview and marks the section`); }
     await until(() => !d.querySelector('.sflash'));  // the ring is over (its observer stopped) before the window goes

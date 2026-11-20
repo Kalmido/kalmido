@@ -100,7 +100,7 @@ const addD = (s, n) => { const [y, m, d] = s.split('-').map(Number); const x = n
   w.eval(`settingsModal('layout')`); await settle(w); md = [...d.querySelectorAll('.modal.smodal')].pop();
   const secs = [...md.querySelectorAll('.snav [data-sec]')].map(b => b.dataset.sec);
   // 2.418.0 (#3560): the new section Navigation (Settings > Navigation) after Appearance
-  check(JSON.stringify(secs) === JSON.stringify(['account', 'org', 'general', 'look', 'nav', 'modules', 'notify', 'integr', 'access', 'data', 'users', 'help']), 'sections (2.7.0: no Agents page without the module and agents): ' + secs);  // 2.46.0 (#1592): a server without an organisation shows no Organisation page  // 2.166.0 (#2633): + Access  // 2.364.0 C (#3041): + Organisation for a server admin
+  check(JSON.stringify(secs) === JSON.stringify(['account', 'org', 'general', 'look', 'nav', 'modules', 'notify', 'integr', 'data', 'users', 'help']), 'sections (2.7.0: no Agents page without the module and agents): ' + secs);  // 2.46.0 (#1592): a server without an organisation shows no Organisation page  // 2.166.0 (#2633): + Access  // 2.364.0 C (#3041): + Organisation for a server admin
   check(md.querySelector('.snav .on')?.dataset.sec === 'modules', 'old link "layout" opens Modules');
   const mp = md.querySelector('[data-pane="modules"]');
   const rows = [...mp.querySelectorAll('[data-modrow]')];
@@ -111,7 +111,7 @@ const addD = (s, n) => { const [y, m, d] = s.split('-').map(Number); const x = n
   check(mp.querySelector('[data-modrow="pomo"] details #s-pf') && mp.querySelector('[data-modrow="time"] details #s-trnd'), 'focus and time options folded under their module');
   check(!md.querySelector('#s-nav') && !md.querySelector('[data-pane="layout"]') && !md.querySelector('[data-pane="collab"]'), 'the duplicate module list and the Collaboration tab are gone');
   check(md.querySelector('[data-pane="look"] [data-m="go-nav"]') && !md.querySelector('#s-tabbar') && md.querySelector('[data-pane="nav"] [data-m="tab-add"]'), 'tab bar: Appearance links to Navigation, the editor lives there only');  // 2.1297.0 (#6129)
-  check(md.querySelector('[data-pane="account"] details.sdev [data-m="go-share"]') && !md.querySelector('[data-acc="token"]'), 'API tokens folded under "For advanced users" (2.1391.0 #6130); 2.7.0 (#405 S3): the upload token only under Share from your phone, a link here');
+  check(!md.querySelector('[data-pane="account"] details.sdev') && !md.querySelector('[data-acc="token"]') && md.querySelector('[data-pane="integr"] #s-api-h'), '(#6368): no "For advanced users" in Account, the API tokens are in Connections; 2.7.0 (#405 S3): the upload token only under Share from your phone');
   // 1.9.0: /drop moved out of "Advanced" into Integrations > Share from your phone (the address to copy)
   check(md.querySelector('[data-pane="integr"] #s-share-h') && /^https?:\/\/[^/]+$/.test(md.querySelector('[data-pane="integr"] #s-dropurl')?.value || ''), 'server address (2.0.2: without /drop) in Integrations > Share from your phone');
   const prio = [...md.querySelectorAll('#s-pushprio option')].map(o => o.textContent);

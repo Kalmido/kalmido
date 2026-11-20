@@ -21,13 +21,13 @@ const msvHtml = () => `<h4 id="s-msv-h">${tr('Servers')}</h4>
   <div class="members" id="s-msv"><div class="muted mhint">${tr('Loading…')}</div></div>
   <div class="row msvbtns"><button class="btn sm pri" data-msva="add">${ic('plus', 's')} ${tr('Add server')}</button><button class="btn sm" data-msva="code">${ic('key', 's')} ${tr('Create a connection code for another server')}</button></div>`;
 async function msvDraw(md) {
-  // the section stands in Settings > Account above "For advanced users"
+  // the section stands in Settings > Account after storage (the place data-msvat, #6368: was above "For advanced users")
   let box = $('#s-msv', md);
   if (!box) {
-    // 2.1353.0 (#6827): the sections are folded head rows (settings.js sf_*): Servers is one of its own, before the one around "Advanced"
-    const sdev = $('[data-pane="account"] details.sdev', md), anchor = sdev?.closest('details.sfold') || sdev; if (!anchor) return;
+    // 2.1353.0 (#6827): the sections are folded head rows (settings.js sf_*): Servers is one of its own
+    const anchor = $('[data-pane="account"] [data-msvat]', md); if (!anchor) return;
     const sec = document.createElement('div'); sec.className = 'msvsec'; sec.innerHTML = msvHtml();
-    anchor.before(sec); if (typeof sf_wrap === 'function' && anchor !== sdev) sf_wrap(sec, 'account'); box = $('#s-msv', md);
+    anchor.before(sec); if (typeof sf_wrap === 'function' && $('[data-pane="account"] details.sfold', md)) sf_wrap(sec, 'account'); box = $('#s-msv', md);
   }
   msvWire(md);
   let j; try { j = await msvFetch(true); } catch { box.innerHTML = `<div class="muted mhint">${tr('Only available online.')}</div>`; return; }
@@ -75,7 +75,7 @@ function msvAddModal(smd) {
     <details class="msvman"><summary>${tr('Address and token instead')}</summary>
       <div class="row"><label for="msv-url">${tr('Address')}</label><input id="msv-url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://kalmido.example.com"></div>
       <div class="row"><label for="msv-tok">${tr('API token')}</label><input id="msv-tok" type="password" autocomplete="off" spellcheck="false" placeholder="abk_…"></div>
-      <div class="shint">${setLinkHtml(tr('A personal API token of your account there (Settings > Access) with the permissions: read, change tasks, delete, calendar, comments.'))}</div>
+      <div class="shint">${setLinkHtml(tr('A personal API token of your account there (Settings > Connections) with the permissions: read, change tasks, delete, calendar, comments.'))}</div>
     </details>
     <div class="row"><label for="msv-name">${tr('Name')}</label><input id="msv-name" maxlength="60" placeholder="${esc(tr('e.g. Work'))}"></div>
     <div class="calerr" role="alert" id="msv-err" hidden></div>

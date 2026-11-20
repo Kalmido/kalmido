@@ -80,7 +80,7 @@ const DESK = {'(hover:hover) and (pointer:fine)': true};
     const txt = () => d.querySelector('#s-scan')?.textContent || '';
     check(/Folder watcher/.test(txt()) && ((d.querySelector('#s-scan .dsc-dl')?.children.length || 0) >= 1 || /Not available on this server/.test(txt())), 'Integrations: the download (or the honest hint) is there');
     check(!!d.querySelector('#s-scan-h') && !d.querySelector('#s-scan [data-dcs]'), 'Integrations: heading, the buttons are its own (data-dsc)');
-    check(!!d.querySelector('.aczlink [data-m="go-access"]'), 'Integrations: a link to API tokens and webhooks (Access)');
+    check(!!d.querySelector('[data-pane="integr"] #s-api-h') && !d.querySelector('[data-pane="integr"] .aczlink'), '(#6368): the API tokens are rows of the same tab (Connections), no link to a tab Access');
     // the document settings: a pointer, no second copy (2.365.2 B, #2789: Settings > Documents)
     click(w, d.querySelector('.snav [data-sec="docs"]'));
     await until(() => d.querySelector('#s-dcs [data-dcs="go-integr"]'));

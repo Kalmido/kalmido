@@ -22,7 +22,7 @@ data and needs no token). Import it into Postman, Bruno, Insomnia or an n8n HTTP
 
 ## Personal access tokens
 
-Create a token under **Settings > Access** (API tokens, webhooks and the tokens of your agents in one place):
+Create a token under **Settings > Connections** (API tokens, webhooks and the tokens of your agents in one place):
 
 - **Name**: what uses it ("Home Assistant", "backup script").
 - **Permissions** (scopes, 2.15.0). Each request needs exactly one; the OpenAPI document names it per operation
@@ -1074,7 +1074,7 @@ MCP endpoint `/mcp` ([AGENTS.md, Hosted MCP](AGENTS.md#hosted-mcp)). Off, every 
 
 ## Setting up integrations through the API
 
-2.391.0 (#3362): a script can set up what Settings > Access offers, with the scope `integrations` (people only: an agent's
+2.391.0 (#3362): a script can set up what Settings > Connections offers, with the scope `integrations` (people only: an agent's
 token never gets it, also not through the old `write`; agents set up nothing of this on purpose). The routes run the very
 checks of the app (who may manage a webhook, an organisation admin, the project owner / project admins for repositories).
 
@@ -1109,7 +1109,7 @@ in a list and never in the server's log. MCP tools: `list_webhooks`, `create_web
 
 ## Webhooks
 
-Under **Settings > Access > Webhooks** (earlier: Settings > Integrations) every user can register up to 10 URLs. Kalmido then sends a `POST` with a
+Under **Settings > Connections > Webhooks** (earlier: Settings > Connections) every user can register up to 10 URLs. Kalmido then sends a `POST` with a
 JSON body whenever one of the chosen events happens **in a project that user can see** (their own projects and projects shared
 with them; with collaboration switched off only their own). What they cannot see is never sent.
 
@@ -1890,10 +1890,10 @@ pack catalogue, the privacy templates) only for an instance admin's token with `
 *Since 2.207.0.*
 
 A scan inbox is a key with the one scope `docs:upload` ("Only upload documents"), bound to one place: a person's own
-documents or an organisation's, optionally one folder of it. People make and revoke it in Settings > Integrations > *Documents: inboxes* >
+documents or an organisation's, optionally one folder of it. People make and revoke it in Settings > Connections > *Documents: inboxes* >
 *Folder watcher* > *New scan inbox* > *Create inbox* (2.1067.0: the path of the interface since 2.353; web session only, never an
 agent: only a person can create one; 2.1048.0, #5821: also from the menu of a folder of the documents, *Scan inbox for this
-folder…*, which opens that form with the folder and its name set, or *Show scan inbox* when the folder has one); it shows in Settings > Access > API tokens too (revocable there, its permissions
+folder…*, which opens that form with the folder and its name set, or *Show scan inbox* when the folder has one); it shows in Settings > Connections > API tokens too (revocable there, its permissions
 cannot be changed). It counts against the 20 tokens per person. `docs:upload` is never offered for ordinary tokens
 (`POST /api/me/tokens` answers `400`) and never for agents (agents upload with `files:write`). An admin's limit for personal
 tokens (Settings > Organisation > Agents) can untick it; a limit saved before 2.207 leaves it allowed. Rate limit, address
@@ -1943,7 +1943,7 @@ address}` when it changed meanwhile); `POST /api/docs/mail-addresses/{id}/renew`
 A receipt fetcher is a helper program on the person's own computer that fetches invoices from web portals (an online shop, a
 phone company) and hands them to Kalmido. The person signs in to the portals only in the helper: Kalmido never stores
 passwords, cookies or logins, has no fields for them and refuses every field it does not know (`400`, nothing stored). People
-with the office (also the own office of a person without an organisation) connect one in Settings > Integrations > *Receipt
+with the office (also the own office of a person without an organisation) connect one in Settings > Connections > *Receipt
 fetcher* with a setup code (web session only, never an agent); without the office the routes answer `403`. The code names the
 server by `PUBLIC_URL`; a server without it makes no fetcher (`503`, 2.666.0 #4074: never the address of the request).
 
@@ -1967,7 +1967,7 @@ the person (left the organisation, read-only role), `409` the portal is switched
 left, `400` not a PDF, unknown field or portal, `429` slow down. The documents arrive with the source `abholer` and
 `abholer:<portal>:<order>` as their external id and are recognised like an upload (date, amount, sender, sorting).
 
-The helper itself (2.1188.0): Settings > Integrations > *Receipt fetcher* offers it as one zip for Mac and Windows
+The helper itself (2.1188.0): Settings > Connections > *Receipt fetcher* offers it as one zip for Mac and Windows
 (`/static/downloads/kalmido-belegabholer-<version>.zip`, the newest file of that name on the server; without one the page says
 the download is not available yet). Unpack it, double-click `Einrichten.command` (Mac) or `Einrichten.cmd` (Windows) and paste
 the setup code.

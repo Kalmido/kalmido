@@ -294,7 +294,7 @@ const TABLET = {'(min-width:600px) and (min-height:600px)': true};
     w.eval(`settingsModal('account')`); await sleep(500);
     // 2.4.2 (#391): the share button is gone; a menu anchored inside the settings dialog (same list picker as before;
     // 2.7.0: anchored in Account, the Agents page only shows with the module or agents)
-    const sb = d.querySelector('.modal.smodal [data-m="go-share"]');
+    const sb = d.querySelector('.modal.smodal [data-pane="account"] [data-acc="pw"]') || d.querySelector('.modal.smodal [data-pane="account"] button');  // (#6368): any button of Account as the anchor (go-share left Account)
     w.__sb = sb;
     w.eval(`menu(window.__sb, S.lists.filter(l => !l.archived && !l.is_inbox && canManage(l)).map(l => ({label: lname(l), icon: 'list', fn: () => { document.querySelector('.modal.smodal')?.remove(); shareModal(l.id); }})))`); await sleep(200);
     const pop = d.querySelector('#pop');

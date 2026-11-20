@@ -391,7 +391,7 @@ to *deny* and allow each app per group, so a new account does not open every app
   Android, the Shortcuts app on the iPhone), links and text through the share menu, and the mail inbox stays.
 - **Export to other tools:** *Settings > Data* offers, next to the JSON file, a ZIP with one Todoist CSV per list and a ZIP
   with one Markdown checklist per list. Lists locked with a password stay out (the server only holds ciphertext).
-- **Fetch mails now:** admins see a button under *Settings > Integrations > Tasks by e-mail* that asks the mailbox at once
+- **Fetch mails now:** admins see a button under *Settings > Connections > Tasks by e-mail* that asks the mailbox at once
   instead of waiting for the next round.
 - **iPhone shortcut for sharing:** build it once in the Shortcuts app and share it for everyone, with import questions
   (placeholders) for the server address and the token, never with your own token inside.
@@ -399,7 +399,7 @@ to *deny* and allow each app per group, so a new account does not open every app
   scripts need a personal access token ([API.md](API.md#personal-access-tokens)).
 - **Upload token and calendar feed link are shown once.** Kalmido stores both only as a hash: the token and the link
   appear right after they are created (and inside a freshly downloaded HTTP Shortcuts import, which always carries a new
-  token). Lost one? Create a new one under *Settings > Integrations*; the old one stops working at once. Tokens from
+  token). Lost one? Create a new one under *Settings > Connections*; the old one stops working at once. Tokens from
   before 2.138 keep working (they are converted to hashes at start-up). `TASKS_DROP_TOKEN` is stored the same way.
   Going back to a version before 2.138 keeps the data, but there every upload token and calendar feed link has to be
   created anew (and shortcuts and calendar subscriptions set up again with them): the older version cannot read the hashes.
@@ -1532,7 +1532,7 @@ the browsers then send nothing.
 
 - **Give *Tasks by e-mail* its own mailbox.** Kalmido imports every mail as a task and then **deletes it from the mailbox** (since 2.240; `KALMIDO_IMAP_KEEP=1`: only marks it
   as read; a mail not taken in whole always stays). A mailbox you also use yourself loses its mail.
-- **Shorten forwarded mails (optional, per person).** Settings > Integrations > *Tasks by e-mail* > *Shorten forwarded mails*: the
+- **Shorten forwarded mails (optional, per person).** Settings > Connections > *Tasks by e-mail* > *Shorten forwarded mails*: the
   forwarding header becomes one line, signatures, legal notices and older quoted replies are cut, the original mail stays
   attached as `.eml`. Off by default.
 - **Replies become comments (2.393.2).** A reply to a mail that made a task (In-Reply-To / References), to a notification
@@ -1742,7 +1742,7 @@ takes its values along (the field is found there by name and type or made). Tabl
 
 An existing Paperless-ngx instance can be connected (2.69: also on a hosted server, see below)
 once per workspace -- by an organisation's admin for the organisation, by a person for their own space -- under
-*Settings > Integrations > Paperless-ngx* (2.87.9; before: *Documents > Settings*) with its address and an API token
+*Settings > Connections > Paperless-ngx* (2.87.9; before: *Documents > Settings*) with its address and an API token
 (Paperless-ngx: *My profile > API auth token*). The section names the workspace and switches between them; the documents
 settings keep only the progress of a running import and a jump there. The search (Ctrl/Cmd+K) finds *Import from
 Paperless-ngx…* and *Connect Paperless-ngx*.
@@ -1804,7 +1804,7 @@ server (in its Docker setup with `docker compose exec webserver ...`):
 document_exporter ../export --zip
 ```
 
-Then upload the ZIP under *Settings > Integrations > Paperless-ngx > From a Paperless-ngx export (ZIP)*. The same preview
+Then upload the ZIP under *Settings > Connections > Paperless-ngx > From a Paperless-ngx export (ZIP)*. The same preview
 follows (tags, correspondents, document types with their mapping), then the import in the background. Exports with
 `--split-manifest`, `--use-folder-prefix` and ZIPs with everything in one top folder work as well.
 

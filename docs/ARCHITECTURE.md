@@ -349,7 +349,7 @@ registering the ones of its area.
 | `vlist.js` | Long lists (2.65.0): a view with more than 300 rows draws only the rows near the visible part (see below). |
 | `calendar.js` | Kanban, the calendar events' data and what other views show of the calendar. |
 | `swimlanes.js` | Kanban swimlanes (2.138.0): lanes by person, priority or a custom field, the drop into a lane. |
-| `calview.js` | 2.65.0 (#1823): the calendar views month / week / day and Settings > Integrations > Calendars. Loaded on demand (module `calendar`). |
+| `calview.js` | 2.65.0 (#1823): the calendar views month / week / day and Settings > Connections > Calendars. Loaded on demand (module `calendar`). |
 | `timeline.js` | The timeline (Gantt). |
 | `depchain.js` | The chain moving along: drag preview, the not-moved note, "Pull the chain in" (2.67.0). |
 | `roadmap.js` | The roadmap. |
@@ -409,7 +409,7 @@ registering the ones of its area.
 | `pinboard.js` | 2.43.0 (#1346): project page as a pinboard: a colour per block and notepads (Markdown) for everyone in the project. |
 | `lysets.js` | 2.55.0 (#1069, #1068): several saved arrangements per view (switch in the header, manage, save as; server `kalmido/accounts/layoutsets.py`, table `view_layouts`) and arrangements sent to people as templates (`view_layout_offers`, News item `lytpl`). |
 | `projtime.js` | 2.43.0 (#1434): tracked time of a project in a window (by person and task, period, CSV) and deleting all of its times with Undo. |
-| `dashboard.js` | News bundled per task, the view builder (2.32.0: blocks per view, "Customize", project page standard + own arrangement; server side `kalmido/accounts/layouts.py`), the start page (dashboard) and Settings > Integrations > Tasks by e-mail. |
+| `dashboard.js` | News bundled per task, the view builder (2.32.0: blocks per view, "Customize", project page standard + own arrangement; server side `kalmido/accounts/layouts.py`), the start page (dashboard) and Settings > Connections > Tasks by e-mail. |
 | `family.js` | The module "Family" (its styles in `css/family.css` since 2.1305.0, #4742). |
 | `calevents.js` | Events (module "events"): the editor and popover, the agenda, creating in the week grid, calendars, the phone setup. |
 | `contacts.js` | Contacts (module "contacts"): the view, the editor, the card, import / export. Loaded on demand (2.53.0). |
@@ -730,7 +730,7 @@ settings sections), `ctlinks.js` (the contacts in the task panel) and `officeOn`
 | Module | Files | Opens with |
 |---|---|---|
 | `agentchat` | `agentchat.js`, `agentsetup.js` | the agent chat, Settings (needs `integrations`) |
-| `calendar` | `calview.js` (month / week / day, Settings > Integrations > Calendars), `caldrag.js`, `calgest.js` (swipe / pinch, 2.164.0; sideways pinch = 1 to 14 days, 2.290.0) | the calendar view, Settings |
+| `calendar` | `calview.js` (month / week / day, Settings > Connections > Calendars), `caldrag.js`, `calgest.js` (swipe / pinch, 2.164.0; sideways pinch = 1 to 14 days, 2.290.0) | the calendar view, Settings |
 | `stats` | `stats.js` (the statistics view; the charts stay in `templates.js`) | the statistics view |
 | `wiki`, `mindmap` | `wiki.js`, `mindmap.js` | knowledge pages (need `mindmap`), a list as mind map, a task's "Mentioned in" |
 | `diagram` | `diagram.js` (2.382.0, #3153: formulas with `static/vendor/katex`, Mermaid diagrams with `static/vendor/mermaid`, each library only for its kind of block) | a knowledge page with a formula / diagram (`wiki.js` `wk_dgNeed`), a shared page with one |

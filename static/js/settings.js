@@ -56,7 +56,7 @@ async function wpDraw(md) {
 // 2.53.0 (#1410): SET_SECS lives in setcore.js (the command palette lists the sections)
 // 2.25.0 (UX-17): what each area holds, shown in the overview a phone opens with
 const SET_DESC = {account: N_('Name, password, sign-in, storage'), org: N_('People, invitations, agents and data'), general: N_('Language, Today, dates and reminders'), look: N_('Theme, font size, tab bar and sidebar'), nav: N_('The menus of the areas and the tab bar'),
-  modules: N_('What Kalmido shows'), notify: N_('Push, News and quiet hours'), integr: N_('Calendar on the phone, sharing, e-mail'), access: N_('API tokens, webhooks and agent tokens'), ai: N_('Agents and what they do'),
+  modules: N_('What Kalmido shows'), notify: N_('Push, News and quiet hours'), integr: N_('Phone and calendar, e-mail, other programs, agents'), ai: N_('Agents and what they do'),
   biz: N_('Company, documents and numbers, invoices, taxes'), docs: N_('Sorting automatically, archive numbers, rules'),  // 2.365.2 (#2789)
   data: N_('Import, export, templates, backups'), users: N_('Sign-in, server, log, backups'), help: N_('How things work, about Kalmido')};
 // ---- UX1 (U03, owner decision 2): settings save themselves. Every control applies at once, "Saved · Undo" shows in the
@@ -322,7 +322,7 @@ function sf_build(md) {
   SF.tmp.clear();
   for (const p of $$('.spane', md)) {
     const pane = p.dataset.pane;
-    if (pane === 'org' || pane === 'users' || pane === 'ai' || pane === 'access' || pane === 'biz') continue;  // sub-tabs / drawn later (biz: office.js biz_paint)
+    if (pane === 'org' || pane === 'users' || pane === 'ai' || pane === 'biz') continue;  // sub-tabs / drawn later (biz: office.js biz_paint)
     const cx = sf_wrap(p, pane);
     const fs = $$('details.sfold', p);
     if (cx.made === 1 && fs.length === 1 && !$('details.introw, details.modgrp', p)) { fs[0].dataset.sfd = '1'; fs[0].open = sf_isOpen(fs[0].dataset.sf, true); }  // one section only: open
@@ -425,8 +425,8 @@ function integrCardsHtml() {
     ...(feat('docs') && typeof dsc_integrHtml === 'function' ? [['download', N_('Documents: inboxes'), N_('Folder of the file store, folder watcher for Mac and Windows, scan inboxes, e-mail address'), '#s-scan-h']] : []),  // 2.353.0 B (#2773); 2.365.2 B (#2789): all inboxes
     ...(feat('docs') && feat('office') && typeof fx_html === 'function' ? [['file', N_('Receipt fetcher'), N_('Invoices from portals like Amazon straight into your office'), '#s-fetch-h']] : []),  // 2.425.0 C (#3453): docfetch.js
     ...(feat('docs') && typeof pl_setHtml === 'function' ? [['file', N_('Documents from Paperless-ngx'), N_('Bring the documents of your Paperless-ngx server into Kalmido'), '#s-pl-h']] : [])];  // 2.87.9 (#1936)
-  // 2.353.0 B (#2773): API tokens and webhooks live in Access: a link here, no second copy
-  return `<div class="icards">${C.map(([i, n, d, to]) => `<button type="button" class="icard" data-jump="${to}">${ic(i, 's')}<span><b>${tr(n)}</b><small>${tr(d)}</small></span>${ic('chev', 's fcar')}</button>`).join('')}</div>${acz_linkHtml(S.api?.enabled || S.webhooks?.enabled)}`;
+  // (#6368): API tokens and webhooks are rows of this tab now (group Other programs): no link to a tab Access any more
+  return `<div class="icards">${C.map(([i, n, d, to]) => `<button type="button" class="icard" data-jump="${to}">${ic(i, 's')}<span><b>${tr(n)}</b><small>${tr(d)}</small></span>${ic('chev', 's fcar')}</button>`).join('')}</div>`;
 }
 // 2.625.0 (#4489): every integration is one folded row (native details): icon, name and its state once the pane has loaded
 // one (intr_st; none = only the name); opening it shows the form as before. The cards above, the focus keys and the settings
@@ -542,7 +542,7 @@ function aiHtml(hint, want) {
     ${collab() ? '' : hint(setLinkHtml(tr('Agents work together with you in shared projects: switch on Collaboration (Settings > Modules) as well.')))}
     <div class="members aglist" id="${adm ? 's-ags' : 's-myags'}"><div class="muted mhint">${tr('Loading…')}</div></div>
     <div class="row aibtns">${adm ? `<button class="btn sm" data-ag="new" aria-haspopup="menu">${ic('plus', 's')} ${tr('Add agent…')}</button>` : `<button class="btn sm" data-aigo="setup">${ic('plus', 's')} ${tr('Personal agent…')}</button>`}<button class="btn sm" data-m="ag-guide" title="${esc(tr('Set up an agent step by step, or let Claude Code do it'))}">${ic('help', 's')} ${tr('How to set one up')}</button></div>
-    ${acz_linkHtml(true)}${''/* 2.166.0 (#2633) */}
+    ${acz_linkHtml()}${''/* 2.166.0 (#2633); (#6368): to Connections > Agents */}
     ${agDotsHtml(hint)}
     <h4 id="s-agsteps-h">${tr('Steps in the chat')}</h4>
     <div class="row"><label class="chkl swl"><span class="swc"><input type="checkbox" id="s-agsteps" ${S.settings?.agent_steps_always === '1' ? 'checked' : ''}><span class="swt" aria-hidden="true"></span></span><span>${tr('Always show steps')}</span></label></div>
@@ -1014,7 +1014,8 @@ function settingsModal(focus) {
       <div class="row"><label for="s-qfrom">${tr('Quiet from')}</label>${timeIn('s-qfrom', s.quiet_from ?? '22:00', {label: tr('Quiet from'), empty: tr('none')})}<label for="s-qto" class="qtol">${tr('until|time')}</label>${timeIn('s-qto', s.quiet_to ?? '07:00', {label: tr('Quiet until'), empty: tr('none')})}</div>
       ${hint(tr('No pushes during these hours, on your clock (the time zone under General > Region and formats). The bell keeps everything; one summary when they end. Urgent tasks, focus timers and times you set yourself (digest, briefing) still come.'))}
       ${hint(tr('A task or a project can repeat its reminder until done (date dialog or project dialog). Nothing repeats during the quiet hours.'))}`,
-    integr: integrCardsHtml() + intr_row('cals', 'cal', N_('Calendars'), calsHtml(chk, hint)) + intr_row('carddav', 'cake', N_('Birthdays from your contacts'), typeof famDavHtml === 'function' ? famDavHtml() : '') + intr_row('ical', 'link', N_('Calendar subscription'), `<h4 id="s-ical-h">${tr('Calendar subscription')}</h4>
+    // (#6368): one tab Connections (was Integrations + Access): the cards, then four groups with a symbol (intr_grp); every part a folded row
+    integr: integrCardsHtml() + intr_grp('phone', N_('Phone and calendar'), [intr_row('cals', 'cal', N_('Calendars'), calsHtml(chk, hint)), intr_row('carddav', 'cake', N_('Birthdays from your contacts'), typeof famDavHtml === 'function' ? famDavHtml() : ''), intr_row('ical', 'link', N_('Calendar subscription'), `<h4 id="s-ical-h">${tr('Calendar subscription')}</h4>
       ${hint(tr('Read-only. Calendar apps fetch changes every few hours.'))}
       <div id="s-ical"><div class="muted mhint">${tr('Loading…')}</div></div>
       <div class="row"><label for="s-icalscope">${tr('Tasks')}</label><select id="s-icalscope"><option value="all">${tr('All visible tasks (incl. shared projects)')}</option><option value="mine" ${s.ical_scope === 'mine' ? 'selected' : ''}>${tr('Only mine and assigned to me')}</option></select></div>
@@ -1027,15 +1028,17 @@ function settingsModal(focus) {
         <li>${tr('<b>Outlook:</b> Add calendar > Subscribe from web.')}</li>
         <li>${tr('<b>Only reachable at home or over a VPN?</b> Google Calendar, iCloud and Outlook.com fetch the feed from their own servers and then cannot reach it. Use an app that fetches on the device instead: on Android ICSx⁵ (the calendar then shows up in every calendar app), on a Mac the location “On My Mac” instead of iCloud, or Thunderbird.')}</li></ul></details>
       ${hintK(tr('Anyone who knows the link sees these tasks. If it got out, create a new link: the old one stops working at once.'))}`)
-      + intr_row('dav', 'sync', N_('Calendar apps (CalDAV)'), caldavHtml(hint))
-      + intr_row('scan', 'download', N_('Documents: inboxes'), feat('docs') && typeof dsc_integrHtml === 'function' ? dsc_integrHtml(false) : '')  // 2.353.0 B (#2773): docscan.js, drawn by dsc_integrDraw
-      + intr_row('fetch', 'receipt', N_('Receipt fetcher'), feat('docs') && typeof fx_html === 'function' ? fx_html() : '')  // 2.625.0 (#4489): its own row (was inside dsc_integrHtml)
-      + intr_row('pl', 'file', N_('Paperless-ngx'), feat('docs') && typeof pl_setHtml === 'function' ? pl_setHtml() : '')
-      + intr_row('kk', 'bookmark', N_('Karakeep'), kks_html()) + intr_row('nwl', 'megaphone', N_('Newsletter service'), nwls_html()) + intr_row('apb', 'clock', N_('Booking page'), apbs_html())  // 2.365.2 B (#2789): integrations.js
-      + intr_row('mail', 'send', N_('Tasks by e-mail'), `<h4 id="s-mail-h">${tr('Tasks by e-mail')}</h4><div id="s-mail"></div>`)
-      + intr_row('share', 'phone', N_('Share from your phone'), shareHtml(hint))
-      + intr_row('bmlet', 'globe', N_('Save button for the browser'), bmls_html()),  // 2.1297.0 (#6129): the link to Access ("For advanced users") stands once, under the cards at the top (integrCardsHtml)
-    access: acz_html(),  // 2.166.0 (#2633): API tokens, webhooks and agent tokens in one place
+      , intr_row('dav', 'sync', N_('Calendar apps (CalDAV)'), caldavHtml(hint)), intr_row('apw', 'key', N_('App passwords'), apwHtml())  // (#6368): the app passwords were in Account
+      , intr_row('share', 'phone', N_('Share from your phone'), shareHtml(hint))])
+      + intr_grp('mail', N_('E-mail'), [intr_row('mail', 'send', N_('Tasks by e-mail'), `<h4 id="s-mail-h">${tr('Tasks by e-mail')}</h4><div id="s-mail"></div>`)
+      , intr_row('scan', 'download', N_('Documents: inboxes'), feat('docs') && typeof dsc_integrHtml === 'function' ? dsc_integrHtml(false) : '')])  // 2.353.0 B (#2773): docscan.js, drawn by dsc_integrDraw
+      + intr_grp('grid', N_('Other programs'), [intr_row('api', 'key', N_('API tokens'), apiHtml()), intr_row('wh', 'sync', N_('Webhooks'), whHtml())  // (#6368): were the tab Access (#2633)
+      , intr_row('fetch', 'receipt', N_('Receipt fetcher'), feat('docs') && typeof fx_html === 'function' ? fx_html() : '')  // 2.625.0 (#4489): its own row (was inside dsc_integrHtml)
+      , intr_row('pl', 'file', N_('Paperless-ngx'), feat('docs') && typeof pl_setHtml === 'function' ? pl_setHtml() : '')
+      , intr_row('kk', 'bookmark', N_('Karakeep'), kks_html()), intr_row('nwl', 'megaphone', N_('Newsletter service'), nwls_html()), intr_row('apb', 'clock', N_('Booking page'), apbs_html())  // 2.365.2 B (#2789): integrations.js
+      , intr_row('bmlet', 'globe', N_('Save button for the browser'), bmls_html())
+      , intr_row('pep', 'building', N_('E-invoice (Peppol)'), biz_integrHtml())])  // 2.365.2 D (#2789): the office's Peppol access (lives in Company & office)
+      + intr_grp('bot', N_('Agents'), [intr_row('aczag', 'bot', N_('Agent tokens'), acz_agHtml())]),
     data: `<h4 id="s-imp-h">${tr('Import')}</h4>
       ${hint(tr('You see a preview first; an import can be undone for 24 hours. Nothing inside the file is fetched from the internet.'))}${nwls_impLinkHtml()}
       <div class="row"><label for="s-imp-src">${tr('From')}</label><select id="s-imp-src">${IMP_SRC.map(([k, n]) => `<option value="${k}">${esc(tr(n))}</option>`).join('')}</select></div>
@@ -1097,16 +1100,16 @@ function settingsModal(focus) {
   // 2.365.2 (#2789): what was set inside a module: Company & office (the office's settings, following the workspace) and Documents
   pane.biz = typeof biz_paneHtml === 'function' ? biz_paneHtml() : '';
   pane.docs = typeof dcs_paneHtml === 'function' ? dcs_paneHtml() : '';
-  pane.data += biz_dataHtml(); pane.integr += intr_row('pep', 'building', N_('E-invoice (Peppol)'), biz_integrHtml());  // 2.365.2 D (#2789): the office's data and its Peppol access (both live in Company & office)
+  pane.data += biz_dataHtml();  // 2.365.2 D (#2789): the office's data (its Peppol access: Connections, #6368)
   pane.help += aboutHtml(chk, hint);
   const secs = SET_SECS.filter(([k]) => pane[k]);
-  let cur = {tabbar: S.me?.kid ? 'look' : 'nav', sidebar: 'look', layout: 'modules', collab: 'modules', focus: 'modules', time: 'modules', templates: 'data', sample: 'data', newskinds: 'notify', agents: 'ai', agentdots: 'ai', usage: 'ai', activity: S.me?.is_admin ? 'org' : 'ai', agentpolicy: 'org', server: 'users', signin: 'users', agentsafe: 'ai', agentsetup: 'ai', assistant: 'ai', share: 'integr', ical: 'integr', calendars: 'integr', webhooks: 'access', caldav: 'integr', paperless: 'integr', scans: 'integr', tokens: 'access', apppw: 'account', about: 'help', groups: 'org', users: 'org', odata: S.me?.is_admin ? 'users' : 'org', backup: 'users', dayplan: 'general'}[focus] || (INTB_FOCUS[focus] ? 'integr' : focus);  // 2.364.0 C (#3041): people, groups, agent rules under Organisation; 2.582.0 (#4827): backup / old odata of a server admin = Server > Backup
+  let cur = {tabbar: S.me?.kid ? 'look' : 'nav', sidebar: 'look', layout: 'modules', collab: 'modules', focus: 'modules', time: 'modules', templates: 'data', sample: 'data', newskinds: 'notify', agents: 'ai', agentdots: 'ai', usage: 'ai', activity: S.me?.is_admin ? 'org' : 'ai', agentpolicy: 'org', server: 'users', signin: 'users', agentsafe: 'ai', agentsetup: 'ai', assistant: 'ai', share: 'integr', ical: 'integr', calendars: 'integr', webhooks: 'integr', access: 'integr', caldav: 'integr', paperless: 'integr', scans: 'integr', tokens: 'integr', apppw: 'integr', about: 'help', groups: 'org', users: 'org', odata: S.me?.is_admin ? 'users' : 'org', backup: 'users', dayplan: 'general'}[focus] || (INTB_FOCUS[focus] ? 'integr' : focus);  // 2.364.0 C (#3041): people, groups, agent rules under Organisation; 2.582.0 (#4827): backup / old odata of a server admin = Server > Backup
   if (focus === 'codecheck') cur = 'help';  // 2.766.0 (#5220): the hint of the service worker (upbar.js)
   if (/^biz-/.test(focus || '')) { S.bizJump = focus.slice(4); cur = 'biz'; }  // 2.365.2 D (#2789): a part of Company & office (office.js biz_jump scrolls there)
-  if (!secs.some(([k]) => k === cur)) cur = LS.get('settingsSec', 'general');
+  if (!secs.some(([k]) => k === cur)) cur = LS.get('settingsSec', 'general') === 'access' ? 'integr' : LS.get('settingsSec', 'general');  // (#6368): the old tab Access
   if (!secs.some(([k]) => k === cur)) cur = 'general';
   const md = modal(`<div class="shdr"><button type="button" class="iconbtn sback" data-m="s-index" title="${esc(tr('All settings'))}" aria-label="${esc(tr('All settings'))}">${ic('back', 's')}</button><h3>${tr('Settings')}</h3><span class="ssaved" role="status" aria-live="polite"></span><span class="spacer"></span><span class="ssearch">${ic('search', 's')}<input type="search" id="s-search" name="kalmido-settings-search" data-1p-ignore data-lpignore="true" data-bwignore readonly placeholder="${esc(tr('Search settings'))}" aria-label="${esc(tr('Search settings'))}" autocomplete="off" aria-controls="s-sres"></span><div class="ssres hidden" id="s-sres" role="listbox" aria-label="${esc(tr('Search settings'))}"></div><button class="iconbtn" data-m="close" aria-label="${tr('Close')}" title="${tr('Close')}">${ic('x')}</button></div>
-    <div class="sbody"><nav class="snav" role="tablist" aria-label="${tr('Settings')}">${secs.map(([k, i, n]) => `<button role="tab" id="st-${k}" aria-controls="sp-${k}" aria-selected="${k === cur}" data-sec="${k}" class="${k === cur ? 'on' : ''}"${k === 'access' && k !== cur && !acz_mine() ? ' hidden' : ''/* 2.364.0 C (#3044) */}>${ic(i, 's')}<span>${tr(n)}</span>${SET_DESC[k] ? `<small class="sndesc">${esc(tr(SET_DESC[k]))}</small>` : ''}</button>`).join('')}</nav>${mvOn() ? `<button type="button" class="snmv" data-mv="off">${ic('eye', 's')}<span>${tr('Show administration again')}</span></button>` : ''/* 2.436.0 (#3620): the way back, under the areas */}
+    <div class="sbody"><nav class="snav" role="tablist" aria-label="${tr('Settings')}">${secs.map(([k, i, n]) => `<button role="tab" id="st-${k}" aria-controls="sp-${k}" aria-selected="${k === cur}" data-sec="${k}" class="${k === cur ? 'on' : ''}">${ic(i, 's')}<span>${tr(n)}</span>${SET_DESC[k] ? `<small class="sndesc">${esc(tr(SET_DESC[k]))}</small>` : ''}</button>`).join('')}</nav>${mvOn() ? `<button type="button" class="snmv" data-mv="off">${ic('eye', 's')}<span>${tr('Show administration again')}</span></button>` : ''/* 2.436.0 (#3620): the way back, under the areas */}
       <div class="spanes">${secs.map(([k]) => `<section class="spane ${k === cur ? '' : 'hidden'}" role="tabpanel" id="sp-${k}" aria-labelledby="st-${k}" data-pane="${k}">${pane[k]}</section>`).join('')}</div></div>`);
   md.classList.add('smodal');
   md.dataset.dlgsz = 'settings';  // 2.805.0 (#5357): the size grip (dialogs.js dlg_sizer)
@@ -1146,6 +1149,7 @@ function settingsModal(focus) {
   if (INTB_FOCUS[focus]) setTimeout(() => intr_open(md, INTB_FOCUS[focus])?.scrollIntoView({block: 'start'}), 50);  // 2.365.2 B (#2789)
   if (focus === 'fetcher') setTimeout(() => intr_open(md, '#s-fetch-h')?.scrollIntoView({block: 'start'}), 50);  // 2.425.0 C (#3453)
   if (focus === 'caldav' || focus === 'apppw') setTimeout(() => intr_open(md, focus === 'caldav' ? '#s-dav-h' : '#s-apw-h')?.scrollIntoView({block: 'start'}), 0);
+  if (focus === 'access' || focus === 'tokens' || focus === 'webhooks') setTimeout(() => intr_open(md, focus === 'webhooks' ? '#s-wh-h' : '#s-api-h')?.scrollIntoView({block: 'start'}), 0);  // (#6368): the old tab Access
   // 2.7.0 (#405 S8): the module keys land on their row (and open its options), not just on top of Modules
   const modFocus = {layout: 'cal', collab: 'collab', focus: 'pomo', time: 'time'}[focus];
   if (modFocus) setTimeout(() => { const r = $(`[data-pane="modules"] [data-modrow="${modFocus}"]`, md); if (!r) return; const gd = r.closest('details.modgrp'); if (gd) gd.open = true; const gp = r.closest('details.mgparts'); if (gp) gp.open = true; const o = $('details.mopt', r); if (o) o.open = true; r.scrollIntoView?.({block: 'start'}); r.classList.add('flash'); }, 0);
@@ -1161,14 +1165,13 @@ function settingsModal(focus) {
     if (k === 'general' && typeof wt_holDraw === 'function') wt_holDraw(md);  // 2.365.2 C (#2789)
     if (k === 'biz' && typeof biz_draw === 'function') biz_draw(md);  // 2.365.2 (#2789)
     if (k === 'docs' && typeof dcs_draw === 'function') dcs_draw(md);
-    if (k === 'integr') { icalDraw(md); calsDraw(md); if (typeof dsc_integrDraw === 'function') dsc_integrDraw(md); intB_draw(md); }
-    if (k === 'access') { acz_draw(md); const nb = $('.snav [data-sec="access"]', md); if (nb) nb.hidden = false; }  // 2.166.0 (#2633); 2.364.0 C (#3044): listed once opened
+    if (k === 'integr') { icalDraw(md); calsDraw(md); if (typeof dsc_integrDraw === 'function') dsc_integrDraw(md); intB_draw(md); acz_draw(md); apwDraw(md); }  // (#6368): + tokens, webhooks, agent tokens, app passwords
     if (k === 'notify') wpDraw(md);
     if (k === 'users' || k === 'org') ad_secDraw(md);  // 2.364.0 C (#3041)
     if (k === 'ai') aiSubShow(md);  // 2.5.1 (#393): only the shown sub-tab loads
     if (k === 'users' || k === 'org') admSubShow(md, null, false, k);
     if (k === 'ai' || k === 'users') asst_paneDraw(md);  // 2.75.0 (#1411); 2.489.0 (#2664): the assistant lives in Agents
-    if (k === 'account') { tfaDraw(md); epvDraw(md); apwDraw(md); e2eDraw(md); if (typeof msvDraw === 'function') msvDraw(md); if (typeof sesDraw === 'function') sesDraw(md); if (typeof sgvDraw === 'function') sgvDraw(md); }  // 2.73.0 A (#661): + Servers; 2.115.0 B (#2062): + sessions
+    if (k === 'account') { tfaDraw(md); epvDraw(md); e2eDraw(md); if (typeof msvDraw === 'function') msvDraw(md); if (typeof sesDraw === 'function') sesDraw(md); if (typeof sgvDraw === 'function') sgvDraw(md); }  // 2.73.0 A (#661): + Servers; 2.115.0 B (#2062): + sessions
     $(`.snav [data-sec="${k}"]`, md)?.scrollIntoView({block: 'nearest', inline: 'nearest'});
   };
   // ---- autosave
@@ -1312,8 +1315,7 @@ function settingsModal(focus) {
   setTimeout(() => $(`.snav [data-sec="${cur}"]`, md)?.scrollIntoView({block: 'nearest', inline: 'nearest'}), 0);
   if (cur === 'data') templatesDraw(md).then(() => { if (focus === 'templates') $('#s-tpl-h', md)?.scrollIntoView({block: 'start'}); });
   if (focus === 'sample') setTimeout(() => $('#s-sample-h', md)?.scrollIntoView({block: 'start'}), 0);
-  if (cur === 'integr') { icalDraw(md); calsDraw(md); if (typeof dsc_integrDraw === 'function') dsc_integrDraw(md); intB_draw(md); }
-  if (cur === 'access') acz_draw(md);  // 2.166.0 (#2633)
+  if (cur === 'integr') { icalDraw(md); calsDraw(md); if (typeof dsc_integrDraw === 'function') dsc_integrDraw(md); intB_draw(md); acz_draw(md); apwDraw(md); }  // (#6368): + the former tab Access, the app passwords
   if (cur === 'biz' && typeof biz_draw === 'function') biz_draw(md);  // 2.365.2 (#2789)
   if (cur === 'docs' && typeof dcs_draw === 'function') dcs_draw(md);
   if (focus === 'codecheck') { setTimeout(() => $('#s-cc-h', md)?.scrollIntoView({block: 'start'}), 0); setCodeCheck(md); }  // 2.766.0 (#5220)
@@ -1338,7 +1340,7 @@ function settingsModal(focus) {
   });
   if (S.me?.is_admin) hostWire(md);
   aiuWire(md, only => { const box = $('#s-aiu', md); if (only && box && S.aiu.data) box.innerHTML = aiuHtml(S.aiu.data, Math.max(240, Math.min(720, (box.clientWidth || 560) - 8))); else aiuDraw(md); });  // 2.1.1 (#326)
-  if (cur === 'account' && S.me) { tfaDraw(md); epvDraw(md); apwDraw(md); e2eDraw(md); if (typeof msvDraw === 'function') msvDraw(md); if (typeof sesDraw === 'function') sesDraw(md); }  // 2.73.0 A (#661); 2.115.0 B (#2062): + sessions
+  if (cur === 'account' && S.me) { tfaDraw(md); epvDraw(md); e2eDraw(md); if (typeof msvDraw === 'function') msvDraw(md); if (typeof sesDraw === 'function') sesDraw(md); }  // 2.73.0 A (#661); 2.115.0 B (#2062): + sessions
   if (S.me) { tfaWire(md); tokWire(md); apwWire(md); e2eWire(md); }  // 2.42.0 (#828): + end-to-end encryption
   if (S.me?.is_admin) oidcWire(md);
   if (S.me?.is_admin) { aaWire(md); bkWire(md); orphWire(md); }
@@ -1441,7 +1443,7 @@ function settingsModal(focus) {
     if (b.dataset.m === 'hints-reset') { LS.del('hintsSeen'); toast(tr('Done')); render(); return; }
     if (b.dataset.m === 'ag-guide') { aiSubShow(md, 'setup', true); return; }  // 2.4.2 (#392); 2.7.2 (#420): the Set up tab
     if (b.dataset.m === 'go-nav') { $('.snav [data-sec="nav"]', md)?.click(); setTimeout(() => { const d = $('[data-navsec="tabbar"]', md); if (d) { d.open = true; d.scrollIntoView?.({block: 'start'}); } }, 50); return; }  // sprung-ok: the person asked for this place  // 2.1297.0 (#6129): the bottom bar lives under Navigation only
-    if (b.dataset.m === 'go-access') { $('.snav [data-sec="access"]', md)?.click(); return; }  // 2.166.0 (#2633)
+    if (b.dataset.m === 'go-access') { $('.snav [data-sec="integr"]', md)?.click(); setTimeout(() => intr_open(md, b.dataset.to || '#s-api-h')?.scrollIntoView({block: 'start'}), 0); return; }  // 2.166.0 (#2633); (#6368): the tab Access is part of Connections
     if (b.dataset.m === 'go-share') { $('.snav [data-sec="integr"]', md)?.click(); setTimeout(() => intr_open(md, '#s-share-h')?.scrollIntoView?.({block: 'start'}), 50); return; }  // 2.7.0 (#405 S3)
     if (b.dataset.m === 'go-modules') { $('.snav [data-sec="modules"]', md)?.click(); setTimeout(() => $('[data-pane="modules"] [data-modrow="agents"]', md)?.scrollIntoView?.({block: 'center'}), 50); return; }  // 2.6.0 (K09)
     if (b.dataset.m === 'cele-try') { const k = ['project', 'list', 'today'][(b._cele = ((b._cele ?? -1) + 1) % 3)]; celebrate(k, {force: true, name: k === 'project' ? tr('Example project') : tr('Example list')}); return; }  // 2.39.1 (#1292): each try shows the next level
@@ -1960,6 +1962,8 @@ const SS_SYN = [  // [the words in every language, the label(s) to look for inst
   [['import', 'importieren', 'einlesen', 'importer', 'importar', 'importeren'], () => [tr('Import')]],
   [['export', 'exportieren', 'exporter', 'exportar', 'exporteren'], () => [tr('Export')]],
   [['token', 'tokens', 'api', 'api-key', 'api key', 'zugangsschlüssel', 'app-passwort'], () => [tr('API tokens'), tr('App passwords')]],
+  // (#6368): the old tab names Integrations / Access lead to the parts of Connections
+  [['zugänge', 'zugang', 'access', 'accesos', 'accès', 'accessi', 'toegang', 'integrationen', 'integrations', 'integraciones', 'intégrations', 'integrazioni', 'integraties', 'webhook', 'webhooks', 'agenten-token', 'agent token'], () => [tr('API tokens'), tr('Webhooks'), tr('Agent tokens'), tr('Calendars')]],
   [['kalender', 'calendar', 'calendrier', 'calendario', 'agenda', 'ical', 'ics', 'caldav', 'kalender-abo'], () => [tr('Calendar subscription'), tr('Calendar apps (CalDAV)'), tr('Calendars')]],
   [['mail', 'e-mail', 'email', 'mails', 'postfach', 'mailbox', 'correo', 'courriel'], () => [tr('Tasks by e-mail'), tr('E-mail for single events')]],
   // 2.365.2 (#2789): the setups that moved from the modules into Integrations

@@ -146,11 +146,8 @@ function accountHtml() {
     ${tfaHtml()}
     ${typeof sesHtml === 'function' ? sesHtml() : ''}${''/* 2.115.0 B (#2062): active sessions */}${typeof sgvHtml === 'function' ? sgvHtml() : ''}${''/* 2.485.0 (#3939): support access (hosted) */}
     ${e2eHtml()}${''/* 2.42.0 (#828, #909) */}
-    ${apwHtml()}
     ${storageHtml()}${''/* 2.1391.0 (#6130): storage and sync with the devices and data, right before the connected servers (servers.js msvDraw) */}
-    <details class="sdev"><summary>${ic('key', 's')}${tr('For advanced users')}</summary>${''/* 2.1391.0 (#6130): was "Advanced · for developers" */}
-    <div class="row"><label>${tr('Upload token')}</label><button class="btn sm" data-m="go-share">${ic('phone', 's')} ${tr('Share from your phone')}</button><span class="muted" style="font-size:var(--fs-s)">${tr('shown and renewed there')}</span></div>
-    ${/*html-ok*/ acz_linkHtml(S.api?.enabled, true)}</details>${''/* (#2633): the API tokens moved to Access; acz_linkHtml builds its row from tr() texts (HTML on purpose); (#7230) bare: no second "For advanced users" inside this one */}
+    <div class="msvat" data-msvat data-sfout hidden></div>${''/* (#6368): "For advanced users" is gone (API tokens, app passwords and the upload token are in Settings > Connections); Servers stand here (servers.js msvDraw) */}
     ${typeof rsHtml === 'function' ? rsHtml() : ''}${''/* 2.593.0 (#4590): reset the look and comfort settings (setreset.js) */}
     ${typeof sdlHtml === 'function' ? sdlHtml() : ''}${''/* 2.553.0 (#1413): delete the own account (selfdelete.js) */}
     ${shellServerUrl() ? `<div class="row" data-sfout><label>${tr('App server')}</label><button class="btn sm" data-acc="shell-server">${ic('link', 's')} ${tr('Change server')}</button></div>` : ''}${''/* (#3578): only in the app shell; (#6129): "App server", the tab Server is something else */}

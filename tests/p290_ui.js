@@ -30,17 +30,17 @@ const SMALL = sel => `(() => [...document.querySelectorAll('${sel}')].filter(e =
   await call('POST', '/api/users', {username: 'bob', display_name: 'Bob', password: 'password123'});
   const L = (await call('POST', '/api/lists', {name: 'Work'})).id;
 
-  // ================= Settings > Account > App passwords
+  // ================= Settings > Connections > App passwords ((#6368): were in Account)
   let w = await boot({user: 'alice'}), d = w.document;
   w.confirm = () => true;
   w.settingsModal('apppw');
   await sleep(300);
-  const acc = d.querySelector('[data-pane="account"]');
-  check(acc && !acc.classList.contains('hidden') && acc.querySelector('#s-apw-h'), 'focus "apppw" opens Account at App passwords');
+  const acc = d.querySelector('[data-pane="integr"]');
+  check(acc && !acc.classList.contains('hidden') && acc.querySelector('#s-apw-h') && !d.querySelector('[data-pane="account"] #s-apw-h'), 'focus "apppw" opens Connections at App passwords (#6368: no longer in Account)');
   // 2.1353.0 (#6827): every section is a folded head row (details.sfold, the heading sits in its summary); the jump opens it.
   // So: not under any other fold (the developer details "For advanced users"), and its own section open after the jump (#6665)
   const apwH = acc.querySelector('#s-apw-h'), apwF = apwH.closest('details');
-  check(!apwH.closest('details:not(.sfold)') && (!apwF || apwF.open), 'App passwords are visible (not under the developer details) ' + (apwF ? apwF.className + ' open=' + apwF.open : 'no fold'));
+  check(!apwH.closest('details:not(.sfold):not(.introw)') && await until(() => !apwF || apwF.open), 'App passwords are visible (their own row, opened by the jump) ' + (apwF ? apwF.className + ' open=' + apwF.open : 'no fold'));
   check(await until(() => /No app passwords yet/.test(d.querySelector('#s-apws')?.textContent || '')), 'empty list: "No app passwords yet."');
   click(w, acc.querySelector('[data-apw="new"]'));
   await sleep(150);
@@ -148,11 +148,11 @@ const SMALL = sel => `(() => [...document.querySelectorAll('${sel}')].filter(e =
             check(!small.length, `${vw}px ${theme}: CalDAV buttons >= 44 px ${JSON.stringify(small)}`);
           }
           if (vw === 390 || vw === 1280) await shot(`p290-caldav-${vw}-${theme}.png`);
-          await ev(`(() => { document.querySelector('.snav [data-sec="account"]').click(); return 1; })()`); await sleep(500);
+          await ev(`(() => { intr_open(document.querySelector('.smodal'), '#s-apw-h'); return 1; })()`); await sleep(500);  // (#6368): the app passwords are a row of Connections
           const acc = await ev(`(() => { const m = document.querySelector('.smodal .spanes'); return {sw: m.scrollWidth, cw: m.clientWidth, h: !!document.querySelector('#s-apw-h')?.offsetWidth}; })()`);
           check(acc.h && acc.sw <= acc.cw + 1, `${vw}px ${theme}: App passwords without horizontal overflow ${JSON.stringify(acc)}`);
           if (touch) {
-            const small = await ev(SMALL('[data-pane="account"] [data-apw]'));
+            const small = await ev(SMALL('[data-pane="integr"] [data-apw]'));
             check(!small.length, `${vw}px ${theme}: app password buttons >= 44 px ${JSON.stringify(small)}`);
           }
         }

@@ -68,7 +68,7 @@ function nwl_html(set) {
   // 2.298.0 A2 (#3186): one visible sentence, the why behind (i)
   const why = `<div class="muted nwl-why">${tr('Kalmido sends no newsletters; a connected service does (with proof of consent and an unsubscribe link).')}<div class="shint">${tr('It handles bounces and sends from its own well-known servers. Kalmido keeps your contacts, segments and consent and syncs them with it.')}</div></div>`;
   const c = d.conn;
-  if (!set && !c) return nwl_wsSel() + why + `<div class="row"><span class="muted">${tr('Connect a newsletter service first: Settings > Integrations.')}</span><button type="button" class="btn sm" data-nwl="go-set">${ic('link', 's')} ${tr('Open Integrations')}</button></div>` + nwl_impHtml();
+  if (!set && !c) return nwl_wsSel() + why + `<div class="row"><span class="muted">${tr('Connect a newsletter service first: Settings > Connections.')}</span><button type="button" class="btn sm" data-nwl="go-set">${ic('link', 's')} ${tr('Open Connections')}</button></div>` + nwl_impHtml();
   if (!c || NWL.edit) return nwl_wsSel() + why + (d.key_ok ? nwl_formHtml(NWL.edit || c?.kind || 'listmonk', c) : `<p class="nwl-err">${tr('The server key is missing: the access data cannot be stored safely')}</p>`);
   const busy = c.busy || d.runs?.[0]?.state === 'busy';
   const n = d.contacts;

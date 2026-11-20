@@ -17,7 +17,7 @@ an empty value counts as unset. See [SELF-HOSTING.md](SELF-HOSTING.md) for the c
 | `KALMIDO_DB_STATEMENT_TIMEOUT` | `30` | Seconds one database statement of a request may run (0 = no limit). |
 | `KALMIDO_DB_WAIT` | `60` | Seconds the start waits for the database to answer. |
 | `KALMIDO_INSTANCE_MODE` | `(empty)` | Older switch of the instance mode (shared / workspaces); since 2.46 only read for the row-level security check. |
-| `KALMIDO_IOS_SHORTCUT_URL` | `(empty)` | Link to an iOS shortcut shown in Settings > Integrations (empty = hidden). |
+| `KALMIDO_IOS_SHORTCUT_URL` | `(empty)` | Link to an iOS shortcut shown in Settings > Connections (empty = hidden). |
 | `KALMIDO_ONBOARDING` | `1` | Switch: new accounts get a sample list and the welcome tour. |
 | `KALMIDO_ORG_NAME` | `(empty)` | Name of the first organisation created on a new server. |
 | `KALMIDO_PGBUS` | `auto` | Signals between the processes of one instance over Postgres (LISTEN / NOTIFY): `1` on, `0` off; by default on when `KALMIDO_REPLICAS` or `KALMIDO_WEB_PROCS` is above 1 or `KALMIDO_ROLE` is `web` / `worker`. |

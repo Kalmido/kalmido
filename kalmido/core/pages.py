@@ -480,7 +480,7 @@ def drop_post():
         # the token lives in plain text in other apps and never expires, so by default it is no channel to instruct agents
         if u["drop_agent"] == 0:  # NULL = a token from before 2.1313.0: on (core/migrations.d/6557.py)
             print("drop: 403 to agent, switched off for user", u["id"], flush=True)
-            return Response(tr("Sending to agents is switched off for this upload token (Settings > Integrations > Share from your phone).", lg=lg) + "\n",
+            return Response(tr("Sending to agents is switched off for this upload token (Settings > Connections > Share from your phone).", lg=lg) + "\n",
                             403, mimetype="text/plain")
         return drop_to_agent(c, u, lg, to, text, files)
     first, _, rest = text.partition("\n")
@@ -543,7 +543,7 @@ def drop_to_agent(c, u, lg, to, text, files):
     print("drop: chat message", r["id"], "user", u["id"], "agent", aid, len(files), "files", flush=True)
     out = tr("Kalmido: sent to {0}", name, lg=lg)
     if hint:
-        out += "\n" + tr("Messages through the upload token reach your agents marked as from outside. You can switch this off: Settings > Integrations > Share from your phone.", lg=lg)
+        out += "\n" + tr("Messages through the upload token reach your agents marked as from outside. You can switch this off: Settings > Connections > Share from your phone.", lg=lg)
     return Response(out + "\n", mimetype="text/plain")
 
 

@@ -2,12 +2,12 @@
 of the English text it was translated from. **Bold** = the label exactly as the interface shows it.
 Check: python3 tools/check_userhelp.py. -->
 
-<!-- help: files#how-to-set-up-a-scan-inbox src=b33c638618 -->
+<!-- help: files#how-to-set-up-a-scan-inbox src=5124ce3a66 -->
 ## Configurar una bandeja de escaneo
 
 Una bandeja de escaneo envía los escaneos nuevos de una carpeta de tu ordenador directamente a tus documentos.
 
-1. Abre **Ajustes** > **Integraciones** y busca **Documentos: entradas**.
+1. Abre **Ajustes** > **Conexiones** y busca **Documentos: entradas**.
 2. En **Vigilante de carpetas**, descarga el programa para tu ordenador (Mac o Windows).
 3. Abre **Nueva bandeja de escaneo**, escribe un **Nombre**, elige la carpeta en **En la carpeta** y pulsa **Crear bandeja**.
 4. Kalmido muestra el **Código de configuración** solo esta vez. Pulsa **Copiar**, inicia el programa, pega el código y elige
@@ -145,19 +145,19 @@ Qué pasa después: la persona ve el proyecto y recibe la tarea. Solo se puede a
 
 Qué pasa después: el evento está en el calendario y en tu móvil, si está conectado.
 
-<!-- help: calendar#how-to-subscribe-to-another-calendar src=9f0cf2e56c -->
+<!-- help: calendar#how-to-subscribe-to-another-calendar src=349059272c -->
 ## Suscribirse a otro calendario
 
-1. Abre **Calendario** > **Calendarios** > **Suscripciones…** (o **Ajustes** > **Integraciones** > **Calendarios**).
+1. Abre **Calendario** > **Calendarios** > **Suscripciones…** (o **Ajustes** > **Conexiones** > **Calendarios**).
 2. Pulsa **Añadir calendario**.
 3. Pega el enlace del calendario y pulsa **Añadir**. Para una cuenta elige **Cuenta CalDAV** y **Buscar calendarios**.
 
 Qué pasa después: sus eventos aparecen en tu calendario, solo para leer y solo para ti.
 
-<!-- help: calendar#how-to-show-kalmido-on-your-phone src=73923b0417 -->
+<!-- help: calendar#how-to-show-kalmido-on-your-phone src=06e571f04f -->
 ## Ver Kalmido en el móvil
 
-1. Abre **Calendario** > **Calendarios** > **En el móvil…** (o **Ajustes** > **Integraciones** > **Apps de calendario (CalDAV)**).
+1. Abre **Calendario** > **Calendarios** > **En el móvil…** (o **Ajustes** > **Conexiones** > **Apps de calendario (CalDAV)**).
 2. Pulsa **Nueva contraseña de aplicación** y copia servidor, usuario y contraseña en los ajustes de calendario del móvil.
 
 Qué pasa después: tus eventos y tareas con fecha aparecen en el calendario del móvil. Usa allí la contraseña de aplicación,
