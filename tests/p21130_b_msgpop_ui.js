@@ -14,6 +14,7 @@ const {boot, errs, B, login, until, sleep} = require('./boot');
 const F = []; let ok = 0;
 const check = (c, what) => { if (c) ok++; else { F.push(what); console.log('FAIL:', what); } };
 const firefox = require('./ff')({tag: 'p21130_b_msgpop_ui', check, shots: 'P21130B_SHOTS'});
+const firefoxMotion = require('./ff')({tag: 'p21130_b_msgpop_ui', check, shots: 'P21130B_SHOTS', prefs: [['ui.prefersReducedMotion', 0]]});  // #7615: the drag and the flight as on the phone
 const H = {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'};
 const call = async (method, url, body, ck, hdr = {}) => { const r = await fetch(B + url.replace(/^\//, ''), {method, headers: {...H, ...(ck ? {Cookie: ck} : {}), ...hdr}, body: body ? JSON.stringify(body) : undefined}); return {status: r.status, ...(await r.json().catch(() => ({})))}; };
 
@@ -188,14 +189,30 @@ const call = async (method, url, body, ck, hdr = {}) => { const r = await fetch(
     check(ph && ph.left <= 12 && ph.right <= 12 && ph.w >= ph.iw - 24, 'phone: across the width ' + JSON.stringify(ph));
     check(ph && ph.view === v1, `phone: the page under it does not move (${v1} -> ${ph && ph.view})`);
     await shot('p21130b-phone-390.png');
+  });
+
+  // #7615 at 412 px with motion on (the harness's Firefox has reduced motion): no transition while the finger drags, short of
+  // the threshold back to transform none with a transition, up past it the card flies out and is gone, no chat opens
+  await firefoxMotion(async ({cmd, ev, nav, ctx}) => {
+    await nav(B + 'static/icon.svg');
+    await ev(`(() => { localStorage.clear(); localStorage.setItem('tasks.theme', '"light"'); return 1; })()`);
+    check(await ev(`fetch('/api/auth/login', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify({username: 'alice', password: 'password123'})}).then(r => r.ok)`), 'firefox motion: logged in');
+    await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: 412, height: 860}});
+    await nav(B + '#today');
+    for (let i = 0; i < 100 && !(await ev('!!(window.S && S.booted)').catch(() => false)); i++) await sleep(100);
+    await ev('(mp_check(), 1)'); for (let i = 0; i < 50 && await ev('S.mpop.busy'); i++) await sleep(100);
+    await bobSays('Swipe me in Firefox ' + Date.now());
+    await ev('(mp_check(), 1)');
+    for (let i = 0; i < 100 && !(await ev("!!document.querySelector('#msgpop:not(.mpgone)')")); i++) await sleep(100);
+    await sleep(300);  // the card's own entry (mpIn) is over
     // #7615 at 412 px: no transition while the finger drags, short of the threshold back to transform none, up past it gone
-    await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: 412, height: 860}}); await sleep(300);
-    await pop();
     const P = (t, x, y) => `document.querySelector('#msgpop .mpopen').dispatchEvent(new PointerEvent('${t}', {clientX: ${x}, clientY: ${y}, pointerId: 1, pointerType: 'touch', isPrimary: true, bubbles: true}))`;
     await ev(`(${P('pointerdown', 200, 40)}, 1)`); await ev(`(${P('pointermove', 215, 40)}, 1)`); await sleep(150); await ev(`(${P('pointermove', 230, 40)}, 1)`);
-    const drag = await ev(`(() => { const m = document.querySelector('#msgpop'); return {td: getComputedStyle(m).transitionDuration, tf: m.style.transform}; })()`);
-    check(drag && drag.td.split(',').every(x => parseFloat(x) === 0), 'firefox 412: no transition while dragging ' + JSON.stringify(drag));
+    const drag = await ev(`(() => { const m = document.querySelector('#msgpop'); const s = getComputedStyle(m); return {tp: s.transitionProperty, td: s.transitionDuration, tf: m.style.transform}; })()`);
+    check(drag && drag.td.split(',').every(x => parseFloat(x) === 0) && drag.tf === 'translateX(30px)', 'firefox 412: no transition while dragging, the card on the finger ' + JSON.stringify(drag));
     await sleep(150); await ev(`(${P('pointerup', 230, 40)}, 1)`);
+    const spring = await ev(`getComputedStyle(document.querySelector('#msgpop')).transitionDuration`);
+    check(spring.split(',').some(x => parseFloat(x) > 0.1), 'firefox 412: let go it springs back with a transition: ' + spring);
     let back = null;
     for (let i = 0; i < 30 && back !== 'none'; i++) { await sleep(50); back = await ev(`getComputedStyle(document.querySelector('#msgpop')).transform`); }
     check(back === 'none', 'firefox 412: short of the threshold back at transform none: ' + back);
