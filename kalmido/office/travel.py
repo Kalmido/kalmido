@@ -350,15 +350,18 @@ def _item_public(c, oid, r, docs):
             "vat_pct": d.get("vat_pct"), "updated_at": d.get("updated_at") or ""}  # 2.545.0 (#4387); 2.560.0 D (#4700): the version the dialog sends back
 
 
-def _docs_map(c, oid):
+def _docs_map(c, oid, trip_ids=None):
+    """{doc id: {id, number, kind, project_title}} of the documents that billed travel receipts -- (#7506) only of the trips
+    trip_ids when given (one trip's answer read the billed documents of every trip of the office)."""
+    tw, ta = (f" AND trip_id IN ({','.join('?' * len(trip_ids))})", list(trip_ids)) if trip_ids else ("", [])
     return {r["id"]: {"id": r["id"], "number": r["number"], "kind": r["kind"], "project_title": r["project_title"]}
             for r in c.execute(f"SELECT id, number, kind, project_title FROM office_docs WHERE org_id=? AND {live_sql()} AND id IN "  # 2.1005.0 (#5415)
-                               "(SELECT billed_doc_id FROM office_trip_items WHERE org_id=? AND billed_doc_id IS NOT NULL)", (oid, oid))}
+                               f"(SELECT billed_doc_id FROM office_trip_items WHERE org_id=? AND billed_doc_id IS NOT NULL{tw})", (oid, oid, *ta))}
 
 
 def rk_trip_public(c, oid, t, items, docs=None):
     """A trip with its receipts (decrypted; sum in the office currency, missing = receipts not ticked "in DATEV")."""
-    docs = _docs_map(c, oid) if docs is None else docs
+    docs = _docs_map(c, oid, [t["id"]]) if docs is None else docs  # (#7506): the billed documents of this trip
     d = oc_dec_fields(c, oid, "office_trips", t)
     try:
         people = json.loads(d.get("people") or "[]")
@@ -379,10 +382,27 @@ def rk_trip_public(c, oid, t, items, docs=None):
             "vma_off": vf["vma_off"], "vma": vma, "updated_at": d.get("updated_at") or ""}  # 2.560.0 D (#4700): the version the dialog sends back
 
 
-def rk_trips(c, oid, year=None, trip_id=None):
+def rk_trips_with_items(c, oid, first, last):
+    """(#7506): the ids of the trips with a receipt on a day in [first, last) (a receipt without a day: the trip's first day)
+    -- what the cash flow counts of them (was: every trip of every year read and decrypted)."""
+    return [r[0] for r in c.execute(
+        f"SELECT DISTINCT i.trip_id FROM office_trip_items i JOIN office_trips t ON t.id=i.trip_id AND t.org_id=i.org_id "
+        f"WHERE i.org_id=? AND {live_sql('i')} AND {live_sql('t')} AND ((COALESCE(i.date, '')<>'' AND i.date>=? AND i.date<?) "
+        "OR (COALESCE(i.date, '')='' AND t.date_from>=? AND t.date_from<?))", (oid, first, last, first, last))]
+
+
+def rk_trips(c, oid, year=None, trip_id=None, items_in=None):
+    """The trips (with their receipts) the person sees: all, of a year (?year), one (trip_id) or (#7506) the ones with a
+    receipt in items_in = (first, last) (rk_trips_with_items; the cash flow)."""
     sql, args = f"SELECT * FROM office_trips WHERE org_id=? AND {live_sql()}", [oid]  # 2.1005.0 (#5415): never the trash
     own = ofr_own_uid("travel")  # 2.187.0 B (#2476): office groups, level "own": only the person's own trips
-    if trip_id is not None:
+    ids = rk_trips_with_items(c, oid, *items_in) if items_in else None
+    if ids is not None:
+        if not ids:
+            return []
+        sql += f" AND id IN ({','.join('?' * len(ids))})"
+        args += list(ids)
+    elif trip_id is not None:
         sql += " AND id=?"
         args.append(trip_id)
     elif year:
@@ -393,11 +413,12 @@ def rk_trips(c, oid, year=None, trip_id=None):
         trips = rk_own_rows(c, oid, trips, own)  # 2.360.5 (#2753)
     if not trips:
         return []
+    some = bool(items_in) or trip_id is not None or bool(year)
     ids = [t["id"] for t in trips]
     by = {}
     for r in c.execute(f"SELECT * FROM office_trip_items WHERE org_id=? AND trip_id IN ({','.join('?' * len(ids))}) AND {live_sql()} ORDER BY date, sort, id", [oid] + ids):
         by.setdefault(r["trip_id"], []).append(r)
-    docs = _docs_map(c, oid)
+    docs = _docs_map(c, oid, ids if some else None)  # (#7506): a part of the trips: only their billed documents
     out = [rk_trip_public(c, oid, t, by.get(t["id"], []), docs) for t in trips]
     if own is not None:  # 2.187.1 B (#2735): a trip somebody else entered for the person: read only
         for t, d in zip(trips, out):
@@ -683,7 +704,7 @@ def rk_item_delete(tid, iid):
     r = _item(c, oid, tid, iid)
     _trip_need_open(c, oid, _trip(c, oid, tid), r["date"], items=False)  # 2.148.0 A (#2471)
     olk_need_trip_items(c, oid, [r])  # 2.152.0 C (#2168): in DATEV / billed on a finalised document -> 409
-    old = _item_public(c, oid, r, _docs_map(c, oid))
+    old = _item_public(c, oid, r, _docs_map(c, oid, [tid]))  # (#7506): this trip's billed documents
     ofk_trash(c, uid, RK_ITEM_KIND, iid)  # 2.1005.0 (#5415): the core's trash (deleted_at); restorable while the trip is live
     c.commit()
     return jsonify(trip=_one(c, oid, tid), item=old, trash={"kind": RK_ITEM_KIND, "id": iid})

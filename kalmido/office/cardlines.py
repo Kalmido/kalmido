@@ -19,7 +19,7 @@ from ..core.i18n import N_, tr
 from ..core.orgcrypt import oc_dec_fields, oc_enc_fields
 from ..core.pg import write_lock
 from ..docs.ingest import docs_kick
-from ..docs.store import doc_open, label_name
+from ..docs.store import doc_open, doc_opener, label_name
 from ..files.store import fs_chain, fs_deleted, fs_log_add, fs_role
 from .bank import _clean, _name_hit, _norm
 from .books import bk_receipt_set_paid, bk_to_home, bk_ws
@@ -47,13 +47,14 @@ def cl_docs(c, oid):
     ws = bk_ws(c, oid)
     s = office_settings(c, oid)
     out = []
+    amt = doc_opener(c, ws, "doc_meta.amount")  # (#7506): the keys read once, not per document (the documents of one space)
     for r in c.execute("SELECT d.node_id, d.ws, d.amount, d.currency, d.doc_date, d.sender_id, n.name FROM doc_meta d JOIN fs_nodes n ON n.id=d.node_id "
                        "WHERE d.ws=? AND n.kind='file' AND n.deleted_at IS NULL "
                        f"AND NOT EXISTS (SELECT 1 FROM office_cc_lines l WHERE l.org_id=? AND l.node_id=d.node_id AND l.state='matched' AND {live_sql('l')}) "  # 2.1005.0 (#5415)
                        "AND NOT EXISTS (SELECT 1 FROM office_cc_statements t WHERE t.org_id=? AND t.node_id=d.node_id) "
                        "AND NOT EXISTS (SELECT 1 FROM office_bank_tx b WHERE b.org_id=? AND b.match_kind='receipt' AND b.match_id=d.node_id AND b.deleted_at IS NULL) "
                        f"ORDER BY d.node_id DESC LIMIT {CL_SCAN}", (ws, oid, oid, oid)).fetchall():
-        raw = doc_open(c, r["ws"], "doc_meta.amount", r["amount"]) or ""
+        raw = (amt(r["amount"]) if r["ws"] == ws else doc_open(c, r["ws"], "doc_meta.amount", r["amount"])) or ""
         a = dec(raw, "0") if raw else None
         cur = (r["currency"] or "").strip().upper()
         out.append({"node_id": r["node_id"], "amount": money(bk_to_home(a, cur, s)) if a else None, "orig": money(a) if a else None, "currency": cur,
@@ -120,15 +121,32 @@ def _public(c, x, gone=False):
     return r
 
 
+def _amount_index(docs):
+    """(#7506): {("home", amount) | ("orig", currency, amount): [documents]} -- a suggestion needs the same amount, so a
+    position looks only at the documents of its amount (was: every document scored and checked for every position)."""
+    ix = {}
+    for d in docs:
+        if d["amount"] is not None:
+            ix.setdefault(("home", d["amount"]), []).append(d)
+        if d["orig"] is not None:
+            ix.setdefault(("orig", d["currency"], d["orig"]), []).append(d)
+    return ix
+
+
 def cl_view(c, oid, uid, s, lines):
-    """The positions as the sheet shows them; an open one carries its best receipt (suggestion, nothing matched)."""
+    """The positions as the sheet shows them; an open one carries its best receipt (suggestion, nothing matched): the best
+    document of the same amount (or original amount) the person sees, ranked as the search ranks it (cl_found)."""
     docs = cl_docs(c, oid) if s["state"] == "confirmed" and any(x["state"] == "open" for x in lines) else []
+    ix = _amount_index(docs) if docs else {}
     out = []
     for x in lines:
         gone = bool(x["state"] == "matched" and x["node_id"] and fs_deleted(fs_chain(c, x["node_id"]) or [{"deleted_at": "x"}]))
         p = _public(c, x, gone)
         if x["state"] == "open" and docs:
-            best = cl_found(c, uid, x, docs)
+            cand = ix.get(("home", abs(x["amount"])), [])
+            if x["orig_amount"] is not None:
+                cand = cand + [d for d in ix.get(("orig", x["orig_currency"], abs(x["orig_amount"])), []) if d not in cand]
+            best = cl_found(c, uid, x, cand) if cand else []
             p["suggestion"] = next((d for d in best if d["amount_fits"]), None)  # a name alone is a search hit, no suggestion
         out.append(p)
     oc_with_thumbs(c, [p["suggestion"] for p in out if p.get("suggestion")])  # 2.778.0 (#5383): the card's preview
