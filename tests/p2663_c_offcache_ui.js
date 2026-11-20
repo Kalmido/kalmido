@@ -7,6 +7,8 @@
 // - the old localStorage copy (a browser of before 2.663) with the network gone: a new start shows it, takes it over into
 //   IndexedDB and removes it; a second start without network shows the same state from IndexedDB
 // - IndexedDB refusing a write (quota): localStorage as before, logged (console.warn), never silent
+// - 2.1467 (#6340): an offline start names the real age of its state (the header's chip: "State from <day>, <time>"); a page
+//   being hidden writes the newest state at once (an own change made just before is in the next offline start)
 // - sign-out (clearLocal): the record goes
 // - an open table polled with nothing changed: {unchanged}, the same sheet object, nothing drawn again; a cell changed on the
 //   server: the poll loads it and draws
@@ -25,6 +27,12 @@ const REC = `new Promise(res => { const r = indexedDB.open('kalmido-start'); r.o
   r.onsuccess = () => { const d = r.result; const g = d.transaction('s').objectStore('s').get('state'); g.onsuccess = () => { const x = g.result; d.close();
     res(x ? {kind: x.o ? 'o' : 's', tasks: (x.o || JSON.parse(x.s)).tasks.map(t => t.title)} : null); }; g.onerror = () => { d.close(); res('err'); }; };
   r.onerror = () => res('err'); })`;
+// 2.1467 (#6340): the age stored with the record's state (_at), and a test setting it
+const AT = `new Promise(res => { const r = indexedDB.open('kalmido-start'); r.onsuccess = () => { const d = r.result; const g = d.transaction('s').objectStore('s').get('state');
+  g.onsuccess = () => { const x = g.result; d.close(); res(x ? (x.o || JSON.parse(x.s))._at || 0 : 0); }; }; r.onerror = () => res(-1); })`;
+const SETAT = ms => `new Promise(res => { const r = indexedDB.open('kalmido-start'); r.onsuccess = () => { const d = r.result, t = d.transaction('s', 'readwrite'), st = t.objectStore('s'), g = st.get('state');
+  g.onsuccess = () => { const x = g.result; if (!x) { d.close(); res(0); return; } if (x.o) x.o._at = ${ms}; else { const c = JSON.parse(x.s); c._at = ${ms}; x.s = JSON.stringify(c); } st.put(x, 'state'); };
+  t.oncomplete = () => { d.close(); res(1); }; t.onerror = () => { d.close(); res(0); }; }; r.onerror = () => res(0); })`;
 // in every new document before the app: the app's requests fail like a lost network while localStorage t2663off = 1
 const OFF = `() => { try { if (localStorage.getItem('t2663off') !== '1') return; } catch { return; }
   const f0 = window.fetch; window.fetch = function (u, o) { if (/\\/api\\//.test(String(u && u.url || u))) return Promise.reject(new TypeError('NetworkError when attempting to fetch resource.')); return f0.apply(this, arguments); }; }`;
@@ -68,9 +76,16 @@ const OFF = `() => { try { if (localStorage.getItem('t2663off') !== '1') return;
     check(r2 && r2.tasks.includes('From the old copy'), 'offline start: the old copy is in IndexedDB now ' + JSON.stringify(r2));
     await shot('p2663c-offline-old.png');
     // a second start without network: from IndexedDB
+    // 2.1467 (#6340 D6): the record says its state is three days old - the start shows that age, not "less than a minute"
+    const OLD = Date.now() - 3 * 864e5 - 5 * 60000;
+    check(await ev(SETAT(OLD)) === 1, 'setup: the record\'s state is three days old');
     await cmd('browsingContext.reload', {context: ctx, wait: 'complete'});
     check(await pu(`typeof S !== 'undefined' && S.booted && OUT.online === false && document.querySelector('#view .trow[data-id="${T}"]')?.textContent.includes('From the old copy')`),
       'second offline start: the state comes from IndexedDB');
+    check(await pu(`S.syncOk === ${OLD}`), 'offline start (#6340): the age of the state is the stored one, not the page start ' + await ev(`S.syncOk - ${OLD}`));
+    const chip = await ev(`(() => { const b = document.querySelector('#top .offline'); return b ? {t: b.title, w: b.textContent, want: stateFrom(${OLD})} : null; })()`);
+    check(chip && /^State from \S/.test(chip.want) && chip.t.includes(chip.want) && chip.w.includes(chip.want), 'offline start (#6340): the header\'s chip names the state\'s day and time ' + JSON.stringify(chip));
+    check(await ev(`!document.body.textContent.includes('less than a minute')`), 'offline start (#6340): nothing says the state is fresh');
 
     // ---- online again: the server's state, written as a structured clone
     await ev(`(localStorage.removeItem('t2663off'), 1)`);
@@ -79,6 +94,16 @@ const OFF = `() => { try { if (localStorage.getItem('t2663off') !== '1') return;
     check(await pu(`typeof OC !== 'undefined' && OC.wrote > 0`), 'online again: written');
     let r3 = null; await until(async () => { r3 = await ev(REC); return r3 && r3.tasks.includes('Water the ferns'); }, {timeout: 15000, step: 200});
     check(r3 && r3.kind === 'o' && !r3.tasks.includes('From the old copy'), 'online again: the record holds the server\'s state ' + JSON.stringify(r3));
+
+    // ---- 2.1467 (#6340 D2b): an own change online, then the page is hidden: the start state has it at once (was: only after the
+    // delta + 30 s + an idle moment - closed before, the next offline start missed it)
+    const T2 = await ev(`api('POST', '/api/tasks', {title: 'Mist the orchids', list_id: ${L}}).then(t => t.id)`);
+    check(T2 > 0 && await pu(`S.tasks.has(${T2}) && !OUT.q.length`), 'hidden page: the own new task is in the state');
+    await ev(`(dispatchEvent(new Event('pagehide')), 1)`);
+    let r5 = null; await until(async () => { r5 = await ev(REC); return r5 && r5.tasks.includes('Mist the orchids'); }, {timeout: 6000, step: 150});
+    check(r5 && r5.tasks.includes('Mist the orchids'), 'hidden page (#6340): the start state holds the change made just before, at once ' + JSON.stringify(r5));
+    const at5 = await ev(AT);
+    check(at5 > Date.now() - 120000, 'hidden page (#6340): the record carries the time the server confirmed it ' + at5);
 
     // ---- IndexedDB refuses (quota): localStorage as before, logged
     const fb = await ev(`(async () => {
