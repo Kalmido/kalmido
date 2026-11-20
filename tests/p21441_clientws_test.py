@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # kalmido-suite: fresh
 """2.1441.0 API tests (#7298); (#7309): the shared place (accounts/wsplace.py wsp_new) - a named workspace only where Clients is
-on; nothing named: the workspace on top, the ONE workspace, the transition (the only organisation, Clients on), else 400 space_needed: a new client without org_id never lands silently in a workspace where Clients is off for the
+on; nothing named: the workspace on top, the ONE workspace, else 400 space_needed (#7385: no transition to the only organisation any more): a new client without org_id never lands silently in a workspace where Clients is off for the
 person (team/clients.py cl_ws_default, accounts/modcards.py mod_ws_on = the server twin of areas.js mod_spaces), so the list
 under "All workspaces" (clientpage.js ms_inWs) never hides the client just added. freelancer-matrix: clients
 Invented names only.
@@ -91,8 +91,14 @@ r = A.post(B + "/api/users", json={"username": "bob", "display_name": "Bob Beisp
 assert r.ok, r.text
 Bo = login(B, "bob")
 put(Bo, lang="en", tour="done", features=FEATURES, workspace="all")
+# (#7385): no transition any more: nothing named, Clients on in Private and in his only organisation -> 400 space_needed naming both
 r = new(Bo, "Kunde Bob")
-check(r.status_code == 201 and where(r.json()["id"]) == NORD, f"#7298/#7309: bob, one organisation, all on: the only organisation (transition of wsp_new for calls without a name) {r.status_code} {r.text[:200]}")
+sps = [x.get("ws") for x in (r.json().get("spaces") or [])] if r.status_code == 400 else None
+check(r.status_code == 400 and r.json().get("code") == "space_needed" and sps == ["private", f"org:{NORD}"]
+      and dbx("SELECT count(*) FROM clients WHERE name='Kunde Bob'")[0][0] == 0,
+      f"#7385: bob, one organisation, all on, nothing named: 400 space_needed (Private, the organisation), nothing created {r.status_code} {r.text[:200]}")
+r = new(Bo, "Kunde Bob", space=f"org:{NORD}")  # (#7385)
+check(r.status_code == 201 and where(r.json()["id"]) == NORD, f"#7385: named the organisation -> the organisation {r.status_code} {r.text[:200]}")
 r = new(Bo, "Kunde Bob Privat genannt", space="private")
 check(r.status_code == 201 and where(r.json()["id"]) is None, f"#7309: named Private, Clients on there -> Private {r.status_code}")
 put(Bo, ws_mods_off={f"org:{NORD}": ["clients"]})

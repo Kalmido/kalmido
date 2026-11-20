@@ -294,7 +294,7 @@ res = redo(PHONE, GN6)
 check(res.get("redone") == 1 and setting(ALICE, "fav_only") == "0", f"N6: redo compares against the cleaned value {res} {setting(ALICE, 'fav_only')}")
 
 # ================================================================ a whole calendar
-r = A.post(B + "/api/evcals", json={"name": "Drehplan Beispiel"})
+r = A.post(B + "/api/evcals", json={"name": "Drehplan Beispiel", "org_id": ORG})  # (#7385) named: alice's only organisation
 check(r.status_code in (200, 201), f"(setup) a calendar {r.status_code} {r.text[:120]}")
 CAL = r.json()["id"]
 r = A.post(B + "/api/events", json={"title": "Motivsuche", "start": f"{D}T10:00", "end": f"{D}T11:00", "cal_id": CAL})
@@ -327,7 +327,7 @@ check(res.get("redone") == 1 and CAL in cal_ids() and A.get(B + f"/api/events/{E
 # review F3: taking back the restore of a calendar whose event invited an external attendee books no mail
 kt.dbx("UPDATE users SET email='alice@example.com' WHERE id=? AND (email IS NULL OR email='')", (ALICE,))
 kt.dbx("UPDATE users SET email_proved=lower(email) WHERE id=?", (ALICE,))  # 2.1412.0 (#6355): invitations need a confirmed address
-C3 = A.post(B + "/api/evcals", json={"name": "Einladungen Beispiel"}).json()["id"]
+C3 = A.post(B + "/api/evcals", json={"name": "Einladungen Beispiel", "org_id": ORG}).json()["id"]  # (#7385) named: alice's only organisation
 r = A.post(B + "/api/events", json={"cal_id": C3, "title": "Abnahme Beispiel", "start": f"{D}T14:00", "end": f"{D}T15:00", "send_invites": True,
                                     "attendees": [{"email": "gast@example.com", "name": "Gast Beispiel"}]})
 E3 = r.json().get("id") if r.status_code == 201 else None

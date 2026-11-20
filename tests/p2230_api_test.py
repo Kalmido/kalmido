@@ -124,18 +124,18 @@ check(A.get(B + "/api/clients").status_code == 409, "clients: module off -> 409"
 for s in (A, Bo, Ca):
     s.patch(B + "/api/settings", json={"features": FEAT + ",clients,workload,forms"})
 r = A.post(B + "/api/clients", json={"name": "  Café   Aurora ", "icon": "☕", "contact": "Maria", "email": "maria@aurora.example", "rate": "80,5",
-                                     "budget_h": 10, "budget_amount": 1000, "address": "Main St 1\n12345 Town"})
+                                     "budget_h": 10, "budget_amount": 1000, "address": "Main St 1\n12345 Town", "org_id": ORG1})  # (#7385)
 check(r.status_code == 201 and r.json()["name"] == "Café Aurora" and r.json()["rate"] == 80.5 and r.json()["org_id"] == ORG1
       and r.json()["address"] == "Main St 1\n12345 Town" and r.json()["can_delete"], "a client in my organisation " + r.text[:300])
 CL = r.json()["id"]
 for bad, what in (({"name": ""}, "no name"), ({"name": "x", "email": "nope"}, "e-mail"), ({"name": "x", "rate": "abc"}, "rate"),
                   ({"name": "x", "color": "red"}, "colour"), ({"name": "x", "org_id": ORG2}, "a foreign organisation"),
                   ({"name": "x", "budget_h": -1}, "negative budget")):
-    check(Bo.post(B + "/api/clients", json=bad).status_code == 400, "client validation: " + what)
+    check(Bo.post(B + "/api/clients", json={"org_id": ORG1, **bad}).status_code == 400, "client validation: " + what)  # (#7385): named, so the 400 is the validation's
 check([c["id"] for c in Bo.get(B + "/api/clients").json()["clients"]] == [CL], "Bob (same organisation) sees the client")
 check(Ca.get(B + "/api/clients").json()["clients"] == [] and Ca.get(B + f"/api/clients/{CL}").status_code == 404, "Carol (other organisation): not")
 check(Ca.patch(B + f"/api/clients/{CL}", json={"name": "x"}).status_code == 404 and Ca.delete(B + f"/api/clients/{CL}").status_code == 404, "… nor change it")
-CL2 = Ca.post(B + "/api/clients", json={"name": "Other client"}).json()["id"]
+CL2 = Ca.post(B + "/api/clients", json={"name": "Other client", "org_id": ORG2}).json()["id"]  # (#7385)
 check(CL2 not in [c["id"] for c in Bo.get(B + "/api/clients").json()["clients"]], "Carol's client stays in her organisation")
 # 2.37.0 (#1150, decision 10.10.2026): row-level security applies to instance admins too -- only their own organisations' content
 check(CL2 not in [c["id"] for c in A.get(B + "/api/clients").json()["clients"]], "admins see the clients of their own organisations only (2.37)")
@@ -185,7 +185,7 @@ check(Bo.delete(B + f"/api/clients/{CL}").status_code == 403, "Bob cannot delete
 check(A.patch(B + f"/api/clients/{CL}", json={"archived": True}).json()["archived"] and CL not in [c["id"] for c in A.get(B + "/api/clients").json()["clients"]]
       and CL in [c["id"] for c in A.get(B + "/api/clients", params={"archived": 1}).json()["clients"]], "archived: only with ?archived=1")
 A.patch(B + f"/api/clients/{CL}", json={"archived": False})
-CL3 = Bo.post(B + "/api/clients", json={"name": "Temp"}).json()["id"]
+CL3 = Bo.post(B + "/api/clients", json={"name": "Temp", "org_id": ORG1}).json()["id"]  # (#7385)
 check(Bo.delete(B + f"/api/clients/{CL3}").ok, "the creator deletes it")
 kid = A.post(B + "/api/users", json={"username": "tim", "display_name": "Tim", "password": "password123", "kid": True, "parents": [1]}).json()["id"]
 check(sess("tim").get(B + "/api/clients").status_code in (403, 409), "a kid: no clients")
@@ -194,7 +194,7 @@ pt = A.post(B + "/api/me/tokens", json={"name": "t1", "scopes": ["read", "struct
 PT = {"Authorization": "Bearer " + pt}
 r = requests.get(V + "/clients", headers=PT)
 check(r.ok and r.json()["clients"][0]["id"] == CL, "GET /api/v1/clients")
-r = requests.post(V + "/clients", headers=PT, json={"name": "API client", "budget_h": 5})
+r = requests.post(V + "/clients", headers=PT, json={"name": "API client", "budget_h": 5, "org_id": ORG1})  # (#7385)
 check(r.status_code == 201 and r.json()["name"] == "API client", "POST /api/v1/clients " + r.text[:200])
 check(requests.post(V + "/clients", headers=PT, json={"name": "x", "evil": 1}).status_code == 400, "v1: unknown field 400")
 check(requests.patch(V + f"/clients/{r.json()['id']}", headers=PT, json={"note": "hi"}).json()["note"] == "hi", "PATCH /api/v1/clients/{id}")

@@ -23,10 +23,10 @@ const TEST_IBAN = 'DE02120300000000202051';
 const COMPANY = {name: 'Studio Beispiel GmbH', street: 'Hafenweg 1', zip: '20457', city: 'Hamburg', country: 'DE', tax_number: '12/345/67890', vat_id: 'DE999999999', iban: TEST_IBAN, bic: 'BYLADEM1001', bank_name: 'Beispielbank'};
 
 // one person's office: a draft invoice (numbered when finalised), a draft quotation, a quotation sent without finalising
-async function prepare(ck) {
+async function prepare(ck, oid = null) {  // oid: the person's only organisation (#7385)
   await call('GET', '/api/office/settings', null, ck);
   await call('PUT', '/api/office/settings', {lang: 'en', company_fields: COMPANY}, ck);
-  const CL = (await call('POST', '/api/clients', {name: 'Beispielkunde AG', street: 'Marktstraße 5', zip: '50667', city: 'Köln', country: 'DE'}, ck)).id;
+  const CL = (await call('POST', '/api/clients', {name: 'Beispielkunde AG', street: 'Marktstraße 5', zip: '50667', city: 'Köln', country: 'DE', ...(oid ? {org_id: oid} : {})}, ck)).id;  // (#7385): names its workspace
   const inv = await call('POST', '/api/office/docs', {kind: 'invoice', client_id: CL, service_from: '2026-05-01', service_to: '2026-05-31', items: [{title: 'Schnitt', qty: 1, rate: 900}]}, ck);
   const q = await call('POST', '/api/office/docs', {client_id: CL, project_title: 'Imagefilm', items: [{title: 'Konzept', qty: 1, rate: 800}]}, ck);
   const qs = await call('POST', '/api/office/docs', {client_id: CL, project_title: 'Altes Angebot', items: [{title: 'Dreh', qty: 1, rate: 1200}]}, ck);
@@ -45,8 +45,8 @@ async function editor(user, id) {
 // 2.1345.0 (#6532): Show as draft = the main button [data-cd="yes"], Finalise now = the plain middle button [data-pa="final"]
 const dlg = d => d.querySelector('.modal.ofdpa');
 
-async function run(user, ck, tag) {
-  const {inv, q, qs} = await prepare(ck);
+async function run(user, ck, tag, oid = null) {
+  const {inv, q, qs} = await prepare(ck, oid);  // (#7385)
   check(inv.http === 201 && !inv.number && q.http === 201 && qs.http === 201, `${tag}: documents ` + [inv.http, q.http, qs.http]);
   // ---- a draft quotation: Cancel, Show as draft
   let [w, d] = await editor(user, q.id);
@@ -101,7 +101,7 @@ async function run(user, ck, tag) {
   CK = await login('alice');
   await call('POST', '/api/admin/setup', {org_name: 'Beispiel Studio', lang: 'en', collab_all: true, modules: ['cal', 'comments']});
   await call('PATCH', '/api/settings', {lang: 'en', tour: 'done', features: FEAT});
-  await run('alice', CK, 'org');
+  await run('alice', CK, 'org', (await call('GET', '/api/state')).me.workspaces[0].id);  // (#7385)
 
   // ================= #2391: the building block in the settings
   const w = await boot({hash: 'office/settings'}), d = w.document;

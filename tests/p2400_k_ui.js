@@ -28,7 +28,8 @@ const typeIn = (w, el, v) => { el.focus(); el.dispatchEvent(new w.FocusEvent('fo
   // 2.46.0 (#1592): no organisation from the start any more: the setup creates the one these tests use (id 1), new people join it
   await call('POST', '/api/admin/setup', {org_name: 'Kalmido', lang: 'en', collab_all: true, modules: ['cal', 'comments']});
   await call('PATCH', '/api/settings', {lang: 'en', tour: 'done', features: 'cal,comments,collab,office,clients'});
-  const c1 = await call('POST', '/api/clients', {name: 'Muster Medien GmbH', contact: 'Erika Beispiel', zip: '50667', city: 'Köln', street: 'Lindenweg 4'});
+  const ORG = (await call('GET', '/api/state')).me.workspaces[0].id;  // (#7385) alice's only organisation: new clients name it
+  const c1 = await call('POST', '/api/clients', {name: 'Muster Medien GmbH', org_id: ORG, contact: 'Erika Beispiel', zip: '50667', city: 'Köln', street: 'Lindenweg 4'});
   check(c1.http === 201 && c1.contacts?.length === 1, 'a client with its default contact person');
   const CL = c1.id;
   await call('PATCH', `/api/clients/${CL}`, {contacts: [{id: c1.contacts[0].id, name: 'Erika Beispiel', is_default: true}, {name: 'Max Probe', role: 'Producer', email: 'max@example.com'}]});
@@ -82,7 +83,7 @@ const typeIn = (w, el, v) => { el.focus(); el.dispatchEvent(new w.FocusEvent('fo
   }
   w.close();
   // an invalid stored value is marked (the server takes no new ones; an old row may have one)
-  const c2 = await call('POST', '/api/clients', {name: 'Altkunde KG'});
+  const c2 = await call('POST', '/api/clients', {name: 'Altkunde KG', org_id: ORG});  // (#7385)
   w = await boot({hash: `client/${c2.id}`}); d = w.document;
   await until(() => d.querySelector('#view .cldetail'), 60);
   w.eval(`clientModal({...CLV.data, billing: {...(CLV.data.billing || {}), country: 'XY'}})`);

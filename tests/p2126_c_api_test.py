@@ -176,7 +176,7 @@ y = date.today().year + 1
 for who, s, pw, user in (("alice", A, PWA, "alice"), ("frida", FR, None, "frida")):
     if pw is None:
         pw = s.post(B + "/api/me/app-passwords", json={"name": "Phone"}).json()["password"]  # freelancer-matrix: pim
-    cal = s.post(B + "/api/evcals", json={"name": f"Series {who}"}).json()["id"]
+    cal = s.post(B + "/api/evcals", json={"name": f"Series {who}", **({"org_id": ORG} if who == "alice" else {})}).json()["id"]  # (#7385)
     ev = vcal(comp("VEVENT", f"UID:rd-{who}", "DTSTAMP:20261020T100000Z", "SUMMARY:Choir", f"DTSTART:{y}0105T180000Z",
                    f"DTEND:{y}0105T190000Z", "RRULE:FREQ=WEEKLY;COUNT=3", f"RDATE:{y}0108T180000Z,{y}0110T180000Z",
                    "EXRULE:FREQ=MONTHLY;COUNT=1"))
@@ -190,7 +190,7 @@ for who, s, pw, user in (("alice", A, PWA, "alice"), ("frida", FR, None, "frida"
     check(len(days) == 5 and f"{y}-01-08" in days and f"{y}-01-10" in days, f"#1985 {who}: three weekly + two extra dates {days}")
 
 # ============================================================ #1986: one background import per person
-BK = A.post(B + "/api/books", json={"name": "Big import"}).json()["id"]
+BK = A.post(B + "/api/books", json={"name": "Big import", "org_id": ORG}).json()["id"]  # (#7385)
 text = vcards(1300, "c86")
 r1 = A.post(B + f"/api/books/{BK}/import?background=1", files={"file": ("a.vcf", text, "text/vcard")})
 r2 = A.post(B + f"/api/books/{BK}/import?background=1", files={"file": ("a.vcf", text, "text/vcard")})
@@ -208,7 +208,7 @@ r = FR.post(B + f"/api/books/{FBK}/import?background=1", files={"file": ("f.vcf"
 check(r.status_code == 202, f"#1986: a person without an organisation imports in the background ({r.status_code} {r.text[:120]})")
 
 # ============================================================ #1992 K4: reminders reset only on a change of the time
-KC = A.post(B + "/api/evcals", json={"name": "K4"}).json()["id"]
+KC = A.post(B + "/api/evcals", json={"name": "K4", "org_id": ORG}).json()["id"]  # (#7385)
 st0 = f"{y}-03-02T10:00"
 K4 = A.post(B + "/api/events", json={"title": "Review", "cal_id": KC, "start": st0, "end": f"{y}-03-02T11:00", "reminders": [15]}).json()["id"]
 dbx("INSERT INTO ev_reminded(event_id,user_id,k,at) VALUES(?,?,?,?)",  # a recent time: the watchdog forgets old rows
@@ -223,7 +223,7 @@ check(dbx("SELECT COUNT(*) FROM ev_reminded WHERE event_id=?", (K4,))[0][0] == 0
 # ============================================================ #1992 K5: a mirrored address book is read only over CardDAV
 src = dbx("INSERT INTO contact_srcs(user_id,name,url,status,created_at) VALUES(?,?,?,?,?) RETURNING id",
           (uid["alice"], "Outside", "https://contacts.example/book", "error", "2026-01-01T00:00:00+00:00"))[0][0]
-MB = A.post(B + "/api/books", json={"name": "Mirror"}).json()["id"]
+MB = A.post(B + "/api/books", json={"name": "Mirror", "org_id": ORG}).json()["id"]  # (#7385)
 dbx("UPDATE books SET src_id=? WHERE id=?", (src, MB))
 CARD = "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:k5-card\r\nFN:Mirror Probe\r\nN:Probe;Mirror;;;\r\nEND:VCARD\r\n"
 r = dav("alice", PWA, "PUT", f"/dav/addressbooks/alice/b{MB}/k5-card.vcf", CARD, Content_Type="text/vcard")
@@ -280,7 +280,7 @@ r = FR.patch(B + f"/api/clients/{FCL}", json={"contacts": [{"id": FK, "name": "H
 check(r.ok and r.json()["contacts"][0].get("contact_id") == GCT, f"#1992 K10: frida links it ({r.status_code} {r.text[:160]})")
 bd = A.get(B + "/api/admin/orgs").json().get("boundary", {})
 check(not bd.get("kinds", {}).get("client_contact"), f"#1992 K10: the nightly boundary check accepts the link {bd.get('kinds')}")
-CB = Bo.post(B + "/api/books", json={"name": "Bob org book"}).json()["id"]
+CB = Bo.post(B + "/api/books", json={"name": "Bob org book", "org_id": ORG}).json()["id"]  # (#7385)
 OCT = Bo.post(B + "/api/contacts", json={"book_id": CB, "given": "Org", "family": "Probe"}).json().get("id")
 r = FR.patch(B + f"/api/clients/{FCL}", json={"contacts": [{"id": FK, "name": "Hanna", "contact_id": OCT}]})
 check(r.status_code in (400, 404), f"#1992 K10: a contact frida cannot read is refused ({r.status_code})")

@@ -34,8 +34,8 @@ const ptr = (w, el, type, extra = {}) => {  // jsdom has no PointerEvent: a Mous
   const ORG = (await call('POST', '/api/admin/orgs', {name: 'Alpha', admin_id: me})).id;
   check((await call('PUT', `/api/orgs/${ORG}/members`, {email: 'bob@example.org'})).http === 200, 'Bob joins the organisation (Alice may share with him)');
   // the selection is Bob's (a person without an organisation); Alice (admin) shares a book with him to read
-  const BK = (await call('POST', '/api/books', {name: 'Mine'}, CB)).id, BT = (await call('POST', '/api/books', {name: 'Target'}, CB)).id;
-  const BV = (await call('POST', '/api/books', {name: 'Alice view'})).id;
+  const BK = (await call('POST', '/api/books', {name: 'Mine', org_id: ORG}, CB)).id, BT = (await call('POST', '/api/books', {name: 'Target', org_id: ORG}, CB)).id;  // (#7385) names Alpha
+  const BV = (await call('POST', '/api/books', {name: 'Alice view', org_id: ORG})).id;  // (#7385) names Alpha
   check(await importVcf(CB, BK, vcf('Own', 3)) === 200 && await importVcf(CK, BV, vcf('Alices', 1)) === 200, 'contacts imported');
   check((await call('PUT', `/api/books/${BV}/members`, {user_id: bob.id, role: 'view'})).http === 200, 'Alice shares a book with Bob (view)');
 

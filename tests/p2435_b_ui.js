@@ -22,7 +22,7 @@ const ua = v => w => Object.defineProperty(w.navigator, 'userAgent', {configurab
   await call('POST', '/api/admin/setup', {org_name: 'Kalmido', lang: 'en', collab_all: true, modules: ['cal', 'comments']});
   await call('PATCH', '/api/settings', {lang: 'en', tour: 'done', features: 'cal,comments,collab,office,clients'});
   await call('PUT', '/api/office/settings', {lang: 'de', company_fields: {name: 'Studio Nordlicht GmbH', street: 'Hafenstraße 12', zip: '20457', city: 'Hamburg', country: 'DE', tax_number: '12/345/67890', iban: 'DE02120300000000202051', bic: 'BYLADEM1001', bank_name: 'Beispielbank'}});
-  const CL = (await call('POST', '/api/clients', {name: 'Beispielkunde AG', street: 'Marktstraße 5', zip: '50667', city: 'Köln', country: 'DE', email: 'kunde@example.com'})).id;
+  const CL = (await call('POST', '/api/clients', {org_id: (await call('GET', '/api/state')).me.workspaces[0].id, name: 'Beispielkunde AG', street: 'Marktstraße 5', zip: '50667', city: 'Köln', country: 'DE', email: 'kunde@example.com'})).id;  // (#7385): names the only organisation
   const inv = await call('POST', '/api/office/docs', {kind: 'invoice', client_id: CL, service_from: '2026-10-01', items: [{title: 'Schnitt', qty: 1, rate: 100}]});
   check((await call('POST', `/api/office/docs/${inv.id}/finalize`)).http === 200, 'an invoice finalised');
   const dr = await call('POST', '/api/office/docs', {kind: 'invoice', client_id: CL, service_from: '2026-10-01', items: [{title: 'Entwurf', qty: 1, rate: 50}]});

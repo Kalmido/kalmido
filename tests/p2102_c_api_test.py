@@ -96,7 +96,7 @@ PL = A.post(B + "/api/lists", json={"name": "Private requests", "org_id": None})
 A.put(B + f"/api/lists/{FL}/members", json={"user_id": BOB, "role": "edit"})
 ACME = A.post(B + "/api/clients", json={"name": "Acme Example", "email": "buyer@example.com", "org_id": ORG}).json().get("id")
 BETA = A.post(B + "/api/clients", json={"name": "Beta Example", "org_id": ORG}).json().get("id")
-FOREIGN = Ca.post(B + "/api/clients", json={"name": "Foreign Example", "email": "far@example.com"}).json().get("id")
+FOREIGN = Ca.post(B + "/api/clients", json={"name": "Foreign Example", "email": "far@example.com", "org_id": ORG2}).json().get("id")  # (#7385)
 SOLO = A.post(B + "/api/clients", json={"name": "Solo Example", "org_id": None}).json().get("id")
 for i in range(1, 7):  # more addresses of Acme: at most 5 sends per address, form and hour (FRM_EMAIL_HOUR)
     dbx("INSERT INTO office_client_contacts(org_id,client_id,name,email,created_at,updated_at) VALUES(?,?,?,?,?,?)",

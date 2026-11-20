@@ -238,7 +238,7 @@ check(r.status_code == 201, f"an event: {r.status_code}")
 check(al.ctag(ek) not in (None, e1), "a new event changes the ctag of its calendar")
 
 # ================================================================== contacts
-bk = A.post(B + "/api/books", json={"name": "Garden people"}).json()["id"]
+bk = A.post(B + "/api/books", json={"name": "Garden people", "org_id": ORG}).json()["id"]  # (#7385) named: alice's only organisation
 a1 = al.ctag(f"b{bk}", "addressbooks")
 check(a1 is not None, "the address book has a ctag")
 r = A.post(B + "/api/contacts", json={"book_id": bk, "fn": "Gil Gardener"})

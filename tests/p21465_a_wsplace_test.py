@@ -2,13 +2,15 @@
 # kalmido-suite: fresh
 """(#7309) API tests of the shared place (kalmido/accounts/wsplace.py): ONE answer for "is module X on for person P in a
 workspace" (wsp_spaces, /api/state wsp / wsp_w) and "where does a new X go" (wsp_new: named / the workspace on top / the only
-one / the transition, else 400 space_needed with spaces). freelancer-matrix: clients
+one, else 400 space_needed with spaces; #7385: no transition to "the only organisation" any more). freelancer-matrix: clients
 Invented names only. The matrix: organisations 0 / 1 / 1 read-only / 2 x the module on / off in Private and in the
 organisation x the workspace named / not named; besides it the PATCH /api/settings answer (fresh lists, F8 still_running),
 calendar / address book (#7309: they ask too), the move without a target (F6) and the card's cap of a named org_id (F10).
 usage: p21465_a_wsplace_test.py <datadir>      (KMT_NOSTART=1 / P21448_NOSTART=1: a running server)"""
 import json
 import sys
+
+import requests
 
 from freelancer_fixture import FEATURES, freelancer, login
 from kt import B, check, dbx, done, fresh, setup
@@ -72,7 +74,18 @@ j = st(Bo)
 check(j["wsp"]["clients"] == ["private", f"org:{NORD}"] and j["wsp_w"]["clients"] == ["private", f"org:{NORD}"],
       f"#7309: one organisation, all on: Private first, then the organisation {j['wsp']['clients']}")
 r = new(Bo, "Bob Eins")
-check(r.status_code == 201 and where(r.json()["id"]) == NORD, f"#7309: not named, 1 org: the transition (the only organisation, Clients on) {r.status_code} {r.text[:160]}")
+check(r.status_code == 400 and r.json().get("code") == "space_needed" and spaces(r) == ["private", f"org:{NORD}"],
+      f"#7385: not named, 1 org, Clients on in Private and there -> 400 space_needed, never the only organisation {r.status_code} {r.text[:200]}")
+check(dbx("SELECT count(*) FROM clients WHERE name='Bob Eins'")[0][0] == 0, "#7385: nothing created")
+r = Bo.post(B + "/api/evcals", json={"name": "Bob Kalender"})
+check(r.status_code == 400 and r.json().get("code") == "space_needed", f"#7385: a new calendar without a name asks too {r.status_code} {r.text[:160]}")
+BT = {"Authorization": "Bearer " + Bo.post(B + "/api/me/tokens", json={"name": "bob api", "scopes": ["read", "structure"]}).json()["token"]}
+r = requests.post(B + "/api/v1/clients", headers=BT, json={"name": "Bob V1"})
+e = r.json().get("error") if r.status_code == 400 else None
+check(isinstance(e, dict) and e.get("code") == "space_needed" and [x["ws"] for x in e.get("spaces") or []] == ["private", f"org:{NORD}"],
+      f"#7385: API v1 (token) without a name -> 400 space_needed with the choice {r.status_code} {r.text[:200]}")
+r = requests.post(B + "/api/v1/clients", headers=BT, json={"name": "Bob V1 Nord", "space": f"org:{NORD}"})
+check(r.status_code == 201 and where(r.json()["id"]) == NORD, f"#7385: API v1 names space -> there {r.status_code} {r.text[:160]}")
 r = new(Bo, "Bob Privat", space="private")
 check(r.status_code == 201 and where(r.json()["id"]) is None, f"#7309: named Private -> Private {r.status_code}")
 r = new(Bo, "Bob Nord", org_id=NORD)

@@ -95,7 +95,7 @@ c.commit(); c.close()`);
 
   // ================= #5466: dialogs and Undo in the calendar
   {
-    const K = await call(CA, 'POST', '/api/evcals', {name: 'Choir', color: '#c084fc'});
+    const K = await call(CA, 'POST', '/api/evcals', {name: 'Choir', color: '#c084fc', org_id: ORG});  // (#7385) names its workspace: alice's only organisation
     const SE = await call(CA, 'POST', '/api/events', {title: 'Rehearsal', cal_id: K.id, start: `${D}T18:00`, end: `${D}T19:00`, rrule: 'FREQ=DAILY;COUNT=5', reminders: []});
     const ONE = await call(CA, 'POST', '/api/events', {title: 'Tuning the piano', cal_id: K.id, start: `${D}T08:00`, end: `${D}T09:00`, reminders: []});
     check(SE.id && ONE.id, '#5466: a series and a single event');

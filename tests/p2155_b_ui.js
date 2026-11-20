@@ -46,7 +46,7 @@ const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())
     check(st && st.state === 'BY', 'Alpha: Bavaria ' + JSON.stringify(st));
     const ab = await call(ev, 'POST', '/api/team/absences', {kind: 'sick', start_date: D, end_date: D, user_id: bob.id, note: 'vertraulich', org: org.id});
     check(ab && ab.id, 'bob is away on ' + D + ' ' + JSON.stringify(ab));
-    const cal = await call(ev, 'POST', '/api/evcals', {name: 'Alice Termine'});
+    const cal = await call(ev, 'POST', '/api/evcals', {name: 'Alice Termine', org_id: org.id});  // (#7385): names its workspace (Alpha, her only organisation)
     await nav(B + '#cal');
     check(await ready(ev, `!!document.querySelector('#view .calbar [data-act="ev-cals"]')`, 80), 'the calendar view');
 

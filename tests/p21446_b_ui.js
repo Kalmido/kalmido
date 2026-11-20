@@ -23,7 +23,8 @@ const PDF = Buffer.from('%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntraile
   CK = await login('alice');
   await call('POST', '/api/admin/setup', {org_name: 'Beispiel', lang: 'en', collab_all: true, modules: ['cal', 'comments']});
   await call('PATCH', '/api/settings', {lang: 'en', tour: 'done', features: 'cal,comments,collab,office,clients'});
-  const CL = (await call('POST', '/api/clients', {name: 'Muster Medien GmbH', zip: '20457', city: 'Musterstadt'})).id;
+  const ORG = (await call('GET', '/api/state')).me.workspaces[0].id;  // (#7385) alice's only organisation
+  const CL = (await call('POST', '/api/clients', {name: 'Muster Medien GmbH', zip: '20457', city: 'Musterstadt', org_id: ORG})).id;  // (#7385) names it
   const run = await call('POST', '/api/office/legacy/archive/run');
   check(run.http === 201, 'archive run ' + run.http);
   for (const [n, kind] of [['412', 'invoice'], ['388', 'offer']]) {

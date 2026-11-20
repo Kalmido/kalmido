@@ -24,7 +24,8 @@ const FEAT = 'cal,comments,collab,office,clients';
   CK = await login('alice');
   await call('POST', '/api/admin/setup', {org_name: 'Kalmido', lang: 'en', collab_all: true, modules: ['cal', 'comments']});
   await call('PATCH', '/api/settings', {lang: 'en', tour: 'done', features: FEAT});
-  const c1 = await call('POST', '/api/clients', {name: 'Example Media GmbH', contacts: [{name: 'Erika Example', is_default: true}, {name: 'Max Sample', email: 'max@example.com'}]});
+  const ORG = (await call('GET', '/api/state')).me.workspaces[0].id;  // (#7385) alice's only organisation: new clients name it
+  const c1 = await call('POST', '/api/clients', {name: 'Example Media GmbH', org_id: ORG, contacts: [{name: 'Erika Example', is_default: true}, {name: 'Max Sample', email: 'max@example.com'}]});
   check(c1.http === 201 && c1.contacts?.length === 2, 'a client with two contact persons');
   const CL = c1.id, K_MAX = c1.contacts.find(k => k.name === 'Max Sample')?.id;
 

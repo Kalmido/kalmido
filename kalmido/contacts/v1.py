@@ -220,7 +220,7 @@ def contacts_spec(paths, schemas, op, ok, errs, ref, pid, nul, page, q):
     book_in = {"type": "object", "properties": {"name": {"type": "string"}, "color": {"type": "string"}}}
     paths["/address-books"] = {
         "get": op("2.21.0 (module Contacts): the address books the token's user sees (own + shared)", K, ok(ref("AddressBookPage")) | errs("409"), scope=S),
-        "post": op("A new own address book", K, ok(ref("AddressBook"), "Created", "201") | errs("400", "409"), body={**book_in, "properties": {**book_in["properties"], "space": {"type": "string", "description": "#7309: the workspace as private | org:<id> (instead of org_id); without one: the workspace on top / the only one where the module is on and you may add, else 400 code space_needed with spaces [{ws, name}]"}}, "required": ["name"]}, scope=S)}
+        "post": op("A new own address book", K, ok(ref("AddressBook"), "Created", "201") | errs("400", "409"), body={**book_in, "properties": {**book_in["properties"], "space": {"type": "string", "description": "#7309: the workspace as private | org:<id> (instead of org_id); without one: the workspace on top / the only one where the module is on and you may add, else (#7385: also Private and your one organisation) 400 error.code space_needed with error.spaces [{ws, name}]"}}, "required": ["name"]}, scope=S)}
     paths["/address-books/{id}"] = {
         "patch": op("Rename / recolour an address book, choose the list for its birthdays (owner)", K, ok(ref("AddressBook")) | errs("400", "403", "404", "409"),
                     [bid_p], body={**book_in, "properties": {**book_in["properties"], "birthdays_list_id": nul("integer"),

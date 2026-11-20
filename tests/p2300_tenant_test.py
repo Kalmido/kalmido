@@ -111,8 +111,9 @@ def book(s, name, **kw):
     return r.json()
 
 
-KT, KF, KPA, KX = cal(A, "Team")["id"], cal(A, "Familie")["id"], cal(A, "Agentcal")["id"], cal(A, "Mixed")["id"]
-BT, BP = book(A, "Team contacts")["id"], book(A, "Privat")["id"]
+# (#7385): named as the old default gave them (her only organisation); the migration below empties org_id anyway
+KT, KF, KPA, KX = (cal(A, n, org_id=ORG)["id"] for n in ("Team", "Familie", "Agentcal", "Mixed"))
+BT, BP = book(A, "Team contacts", org_id=ORG)["id"], book(A, "Privat", org_id=ORG)["id"]
 TS = "2026-10-01T00:00:00+00:00"
 # 2.924.0 (#5069): the members are shares of the object's node (ev_cal_members / book_members are gone); written past the app
 # (the private agent would be refused there), the node at the top of alice's private tree as for a private object
@@ -155,8 +156,12 @@ dbx("UPDATE settings SET value='0' WHERE key='migr_ws2300'", write=True)  # once
 dbx("UPDATE settings SET value='1' WHERE key='migr_ws2300'", write=True)
 
 # ---- new calendars / address books and the rule for members (mode organisation: everyone is in the organisation)
-c1 = cal(A, "Plan")
-check(c1["org_id"] == ORG, "#1036: a new calendar is the organisation's by default (as a new list)")
+# (#7385): no transition to the only organisation any more: nothing named -> 400 space_needed naming the organisation
+r = A.post(B + "/api/evcals", json={"name": "Plan"})
+check(r.status_code == 400 and r.json().get("code") == "space_needed" and f"org:{ORG}" in [x.get("ws") for x in r.json().get("spaces") or []],
+      "#7385: a new calendar without a workspace asks (400 space_needed) " + r.text[:200])
+c1 = cal(A, "Plan", org_id=ORG)
+check(c1["org_id"] == ORG, "#1036: a new calendar named for the organisation is the organisation's")
 c2 = cal(A, "Mine", org_id=None)
 check(c2["org_id"] is None, "#1036: ... or private when chosen")
 r = A.put(B + f"/api/evcals/{c1['id']}/members", json={"user_id": PA, "role": "view"})
@@ -172,8 +177,10 @@ check(A.delete(B + f"/api/evcals/{c1['id']}/members/{AG1}").ok and A.patch(B + f
       "#1036: without it, it becomes private")
 check(A.patch(B + f"/api/evcals/{c1['id']}", json={"org_id": ORG}).json()["org_id"] == ORG, "#1036: and back into the organisation")
 check(A.patch(B + f"/api/evcals/{c1['id']}", json={"org_id": 999}).status_code == 409, "#1036: only into an own organisation")
-b1, b2 = book(A, "Clients"), book(A, "Home", org_id=None)
-check(b1["org_id"] == ORG and b2["org_id"] is None, "#1036: address books: the organisation's by default, private when chosen")
+r = A.post(B + "/api/books", json={"name": "Clients"})  # (#7385): nothing named -> 400 space_needed
+check(r.status_code == 400 and r.json().get("code") == "space_needed", "#7385: a new address book without a workspace asks (400 space_needed) " + r.text[:200])
+b1, b2 = book(A, "Clients", org_id=ORG), book(A, "Home", org_id=None)  # (#7385)
+check(b1["org_id"] == ORG and b2["org_id"] is None, "#1036: address books: the organisation's when named, private when chosen")
 check(A.put(B + f"/api/books/{b2['id']}/members", json={"user_id": AG1, "role": "view"}).status_code == 409, "#1036: the organisation's agent joins no private address book")
 check(A.put(B + f"/api/books/{b1['id']}/members", json={"user_id": BOB, "role": "edit"}).ok, "#1036: a member of the organisation joins its address book")
 check(A.patch(B + f"/api/books/{b2['id']}", json={"org_id": ORG}).json()["org_id"] == ORG, "#1036: an address book moves into the organisation")
@@ -226,11 +233,11 @@ Bo.post(B + f"/api/tasks/{TA}/comments", json={"body": f"{MARK} comment"})
 CA_ = dbx("SELECT id FROM obj_comments WHERE kind='task' AND ref_id=? ORDER BY id DESC LIMIT 1", (TA,))[0][0]
 Bo.post(B + f"/api/tasks/{TA}/attachments", files={"file": (f"{MARK}.txt", b"secret\n", "text/plain")})
 AA = dbx("SELECT id FROM attachments WHERE task_id=? ORDER BY id DESC LIMIT 1", (TA,))[0][0]
-KA = cal(Bo, f"{MARK} cal")
+KA = cal(Bo, f"{MARK} cal", org_id=ORG)  # (#7385): names his only organisation
 check(KA["org_id"] == ORG, "workspaces: bob's new calendar is his organisation's")
 KA = KA["id"]
 EA = Bo.post(B + "/api/events", json={"title": f"{MARK} event", "start": "2026-10-21T10:00", "end": "2026-10-21T11:00", "cal_id": KA}).json()["id"]
-BA = book(Bo, f"{MARK} book")["id"]
+BA = book(Bo, f"{MARK} book", org_id=ORG)["id"]  # (#7385)
 CTA = Bo.post(B + "/api/contacts", json={"book_id": BA, "given": MARK, "family": "Contact"}).json()["id"]
 # 2.148.1 (#2483): a template of an organisation's task only by its admins -> bob's own template from the editor
 TPA = Bo.post(B + "/api/templates", json={"kind": "task", "data": {"task": {"title": f"{MARK} task"}}, "name": f"{MARK} template"}).json()["id"]

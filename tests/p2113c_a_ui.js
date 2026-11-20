@@ -31,7 +31,8 @@ const FEAT = 'cal,comments,collab,office,clients';
   fd.append('date', '2026-10-01');
   const up = await fetch(B + 'api/office/terms/de', {method: 'POST', headers: {'X-Requested-With': 'kalmido', Cookie: CK}, body: fd});
   check(up.ok, 'the German terms uploaded ' + up.status);
-  const CL = (await call('POST', '/api/clients', {name: 'Beispielkunde AG', street: 'Marktstraße 5', zip: '50667', city: 'Köln', country: 'DE', email: 'kunde@example.com'})).id;
+  const ORG = (await call('GET', '/api/state')).me.workspaces[0].id;  // (#7385) the client names its organisation
+  const CL = (await call('POST', '/api/clients', {name: 'Beispielkunde AG', street: 'Marktstraße 5', zip: '50667', city: 'Köln', country: 'DE', email: 'kunde@example.com', org_id: ORG})).id;
   const offer = await call('POST', '/api/office/docs', {project_title: 'Imagefilm', client_id: CL, items: [{title: 'Schnitt', qty: 2, rate: 900}]});
   check(offer.http === 201, 'a quotation ' + offer.http);
   check((await call('POST', `/api/office/docs/${offer.id}/finalize`)).http === 200, 'the quotation finalised');

@@ -88,7 +88,7 @@ def card(uid, fn, email="", tel=""):
 
 
 # ================================================================ #2081 more than 500 contacts
-BIG = book(A, "Many")
+BIG = book(A, "Many", org_id=ALPHA)  # (#7385)
 vcf = "".join(card(f"m{i:04d}", f"Person{i:04d} Many") for i in range(650))
 r = A.post(B + f"/api/books/{BIG}/import", files={"file": ("many.vcf", vcf.encode(), "text/vcard")})
 check(r.ok and r.json().get("created") == 650, f"#2081: 650 contacts imported ({r.status_code} {r.text[:200]})")
@@ -101,7 +101,7 @@ q = A.get(B + "/api/contacts", params={"book_id": BIG, "q": "Person0649"}).json(
 check(q["total"] == 1 and q["items"][0]["fn"] == "Person0649 Many", "#2081: the search finds a contact beyond the first page")
 
 # ================================================================ #2080 CSV import
-BK = book(A, "Office")
+BK = book(A, "Office", org_id=ALPHA)  # (#7385)
 OUT_DE = ("Anrede;Vorname;Weitere Vornamen;Nachname;Firma;Abteilung;Position;Straße geschäftlich;Ort geschäftlich;"
           "Postleitzahl geschäftlich;Land/Region geschäftlich;Mobiltelefon;Telefon geschäftlich;E-Mail-Adresse;Geburtstag;Notizen;Kategorien\r\n"
           "Herr;Jürgen;;Möller;Möller Bau;Einkauf;Leiter;Hauptstraße 5;Köln;50667;Deutschland;0170 1234567;0221 99887;juergen@example.com;12.05.1980;Erster Kontakt;\"Kunden;Familie\"\r\n"
@@ -218,7 +218,7 @@ check(imp(A, BK, codecs.BOM_UTF16_LE + "Name\tE-mail".encode("utf-16-le") + b"x"
       "#2080 F4: a cut UTF-16 file: 400")
 check(Ca.get(B + f"/api/books/{SH}/export.csv").ok, "#2080 export: a view-only member may export")
 check(Da.get(B + f"/api/books/{BK}/export.csv").status_code == 404, "#2080 export: another organisation's person: 404")
-RT = book(A, "Roundtrip")
+RT = book(A, "Roundtrip", org_id=ALPHA)  # (#7385)
 r = imp(A, RT, raw, "export.csv")
 rt = by_name(A, "Herr Jürgen Möller", RT)
 check(r.ok and r.json().get("created") == len(contacts(A, book_id=BK)["items"]) and rt is not None, f"#2080 export: reads back ({r.text[:200]})")
@@ -228,7 +228,7 @@ if rt:
           f"#2080 export: the round trip keeps the fields ({rt['note']!r} {rt['phones']} {rt['prefix']} {rt['bday']} {rt['groups']})")
 
 # ================================================================ #2084 duplicates
-DUP = book(A, "Dups")
+DUP = book(A, "Dups", org_id=ALPHA)  # (#7385)
 r = A.post(B + "/api/contacts", json={"book_id": DUP, "given": "Max", "family": "Muster", "emails": [{"value": "max@example.com"}],
                                        "phones": [{"value": "+49 170 7654321", "type": ["cell"]}]})
 MAX = r.json()["id"]
@@ -259,7 +259,7 @@ r = imp(A, DUP, CSV_D.encode(), "d.csv")
 jr = r.json()
 check(r.ok and jr.get("created") == 2 and jr.get("dupes") == 1 and jr["dupe_groups"][0]["like"][0]["id"] == MAX
       and jr["dupe_groups"][0]["fn"] == "Maxi Muster", f"#2084: the import names its likely duplicate ({r.text[:300]})")
-BGB = book(A, "Background")
+BGB = book(A, "Background", org_id=ALPHA)  # (#7385)
 rows = "".join(f"Bg{i:03d};Row;bg{i}@example.com\r\n" for i in range(120)) + "Max;Muster;other@example.com\r\n"
 r = imp(A, BGB, ("First Name;Last Name;E-mail Address\r\n" + rows).encode(), "bg.csv", background=1)
 st = r.json()

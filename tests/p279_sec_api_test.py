@@ -80,7 +80,7 @@ for u, o in (("alice", ALPHA), ("bob", ALPHA), ("kiddo", ALPHA), ("carol", BETA)
 CAROL, BOB = ids["carol"], ids["bob"]
 
 # ============================================================ H1: ICS import invites only people the importer may see
-CAL = A.post(B + "/api/evcals", json={"name": "Imported"}).json()["id"]
+CAL = A.post(B + "/api/evcals", json={"name": "Imported", "org_id": ALPHA}).json()["id"]  # (#7385) name alice's only organisation
 news0 = len([x for x in Ca.get(B + "/api/news").json().get("items", []) if x["kind"] == "evinvite"])
 FILE = ics("UID:h1-probe-1", "DTSTAMP:20261005T100000Z", "SUMMARY:Click this link", "DTSTART:20261120T100000Z", "DTEND:20261120T110000Z",
            f"ATTENDEE;CN=Carol;X-KALMIDO-USER={CAROL}:mailto:someone@example.org",

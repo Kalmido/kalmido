@@ -32,8 +32,9 @@ A.post(B + "/api/admin/setup", json={"org_name": "Example Studio", "lang": "en",
 A.patch(B + "/api/settings", json={"tour": "done", "lang": "en", "features": "cal,comments,collab,clients,office"})
 FID, F = freelancer(B, A)
 
-for who, S in (("admin", A), ("freelancer", F)):
-    cl = S.post(B + "/api/clients", json={"name": "Beispiel GmbH", "street": "Musterweg 5", "zip": "20000", "city": "Hamburg", "country": "DE"})
+ORG = A.get(B + "/api/state").json()["me"]["workspaces"][0]["id"]  # (#7385) alice's only organisation
+for who, S, org in (("admin", A, ORG), ("freelancer", F, None)):
+    cl = S.post(B + "/api/clients", json={"name": "Beispiel GmbH", "street": "Musterweg 5", "zip": "20000", "city": "Hamburg", "country": "DE", **({"org_id": org} if org else {})})  # (#7385) names it
     check(cl.status_code < 300, f"{who}: a client {cl.status_code}")
     p = S.post(B + "/api/office/gen-docs/preview", json={"body": "An:\n{{client.address}}\nEnde {{offer.number}}", "client_id": cl.json()["id"], "lang": "de"})
     check(p.status_code == 200, f"{who}: preview {p.status_code} {p.text[:100]}")

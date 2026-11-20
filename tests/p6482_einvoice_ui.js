@@ -29,10 +29,10 @@ async function editor(user, id) {
   return [w, d];
 }
 
-async function run(user, ck, tag) {
+async function run(user, ck, tag, oid = null) {  // oid: the person's only organisation (#7385)
   await call('GET', '/api/office/settings', null, ck);
   await call('PUT', '/api/office/settings', {lang: 'en', company_fields: COMPANY, features_off: ['docs.einvoice']}, ck);
-  const CL = (await call('POST', '/api/clients', {name: 'Beispielkunde GmbH', street: 'Marktstraße 5', zip: '50667', city: 'Köln', country: 'DE', vat_id: 'DE123456789'}, ck)).id;
+  const CL = (await call('POST', '/api/clients', {name: 'Beispielkunde GmbH', street: 'Marktstraße 5', zip: '50667', city: 'Köln', country: 'DE', vat_id: 'DE123456789', ...(oid ? {org_id: oid} : {})}, ck)).id;  // (#7385) names its workspace
   const mk = async () => call('POST', '/api/office/docs', {kind: 'invoice', lang: 'de', client_id: CL, service_from: '2026-05-01', service_to: '2026-05-31', items: [{title: 'Schnitt', qty: 1, rate: 900}]}, ck);
   const inv = await mk();
   check(inv.http === 201, `${tag}: draft invoice ${inv.http}`);
@@ -77,7 +77,7 @@ async function run(user, ck, tag) {
   CK = await login('alice');
   await call('POST', '/api/admin/setup', {org_name: 'Beispiel Studio', lang: 'en', collab_all: true, modules: ['cal', 'comments']});
   await call('PATCH', '/api/settings', {lang: 'en', tour: 'done', features: FEAT});
-  await run('alice', CK, 'org');
+  await run('alice', CK, 'org', (await call('GET', '/api/state')).me.workspaces[0].id);  // (#7385)
 
   // freelancer-matrix: office (a person without an organisation, its own admin)
   await call('POST', '/api/users', {username: 'frida', display_name: 'Frida', password: 'password123', email: 'frida@example.com', orgs: []});

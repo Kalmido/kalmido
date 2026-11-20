@@ -32,8 +32,9 @@ const TEST_IBAN = 'DE02120300000000202051';
   // 2.46.0 (#1592): no organisation from the start any more: the setup creates the one these tests use (id 1), new people join it
   await call('POST', '/api/admin/setup', {org_name: 'Kalmido', lang: 'en', collab_all: true, modules: ['cal', 'comments']});
   await call('PATCH', '/api/settings', {lang: 'en', tour: 'done', features: FEAT});
+  const ORG = (await call('GET', '/api/state')).me.workspaces[0].id;  // (#7385) alice's only organisation: new clients name it
   await call('PUT', '/api/office/settings', {lang: 'de', company_fields: {name: 'Studio Nordlicht GmbH', street: 'Hafenstraße 12', zip: '20457', city: 'Hamburg', country: 'DE', tax_number: '12/345/67890', iban: TEST_IBAN, email: 'hallo@nordlicht.example', phone: '040 1234567'}});
-  const CL = (await call('POST', '/api/clients', {name: 'Beispielkunde AG', street: 'Marktstraße 5', zip: '50667', city: 'Köln', country: 'DE'})).id;
+  const CL = (await call('POST', '/api/clients', {name: 'Beispielkunde AG', org_id: ORG, street: 'Marktstraße 5', zip: '50667', city: 'Köln', country: 'DE'})).id;  // (#7385)
   const mk = async () => { const i = await call('POST', '/api/office/docs', {kind: 'invoice', client_id: CL, service_from: '2026-05-01', items: [{title: 'Beratung', qty: 1, rate: 100}]}); const f = await call('POST', `/api/office/docs/${i.id}/finalize`); return f; };
   const inv = await mk();
   check(inv.http === 200 && inv.locked, 'an invoice finalised ' + inv.http + ' ' + JSON.stringify(inv.error || ''));

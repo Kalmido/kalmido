@@ -279,7 +279,13 @@ r = Da.post(B + "/api/books", json={"name": "Dave private book"})
 check(r.ok and dbx("SELECT org_id FROM books WHERE id=?", (r.json()["id"],))[0][0] is None, "the switch on Private: a new address book is private " + r.text[:200])
 Da.patch(B + "/api/settings", json={"workspace": "all"})
 r = Da.post(B + "/api/books", json={"name": "Dave team book"})
-check(r.ok and dbx("SELECT org_id FROM books WHERE id=?", (r.json()["id"],))[0][0] == ORG, "one organisation: a new address book is its book " + r.text[:200])
+# (#7385): no transition any more: one organisation, nothing chosen -> 400 space_needed (Private and the organisation), nothing created
+check(r.status_code == 400 and r.json().get("code") == "space_needed"
+      and [x.get("ws") for x in r.json().get("spaces") or []] == ["private", f"org:{ORG}"]
+      and dbx("SELECT count(*) FROM books WHERE name='Dave team book'")[0][0] == 0,
+      "#7385: one organisation, none chosen: a new address book asks (400 space_needed) " + r.text[:200])
+r = Da.post(B + "/api/books", json={"name": "Dave team book", "space": f"org:{ORG}"})  # (#7385)
+check(r.ok and dbx("SELECT org_id FROM books WHERE id=?", (r.json()["id"],))[0][0] == ORG, "one organisation: a new address book named for it is its book " + r.text[:200])
 r = Fr.post(B + "/api/books", json={"name": "Freelance book"})
 check(r.ok and dbx("SELECT org_id FROM books WHERE id=?", (r.json()["id"],))[0][0] is None, "freelancer: a new address book is private")
 # #2490 a list rule's comment: mention tokens only of people of the list
