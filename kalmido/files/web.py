@@ -15,7 +15,7 @@ from ..core.i18n import tr
 from ..core.errors import BadInput  # 2.577.0 (#4708 3)
 from ..core.db import bump, body, db, err, insert_id, iso
 from ..accounts.session import me
-from ..core.access import Denied, acx_of, collab_all
+from ..core.access import Denied, acx_of, collab_all, live_sql
 from ..core.serializers import unlink_files  # 2.809.0 (#5365): the purges' files after the commit
 from ..core.orgcrypt import oc_send_file
 from .upsafe import h6d_one_file_request, h6d_read
@@ -23,6 +23,7 @@ from .scan import sc_guard  # 2.477.0 (#3936): pulled up from functions
 from .store import download_name  # 2.750.0 (#4876)
 from .store import fs_children_visible  # #6953: every listing of a folder's children
 from .store import FS_NOT_ADDR  # 2.1138.0 (#6025)
+from .store import fs_roles_many  # #6405
 from .store import (fs_chain, fs_chains, fs_deleted, fs_link_target, fs_log_add, fs_new_version, fs_put, fs_read,
                     fs_height, fs_mail_rows, fs_role, fs_version_row, DEPTH_MAX, fs_visible_ids, need_node, safe_fs_name, _free_name,
                     _now, _place, ROLE_RANK)
@@ -96,8 +97,10 @@ def _shared_flags(c, ids):
                                     list(ids))}  # 2.568.0 (#4739, review F6): a project's member rows are no file store share
 
 
-def _items(c, rows, parent_role=None, above=None, can=False):
-    """2.558.0 (#4693): above = the folders above the rows (the open folder first; () at a top) whose shares apply to them
+def _items(c, rows, parent_role=None, above=None, can=False, roles=None):
+    """#6405: roles = {id: role} the caller has already read (the trash); the others are read for the whole listing at once
+    (fs_roles_many, the rules of fs_role) instead of a chain and a share query per row.
+    2.558.0 (#4693): above = the folders above the rows (the open folder first; () at a top) whose shares apply to them
     too: the rows uid may share get share_with (files/fsshnames.py; None = not asked for: v1, search, trash); can: uid may
     manage the shares of the rows without owning them (an area, fs_area_share)."""
     uid = me()
@@ -113,10 +116,12 @@ def _items(c, rows, parent_role=None, above=None, can=False):
     if lk and not fsl_person_ok():
         rows = [r for r in rows if r["id"] not in lk]  # agents and API tokens: no node of a locked folder in any listing
     out, sw_ids = [], []
+    need = [r["id"] for r in rows if parent_role != "owner" and (roles is None or r["id"] not in roles)]
+    many = {i: x[1] for i, x in fs_roles_many(c, need, uid, trash=True).items()} if need and uid else {}  # #6405: one read
     for r in rows:
         role = parent_role
         if role != "owner":
-            role = fs_role(c, r["id"], uid) or role
+            role = (roles[r["id"]] if roles is not None and r["id"] in roles else many.get(r["id"])) or role
         x = fs_node_json(c, r, role, names, r["id"] in sh or bool(r["org_access"]), up, lk)
         row_can = can
         if can and role != "owner" and r["kind"] == "ref":  # 2.558.0 D (#4693, review F3): a referenced object has its own say
@@ -151,8 +156,13 @@ def fs_sort_key(x):
 
 
 def _crumbs(c, chain, vis=None):
-    """[{id, name}] from the top the asker can see down to the node (chain = node first)."""
-    vis = vis if vis is not None else fs_visible_ids(c, me())
+    """[{id, name}] from the top the asker can see down to the node (chain = node first). #6405: without vis, only the
+    chain's own nodes are looked at (fs_roles_many: a role, not in the trash -- what need_node opens), not the whole set
+    the asker can see."""
+    if vis is None:
+        uid = me()
+        ids = [r["id"] for r in chain]
+        vis = {i for i, (gone, role) in fs_roles_many(c, ids, uid, chains=_sub_chains(chain)).items() if role and not gone} if uid else set()
     out = []
     for r in chain:
         if r["id"] not in vis and out:
@@ -161,6 +171,14 @@ def _crumbs(c, chain, vis=None):
         if r["id"] not in vis:
             break
     return list(reversed(out))
+
+
+def _sub_chains(chain):
+    """#6405: {id: its chain} of every node of a chain (node first) -- each one's chain is the rest from it upward."""
+    return {r["id"]: list(chain[k:]) for k, r in enumerate(chain)}
+
+
+FS_PAGE_MAX = 5000  # #6405: the most children one page of /api/files?parent may ask for
 
 
 def _space_of(v):
@@ -174,7 +192,10 @@ def _space_of(v):
 
 @app.get("/api/files")
 def files_list():
-    """?parent=<id>: the children of a folder; else ?space=private | org:<id> | shared | trash: the top of a space."""
+    """?parent=<id>: the children of a folder; else ?space=private | org:<id> | shared | trash: the top of a space.
+    #6405: ?parent with ?limit=N (at most FS_PAGE_MAX): the first N children in the listing's order (folders first, then by
+    hand, then the name) and more=true when there are others (the web app's "Load more" asks again with a larger N);
+    without limit every child, as before (moving and locking walk all of them)."""
     c = db()
     uid = me()
     pid = request.args.get("parent", type=int)
@@ -182,7 +203,15 @@ def files_list():
         n = need_node(c, pid)
         if n["kind"] != "folder":
             raise Denied(409, tr("Not a folder"))
-        rows = c.execute("SELECT * FROM fs_nodes WHERE parent_id=? AND deleted_at IS NULL ORDER BY id", (pid,)).fetchall()
+        lim = request.args.get("limit", type=int)
+        lim = max(1, min(lim, FS_PAGE_MAX)) if lim else None
+        if lim:  # #6405: one page, in fs_sort_key's order (the rows the rules below leave out count against it)
+            rows = c.execute(f"SELECT * FROM fs_nodes WHERE parent_id=? AND {live_sql()} ORDER BY kind <> 'folder', sort_no IS NULL, "
+                             "sort_no, lower(name), id LIMIT ?", (pid, lim + 1)).fetchall()
+            more = len(rows) > lim
+            rows = rows[:lim]
+        else:
+            rows, more = c.execute("SELECT * FROM fs_nodes WHERE parent_id=? AND deleted_at IS NULL ORDER BY id", (pid,)).fetchall(), False
         # mail files (#2488), a closed area's root (#2742), accounting (#6953): the one rule (store.py)
         rows = fs_children_visible(c, uid, n, rows)
         fs_log_add(c, pid, "list")
@@ -195,7 +224,7 @@ def files_list():
             from .fsshnames import fs_share_with
             node["share_with"] = fs_share_with(c, [n], chain[1:])[n["id"]]
         rc_list_extra(c, chain, node, items, request.args.get("docs") == "1")  # 2.353.0 D (#2759): recognition + documents (cards)
-        return jsonify(items=items, node=node, crumbs=_crumbs(c, chain),
+        return jsonify(items=items, node=node, crumbs=_crumbs(c, chain), more=more,
                        space=("org:%d" % n["org_id"]) if n["org_id"] else ("private" if n["owner_id"] == uid else "shared"))
     space, oid = _space_of(request.args.get("space"))
     ctx = acx_of(c, uid)
@@ -233,7 +262,8 @@ def files_list():
 
 def _trash(c, uid):
     """Nodes in the trash the asker may restore (owner of the branch, organisation admin, or who deleted it with edit)."""
-    return _items(c, [r for r, _role in fs_trash_entries(c, uid)])
+    ent = fs_trash_entries(c, uid)
+    return _items(c, [r for r, _role in ent], roles={r["id"]: role for r, role in ent})  # #6405: the roles read once
 
 
 def fs_trash_entries(c, uid):
@@ -243,11 +273,13 @@ def fs_trash_entries(c, uid):
     # organisations); fs_role decides
     rows = c.execute("""SELECT * FROM fs_nodes WHERE deleted_at IS NOT NULL AND (owner_id=? OR deleted_by=? OR org_id IS NOT NULL)
                         ORDER BY deleted_at DESC LIMIT 500""", (uid, uid)).fetchall()
+    chains = fs_chains(c, [r["id"] for r in rows])  # #6405: the chains and roles of all of them at once
+    top = [r["id"] for r in rows if r["id"] in chains and not any(x["deleted_at"] for x in chains[r["id"]][1:])]  # inside a deleted folder: restored with it
+    roles = fs_roles_many(c, top, uid, chains={i: chains[i] for i in top}, trash=True)
     for r in rows:
-        chain = fs_chain(c, r["id"])
-        if any(x["deleted_at"] for x in chain[1:]):
-            continue  # inside a deleted folder: restored with it
-        role = fs_role(c, r["id"], uid, chain=chain)
+        if r["id"] not in roles:
+            continue
+        role = roles[r["id"]][1]
         if role == "owner" or (role == "edit" and r["deleted_by"] == uid):
             out.append((r, role))
     return out
