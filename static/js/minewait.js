@@ -61,8 +61,8 @@ function mwRow(x) {
   const k = mwKey(x), on = S.mw.sel === k;
   const body = `<span class="wci"><b>${esc(mwTitle(x))}</b><span class="muted">${esc(mwSub(x))}</span></span>`;
   const btn = `<button type="button" class="mwa" data-mw="open" data-k="${esc(k)}"${on ? ' aria-current="true"' : ''}>${body}</button>`;
-  if (x.kind === 'job') return `<div class="wcrow${on ? ' on' : ''}">${btn}<div class="wcb">${waitJobBtns({id: x.id, kind: x.proposal})}</div></div>`;
-  return `<div class="wcrow${on ? ' on' : ''}">${btn}</div>`;
+  if (x.kind === 'job') return `<div class="wcrow${on ? ' on' : ''}">${/*html-ok*/ btn /* built above with esc() */}<div class="wcb">${waitJobBtns({id: x.id, kind: x.proposal})}</div></div>`;
+  return `<div class="wcrow${on ? ' on' : ''}">${/*html-ok*/ btn /* built above with esc() */}</div>`;
 }
 function mwList() {
   return MW_GROUPS.map(([k, name]) => {
@@ -73,11 +73,11 @@ function mwList() {
 const mwWide = () => !isMobile();
 function viewMineWait() {
   if (S.mw.items === null) { mwLoad(true); return `<div class="mwv"><div class="empty">${esc(tr('Loading…'))}</div></div>`; }
-  if (!S.mw.items.length) return `<div class="mwv">${symEmpty('done', S.mw.done ? tr('Nothing waits for you any more') : tr('Nothing waits for you'))}</div>`;
+  if (!S.mw.items.length) return `<div class="mwv">${/*html-ok*/ symEmpty('done', S.mw.done ? tr('Nothing waits for you any more') : tr('Nothing waits for you')) /* render.js escapes inside */}</div>`;
   if (mwWide() && !mwSelItem()) S.mw.sel = mwKey(mwFlat()[0]);  // a computer: the list on the left, the first entry open on the right
   const x = mwSelItem();
-  if (!mwWide()) return x ? `<div class="mwv mwone">${mwPanel(x)}</div>` : `<div class="mwv">${mwList()}</div>`;
-  return `<div class="mwv mwsplit"><div class="mwl">${mwList()}</div><div class="mwr">${x ? mwPanel(x) : ''}</div></div>`;
+  if (!mwWide()) return x ? `<div class="mwv mwone">${/*html-ok*/ mwPanel(x) /* escaped inside */}</div>` : `<div class="mwv">${/*html-ok*/ mwList() /* escaped inside */}</div>`;
+  return `<div class="mwv mwsplit"><div class="mwl">${/*html-ok*/ mwList() /* escaped inside */}</div><div class="mwr">${/*html-ok*/ x ? mwPanel(x) : '' /* escaped inside */}</div></div>`;
 }
 
 // ---- (#7538) the entry
@@ -109,7 +109,7 @@ function mwKeys(x) {
   return null;
 }
 function mwActs(x) {
-  const b = (a, h, pri = false) => `<button type="button" class="btn${pri ? ' pri' : ''}" data-mw="${a}" data-k="${esc(mwKey(x))}">${h}</button>`;
+  const b = (a, h, pri = false) => `<button type="button" class="btn${pri ? ' pri' : ''}" data-mw="${/*html-ok*/ a /* a fixed action name of this file */}" data-k="${esc(mwKey(x))}">${/*html-ok*/ h /* the callers pass esc() / icons */}</button>`;
   if (x.kind === 'job') return waitJobBtns({id: x.id, kind: x.proposal});
   if (x.kind === 'approval' && x.source === 'comment') {
     const ch = S.mw.ch[x.id];
@@ -143,9 +143,9 @@ function mwPanel(x) {
     <button type="button" class="btn" data-mw="next" ${i >= all.length - 1 ? 'disabled' : ''} title="j">${esc(tr('Skip'))}</button></div>`;
   return `<section class="mwp" aria-label="${esc(mwTitle(x))}" data-k="${esc(mwKey(x))}">
     <div class="mwph muted">${esc(tr(grp ? grp[1] : ''))} · ${esc(tr('{0} of {1}', i + 1, all.length))}</div>
-    <h2 class="mwpt">${esc(mwTitle(x))}</h2><div class="muted mwps">${esc(mwSub(x))}</div>${why}${text}
-    <div class="mwpb">${mwActs(x)}</div>${keys ? `<div class="mwpk muted">${esc(tr('Keys: y yes, n no, j next, k back'))}</div>` : ''}
-    <div class="mwpg">${go}</div>${nav}</section>`;
+    <h2 class="mwpt">${esc(mwTitle(x))}</h2><div class="muted mwps">${esc(mwSub(x))}</div>${/*html-ok*/ why /* esc() above */}${/*html-ok*/ text /* esc() above */}
+    <div class="mwpb">${/*html-ok*/ mwActs(x) /* escaped inside */}</div>${keys ? `<div class="mwpk muted">${esc(tr('Keys: y yes, n no, j next, k back'))}</div>` : ''}
+    <div class="mwpg">${/*html-ok*/ go /* esc() above */}</div>${/*html-ok*/ nav /* esc() above */}</section>`;
 }
 function mwGo(d) {
   const all = mwFlat(), i = all.findIndex(y => mwKey(y) === S.mw.sel), nx = all[i + d];
