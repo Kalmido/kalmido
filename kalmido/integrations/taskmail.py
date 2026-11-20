@@ -190,7 +190,8 @@ def tmr_comment(c, msg, mid, tid, sender, uid):
     body = (text + "\n\n" if text else "") + "— " + tr("By e-mail from {0}", sender, lg=lg)
     whole, skipped, top = mail_files_save(c, tid, files, TMR_FILES)  # #6531: a file left out keeps the mail and is noted
     note = att_skip_note(c, tid, skipped, lg=lg)
-    cid = ocm_add(c, "task", tid, uid, att_skip_cut(body, note, 10000), ext_name=None if uid else (name or sender)[:120])  # (#5272)
+    cid = ocm_add(c, "task", tid, uid, att_skip_cut(body, note, 10000), ext_name=None if uid else (name or sender)[:120],
+                  extra=None if uid else {"source": "mail"})  # (#5272); (#6643): a sender without an account = origin mail for agents (was public_link)
     c.execute("UPDATE attachments SET comment_id=? WHERE task_id=? AND id>?", (cid, tid, top))
     tmr_keep(c, tid, mid, sender, "in")
     rcpt = {t["l_owner"], t["created_by"], t["assignee_id"]} | {r[0] for r in c.execute(
