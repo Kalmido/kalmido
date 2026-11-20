@@ -16,6 +16,9 @@ import os
 import re
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import lintmsg  # noqa: E402 -- tools/ is not a package; the line above puts it on the path
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CALL = re.compile(r"(?<![\w.$])toast\(")
 RAW = re.compile(r"(?:\?\.|\.)(?:message|statusText)\b")
@@ -116,8 +119,8 @@ def main():
     for b in bad:
         print(b)
     if bad:
-        print(f"check_errtext: {len(bad)} toast(s) with the raw error text. Why: {WHY}")
-        print(f"check_errtext: Instead: {INSTEAD}")
+        print(f"check_errtext: {len(bad)} toast(s) with the raw error text")
+        lintmsg.say("check_errtext", WHY, INSTEAD)  # Why / Instead / do not suppress it, as every check (#7143)
         return 1
     if verbose:
         print(f"check_errtext: {len(files)} client files, 0 toasts with the raw error text")
