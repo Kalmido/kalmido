@@ -21,7 +21,8 @@ async function pp_load() {
   if (j) { PPS.data = j; for (const p of OPT) p.put(); }  // own changes still on the way stay on top of the fresh board
   ofcDraw();
 }
-const pp_reload = () => { PPS.data = null; ofcDraw(); };
+// #7495: the board on screen stays (dimmed) until the fresh one is there
+const pp_reload = () => ofcRefetch('pipeline', ofcTab() === 'pipeline' && !!PPS.data, async () => { const j = await api('GET', '/api/office/deals'); return () => { PPS.data = j; PPS.err = null; for (const p of OPT) p.put(); }; }, () => { PPS.data = null; });
 // 2.559.0 (#4660): moving, changing, adding and deleting a deal show at once (optWrite): the board changes locally, the request
 // runs behind it, a refusal puts the old state back (api() says why); the answer's deal replaces the local one, the sums on
 // top (open, weighted, expected) are the server's: the board is fetched again in the background, the cards stay meanwhile.

@@ -52,7 +52,8 @@ async function ldbLoad() {
   LDB.loading = false;
   ofcDraw();
 }
-const ldbReload = () => { LDB.d = null; LDB.err = null; ofcDraw(); };
+// #7495: the ledger on screen stays (dimmed) until the fresh one is there
+const ldbReload = () => { const y = LDB.year; ofcRefetch('ledger', ofcTab() === 'books' && !!LDB.d && !LDB.err, async () => { const d = await api('GET', `${ldbBase()}?year=${y}`); return () => { if (LDB.year === y) Object.assign(LDB, {d, err: null, cfg: d.settings}); }; }, () => { LDB.d = null; LDB.err = null; }); };
 
 // the page #office/books/ledger
 function ldbHtml() {

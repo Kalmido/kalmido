@@ -148,12 +148,18 @@ nr = pdf.office_pdf(offer(rights=False))
 qn = pdfcheck.layout(nr)
 tot, gr, th, co = find(qn, "Summe netto"), find(qn, "Mit freundlichen"), find(qn, "Wir freuen uns"), find(qn, "Beispielstudio GmbH", True)
 foot = qn[0]["foot"]
-# 2.1179.0 (#6174): the totals move down at most PDF_SUM_FILL_MAX (25 mm) beyond the wished gap (was: totals + closing right above
-# the footer, up to 10 cm hole); the order confirmation sits right above the footer
-lp, acc = find(qn, "Leistung 4"), find(qn, "AUFTRAGSERTEILUNG")
-check(tot and lp and foot and tot[0][1]["y"] - lp[0][1]["y"] < pdf.PDF_SUM_GAP + pdf.PDF_SUM_FILL_MAX + 15 * MM and acc and foot - acc[0][1]["y"] < 30 * MM,
-      f"#6174: without rights the totals at most 25 mm lower, the order confirmation above the footer (totals {tot[0][1]['y'] / MM if tot else 0:.0f} mm, "
-      f"footer {(foot or 0) / MM:.0f} mm)")
+# 2.1179.0 (#6174): the order confirmation sits right above the footer; 2.1477.0 (#7523): it is glued to the footer, so totals +
+# closing go all the way down to it (one hole above the totals, none between closing and order confirmation; the 25 mm limit
+# of #6174 holds only without such a block)
+lp, acc, co = find(qn, "Leistung 4"), find(qn, "AUFTRAGSERTEILUNG"), find(qn, "Beispielstudio GmbH", True)
+co_end = max((t["y"] for _n, t in co if acc and t["y"] < acc[0][1]["y"]), default=None)
+check(tot and lp and foot and acc and foot - acc[0][1]["y"] < 30 * MM and co_end and 0 < acc[0][1]["y"] - co_end < 25 * MM,  # was about 45 mm
+      f"#7523: without rights totals + closing right above the order confirmation, it above the footer (closing end -> order confirmation "
+      f"{(acc[0][1]['y'] - co_end) / MM if acc and co_end else 0:.0f} mm, footer {(foot or 0) / MM:.0f} mm)")
+qn0 = pdfcheck.layout(pdf.office_pdf(dict(offer(rights=False), accept_on=0)))
+t0, l0 = find(qn0, "Summe netto"), find(qn0, "Leistung 4")
+check(t0 and l0 and t0[0][1]["y"] - l0[0][1]["y"] < pdf.PDF_SUM_GAP + pdf.PDF_SUM_FILL_MAX + 15 * MM,
+      f"#6174: without a block at the footer the totals at most 25 mm lower ({(t0[0][1]['y'] - l0[0][1]['y']) / MM if t0 and l0 else 0:.0f} mm)")
 check(gr and th and abs(gr[0][1]["y"] - th[0][1]["y"]) < 1 and abs(th[0][1]["x"] - pdf.PDF_L) < 0.5
       and abs(gr[0][1]["x"] - (pdf.PDF_L + pdf.PDF_CW * 0.64)) < 0.5, f"#3491: thanks left, greeting right on one line {th[:1]} {gr[:1]}")
 check(any(abs(t["x"] - (pdf.PDF_L + pdf.PDF_CW * 0.64)) < 0.5 and t["bold"] and t["y"] > gr[0][1]["y"] for _n, t in co) if gr else False,

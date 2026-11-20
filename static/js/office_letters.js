@@ -16,7 +16,8 @@ OFC_TABS.splice(OFC_TABS.findIndex(t => t[0] === 'settings'), 0, /** @type {any}
 const LT_ST = {draft: N_('Draft'), sent: N_('Sent'), delivered: N_('Delivered')};
 const LT_CH = {post: N_('Post'), email: N_('E-mail'), registered: N_('Registered mail'), fax: N_('Fax')};
 const LT_FIELDS = ['rcpt_name', 'rcpt_address', 'rcpt_email', 'letter_date', 'ref_line', 'subject', 'body', 'greeting', 'sign_name', 'channel', 'tracking_no', 'followup_days'];
-function ltReload() { LT.data = null; LT.cur = null; ofcDraw(); }
+// #7495: the list of letters on screen stays (dimmed) until the fresh one is there; an open letter loads anew as before
+function ltReload() { LT.cur = null; ofcRefetch('letters', ofcTab() === 'letters' && !S.route.id && !!LT.data, async () => { const j = await api('GET', '/api/office/letters'); return () => { LT.data = j; LT.err = null; }; }, () => { LT.data = null; }); }
 const ltCurrent = () => LT.cur;
 const ltHooks = (k, d) => LT_HOOKS[k].map(f => { try { return f(d) || ''; } catch (x) { console.error(x); return ''; } }).join('');
 const ltStTag = d => `<span class="rotag dtp-st dtp-st-${esc(d.status)}">${esc(tr(LT_ST[d.status] || d.status))}</span>` + (d.mail?.state === 'bounced' ? `<small class="rotag oms-tag">${esc(tr('Delivery failed'))}</small>` : '');  // (#6547): its e-mail came back

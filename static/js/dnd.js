@@ -418,7 +418,7 @@ function secHeadMenu(anchor, sid) {
   // Was 2.46.1 (#1635): Move section up / down and "Section menu…"
   // the add button's own text; the call itself, not a click on it (the hold redraws the list, the button may be a new one by then)
   const ab = anchor.querySelector('.gadd');
-  sectionMenu(anchor, sid, ab ? [{label: ab.getAttribute('aria-label') || '', icon: 'plus', fn: () => secAddOpen(+ab.dataset.sec || 0)}, '-'] : []);
+  sh_menu(anchor, 'list', sid, ab ? [{label: ab.getAttribute('aria-label') || '', icon: 'plus', fn: () => secAddOpen(+ab.dataset.sec || 0)}, '-'] : []);
 }
 let secDrag = null;
 const secOf = el => el.classList.contains('kcol') ? el.dataset.kcol : el.dataset.section;

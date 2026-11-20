@@ -817,21 +817,6 @@ async function setupChoices(el, logo) {
     } catch (err) { $('#su-err', el).textContent = err.message || tr('Server not reachable.'); }
   });
 }
-function sectionMenu(anchor, sid, head = []) {  // 2.1151.0 B (#3835): head = items on top (dnd.js secHeadMenu: the head's "+")
-  const s = S.sections.find(x => x.id === sid);
-  menu(anchor, [...head,
-    {label: tr('Rename'), icon: 'edit', fn: async () => { const n = await askPrompt(tr('Rename section'), s.name, {ok: tr('Rename')}); if (n && n.trim()) sectionRename(sid, n.trim()); }},
-    ...(isTouch() ? [] : [  // 2.1151.0 B (#3835): a touch screen drags the head (dnd.js / secdrag.js)
-      {label: tr('Move left / up'), icon: 'left', fn: () => moveSection(sid, -1)},
-      {label: tr('Move right / down'), icon: 'right', fn: () => moveSection(sid, 1)}]),
-    wip_menuItem(sid),  // 2.60.0 (#1510)
-    dw_menuItem(sid),  // 2.410.0 B (#3515)
-    sk_menuItem(sid, anchor),  // 2.577.0 (#3354)
-    '-',
-    {label: tr('Delete section (tasks stay)'), icon: 'trash', cls: 'flag-5', fn: () => sectionDelete(sid)},
-  ]);
-}
-
 async function sampleCreate({open = true} = {}) {
   let j; try { j = await api('POST', '/api/sample', {}); } catch { return null; }
   await load();

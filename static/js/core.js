@@ -512,12 +512,18 @@ function netAgain(e, what, then, again) {
 const ML_WAITS = N_('The task was moved meanwhile: it is shown in that project again if it moves back within 24 hours.');  // 2.363.3 (#3133): POST .../links answers link_waits
 const MO_KEPT = N_('Your order of My tasks was changed on another device: that order stays, this change was not applied.');  // 2.363.3 (#3133): PUT /api/tasks/mine-order answers order_kept
 // 2.306.0 B (#2889): the session ended (401 / the login proxy's page): the stored state of the account (cache, tabs, chat
-// windows, session keys) goes like at logout, so the next person on this browser does not find it. Changes still waiting
-// to be sent (outbox, conflicts) keep everything as before: they go out after the next login of the same account.
+// windows, session keys) goes like at logout, so the next person on this browser does not find it.
+// (#6500): always - changes still waiting to be sent (the outbox with its offline files, conflict copies, kept input FD_KINDS)
+// stay for the next login of the same account, everything else goes (was: one waiting change kept all); the remembered
+// keys (e2e.js e2eForget) and this device's push subscription (the browser's subscription ends; the server's row is no longer
+// sent to and goes with the session, notify/push.py webpush_user) go too
 async function authGone() {
   try { outSync(); } catch { /* storage gone */ }
-  if (OUT.q.length || (S.conflicts || []).length || fdAny()) return;  // 2.527.0 (#4304 A5): + input kept for after the sign-in
-  await Promise.race([clearLocal(), new Promise(ok => setTimeout(ok, 1500))]);
+  const keep = !!(OUT.q.length || (S.conflicts || []).length || fdAny());  // (#4304 A5): + input kept for after the sign-in
+  // the push subscription only here (wpDisable asks the server, which answers 401 again)
+  const pushOff = async () => { const sub = typeof wpSub === 'function' ? await wpSub() : null; await sub?.unsubscribe(); };
+  const all = Promise.allSettled([clearLocal(keep), pushOff(), typeof e2eForget === 'function' && e2eForget()]);
+  await Promise.race([all, new Promise(ok => setTimeout(ok, 1500))]);
 }
 const OUT = {q: LS.get('outbox', []), online: true, flushing: false};
 // 2.126.0 D (#1989): every tab and list window of the browser shares the queue, localStorage is the truth: outSync takes over
@@ -733,9 +739,13 @@ function startDrop() { LS.del('cache'); S.lpCache = null; if (typeof oc_drop ===
 // (#6340): now = the page is being hidden (liveparts.js lpCacheNow): written at once, not when idle
 // (#6340): another tab signed out / switched account (tasks.uid gone or another): nothing of this one goes back
 const startMine = () => S.me?.id != null && LS.get('uid', null) === S.me.id;
+// (#6500): a sign-in without "Stay signed in" (me.remember false, accounts/session.py session_remember) keeps no offline copy on
+// this device - neither this start state nor the knowledge pages' copy (wiki.js wko_st): a shared computer shows nothing of
+// the person after the browser was closed, also not offline. The outbox, conflict copies and kept input stay (own changes).
+const keepOff = () => S.me?.remember === false;
 function startSave(now) {
   if (!S.lpCache || (typeof MW_GUARD !== 'undefined' && MW_GUARD)) return;  // 2.891.0 (#5358): nor the split view's right half
-  if (!startMine()) return;
+  if (!startMine() || keepOff()) return;
   if (typeof loadModule !== 'function' || !globalThis.indexedDB) { LS.set('cache', S.lpCache); return; }
   if (typeof oc_soon === 'function') { if (now) oc_now(); else oc_soon(); return; }
   if (now) return;  // the module is not here yet (the first seconds): the planned write below follows
@@ -748,6 +758,9 @@ function startSave(now) {
 // page, offcache.js fills it for a record of before from its write time); null = unknown (a localStorage copy of before).
 // The offline start shows it (S.syncOk), #6366 needs it at every start
 const startAt = c => (c && +c._at > 0 ? +c._at : null);
+// (#6500): older than the knowledge pages' copy may be (WKO_MAX_AGE, 14 days): the offline start drops it (unknown age = a
+// localStorage copy of before #6340, kept as before: the next online load writes it with its age)
+const startOld = c => { const at = startAt(c); return at != null && !(Date.now() - at < WKO_MAX_AGE); };
 async function startRead() {
   if (typeof loadModule === 'function' && globalThis.indexedDB) { try { await loadModule('offcache'); return await oc_get(); } catch (e) { console.warn('Kalmido: offline start state: module not loaded, localStorage', e); } }
   return LS.get('cache', null);
@@ -755,6 +768,7 @@ async function startRead() {
 const wkoOld = m => !m || !(Date.now() - Date.parse(m.at) < WKO_MAX_AGE);
 function sessGuard(me) {
   if (!me) return;
+  if (me.remember === false) { if (!sessGuard.off) { sessGuard.off = true; wkoDrop(); startDrop(); } return; }  // (#6500): what an earlier sign-in kept goes once
   const m = LS.get('wko', null);
   if (wkoOld(m) || m.g !== (me.sgen || '')) { wkoDrop(); startDrop(); LS.set('wko', {g: me.sgen || '', at: new Date().toISOString()}); }
 }
@@ -1840,6 +1854,8 @@ async function ld_go(auto) {
       const c = await startRead(); if (!c) throw e;  // 2.663.0 (#4200): IndexedDB (offcache.js), the old localStorage copy taken over once
       if (S.tasks.size) return;  // another load came first meanwhile
       if (wkoOld(LS.get('wko', null))) wkoDrop();  // 2.238.0 B (#2872): 14 days without an online sync
+      // (#6500): the start state goes the same way: 14 days without an online sync (its age, #6340) = not shown
+      if (startOld(c)) { startDrop(); throw e; }
       applyState(c); OUT.q.forEach(applyLocal);
       const at = startAt(c); if (at) S.syncOk = at;  // (#6340): the age of this state, not the time since the page started
     }
@@ -2008,8 +2024,10 @@ function staleDraw() {
 }
 // 2.27.0 (#968): the code in the browser vs. the server. index.html carries the version of the code it came with; /api/version
 // says what the server runs. Differ they (a window open across an update, a service worker that still served the old code):
-// a bar "New version available – Reload"; once nobody types (no field, dialog or unsent change, 20 s without input, or the app
-// comes back to the front) it reloads by itself, once per new version. Help shows both versions.
+// a bar "New version available – Reload"; once nobody types (no field, dialog or unsent change) it reloads by itself, once per
+// new version. Help shows both versions.
+// (#6364): by itself only while the window / tab is not seen (verAway); a window in view keeps the bar and reloads at the next
+// change of page (verNav) or the click on the bar - a reader is never pulled away (rule calm view)
 const APP_VER = document.querySelector?.('meta[name="kalmido-version"]')?.content || '';
 S.serverVer = '';
 let verIdle = Date.now();
@@ -2026,9 +2044,11 @@ const verDraft = () => ['#c-input', '#tc-in', '#chat-in', '#qinput', '#qsheet', 
 // 2.1257.0 (#6286 C2): + unsaved input the form guard knows (formguard.js fgAny: the import preview, a project dialog's save
 // waiting, a typing timer of a locked project)
 // (#6338): + a transfer that runs (upbar.js upAny: an upload, its portions)
-const verQuiet = () => !editing() && !editFocused() && !$('.modal') && !$('#pop:not(.hidden)') && !$('.qadd.sheet') && !OUT.q.length && !S.multiMode && !verDraft() && !(typeof fgAny === 'function' && fgAny()) && !(typeof upAny === 'function' && upAny());
-const verCalm = () => verQuiet() && (document.hidden || Date.now() - verIdle > 20000);
-let verBusy = false, verWant = false;
+// (#6364) nav: at a change of page the empty add box the list focuses by itself is no input (it held that reload back for good)
+const verQuiet = (nav = false) => (nav && document.activeElement?.id === 'qinput' && !document.activeElement.value.trim() || !editing() && !editFocused()) && !$('.modal') && !$('#pop:not(.hidden)') && !$('.qadd.sheet') && !OUT.q.length && !S.multiMode && !verDraft() && !(typeof fgAny === 'function' && fgAny()) && !(typeof upAny === 'function' && upAny());
+function verAway() { return !!document.hidden; }
+const verCalm = (nav = false) => verQuiet(nav) && (nav || verAway());
+let verBusy = false, verWant = false, verSpreadT = 0;
 // 2.1337.0 (#6892): the "Reload" button shows "Loading…" while it waits and is never left disabled: every early exit frees it
 function verBtn(busy) {
   const b = $('#newver [data-nv="go"]'); if (!b) return;
@@ -2050,7 +2070,7 @@ async function verReload(auto = false) {
     // 2.45.0 (#1529): only reload once the page and the stylesheet are really served (the container may still be restarting)
     if (typeof rl_waitServer === 'function' && !await rl_waitServer()) { verWant = false; verBtn(false); return; }
     try { const reg = await navigator.serviceWorker?.getRegistration(); await reg?.update(); } catch { /* no service worker */ }
-    if (auto && !verWant && !verCalm()) return;
+    if (auto && !verWant && !verCalm(auto === 'nav')) return;
     try { sessionStorage.setItem('kalmido-reloaded', S.serverVer); } catch { /* private mode */ }
     leaving = true;
     location.reload();
@@ -2073,6 +2093,8 @@ function verCheck(app) {
   if (!verStale()) { if (el) el.remove(); if (typeof I18N !== 'undefined' && I18N.stale) i18nRetry(); return; }
   let once = ''; try { once = sessionStorage.getItem('kalmido-reloaded') || ''; } catch { /* private mode */ }
   if (once !== S.serverVer && S.verSeen.n >= 2 && verCalm() && verSpreadDue()) { verReload(true); return; }  // 2.619.0 (#3890): + the spread
+  // (#6364): a hidden window gets no poll: calm but its spread time not yet come, it looks again by itself then
+  if (once !== S.serverVer && S.verSeen.n >= 2 && !verSpreadT && verCalm()) verSpreadT = setTimeout(() => { verSpreadT = 0; if (verStale() && verAway()) verCheck(); }, Math.max(0, (S.verSpread?.at || 0) - Date.now()) + 50);
   if (S.verShut === S.serverVer) { if (el) el.remove(); return; }  // 2.1170.0 (#6132): closed for this version (the reload by itself stays)
   if (!el) {
     el = document.createElement('div'); el.id = 'newver'; el.setAttribute('role', 'status');
@@ -2081,7 +2103,15 @@ function verCheck(app) {
   }
   el.title = tr('This window runs v{0}, the server v{1}', APP_VER, S.serverVer);
 }
-document.addEventListener('visibilitychange', () => { if (!document.hidden && verStale()) verCheck(); });
+// (#6364): also when the window goes to the background (the moment it may reload by itself)
+document.addEventListener('visibilitychange', () => { if (verStale()) verCheck(); });
+// (#6364): a window in view reloads at the next change of page - quiet as above (verReload asks once more before it leaves)
+function verNav() {
+  if (!verStale() || verBusy || !verQuiet(true)) return;
+  let once = ''; try { once = sessionStorage.getItem('kalmido-reloaded') || ''; } catch { /* private mode */ }
+  if (once !== S.serverVer) verReload('nav');
+}
+window.addEventListener('hashchange', verNav);
 document.addEventListener('click', e => { const b = e.target.closest?.('[data-nv="go"]'); if (b) { verBtn(true); verReload(); } });
 document.addEventListener('click', e => { if (e.target.closest?.('[data-nv="x"]')) { S.verShut = S.serverVer; $('#newver')?.remove(); } });  // 2.1170.0 (#6132)
 document.addEventListener('visibilitychange', async () => {

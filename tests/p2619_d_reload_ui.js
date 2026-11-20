@@ -49,10 +49,10 @@ const until = fn => until0(fn, {timeout: 20000, step: 100});
   check(w.eval('S.lpN.state') === st0 && w.eval('S.lpN.delta') > dl0,
     `#3890: the first poll took a delta, not the whole state again ${JSON.stringify(w.eval('S.lpN'))} (state was ${st0}, delta ${dl0})`);
 
-  // ================= an update of the server: the reload by itself spread
+  // ================= an update of the server: the reload by itself spread (#6364: by itself only in a window not seen - verAway)
   check(await until(() => w.eval('td_polling ? false : (td_polling = true)')), 'the poll held again');
   const appVer = d.querySelector('meta[name="kalmido-version"]')?.content;
-  w.eval(`window.__realVR = verReload; verReload = () => { window.__rl = (window.__rl || 0) + 1; }; VER_SPREAD_MS = 600000; document.activeElement?.blur?.(); verIdle = Date.now() - 60000; sessionStorage.removeItem('kalmido-reloaded'); window.__rl = 0`);
+  w.eval(`window.__realVR = verReload; verReload = () => { window.__rl = (window.__rl || 0) + 1; }; VER_SPREAD_MS = 600000; document.activeElement?.blur?.(); verIdle = Date.now() - 60000; window.__realAway = verAway; verAway = () => true; sessionStorage.removeItem('kalmido-reloaded'); window.__rl = 0`);
   // quiet: no field, dialog, popover, draft or waiting change (verQuiet holds the reload back otherwise)
   w.eval(`[...document.querySelectorAll('.modal')].forEach(m => m.remove()); const q = document.querySelector('#qinput'); if (q) q.value = ''`);
   const why = () => JSON.stringify(w.eval(`({quiet: verQuiet(), editing: editing(), focused: editFocused(), modal: !!$('.modal'), pop: !!$('#pop:not(.hidden)'), sheet: !!$('.qadd.sheet'), q: OUT.q.length, multi: !!S.multiMode, draft: verDraft(), seen: S.verSeen})`));
@@ -123,7 +123,7 @@ const until = fn => until0(fn, {timeout: 20000, step: 100});
   const fg = await w.eval(`(verIdle = Date.now(), loadModule('t6338').then(() => 'loaded', e => e.stale ? 'stale' : 'err:' + e.message))`);
   check(fg === 'stale' && w.eval('window.__rl') === 1 && w.eval('window.__rla[0]') === undefined && !d.querySelector('script[data-ld="t6338none"]'),
     `#6338 D3: after a click the window reloads first (with the checks of the reload: quiet), the module of the new version is not loaded (${fg}, ${w.eval('window.__rl')})`);
-  w.eval(`window.fetch = window.__f0; verReload = window.__realVR2; delete LD_MODS.t6338; S.serverVer = '${appVer}'; verCheck('${appVer}'); td_polling = false`);
+  w.eval(`window.fetch = window.__f0; verReload = window.__realVR2; verAway = window.__realAway; delete LD_MODS.t6338; S.serverVer = '${appVer}'; verCheck('${appVer}'); td_polling = false`);
   w.close();
 
   console.log(`p2619_d_reload_ui: ${ok} ok, ${F.length} failed`);

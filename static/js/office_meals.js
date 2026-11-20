@@ -8,7 +8,9 @@
 const BW = {data: null, loading: false, err: null, year: String(new Date().getFullYear()), person: '', personName: '', occ: '', view: 'list', rep: null, oid: undefined, gen: 0};
 OFC_TABS.splice(OFC_TABS.findIndex(t => t[0] === 'settings'), 0, /** @type {any} */ (['meals', 'meal', N_('Entertainment receipts'), 1, () => bw_html(), 'money', 'money.meals']));  // admins only, menu group Money
 const BW_U = '/api/office/meals';
-const bw_reload = () => { BW.data = null; BW.rep = null; BW.gen++; ofcDraw(); };  // CI of the train: gen = a load running during a reload is fetched again
+// #7495: the receipts on screen stay (dimmed) until the fresh list is there (gen: a first load running meanwhile is fetched again)
+const bw_reload = () => { BW.rep = null; BW.gen++; ofcRefetch('meals', ofcTab() === 'meals' && !!BW.data, bw_get, () => { BW.data = null; }); };
+const bw_get = async () => { const j = await api('GET', BW_U + (BW.year ? `?year=${BW.year}` : '')); return () => { BW.data = j; BW.err = null; for (const p of OPT) p.put(); }; };  // (#4660): own changes still on the way stay on top
 const bw_meal = id => (BW.data?.meals || []).find(m => m.id === id);
 // 2.559.0 (#4660): saving a draft, deleting and duplicating show at once (optWrite): the list changes locally, the request runs
 // behind it, a refusal puts the old state back (api() says why); the answer's receipt replaces the local one (sums), the list
