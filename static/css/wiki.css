@@ -1,5 +1,9 @@
 /* Kalmido web client: the styles of the module "wiki" (2.65.0, #1824), loaded with it (static/js/lazyload.js LD_CSS).
    Moved unchanged from app.css (same order); later than app.css in the cascade. */
+/* 2.1464.0 (#4742): moved unchanged from start-recent-5352.css, only this module draws them (start budget). They stand before the file's own rules, so the cascade stays as it was. Where only part of a section moved, its comment stands in both places. */
+/* the knowledge overview: its section stands in a flex column with auto margins (start-breite.css), which shrank it to its content */
+.zlefull{width:100%}
+/* the rules of this file */
 /* 2.1305.0 (#4742): moved unchanged from app.css, only this module draws them (start budget). They stand before the file's own rules, so the cascade stays as it was. Where only part of a section moved, its comment stands in both places. */
 /* 2.49.0 C (#1199, #1201): knowledge pages (wiki.js) and the mind map (mindmap.js) */
 .wkitem span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

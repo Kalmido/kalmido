@@ -1,5 +1,11 @@
 /* Kalmido web client: the styles of the module "hubmail" (2.1420.0, #4742), loaded with it (static/js/lazyload.js LD_CSS).
    Moved unchanged from app.css (same order); later than app.css in the cascade. */
+/* 2.1464.0 (#4742): moved unchanged from app.css, only this module draws them (start budget). They stand before the file's own rules, so the cascade stays as it was. Where only part of a section moved, its comment stands in both places. */
+/* 2.84.0 A (#1198) e-mail as an input of the hub: the section "E-mails" (client card, project page), the reading view, the inbox */
+.hbmhl:empty{display:none}
+.hbmrow:last-child{border-bottom:0}
+.hbmpick:hover,.hbmpick:focus-visible{background:var(--bg3)}
+/* the rules of this file */
 .msclh{display:flex;align-items:center;gap:.375rem;margin:0;font-size:var(--fs-m);font-weight:600}
 /* 2.84.0 A (#1198) e-mail as an input of the hub: the section "E-mails" (client card, project page), the reading view, the inbox */
 .hbmwrap{display:flex;flex-direction:column;gap:.5rem}
