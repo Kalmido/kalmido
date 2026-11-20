@@ -1,4 +1,4 @@
-// 2.1493.0 (#7616) the head of the phone's drawer (Firefox, touch, 412 px, invented names only)
+// (#7616) the head of the phone's drawer (Firefox, touch, 412 px, invented names only)
 // kalmido-suite: fresh
 // - the word mark sits on the middle of the bot sign (at most 1 px off), its capital height is about 45 % of the sign's
 //   height (40-50 %), the head stays without a new part (no workspace line, no arrow; #7299)

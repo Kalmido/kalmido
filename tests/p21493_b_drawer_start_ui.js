@@ -1,4 +1,4 @@
-// 2.1493.0 (#7617) the phone's drawer, area Start: under the tiles "Favourites" and "Recently opened" (Firefox, touch, 412 px)
+// (#7617) the phone's drawer, area Start: under the tiles "Favourites" and "Recently opened" (Firefox, touch, 412 px)
 // kalmido-suite: fresh
 // - a favourite (Today) and a project opened before: both groups with their rows; a tap on the favourite opens it and
 //   closes the drawer, a tap on the recent project opens the project and closes the drawer; a group folds like the others
