@@ -102,6 +102,10 @@ DEFAULTS = {
     "pr_cmd": "gh pr create --head {branch} --base {base} --title {title} --body-file -",  # opens the pull request and prints
                               # its address; {branch} {base} {title} are filled in per argument, the body comes on stdin;
                               # only from KALMIDO_DISPATCH_PR_CMD
+    "approved_cmd": "",       # (#7562): run ONCE after the person's yes on the card "Ready to merge" (state approved), so the
+                              # one who integrates sees the yes at the git server (e.g. a label on the pull request); "" = nothing;
+                              # {url} {number} {branch} {base} {title} filled in per argument, no shell, no stdin; never merges;
+                              # only from KALMIDO_DISPATCH_APPROVED_CMD
     "brief_extra": "",        # more text for every brief (the project's rules)
     "max_writes": 40,         # writes (comments, closes) per tick
     "stau_max": 10,           # 2.1368.0 (#4060): more tasks built but not landed (on a branch) than this hold new starts (0 = never)
@@ -113,7 +117,7 @@ DEFAULTS = {
 # 2.1368.0 (#7028, review F2): what the dispatcher RUNS comes only from the runner's environment (its env file), never from
 # KALMIDO-DISPATCH.json: the project folder is the agent's working place, a job could write a command there that the
 # dispatcher would then run with the runner's rights. Such a key in the file is not used and keeps the dispatcher idle.
-EXEC_KEYS = {"check_cmd": "KALMIDO_DISPATCH_CHECK_CMD", "pr_cmd": "KALMIDO_DISPATCH_PR_CMD",
+EXEC_KEYS = {"check_cmd": "KALMIDO_DISPATCH_CHECK_CMD", "pr_cmd": "KALMIDO_DISPATCH_PR_CMD", "approved_cmd": "KALMIDO_DISPATCH_APPROVED_CMD",
              "push_remote": "KALMIDO_DISPATCH_PUSH_REMOTE", "base": "KALMIDO_DISPATCH_BASE", "push_url": "KALMIDO_DISPATCH_PUSH_URL"}
 # the check runs the branch's code: its environment carries no Kalmido variables and no credentials
 SECRET_ENV_RX = re.compile(r"(?i)^(KALMIDO_|GH_|GITHUB_|ANTHROPIC_|OPENAI_|AWS_|SSH_AUTH_SOCK$|GIT_ASKPASS$|SSH_ASKPASS$)"
@@ -1004,6 +1008,31 @@ def push_url_ok(cfg, repo):
     return True, ""
 
 
+APPROVED_WAIT_D = 30  # (#7562): a card without a decision this many days after it went out is no longer looked at
+APPROVED_RX = re.compile(r"\{(url|number|branch|base|title)\}")
+
+
+def approved_args(cfg, url, branch, base, title):
+    """(#7562): approved_cmd as an argument list (no shell); the placeholders filled in per argument in ONE pass (a title
+    that itself contains "{url}" stays text)."""
+    import shlex
+    m = re.search(r"(\d+)/?$", url or "")
+    vals = {"url": url or "", "number": m.group(1) if m else "", "branch": branch, "base": base, "title": title}
+    return [APPROVED_RX.sub(lambda x: vals[x.group(1)], a) for a in shlex.split(cfg["approved_cmd"])]
+
+
+def card_state(api, tid, url):
+    """(#7562): the state (open / approved / rejected) of the agent's card "Ready to merge" for the pull request url on task
+    tid; None = no such card readable (yet)."""
+    r = api.req("GET", f"/tasks/{int(tid)}/comments") or {}
+    st = None
+    for k in (r.get("data", []) if isinstance(r, dict) else r) or []:
+        sug = k.get("suggestion") if isinstance(k, dict) else None
+        if isinstance(sug, dict) and sug.get("kind") == "merge_request" and sug.get("pr_url") == url and (k.get("author") or {}).get("agent"):
+            st = sug.get("state") or "open"
+    return st
+
+
 # #7170: https:// or ssh:// with an optional user and port, or the scp form user@host:owner/repo
 PR_URL_RX = re.compile(r"^(?:(?:https|ssh)://(?:[^/@\s]+@)?|[\w.-]+@)([\w.-]+)(?::\d+)?[:/]([\w.-]+)/([\w.-]+?)(?:\.git)?/?$")
 
@@ -1321,6 +1350,8 @@ class Dispatcher:
         for jid, e in list(self.reg["jobs"].items()):
             if w is not None and e.get("read") and not e.get("carded"):  # 2.1413.0 (#7032)
                 self.after_read(jid, e, jobs, cfg, now, res, w)
+            if w is not None and e.get("carded") and e.get("pr") and not e.get("approved") and str(cfg.get("approved_cmd") or "").strip():
+                self.after_approval(jid, e, cfg, now, res, w)  # (#7562)
             j = jobs.get(str(jid))
             st = (j or {}).get("state") or "lost"
             if st in RUNNING:
@@ -1413,8 +1444,8 @@ class Dispatcher:
             e["land"] = "no_pr"
             self.finding(res, f"nopr:{jid}", self.say("dispatch_pr_failed", f"#{jid}", br, why))
             return
-        e["land"], e["pr"] = "pr", url
-        e["card"] = {"tids": tids, "summary": summary}
+        e["land"], e["pr"], e["branch"], e["pr_title"] = "pr", url, br, title[:200]  # (#7562): branch / title for approved_cmd
+        e["card"] = {"tids": tids, "summary": summary, "repo": repo}
         if not cfg["read_pr"]:
             self.post_card(jid, e, res, w)
             return
@@ -1467,8 +1498,49 @@ class Dispatcher:
             self.finding(res, f"pr:{jid}", self.say("dispatch_pr_nocard", f"#{jid}", url, " ".join(f"#{t}" for t in tids),
                                                     READ_LINE.get(verdict, READ_LINE["none"]) if verdict else "not read (reading is off)"))
             return
-        e["carded"] = True
+        e["carded"], e["carded_at"] = True, time.time()
         self.finding(res, f"pr:{jid}", self.say("dispatch_pr", f"#{jid}", url, " ".join(f"#{t}" for t in tids)))
+
+    def after_approval(self, jid, e, cfg, now, res, w):
+        """(#7562): the dispatcher reads the state of its own card "Ready to merge". approved: approved_cmd runs exactly once
+        (marked before the run, so a cut round never runs it twice); rejected: nothing, never again; open: looked at again
+        next round, for APPROVED_WAIT_D days. A failing command is told to the person once, never tried again. It never
+        merges and never moves the target branch; no other project's card is read."""
+        if w.dry or len(w.done) >= w.limit:
+            return
+        tids = (e.get("card") or {}).get("tids") or []
+        if not tids:
+            e["approved"] = "none"
+            return
+        e.setdefault("carded_at", now)  # a card of an older version: counted from now
+        if now - float(e["carded_at"]) > APPROVED_WAIT_D * 86400:
+            e["approved"] = "expired"
+            return
+        try:
+            st = card_state(self.host.api, tids[0], e["pr"])
+        except Exception as x:  # noqa: BLE001 - an unreadable comment list never ends the round
+            log(f"card of {e['pr']}: {type(x).__name__}")
+            return
+        if st == "rejected":
+            e["approved"] = "rejected"
+            return
+        if st != "approved":
+            return
+        e["approved"] = "running"
+        self.save()
+        w.done.append(f"approved_cmd for {e['pr']}")
+        repo = ((e.get("card") or {}).get("repo")) or self.project_dir
+        args = approved_args(cfg, e["pr"], e.get("branch") or f"job/{jid}", base_of(cfg, repo), e.get("pr_title") or "")
+        try:
+            p = subprocess.run(args, cwd=repo, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=180, env=pr_env(cfg))
+            why = "" if p.returncode == 0 else f"exit {p.returncode}"
+        except (OSError, subprocess.SubprocessError, ValueError) as x:
+            why = type(x).__name__
+        e["approved"] = "failed" if why else "done"
+        if why:
+            self.finding(res, f"approved:{jid}", self.say("dispatch_approved_failed", f"#{jid}", e["pr"], why))
+        else:
+            log(f"approved_cmd ran for {e['pr']}")
 
     def after_read(self, jid, e, jobs, cfg, now, res, w):
         """2.1413.0 (#7032): the reading job of a landed pull request ended (or read_wait_h went by since the landing): the card

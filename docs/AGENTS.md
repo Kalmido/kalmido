@@ -3494,6 +3494,13 @@ dispatcher (`core.hooksPath=/dev/null` for push and working copies):
   as `request_merge_approval`) on the bundle's first task. The person is told once with the address.
 - **Merging and deploying stay the person's**: the dispatcher never merges, never pushes the target branch and never
   deploys. The tasks show *on a branch* until their commits reach `close_ref`; then they are closed as above.
+- **After the yes** (#7562): when the integrating agent or person works in another project, it cannot read the card. With
+  `approved_cmd` (only from `KALMIDO_DISPATCH_APPROVED_CMD` in the runner's env file; default empty = nothing) the
+  dispatcher reads the state of its own card each round and, once it stands on *approved*, runs that command exactly once -
+  e.g. `gh pr edit {number} --add-label approved` -, so the yes is visible at the git server. No shell, no stdin; `{url}`
+  `{number}` `{branch}` `{base}` `{title}` are filled in per argument; it runs in the project folder with the environment of
+  `pr_cmd`. *Rejected* or no decision within 30 days: nothing. A failing command is told to the person once and never tried
+  again. The command never merges; no agent reads the cards of another project for it.
 
 Protect the target branch on the git server as well (only by pull request, the project's CI as the required check), and
 give the token on this computer write access to that one repository only. `KALMIDO_JOB_WORKTREES` (default 2) caps the
@@ -3505,7 +3512,8 @@ at the default. `worktree` and `finish_cmd` are retired (2.1368.0): named once i
 
 What the dispatcher runs comes only from the runner's env file, never from the project folder (the agent can write
 there): `KALMIDO_DISPATCH_CHECK_CMD` (`check_cmd`), `KALMIDO_DISPATCH_PR_CMD` (`pr_cmd`), `KALMIDO_DISPATCH_PUSH_REMOTE`
-(`push_remote`), `KALMIDO_DISPATCH_PUSH_URL` (`push_url`, 2.1400.0) and `KALMIDO_DISPATCH_BASE` (`base`). One of these keys in
+(`push_remote`), `KALMIDO_DISPATCH_PUSH_URL` (`push_url`, 2.1400.0), `KALMIDO_DISPATCH_BASE` (`base`) and `KALMIDO_DISPATCH_APPROVED_CMD`
+(`approved_cmd`, #7562). One of these keys in
 `KALMIDO-DISPATCH.json` is not used: the dispatcher stays idle and names it.
 
 How a job lands (2.1400.0): the dispatcher notes the commit at the head of `job/<id>`, checks it out into a fresh temporary

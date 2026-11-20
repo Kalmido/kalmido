@@ -255,7 +255,8 @@ by hand. Go through this list before the first run; each line names what goes wr
   project's CI as the required check, no force-push, no changing tags. Merging and deploying stay with a person.
 - [ ] **The dispatcher ends in a pull request** ([Working a list off](AGENTS.md#working-a-list-off-24810)):
   `KALMIDO_DISPATCH_CHECK_CMD` and `KALMIDO_DISPATCH_PUSH_URL` set in the runner's env file (and `KALMIDO_DISPATCH_PR_CMD` for
-  the project's git server; 2.1400.0: the check runs on a fresh copy of the job's commit, exactly that commit is pushed, and
+  the project's git server, `KALMIDO_DISPATCH_APPROVED_CMD` only if the yes on the card should reach the git server and only
+  with a token that may label or comment, never merge; 2.1400.0: the check runs on a fresh copy of the job's commit, exactly that commit is pushed, and
   a repository config that could run a command or redirect the push stops the landing),
   `places` 1. The check runs the code of the job's branch with the runner's user: it gets no Kalmido variables and no
   tokens, but anything else that user can read, it can read too - so run the runner as the dedicated user above.
