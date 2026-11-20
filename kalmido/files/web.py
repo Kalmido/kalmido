@@ -205,15 +205,21 @@ def files_list():
             raise Denied(409, tr("Not a folder"))
         lim = request.args.get("limit", type=int)
         lim = max(1, min(lim, FS_PAGE_MAX)) if lim else None
-        if lim:  # #6405: one page, in fs_sort_key's order (the rows the rules below leave out count against it)
-            rows = c.execute(f"SELECT * FROM fs_nodes WHERE parent_id=? AND {live_sql()} ORDER BY kind <> 'folder', sort_no IS NULL, "
-                             "sort_no, lower(name), id LIMIT ?", (pid, lim + 1)).fetchall()
+        # mail files (#2488), a closed area's root (#2742), accounting (#6953): the one rule (store.py) fs_children_visible
+        if lim:  # #6405: one page in fs_sort_key's order; more counts only children uid may list (hidden ones never show)
+            rows, off = [], 0
+            while True:
+                batch = c.execute(f"SELECT * FROM fs_nodes WHERE parent_id=? AND {live_sql()} ORDER BY kind <> 'folder', "
+                                  "sort_no IS NULL, sort_no, lower(name), id LIMIT ? OFFSET ?", (pid, lim + 1, off)).fetchall()
+                rows += fs_children_visible(c, uid, n, batch)
+                off += len(batch)
+                if len(rows) > lim or len(batch) <= lim:
+                    break
             more = len(rows) > lim
             rows = rows[:lim]
         else:
-            rows, more = c.execute("SELECT * FROM fs_nodes WHERE parent_id=? AND deleted_at IS NULL ORDER BY id", (pid,)).fetchall(), False
-        # mail files (#2488), a closed area's root (#2742), accounting (#6953): the one rule (store.py)
-        rows = fs_children_visible(c, uid, n, rows)
+            rows, more = fs_children_visible(c, uid, n, c.execute("SELECT * FROM fs_nodes WHERE parent_id=? AND deleted_at IS NULL "
+                                                                  "ORDER BY id", (pid,)).fetchall()), False
         fs_log_add(c, pid, "list")
         c.commit()
         chain = fs_chain(c, pid)

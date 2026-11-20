@@ -14,7 +14,8 @@ tenant-matrix: files  freelancer-matrix: files
  - the plan: with sequential scans off, the new subquery reads fs_nodes through indexes only (EXPLAIN)
  - a folder's listing: the statements of GET /api/files?parent for a member without ownership stay the same (at most +2)
    for 30 more children (was a chain and a share query per row); the same items and roles as before
- - ?limit=10: ten children, folders first, more=true; limit 100: all of them, more=false; without limit all, more=false
+ - ?limit=10: ten children, folders first, more=true; limit 100: all of them, more=false; without limit all, more=false;
+   children bob may not list (a mail file) after the page never set more
  - crumbs: bob in a subfolder of the folder shared with him sees the path from that folder down, not the closed folder above it
  - trash: alice's trash lists the deleted tops only (not what lies inside a deleted folder), roles owner; its statements
    stay the same (at most +2) for 12 more entries
@@ -277,6 +278,14 @@ check(rp.ok and len(it) == 10 and jp.get("more") is True, f"limit=10: ten childr
 check([x["kind"] for x in it[:5]] == ["folder"] * 5 and it[5]["name"] == "item 006", f"limit=10: folders first, then by name {[x['name'] for x in it]}")
 rp, jp = listing(Bo, BIG2, "&limit=100")
 check(len(jp.get("items", [])) == 60 and jp.get("more") is False, "limit=100: all 60, more=false")
+# reader F2 (job/5834): children bob may not list (filed with a mail he cannot read) never count for more
+for k in range(3):
+    kt.dbx("INSERT INTO fs_nodes(parent_id, kind, name, owner_id, org_id, org_access, created_by, created_at, updated_at, hub_mail_id) "
+           "SELECT id, 'file', ?, owner_id, org_id, '', created_by, created_at, updated_at, 999999 FROM fs_nodes WHERE id=?", (f"zz hidden {k}", BIG))
+rp, jp = listing(Bo, BIG, "&limit=30")
+check(rp.ok and len(jp.get("items", [])) == 30 and jp.get("more") is False, f"limit=30: hidden children after the page give no more {jp.get('more')}")
+rp, jp = listing(Bo, BIG, "&limit=29")
+check(len(jp.get("items", [])) == 29 and jp.get("more") is True, "limit=29: more=true for the visible 30th")
 rc, jc = listing(Bo, C1b)
 check(rc.ok and [x["id"] for x in jc.get("crumbs", [])] == [C1, C1b], f"crumbs: from the folder shared with bob down {jc.get('crumbs')}")
 rc, jc = listing(A, C1b)
