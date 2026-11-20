@@ -19744,5 +19744,18 @@
   "Only an open task can be confirmed": "Alleen een open taak kan worden bevestigd",
   "Only an open task can be rejected": "Alleen een open taak kan worden afgewezen",
   "Rejecting needs a reason": "Afwijzen vraagt een reden",
-  "The text changed since you read it: look at it again, then confirm": "De tekst is veranderd sinds je hem las: bekijk hem opnieuw en bevestig dan"
+  "The text changed since you read it: look at it again, then confirm": "De tekst is veranderd sinds je hem las: bekijk hem opnieuw en bevestig dan",
+  "Orders to confirm": "Opdrachten om te bevestigen",
+  "Nothing waits for you any more": "Er wacht niets meer op je",
+  "Answer it on its card: it shows what Yes does": "Beantwoord het op de kaart: daar staat wat Ja doet",
+  "Keys: y yes, n no, j next, k back": "Toetsen: y ja, n nee, j volgende, k terug",
+  "Only online": "Alleen online",
+  "Open the chat": "Chat openen",
+  "Open the target": "Naar het doel",
+  "Open the task to confirm it": "Open de taak om hem te bevestigen",
+  "Waiting for me: next entry": "Wacht op mij: volgende item",
+  "Waiting for me: entry before": "Wacht op mij: vorig item",
+  "Waiting for me: yes (only where an entry has exactly yes and no)": "Wacht op mij: ja (alleen waar een item precies ja en nee heeft)",
+  "Waiting for me: no (only where an entry has exactly yes and no)": "Wacht op mij: nee (alleen waar een item precies ja en nee heeft)",
+  "Yes to the one-way step": "Ja op de stap zonder terugweg"
 }

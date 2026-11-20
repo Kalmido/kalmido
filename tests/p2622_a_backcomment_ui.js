@@ -2,7 +2,7 @@
 // kalmido-suite: fresh
 // gesture = a step back in the browser history, here browsingContext.traverseHistory, NOT the Back button in the task's head)
 // after a comment. "Waiting for me" -> a task (a row far down, the list scrolled) -> a comment typed, a person picked from the
-// @ suggestions, sent -> ONE Back closes the task and shows "Waiting for me" at the same place, a second Back the view before.
+// @ suggestions, sent -> ONE Back closes the task and shows "Waiting for me" with the entry it came from (#7538), a second Back the view before.
 // The same walk without a comment and with a plain comment (no suggestions). Invented names only.
 // freelancer-matrix: tasks (alice's own lists; the mention needs a second person on the list)
 const {execFileSync} = require('child_process');
@@ -64,13 +64,16 @@ const call = async (method, url, body, ck = CK) => { const r = await fetch(B + u
       await o.nav(B + '#today'); await idle();
       check(await until(`!S.sel && location.hash === '#today'`), tag + ' Today without an open task');
       await ev(`(location.hash = 'mine_wait', 1)`);
-      check(await until(`[...document.querySelectorAll('#view .mwg a.mwa')].length >= 30`), tag + ' "Waiting for me" lists the 30 reviews');
+      check(await until(`[...document.querySelectorAll('#view .mwg [data-mw="open"]')].length >= 30`), tag + ' "Waiting for me" lists the 30 reviews');
       // the row far down, the list scrolled so it stands in the middle
-      const y0 = await ev(`(() => { const a = [...document.querySelectorAll('#view .mwg a.mwa')].find(x => x.textContent.includes(${JSON.stringify(title)})); a.scrollIntoView({block: 'center'}); return document.querySelector('#view').scrollTop; })()`);
+      const y0 = await ev(`(() => { const a = [...document.querySelectorAll('#view .mwg [data-mw="open"]')].find(x => x.textContent.includes(${JSON.stringify(title)})); a.scrollIntoView({block: 'center'}); return document.querySelector('#view').scrollTop; })()`);
       check(y0 > 150, `${tag} the list is scrolled (${y0})`);
       await sleep(50);  // a touch tap right after the scroll: the scroll has settled in the frame before
       await log(tag + ' list');
-      check(await tap(`#view .mwg a.mwa[href="#t/${tid}"]`), tag + ' the row is tapped');
+      check(await tap(`#view .mwg [data-mw="open"][data-k="review:${tid}"]`), tag + ' the row is tapped');
+      // 2.1494.0 (#7538): a row opens its entry over the view (a phone); its link leads to the task
+      check(await until(`!!document.querySelector('#view .mwone .mwp a.mwgo[href="#t/${tid}"]')`), tag + ' the entry is open');
+      check(await tap(`#view .mwp a.mwgo[href="#t/${tid}"]`), tag + ' the link to the task is tapped');
       check(await until(`S.sel === ${tid} && !!document.querySelector('#detail.open #c-input')`), tag + ' the task is open with its comment box');
       await idle();
       await log(tag + ' open');
@@ -97,12 +100,9 @@ const call = async (method, url, body, ck = CK) => { const r = await fetch(B + u
       }
       // the first system Back: the task closes, "Waiting for me" at the same place
       await back();
-      const closed = await until(`!S.sel && location.hash === '#mine_wait' && !!document.querySelector('#view .mwg')`);
+      const closed = await until(`!S.sel && location.hash === '#mine_wait' && !!document.querySelector('#view .mwp a.mwgo[href="#t/${tid}"]')`);
       await log(tag + ' back 1');
-      check(closed, `${tag} ONE Back closes the task and shows "Waiting for me" (${await ev(HS)})`);
-      await until(`Math.abs(document.querySelector('#view').scrollTop - ${y0}) < 40`, {timeout: 3000});
-      const y1 = await ev(`document.querySelector('#view').scrollTop`);
-      check(Math.abs(y1 - y0) < 40, `${tag} the list stands where it was (${y0} -> ${y1})`);
+      check(closed, `${tag} ONE Back closes the task and shows "Waiting for me" with the entry it came from (#7538) (${await ev(HS)})`);
       await sleep(300);  // no late step: the panel stays closed
       check(await ev(`!S.sel && location.hash === '#mine_wait'`), `${tag} the task stays closed (${await ev(HS)})`);
       // the second Back: the view before

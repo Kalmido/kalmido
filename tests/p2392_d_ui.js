@@ -1,6 +1,6 @@
 // kalmido-suite: fresh
 // 2.392.0 D (#3369) UI tests, own container (start.sh): the view "Waiting for me" (jsdom). The sidebar row appears only while
-// something waits, the view groups by kind, a row leads to its task, a job keeps its buttons, the Today card links to the view,
+// something waits, the view groups by kind, a row opens its entry with the link to its task (#7538), a job keeps its buttons, the Today card links to the view,
 // the empty state is plain. A person without an organisation (freelancer-matrix: tasks).
 const {execFileSync} = require('child_process');
 const path = require('path');
@@ -51,9 +51,12 @@ const until = async (fn, n = 40) => { for (let i = 0; i < n; i++) { const x = aw
   await w.eval(`mwLoad(true)`); w.eval(`go('mine_wait')`); await idle(w);
   const secs = await until(() => { const s = [...d.querySelectorAll('.mwg h3')].map(x => x.textContent); return s.length >= 3 ? s : null; });
   check(secs && /Approvals/.test(secs.join()) && /Reviews/.test(secs.join()) && /Jobs/.test(secs.join()), 'grouped by kind ' + JSON.stringify(secs));
-  const a = [...d.querySelectorAll('.mwg a.mwa')].find(x => /Publish the page/.test(x.textContent));
-  check(a && a.getAttribute('href') === `#t/${T}`, 'a row leads to its task');
+  // 2.1494.0 (#7538): a row opens its entry in the view; the jump to its task is the entry's link
+  const a = [...d.querySelectorAll('.mwg [data-mw="open"]')].find(x => /Publish the page/.test(x.textContent));
   check(/Release/.test(a?.textContent || ''), 'the row names its project');
+  a?.click(); await idle(w);
+  const go = await until(() => d.querySelector('.mwp a.mwgo'));
+  check(go && go.getAttribute('href') === `#t/${T}` && /Publish the page/.test(d.querySelector('.mwp .mwpt')?.textContent || ''), 'a row opens its entry, which leads to its task');
   check(!!d.querySelector('.mwg [data-act="job-do"][data-a="approve"]'), 'a waiting job keeps its buttons');
   check(!/e2e1:/.test(d.querySelector('#view').textContent), 'no cipher shown');
 
