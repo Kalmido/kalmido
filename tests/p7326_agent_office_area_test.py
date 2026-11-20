@@ -74,7 +74,8 @@ def card_href(s, aid_tok, mid):
     r = s.get(B + f"/api/agents/{ag}/chat")
     msgs = r.json().get("messages") or [] if r.ok else []
     m = next((x for x in msgs if x.get("id") == mid), None)
-    return next((x.get("href") for x in (m or {}).get("choices") or [] if x.get("id") == "open"), None)
+    ch = (m or {}).get("choices") or {}
+    return next((x.get("href") for x in (ch.get("choices") if isinstance(ch, dict) else ch) or [] if x.get("id") == "open"), None)
 
 
 kt.fresh({"KALMIDO_INSTANCE_MODE": "workspaces"}, prefix="P7326")
