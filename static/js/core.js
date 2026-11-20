@@ -274,7 +274,7 @@ function newMenu(anchor) {
   menu(anchor, [{label: tr(o.label), icon: o.icon || 'plus', fn: () => o.run()}, ...more]);
   return true;
 }
-const noFab = () => (!newCur() && ['habits', 'pomo', 'news', 'stats', 'time', 'overview', 'agents', 'team', 'notes', 'family', 'contacts', 'life', 'review', 'clients', 'workload', 'office', 'ablage', 'docs', 'wiki', 'tags', 'budget', 'msv', 'feeds', 'sheets', 'bookmarks', 'reading'].includes(S.route.mod)) || NOLIST_KEYS.includes(S.route.key) || isOverview() || lmiss_id()  /* 2.1205.0 (#6133): no + on a project that is not there */
+const noFab = () => (!newCur() && ['habits', 'pomo', 'news', 'stats', 'time', 'overview', 'agents', 'team', 'notes', 'family', 'contacts', 'life', 'review', 'clients', 'workload', 'office', 'ablage', 'docs', 'wiki', 'tags', 'budget', 'msv', 'feeds', 'sheets', 'bookmarks', 'reading'].includes(S.route.mod)) || NOLIST_KEYS.includes(S.route.key) || isOverview() || lmiss_id()  /* (#6133): no + on a project that is not there */
   || (/^l:\d+$/.test(S.route.key || '') && !!listById(+S.route.key.slice(2)) && !canAddTo(+S.route.key.slice(2)));  // 2.147.2 A (#2500): no + in a list I may not add to
 // package 3: progress bar / overview (switch "progress"), project status (+ collaboration), custom fields, dependencies
 // 2.13.0 (#453, Fold screenshots): the round + only on phones; tablets / an unfolded Fold add with the docked "Add task"

@@ -24,7 +24,7 @@ async function msvDraw(md) {
   // the section stands in Settings > Account after storage (the place data-msvat, #6368: was above "For advanced users")
   let box = $('#s-msv', md);
   if (!box) {
-    // 2.1353.0 (#6827): the sections are folded head rows (settings.js sf_*): Servers is one of its own
+    // (#6827): the sections are folded head rows (settings.js sf_*): Servers is one of its own
     const anchor = $('[data-pane="account"] [data-msvat]', md); if (!anchor) return;
     const sec = document.createElement('div'); sec.className = 'msvsec'; sec.innerHTML = msvHtml();
     anchor.before(sec); if (typeof sf_wrap === 'function' && $('[data-pane="account"] details.sfold', md)) sf_wrap(sec, 'account'); box = $('#s-msv', md);
