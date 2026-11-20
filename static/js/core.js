@@ -743,9 +743,11 @@ if (globalThis.navigator?.serviceWorker) navigator.serviceWorker.addEventListene
 // 2.21.0 (#673): before the first render there is no top bar to update (renderTop on an empty state threw, so a start while
 // the server was down showed the error page instead of the cached data); the boot's render shows the state
 function setOnline(b) { if (OUT.online !== b) { OUT.online = b; if (S.booted) renderTop(); if (!b && S.booted && typeof botStartle === 'function') botStartle();  /* 2.165.0 (#2613) */ if (b) flush(); setTimeout(() => typeof staleDraw === 'function' && staleDraw(), 0); } }
-// 2.13.4 (p210 flake, a real race): every write counts up when it starts and when it ends (S.wseq), so load() can tell that
-// a write finished while its GET /api/state was on the way: that answer may predate the write and would undo it locally
-// (S.settings went back to the old value; an Undo right after then saw "changed elsewhere" and skipped the step)
+// 2.1474 (#7150): the order of my writes and the states I fetch is the server's: every write's answer carries the version it
+// moved the server to (X-Kalmido-V, core/db.py lv_self_header), S.wv = the highest one heard, S.wfly = my writes still on
+// their way (their version not known yet). A state (or delta) with v < S.wv predates a write of mine (load / lpDelta, applyState).
+// (Was: a client counter S.wseq, a GET fetched up to three times, a finished write kept two minutes.)
+const wvHeard = v => { if (v > (S.wv || 0)) S.wv = v; };
 // 2.369.0 A (#3200): every page of GET /api/office/docs (a list that must not stop at one page; f: rawFetch or api)
 async function docsAll(url, f = rawFetch) {
   const rows = [];
@@ -791,13 +793,13 @@ async function rawFetch(method, url, body, key, osp, oq) {  // key: 2.270.0 C (#
   if (typeof le2eOut === 'function') body = await le2eOut(method, url, body);
   const in_ = j => typeof le2eIn === 'function' ? le2eIn(j, url) : j;
   if (method === 'GET') return in_(await rawFetch0(method, url, body, undefined, osp, oq));
-  S.wseq = (S.wseq || 0) + 1;
+  S.wfly = (S.wfly || 0) + 1;  // 2.1474 (#7150)
   try { return in_(await rawFetch0(method, url, body, key, osp, oq)); }
   catch (e) {  // 2.64.1 (#1817): a move missed texts (a subtask in the trash): fetched, converted, sent once more
     const b2 = e.data?.code === 'list_e2e_move' && e.data.need && typeof le2eFix === 'function' ? await le2eFix(url, body, e.data.need).catch(() => null) : null;
     if (!b2) throw e;
     return in_(await rawFetch0(method, url, b2, key, osp, oq));
-  } finally { S.wseq++; }
+  } finally { S.wfly--; if (!S.wfly && S.wvAgain) ldAgain(); }  // 2.1474 (#7150)
 }
 // 2.298.0 C (#3187): a status code in words when the server sent no text (413 / 429 / 5xx; any other stays "Error 404").
 function httpErrText(st) {
@@ -859,6 +861,7 @@ async function rawFetch0(method, url, body, key, osp, oq) {
   if (ug) { if (j && typeof j === 'object') Object.defineProperty(j, '_ugid', {value: ug, configurable: true}); if (!(OUT.flushing && key)) histUgid(ug, url); }  // an outbox entry's group: through its answer (e.res)
   if (method !== 'GET' && typeof oun_ok === 'function') oun_ok(method, url, j);  // 2.111.0 A (#2233)
   if (method !== 'GET' && typeof lpOwnNote === 'function') lpOwnNote(r.headers.get('X-Kalmido-Lv'));  // 2.280.0 A (#3109): liveparts.js
+  if (method !== 'GET') wvHeard(+(r.headers.get('X-Kalmido-V') || 0));  // 2.1474 (#7150)
   return j;
 }
 // 2.284.2: a job number read from a chat text / a job tag / the address: only a positive whole number is asked for (never 0,
@@ -1622,7 +1625,7 @@ function userSwitch(id) {
 }
 // 2.489.0 C (#2656): public links of this kind may be made (the instance switch and the kind's switch; the server checks too)
 const pubOn = kind => !!S.publicLinks && !(S.publicLinksOff || []).includes(kind);
-function applyState(j, w0) {  // w0: S.wseq when its GET /api/state started (ld_go), 2.607.0 (#4901)
+function applyState(j) {
   if (j.me) {  // another user than last time in this browser: drop everything local of the previous one (userSwitch)
     const last = LS.get('uid', null);
     if (last !== null && last !== j.me.id) {
@@ -1700,7 +1703,9 @@ function applyState(j, w0) {  // w0: S.wseq when its GET /api/state started (ld_
   if (j.evsig !== undefined && j.evsig !== S.evsig) { S.evsig = j.evsig; if (S.booted) calInvalidate(); }
   // language changed on another device: switch once its file is loaded (the boot awaits it itself)
   if (S.booted && (j.settings.lang || 'en') !== I18N.code) i18nLoad(j.settings.lang).then(ok => { if (ok) render(); });
-  for (const p of OPT_DONE) { if ((w0 != null && p.end <= w0) || Date.now() - p.at > 120000) OPT_DONE.delete(p); else p.put(); }  // 2.607.0 (#4901)
+  // 2.1474 (#7150): a finished write of mine stays on top of a state that predates it (v < the write's version) and goes as
+  // soon as a state holds it
+  for (const p of OPT_DONE) { if (j.v != null && j.v >= p.v) OPT_DONE.delete(p); else p.put(); }  // 2.607.0 (#4901)
   for (const p of OPT) p.put();  // 2.41.2 (#1501): own changes still on the way stay on top of a state fetched meanwhile
   if (typeof ws_gone === 'function') ws_gone();  // (#7297): a workspace really gone = switched with a note, never silently
   if (typeof le2eState === 'function') le2eState();  // 2.64.1 (#1817): locked lists, ciphers of the offline cache
@@ -1708,12 +1713,12 @@ function applyState(j, w0) {  // w0: S.wseq when its GET /api/state started (ld_
 // 2.41.2 (#1501): optimistic writes. A click shows at once: put() changes the local state and returns how to take it back,
 // the request runs behind it (no GET /api/state afterwards; other devices / tabs get it with the live update). An error
 // (api() said why) puts the old state back. While the request runs, a state that arrives (the poll's load()) gets the
-// change again on top, so the own change never flickers back; a state fetched across the write's end is fetched again (wseq).
+// change again on top, so the own change never flickers back; a state older than the write's version gets it too (OPT_DONE).
 const OPT = new Set();
 // 2.607.0 (#4901, CI red p271_ui): a load() that began before an own write and was overtaken by writes three times in a row
 // is applied all the same (ld_go); the write's change was no longer in OPT then and flipped back (a list's view went back to
-// "list" after "Timeline"). A finished write stays here with S.wseq at its end until a state arrives whose GET began after
-// it (applyState's w0 >= end: the server's answer holds it), at most two minutes.
+// "list" after "Timeline"). A finished write stays here with its version (p.v: S.wv once its answer is in, X-Kalmido-V) until a
+// state arrives that holds it (its v >= p.v, 2.1474 #7150: no time limit, no client counter).
 const OPT_DONE = new Set();
 // 2.651.0 (#5064, #5076): o.mod = the change lives in a module's own data (RSS, BW, BG ...), not in S: applyState never
 // overwrites it and the module's loader puts what is still on its way (OPT) itself, so a finished write is not kept for
@@ -1721,7 +1726,7 @@ const OPT_DONE = new Set();
 async function optWrite(put, req, draw = render, o) {  // draw: how the screen follows (default: everything)
   const p = {put}, back = put();
   OPT.add(p); draw();
-  try { const r = await req(); p.end = S.wseq || 0; p.at = Date.now(); if (!o?.mod) OPT_DONE.add(p); return r; }
+  try { const r = await req(); p.v = S.wv || 0; if (!o?.mod) OPT_DONE.add(p); return r; }
   catch (e) { OPT.delete(p); back?.(); draw(); throw e; }
   finally { OPT.delete(p); }
 }
@@ -1740,6 +1745,16 @@ function optSet(get, vals) {
 // 2.545.0 (#4483): a reload of the live update while another load() is on its way does not fetch /api/state a second time:
 // it waits for that one and fetches once more only when the version the poll saw (want) is still newer afterwards
 let ld_run = null;
+// 2.1474 (#7150): a state applied while writes of mine were on their way (or older than one): once they are all answered and
+// one moved the server past the state shown, the state comes again (one load, drawn as a change from elsewhere)
+// (never a loop: a load begun here that is still older leaves it to the live poll)
+function ldAgain() {
+  if (!S.wvAgain || S.wvBusy || S.wfly) return;
+  S.wvAgain = false;
+  if (!((S.wv || 0) > (S.v || 0)) || !S.booted) return;
+  S.wvBusy = true;
+  load().then(() => { if (typeof td_renderSoon === 'function') td_renderSoon(); else render(); }).catch(() => {}).finally(() => { S.wvBusy = false; });  // drawn as the live poll does
+}
 async function load(auto, want) {
   if (auto && ld_run) {
     const r = await ld_run.catch(() => {});
@@ -1749,19 +1764,21 @@ async function load(auto, want) {
   try { return await p; } finally { if (ld_run === p) ld_run = null; }
 }
 async function ld_go(auto) {
-  let j, ld_w0 = null;
+  let j;
   try {
     if (typeof lgo_pending === 'function') await lgo_pending();  // 2.743.0 (#4284): a sign-out made offline ends its session first
-    let crossed = false;
-    for (let i = 0; i < 3; i++) {  // 2.13.4: an answer that a write overtook is fetched again (see rawFetch)
-      const w0 = ld_w0 = S.wseq || 0;  // 2.607.0 (#4901): for applyState (OPT_DONE)
-      j = await api('GET', (auto && !i ? '/api/state?auto=1&' : '/api/state?') + 'td=2&' + lzQuery());  // 2.575.0 B (#3966): + td; 2.1117.0 (#6023): td=2 = + the points in time without their zone  // 2.369.2 (#3136): + the start set  // 2.280.0 F (#3109): a repeat is no herd reload (it would brake itself)
-      crossed = (S.wseq || 0) !== w0;
-      if (!crossed) break;
+    const q = 'td=2&' + lzQuery();  // 2.575.0 B (#3966): + td; 2.1117.0 (#6023): td=2 = + the points in time without their zone  // 2.369.2 (#3136): + the start set
+    j = await api('GET', (auto ? '/api/state?auto=1&' : '/api/state?') + q);
+    // 2.1474 (#7150): older than a write of mine already answered: fetched once more - the server holds it now, so that state
+    // has it (its v only grows). (Was: up to three tries while a client counter moved.) A repeat is no herd reload (#3109).
+    if (j && !j.brake && j.v != null && j.v < (S.wv || 0)) j = await api('GET', '/api/state?' + q);
+    // 2.350.0 C (#2806): still older, or writes of mine on their way: my own settings win over that answer (it may predate
+    // the save) and the state is fetched again once they are all answered (ldAgain)
+    if (j && !j.brake && j.v != null && (j.v < (S.wv || 0) || S.wfly)) {
+      if (j.settings && S.settings && j.me?.id === S.me?.id) j.settings = {...j.settings, ...S.settings};
+      S.wvAgain = true;
+      if (!S.wfly && !S.wvBusy) setTimeout(ldAgain, 0);  // none on its way (one was answered during the repeat): once more after this load
     }
-    // 2.350.0 C (#2806): still crossed by a write after the third try: the own settings win over that answer (it may predate
-    // the save); the next load brings changes made elsewhere
-    if (crossed && j?.settings && S.settings && j.me?.id === S.me?.id) j.settings = {...j.settings, ...S.settings};
     if (j?.brake) return 'brake';  // 2.280.0 F (#3109): the caller keeps the change pending
     OUT.me = j?.me?.id;  // 2.126.0 D (#1992 O5)
     if (j?.me?.id === LS.get('uid', j?.me?.id)) sessGuard(j?.me);  // 2.238.0 B (#2872): before the outbox is sent (another account: applyState clears all)
@@ -1779,10 +1796,10 @@ async function ld_go(auto) {
     return;
   }
   if (OUT.q.length) {  // flush() reloads once the queue is through
-    if (!S.tasks.size || j?.me?.id !== S.me?.id) { applyState(j, ld_w0); OUT.q.forEach(applyLocal); }  // 2.126.0 D (#1992 O5): another user = applyState's switch
+    if (!S.tasks.size || j?.me?.id !== S.me?.id) { applyState(j); OUT.q.forEach(applyLocal); }  // 2.126.0 D (#1992 O5): another user = applyState's switch
     flush(); return;
   }
-  applyState(j, ld_w0);
+  applyState(j);
   if (j?.lva && !S.lpA) S.lpA = j.lva;  // 2.619.0 (#3890): the areas of this state (read before its v): the first poll takes a delta, not the whole state again
   if (S.qfWait && typeof qfSend === 'function') qfSend();  // 2.376.1 CI fix: files of a quick add whose new task was not loaded yet
   j._at = Date.now(); S.lpCache = j; startSave();  // (#6340): _at = startAt  // (#4200): written when idle (IndexedDB); (#1376): the delta keeps the cache current (liveparts.js)

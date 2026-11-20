@@ -4,7 +4,8 @@
 // - a page state that predates the last pin (an overlapping reload) no longer sends an older whole list: the next pin
 //   keeps the earlier one on the server (the pin goes as a single entry, set_delta)
 // - a reload whose answers are crossed by a write three times in a row keeps the own pins (it used to put the older
-//   settings back after the third try)
+//   settings back after the third try); 2.1474 (#7150): ordered by the server's version, the older answer is fetched once more
+//   (not three times), still older: the own settings win and the state comes again on its own afterwards
 const {execFileSync} = require('child_process');
 const path = require('path');
 const {boot, sleep, B, login, idle} = require('./boot');
@@ -79,7 +80,7 @@ const ALL = 'cal,timeline,matrix,habits,pomo,collab,stats,time,progress,agents,c
   };
   await w.eval('load()');
   w.fetch = f0; delete w.document.hidden;
-  check(n === 3, 'the reload tried three times ' + n);
+  check(n === 2, '#7150: the reload fetched the older answer once more, not three times ' + n);
   check(want(w.eval(`sbp_ids('side_people')`)) === want(P), 'the own pins win over an answer that predates them ' + w.eval(`S.settings.side_people`));
   check(await server() === want(P), 'the server still holds all three');
   await w.eval('load()');
