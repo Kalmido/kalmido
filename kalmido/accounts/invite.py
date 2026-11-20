@@ -13,6 +13,7 @@ from ..core.config import app, APP_DIR, APP_NAME, MIN_PASSWORD, PUBLIC_URL
 from ..core.i18n import lang, N_, tr
 from ..core.db import body, bump, db, err, gsetting, iso, now_utc, parse_iso, usettings, write_lock
 from ..accounts.session import _rate_blocked, _rate_fail, _rate_keys, client_ip
+from ..accounts.session import _rate_reset  # #6498
 from ..accounts.login import login_log_ip, login_log_who  # 2.239.0 B (#2888)
 from ..accounts.login import finish_login, pend_cookie, pend_new
 from ..core.access import Denied
@@ -272,7 +273,6 @@ def invite_accept():
         from .secmail import sec_mail
         sec_mail(c, u["id"], "password_reset")
         if r["sent_at"]:  # #6498: a reset link that came by mail makes this address known (the second step works from here)
-            from .session import _rate_reset
             _rate_reset(u["username"])
     u = c.execute("SELECT * FROM users WHERE id=?", (u["id"],)).fetchone()
     print("account set up with an invitation link:", login_log_who(u), "from", login_log_ip(client_ip()), flush=True)
