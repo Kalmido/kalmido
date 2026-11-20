@@ -15,6 +15,7 @@ freelancer-matrix: files
  - a second member of the organisation never sees the person's offered document
 usage: p7325_a_area_to_test.py <datadir>"""
 import email.message
+import json
 import os
 import subprocess
 import sys
@@ -74,8 +75,38 @@ def ids(s, hdr=None, **q):
 
 
 def put(s, **kw):
-    r = s.patch(B + "/api/settings", json=kw)
+    r = s.patch(B + "/api/settings", json={k: json.dumps(v) if isinstance(v, dict) else v for k, v in kw.items()})
     assert r.ok, r.text
+
+
+def ubl(number):
+    """An e-invoice (UBL) -- a mail's attachment is recognised as an invoice by it (docs/ingest.py _mail_parts)."""
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<ubl:Invoice xmlns:ubl="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+  xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+  xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+  <cbc:CustomizationID>urn:cen.eu:en16931:2017</cbc:CustomizationID>
+  <cbc:ID>{number}</cbc:ID><cbc:IssueDate>2026-03-05</cbc:IssueDate><cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>
+  <cbc:DocumentCurrencyCode>EUR</cbc:DocumentCurrencyCode>
+  <cac:AccountingSupplierParty><cac:Party>
+    <cac:PartyName><cbc:Name>Beispiel Post GmbH</cbc:Name></cac:PartyName>
+    <cac:PartyTaxScheme><cbc:CompanyID>DE456789123</cbc:CompanyID><cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme></cac:PartyTaxScheme>
+    <cac:PartyLegalEntity><cbc:RegistrationName>Beispiel Post GmbH</cbc:RegistrationName></cac:PartyLegalEntity>
+  </cac:Party></cac:AccountingSupplierParty>
+  <cac:AccountingCustomerParty><cac:Party><cac:PartyLegalEntity><cbc:RegistrationName>Kunde Beispiel</cbc:RegistrationName></cac:PartyLegalEntity></cac:Party></cac:AccountingCustomerParty>
+  <cac:TaxTotal><cbc:TaxAmount currencyID="EUR">19.00</cbc:TaxAmount>
+    <cac:TaxSubtotal><cbc:TaxableAmount currencyID="EUR">100.00</cbc:TaxableAmount><cbc:TaxAmount currencyID="EUR">19.00</cbc:TaxAmount>
+      <cac:TaxCategory><cbc:ID>S</cbc:ID><cbc:Percent>19</cbc:Percent><cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme></cac:TaxCategory></cac:TaxSubtotal></cac:TaxTotal>
+  <cac:LegalMonetaryTotal><cbc:LineExtensionAmount currencyID="EUR">100.00</cbc:LineExtensionAmount>
+    <cbc:TaxExclusiveAmount currencyID="EUR">100.00</cbc:TaxExclusiveAmount><cbc:TaxInclusiveAmount currencyID="EUR">119.00</cbc:TaxInclusiveAmount>
+    <cbc:PayableAmount currencyID="EUR">119.00</cbc:PayableAmount></cac:LegalMonetaryTotal>
+  <cac:InvoiceLine><cbc:ID>1</cbc:ID><cbc:InvoicedQuantity unitCode="C62">1</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="EUR">100.00</cbc:LineExtensionAmount>
+    <cac:Item><cbc:Name>Papier</cbc:Name>
+      <cac:ClassifiedTaxCategory><cbc:ID>S</cbc:ID><cbc:Percent>19</cbc:Percent><cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme></cac:ClassifiedTaxCategory></cac:Item>
+    <cac:Price><cbc:PriceAmount currencyID="EUR">100.00</cbc:PriceAmount></cac:Price></cac:InvoiceLine>
+</ubl:Invoice>
+""".encode()
 
 
 MAILNO = [0]
@@ -138,7 +169,7 @@ put(A, workspace=f"org:{BETA}")  # the setting names Beta -- a mail is no reques
 r = A.post(B + "/api/docs/mail", json={"ws": "private"})
 check(r.ok and r.json().get("address"), "her document address " + r.text[:160])
 if r.ok and r.json().get("address"):
-    m1 = mail_in(r.json()["address"], "siehe Anhang", ("mail-rechnung.txt", INVOICE.format(n=7101).encode(), "text", "plain"))
+    m1 = mail_in(r.json()["address"], "siehe Anhang", ("mail-rechnung.xml", ubl("ER-2026-7101"), "application", "xml"))
     check(m1 and row(m1)[3] == "", f"#7325: a mail with two offices keeps no target {m1 and row(m1)}")
     check(m1 and settled(A, m1) is not None and row(m1)[:3] == ("", "ask", f"u{ALICE}") and m1 in ids(A),
           f"#7325: the mail's invoice stays visible, offered -- not in Beta of the setting {m1 and row(m1)}")
