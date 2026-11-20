@@ -465,7 +465,7 @@ def fx_spec(paths, op, ok, errs, T):
     """OpenAPI of the four routes of a receipt fetcher key (called from docs/v1.py docs_spec). Documented with the scope
     docs:upload: no ordinary token reaches them (403), a fetcher key reaches nothing else."""
     pt = {"type": "object", "properties": {"key": {"type": "string"}, "name": {"type": "string"}, "enabled": {"type": "boolean"}}}
-    why = ("Only for receipt fetcher keys (kbh_..., made with a setup code in Settings > Integrations > Receipt fetcher): such a key "
+    why = ("Only for receipt fetcher keys (kbh_..., made with a setup code in Settings > Connections > Receipt fetcher): such a key "
            "reaches only GET /fetcher, PUT /fetcher/status, POST /fetcher/documents and GET /fetcher/recipes; every other route answers "
            "401 / 403. ")
     paths["/fetcher"] = {"get": op(

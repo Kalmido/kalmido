@@ -990,7 +990,7 @@ def openapi_spec():
     _SPEC["s"] = {
         "openapi": "3.1.0",
         "info": {"title": f"{APP_NAME} REST API", "version": API_VERSION,
-                 "description": "Personal access tokens (Settings > Access) as `Authorization: Bearer abk_...`. "
+                 "description": "Personal access tokens (Settings > Connections) as `Authorization: Bearer abk_...`. "
                                 "Every request acts as the token's user and sees exactly what that user sees. Dates are local dates "
                                 "of the server's time zone (YYYY-MM-DD), times HH:MM, timestamps ISO 8601 in UTC. Projects are called lists in the API (list_id, /lists; kind=list|project is stored but no longer evaluated, tracked projects have a status). Collections come in pages: "
                                 "{data, next_cursor}. Errors: {error: {code, message}}. "
