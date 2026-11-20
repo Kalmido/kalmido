@@ -17164,7 +17164,6 @@
   "Only favourites in the sidebar": "Solo preferiti nella barra laterale",
   "Folded folders": "Cartelle chiuse",
   "Active sidebar view": "Vista attiva della barra laterale",
-  "Shown workspace": "Spazio di lavoro mostrato",
   "Arrangement and block settings of the views": "Disposizione e impostazioni dei blocchi delle viste",
   "Menus and tab bar": "Menu e barra delle schede",
   "Task panel layout": "Disposizione del pannello attività",
@@ -19732,5 +19731,6 @@
   "documents from templates": "documenti da modelli",
   "invoice series": "serie di fatture",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "Il cliente di questo documento non è più in questo ufficio (spostato in un altro spazio di lavoro). Scegli prima un altro cliente.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Il cliente della fattura modello non è più in questo ufficio (spostato in un altro spazio di lavoro). Scegli un'altra fattura modello e riattiva la serie."
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Il cliente della fattura modello non è più in questo ufficio (spostato in un altro spazio di lavoro). Scegli un'altra fattura modello e riattiva la serie.",
+  "The office is switched off for this person in this workspace (Settings > Modules, for the own office “Also private”). Nothing was written: the draft would not show there. Ask the person to switch it on.": "L’ufficio è disattivato per questa persona in questo spazio di lavoro (Impostazioni > Moduli, per l’ufficio personale «Anche privato»). Non è stato scritto nulla: la bozza non sarebbe visibile lì. Chiedi alla persona di attivarlo."
 }
