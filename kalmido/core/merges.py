@@ -147,6 +147,10 @@ def mg_olnk_move(c, kind, from_ids, to_id):
                 rec["dropped"].append(_olnk_row(dict(hit)))
             c.execute("UPDATE obj_links SET src_id=?, dst_id=? WHERE id=?", (src, dst, r["id"]))
             rec["moved"].append(_olnk_row(r))
+        gone = [int(x["id"]) for x in rec["dropped"]]
+        if gone:  # #6357 (reader F3 of job/5834): a merge folds links, it does not delete them for good - a restore of a backup
+            # from before the merge brings the records apart again and must keep their links (purged_rows = deleted for good)
+            c.execute(f"DELETE FROM purged_rows WHERE tbl='obj_links' AND ref_id IN ({','.join('?' * len(gone))})", gone)
     return rec
 
 
