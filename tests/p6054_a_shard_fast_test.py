@@ -153,9 +153,35 @@ ok, txt, _ = gate.judge_queue("merge_group", QN, gjobs + [job(9, "Upgrade and re
 check(not ok and "hard job red" in txt, f"#7366 queue gate: a red hard job = red: {ok} {txt}")
 ok, txt, _ = gate.judge_queue("merge_group", QN, gjobs + [dict(job(9, "Upgrade and restore (nightly)", None), status="in_progress")], lambda j: [], ["*restore*"], {})
 check(not ok and "not finished" in txt, f"#7366 queue gate: an unfinished hard job = red: {ok} {txt}")
-ok, txt, _ = gate.judge_soft([job(1, "Test suites 1/1 full hart (API, UI, security)"), job(6, "Lint, i18n, scanners"),
-                              job(9, "Upgrade and restore (nightly)", "skipped")], lambda j: [], ["*restore*"], {})
-check(not ok and "did not run" in txt, f"#7366: the nightly / main judgement stays hard (a skipped hard job = no image): {ok} {txt}")
+# #7412 (decision 20.11.2026, narrow version): the release gate (judge_soft) lets a skipped job pass
+# only when ci.yml runs it ONLY at night or by hand (nightly_jobs); Lint, shards and every other hard job stay hard
+NIGHT = "Install the last release (install.sh), update to this commit (update.sh), back (update.sh --restore)"
+rjobs = [job(1, "Test suites 1/2 full hart (API, UI, security)"), job(2, "Test suites 2/2 full (API, UI, security)", "failure"),
+         job(6, "Lint, i18n, scanners")]
+red2 = lambda j: {2: ["p1_ui"]}.get(j["id"], [])  # noqa: E731
+ok, txt, _ = gate.judge_soft(rjobs + [job(9, NIGHT, "skipped")], red2, ["*restore*"], {"p1_ui": "p1_ui"}, {NIGHT})
+check(ok and "p1_ui" in txt, f"#7412: a soft red release run with the skipped nightly job (hard name) = soft green: {ok} {txt}")
+ok, txt, _ = gate.judge_soft(rjobs + [job(9, NIGHT, "skipped")], red2, ["*restore*"], {"p1_ui": "p1_ui"})
+check(not ok and "did not run" in txt, f"#7412: a skipped hard job ci.yml does not mark nightly stays hard: {ok} {txt}")
+ok, txt, _ = gate.judge_soft(rjobs + [job(9, "E-invoice restore check", "skipped")], red2, ["*restore*"], {"p1_ui": "p1_ui"}, {NIGHT})
+check(not ok and "did not run" in txt, f"#7412: another skipped hard job stays hard: {ok} {txt}")
+ok, txt, _ = gate.judge_soft(rjobs[:2] + [job(6, "Lint, i18n, scanners", "skipped")], red2, ["*restore*"], {"p1_ui": "p1_ui"},
+                             {NIGHT, "Lint, i18n, scanners"})
+check(not ok, f"#7412: a skipped Lint stays hard even if named: {ok} {txt}")
+ok, txt, _ = gate.judge_soft(rjobs + [job(9, NIGHT, "failure")], red2, ["*restore*"], {"p1_ui": "p1_ui"}, {NIGHT})
+check(not ok and "hard job red" in txt, f"#7412: the nightly job red = still hard: {ok} {txt}")
+night = gate.nightly_jobs(os.path.dirname(HERE))
+check(NIGHT in night and not any(x.lower().startswith(("lint", "test suites")) for x in night)
+      and "Merge queue gate" not in night, f"#7412: nightly_jobs reads ci.yml: {sorted(night)}")
+wf = os.path.join(tmp, "wf", ".github", "workflows")
+os.makedirs(wf)
+with open(os.path.join(wf, "ci.yml"), "w") as f:
+    f.write("on:\n  push:\njobs:\n  a:\n    name: A\n    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'\n"
+            "  b:\n    name: B\n    if: always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')\n"
+            "  c:\n    name: C\n    if: github.event_name == 'push' || (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')\n"
+            "  d:\n    name: D\n    if: github.event_name == 'schedule'\n  e:\n    name: E\n")
+check(gate.nightly_jobs(os.path.join(tmp, "wf")) == {"A", "B"}, f"#7412: only the night / by-hand conditions: {gate.nightly_jobs(os.path.join(tmp, 'wf'))}")
+check(gate.nightly_jobs(os.path.join(tmp, "nowhere")) == set(), "#7412: no ci.yml = nothing nightly")
 fjobs = [job(1, "Test suites 1/2 full hart (API, UI, security)"), job(2, "Test suites 2/2 full (API, UI, security)", "failure"),
          job(6, "Lint, i18n, scanners")]
 ok, txt, info = gate.judge_soft(fjobs, lambda j: {2: ["p1_ui", gate.STOPPED]}.get(j["id"], []), ["*invoice*"], {"p1_ui": "p1_ui"})
