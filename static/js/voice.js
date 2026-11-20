@@ -112,7 +112,7 @@ async function tvc_send() {
   try { m = await rawFetch('POST', `/api/team/rooms/${rid}/messages`, fd); }
   catch (e) {
     if (TVC.st === st) { st.phase = 'review'; tvc_draw(); }  // the recording stays: send again or discard
-    toast(e instanceof Offline ? tr('You are offline: the voice message was not sent') : e.message); return;
+    toast(e instanceof Offline ? tr('You are offline: the voice message was not sent') : errText(e, tr('The message could not be sent'))); return;
   }
   if (TVC.st === st) { TVC.st = null; if (TVC.cur === 'rec') tvc_audioStop(); if (st.url) URL.revokeObjectURL(st.url); tvc_draw(); }
   replySent(ck);

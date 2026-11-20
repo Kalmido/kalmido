@@ -20,7 +20,7 @@ function propKeys(v) {
 async function propOpen(jid) {
   let v;
   try { v = await rawFetch('GET', `/api/proposals/${jid}`); } catch (e) {  // 2.5.2 (K19): a readable reason instead of "unknown"
-    toast(e instanceof Offline ? tr('Only available online.') : e.status === 404 ? tr('This proposal is not available: only the person who asked for it can open it, or it was removed.') : e.message); return;
+    toast(!(e instanceof Offline) && e.status === 404 ? tr('This proposal is not available: only the person who asked for it can open it, or it was removed.') : errText(e, tr('The proposal could not be loaded'))); return;
   }
   if (v?.kind === 'ideas') { await loadModule('mindmap').catch(() => {}); if (typeof mm_ideasOpen === 'function') mm_ideasOpen(v); return; }  // 2.156.0 A (#1201): ideas show in the mind map
   if (aim_is(v) && typeof ofcMoney !== 'function') await loadModule('office').catch(() => {});  // 2.68.0 (#1839, review): the preview uses the office module (lazy)
@@ -195,7 +195,7 @@ async function propDiscard() {
   const P = S.prop; if (!P) return;
   const req = P.v.state === 'requested';
   if (!await askConfirm(req ? tr('Cancel the request?') : tr('Discard this proposal?'), tr('{0} is told at once. Nothing is created or changed.', P.v.agent.name), {ok: req ? tr('Cancel the request') : tr('Discard'), danger: true})) return;
-  try { await calReq('POST', `/api/proposals/${P.jid}/discard`); } catch (x) { toast(x.message); return; }
+  try { await calReq('POST', `/api/proposals/${P.jid}/discard`); } catch (x) { toast(errText(x, tr('The change could not be saved'))); return; }
   P.md.remove(); S.prop = null;
   toast(req ? tr('Request cancelled') : tr('Proposal discarded'));
   load().then(() => window.mwLoad?.(true)).then(render).catch(() => {});

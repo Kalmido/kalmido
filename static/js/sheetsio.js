@@ -39,7 +39,7 @@ async function shxUiImportFile(f, space, lid) {
   const l = lid && typeof listById === 'function' ? listById(lid) : null;  // 2.356.0 B (#2934): the target in words (#1940)
   if (!await importTargetConfirm({what: tr('the data of the file'), ws: sp, place: l ? lname(l) : tr('Tables')})) return;
   const fd = new FormData(); fd.append('file', f); fd.append('space', sp); if (lid) fd.append('list_id', String(lid));
-  let r; try { r = await rawFetch('POST', '/api/sheets/import', fd); } catch (e) { toast(e.message); return; }
+  let r; try { r = await rawFetch('POST', '/api/sheets/import', fd); } catch (e) { toast(errText(e, tr('The import could not be started'))); return; }
   const id = r.sheet.id, title = r.sheet.title || '';
   const after = gone => { if (typeof shvAfterIdx === 'function') shvAfterIdx(id, gone); };
   after(false);

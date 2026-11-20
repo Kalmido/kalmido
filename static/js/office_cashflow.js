@@ -194,7 +194,7 @@ async function fci_preview(file) {
   try {
     const r = await ofc_spFetch('/api/office/fixed-costs/import/preview', {method: 'POST', body: fd, credentials: 'same-origin', headers: {'X-Requested-With': 'kalmido'}});
     j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j.error || r.statusText);
+    if (!r.ok) throw new Error(j.error || httpErrText(r.status));  // (#6372): a refusal of the proxy (413) in plain words
   } catch (x) { ofcErr(x); return; }
   fci_modal(j.rows || [], file.name);
 }

@@ -179,7 +179,7 @@ async function wsh_newIn(fid, folder) {
     const r = await calReq('POST', folder ? '/api/wiki/shared/folders' : '/api/wiki/shared/pages', folder ? {parent_id: fid, name: String(v).trim()} : {folder_id: fid, name: String(v).trim(), body: ''});
     WSH.v = -1; await wsh_loadMine();
     if (!folder) wsh_read(r.id);
-  } catch (x) { toast(x.message); }
+  } catch (x) { toast(errText(x, folder ? tr('The folder could not be created') : tr('The page could not be created'))); }
 }
 document.addEventListener('click', ev => {
   const b = /** @type {any} */ (ev.target).closest?.('[data-wsh-new], [data-wsh-newf]'); if (!b) return;
@@ -189,7 +189,7 @@ document.addEventListener('click', ev => {
 ms_rowMenu('#view .wshfh', r => { if (r.querySelector(':scope > .iconbtn')) ms_btnMenu(r, ':scope > .iconbtn', $(':scope > span', r)?.textContent || ''); });
 async function wsh_read(id, md) {
   let p;
-  try { p = await calReq('GET', '/api/wiki/shared/pages/' + id); } catch (x) { toast(x.status === 404 ? tr('This page does not exist or you cannot see it.') : x.message); return; }
+  try { p = await calReq('GET', '/api/wiki/shared/pages/' + id); } catch (x) { toast(x.status === 404 ? tr('This page does not exist or you cannot see it.') : errText(x, tr('The page could not be loaded'))); return; }
   const inner = `<div class="lhdr"><h3>${esc(wsh_baseName(p.path))}</h3><span class="spacer"></span><button class="iconbtn" data-m="close" aria-label="${esc(tr('Close'))}" title="${esc(tr('Close'))}">${ic('x')}</button></div>
     <div class="shint keep">${esc(p.role === 'edit' ? tr('Shared with you · you can edit it') : tr('Shared by {0} · read-only', p.owner_name || '?'))} · ${esc(p.path)}</div>
     <div class="md ntmd wkmd wshmd">${p.html || `<p class="muted">${tr('Empty page.')}</p>`}</div>
@@ -210,7 +210,7 @@ async function wsh_read(id, md) {
       const c = WSH.cur, ta = /** @type {any} */ (m.querySelector('#wsh-ed')); if (!c || !ta) return;
       sv.disabled = true;
       try { await calReq('PATCH', `/api/wiki/pages/${c.id}`, {body: ta.value, expect_updated_at: c.updated_at}); toast(tr('Saved')); WSH.v = -1; f8d_stepDrop(m); wsh_read(c.id, m); }
-      catch (x) { sv.disabled = false; toast(x.message); }
+      catch (x) { sv.disabled = false; toast(errText(x, tr('The page could not be saved'))); }
       return;
     }
     if (t.closest('[data-wsh-cancel]')) { const c = WSH.cur; f8d_backBtn(m, () => { if (c) wsh_read(c.id, m); }); return; }

@@ -75,7 +75,7 @@ function shf_after() {
   if (typeof sbb_sync === 'function') sbb_sync('sheets');
   if (S.route.mod === 'sheets') renderView();
 }
-const shf_req = async (m, url, b) => { try { const r = await rawFetch(m, url, b); shf_after(); return r || true; } catch (e) { toast(e.message); return null; } };
+const shf_req = async (m, url, b) => { try { const r = await rawFetch(m, url, b); shf_after(); return r || true; } catch (e) { toast(errText(e, tr('The change could not be saved'))); return null; } };
 async function shf_newFolder(sp, pid) {
   const v = await askDialog({title: tr('New folder'), input: {value: '', placeholder: tr('Folder name'), max: 120}, ok: tr('Create'), cancel: undefined, after: undefined});
   if (!v || !v.trim()) return;

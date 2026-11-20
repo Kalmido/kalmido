@@ -1093,7 +1093,7 @@ addEventListener('pagehide', ofd_unload);
 addEventListener('fdw-sent', e => {
   const u = String(e.detail?.url || ''), m = u.match(/^\/api\/(?:office\/docs|fsref\/office_doc)\/(\d+)\//) || u.match(/^\/api\/(?:office\/docs|fsref\/office_doc)\/(\d+)$/);
   if (!m) return;
-  if (e.detail.err) toast(e.detail.err.status === 409 ? tr('Changed in the meantime') : e.detail.err.message || tr('unknown'));
+  if (e.detail.err) toast(e.detail.err.status === 409 ? tr('Changed in the meantime') : errText(e.detail.err, tr('The change could not be saved')));
   const id = +m[1], again = () => { if ((OFD.doc?.id ?? OFD.docId) !== id) return; if (OFD.docLoading) setTimeout(again, 200); else ofdLoadDoc(id, true); };  // a load on its way may predate the write
   again();
 });
@@ -1669,7 +1669,7 @@ async function ofcSendTerms(send) {
   const join = j.terms_missing.reason === 'join';
   if (!await askConfirm(tr('Terms and conditions missing'), j.message, {ok: join ? tr('Send them as a separate file') : tr('Send without terms')})) return null;
   const k = await send(join ? {terms: true} : {[j.terms_missing.field || 'agb_ok_without']: true});
-  return k?.terms_missing ? (toast(k.message), null) : k;
+  return k?.terms_missing ? (toast(errText(k.message, tr('Not sent'))), null) : k;
 }
 // 2.1064.0 (#5818): o.follow = "Follow up" on a quotation without an answer: the same dialog with a subject and a text that ask
 async function ofdSendDialog(d, o = {}) {

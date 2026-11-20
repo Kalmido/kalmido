@@ -326,7 +326,7 @@ async function oimPreview(file, map) {
   try {
     const r = await ofc_spFetch('/api/office/legacy/preview', {method: 'POST', body: fd, credentials: 'same-origin', headers: {'X-Requested-With': 'kalmido'}});
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j.error || r.statusText);
+    if (!r.ok) throw new Error(j.error || httpErrText(r.status));  // (#6372): a refusal of the proxy (413) in plain words
     OIM.pv = j; OIM.filter = '';
   } catch (x) { ofcErr(x); }
   OIM.busy = false; ofcDraw();
@@ -412,7 +412,7 @@ async function oimArchiveGo() {
     try {
       const r = await ofc_spFetch('/api/office/legacy/archive', {method: 'POST', body: fd, credentials: 'same-origin', headers: {'X-Requested-With': 'kalmido'}});
       const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(j.error || r.statusText);
+      if (!r.ok) throw new Error(j.error || httpErrText(r.status));  // (#6372): a refusal of the proxy (413) in plain words
       x.done = true; x.err = ''; ok++;
     } catch (e) { x.err = ofcErrHere(e); }
   }

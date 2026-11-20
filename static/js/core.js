@@ -842,13 +842,14 @@ function apiWhat(method, url, body) {
   if (method === 'DELETE' && /^\/api\/addr-shares\/\d+$/.test(u)) return tr('The invitation was not removed');
   return '';
 }
-/** @param {string} method @param {string} url @param {any} [body] @returns {Promise<any>} */  // 2.102.0 (#1995)
-async function api(method, url, body) {
+/** @param {string} method @param {string} url @param {any} [body] @param {{quiet?: boolean}} [o] @returns {Promise<any>} */  // (#1995)
+// (#6372) o.quiet: a view that shows its own error block (errorState) for this load - no second message as a toast
+async function api(method, url, body, o) {
   const lk = tlkGuard(method, url, body); if (lk) throw lk;  // 2.36.0 (#1118)
   // 2.64.1 (#1817): encrypted before the outbox (it holds ciphers only); a Promise only when there is something to encrypt, so
   // an offline edit is still applied locally at once
   const lo = typeof le2eOut === 'function' ? le2eOut(method, url, body) : body;
-  if (lo instanceof Promise) { try { body = await lo; } catch (e) { if (e.message !== 'auth') { toast(e.message); e.shown = true; } throw e; } } else body = lo;  // 2.855.0 (#5451): said once
+  if (lo instanceof Promise) { try { body = await lo; } catch (e) { if (e.message !== 'auth') { toast(errText(e, apiWhat(method, url, body) || tr('The change could not be saved'))); e.shown = true; } throw e; } } else body = lo;  // (#5451): said once
   // 2.126.0 D (#1990): a new task carries its own id from the first try on: sent again (the answer got lost) = the same task
   if (method === 'POST' && url === '/api/tasks' && body && typeof body === 'object' && !(body instanceof FormData) && !body.client_ref) body = {...body, client_ref: Date.now().toString(36) + Math.random().toString(36).slice(2, 10)};
   // 2.359.0 A (#3023): a temporary id (created offline) never goes to the server as such: the real id once its create went out,
@@ -857,7 +858,7 @@ async function api(method, url, body) {
   if (tu === null && method !== 'GET' && queueable(method, url) && !(body instanceof FormData)) return enqueue(method, url, body);
   if (tu === null || tu === false) {
     const e = new Error(tu === null ? tr('Still syncing, try again in a moment') : tr('The new task could not be created, the change was not saved')); e.status = 409; e.data = {code: 'tmp_id'};
-    if (method !== 'GET') { if (tu === false) { outReject({method, url, body}, e); renderTop(); } toast(e.message); }
+    if (method !== 'GET') { if (tu === false) { outReject({method, url, body}, e); renderTop(); } toast(errText(e)); }
     e.shown = true; throw e;
   }
   url = tu;
@@ -878,8 +879,9 @@ async function api(method, url, body) {
     if (e instanceof Offline) {
       if (queueable(method, url) && !(body instanceof FormData)) return enqueue(method, url, body);
       if (method !== 'GET') { toast(tr('Only available online.')); e.shown = true; }  // (#5451)
-    } else if (e.message !== 'auth' && !e.shown) {
-      if (e.data?.out_request && typeof oor_ask === 'function') toast(e.message, () => oor_ask(e.data.out_request), 10000, tr('Ask an admin'));  // 2.361.2 (#2923)
+    } else if (o?.quiet) e.shown = true;  // (#6372): the caller's error block says it
+    else if (e.message !== 'auth' && !e.shown) {
+      if (e.data?.out_request && typeof oor_ask === 'function') toast(errText(e, apiWhat(method, url, body)), () => oor_ask(e.data.out_request), 10000, tr('Ask an admin'));  // (#2923)
       else toast(errText(e, apiWhat(method, url, body)));  // 2.910.0 (#5444): what was not saved, the server's text as an addition
       e.shown = true;  // 2.855.0 (#5451): said once - a caller's catch sees it (office.js ofcErr)
     }
@@ -906,7 +908,7 @@ async function undoWrite(url, old, seenAt, o = {}) {
       return null;
     }
     if (x instanceof Offline) toast(tr('Only available online.'));
-    else if (x?.message !== 'auth' && !x?.shown) toast(x?.message || tr('unknown'));
+    else if (x?.message !== 'auth' && !x?.shown) toast(errText(x, tr('The change could not be saved')));
     if (x) x.shown = true;
     throw x;
   }
@@ -1277,7 +1279,7 @@ async function outFlush() {
         }
         if (err.data?.code === 'skip_stale') {  // 2.528.0 (#4305 B1): skipped elsewhere already = not skipped twice, the current date
           if (err.data.task && typeof putTask === 'function') putTask(err.data.task);
-          setTimeout(() => toast(err.message), 400); outSave(() => { OUT.q = OUT.q.filter(x => x !== e); }); e.res = null; e.done = true; outAnswer(e, null); continue;  // 2.537.0 (#4568): its waiter hears it
+          setTimeout(() => toast(errText(err)), 400); outSave(() => { OUT.q = OUT.q.filter(x => x !== e); }); e.res = null; e.done = true; outAnswer(e, null); continue;  // (#4568): its waiter hears it
         }
         // 2.551.0 (#4649): a change sent online whose value the server refused (400 / 422, e.g. "number expected": sending it again
         // would only be refused again) is said with the server's words as api() did before #4568; the page goes back to the
@@ -1285,7 +1287,7 @@ async function outFlush() {
         // right (403), a conflict (409): the dialog as before, the change is kept there
         if (e.live && (st === 400 || st === 422) && !wiki && !ntU(e.url)) {
           console.warn('outbox: refused', e, err); if (globalThis.document) $('#detail .dsaved')?.classList.remove('on');  // its "Saved" was too early
-          if (err.message !== 'auth' && !err.shown) { if (err.data?.out_request && typeof oor_ask === 'function') toast(err.message, () => oor_ask(err.data.out_request), 10000, tr('Ask an admin')); else toast(errText(err, apiWhat(e.method, e.url, e.body))); }  // 2.1292.0 (#6139): what was not saved first, as api()
+          if (err.message !== 'auth' && !err.shown) { if (err.data?.out_request && typeof oor_ask === 'function') toast(errText(err, apiWhat(e.method, e.url, e.body)), () => oor_ask(err.data.out_request), 10000, tr('Ask an admin')); else toast(errText(err, apiWhat(e.method, e.url, e.body))); }  // (#6139): what was not saved first, as api()
           outSave(() => { OUT.q = OUT.q.filter(x => x !== e); }); e.res = null; e.err = err; e.done = true; refused.push(e); continue;
         }
         console.warn('outbox: dropped', e, err);  // e.g. 404: deleted on another device
@@ -2121,12 +2123,16 @@ async function route() {
   S.extra = (r.key === 'done' || r.key === 'trash' || r.mod === 'news' || r.mod === 'time') ? [] : null;
   S.hist.k = null;  // 2.40.0 (#1432): entering Completed / Trash starts with the first page again
   S.extraErr = 0;
-  if (S.extra) await loadExtra().catch(() => { S.extra = []; S.extraErr = 1; });  // 2.891.0 (#5440): Completed / Trash show the error, not "empty"
   // 2.26.x (#953): back to an entry that was left from the open drawer (phone / folded sidebar): the drawer opens again
   // and stays; the next Back goes on as before
   if (history.state?.side && !r.task && (isMobile() || $('#app')?.classList.contains('side-rail'))) setTimeout(() => { if (!history.state?.side) return; try { const {side, ...st} = history.state; history.replaceState(Object.keys(st).length ? st : null, '', location.href); } catch { /* old browser */ } if (!$('#side.open')) sideDrawerOpen(); }, 0);  // 2.534.0 (#4344): side is used up once - a later route() without a Back does not reopen the drawer
   if (!(typeof sbm_hold === 'function' && sbm_hold())) closeSide();  // 2.196.0 A (#2737): an area icon in the phone's drawer keeps it open
   tch_overlaysClose();  // 2.38.0 (#1155)
+  // #6381: the click shows at once (mark, title, the page with its loading block, render.js hist_body); the list comes with the answer
+  if (S.extra) {
+    const w = S.extraWait = (S.extraWaitN = (S.extraWaitN || 0) + 1), p = loadExtra().catch(() => { S.extra = []; S.extraErr = 1; });  // (#5440): Completed / Trash show the error, not "empty"
+    render(); await p; if (S.extraWait === w) S.extraWait = 0;
+  }
   // 2.622.0 (#4948): the #t/<id> entry becomes the list's own entry BEFORE the task opens. It used to stay behind as a second entry
   // (the task's {detail} entry got the list's address and lost its mark): the phone's system Back landed on #t/<id>, which opened
   // the task again (or, after the Back of an overlay, did nothing). A link / go() inside the app (a new entry without a state) puts

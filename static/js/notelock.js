@@ -84,7 +84,7 @@ async function ln_lock(tid, again) {
   if (OUT.q.some(o => ln_outHit(o, tid))) { toast(tr('Changes are still waiting to be sent. Try again when you are online.')); return; }
   const text = taskById(tid)?.content || '';
   try { await rawFetch('PUT', `/api/tasks/${tid}/note-lock`, {body: await e2eSeal(E2E.ckey, e2eTEnc().encode(text), ln_aad(tid))}); }
-  catch (x) { toast(x instanceof Offline ? tr('Locking needs a connection') : x.message); return; }
+  catch (x) { toast(x instanceof Offline ? tr('Locking needs a connection') : errText(x, tr('The note could not be locked'))); return; }
   Object.assign(t, {content: '', note_locked: true, note_locked_mine: true});
   delete LN.notes[tid]; S.editContent = false;
   ln_forget(tid);
@@ -125,7 +125,7 @@ async function ln_remove(tid, again) {
   if (!n?.open || n.loading || n.err) n = await ln_open(tid);
   if (!n || n.err) return false;
   try { await rawFetch('DELETE', `/api/tasks/${tid}/note-lock`, {content: n.text}); }
-  catch (x) { toast(x instanceof Offline ? tr('Needs a connection') : x.message); return false; }
+  catch (x) { toast(x instanceof Offline ? tr('Needs a connection') : errText(x, tr('The change could not be saved'))); return false; }
   t.content = n.text; delete t.note_locked; delete t.note_locked_mine; delete LN.notes[tid];
   if (!again) histAdd({label: tr('Lock removed'), lids: [t.list_id], undo: async () => { await ln_lock(tid, true); return {}; }, redo: async () => (await ln_remove(tid, true)) ? {} : {none: true}});
   if (S.sel === tid) renderDetail();
@@ -149,7 +149,7 @@ document.addEventListener('click', async e => {
   else if (a === 'hide') { if (LN.saveT) { clearTimeout(LN.saveT); LN.saveT = null; await ln_save(tid); } delete LN.notes[tid]; renderDetail(); $('#d-ln .lnopen')?.focus(); }
   else if (a === 'remove') ln_remove(tid);
   else if (a === 'drop' && await askConfirm(tr('Delete the locked note?'), tr('It cannot be decrypted any more. Deleting it cannot be undone.'), {ok: tr('Delete'), danger: true})) {
-    try { await rawFetch('DELETE', `/api/tasks/${tid}/note-lock`, {}); } catch (x) { toast(x.message); return; }
+    try { await rawFetch('DELETE', `/api/tasks/${tid}/note-lock`, {}); } catch (x) { toast(errText(x, tr('The note could not be deleted'))); return; }
     const t = taskById(tid); if (t) { delete t.note_locked; delete t.note_locked_mine; t.content = ''; }
     delete LN.notes[tid]; renderDetail();
   }

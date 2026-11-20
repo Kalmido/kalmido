@@ -149,7 +149,7 @@ function hab_trashHtml() {
 }
 // 2.1238.0 (#4280): the dialog of a habit (habitModal: new / edit, reminders, delete) moved to habitdlg.js (loaded on demand, static/js/lazyload.js)
 async function hab_restore(id) {
-  try { await api('POST', `/api/habits/${id}/restore`); } catch (e) { toast(e.message); return; }
+  try { await api('POST', `/api/habits/${id}/restore`); } catch (e) { toast(errText(e, tr('The change could not be saved'))); return; }
   await load(); render(); toast(tr('Restored'));
 }
 

@@ -750,7 +750,7 @@ function bkRestore(md, src) {
       <p>${tr('This replaces <b>all data on this server</b> (every user’s projects, tasks, files and settings) with the state of {0}.', `<b>${esc(aaWhen(src.created_at) || '?')}</b>`)}</p>
       <p class="muted">${trn('{0} task', '{0} tasks', src.counts?.tasks || 0)}, ${trn('{0} file', '{0} files', src.attachment_files || 0)}, ${trn('{0} person', '{0} people', src.counts?.users || 0)}. ${tr('A safety backup of the current state is made first. Everyone else is signed out.')}</p>
       <div id="bkr-purged"></div>
-      <form class="pwform">${src.encrypted ? `<input type="password" id="bkr-pass" autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore placeholder="${tr('Passphrase (empty = the saved one)')}">` : ''}
+      <form class="pwform">${src.encrypted ? `<input type="password" id="bkr-pass" autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore placeholder="${tr('Passphrase (empty = the saved one)')}" aria-label="${esc(tr('Passphrase (empty = the saved one)'))}">` : ''}
       <label for="bkr-word">${tr('Type {0} to confirm', '<b>' + esc(src.word) + '</b>')}</label><input id="bkr-word" autocomplete="off" autocapitalize="characters" spellcheck="false">
       <div class="aerr" role="alert" id="bkr-err"></div>
       <div class="foot"><span class="spacer"></span><button type="button" class="btn" data-m="close">${tr('Cancel')}</button><button class="btn danger" type="submit" id="bkr-go" disabled>${tr('Restore')}</button></div></form>`);
@@ -840,7 +840,7 @@ function bkWire(md) {
       const res = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(res.error || httpErrText(r.status));
       await bkRestore(md, {...res, word: j.confirm_word || 'RESTORE'});
-    } catch (x) { toast(x.message); }
+    } catch (x) { toast(errText(x, tr('The backup could not be uploaded'))); }
     e.target.value = '';
   });
   md.addEventListener('click', async e => {
@@ -1183,7 +1183,7 @@ async function ofmSigSettings() {
   try {
     if (typeof ofmSigModal !== 'function') await loadModule('office');
     await ofmSigModal();
-  } catch (e) { toast(e instanceof Offline ? tr('Only available online.') : e.message); }
+  } catch (e) { toast(errText(e, tr('The signature could not be loaded'))); }
 }
 // 2.365.2 C (#2789): the letter signature dialog of the Office, opened from Settings > Account (the Office module loads first)
 async function ltSigSettings() {
@@ -1195,7 +1195,7 @@ async function ltSigSettings() {
       url = '/api/office/meals/signature'; profile = await api('GET', url);  // 2.372.0 (#3316): without the correspondence: the picture for the entertainment receipts
     }
     ltProfileModal({profile, url, done: () => toast(tr('Saved'))});
-  } catch (e) { toast(e instanceof Offline ? tr('Only available online.') : e.message); }
+  } catch (e) { toast(errText(e, tr('The signature could not be loaded'))); }
 }
 
 // 2.574.0 (#3376): an organisation admin reads the tasks of the organisation's projects (the ones "Projects of the organisation"

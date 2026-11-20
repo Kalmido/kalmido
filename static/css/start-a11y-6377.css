@@ -1,0 +1,3 @@
+/* #6377: accessibility - the fold arrow of a section head is a button (render.js ghTog), the mention link shows a focus ring */
+.ghead .gtog{display:inline-flex;align-items:center;justify-content:center;padding:0;margin:0;border:0;background:none;color:inherit;font:inherit;cursor:pointer;border-radius:var(--r-s)}
+button.mention.mlink:focus-visible{outline:2px solid var(--accent);outline-offset:1px;border-radius:var(--r-s)}

@@ -10,7 +10,7 @@ async function ms_clDel(ids, asked) {
   if (!asked && typeof ms_clWithSites === 'function') ids = await ms_clWithSites(ids, n => trn('Move its {0} location to the trash too?', 'Move its {0} locations to the trash too?', n), tr('Them too'));  // #7292
   const u = await api('GET', `/api/clients/usage?ids=${ids.join(',')}`).catch(() => null);  // 2.272.0 D (#3029): what points at them
   if (!await askConfirm(trn('Delete {0} client?', 'Delete {0} clients?', ids.length), cl_delText(u, ids.length), {ok: tr('Delete'), danger: true})) return;
-  let j; try { j = await ms_clSend({action: 'delete', ids}); } catch (x) { toast(x.message || ''); return; }
+  let j; try { j = await ms_clSend({action: 'delete', ids}); } catch (x) { toast(errText(x, tr('The clients could not be deleted'))); return; }
   if (S.route.client && ids.includes(S.route.client) && !j.undo.some(x => x.id === S.route.client)) go('clients');
   ms_clEnd(); await ms_clAfter(); MSC.tItems = null;
   const back = async () => { if (j.trashed?.length) await ms_clSend({action: 'untrash', ids: j.trashed}); if (j.undo.length) await ms_clSend({action: 'restore', items: j.undo}); MSC.tItems = null; await ms_clAfter(); };
@@ -33,12 +33,12 @@ function ms_clTrashHtml() {
 async function ms_clTrashAct(k, id) {
   const c = (MSC.tItems || []).find(x => x.id === id); if (!c) return;
   if (k === 'trest') {
-    try { await api('POST', `/api/clients/${id}/restore`); } catch (x) { toast(x.message || ''); return; }
+    try { await api('POST', `/api/clients/${id}/restore`); } catch { return; /* api() said it (#6372) */ }
     toast(tr('Restored')); MSC.tItems = null; await ms_clAfter(); return;
   }
   const u = await api('GET', `/api/clients/usage?ids=${id}`).catch(() => null);
   if (!await askConfirm(tr('Delete the client “{0}” permanently?', c.label || c.name), [u?.text ? tr('Linked: {0}.', u.text) : '', tr('This cannot be undone.')].filter(Boolean).join(' '), {ok: tr('Delete permanently'), danger: true})) return;
-  try { await api('DELETE', `/api/clients/${id}/purge`); } catch (x) { toast(x.message || ''); MSC.tItems = null; await ms_clAfter(); return; }
+  try { await api('DELETE', `/api/clients/${id}/purge`); } catch { MSC.tItems = null; await ms_clAfter(); return; /* api() said it (#6372) */ }
   toast(tr('Deleted permanently')); MSC.tItems = null; ms_clDraw();
 }
 // 2.272.0 E2 (#3038): the task's files in the trash (task and comment files), each with "Restore", and the trash period

@@ -82,7 +82,7 @@ async function wgPadSave(force) {
       if (ok) { st.base = e.data.pad.updated_at; return wgPadSave(true); }
       if (WG.pad === st) WG.pad = null; delete S.drafts['np:' + st.id]; povLoad(P.l.id, true); return;
     }
-    toast(e instanceof Offline ? tr('Only available online.') : e.message);  // the text stays in the draft
+    toast(errText(e, tr('The change could not be saved')));  // the text stays in the draft
   }
 }
 document.addEventListener('click', e => {

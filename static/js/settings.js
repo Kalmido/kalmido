@@ -1355,7 +1355,7 @@ function settingsModal(focus) {
     if (e.target.id !== 's-wpdev') return;
     e.target.disabled = true;
     try { if (e.target.checked ? await wpEnable() : await wpDisable()) toast(e.target.checked ? tr('Notifications on for this device') : tr('Notifications off for this device')); }
-    catch (x) { if (x.message !== 'auth') toast(tr('Could not switch on notifications: {0}', x.message || x)); }
+    catch (x) { if (x.message !== 'auth') toast(tr('Could not switch on notifications: {0}', errText(x))); }
     await wpDraw(md);
   });
   const tabDraw = () => {
@@ -1825,7 +1825,7 @@ async function sh_pubKind(md, el, fromHist) {
   try {
     let j; try { j = await rawFetch('PATCH', '/api/admin/settings', {public_links_off: off}); } catch (x) {
       if (x.data?.reauth_needed) { if (!await reauthFresh(x.data)) throw x; j = await api('PATCH', '/api/admin/settings', {public_links_off: off}); } else {  // 2.611.0 (#4019)
-      if (!x.data?.password_needed) { toast(x instanceof Offline ? tr('Only available online.') : x.message); throw x; }
+      if (!x.data?.password_needed) { toast(errText(x, tr('The change could not be saved'))); throw x; }
       const p = await pwPrompt(tr('Confirm with your password')); if (!p) throw x;
       j = await api('PATCH', '/api/admin/settings', {public_links_off: off, password: p.password}); }
     }
@@ -1851,7 +1851,7 @@ async function adminSwitch(md, el, fromHist) {
     const pw = ['twofa_required', 'passkey_login', 'oidc_autocreate', 'public_links', 'mcp_remote'].includes(key);  // 2.488.0 (#3363): + mcp_remote
     let j; try { j = await (pw ? rawFetch : api)('PATCH', '/api/admin/settings', {[key]: on}); } catch (x) {
       if (pw && x.data?.reauth_needed) { if (!await reauthFresh(x.data)) throw x; j = await api('PATCH', '/api/admin/settings', {[key]: on}); } else {  // 2.611.0 (#4019)
-      if (!pw || !x.data?.password_needed) { if (pw) toast(x instanceof Offline ? tr('Only available online.') : x.message); throw x; }
+      if (!pw || !x.data?.password_needed) { if (pw) toast(errText(x, tr('The change could not be saved'))); throw x; }
       const p = await pwPrompt(tr('Confirm with your password')); if (!p) throw x;
       j = await api('PATCH', '/api/admin/settings', {[key]: on, password: p.password}); }
     }

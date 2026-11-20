@@ -170,7 +170,7 @@ function shc_tipShow(i) {  // the values of one column of the chart (tap / hover
 async function shc_save(sh, chart, label) {  // one Undo step (the old setting back)
   const id = sh.id, old = sh.chart || null;
   const set = async v => { const r = await rawFetch('PUT', `/api/sheets/${id}/chart`, {chart: v}); if (SHV.sh?.id === id) { SHV.sh.chart = r.chart || null; SHV.sh.rev = r.rev; delete SHC.hide[id]; shc_patch(SHV.sh); } };
-  try { await set(chart); } catch (e) { toast(e.message); return; }
+  try { await set(chart); } catch (e) { toast(errText(e, tr('The change could not be saved'))); return; }
   histToast(label, histAdd({label, ids: [], snaps: [], lids: [], srv: true, undo: async () => { await set(old); return {skipped: []}; }, redo: async () => { await set(chart); return {skipped: []}; }}));
 }
 function shc_dialog(sh) {  // kind, the labels' column, the columns with numbers

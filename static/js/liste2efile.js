@@ -67,14 +67,14 @@ async function le2eFileUpload(tid, files, commentId, quiet) {
   try {
     if (!quiet) toast(tr('Encrypting…'));
     parts = await le2eFileParts(lid, files, tid);
-  } catch (x) { if (quiet) throw x; toast(x.message); return null; }
+  } catch (x) { if (quiet) throw x; toast(errText(x, tr('The file could not be attached'))); return null; }
   if (!parts) return null;
   const fd = new FormData();
   for (const p of parts) { fd.append('file', p.blob, 'encrypted.kenc'); fd.append('name', p.name); }
   if (commentId) fd.append('comment_id', commentId);
   let r;
   try { r = await rawFetch('POST', `/api/tasks/${tid}/list-attachments`, fd); }
-  catch (x) { if (quiet) throw x; if (!x.shown) toast(x instanceof Offline ? tr('Only available online.') : x.message); return null; }
+  catch (x) { if (quiet) throw x; if (!x.shown) toast(errText(x, tr('The file could not be attached'))); return null; }
   if (quiet) return r;
   putTask(r); render(); if (S.sel === tid) renderDetail();
   toast(files.length === 1 ? tr('Encrypted and attached') : tr('{0} files encrypted and attached', files.length));
@@ -122,7 +122,7 @@ async function le2fFetch(aid) {
 async function le2eFileOpen(aid, lid, tid) {
   let f;
   try { f = await le2eFileDec(lid, await (await le2fFetch(aid)).arrayBuffer(), tid); }
-  catch (x) { toast(x instanceof Offline ? tr('Only available online.') : x.code === 'file' || x.code === 'list_e2e_key' || x.code === 'list_e2e_locked' ? x.message : tr('Cannot be decrypted')); return; }
+  catch (x) { toast(x instanceof Offline || x.code === 'file' || x.code === 'list_e2e_key' || x.code === 'list_e2e_locked' ? errText(x, tr('This file could not be read')) : tr('Cannot be decrypted')); return; }
   const blob = new Blob([f.data], {type: f.type}), a = {id: aid, name: f.name, size: f.size, mime: f.type};
   if (isImg(a) && typeof attLightbox === 'function') {  // 2.306.0 D4 (#2875): a data: URL (the CSP allows img-src 'self' data: only, a blob: URL showed nothing)
     const du = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(String(fr.result)); fr.onerror = () => res(''); fr.readAsDataURL(blob); });

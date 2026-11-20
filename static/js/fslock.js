@@ -201,7 +201,7 @@ async function fslFetch(n, v) {
   if (!r.ok) throw fslErr(tr('File damaged or missing'), 'file');
   return r.arrayBuffer();
 }
-const fslToast = x => toast(x instanceof Offline ? tr('Only available online.') : x?.message || tr('Cannot be decrypted'));
+const fslToast = (x, what) => toast(errText(x, what || tr('Cannot be decrypted')));  // (#6372): what did not work first
 async function fslDec(n, v) { await fslKeys(n.lock_id, true); return fslFileDec(n.lock_id, await fslFetch(n, v)); }
 // a picture as a data: URL (the CSP allows img-src 'self' data:); '' = unreadable
 const fslDataUrl = blob => new Promise(res => { const fr = new FileReader(); fr.onload = () => res(String(fr.result)); fr.onerror = () => res(''); fr.readAsDataURL(blob); });
@@ -263,14 +263,14 @@ async function fsl_upload(files, target, lid0) {
 }
 async function fsl_newFolder(pid, name, lid0) {
   const lid = lid0 || fslLockOf(pid);
-  let n; try { await fslKeys(lid, true); n = await api('POST', '/api/files/lock/folder', {parent_id: pid, name: await fslNameEnc(lid, name.trim())}); } catch (x) { if (!x.shown) fslToast(x); return; }
+  let n; try { await fslKeys(lid, true); n = await api('POST', '/api/files/lock/folder', {parent_id: pid, name: await fslNameEnc(lid, name.trim())}); } catch (x) { if (!x.shown) fslToast(x, tr('The folder could not be created')); return; }
   ab_reload();
   offerUndo(tr('Folder “{0}” created', name.trim()), histAdd({label: tr('New folder “{0}”', name.trim()), undo: () => ab_req('DELETE', `/api/files/nodes/${n.id}`), redo: () => ab_req('POST', `/api/files/nodes/${n.id}/restore`)}));
 }
 async function fsl_rename(n) {
   const name = await askPrompt(tr('Rename'), n.name, {ok: tr('Save'), input: {max: 150}});
   if (!name || !name.trim() || name === n.name) return;
-  try { await api('POST', `/api/files/lock/rename/${n.id}`, {name: await fslNameEnc(n.lock_id, name.trim())}); } catch (x) { if (!x.shown) fslToast(x); return; }
+  try { await api('POST', `/api/files/lock/rename/${n.id}`, {name: await fslNameEnc(n.lock_id, name.trim())}); } catch (x) { if (!x.shown) fslToast(x, tr('The change could not be saved')); return; }
   ab_reload(); toast(tr('Renamed to “{0}”', name.trim()));
 }
 function fsl_newVersion(n) {
@@ -567,7 +567,7 @@ async function fsl_lockDlg(n) {
       ['fsl-who', who]].map(([c, x]) => `<p class="${esc(c)}">${esc(x)}</p>`).join('')
     + `<p class="fsl-warn"><b>${esc(tr('If everyone with the key forgets their encryption password (passphrase) and loses the recovery code, the content is lost permanently. Nobody can bring it back, not even the operator.'))}</b></p>`});
   if (!yes) return;
-  try { await fslStart(n.id, fslProgToast(tr('Encrypting'))); } catch (x) { if (!x.shown) toast(tr('The folder stays open: {0}', x.message || '?')); ab_reload(); return; }
+  try { await fslStart(n.id, fslProgToast(tr('Encrypting'))); } catch (x) { if (!x.shown) toast(tr('The folder stays open: {0}', errText(x))); ab_reload(); return; }
   ab_reload(); toast(tr('“{0}” is locked', n.name));
 }
 async function fsl_infoDlg(n, info) {

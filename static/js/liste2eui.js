@@ -65,7 +65,7 @@ function le2u_detailHtml(t) {
 async function le2u_unlock(lid) {
   if (!le2u_fn('le2eUnlock')) return;
   let ok = false;
-  try { ok = await le2eUnlock(lid); } catch (x) { if (x?.message) toast(x.message); return; }
+  try { ok = await le2eUnlock(lid); } catch (x) { if (x?.message) toast(errText(x, tr('The project key could not be opened.'))); return; }
   // 2.64.1 review 2 (M2): texts that do not open with the unwrapped key (a swapped list key) or no key at all: said, never silent
   const n = typeof le2eUnreadable === 'function' ? le2eUnreadable(lid) : 0;
   if (n) toast(trn('{0} text of this project cannot be opened with your key. Compare the safety numbers with the members.', '{0} texts of this project cannot be opened with your key. Compare the safety numbers with the members.', n));
@@ -143,7 +143,7 @@ async function le2u_run(lid, kind, password) {
     ok = true;
     toast(LE2U.run[lid].kind === 'stop' ? tr('The lock of the project is open') : tr('The project is encrypted in the browser'));
   } catch (x) {
-    if (x?.message) toast(x.message);
+    if (x?.message) toast(errText(x, tr('The change could not be saved')));
   } finally {
     delete LE2U.run[lid];
     try { await load(); } catch { /* offline: the next sync */ }
@@ -153,11 +153,11 @@ async function le2u_run(lid, kind, password) {
 }
 async function le2u_release(lid) {
   if (!le2u_fn('le2eRelease')) return;
-  let j; try { j = await le2u_info(lid, true); } catch (x) { toast(x?.message || tr('Not possible right now')); return; }
+  let j; try { j = await le2u_info(lid, true); } catch (x) { toast(errText(x, tr('The people could not be loaded'))); return; }
   const ids = (j.pending || []).filter(p => p.has_keys).map(p => p.user_id);
   if (!ids.length) { toast(tr('Nobody waiting has set up encryption yet')); return; }
   if (!await le2u_tofu(ids, uid => le2u_pname(j, uid))) return;  // 2.539.0 (#4376)
-  let r; try { r = await le2eRelease(lid, ids); } catch (x) { if (x?.message) toast(x.message); return; }
+  let r; try { r = await le2eRelease(lid, ids); } catch (x) { if (x?.message) toast(errText(x, tr('The key could not be released'))); return; }
   const n = ids.length - (r?.skipped?.length || 0);  // 2.64.1 review: a copy the server kept (skipped) is no new release
   toast(trn('Key released for {0} person', 'Key released for {0} people', n));
   try { await load(); } catch { /* next sync */ }
@@ -208,7 +208,7 @@ document.addEventListener('click', async e => {
   try {
     if (a === 'rotate') await le2eRotate(lid, true);
     else await le2eReenc(lid, () => {}, {ask: true});  // by hand: unreadable texts may be taken over as empty (review M3)
-  } catch (x) { if (x?.message) toast(x.message); } finally { delete LE2U.rot[lid]; }
+  } catch (x) { if (x?.message) toast(errText(x, tr('The change could not be saved'))); } finally { delete LE2U.rot[lid]; }
   try { await load(); } catch { /* next sync */ }
   render(); le2u_listRedraw(lid);
 }, true);
@@ -279,7 +279,7 @@ function le2u_listWire(md, lid) {
 // the notice before switching on (concept section 4, short form 1-4); OK only after "I have read this"
 async function le2u_startDlg(lid, j) {
   if (typeof e2eEnsure === 'function' && !await e2eEnsure()) return false;
-  try { j = await le2u_info(lid, true); } catch (x) { toast(x?.message || tr('Not possible right now')); return false; }
+  try { j = await le2u_info(lid, true); } catch (x) { toast(errText(x, tr('The people could not be loaded'))); return false; }
   if ((j.blockers || []).length) { toast(tr('Not possible yet')); return false; }
   const ppl = (j.members || []).filter(m => m.kind !== 'agent');
   const miss = ppl.filter(m => !m.has_keys);
@@ -386,7 +386,7 @@ function le2u_share(md, lid) {
         if (!ids.length) return;
         if (!await le2u_tofu(ids, x => le2u_pname(md._le2u, x))) return;  // 2.539.0 (#4376)
         b.disabled = true;
-        try { const r = await le2eRelease(lid, ids); toast(trn('Key released for {0} person', 'Key released for {0} people', ids.length - (r?.skipped?.length || 0))); } catch (x) { if (x?.message) toast(x.message); b.disabled = false; return; }
+        try { const r = await le2eRelease(lid, ids); toast(trn('Key released for {0} person', 'Key released for {0} people', ids.length - (r?.skipped?.length || 0))); } catch (x) { if (x?.message) toast(errText(x, tr('The key could not be released'))); b.disabled = false; return; }
         md._le2u = null; try { await load(); } catch { /* next sync */ } render(); le2u_share(md, lid);
       }
     });
@@ -411,7 +411,7 @@ async function le2u_chgOf(lid, force) {
 }
 async function le2uSafetyList(lid) {
   if (typeof e2eEnsure === 'function' && !await e2eEnsure()) return;
-  let j; try { j = await le2u_chgOf(lid, true); } catch (x) { toast(x?.message || tr('Not possible right now')); return; }
+  let j; try { j = await le2u_chgOf(lid, true); } catch (x) { toast(errText(x, tr('The people could not be loaded'))); return; }
   const chg = new Set((LE2U.chg[lid] || []).map(c => c[0]));
   const ppl = (j.members || []).filter(m => m.kind !== 'agent' && m.has_keys && !(S.me && m.user_id === S.me.id));
   const nums = await Promise.all(ppl.map(m => (le2u_fn('le2eSafety') ? le2eSafety(m.user_id) : Promise.resolve(null)).catch(() => null)));

@@ -10,6 +10,9 @@
 //   view; the CONTENT (event title, contact name) is there
 // - a direct API write of the reader stays 403 (event, contact)
 // - the same persons with the right (Bob: share "edit", Rita: member) see the entries and no read hint; Fred too
+// - #6154: a reader goes in (the month, the event's popover), reads and goes back (Esc); an event whose calendar is not among
+//   the loaded ones opens read-only and makes NO calendar behind her back; Rita's own calendar in Alpha while she is read-only
+//   there reads (the server caps the owner) but offers no "Leave", no Rename / Delete and is not labelled "Rita · Read-only"
 // freelancer-matrix: events contacts (Fred has no organisation: his private workspace, every entry there)
 const {execFileSync} = require('child_process');
 const path = require('path');
@@ -101,6 +104,9 @@ const FEATS = 'cal,events,contacts,collab,comments';
     const pop = d.querySelector('#pop .evpop');
     check(pop?.textContent.includes(title), `${who}: the popover shows the title`);
     check(!!pop?.querySelector('[data-evp="edit"]') === writer && !!pop?.querySelector('[data-evp="del"]') === writer, `${who}: Edit / Delete ${writer ? 'there' : 'left out'}`);
+    // #6154: and back - Esc closes the popover, the month is still there
+    (d.activeElement || d.body).dispatchEvent(new w.KeyboardEvent('keydown', {key: 'Escape', bubbles: true, cancelable: true}));
+    check(await until(() => d.querySelector('#pop').classList.contains('hidden') && chip()), `${who}: Esc goes back to the month`);
     w.eval('closePop()');
     // the editor on the event
     w.eval(`api('GET', '/api/events/${eid}').then(ev => evEditor({ev}))`);
@@ -111,7 +117,17 @@ const FEATS = 'cal,events,contacts,collab,comments';
       check(!!md.querySelector('[data-evm="save"]') === writer && !!md.querySelector('[data-evm="del"]') === writer, `${who}: Save / Delete ${writer ? 'there' : 'left out'}`);
       check(md.querySelector('#ev-title').disabled === !writer && md.querySelector('#ev-desc').disabled === !writer, `${who}: the fields ${writer ? 'edit' : 'read'}`);
       check(md.querySelectorAll('.cwro').length === (writer ? 0 : 1), `${who}: the editor's read hint ${writer ? 'none' : 'once'}`);
-      md.remove();
+      click(w, md.querySelector('[data-evm="close"]'));
+      check(await until(() => !md.isConnected && chip()), `${who}: the editor closes (the cross), back in the month`);
+    }
+    if (!writer) {  // #6154: the event's calendar not among the loaded ones (a stale list): read-only, no calendar made quietly
+      const ck = U[user + 'C'], n0 = ((await call('GET', '/api/evcals', null, ck)).items || []).length;
+      w.eval(`api('GET', '/api/events/${eid}').then(ev => { S.evcals = (S.evcals || []).filter(c => c.id !== ev.cal_id); return evEditor({ev}); })`);
+      const m2 = await until(() => d.querySelector('.modal.evmodal'));
+      check(!!m2 && m2.querySelector('#ev-title')?.value === title && !m2.querySelector('[data-evm="save"]') && m2.querySelector('#ev-title').disabled, `${who}: an event of a calendar not loaded opens read-only`);
+      await sleep(300);
+      check(((await call('GET', '/api/evcals', null, ck)).items || []).length === n0, `${who}: and makes no calendar behind the reader's back (#6154)`);
+      m2?.remove();
     }
     w.close();
   };
@@ -162,6 +178,28 @@ const FEATS = 'cal,events,contacts,collab,comments';
   await calCase('rita', 'Board meeting', OE.id, true);
   await ctCase('bob', 'Viktor Viewonly', PK1.id, true);
   await ctCase('rita', 'Petra Partner', OK1.id, true);
+
+  // ================= #6154: Rita's own calendar in Alpha, then read-only there again
+  const RC = await call('POST', '/api/evcals', {name: 'Rita plans', org_id: ORG}, U.ritaC);
+  check(RC.id && RC.role === 'owner', 'Rita (member) makes her own calendar in Alpha');
+  check((await call('PUT', `/api/orgs/${ORG}/members`, {user_id: U.rita, role: 'readonly'}, CA)).http === 200, 'Rita is read-only in Alpha again');
+  check(await roleOf(U.ritaC, '/api/evcals', RC.id) === 'view', 'server: the organisation caps Rita\'s own calendar to read (unchanged, the one lock)');
+  check((await call('PATCH', `/api/evcals/${RC.id}`, {name: 'x'}, U.ritaC)).http === 403, 'API: Rita cannot rename it while read-only (403)');
+  {
+    const w = await boot({user: 'rita', hash: 'cal'}), d = w.document;
+    await until(() => d.querySelector('#view .calbar'));
+    w.eval('evCalsModal()');
+    const row = await until(() => d.querySelector(`.modal [data-evcmenu="${RC.id}"]`)?.closest('.evcrow, li, .row') || d.querySelector(`.modal [data-evcmenu="${RC.id}"]`)?.parentElement);
+    check(!!row, 'Rita: her calendar is in the Calendars window');
+    const sub = row?.querySelector('.evcsub')?.textContent || '';
+    check(!/Rita ·/.test(sub), 'Rita: her own calendar is not labelled "Rita · …" (#6154): ' + sub);
+    click(w, d.querySelector(`.modal [data-evcmenu="${RC.id}"]`));
+    await until(() => d.querySelector('#pop [role="menuitem"]'));
+    const mi = [...d.querySelectorAll('#pop [role="menuitem"]')].map(x => x.textContent.trim());
+    check(mi.length && !mi.some(x => /^Leave/.test(x)) && !mi.some(x => /^Rename/.test(x)) && !mi.some(x => /^Delete/.test(x)), 'Rita: her own read-only calendar offers no Leave, Rename, Delete: ' + mi.join('|'));
+    check(mi.some(x => /Export/.test(x)), 'Rita: reading entries stay (export)');
+    w.eval('closePop()'); w.close();
+  }
 
   console.log(`p21238_b_ro_ui: ${ok} ok, ${F.length} failed`);
   process.exit(F.length ? 1 : 0);

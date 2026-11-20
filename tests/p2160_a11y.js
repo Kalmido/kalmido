@@ -122,11 +122,32 @@ const ACCENTS = ['petrol', 'violet', 'raspberry',  // 2.300.0 (#3198): petrol de
   // 2.152.2 (#2624): project instead of list
   check(md.getAttribute('role') === 'dialog' && md.getAttribute('aria-modal') === 'true' && d.getElementById(md.getAttribute('aria-labelledby'))?.textContent === 'Edit project', 'a dialog: role, aria-modal, named by its heading');
   check(md.contains(d.activeElement), 'the focus is in the dialog');
+  // #6377: the page behind the dialog is inert (not only the Tab trap); menus, toast and live region stay reachable
+  check(['#main', '#side', '#top', '#fab'].every(x => d.querySelector(x)?.closest('[inert]')) && !d.querySelector('#pop').closest('[inert]') && !d.querySelector('#toast').closest('[inert]') && !d.querySelector('#srlive').closest('[inert]') && !md.closest('[inert]'), '#6377: behind a dialog the page is inert, #pop / #toast / #srlive and the dialog are not');
   const fl = [...md.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea')].filter(x => x.type !== 'hidden');
   fl[fl.length - 1].focus(); key(w, fl[fl.length - 1], 'Tab');
   check(md.contains(d.activeElement), 'Tab from the last control stays in the dialog');
   key(w, d.activeElement, 'Escape');  // #3049: the project dialog closes once its save is through, so wait for that state
   check(await until(() => !md.isConnected && d.activeElement === opener), 'Esc closes it and the focus goes back to the opener');
+  check(!d.querySelector('#app [inert]'), '#6377: closed: nothing of the page stays inert');
+  // #6377: a dialog over a dialog: the lower one is inert, closing the upper one gives it back
+  w.eval(`habitModal()`);  // loaded on demand: wait for the dialog itself
+  check(await until(() => d.querySelectorAll('.modal').length === 1), '#6377: the habit dialog is open');
+  const lo = d.querySelector('.modal');
+  w.eval(`askConfirm('Sure?')`);
+  check(await until(() => d.querySelectorAll('.modal').length === 2), '#6377: a confirmation over it is open');
+  const up = [...d.querySelectorAll('.modal')].pop();
+  check(up !== lo && lo.hasAttribute('inert') && !up.closest('[inert]'), '#6377: the lower dialog is inert while a second one is open');
+  key(w, up, 'Escape');
+  check(await until(() => !up.isConnected && !lo.hasAttribute('inert') && !!d.querySelector('#main[inert]')), '#6377: the second one closed: the first one is reachable again, the page still inert');
+  lo.remove();
+  check(await until(() => !d.querySelector('#app [inert]')), '#6377: the first one closed too: the page is reachable');
+  // #6377: the quick add sheet is a modal dialog with the page inert behind it
+  w.eval(`openQuickSheet()`); await sleep(200);
+  const qs = d.querySelector('.qadd.sheet');
+  check(qs?.getAttribute('role') === 'dialog' && qs.getAttribute('aria-modal') === 'true' && qs.getAttribute('aria-label') === 'New task' && !!d.querySelector('#main[inert]') && !d.querySelector('#scrim').closest('[inert]'), '#6377: the quick add sheet: role dialog, named, page inert, scrim clickable');
+  w.eval(`closePop()`);
+  check(await until(() => !d.querySelector('#app [inert]')), '#6377: the sheet closed: the page is reachable again');
   // errors in words (3.3.1)
   w.eval(`tokModal(null, [])`); await sleep(300);
   md = [...d.querySelectorAll('.modal')].pop();
@@ -144,6 +165,34 @@ const ACCENTS = ['petrol', 'violet', 'raspberry',  // 2.300.0 (#3198): petrol de
   click(w, sw[2]);
   check(sw[2].getAttribute('aria-pressed') === 'true' && sw.filter(b => b.getAttribute('aria-pressed') === 'true').length === 1, 'picking one moves the pressed state');
   md.remove();
+  // #6377: section heads fold with the keyboard: the arrow is a button with aria-expanded, the focus stays on it
+  w.eval(`go('today')`);
+  check(await until(() => d.querySelector('#view .ghead .gtog')), '#6377: Today has section heads with a fold button');
+  {
+    const tg0 = d.querySelector('#view .ghead .gtog'), gk = tg0.dataset.key;
+    const tg = () => d.querySelector(`#view .ghead .gtog[data-key="${gk}"]`);
+    check(tg0.tagName === 'BUTTON' && tg0.getAttribute('aria-expanded') === 'true' && tg0.getAttribute('aria-label') && tg0.closest('.ghead').dataset.act === 'collapse', '#6377: the fold arrow is a named button, open ' + tg0.outerHTML.slice(0, 160));
+    tg0.focus(); click(w, tg0);
+    check(await until(() => tg()?.getAttribute('aria-expanded') === 'false' && tg().closest('.ghead').classList.contains('closed')), '#6377: the button folds the section (aria-expanded false)');
+    check(d.activeElement === tg(), '#6377: the focus stays on the fold button after the redraw');
+    click(w, tg());
+    check(await until(() => tg()?.getAttribute('aria-expanded') === 'true'), '#6377: and opens it again');
+  }
+  // #6377: fields named for screen readers, not only by a placeholder (the places of the audit, drawn in this window)
+  {
+    const named = el => !!el && !!(el.getAttribute('aria-label') || el.getAttribute('aria-labelledby') || el.labels?.length);
+    const src = n => fs.readFileSync(path.join(__dirname, '..', 'static', 'js', n), 'utf8');
+    for (const [file, rx] of [['account.js', /<input type="password" id="pp-pw"[^>]*>/], ['account.js', /<input id="pp-code"[^>]*>/], ['projects.js', /<input id="dp-q"[^>]*>/],
+      ['projects.js', /<textarea id="st-note"[^>]*>/], ['projects.js', /<textarea id="pov-desc-in"[^>]*>/],
+      ['related.js', /<input id="rel-q"[^>]*>/], ['dragmulti.js', /<input id="dg-q"[^>]*>/], ['habitdlg.js', /<textarea id="h-note"[^>]*>/], ['palette.js', /<input class="pqin"[^>]*>/]]) {
+      const tag = (src(file).match(rx) || [''])[0];
+      check(/aria-label=/.test(tag), `#6377: ${file} ${String(rx).slice(1, 30)} has an aria-label`);
+    }
+    w.eval(`habitModal()`); await sleep(250);
+    const hm = [...d.querySelectorAll('.modal')].pop();
+    check([...hm.querySelectorAll('input:not([type=hidden]):not([type=checkbox]):not([type=radio]),textarea')].filter(x => !x.closest('.hidden,[hidden]')).every(named), '#6377: the habit dialog has no field named only by its placeholder');
+    hm.remove();
+  }
   // the agent chat is a log
   w.close();
   w = await boot({user: 'alice', hash: 'agents/' + ag.id}); d = w.document; await sleep(500);
@@ -169,6 +218,21 @@ const ACCENTS = ['petrol', 'violet', 'raspberry',  // 2.300.0 (#3198): petrol de
       for (const b of ['bg', 'bg2', 'bg3']) check(cr(g('faint'), g(b)) >= 4.5, 'faint ' + g('faint') + ' on ' + b + ' ' + g(b) + ' >= 4.5:1 (' + cr(g('faint'), g(b)).toFixed(2) + ')');
     }
     check(/\.ldbar::before\s*\{[^}]*animation:\s*none/.test(css) && /\.ldbar\.on::before\s*\{\s*animation:\s*ldbar/.test(css), 'ldbar: no animation without .on');
+    // #6377: green / blue / grey as TEXT use the -t variants: 4.5:1 on --bg / --bg2 / --bg3 in the light theme (the dark one unchanged)
+    const lightRe = /:root\[data-theme="light"\]\{[^}]*\}/, lt = (css.match(lightRe) || [''])[0], dk = (css.match(/:root\{[^}]*\}/) || [''])[0];
+    const tok = (blk, k) => (blk.match(new RegExp('--' + k + ':(#[0-9a-f]{6})', 'i')) || [])[1];
+    for (const k of ['ok-t', 'st-work-t', 'st-off-t', 'st-wait-t']) for (const b of ['bg', 'bg2', 'bg3']) {
+      const c = tok(lt, k), bg = tok(lt, b);
+      check(c && bg && cr(c, bg) >= 4.5, `#6377: light --${k} ${c} on --${b} ${bg} >= 4.5:1 (${c && bg ? cr(c, bg).toFixed(2) : '?'})`);
+    }
+    for (const [t, base] of [['ok-t', 'ok'], ['st-work-t', 'st-work'], ['st-off-t', 'st-off']]) check(tok(dk, t) && tok(dk, t) === tok(dk, base), `#6377: dark --${t} = --${base} (dark theme unchanged)`);
+    const allCss = css + ['agentchat', 'office', 'hubmailbox', 'settings'].map(n => fs.readFileSync(path.join(__dirname, '..', 'static', 'css', n + '.css'), 'utf8')).join('\n');
+    const okText = [...allCss.matchAll(/([^{}]+)\{[^{}]*(?:^|[;{\s])color:var\(--ok\)/gm)].map(m => m[1].trim()).filter(sel => !sel.split(',').every(p => /(svg|\.i)\s*$/.test(p.trim())));
+    check(!okText.length, '#6377: no text in --ok (only icons; text takes --ok-t): ' + okText.join(' | '));
+    check(/--st-on_track:var\(--ok-t\)/.test(css), '#6377: the project status "On track" (pill text) in --ok-t');
+    // #6377: the mention link shows a focus ring on keyboard focus (not only the underline)
+    const startCss = css + fs.readdirSync(path.join(__dirname, '..', 'static', 'css')).filter(n => /^start-.*\.css$/.test(n)).sort().map(n => fs.readFileSync(path.join(__dirname, '..', 'static', 'css', n), 'utf8')).join('\n');
+    check(/button\.mention\.mlink:focus-visible\{outline:2px solid var\(--accent\)/.test(startCss) && !/button\.mention\.mlink[^{]*\{[^}]*outline:none/.test(startCss), '#6377: the mention link has a focus ring');
   }
   const ffLogin = async ({ev, nav}, theme, accent = null) => {
     await nav(B + 'static/icon.svg');
@@ -203,8 +267,15 @@ const ACCENTS = ['petrol', 'violet', 'raspberry',  // 2.300.0 (#3198): petrol de
     const fc = await ev(FIELDS);
     for (const x of fc) rep(`[${where}] field-contrast ${x}`);
     check(!fc.length, `${where}: fields 3:1 against their surroundings: ` + fc.slice(0, 4).join(' | '));
+    // #6377 (axe counts a placeholder as a name): every visible field has a real name (aria-label, a label, a title)
+    const nn = await ev(NONAME);
+    for (const x of nn) rep(`[${where}] field-name ${x}`);
+    check(!nn.length, `${where}: fields named not only by their placeholder: ` + nn.slice(0, 6).join(' | '));
     return r;
   };
+  const NONAME = `[...document.querySelectorAll('input:not([type=hidden]),textarea,select')].filter(f => { const r = f.getBoundingClientRect();
+    return r.width && r.height && getComputedStyle(f).visibility !== 'hidden' && !f.closest('[inert],[aria-hidden="true"]') && !(f.getAttribute('aria-label') || f.getAttribute('aria-labelledby') || f.labels?.length || f.title); })
+    .map(f => (f.id ? '#' + f.id : f.tagName.toLowerCase() + '.' + [...f.classList].join('.')) + ' in ' + (f.closest('[id]')?.id || '?'))`;
   const FIELDS = `(() => {
     const rgba = c => { const m = (c || '').match(/[\\d.]+/g) || []; return m.length < 3 ? null : [+m[0], +m[1], +m[2], m.length > 3 ? +m[3] : 1]; };
     const lin = v => { v /= 255; return v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; };

@@ -169,7 +169,7 @@ async function shfm_put(chg, label) {  // chg = [{row_id, col_id, fmt: the new f
   if (merges) shvRender(); else shvPatchAll();
   let res;
   try { res = await shfm_send(sid, chg.map(x => ({row_id: x.row_id, col_id: x.col_id, fmt: x.fmt, prev: x.old})), merges); }
-  catch (e) { shfm_local(sh, chg.map(x => ({...x, fmt: x.old}))); if (merges) shvRender(); else shvPatchAll(); toast(e.message); return null; }
+  catch (e) { shfm_local(sh, chg.map(x => ({...x, fmt: x.old}))); if (merges) shvRender(); else shvPatchAll(); toast(errText(e, tr('The change could not be saved'))); return null; }
   if (res.cf.length) toast(tr('Changed elsewhere in the meantime') + ': ' + res.skipped.join(', '));
   const keep = new Set(res.cf.map(x => x.row_id + ':' + x.col_id)), done = chg.filter(x => !keep.has(x.row_id + ':' + x.col_id));
   if (!done.length) return null;
@@ -315,7 +315,7 @@ async function shfm_rulesPut(rules, label) {
     if (SHV.sh?.id === sid) { SHV.sh.rules = r.rules || []; if (r.rev != null) SHV.sh.rev = r.rev; shvRender(); }
     return r;
   };
-  let res; try { res = await put(rules, sh.rev); } catch (e) { toast(e.message); if (e.status === 409) await shvLoad(sid, true); return; }
+  let res; try { res = await put(rules, sh.rev); } catch (e) { toast(errText(e, tr('The change could not be saved'))); if (e.status === 409) await shvLoad(sid, true); return; }
   const now = res.rules || [];
   histToast(label, histAdd({label, ids: [], snaps: [], lids: [], srv: true, undo: async () => { await put(old); return {skipped: []}; }, redo: async () => { await put(now); return {skipped: []}; }}));
 }

@@ -33,7 +33,7 @@ const shbName = id => shbTabs().find(t => t.id === id)?.name || '';
 
 async function shbAdd(sh, copy) {
   const bid = shbBid(sh), from = sh.id;
-  let r; try { r = await shbReq('POST', shbUrl(bid), {after_id: sh.id, ...(copy ? {copy_of: sh.id, name: tr('{0} (copy)', shbName(sh.id))} : {})}); } catch (e) { toast(e.message); return; }
+  let r; try { r = await shbReq('POST', shbUrl(bid), {after_id: sh.id, ...(copy ? {copy_of: sh.id, name: tr('{0} (copy)', shbName(sh.id))} : {})}); } catch (e) { toast(errText(e, tr('The sheet could not be created'))); return; }
   const tid = r.tab.id, name = r.tab.name;
   await shbAfter(tid);
   const e = histAdd({label: tr('Created {0}', qn(name)), ids: [], snaps: [], lids: [], srv: true,  // 2.800.0 (#5409): the server lists the step
@@ -47,7 +47,7 @@ async function shbRename(sh, tid) {
   const t = await askPrompt(tr('Rename sheet'), cur, {input: {max: 100}, ok: tr('Rename')});
   if (t == null || !t.trim() || t.trim() === cur) return;
   const set = async v => { await shbReq('PATCH', shbUrl(bid, tid), {name: v}); await shbAfter(); };
-  try { await set(t.trim()); } catch (e) { toast(e.message); return; }
+  try { await set(t.trim()); } catch (e) { toast(errText(e, tr('The change could not be saved'))); return; }
   const e = histAdd({label: tr('Renamed {0}', qn(t.trim())), ids: [], snaps: [], lids: [], srv: true, undo: async () => { await set(cur); return {skipped: []}; }, redo: async () => { await set(t.trim()); return {skipped: []}; }});
   histToast(tr('Renamed'), e);
 }
@@ -55,14 +55,14 @@ async function shbMove(sh, tid, to) {
   const bid = shbBid(sh), was = shbTabs().findIndex(t => t.id === tid);
   if (was < 0 || to < 0 || to >= shbTabs().length || to === was) return;
   const set = async p => { await shbReq('PATCH', shbUrl(bid, tid), {pos: p}); await shbAfter(); };
-  try { await set(to); } catch (e) { toast(e.message); return; }
+  try { await set(to); } catch (e) { toast(errText(e, tr('The change could not be saved'))); return; }
   const e = histAdd({label: tr('Move {0}', qn(shbName(tid))), ids: [], snaps: [], lids: [], srv: true, undo: async () => { await set(was); return {skipped: []}; }, redo: async () => { await set(to); return {skipped: []}; }});
   histToast(tr('Moved'), e);
 }
 async function shbDelete(sh, tid) {
   const bid = shbBid(sh), tabs = shbTabs(), i = tabs.findIndex(t => t.id === tid), name = shbName(tid);
   const next = tabs[i + 1] || tabs[i - 1];
-  try { await shbReq('DELETE', shbUrl(bid, tid)); } catch (e) { toast(e.message); return; }
+  try { await shbReq('DELETE', shbUrl(bid, tid)); } catch (e) { toast(errText(e, tr('The sheet could not be deleted'))); return; }
   await shbAfter(tid === sh.id ? next?.id : null);
   const e = histAdd({label: tr('Deleted {0}', qn(name)), ids: [], snaps: [], lids: [], srv: true,
     undo: async () => { await shbReq('POST', shbUrl(bid, tid, 'restore')); await shbAfter(tid); return {skipped: []}; },
@@ -72,7 +72,7 @@ async function shbDelete(sh, tid) {
 }
 // 2.671.0 (#3463 b): a new pivot sheet from the open sheet / the open pivot's setting: the dialog loads on demand (sheetpivot.js)
 async function shbPivot(sh, edit) {
-  try { await loadModule('sheetpivot'); } catch (e) { toast(/** @type {any} */ (e).message); return; }
+  try { await loadModule('sheetpivot'); } catch (e) { toast(errText(e, tr('The view could not be loaded'))); return; }
   if (typeof spv_dialog === 'function') spv_dialog(sh, edit ? sh.pivot : null);
 }
 function shbMenu(sh, tid, a) {

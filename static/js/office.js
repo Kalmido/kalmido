@@ -917,7 +917,7 @@ const oxaStale = x => x?.status === 409 && !!x.data?.settings;
 const oxaAt = () => OFC.info?.settings?.updated_at ?? '';
 // the PUT with the version; errors shown as api() shows them, except the 409 of a newer version (handled by the caller)
 const oxaPut = b => rawFetch('PUT', '/api/office/settings', {...b, expect_updated_at: oxaAt()}).catch(x => {
-  if (!oxaStale(x) && x.message !== 'auth' && !x.shown) toast(x instanceof Offline ? tr('Only available online.') : x.message);
+  if (!oxaStale(x) && x.message !== 'auth' && !x.shown) toast(errText(x, tr('The change could not be saved')));
   throw x;
 });
 // 2.531.0 (#4497): the check of the hash chain over the finalised documents (GET /api/office/log/chain)
@@ -1211,7 +1211,7 @@ function ost_save(el) {
 }
 async function ost_back(b) {
   const a = document.activeElement; if (a?.closest?.('#ofc-set')) a.blur();  // (a redraw keeps the value of a focused field)
-  try { const pk = await ost_put(b); if (pk) await ofcInfo(true); else ofcDraw(); } catch (x) { if (x?.oxaRedraw) { toast(x.message); await ofcInfo(true); } /* else shown by api() */ }  // 2.528.0 (#4305 A3)
+  try { const pk = await ost_put(b); if (pk) await ofcInfo(true); else ofcDraw(); } catch (x) { if (x?.oxaRedraw) { toast(errText(x, tr('The change could not be saved'))); await ofcInfo(true); } /* else shown by api() */ }  // 2.528.0 (#4305 A3)
   return {skipped: []};
 }
 // the field again after a redraw

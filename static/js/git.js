@@ -289,12 +289,12 @@ async function snipSave() {
   const list = snipList(t).map(x => ({...x}));
   if (ed.sid === 'new') list.push(s); else { const i = list.findIndex(x => x.id === ed.sid); if (i < 0) list.push(s); else list[i] = {...list[i], ...s}; }
   try { S.snip = null; await snipPut(t, list, ed.sid === 'new' ? tr('Code snippet added') : tr('Code snippet saved')); }
-  catch (e) { S.snip = ed; renderDetail(); toast(e.message || tr('Error')); }
+  catch (e) { S.snip = ed; renderDetail(); toast(errText(e, tr('The change could not be saved'))); }
 }
 function snipCancel() { S.snip = null; renderDetail(); }
 async function snipRm(sid) {
   const t = taskById(S.sel); if (!t) return;
-  try { await snipPut(t, snipList(t).filter(x => x.id !== sid), tr('Code snippet removed')); } catch (e) { toast(e.message || tr('Error')); }
+  try { await snipPut(t, snipList(t).filter(x => x.id !== sid), tr('Code snippet removed')); } catch (e) { toast(errText(e, tr('The change could not be saved'))); }
 }
 async function snipCopy(sid) {
   const s = snipList(taskById(S.sel)).find(x => x.id === sid); if (!s) return;

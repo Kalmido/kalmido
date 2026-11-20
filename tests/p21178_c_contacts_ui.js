@@ -61,6 +61,7 @@ const rowNames = d => [...d.querySelectorAll('#view .ctlist .ctrow .ctn b')].map
   w.__held[0].fail('Testfehler');
   check(await until(() => d.querySelector('#view .ctview .eerr')), '#6121 trash: a failed load shows the error block');
   check(/The trash could not be loaded/.test(txt(d, '#view .ctview .eerr')) && !/trash is empty/i.test(txt(d, '#view .ctview')), '#6121 trash: it says so, not "The trash is empty": ' + txt(d, '#view .ctview'));
+  check(!/Testfehler/.test(txt(d, '#toast:not(.hidden)')), '#6372 trash: no toast with the server text beside the error block: ' + txt(d, '#toast'));
   unhold(w);
   d.querySelector('#view .ctview .eerr [data-esretry]').click();
   check(await until(() => d.querySelector(`#view [data-ctt="crest"][data-id="${GONE}"]`)), '#6121 trash: Try again brings the deleted contact');
@@ -77,6 +78,7 @@ const rowNames = d => [...d.querySelectorAll('#view .ctlist .ctrow .ctn b')].map
   const le = txt(d, '#view .ctlistw');
   check(/Contacts could not be loaded/.test(le) && /Try again/.test(le) && !/No contact matches/.test(le), '#6121 list: "could not be loaded" + Try again, not "No contact matches": ' + le);
   check(!/Select a contact/.test(txt(d, '#view .ctcols')), '#6121 list: ONE message - the right column says nothing');
+  check(!/Testfehler/.test(txt(d, '#toast:not(.hidden)')), '#6372 list: ONE message - no toast with the server text beside the error block: ' + txt(d, '#toast'));
   unhold(w);
   d.querySelector('#view .ctlistw [data-esretry]').click();
   check(await until(() => rowNames(d).includes('Ada Lovelace') && rowNames(d).includes('Bob Builder')), '#6121 list: Try again brings the rows');

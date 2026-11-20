@@ -429,7 +429,20 @@ for (const [m, ns] of Object.entries(LD_CALL)) for (const n of ns) {
 }
 for (const ns of Object.values(LD_NOP)) for (const n of ns) window[n] = () => '';  // 2.65.0 (#1823)
 // a part of another view (the client page's office hints, the start page's figures) loads the office only when it is on
-for (const [n, [m, view]] of Object.entries(LD_VIEW)) window[n] = () => { if (!view && m === 'office' && !officeOn()) return ''; ld_later(m); return view ? `<p class="muted lempty">${tr('Loading…')}</p>` : ''; };
+for (const [n, [m, view]] of Object.entries(LD_VIEW)) window[n] = () => { if (!view && m === 'office' && !officeOn()) return ''; ld_later(m); return view ? `<p class="muted lempty ldwait">${tr('Loading…')}</p>` : ''; };
+// #6381: a view whose module is still loading keeps the old view standing (render.js setHtml asks ld_hold for #view); its
+// "Loading…" stand-in (.ldwait) shows only after 300 ms, like the bar at the top (ld_bar), and the phone's view fade-in
+// (sheetmotion.js an_view) skips it - the view the module draws then fades in. Vorbild: office.js ofcPaint.
+const LDH = {at: 0, t: 0};
+function ld_hold(el, html) {
+  if (!html.includes('ldwait')) { LDH.at = 0; return false; }  // a pending wake-up finds LDH.at 0 and does nothing (no clearTimeout, perf_budget)
+  if (el.querySelector('.ldwait') || !el.firstElementChild) return false;  // the stand-in already stands / nothing to keep
+  const now = Date.now();
+  if (!LDH.at) LDH.at = now;
+  if (now - LDH.at >= 300) return false;
+  if (!LDH.t) LDH.t = setTimeout(() => { LDH.t = 0; if (LDH.at) renderView(); }, 300 - (now - LDH.at));
+  return true;
+}
 // the office switch of an agent (Settings > Agents, the agent chat's settings): its row is drawn at once, the office part
 // only loads when the office is on
 window.oa_switchRowHtml = aid => officeOn() ? `<div class="oa_sw" data-oa-aid="${+aid}" hidden></div>` : '';

@@ -63,7 +63,7 @@
 .audrt b{font-weight:600;margin-right:.25rem}
 .auds{grid-area:s;text-align:right}
 .audc{display:inline-block;min-width:2.5rem;text-align:center;font:600 var(--fs-xs) var(--mono);padding:.0625rem .3125rem;border-radius:var(--r-s);background:var(--bg3);color:var(--muted)}
-.audc.ok{color:var(--ok);background:color-mix(in srgb,var(--ok) 14%,transparent)}
+.audc.ok{color:var(--ok-t);background:color-mix(in srgb,var(--ok) 14%,transparent)}
 .audc.den,.audc.err{color:var(--danger);background:color-mix(in srgb,var(--danger) 16%,transparent)}
 .audi{grid-area:i;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .audd{grid-area:d;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}

@@ -305,6 +305,6 @@ document.addEventListener('click', async e => {
       histToast(label, histAdd({label, undo: async () => { await calReq('POST', `/api/office/bank/tx/${x}/unmatch`); await rcr_refresh(id); return {}; },
         redo: async () => { await calReq('POST', `/api/office/bank/tx/${x}/match`, {kind: 'receipt', id}); await rcr_refresh(id); return {}; }}));
     }
-  } catch (er) { toast(/** @type {any} */ (er)?.message || tr('unknown')); b.disabled = false; return; }
+  } catch (er) { toast(errText(er, tr('The change could not be saved'))); b.disabled = false; return; }
   await rcr_refresh(id);
 });

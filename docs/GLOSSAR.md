@@ -908,6 +908,7 @@ The start-up module.
 - `static/js/backnav.js` (`bn`) - Back and Forward between the views of Kalmido: two arrows right before the bell (#7395), the keys and the mouse buttons
 - `static/js/basket.js` (`kb`) - #1185: the sidebar - one button folds / unfolds every group and folder at once (stored like a single fold)
 - `static/js/bookmarks.js` (`bm`) - Bookmarks: the view "Bookmarks"
+- `static/js/boottheme.js` (`bt`) - The look of the first picture (#6365): theme, accent, theme pack, font size and html.rebooting, set by a blocking script at the top of the head (icons.js applyTheme / applyLook use the same functions)
 - `static/js/budget.js` (`bg`) - The household budget (module "budget", part of the area Home)
 - `static/js/calabs.js` (`abc`) - Public holidays and absences in the calendar (module "calabs", loaded on demand by the "Calendars" window and the event editor)
 - `static/js/caldrag.js` (`cg`) - The calendar like macOS Calendar

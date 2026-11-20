@@ -62,7 +62,7 @@ function msvWire(md) {
       if (!await askConfirm(tr('Remove the server {0}?', l.name), tr('Its tasks no longer show here. Nothing is deleted on the other server. The token stays valid there: revoke it there under Settings > Account > API tokens.'), {ok: tr('Remove'), danger: true})) return;
       const del = async () => { await msvReq('DELETE', `/api/servers/${l.id}`); msvChanged(); msvDraw(md); return {}; };
       const back = async () => { await msvReq('POST', `/api/servers/${l.id}/restore`); msvChanged(); msvDraw(md); return {}; };
-      try { await del(); } catch (x) { toast(x.message); return; }
+      try { await del(); } catch (x) { toast(errText(x, tr('The change could not be saved'))); return; }
       const label = tr('Removed server {0}', l.name);
       histToast(label, histAdd({label, sett: true, undo: back, redo: del}));
     }

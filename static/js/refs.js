@@ -375,7 +375,7 @@ window.addEventListener('drop', e => {
   let s; try { s = JSON.parse(e.dataTransfer.getData(RF_MIME)); } catch { return; }
   // only this app (same origin = the same token), only a drag from another document, only kind + a number
   if (!s || !s.o || s.o !== xd_tok() || s.w === XD.w || typeof s.k !== 'string' || !/^[tf]:\d{1,9}$/.test(s.k) || s.k[0] !== k) return;
-  Promise.resolve(hit.t.fn(s, hit.el, e, +s.k.slice(2))).catch(x => { if (x?.message && !x.shown) toast(x.message); });
+  Promise.resolve(hit.t.fn(s, hit.el, e, +s.k.slice(2))).catch(x => { if (x?.message && !x.shown) toast(errText(x, tr('The change could not be saved'))); });
 }, true);
 // the documents' cards (docs.js) can be dragged with the mouse while the split view is on (a reference, a link, the office)
 document.addEventListener('pointerover', e => {
@@ -403,7 +403,7 @@ xd_on('#view .trow[data-id], #detail', 'f', async (s, el, e, id) => {
   let j;
   try { j = await rawFetch('POST', `/api/docs/${id}/task/link`, {task_id: tid}); }
   catch (x) {
-    if (x?.status !== 404) { toast(x?.message || tr('Error')); return; }
+    if (x?.status !== 404) { toast(errText(x, tr('The task could not be linked'))); return; }
     const v = await xd_node(id); if (!v) return;  // no document: a reference in the comment box, sent by the person
     if (+S.sel !== tid) openDetail(tid);
     for (let i = 0; i < 60 && !document.getElementById('c-input'); i++) await new Promise(r => requestAnimationFrame(r));

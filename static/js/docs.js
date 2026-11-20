@@ -353,7 +353,7 @@ async function dc_open(id, o = {}) {
     // 2.583.0 (#4835 review): a locked (encrypted folder) or malware-locked file keeps its own way, not the view
     if (n?.kind === 'file' && !n.in_trash && (n.locked || n._enc || (typeof upLocked === 'function' && upLocked(n)))) { DC.opening = null; if (typeof DVW === 'object') DVW.par = n.parent_id || null; if (typeof dcv_close === 'function') dcv_close(); if (n.locked && typeof fslPrepNode === 'function') await fslPrepNode(n, true); if (typeof ab_openFile === 'function') ab_openFile(n, {raw: true}); return; }
     if (n?.kind === 'file' && !n.in_trash) d = dc_fileDoc(n);
-    else { if (DC.opening === id) { DC.opening = null; if (!(typeof DVW === 'object' && DVW.gone?.has(id))) toast(x?.message || tr('Not found')); }  // #5478: removed here a moment ago: no toast over its Undo
+    else { if (DC.opening === id) { DC.opening = null; if (!(typeof DVW === 'object' && DVW.gone?.has(id))) toast(errText(x, tr('The document could not be loaded'))); }  // #5478: removed here a moment ago: no toast over its Undo
       if (dc_hashId() === id && !DC.doc && typeof dcv_close === 'function') dcv_close(); return; }
   }
   // 2.603.0 (#4912): a redraw while the module still loads (docs.js runs before receipts.js ...) drew the sheet without its
@@ -1247,10 +1247,10 @@ async function dcx_csv(ids = dc_selIds()) {
   if (!ids.length) return;
   try {
     const r = await fetch('/api/docs/export.csv', {method: 'POST', headers: {'X-Requested-With': 'kalmido', 'Content-Type': 'application/json'}, body: JSON.stringify({ids})});
-    if (!r.ok) throw new Error(String(r.status));
+    if (!r.ok) throw new Error(httpErrText(r.status));
     const a = document.createElement('a'); a.href = URL.createObjectURL(await r.blob()); a.download = 'documents.csv';
     document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-  } catch { toast(tr('The check failed. Please try again.')); }
+  } catch (e) { toast(errText(e, tr('The export could not be made'))); }  // (#6372): was the text of the move check
 }
 // ---- 2.122.0 B (#2294): the search of an archive -- several tags (with / without, every one / one of them), several senders,
 // types, folders and file types, the document date and the date of arrival, without tag / sender, the search syntax in the

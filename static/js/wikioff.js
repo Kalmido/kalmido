@@ -80,7 +80,7 @@ function wkoffItems(sp) {
 async function wkof_list(sp) { return rawFetch('GET', '/api/wiki/space-files?space=' + encodeURIComponent(sp)); }
 async function wkof_on(sp) {
   if (!OUT.online) { toast(tr('Only available online.')); return; }
-  let j; try { j = await wkof_list(sp); } catch (e) { toast(e.message); return; }
+  let j; try { j = await wkof_list(sp); } catch (e) { toast(errText(e, tr('The files could not be loaded'))); return; }
   if (j.e2e) { toast(tr('This workspace is encrypted: it has no files, its texts are offline already')); return; }
   const est = await navigator.storage?.estimate?.().catch(() => null), free = est && est.quota ? Math.max(0, est.quota - (est.usage || 0)) : null;
   if (free !== null && j.bytes > free * 0.9) {  // a margin: the database stores a bit more than the files

@@ -167,7 +167,7 @@ async function ensureCalEv(lo, hi) {
   S.cal.loading = key; S.cal.err = '';
   const seq = S.cal.seq = (S.cal.seq || 0) + 1;  // 2.161.0: an answer that an invalidation overtook (calInvalidate) is dropped
   try {
-    const j = await api('GET', `/api/calendars/events?from=${addDays(lo, -1)}&to=${addDays(hi, 1)}`);
+    const j = await api('GET', `/api/calendars/events?from=${addDays(lo, -1)}&to=${addDays(hi, 1)}`, undefined, {quiet: true});  // (#6372): calEvState says a failure
     if (S.cal.loading !== key || S.cal.seq !== seq) return;
     cevApply(j, key);
     const c = LS.get('calev', {});
@@ -267,7 +267,7 @@ function cevTodayBlock() {  // "Events today" at the top of Today (setting cal_t
   const mn = `<button class="iconbtn gact cvxtm" data-act="cvx-today-menu" aria-haspopup="menu" title="${esc(tr('Calendars on Today'))}" aria-label="${esc(tr('Calendars on Today'))}">${ic('dots', 's')}</button>`;
   const pl = past.length ? `<div class="cevpastl${pastOpen ? ' open' : ''}" data-act="collapse" data-key="cev-past" role="button" tabindex="0" aria-expanded="${pastOpen}">${ic('chev', 's')}<span>${trn('{0} past', '{0} past', past.length)}</span></div>${pastOpen ? past.map(e => cevRow(e, t0, ' cevpast')).join('') : ''}` : '';
   const rows = live.map(e => cevRow(e, t0, cevNow(e, t0, now) ? ' cevlive' : '', cevNow(e, t0, now) ? `<span class="cevnow">${tr('now')}</span>` : '')).join('') + pl;
-  return `<div class="group cevtoday"><div class="ghead ${closed ? 'closed' : ''}" data-act="collapse" data-key="cev-today">${ic('chev', 's')}${tr('Events today')} <span class="c">${live.length}</span>${mn}</div>${closed ? '' : `<div class="cevlist">${rows || `<div class="muted mhint">${tr('All calendars are switched off here. Switch one on in the menu.')}</div>`}</div>`}</div>`;
+  return `<div class="group cevtoday"><div class="ghead ${closed ? 'closed' : ''}" data-act="collapse" data-key="cev-today">${/*html-ok*/ /* ghTog escapes key and name */ ghTog('cev-today', closed, tr('Events today'))}${tr('Events today')} <span class="c">${live.length}</span>${mn}</div>${closed ? '' : `<div class="cevlist">${rows || `<div class="muted mhint">${tr('All calendars are switched off here. Switch one on in the menu.')}</div>`}</div>`}</div>`;
 }
 // 2.490.0 (#4021): once a minute the block follows the clock (an event ends / starts): only the block is redrawn, and only if its content changed
 setInterval(() => {

@@ -458,15 +458,8 @@ function clearLocal() {
   const st = typeof oc_drop === 'function' ? oc_drop() : new Promise(ok => { try { const r = indexedDB.deleteDatabase('kalmido-start'); r.onsuccess = r.onerror = r.onblocked = () => ok(); } catch { ok(); } });  // 2.663.0 (#4200): the offline start state  // 2.359.0 A (#3023): + the quick add's offline files
   return Promise.all([wk, st, typeof obxClear === 'function' ? obxClear() : Promise.resolve()]);  // 2.143.0 C (#2153): the offline queue in IndexedDB (C2: awaitable)
 }
-// design per device: auto (follows the OS) | dark | light
-function applyTheme() {
-  const pref = LS.get('theme', 'auto');
-  document.documentElement.dataset.theme = pref;
-  const light = pref === 'light' || (pref === 'auto' && matchMedia('(prefers-color-scheme: light)').matches);
-  const m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = light ? '#f8f8f9' : '#16171a';
-}
-applyTheme();
-try { if (sessionStorage.getItem('kalmido.booted')) document.documentElement.classList.add('rebooting'); } catch { /* no storage */ }  // 2.39.1 (#1213): no loading screen on a reload within a session
+// design per device: auto (follows the OS) | dark | light; boottheme.js sets it (and html.rebooting) before the first picture (#6365)
+function applyTheme() { bt_theme(); }
 try { matchMedia('(prefers-color-scheme: light)').addEventListener('change', applyTheme); } catch { /* old browser */ }
 // density per device: compact (default on desktop) | comfortable (default on phones and touch screens)
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || '');
@@ -544,20 +537,11 @@ try { if (localStorage.getItem('tasks.accent') === '"amber"') localStorage.setIt
 try { if (!localStorage.getItem('tasks.accentMig280')) { if (localStorage.getItem('tasks.accent') === '"mint"') localStorage.removeItem('tasks.accent'); localStorage.setItem('tasks.accentMig280', '1'); } } catch { /* private mode */ }
 const lookPref = k => { const v = LS.get(k, null); return (LOOK[k].find(x => x[0] === v) || LOOK[k][0])[0]; };
 const lookRow = k => LOOK[k].find(x => x[0] === lookPref(k));
-// 2.13.0 (#429): the font size is a percentage (75-150 since 2.13.2) in steps of 5 (per device, LS fsize); the old steps s / m / l / xl
-// (90 / 100 / 112 / 125) are read as their percentages. Named steps keep data-fsize (the CSS rules), any other value sets
-// --ui inline. Below 100 % touch screens keep 44 px hit areas (app.css: .ui-small), only the text and spacing shrink.
-const FS_OLD = {s: 90, m: 100, l: 112, xl: 125};
-// 2.13.2 (#478 N5, decision #429): 75-150 %. At 50 % the text was 7.5 px (unreadable) and the 44 px touch rows bent the
-// proportions; a stored value below 75 (2.13.0 / 2.13.1) counts as 75
-const FS_MIN = 75, FS_MAX = 150;
-const fsPct = () => { const v = LS.get('fsize', null); if (typeof v === 'string' && v in FS_OLD) return FS_OLD[v]; const n = +v; return n >= 50 && n <= FS_MAX ? Math.max(FS_MIN, Math.round(n)) : 100; };
+// the font size in percent (FS_OLD, FS_MIN, FS_MAX, fsPct, bt_fsize) lives in boottheme.js since #6365
 const uiZ = () => fsPct() / 100;  // UI scale factor for sizes drawn in JS (week grid, charts, tour card)
 function applyLook() {
-  const r = document.documentElement.dataset, pct = fsPct(), named = Object.keys(FS_OLD).find(k => FS_OLD[k] === pct);
-  r.fsize = named || 'custom'; document.documentElement.style.setProperty('--ui', named ? '' : String(pct / 100));
-  if (named) document.documentElement.style.removeProperty('--ui');
-  document.documentElement.classList.toggle('ui-small', pct < 100);
+  const r = document.documentElement.dataset;
+  bt_fsize();
   r.font = lookPref('font'); r.accent = lookPref('accent');
   r.pack = lookPref('pack');  // 2.83.0 C (#1427)
   document.documentElement.classList.toggle('rail-nolabel', LS.get('railLabels', true) === false);  // 2.319.0 B (#3288): areas.js sbb_labelsOn

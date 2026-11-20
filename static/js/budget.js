@@ -197,7 +197,7 @@ function bg_entryModal(e, cf) {
     try { r = await optWrite(optSet(() => BG.data?.entries.find(x => x.id === id), {...body, amount: String(amount)}), req, bg_draw, {mod: true}); }
     catch (x) {
       if (x?.cf) { bg_entryModal({...x.cf.cur, ...x.cf.mine}, x.cf); toast(tr('Changed by someone else in the meantime')); bg_refresh(); return; }
-      if (x.message !== 'auth') toast(x.message || tr('Error'));  // rawFetch says nothing itself
+      if (x.message !== 'auth') toast(errText(x, tr('The change could not be saved')));  // rawFetch says nothing itself
       return;
     }
     const x = BG.data?.entries.find(y => y.id === id); if (x && r?.id === id) Object.assign(x, r);  // the new updated_at (the next save's check)

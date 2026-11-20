@@ -130,7 +130,7 @@ button.kptile:hover,button.kptile:focus-visible{border-color:var(--accent)}
 .ostok.err .i{color:var(--danger)}
 .ofcset [aria-invalid]{border-color:var(--danger)}
 /* 2.154.0 B (#1960): e-invoices over Peppol - the settings block, the status line of a document, the send dialog */
-.pep-ok{color:var(--ok)}
+.pep-ok{color:var(--ok-t)}
 .pep-bad{color:var(--danger)}
 .pepline{margin:.25rem 0 .5rem;display:flex;flex-wrap:wrap;gap:.25rem;align-items:center}
 .pepmiss ul,.peplist{margin:.25rem 0 .75rem;padding-left:1.25rem}

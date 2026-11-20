@@ -72,7 +72,7 @@ function tz_toModule(ids, per, from, to) {
 // "Delete all times of this project": count + hours first, type the project's name, then one Undo step
 async function tz_wipe(lid, name) {
   let pv;
-  try { pv = await rawFetch('GET', `/api/lists/${lid}/time/delete-all`); } catch (e) { toast(e instanceof Offline ? tr('Only available online.') : e.message); return; }
+  try { pv = await rawFetch('GET', `/api/lists/${lid}/time/delete-all`); } catch (e) { toast(errText(e, tr('The preview could not be loaded.'))); return; }
   if (!pv.count && pv.undo) { tz_wipeUndoAsk(lid, pv.undo); return; }  // 2.530.0 B (#4315): the last delete can still come back
   if (!pv.count) { toast(pv.billed ? tr('Nothing to delete: {0} already billed, they stay', pv.billed) : tr('No time tracked in this project.')); return; }
   const md = modal(`<h3>${tr('Delete all times of this project')}</h3>
@@ -92,7 +92,7 @@ async function tz_wipe(lid, name) {
     if (go_.disabled) return;
     go_.disabled = true;
     let r;
-    try { r = await rawFetch('POST', `/api/lists/${lid}/time/delete-all`, {confirm: inp.value.trim()}); } catch (er) { go_.disabled = false; toast(er.message); return; }
+    try { r = await rawFetch('POST', `/api/lists/${lid}/time/delete-all`, {confirm: inp.value.trim()}); } catch (er) { go_.disabled = false; toast(errText(er, tr('The time entries could not be deleted'))); return; }
     modalClose(md);
     await timeChanged(r);
     const back = r.entries, msg = tr('{0} time entries deleted', r.deleted);
@@ -107,7 +107,7 @@ async function tz_wipe(lid, name) {
 // 2.530.0 B (#4315): the last "Delete all times" of this project back from the server's copy (also after the tab was closed)
 async function tz_wipeRestore(lid, wipe) {
   let j;
-  try { j = await rawFetch('POST', `/api/lists/${lid}/time/restore`, {wipe}); } catch (e) { toast(e instanceof Offline ? tr('Only available online.') : e.message); return; }
+  try { j = await rawFetch('POST', `/api/lists/${lid}/time/restore`, {wipe}); } catch (e) { toast(errText(e, tr('The time entries could not be restored'))); return; }
   await timeChanged(j);
   toast(tr('{0} time entries restored', j.restored || 0));
 }

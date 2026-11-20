@@ -81,7 +81,7 @@ async function dpApply(items, label) {
 async function dpAskAgent(anchor, day, mode, md) {
   const ags = dpAgents(); if (!ags.length) return;
   const ask = async a => {
-    try { await calReq('POST', '/api/proposals', {agent_id: a.id, kind: 'dayplan', date: day, mode}); } catch (x) { toast(x.message); return; }
+    try { await calReq('POST', '/api/proposals', {agent_id: a.id, kind: 'dayplan', date: day, mode}); } catch (x) { toast(errText(x, tr('The message could not be sent'))); return; }
     md?.remove();
     toast(tr('{0} is planning your day. You get a notification when the plan is ready.', a.name), null, 6000);
     load().then(render).catch(() => {});

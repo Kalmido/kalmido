@@ -134,7 +134,7 @@ function clientModal(c, o = {}) {  // 2.80.0 (#1842): o.org_id (the office's are
         }
         if (!yes) return;
         const j = await api('DELETE', `/api/clients/${c.id}`); md.remove(); await load(); if (S.route.client === c.id) go('clients'); else render(); clReload();
-        if (j?.archived) toast(j.message, c.archived ? undefined : async () => { await api('PATCH', `/api/clients/${c.id}`, {archived: 0}); await load(); render(); clReload(); });
+        if (j?.archived) toast(tr('The client is used in quotations, invoices, contracts or the logbook and was archived instead of deleted.'), c.archived ? undefined : async () => { await api('PATCH', `/api/clients/${c.id}`, {archived: 0}); await load(); render(); clReload(); });
         else if (j?.trashed) toast(tr('“{0}” moved to the trash', c.name), async () => { await api('POST', `/api/clients/${c.id}/restore`); await load(); render(); clReload(); });
         return;
       }

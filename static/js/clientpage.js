@@ -272,7 +272,7 @@ function kp_menuItem(c) {
   if (!to || typeof officeOn !== 'function' || !officeOn() || S.me?.kid) return null;
   return {label: tr('Send portal link'), icon: 'mail', fn: async () => {
     if (!await askConfirm(tr('Send the portal link to {0}?', to), tr('The client sees the sent quotations, invoices and their payment status. The link is valid for 30 minutes.'), {ok: tr('Send|mail')})) return;
-    try { const j = await rawFetch('POST', `/api/office/clients/${c.id}/portal-link`, {}); toast(tr('Portal link sent to {0}', j.to || to)); } catch (x) { toast(x.message || ''); }
+    try { const j = await rawFetch('POST', `/api/office/clients/${c.id}/portal-link`, {}); toast(tr('Portal link sent to {0}', j.to || to)); } catch (x) { toast(errText(x, tr('The portal link could not be sent'))); }
   }};
 }
 
@@ -302,7 +302,7 @@ async function ms_clAct(k) {
   const ids = [...MSC.pick]; if (!ids.length) return;
   if (k === 'arch') {
     const sel = (MSC.items || []).filter(c => MSC.pick.has(c.id)), action = sel.every(c => c.archived) ? 'unarchive' : 'archive';
-    let j; try { j = await ms_clSend({action, ids}); } catch (x) { toast(x.message || ''); return; }
+    let j; try { j = await ms_clSend({action, ids}); } catch (x) { toast(errText(x, tr('The change could not be saved'))); return; }
     ms_clEnd(); await ms_clAfter();
     const msg = action === 'archive' ? trn('{0} client archived', '{0} clients archived', j.changed) : trn('{0} client restored', '{0} clients restored', j.changed);
     if (j.changed) ms_hist(msg, msg, async () => { await ms_clSend({action: 'restore', items: j.undo}); await ms_clAfter(); }, async () => { j = await ms_clSend({action, ids}); await ms_clAfter(); });
@@ -401,7 +401,7 @@ document.addEventListener('click', e => {
     menu(b, [{label: c.archived ? tr('Restore') : tr('Archive'), icon: c.archived ? 'undo' : 'archive', fn: async () => {
       // #7292: a main client asks whether its locations go into the archive too
       const ids = c.archived ? [c.id] : await ms_clWithSites([c.id], n => trn('Archive its {0} location too?', 'Archive its {0} locations too?', n), tr('Archive them too'), x => !x.archived);
-      let j; try { j = await ms_clSend({action: c.archived ? 'unarchive' : 'archive', ids}); } catch (x) { toast(x.message || ''); return; }
+      let j; try { j = await ms_clSend({action: c.archived ? 'unarchive' : 'archive', ids}); } catch (x) { toast(errText(x, tr('The change could not be saved'))); return; }
       await ms_clAfter();
       const msg = c.archived ? trn('{0} client restored', '{0} clients restored', ids.length) : trn('{0} client archived', '{0} clients archived', ids.length);
       if (j.changed) ms_hist(msg, msg, async () => { await ms_clSend({action: 'restore', items: j.undo}); await ms_clAfter(); }, async () => { await ms_clSend({action: c.archived ? 'unarchive' : 'archive', ids}); await ms_clAfter(); });
@@ -427,7 +427,7 @@ async function ms_clCopy(c, site) {
     ok: site ? tr('Add location') : tr('Duplicate'),
     submit: async () => {
       try { j = await rawFetch('POST', `/api/clients/${c.id}/copy`, {as_location: site, contacts: !!$('#clcp-k')?.checked}); return true; }
-      catch (x) { toast(x.message || ''); return false; }
+      catch (x) { toast(errText(x, tr('The client could not be copied'))); return false; }
     }});
   if (!ok || !j) return;
   const nid = j.id, msg = site ? tr('Location added') : tr('Client duplicated');
@@ -457,7 +457,7 @@ async function ofm_move({what, ids, from, label, after, only = null}) {  // 2.35
   const req = (to, extra) => rawFetch('POST', '/api/office/move-space', {what, ids, to: smv_ws(to), ...extra});
   const r = await smv_open({what: label, from, only, option: ['clients', 'office'].includes(what) ? {label: tr('Take issued documents along as a read-only copy')} : null,
     check: (to, _pl, opt) => req(to, {dry: 1, copy_issued: opt ? 1 : 0}),
-    run: async (to, _pl, opt) => { try { return {...await req(to, {copy_issued: opt ? 1 : 0}), to, opt}; } catch (e) { toast(e.message); throw e; } }});
+    run: async (to, _pl, opt) => { try { return {...await req(to, {copy_issued: opt ? 1 : 0}), to, opt}; } catch (e) { toast(errText(e, tr('The move was not saved'))); throw e; } }});
   if (!r || !r.ok) return null;
   let mid = r.move_id;
   await after();

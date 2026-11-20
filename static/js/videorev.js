@@ -305,7 +305,7 @@ async function vdr_send(st) {
   const v = vdr_v(st), at = v.timed && st.at && !st.reply ? Math.round((st.frozen != null ? st.frozen : st.ctl ? st.ctl.cur : 0) * 10) / 10 : null;
   const pos = vdr_media(v) && st.pt ? (v.kind === 'pdf' ? {page: st.pt.page, x: st.pt.x, y: st.pt.y} : {x: st.pt.x, y: st.pt.y}) : null;  // 2.641.0 (#4769)
   const body = st.reply ? {parent_id: st.reply, body: text} : pos ? {version_id: v.id, pos, body: text} : {version_id: v.id, at_sec: at, body: text};
-  let j; try { j = await vdr_req(st, 'POST', `/api/videos/${st.r.id}/comments`, body); } catch (e) { toast(e.message); return; }
+  let j; try { j = await vdr_req(st, 'POST', `/api/videos/${st.r.id}/comments`, body); } catch (e) { toast(errText(e, tr('The comment could not be saved'))); return; }
   st.reply = null; st.frozen = null; st.pt = null;
   vdr_draw(st, false);
   const cid = j.comment_id, rid = st.r.id;
@@ -370,7 +370,7 @@ async function vdr_click(e, st) {
       await rawFetch('POST', `/api/videos/${rid}/signoffs/${id}/revoke`); await vdr_after(rid, 'GET', `/api/videos/${rid}`); toast(tr('Client link stopped'));
     }
     if (a === 'sigcopy') { const i = $(`[data-vdrurl="${id}"]`, st.md); try { await navigator.clipboard.writeText(i.value); toast(tr('Link copied')); } catch { i.focus(); i.select(); toast(tr('Copy the selected link')); } }
-  } catch (x) { toast(x.message); }
+  } catch (x) { toast(errText(x, tr('The change could not be saved'))); }
   if (VDR.cur === st) vdr_draw(st, false);
 }
 function vdr_menu(anchor, st) {
@@ -392,7 +392,7 @@ async function vdr_newVersion(st) {
   const url = await askPrompt(tr('New version'), '', {input: {max: 2000, placeholder: 'https://', type: 'url'}, ok: tr('Add'), body: tr('Paste the link of the new cut. The comments of the older versions stay with them.')});
   if (url == null || !url.trim()) return;
   const rid = st.r.id;
-  let j; try { j = await vdr_req(st, 'POST', `/api/videos/${rid}/versions`, {url: url.trim()}); } catch (e) { toast(e.message); return; }
+  let j; try { j = await vdr_req(st, 'POST', `/api/videos/${rid}/versions`, {url: url.trim()}); } catch (e) { toast(errText(e, tr('The change could not be saved'))); return; }
   let nid = j.new_version;
   st.ver = nid; vdr_draw(st, true);
   histToast(tr('Version {0} added', 'v' + j.version), histAdd({label: tr('Version {0} added', 'v' + j.version), ids: [], snaps: [], lids: [],
@@ -403,7 +403,7 @@ async function vdr_rename(st) {
   const cur = st.r.title, t = await askPrompt(tr('Rename'), cur, {input: {max: 200}, ok: tr('Rename')});
   if (t == null || !t.trim() || t.trim() === cur) return;
   const rid = st.r.id, set = v => vdr_after(rid, 'PATCH', `/api/videos/${rid}`, {title: v});
-  try { await set(t.trim()); } catch (e) { toast(e.message); return; }
+  try { await set(t.trim()); } catch (e) { toast(errText(e, tr('The change could not be saved'))); return; }
   histToast(tr('Renamed'), histAdd({label: tr('Renamed {0}', qn(t.trim())), ids: [], snaps: [], lids: [],
     undo: async () => { await set(cur); return {skipped: []}; }, redo: async () => { await set(t.trim()); return {skipped: []}; }}));
 }
@@ -413,7 +413,7 @@ async function vdr_copyText(st) {
 }
 async function vdr_delete(st) {
   const r = st.r;
-  try { await rawFetch('DELETE', `/api/videos/${r.id}`); } catch (e) { toast(e.message); return; }
+  try { await rawFetch('DELETE', `/api/videos/${r.id}`); } catch (e) { toast(errText(e, tr('The approval could not be deleted'))); return; }
   st.md.remove(); vdr_cache(r, true);
   histToast(tr('Approval {0} deleted', qn(r.title)), histAdd({label: tr('Deleted {0}', qn(r.title)), ids: [], snaps: [], lids: [],
     undo: async () => { vdr_cache(await rawFetch('POST', `/api/videos/${r.id}/restore`)); return {skipped: []}; },
@@ -426,7 +426,7 @@ async function vdr_move(st) {
   const places = async to => (S.lists || []).filter(l => !l.is_inbox && !l.archived && !l.e2e && (l.org_id || null) === (to || null) && canEditList(l.id))
     .map(l => ({id: l.id, label: lname(l)}));
   const res = await smv_open({what: qn(r0.title), from, places, check: (to, place) => req(to, {dry: 1, place: place || null}),
-    run: async (to, place) => { try { return await req(to, {place: place || null}); } catch (e) { toast(e.message); throw e; } }});
+    run: async (to, place) => { try { return await req(to, {place: place || null}); } catch (e) { toast(errText(e, tr('The move was not saved'))); throw e; } }});
   if (!res || !res.ok) return;
   let mid = res.move_id;
   st.md.remove(); vdr_forget(); vdr_cache(res.review);

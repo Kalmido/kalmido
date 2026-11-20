@@ -169,7 +169,7 @@ document.addEventListener('click', async e => {
   if (!await askConfirm(tr('Clean up the boundary?'), tr('Takes people out of the projects, calendars and address books of an organisation they do not belong to. Agents stay as they are. This cannot be undone here.'), {ok: tr('Clean up'), danger: true})) return;
   let j; try { j = await api('POST', '/api/admin/orgs/boundary/repair', {}); } catch { return; /* api() said it */ }
   toast([j.removed ? trn('{0} membership removed', '{0} memberships removed', j.removed) : (j.kept ? '' : tr('Nothing to clean up')),
-    // 2.480.0 (#3944, F5): hosted: rows of a client's organisation are only counted
+    // 2.480.0 (#3944, F5): hosted: rows of the organisation of a client are only counted
     j.kept ? trn('{0} finding in a client’s organisation stays: only its admins clean it up', '{0} findings in clients’ organisations stay: only their admins clean them up', j.kept) : ''].filter(Boolean).join(' · '));
   if (typeof orgsDraw === 'function') orgsDraw(md);
 });
@@ -193,7 +193,7 @@ async function suAsk(d, title) {
   return b;
 }
 async function suApi(method, url, body, title, quiet) {  // quiet: 2.446.0 (#3613) error codes the caller answers itself
-  const shout = e => { if (quiet?.includes(e.data?.code)) throw e; if (e instanceof Offline) toast(tr('Only available online.')); else if (e.message !== 'auth' && !e.shown) toast(e.message); throw e; };
+  const shout = e => { if (quiet?.includes(e.data?.code)) throw e; if (e instanceof Offline) toast(tr('Only available online.')); else if (e.message !== 'auth' && !e.shown) toast(errText(e, tr('That did not work. Please try again.'))); throw e; };
   try { return await rawFetch(method, url, body); } catch (e) {
     if (!(e.status === 403 && SU_NEEDS.includes(e.data?.need))) shout(e);
     const b = await suAsk(e.data, title);

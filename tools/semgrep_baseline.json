@@ -3238,9 +3238,10 @@
   {
    "rule": "javascript.express.security.injection.raw-html-format.raw-html-format",
    "file": "static/js/collab.js",
-   "code": "const main = editing ? `<div class=\"cedit\"><textarea class=\"c-edit-input\" data-cid=\"${c.id}\" rows=\"2\">${esc(decodeMentions(c.body, U))}</textarea><div class=\"mpick hidden\"></div>${files}<div class=\"cbar\"><span class=\"spacer\"></span><button class=\"btn sm\" data-act=\"c-edit-cancel\">${tr('Cancel')}</button><button class=\"btn sm pri\" data-act=\"c-edit-save\" data-cid=\"${c.id}\">${tr('Save')}</button></div></div>`",
-   "reason": "client template: every text goes through esc() or the app's markdown renderer (commentBody), ids are numbers, the rest are literals; the XSS suites cover the rendering.",
-   "date": "2026-11-05"
+   "code": "const main = editing ? `<div class=\"cedit\"><textarea class=\"c-edit-input\" data-cid=\"${c.id}\" rows=\"2\" aria-label=\"${tr('Comment')}\">${esc(decodeMentions(c.body, U))}</textarea><div class=\"mpick hidden\"></div>${files}<div class=\"cbar\"><span class=\"spacer\"></span><button class=\"btn sm\" data-act=\"c-edit-cancel\">${tr('Cancel')}</button><button class=\"btn sm pri\" data-act=\"c-edit-save\" data-cid=\"${c.id}\">${tr('Save')}</button></div></div>`",
+   "reason": "Comment edit textarea: only a static translated aria-label added (#6377); the body stays esc()'d, the id is numeric",
+   "date": "2026-11-20",
+   "task": 6377
   },
   {
    "rule": "javascript.express.security.injection.raw-html-format.raw-html-format",

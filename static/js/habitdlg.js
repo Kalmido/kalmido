@@ -34,7 +34,7 @@ function habitModal(id) {
     const c = selDay ? (x.logs[selDay] || 0) : 0;
     const panel = selDay ? `<div class="hday"><div class="hdh"><b>${dayLabel(selDay, true)}</b><span class="muted">${fmtDate(selDay)}</span><span class="spacer"></span>
       ${x.goal > 1 ? `<button class="iconbtn" data-hcnt="-1" title="${esc(tr('One less'))}" aria-label="${esc(tr('One less'))}">−</button><span class="mono" title="${esc(tr('{0} of {1} today', c, x.goal))}">${c}/${x.goal}</span><button class="iconbtn" data-hcnt="1" title="${esc(tr('One more'))}" aria-label="${esc(tr('One more'))}">+</button>` : `<button class="btn sm ${c >= 1 ? 'pri' : ''}" data-hcnt="toggle">${c >= 1 ? ic('check', 's') + ' ' + tr('done') : tr('not done')}</button>`}</div>
-      <textarea id="h-note" rows="2" placeholder="${tr('Note for this day')}">${esc(x.notes[selDay] || '')}</textarea></div>` : hintSeen('hday') ? '' : `<div class="muted hdhint">${tr('Tap a day: check it off or write a note')}</div>`;
+      <textarea id="h-note" rows="2" placeholder="${tr('Note for this day')}" aria-label="${esc(tr('Note for this day'))}">${esc(x.notes[selDay] || '')}</textarea></div>` : hintSeen('hday') ? '' : `<div class="muted hdhint">${tr('Tap a day: check it off or write a note')}</div>`;
     return `<div class="mcal"><div class="mh"><button class="iconbtn" data-hm="-1" title="${esc(tr('Previous month'))}" aria-label="${esc(tr('Previous month'))}">${ic('left')}</button>${MON[m - 1]} ${y}<button class="iconbtn" data-hm="1" title="${esc(tr('Next month'))}" aria-label="${esc(tr('Next month'))}">${ic('right')}</button></div></div><div class="heat" style="--hc:${cssColor(x.color) || HCOLORS[0]}">${g}</div>${panel}`;
   };
   /** @type {any} */

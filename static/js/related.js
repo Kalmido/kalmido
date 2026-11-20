@@ -182,7 +182,7 @@ function rel_picker(tid) {
   const md = modal(`<h3>${tr('Relation…')}</h3>
     <div class="row relkind" role="radiogroup" aria-label="${esc(tr('Kind'))}"><label class="chkl"><input type="radio" name="rel-k" value="relates" checked> ${tr('Related to')}</label>
     <label class="chkl"><input type="radio" name="rel-k" value="duplicate"> ${tr('“{0}” is a duplicate of', esc(toastClip(self?.title || '', 40)))}</label></div>
-    <input id="rel-q" placeholder="${tr('Search tasks')}" autocomplete="off" style="width:100%;margin-top:.5rem">
+    <input id="rel-q" placeholder="${tr('Search tasks')}" aria-label="${esc(tr('Search tasks'))}" autocomplete="off" style="width:100%;margin-top:.5rem">
     <div class="dplist tpk" id="rel-list" role="listbox" aria-label="${esc(tr('Tasks'))}"></div>
     <div class="foot"><span class="spacer"></span><button class="btn" data-m="close">${tr('Cancel')}</button></div>`);
   md.classList.add('dpmodal');

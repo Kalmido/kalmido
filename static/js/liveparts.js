@@ -317,6 +317,13 @@ function lzGate() {
   lzLoad(need).then(ok => { if (ok) render(); });
 }
 const lzBusy = new Set();  // list ids being loaded ('all' = every pending one)
+// #6381: the view's lists are still being loaded (render.js viewList shows the loading block, not "No tasks"); a failed load
+// (offline) ends it - then the view shows what it has
+function lzWait(r = S.route) {
+  if (!S.lz?.pending.size || !lzBusy.size) return false;
+  const need = lzNeed(r), ids = need === null ? [...S.lz.pending] : need.filter(id => S.lz.pending.has(id));
+  return ids.length > 0 && (lzBusy.has('all') || ids.some(id => lzBusy.has(id)));
+}
 async function lzLoad(want) {
   if (!S.lz?.pending.size || lzBusy.has('all')) return false;
   const ids = want === null ? [...S.lz.pending] : want.filter(id => S.lz.pending.has(id) && !lzBusy.has(id));

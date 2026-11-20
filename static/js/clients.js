@@ -354,7 +354,7 @@ function clm_histHtml(c) {
   return `<section class="stcard clmhist"><div class="sthead"><h3>${tr('History')}</h3></div><ul class="ctlinks">${hs.map(row).join('')}</ul></section>`;
 }
 async function clm_undo(rid) {
-  let j; try { j = await rawFetch('POST', `/api/clients/merges/${rid}/undo`, {}); } catch (x) { toast(x.message || ''); return; }
+  let j; try { j = await rawFetch('POST', `/api/clients/merges/${rid}/undo`, {}); } catch (x) { toast(errText(x, tr('The changes could not be undone'))); return; }
   if (typeof ms_clAfter === 'function') await ms_clAfter(); else clReload();
   toast(j.target_gone ? tr('Merge undone. The client it went into was deleted since; the others are back.') : tr('Merge undone'));
 }

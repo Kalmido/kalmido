@@ -36,7 +36,7 @@ document.addEventListener('click', async e => {
   if (tlkIs(t)) { tlkToast(t); return; }
   flushSaves();
   let prev = a.data.prev;  // 2.64.1 (#1817): a locked list keeps the text before as a cipher: opened here, sent encrypted again
-  if (typeof le2eIs === 'function' && le2eIs(prev)) { try { prev = await le2eDec(t.list_id, 'content', prev); } catch (x) { toast(x.message); return; } }
+  if (typeof le2eIs === 'function' && le2eIs(prev)) { try { prev = await le2eDec(t.list_id, 'content', prev); } catch (x) { toast(errText(x, tr('The version could not be restored'))); return; } }
   await patchUndoable(t.id, {content: prev}, tr('Description restored'));
   S.editContent = false; renderDetail();
 });
