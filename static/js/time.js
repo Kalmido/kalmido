@@ -484,14 +484,17 @@ function viewTime() {
   if (tv.key !== q + '|' + S.v && !tv.loading) setTimeout(loadTime, 0);
   const j = tv.data && tv.data._q === q ? tv.data : null;
   const P = {};  // 2.32.0 (#1063): the running timer stays on top, the report below is built from blocks
-  let h = `<div class="stats timev">${tvRunCard()}${tvGapsCard()}${tsl_card()}<div class="tmvbar"><div class="seg tvseg">${TPERIODS.map(([k, n]) => `<button class="${tv.period === k ? 'on' : ''}" data-act="tv-period" data-k="${k}">${tr(n)}</button>`).join('')}</div>
+  // #7398: the two bars are keyed - a card above them that comes or goes with the period (the month's timesheet) does not make the
+  // morph take the bar for another node (the period row stays the same node)
+  let h = `<div class="stats timev">${tvRunCard()}${tvGapsCard()}${tsl_card()}<div class="tmvbar" data-k="tv-period"><div class="seg tvseg">${TPERIODS.map(([k, n]) => `<button class="${tv.period === k ? 'on' : ''}" data-act="tv-period" data-k="${k}">${tr(n)}</button>`).join('')}</div>
       ${tv.period === 'custom' ? `<span class="tvrange">${dateIn('tv-from', f, {label: tr('From'), clear: false})}<span class="muted">–</span>${dateIn('tv-to', t, {label: tr('To'), clear: false})}</span>` : `<span class="muted tvlabel">${esc(rangeLabel(f, t))}</span>`}</div>
-    <div class="tmvbar">${hasSharing() ? `<div class="seg"><button class="${timeScope() === 'mine' ? 'on' : ''}" data-act="tv-scope" data-k="mine">${tr('Only mine')}</button><button class="${timeScope() === 'all' ? 'on' : ''}" data-act="tv-scope" data-k="all">${tr('All members')}</button></div>` : ''}
+    <div class="tmvbar" data-k="tv-tools">${hasSharing() ? `<div class="seg"><button class="${timeScope() === 'mine' ? 'on' : ''}" data-act="tv-scope" data-k="mine">${tr('Only mine')}</button><button class="${timeScope() === 'all' ? 'on' : ''}" data-act="tv-scope" data-k="all">${tr('All members')}</button></div>` : ''}
       ${tvClient() ? `<span class="tvclient">${ic('brief', 's')}<a href="#client/${tvClient().id}">${esc(tvClient().name)}</a><button class="iconbtn" data-act="client-tvx" title="${esc(tr('All projects'))}" aria-label="${esc(tr('Show all projects again'))}">${ic('x', 's')}</button></span>` : `<button class="btn sm" data-act="tv-lists">${ic('filter', 's')} ${esc(tvListsLabel())}</button>`}<span class="spacer"></span>
       <button class="btn sm" data-act="te-add">${ic('plus', 's')} ${tr('Entry|time')}</button>
       <button class="btn sm" data-act="tv-export" aria-haspopup="menu">${ic('download', 's')} ${tr('Export|time')}</button>${lyCustomBtn('time')}<button type="button" class="btn sm" data-act="mod-settings" data-sec="time">${ic('gear', 's')} ${tr('Settings…')}</button></div>`;  // 2.365.2 C (#2789): the way to Settings
   if (S.ly.view === 'time') return h + lyHtml('time', {}) + '</div>';
-  if (!j) return h + lyHtml('time', P) + `<div class="empty">${tv.err ? (tv.err === 'offline' ? tr('Reports are only available online.') : esc(tv.err)) : tr('Loading…')}</div></div>`;
+  if (!j && !tv.err) { const held = tabh_held('time'); if (held) return h + held + '</div>'; }  // #7398 (render.js tabh_*): a period / scope switch keeps the last report, dimmed, until the new one is there
+  if (!j) return tabh_drop('time'), h + lyHtml('time', P) + `<div class="empty">${tv.err ? (tv.err === 'offline' ? tr('Reports are only available online.') : esc(tv.err)) : tr('Loading…')}</div></div>`;
   const rm = j.rounding, tgt = j.today.target_h;
   // 2.55.0 (#1065): a block may show one client / list only (its settings, lyopts.js lyo_tvReport); jt / jc / jl / je = its report
   const jx = k => lyo_tvReport(j, k) || j, jt = jx('tiles'), jc = jx('chart'), jl = jx('lists'), je = jx('entries');
@@ -513,7 +516,7 @@ function viewTime() {
       ? lineChart(vals.map(v => Math.round(v / 6) / 10), labs, {tip, label: tr('Tracked time')})  // 2.55.0 (#1065): hours with one decimal
       : barChart(vals, labs, {fmt: v => fmtH(Math.round(v)), tip, label: tr('Tracked time')})}</section>`;
   }
-  if (!j.lists.length) return h + lyHtml('time', P) + `<div class="empty">${ic('clock')}${tr('No time tracked in this period.')}</div></div>`;
+  if (!j.lists.length) return h + tabh_keep('time', lyHtml('time', P) + `<div class="empty">${ic('clock')}${tr('No time tracked in this period.')}</div>`) + '</div>';
   tot = jl.total; hasAmt = jl.lists.some(l => l.rate);
   const all = j.scope === 'all', ppl = us => all && us.length ? `<small class="muted">${esc(us.map(([n, s]) => `${n} ${hmm(s)}`).join(', '))}</small>` : '';
   P.lists = `<section class="stcard"><div class="sthead"><h3>${tr('By project and task')}</h3>${jl.lyoLabel ? `<span class="muted">${esc(tr('Only: {0}', jl.lyoLabel))}</span>` : ''}${rm ? `<span class="muted">${trh('rounded up to {0} min per entry', rm)}</span>` : ''}<p class="muted shint stnote">${j.split ? tr('An entry over midnight counts on each day with its share. Rounding and the hourly rate (project settings) only apply to the report, CSV and timesheet; the tracked times stay exact.') : tr('An entry counts on the day it starts. Rounding and the hourly rate (project settings) only apply to the report, CSV and timesheet; the tracked times stay exact.')}</p></div>
@@ -525,7 +528,7 @@ function viewTime() {
   P.entries = `<section class="stcard"><div class="sthead tvtoggle" data-act="tv-entries"><h3>${ic('chev', 's' + (tv.entries ? '' : ' closedc'))} ${tr('Entries')}</h3>${je.lyoLabel ? `<span class="muted">${esc(tr('Only: {0}', je.lyoLabel))}</span>` : ''}<span class="muted">${je.total.count}</span></div>
     ${tv.entries ? Object.keys(byDay).sort().reverse().map(d => `<div class="teday"><span>${esc(dayLabel(d))}</span><b>${hmm(byDay[d].reduce((n, e) => n + e.seconds, 0))}</b></div>${byDay[d].slice().reverse().map(e => teRow(e, {day: false})).join('')}`).join('') : ''}</section>`;
   // 2.125.0 B (#2120): entries over midnight count on each day with their share (setting, default on)
-  return h + lyHtml('time', P) + '</div>';
+  return h + tabh_keep('time', lyHtml('time', P)) + '</div>';
 }
 function tvListsMenu(anchor) {
   const cur = new Set(tvLists());

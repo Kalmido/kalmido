@@ -58,11 +58,11 @@ document.addEventListener('toggle', e => {
   if (d.classList?.contains('lvbox')) LV.open = d.open;
 }, true);
 function lv_reset() { LV.data = null; LV.key = ''; }
-async function lv_load(org, year) {
+async function lv_load(org, year, nd) {  // #7398: nd = no draw (ab2_load draws once with the absences)
   const seq = ++LV.seq, key = `${org || ''}:${year}`;
   LV.key = key;
   try { const j = await api('GET', '/api/team/leave?' + new URLSearchParams({year, ...(org ? {org} : {})})); if (seq === LV.seq) LV.data = j; } catch { if (seq === LV.seq) LV.data = {error: true}; }
-  if (seq === LV.seq && S.route.mod === 'workload' && WLV.tab === 'abs') { const el = $('#view'); if (el) keepFocus(el, () => setHtml(el, viewWorkload())); }
+  if (!nd && seq === LV.seq && S.route.mod === 'workload' && WLV.tab === 'abs') { const el = $('#view'); if (el) keepFocus(el, () => setHtml(el, viewWorkload())); }
 }
 // the status of an absence in the grid / the list (only the person and the admins see requests)
 const lv_cls = it => (it.status === 'pending' ? ' req' : '');

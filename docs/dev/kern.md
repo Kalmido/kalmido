@@ -1561,7 +1561,13 @@ calm jump. A new area does not keep scroll positions itself:
   fell to the top). `tabh_keep(key, html)` where the list part is drawn with its data (it gives `html` back),
   `tabh_arm(key)` at the switch (the tab's click and a kind's address, Back), `tabh_held(key) || loadingHtml('big')` where
   the loading block stood; `tabh_drop(key)` on an error. First user: the office's quotations / invoices (`office_docs.js`,
-  key `ofd`); #7398 moves the other areas onto it. A box that an area fills after the render keeps its content through a
+  key `ofd`). #7398: time tracking's period / scope (`time`), the team's tabs (`team`, clients.js `tm_page` / `tm_wait`;
+  their redraw is morphed), the review's period (`review`) and its mood statistics (`jhstats`); the client card's month loads
+  only the card (its list does not depend on it; the card waits as in #7399). A tab row that lives inside the object it
+  switches (a table's sheet bar under its grid, each sheet its own keyed box): `tabh_wait(key, box, tab)` at the switch marks
+  the tab at once and dims everything beside the tab row in place, `tabh_still(key)` where the loading block stood gives the
+  box back unchanged; the new sheet replaces it once. Bars above a part that comes or goes with the tab carry a `data-k`, so
+  the morph keeps them (time.js `tv-period`). A box that an area fills after the render keeps its content through a
   redraw only with `data-fl-fill` (render.js `morphKids`).
 - `tools/check_scrolljump.py` (CI lint) is red for a NEW `scrollIntoView` / `scrollTo` / `scrollBy` / `scrollTop =` /
   `focus()` without `preventScroll` outside a dialog; a jump the person asked for carries `// sprung-ok: <reason>`. The

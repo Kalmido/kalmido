@@ -1195,6 +1195,17 @@ const tabh_keep = (key, html) => { TABH.set(key, {html, at: 0}); return html; };
 const tabh_arm = key => { const h = TABH.get(key); if (h) h.at = Date.now(); };
 const tabh_drop = key => { TABH.delete(key); };
 const tabh_held = key => { const h = TABH.get(key); return h?.at && Date.now() - h.at < 8000 ? `<div class="tabheld" aria-busy="true" inert>${/*html-ok*/ h.html /* drawn before from escaped parts */}</div>` : ''; };
+// #7398: a tab row that lives inside the object it switches (a table's sheet bar under its grid; each sheet is its own box):
+// tabh_wait(key, box, tab) at the switch marks the tab at once and keeps the drawn box in place - everything beside the tab row
+// dimmed and inert, the tab row itself the same nodes - and tabh_still(key) where the loading block stood gives the box back
+// unchanged (the morph leaves it alone), until the new object is there and replaces it once. '' = not armed or after 8 s.
+function tabh_wait(key, box, tab) {
+  const row = tab?.closest('[role=tablist]') || tab?.parentElement; if (!box || !row || !box.contains(row)) return;
+  for (const b of row.children) { const on = b === tab; b.classList.toggle('on', on); if (b.hasAttribute('aria-selected')) b.setAttribute('aria-selected', String(on)); }
+  for (let n = row; n && n !== box; n = n.parentElement) for (const x of n.parentElement?.children || []) if (x !== n) { x.classList.add('tabheld'); x.inert = true; }
+  box.setAttribute('aria-busy', 'true'); TABH.set(key, {box, at: Date.now()});
+}
+const tabh_still = key => { const h = TABH.get(key); return h?.box?.isConnected && Date.now() - h.at < 8000 ? h.box.outerHTML : ''; };
 // the scrolling box around n (fl_set: a part drawn again keeps the place in its own box)
 function kr_scroller(n) {
   for (; n && n !== document.body && n !== document.documentElement; n = n.parentElement) if (n.scrollHeight > n.clientHeight + 1 && /^(auto|scroll)$/.test(getComputedStyle(n).overflowY)) return n;

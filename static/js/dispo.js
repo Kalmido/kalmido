@@ -48,8 +48,8 @@ function dp_view() {
   if (DPV.data && !DPV.loading && (DPV.wsp || '') !== tm_wsp()) { DPV.data = null; DPV.free = null; }  // 2.543.0 (#4606): another space opened
   if (!DPV.data && !DPV.loading) setTimeout(dp_load, 0);
   const d = DPV.data;
-  if (!d) return `<div class="dash wload dp">${ab2_tabs('dispo')}<p class="muted lempty">${tr('Loading…')}</p></div>`;
-  if (d.error) return `<div class="dash wload dp">${ab2_tabs('dispo')}<div class="empty">${tr('The disposition could not be loaded.')}</div></div>`;
+  if (!d) return tm_wait(' dp', 'dispo');  // #7398 (clients.js tm_page): the last tab's content waits dimmed
+  if (d.error) return tm_fail(' dp', 'dispo', tr('The disposition could not be loaded.'));
   const days = [];
   for (let x = d.start; x <= d.end; x = addDays(x, 1)) days.push(x);
   const hol = Object.fromEntries((d.holidays || []).map(h => [h.date, h.name]));
@@ -87,8 +87,8 @@ function dp_view() {
   const fr = DPV.free;
   const freeHtml = fr ? `<div class="dpfree"><p><b>${esc(tr('Free on {0}', fmtDayAbs(fr.date)))}</b></p>${[['people', 'People'], ['contacts', 'Contacts'], ['equipment', 'Equipment'], ['sets', 'Equipment sets']].map(([k, n]) => fr[k].length ? `<p><span class="muted">${esc(tr(n))}:</span> ${fr[k].map(r => esc(r.name)).join(', ')}</p>` : '').join('') || `<p class="muted">${tr('Nobody and nothing is free.')}</p>`}${fr.away.length ? `<p class="muted">${esc(tr('Away: {0}', fr.away.map(id => d.resources.people.find(p => p.id === id)?.name || '?').join(', ')))}</p>` : ''}</div>` : '';
   const th = tm_head(d);  // 2.543.0 (#4606): "All workspaces": the overview of the areas, or the path back above the open one
-  if (th?.ovr) return `<div class="dash wload dp">${ab2_tabs('dispo')}${th.ovr}</div>`;
-  return `<div class="dash wload dp">${ab2_tabs('dispo')}${th?.crumb || ''}<div class="clhead"><div class="seg" role="group" aria-label="${esc(tr('Show'))}">${f('all', N_('All'))}${f('people', N_('People'))}${f('tech', N_('Equipment'))}</div><span class="spacer"></span>
+  if (th?.ovr) return tm_page(' dp', 'dispo', th.ovr);
+  return tm_page(' dp', 'dispo', `${th?.crumb || ''}<div class="clhead"><div class="seg" role="group" aria-label="${esc(tr('Show'))}">${f('all', N_('All'))}${f('people', N_('People'))}${f('tech', N_('Equipment'))}</div><span class="spacer"></span>
       ${d.orgs.length > 1 && !th ? `<select id="dp-org" aria-label="${esc(tr('Workspace'))}">${d.orgs.map(o => `<option value="${o.id}" ${o.id === d.org_id ? 'selected' : ''}>${esc(o.name)}</option>`).join('')}</select>` : ''}
       <button class="iconbtn" data-act="dp-move" data-d="-1" aria-label="${esc(tr('Earlier'))}" title="${esc(tr('Earlier'))}">${ic('left', 's')}</button><button class="btn sm" data-act="dp-move" data-d="0">${tr('This week')}</button><button class="iconbtn" data-act="dp-move" data-d="1" aria-label="${esc(tr('Later'))}" title="${esc(tr('Later'))}">${ic('right', 's')}</button>
       ${dp_exports(d)}
@@ -97,7 +97,7 @@ function dp_view() {
     <ul class="dpdays">${dayList || `<li class="muted">${tr('No bookings this week.')}</li>`}</ul>
     <p class="muted dplegend"><span class="dpk firm"></span>${tr('Firm')} <span class="dpk option"></span>${tr('Option')} <span class="dpk away"></span>${tr('Away')} ${ic('alert', 's')} ${tr('Double booking or away: a warning, the booking stays')}</p>
     <div class="dpfreebox"><label for="dp-freeday">${tr('Who is free on …?')}</label>${dateIn('dp-freeday', fr?.date || d.today)}<button class="btn sm" data-act="dp-free">${tr('Show')}</button></div>${freeHtml}
-    <h4 class="ab2h">${tr('My bookings')}</h4>${mine ? `<ul class="ab2list dpminel">${mine}</ul>` : `<p class="muted">${tr('You are not booked.')}</p>`}</div>`;
+    <h4 class="ab2h">${tr('My bookings')}</h4>${mine ? `<ul class="ab2list dpminel">${mine}</ul>` : `<p class="muted">${tr('You are not booked.')}</p>`}`);
 }
 
 // book: one sheet -- what, when, option / firm, who and what (people, contacts, equipment, sets)
