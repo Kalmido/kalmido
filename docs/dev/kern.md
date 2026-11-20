@@ -1540,8 +1540,14 @@ browser's `le2e_move` for a project with the lock), Tomorrow's date (#6960) as t
 along, a done task into a done column without Undo (`dnd_kindStayed`), a recurring task completed by its column (the batch
 answers `section_moved` like the reorder, #3354), a task linked into the shown project moves only its link (`ml_drop`). Left in
 `dnd.js` `dropTask0`: the places with a meaning of their own (the sidebar, a calendar's day / time, a quadrant, the sprint's
-head); a swimlane's value (`swlDrop`) comes before the core in the same step. Next step: a check against new special ways
-(#7352). Tests: `tests/p21389_a_mine_multidrag_ui.js`, `tests/p21453_7354_mine_core_ui.js`, `tests/p21462_7351_list_core_ui.js`.
+head); a swimlane's value (`swlDrop`) comes before the core in the same step.
+
+**No new special ways (#7352, step 4):** `tools/check_drop_core.py` (CI lint) counts `moActive()`, `mseOn()`, `.mbcol` and
+`data-key^="ms:"` in every `static/js` file outside the adapter files (`ALLOW`: mineorder.js, mineboard.js, and render.js /
+views.js, which only draw My tasks); the places from before are the baseline `tools/drop_core_baseline.json` (dnd.js'
+selectors, the list adapter's `on()`, palette.js' board check; it only shrinks, `--update`). A new drop, menu or keyboard
+way asks the adapter (`DROP_ADAPTERS` `on()` / `where()` / `put()`) instead; a new adapter file is an `ALLOW` entry with its
+reason. Tests: `tests/p21389_a_mine_multidrag_ui.js`, `tests/p21453_7354_mine_core_ui.js`, `tests/p21462_7351_list_core_ui.js`, `tests/check_drop_core_test.py`.
 
 ## Calm view: a redraw keeps the reading place (2.924.0, #5224)
 
