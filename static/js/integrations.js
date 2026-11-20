@@ -208,17 +208,15 @@ const whHtml = () => S.webhooks?.enabled ? `<h4 id="s-wh-h">${tr('Webhooks')}</h
   <a class="slink" href="${API_DOCS}#webhooks" target="_blank" rel="noopener noreferrer">${tr('How to verify the signature')}</a>
   <div class="members" id="s-whs"><div class="muted mhint">${tr('Loading…')}</div></div>
   <div class="row"><button class="btn sm" data-wh="new">${ic('plus', 's')} ${tr('Add webhook')}</button></div>` : '';
-// ---- 2.166.0 (#2633): Settings > Access -- the API tokens (were Account > Advanced), the webhooks (were Integrations) and
-// the tokens of my personal agents (also on their rows in Agents) in one place; the old places link here (acz_linkHtml)
-const acz_on = () => !!(S.api?.enabled || S.webhooks?.enabled || aiPaneOn());
-const acz_html = () => acz_on() ? `${apiHtml()}${whHtml()}${aiPaneOn() ? `<h4 id="s-acz-ag-h">${tr('Agents')}</h4>
+// ---- 2.166.0 (#2633): API tokens, webhooks and the tokens of my personal agents in one place; (#6368): since then the groups
+// "Other programs" and "Agents" of Settings > Connections (the tab Access is gone, its links land there: settings.js go-access)
+const acz_agHtml = () => aiPaneOn() ? `<h4 id="s-acz-ag-h">${tr('Agent tokens')}</h4>
   <div class="shint">${tr('Each of your agents signs in with its own API token. A new token replaces the old one at once; “Set up on a computer” connects it on another machine.')}</div>
-  <div class="members" id="s-acz-ags"><div class="muted mhint">${tr('Loading…')}</div></div>` : ''}` : '';
-// 2.364.0 C (#3044): Access is listed only with an own API token / webhook (acz_mine); else it waits under "For advanced users"
-const acz_mine = () => !!(S.api?.mine || S.webhooks?.mine);
-// bare (#7230): already inside a fold "For advanced users" (Settings > Account, details.sdev): no second one around it (#6129)
-const acz_linkHtml = (on, bare) => { const row = `<div class="row aczlink"><span class="muted">${tr('API tokens, webhooks and agent tokens are in one place.')}</span><button type="button" class="btn sm" data-m="go-access">${ic('key', 's')} ${tr('Open Access')}</button></div>`;
-  return !on ? '' : acz_mine() || bare ? row : `<details class="sdet aczadv"><summary>${tr('For advanced users')}</summary>${row}</details>`; };
+  <div class="members" id="s-acz-ags"><div class="muted mhint">${tr('Loading…')}</div></div>` : '';
+// (#6368): a group of Connections with its symbol; the heading stays outside the folds (data-sfout, settings.js sf_wrap), no rows = no group
+const intr_grp = (i, n, rows) => { const h = rows.join(''); return h ? `<h3 class="intgrp" data-intgrp="${i}" data-sfout>${ic(i, 's')}<span>${tr(n)}</span></h3>${h}` : ''; };
+// the way from Agents to their tokens (one row, no fold: #6129 / #7230)
+const acz_linkHtml = () => `<div class="row aczlink"><span class="muted">${tr('API tokens, webhooks and agent tokens are under Connections.')}</span><button type="button" class="btn sm" data-m="go-access" data-to="#s-acz-ag-h">${ic('link', 's')} ${tr('Open Connections')}</button></div>`;
 async function acz_draw(md) {
   tokDraw(md); whDraw(md);
   const box = $('#s-acz-ags', md); if (!box) return;

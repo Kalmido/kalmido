@@ -39,10 +39,10 @@ const recode = (code, u) => { const j = JSON.parse(Buffer.from(code.slice('kalmi
   await until(() => box()?.querySelector('[data-msvid="self"]'));
   check(box()?.querySelector('[data-msvid="self"] .msvb')?.textContent.length >= 1, 'this server has a badge');
   check(/This server/.test(box()?.querySelector('[data-msvid="self"]')?.textContent || ''), 'this server is named');
-  // 2.1387.0 (#7062): since #6827 "Advanced" lies in a folded section; the servers' section stands right before that section
-  { const sdev = d.querySelector('.smodal details.sdev'), nx = d.querySelector('.smodal .msvsec')?.nextElementSibling;
-    check(d.querySelector('#s-msv-h') && sdev && (nx === sdev || nx?.matches('details.sfold') && nx.contains(sdev)),
-    'the section stands above "For advanced users"'); }
+  // 2.1387.0 (#7062); (#6368): "For advanced users" is gone: the servers' section stands at its place (data-msvat) right after storage
+  { const sec = d.querySelector('.smodal .msvsec'), sto = d.querySelector('.smodal [data-pane="account"] #s-storage-h, .smodal [data-pane="account"] #s-sync-h');
+    check(d.querySelector('#s-msv-h') && !d.querySelector('.smodal details.sdev') && sec?.nextElementSibling?.matches('[data-msvat]') && !!(sto && (sto.compareDocumentPosition(sec) & 4)),
+    'the section stands after storage, at the place of the former "For advanced users"'); }
   check(/No other server connected yet/.test(box().textContent), 'the empty state');
 
   // ---- a broken code: the reason in the dialog

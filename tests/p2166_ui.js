@@ -65,16 +65,20 @@ const ALL = 'cal,collab,agents,comments';
   check(dO.querySelector(`.smodal #ws-dom-hint-${org2.id}`), 'with a short note who sets them');
   dO.querySelector('.smodal')?.remove();
 
-  // ================= Settings > Access
+  // ================= Settings > Connections (the former tab Access, #6368)
   const AG = await call(CA, 'POST', '/api/my/agents', {username: 'alice-bot', display_name: 'Alice Bot'});
   check(AG.http < 300 && AG.id, 'setup: a personal agent ' + AG.http);
   await call(CA, 'POST', '/api/me/tokens', {name: 'Home script', scopes: ['read']});
   const TAG0 = await call(CA, 'POST', '/api/admin/agents', {scopes: ['read', 'comments'], username: 'team-bot', display_name: 'Team Bot'});  // 2.366.0 (#2999)
   w.eval(`settingsModal('tokens')`); await sleep(500);
   let md = d.querySelector('.smodal');
-  check(md.querySelector('.snav [data-sec="access"]')?.classList.contains('on'), 'the focus "tokens" opens Settings > Access');
-  const pane = md.querySelector('[data-pane="access"]');
-  check(pane && pane.querySelector('#s-api-h') && pane.querySelector('#s-wh-h') && pane.querySelector('#s-acz-ag-h'), 'Access: API tokens, webhooks, agents');
+  // (#6368): the tab Access is part of Connections (key integr): its groups Other programs (API tokens, webhooks) and Agents
+  check(md.querySelector('.snav [data-sec="integr"]')?.classList.contains('on') && !md.querySelector('.snav [data-sec="access"]'), 'the focus "tokens" opens Settings > Connections (no tab Access)');
+  const pane = md.querySelector('[data-pane="integr"]');
+  check(pane && pane.querySelector('#s-api-h') && pane.querySelector('#s-wh-h') && pane.querySelector('#s-acz-ag-h'), 'Connections: API tokens, webhooks, agents');
+  check(await until(() => pane.querySelector('#s-api-h')?.closest('details')?.open), 'the focus "tokens" opens the row API tokens');
+  check([...pane.querySelectorAll('h3.intgrp')].map(h => h.dataset.intgrp).join() === 'phone,mail,grid,bot', 'Connections: the groups Phone and calendar, E-mail, Other programs, Agents, each with its symbol: ' + [...pane.querySelectorAll('h3.intgrp')].map(h => h.dataset.intgrp).join() + ' ' + pane.querySelectorAll('h3.intgrp svg').length);
+  check(pane.querySelector('#s-apw-h') && !md.querySelector('[data-pane="account"] #s-apw-h'), 'the app passwords moved from Account to Connections');
   check(await until(() => /Home script/.test(pane.querySelector('#s-toks')?.textContent || '')), 'Access: my API token is listed');
   check(await until(() => /No webhooks yet/.test(pane.querySelector('#s-whs')?.textContent || '')), 'Access: the webhooks load');
   // 2.366.0 (#2999): created before the dialog opened -- an admin sees the team agent under Access too, its token button on the admin path
@@ -88,13 +92,18 @@ const ALL = 'cal,collab,agents,comments';
   const tm = [...d.querySelectorAll('.modal')].pop();
   check(tm && /New API token for Alice Bot/.test(tm.textContent), 'the agent token dialog opens from Access');
   click(w, tm && tm.querySelector('[data-m="close"]')); await sleep(200);
-  for (const sec of ['account', 'integr', 'ai']) check(md.querySelector(`[data-pane="${sec}"] [data-m="go-access"]`), `${sec}: a link to Access`);
-  check(!md.querySelector('[data-pane="account"] #s-toks') && !md.querySelector('[data-pane="integr"] #s-whs'), 'the old places have no own token / webhook list any more');
+  check(md.querySelector('[data-pane="ai"] [data-m="go-access"]') && !md.querySelector('[data-pane="account"] [data-m="go-access"], [data-pane="integr"] [data-m="go-access"], [data-pane="account"] details.sdev'), 'Agents links to Connections; Account has no "For advanced users" any more');
+  check(!md.querySelector('[data-pane="account"] #s-toks'), 'Account has no own token list');
   click(w, md.querySelector('.snav [data-sec="ai"]')); await sleep(300);
-  click(w, md.querySelector('[data-pane="ai"] [data-m="go-access"]')); await sleep(300);
-  check(md.querySelector('.snav [data-sec="access"]')?.classList.contains('on'), 'the link in Agents opens Access');
+  click(w, md.querySelector('[data-pane="ai"] [data-m="go-access"]'));
+  check(await until(() => md.querySelector('.snav [data-sec="integr"]')?.classList.contains('on') && md.querySelector('#s-acz-ag-h')?.closest('details')?.open), 'the link in Agents opens Connections at the agent tokens');
   md.remove(); w.eval(`settingsModal('webhooks')`); await sleep(400);
-  check(d.querySelector('.smodal .snav [data-sec="access"]')?.classList.contains('on'), 'the focus "webhooks" opens Access');
+  check(d.querySelector('.smodal .snav [data-sec="integr"]')?.classList.contains('on'), 'the focus "webhooks" opens Connections');
+  // (#6368): old links and a remembered tab "access" land in Connections
+  d.querySelector('.smodal')?.remove(); w.eval(`settingsModal('access')`); await sleep(400);
+  check(d.querySelector('.smodal .snav [data-sec="integr"]')?.classList.contains('on'), 'the old focus "access" opens Connections');
+  d.querySelector('.smodal')?.remove(); w.eval(`LS.set('settingsSec', 'access'); settingsModal()`); await sleep(400);
+  check(w.eval('isMobile()') || d.querySelector('.smodal .snav [data-sec="integr"]')?.classList.contains('on'), 'a remembered tab "access" opens Connections');
   w.close();
 
   // ================= a person without an organisation: the same Access area
@@ -103,8 +112,8 @@ const ALL = 'cal,collab,agents,comments';
   check(FAG.http < 300, 'frida: her personal agent ' + FAG.http);
   w = await boot({user: 'frida', hash: 'today'}); d = w.document;
   w.eval(`settingsModal('tokens')`); await sleep(500);
-  const fp = d.querySelector('.smodal [data-pane="access"]');
-  check(fp && d.querySelector('.smodal .snav [data-sec="access"]')?.classList.contains('on'), 'frida: Settings > Access');
+  const fp = d.querySelector('.smodal [data-pane="integr"]');
+  check(fp && d.querySelector('.smodal .snav [data-sec="integr"]')?.classList.contains('on'), 'frida: Settings > Connections');
   check(await until(() => /Frida script/.test(fp?.querySelector('#s-toks')?.textContent || '')), 'frida: her API token');
   check(fp && fp.querySelector('#s-wh-h'), 'frida: the webhooks section');
   check(await until(() => /Frida Bot/.test(fp?.querySelector('#s-acz-ags')?.textContent || '')), 'frida: her agent');

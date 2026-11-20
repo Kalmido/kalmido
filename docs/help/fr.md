@@ -2,12 +2,12 @@
 of the English text it was translated from. **Bold** = the label exactly as the interface shows it.
 Check: python3 tools/check_userhelp.py. -->
 
-<!-- help: files#how-to-set-up-a-scan-inbox src=b33c638618 -->
+<!-- help: files#how-to-set-up-a-scan-inbox src=5124ce3a66 -->
 ## Configurer une boîte de scans
 
 Une boîte de scans envoie les nouveaux scans d'un dossier de ton ordinateur directement dans tes documents.
 
-1. Ouvre **Paramètres** > **Intégrations** et va à **Documents : entrées**.
+1. Ouvre **Paramètres** > **Connexions** et va à **Documents : entrées**.
 2. Sous **Surveillance de dossier**, télécharge le programme pour ton ordinateur (Mac ou Windows).
 3. Ouvre **Nouvelle boîte de scans**, saisis un **Nom**, choisis le dossier sous **Dans le dossier** et touche **Créer la boîte**.
 4. Kalmido affiche le **Code d’installation** une seule fois. Touche **Copier**, lance le programme, colle le code et choisis
@@ -148,19 +148,19 @@ Ensuite : la personne voit le projet et reçoit la tâche. On ne peut attribuer 
 
 Ensuite : l'événement est dans le calendrier et sur ton téléphone, s'il est connecté.
 
-<!-- help: calendar#how-to-subscribe-to-another-calendar src=9f0cf2e56c -->
+<!-- help: calendar#how-to-subscribe-to-another-calendar src=349059272c -->
 ## S'abonner à un autre calendrier
 
-1. Ouvre **Calendrier** > **Calendriers** > **Abonnements…** (ou **Paramètres** > **Intégrations** > **Calendriers**).
+1. Ouvre **Calendrier** > **Calendriers** > **Abonnements…** (ou **Paramètres** > **Connexions** > **Calendriers**).
 2. Touche **Ajouter un calendrier**.
 3. Colle le lien du calendrier et touche **Ajouter**. Pour un compte, choisis **Compte CalDAV** et **Rechercher des calendriers**.
 
 Ensuite : ses événements apparaissent dans ton calendrier, en lecture seule et pour toi seul.
 
-<!-- help: calendar#how-to-show-kalmido-on-your-phone src=73923b0417 -->
+<!-- help: calendar#how-to-show-kalmido-on-your-phone src=06e571f04f -->
 ## Voir Kalmido sur le téléphone
 
-1. Ouvre **Calendrier** > **Calendriers** > **Sur le téléphone…** (ou **Paramètres** > **Intégrations** > **Apps de calendrier (CalDAV)**).
+1. Ouvre **Calendrier** > **Calendriers** > **Sur le téléphone…** (ou **Paramètres** > **Connexions** > **Apps de calendrier (CalDAV)**).
 2. Touche **Nouveau mot de passe d'application** et copie serveur, nom d'utilisateur et mot de passe dans les réglages de
    calendrier du téléphone.
 

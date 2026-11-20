@@ -23,7 +23,7 @@ stored encrypted. Self-hosters can import an existing Paperless-ngx instance (#1
 
 **Leafing through documents** (2.476.0): an open document shows "3 of 48" and two arrow buttons above the preview, and the arrow keys step through the list as it is shown (filtered and sorted). On a phone or tablet a swipe sideways anywhere on the document (preview, head or fields; 2.882, the same swipe as in the task panel) turns to the next or previous document; at the end of the loaded part the next page loads, at the real end the page springs back. Typing or marking text in a field, parts that scroll sideways and the screen's edge (the phone's Back gesture) do not swipe. A preview enlarged with two fingers moves with one finger instead; at normal size it swipes again. The preview stands at its final size from the first picture, it does not jump while the file loads.
 
-**Receipt fetcher** (2.425.0): a helper program on your own computer fetches invoices from web portals (an online shop, a phone company) and hands them to the documents. You sign in to the portals only in the helper: Kalmido never stores passwords, cookies or logins. Connect one in *Settings > Integrations > Receipt fetcher* with a setup code (for people with the office); switch each portal on or off in Kalmido. The documents arrive like an upload and are recognised the same way; a new error ("please sign in again") tells you once. Details: [API.md](API.md#receipt-fetcher).
+**Receipt fetcher** (2.425.0): a helper program on your own computer fetches invoices from web portals (an online shop, a phone company) and hands them to the documents. You sign in to the portals only in the helper: Kalmido never stores passwords, cookies or logins. Connect one in *Settings > Connections > Receipt fetcher* with a setup code (for people with the office); switch each portal on or off in Kalmido. The documents arrive like an upload and are recognised the same way; a new error ("please sign in again") tells you once. Details: [API.md](API.md#receipt-fetcher).
 
 **PDF preview** (#1367): PDFs open inside Kalmido (pages, zoom, swipe), also in the Android app. **Lock a note**
 (#1642): the lock in a task's note encrypts it with your own password in your own, unshared projects; without the
@@ -63,7 +63,7 @@ answers with the summary. Kalmido calls no language model itself; undo removes t
 
 A scan inbox sends new scans from a folder on your computer (or from your scanner) straight into your documents.
 
-1. Open **Settings** > **Integrations** and scroll to **Documents: inboxes**.
+1. Open **Settings** > **Connections** and scroll to **Documents: inboxes**.
 2. Under **Folder watcher**, download the program for your computer (Mac or Windows).
 3. Open **New scan inbox**, give it a **Name**, pick the folder under **Into folder** and select **Create inbox**.
 4. Kalmido shows a **Setup code** only this once. Select **Copy**, start the program, paste the code and choose the folder to watch.

@@ -52,7 +52,7 @@ e-mails, addresses, web links, birthday and anniversary (also without the year),
 
 ![Calendar week with tasks and calendar events](calendar-events.png)
 
-*Settings > Integrations > Calendars > Add calendar* shows events from your other calendars in Kalmido's month, week
+*Settings > Connections > Calendars > Add calendar* shows events from your other calendars in Kalmido's month, week
 and day view, in the calendar's timeline and, optionally, as *Events today* at the top of *Today*. Events are
 read-only and look different from tasks (tinted and outlined in the calendar's colour; all-day events in the all-day
 row). A click shows title, time, place, description (plain text, only http / https links are clickable) and the
@@ -106,7 +106,7 @@ feature off.
 
 ## Calendar subscription (your tasks in other calendars)
 
-*Settings > Integrations > Calendar subscription > Create subscription link* gives you a private URL
+*Settings > Connections > Calendar subscription > Create subscription link* gives you a private URL
 (`https://tasks.example.com/ical/<id>.<secret>.ics`) that any calendar app can subscribe to (read-only):
 
 - **Google Calendar / Android:** calendar.google.com > *Other calendars* > *+* > *From URL*. It then syncs to the phone.
@@ -135,7 +135,7 @@ address. With a login proxy, let `/ical/*` bypass it (see *Reverse proxy*); Kalm
 Kalmido is a CalDAV server for tasks: every project you see (not archived) shows up as a task list in Reminders on iPhone,
 iPad and Mac, Thunderbird, Evolution, Tasks.org or DAVx⁵ (with Tasks.org, jtx Board or OpenTasks) on Android, and changes
 go both ways. *Settings > Account > App passwords* creates a password per device (shown once, stored as a hash,
-revocable, with its last use); *Settings > Integrations > Calendar apps (CalDAV)* shows the server, the address
+revocable, with its last use); *Settings > Connections > Calendar apps (CalDAV)* shows the server, the address
 `https://<host>/dav/`, your user name and step-by-step guides for each app. iPhone and Mac only need the host name
 (discovery via `/.well-known/caldav`).
 
@@ -162,7 +162,7 @@ phone").
 <!-- show: settings.open -->
 <!-- show: settings.integrations -->
 
-1. Open **Calendar** > **Calendars** > **Subscriptions…** (or **Settings** > **Integrations** > **Calendars**).
+1. Open **Calendar** > **Calendars** > **Subscriptions…** (or **Settings** > **Connections** > **Calendars**).
 2. Select **Add calendar**.
 3. Paste the calendar's link (Google, iCloud and Outlook offer one) and select **Add**. For a calendar account choose
    **CalDAV account** and **Find calendars** instead.
@@ -175,7 +175,7 @@ regularly.
 <!-- show: settings.open -->
 <!-- show: settings.integrations -->
 
-1. Open **Calendar** > **Calendars** > **On the phone…** (or **Settings** > **Integrations** > **Calendar apps (CalDAV)**).
+1. Open **Calendar** > **Calendars** > **On the phone…** (or **Settings** > **Connections** > **Calendar apps (CalDAV)**).
 2. Select **New app password** and copy the server address, user name and password into your phone's calendar settings.
 
 What happens then: your events and tasks with a date appear in the phone's calendar and changes go both ways. Use the app

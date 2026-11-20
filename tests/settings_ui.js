@@ -12,7 +12,7 @@ const click = (w, el) => el.dispatchEvent(new w.MouseEvent('click', {bubbles: tr
   let md = d.querySelector('.modal.smodal');
   const secs = [...md.querySelectorAll('.snav [data-sec]')].map(b => b.dataset.sec);
   // 2.418.0 (#3560): the new section Navigation (Settings > Navigation) after Appearance
-  check(JSON.stringify(secs) === JSON.stringify(['account', 'org', 'general', 'look', 'nav', 'modules', 'notify', 'integr', 'docs', 'access', 'data', 'users', 'help']), 'admin: all sections (2.7.0: Agents only with the module or agents) ' + secs);  // 2.39.1 (#1188): Settings > Organisation  // 2.46.0 (#1592): a server without an organisation shows no Organisation page  // 2.166.0 (#2633): + Access  // 2.364.0 C (#3041): a server admin always has Organisation (People, Agents, Data)
+  check(JSON.stringify(secs) === JSON.stringify(['account', 'org', 'general', 'look', 'nav', 'modules', 'notify', 'integr', 'docs', 'data', 'users', 'help']), 'admin: all sections (2.7.0: Agents only with the module or agents) ' + secs);  // 2.39.1 (#1188): Settings > Organisation  // 2.46.0 (#1592): a server without an organisation shows no Organisation page  // 2.166.0 (#2633): + Access  // 2.364.0 C (#3041): a server admin always has Organisation (People, Agents, Data)
   check(md.querySelector('.snav .on')?.dataset.sec === 'general', 'default section: General');
   check(md.querySelectorAll('.spane:not(.hidden)').length === 1, 'exactly one pane visible');
   for (const k of secs) {
@@ -31,7 +31,7 @@ const click = (w, el) => el.dispatchEvent(new w.MouseEvent('click', {bubbles: tr
   check(/Kalmido v\d+\.\d+\.\d+/.test(md.querySelector('[data-pane="help"]').textContent), 'help: version line');
   check(md.querySelector('[data-pane="notify"] #s-allday') && md.querySelector('[data-pane="notify"] #s-digest') && md.querySelector('[data-pane="notify"] [data-m="ptest"], [data-pane="notify"] [data-m="test"]'), 'notifications pane: topic test, reminders, digest')  // 2.555.0 (#4664): with Web Push the test is "Test all channels";
   check(md.querySelector('[data-pane="data"] #s-import') && !md.querySelector('[data-pane="data"] [data-m="purge"]'), 'data pane: import; 2.7.0 (#405 S4): "Delete all completed" only in the Completed view');
-  check(md.querySelector('[data-pane="account"] #a-name') && md.querySelector('[data-pane="account"] [data-m="go-share"]'), 'account pane (2.7.0: the upload token is a link to Share from your phone)');
+  check(md.querySelector('[data-pane="account"] #a-name') && !md.querySelector('[data-pane="account"] details.sdev') && md.querySelector('[data-pane="integr"] #s-share-h'), 'account pane; (#6368): no "For advanced users" there, the upload token under Connections > Share from your phone');
   // last section remembered
   click(w, md.querySelector('.snav [data-sec="modules"]')); await sleep(30);
   click(w, md.querySelector('.shdr [data-m="close"]')); await sleep(50);
@@ -92,9 +92,9 @@ const click = (w, el) => el.dispatchEvent(new w.MouseEvent('click', {bubbles: tr
   w = await boot({user: 'bob', mobile: true}); d = w.document;
   w.eval('settingsModal()'); await sleep(400); md = d.querySelector('.smodal');
   const bsecs = [...md.querySelectorAll('.snav [data-sec]')].map(b => b.dataset.sec);
-  check(!bsecs.includes('users') && bsecs.includes('ai') && !bsecs.includes('org') && bsecs.includes('nav') && bsecs.length === 12 /* 2.418.0 (#3560): + Navigation */, 'non-admin: no Administration section (2.22.0 #739: a new person has the module Agents, so its page) ' + bsecs.join());  // 2.39.1 (#1188): + Organisation  // 2.46.0 (#1592): a server without an organisation shows no Organisation page  // 2.166.0 (#2633): + Access
+  check(!bsecs.includes('users') && bsecs.includes('ai') && !bsecs.includes('org') && bsecs.includes('nav') && bsecs.length === 11 /* 2.418.0 (#3560): + Navigation; (#6368): Access is part of Connections */, 'non-admin: no Administration section (2.22.0 #739: a new person has the module Agents, so its page) ' + bsecs.join());  // 2.39.1 (#1188): + Organisation  // 2.46.0 (#1592): a server without an organisation shows no Organisation page  // 2.166.0 (#2633): + Access
   const txt = md.textContent;
-  check(/Allgemein/.test(txt) && /Benachrichtigungen/.test(txt) && /Integrationen/.test(txt) && /Hilfe/.test(txt) && /Dieses Gerät/.test(txt), 'German section labels');
+  check(/Allgemein/.test(txt) && /Benachrichtigungen/.test(txt) && /Verbindungen/.test(txt) && /Hilfe/.test(txt) && /Dieses Gerät/.test(txt), 'German section labels');
   for (const k of bsecs) click(w, md.querySelector(`.snav [data-sec="${k}"]`));
   const left = ['General', 'Notifications', 'Integrations', 'This device', 'Reminders', 'Tab bar', 'Modules', 'Sharing from', 'Import and export', 'Gestures', 'Quick add', 'Appearance', 'Completed tasks', 'Language', 'Advanced', 'for everyone', 'How urgent'].filter(x => txt.includes(x));
   check(!left.length, 'no English leftovers (de): ' + left);

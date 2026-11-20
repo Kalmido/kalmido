@@ -69,14 +69,14 @@ t_de, x_de = de_block(USCAN)
 check(r.ok and sec.get("lang") == "de" and sec.get("title") == t_de == "Scan-Eingang einrichten" and sec.get("text") == x_de,
       f"the section in German = docs/help/de.md ({r.status_code} {sec.get('title')})")
 txt = sec.get("text", "")
-check("**Einstellungen** > **Integrationen**" in txt and "**Dokumente: Eingänge**" in txt and "**Scan-Eingang anlegen**" in txt
+check("**Einstellungen** > **Verbindungen**" in txt and "**Dokumente: Eingänge**" in txt and "**Scan-Eingang anlegen**" in txt
       and "**Einrichtungscode**" in txt, "the steps name the German labels of the screen")
 check(len(re.findall(r"^\d\. ", txt, re.M)) == 4 and "Was dann passiert" in txt, "four numbered steps and what happens then")
 check(not re.search(r"/api/|scope|docs:upload|token", txt, re.I), "no API routes or developer words in the user's text")
 check(sec.get("area") == "files" and sec.get("show") == SCAN_SHOW, f"area and named places {sec.get('show')}")
 # 2.1090.0 (#5899): the steps of "Zeig mir": the places with route, selector and their German heading, no agent's line
 stp = sec.get("steps") or []
-check([x.get("target") for x in stp] == SCAN_SHOW and [x.get("label") for x in stp] == ["Einstellungen öffnen", "Einstellungen: Integrationen", "Dokumente: Eingänge (Scan-Eingang)"]
+check([x.get("target") for x in stp] == SCAN_SHOW and [x.get("label") for x in stp] == ["Einstellungen öffnen", "Einstellungen: Verbindungen", "Dokumente: Eingänge (Scan-Eingang)"]
       and all(isinstance(x.get("sel"), str) and x["sel"] and "text" not in x for x in stp), f"steps for \"Zeig mir\": {stp}")
 pay_key = next((x["key"] for a in j.get("areas", []) for x in a["sections"] if x["title"] == "Eine Zahlung erfassen"), "")
 nos = A.get(B + "/api/help/section", params={"key": pay_key}).json()

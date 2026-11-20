@@ -917,7 +917,7 @@ The start-up module.
 - `static/js/calgest.js` (`cgs`) - Gestures of the calendar (module "calendar", loaded with calview.js / caldrag.js)
 - `static/js/callsheet.js` (`cs`) - The call sheet dialog of a shoot day (module "callsheet", loaded on demand from a booking in the disposition): day details, directions sketch, PDF, the mail to the distribution with its preview (2.1155)
 - `static/js/calrrule.js` (`crr`) - An own repeat rule for an event ("every 2nd Tuesday", Mon + Wed + Fri)
-- `static/js/calview.js` (`cal`) - The calendar views month / week / day and Settings > Integrations > Calendars
+- `static/js/calview.js` (`cal`) - The calendar views month / week / day and Settings > Connections > Calendars
 - `static/js/calyear.js` (`cyr`) - The calendar's year view: twelve small months, a day with events or tasks tinted in the accent colour (the more, the stronger)
 - `static/js/cfkinds.js` (`cfk`) - Editing the custom field types of , loaded on demand (lazyload.js module cfkinds)
 - `static/js/cfnew.js` (`cf`) - Scrolled up and something new arrives below
@@ -957,7 +957,7 @@ The start-up module.
 - `static/js/dlgmove.js` (`dw`) - Dialogs can be moved on the desktop
 - `static/js/dnd.js` (`td`) - Drag & drop (desktop) and swipe (touch)
 - `static/js/docfacets.js` (`dfc`) - The filters of the documents below the file store's tree: groups by sender, type, tags, archive number and custom fields with counts
-- `static/js/docfetch.js` (`fx`) - "Receipt fetcher" in Settings > Integrations, below the folder watcher (docscan.js dsc_integrHtml / dsc_integrDraw)
+- `static/js/docfetch.js` (`fx`) - "Receipt fetcher" in Settings > Connections, below the folder watcher (docscan.js dsc_integrHtml / dsc_integrDraw)
 - `static/js/docflows.js` (`dfl`) - Document flows ("Abläufe")
 - `static/js/docnotes.js` (`dn`) - Notes on a document
 - `static/js/docpages.js` - The page strip of the document view: pages of a PDF deleted or turned, saved as a new version

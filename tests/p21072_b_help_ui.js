@@ -51,7 +51,7 @@ const USCAN = 'files#how-to-set-up-a-scan-inbox';
   check(decodeURIComponent(w.location.hash) === '#help/' + USCAN && !d.querySelector('.palette'), `its address, the search closed (${w.location.hash})`);
   const steps = [...d.querySelectorAll('#view .hvtext ol li')].map(x => x.textContent);
   const body = d.querySelector('#view .hvtext')?.textContent || '';
-  check(steps.length === 4 && /Einstellungen/.test(steps[0]) && /Integrationen/.test(steps[0]) && /Dokumente: Eingänge/.test(steps[0]) && /Scan-Eingang anlegen/.test(steps[2]),
+  check(steps.length === 4 && /Einstellungen/.test(steps[0]) && /Verbindungen/.test(steps[0]) && /Dokumente: Eingänge/.test(steps[0]) && /Scan-Eingang anlegen/.test(steps[2]),
     `four steps with the screen's German labels: ${JSON.stringify(steps).slice(0, 400)}`);
   check([...d.querySelectorAll('#view .hvtext ol li b, #view .hvtext ol li strong')].some(x => x.textContent === 'Ordner-Wächter'), 'the labels stand out (bold)');
   check(/Was dann passiert/.test(body) && !/<!--|\*\*/.test(body), 'what happens then; no Markdown marks or comments visible');
@@ -68,7 +68,7 @@ const USCAN = 'files#how-to-set-up-a-scan-inbox';
   check(/1\/3/.test(card().querySelector('.tstep')?.textContent || '') && !card().querySelector('h3 + p:not(.shw-miss)'), 'step 1 of 3, no agent\'s line under the heading');
   check(decodeURIComponent(w.location.hash) === '#help/' + USCAN && d.querySelector('#view .hvsec'), 'the help stays on the screen (the first place has no view of its own)');
   card().querySelector('[data-shw="next"]').click();
-  check(await until(() => card()?.querySelector('h3')?.textContent === 'Einstellungen: Integrationen'), `Next: "Einstellungen: Integrationen" (${card()?.querySelector('h3')?.textContent})`);
+  check(await until(() => card()?.querySelector('h3')?.textContent === 'Einstellungen: Verbindungen'), `Next: "Einstellungen: Verbindungen" (#6368) (${card()?.querySelector('h3')?.textContent})`);
   card().querySelector('[data-shw="close"]').click();
   check(await until(() => !d.querySelector('.spot') && decodeURIComponent(w.location.hash) === '#help/' + USCAN && d.querySelector('#view .hvsec h2')?.textContent === 'Scan-Eingang einrichten'),
     `Schließen: back on the topic (${w.location.hash})`);

@@ -2,12 +2,12 @@
 of the English text it was translated from. **Bold** = the label exactly as the German interface shows it.
 Check: python3 tools/check_userhelp.py (prints the current src of a changed English section). -->
 
-<!-- help: files#how-to-set-up-a-scan-inbox src=b33c638618 -->
+<!-- help: files#how-to-set-up-a-scan-inbox src=5124ce3a66 -->
 ## Scan-Eingang einrichten
 
 Ein Scan-Eingang schickt neue Scans aus einem Ordner auf deinem Computer (oder von deinem Scanner) direkt in deine Dokumente.
 
-1. Öffne **Einstellungen** > **Integrationen** und scrolle zu **Dokumente: Eingänge**.
+1. Öffne **Einstellungen** > **Verbindungen** und scrolle zu **Dokumente: Eingänge**.
 2. Lade unter **Ordner-Wächter** das Programm für deinen Computer herunter (Mac oder Windows).
 3. Öffne **Neuer Scan-Eingang**, gib im Feld **Name** einen Namen ein, wähle den Ordner bei **In Ordner** und tippe auf
    **Scan-Eingang anlegen**.
@@ -165,10 +165,10 @@ die im Projekt sind.
 Was dann passiert: Der Termin steht im Kalender und auf deinem Handy, wenn es verbunden ist (siehe „Kalmido auf dem Handy
 zeigen“).
 
-<!-- help: calendar#how-to-subscribe-to-another-calendar src=9f0cf2e56c -->
+<!-- help: calendar#how-to-subscribe-to-another-calendar src=349059272c -->
 ## Einen anderen Kalender abonnieren
 
-1. Öffne **Kalender** > **Kalender** > **Abonnierte Kalender…** (oder **Einstellungen** > **Integrationen** > **Kalender**).
+1. Öffne **Kalender** > **Kalender** > **Abonnierte Kalender…** (oder **Einstellungen** > **Verbindungen** > **Kalender**).
 2. Tippe auf **Kalender hinzufügen**.
 3. Füge den Link des Kalenders ein (Google, iCloud und Outlook bieten einen an) und tippe auf **Hinzufügen**. Für ein
    Kalenderkonto wähle stattdessen **CalDAV-Konto** und **Kalender suchen**.
@@ -176,10 +176,10 @@ zeigen“).
 Was dann passiert: Seine Termine erscheinen in deinem Kalender und in Heute - nur zum Ansehen und nur für dich sichtbar;
 Kalmido holt sie regelmäßig neu.
 
-<!-- help: calendar#how-to-show-kalmido-on-your-phone src=73923b0417 -->
+<!-- help: calendar#how-to-show-kalmido-on-your-phone src=06e571f04f -->
 ## Kalmido auf dem Handy zeigen
 
-1. Öffne **Kalender** > **Kalender** > **Auf dem Handy…** (oder **Einstellungen** > **Integrationen** > **Kalender-Apps (CalDAV)**).
+1. Öffne **Kalender** > **Kalender** > **Auf dem Handy…** (oder **Einstellungen** > **Verbindungen** > **Kalender-Apps (CalDAV)**).
 2. Tippe auf **Neues App-Passwort** und übernimm Serveradresse, Benutzername und Passwort in die Kalender-Einstellungen
    deines Handys.
 

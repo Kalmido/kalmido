@@ -24,7 +24,7 @@ SHOW_MAX, SHOW_TEXT_MAX = 8, 300  # steps of one message, characters of one step
 SHOW_KEY_RE = re.compile(r"[a-z][a-z0-9-]{0,30}(?:\.[a-z0-9][a-z0-9-]{0,40}){1,2}")
 SHOW_MARK_RE = re.compile(r"<!--\s*show:\s*([a-z0-9.\-]{3,80})\s*-->")  # a help section's mark (#5820)
 # the labels of docs/help-targets.json for the translation files (tests/p21072_c_show_test.py: every label_en is here)
-SHOW_LABELS = (N_("Open the settings"), N_("Settings: Integrations"), N_("Settings: Agents"), N_("Documents: inboxes (scan inbox)"),
+SHOW_LABELS = (N_("Open the settings"), N_("Settings: Connections"), N_("Settings: Agents"), N_("Documents: inboxes (scan inbox)"),
                N_("Add an agent"), N_("Settings of the agent"), N_("New quotation"), N_("New invoice"), N_("Add a task"),
                N_("New event"), N_("Upload files"),
                N_("Add documents"),  # 2.1090.0 (#5899)

@@ -166,9 +166,9 @@ const SMALL = sel => `(() => [...document.querySelectorAll('${sel}')].filter(e =
   // ================= #405 S items
   w.eval(`settingsModal('account')`); await settle(w);
   md = d.querySelector('.smodal');
-  check(md.querySelector('[data-pane="account"] [data-m="go-share"]') && !md.querySelector('[data-acc="token"]'), 'S3: Account links to Share from your phone, no token there');
-  click(w, md.querySelector('[data-m="go-share"]')); await settle(w);
-  check(md.querySelector('.snav [data-sec="integr"]').classList.contains('on'), 'S3: the link opens Integrations');
+  check(!md.querySelector('[data-acc="token"]') && md.querySelector('[data-pane="integr"] #s-share-h'), 'S3: no token in Account; (#6368): Share from your phone is in Connections');
+  click(w, md.querySelector('.snav [data-sec="integr"]')); await settle(w);
+  check(md.querySelector('.snav [data-sec="integr"]').classList.contains('on') && /Connections/.test(md.querySelector('.snav [data-sec="integr"]').textContent), 'S3: the tab is called Connections (#6368)');
   check(!md.querySelector('[data-pane="data"] [data-m="purge"]') && !/Delete all completed/.test(md.querySelector('[data-pane="data"]').textContent), 'S4: no "Delete all completed" in Data');
   check(md.querySelector('.snav [data-sec="ai"]') && md.querySelector('[data-aisub="agents"]').textContent.trim() === 'Status', 'S2/S5: Agents with the module on; first sub-tab "Status"');
   closeAll(w);

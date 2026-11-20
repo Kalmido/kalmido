@@ -70,7 +70,7 @@ async function swTests() {
   let md = d.querySelector('.modal.smodal');
   const secs = [...md.querySelectorAll('.snav [data-sec]')].map(b => b.dataset.sec);
   // 2.418.0 (#3560): the new section Navigation (Settings > Navigation) after Appearance
-  check(JSON.stringify(secs) === JSON.stringify(['account', 'org', 'general', 'look', 'nav', 'modules', 'notify', 'integr', 'access', 'ai', 'data', 'users', 'help']), 'admin tabs incl. ai: ' + secs);  // 2.39.1 (#1188): Settings > Organisation  // 2.46.0 (#1592): a server without an organisation shows no Organisation page  // 2.166.0 (#2633): + Access  // 2.364.0 C (#3041): a server admin always has Organisation (People, Agents, Data)
+  check(JSON.stringify(secs) === JSON.stringify(['account', 'org', 'general', 'look', 'nav', 'modules', 'notify', 'integr', 'ai', 'data', 'users', 'help']), 'admin tabs incl. ai: ' + secs);  // 2.39.1 (#1188): Settings > Organisation  // 2.46.0 (#1592): a server without an organisation shows no Organisation page  // 2.166.0 (#2633): + Access  // 2.364.0 C (#3041): a server admin always has Organisation (People, Agents, Data)
   const tab = md.querySelector('.snav [data-sec="ai"]');
   check(/Agents/.test(tab.textContent) && tab.querySelector('svg, use, .ic, i') !== null, 'tab "Agents" with an icon (2.6.0, K09: was "AI colleague")');
   check(!md.querySelector('[data-pane="users"] #s-ags'), 'Administration no longer holds the agents block');

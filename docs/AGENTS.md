@@ -296,7 +296,7 @@ key is already revoked (agent deleted): Kalmido answers 401, the script only say
 deletes the files. `--dry-run` / `-DryRun` only shows what would happen; `--no-autostart` / `-NoAutostart` installs without
 the autostart. A *New API token* in the agent's settings still replaces every token of the agent, also the computers'.
 2.366.0 (#2999): a computer without a host name is listed after its system and the day it was set up ("macOS · 27 Oct");
-a token made by hand shows as *Set up by hand*. *Settings > Access* lists the team agents for admins too (token and
+a token made by hand shows as *Set up by hand*. *Settings > Connections* lists the team agents for admins too (token and
 *Set up on a computer*), not only the personal agents.
 Behind a login proxy, let `/agent-setup.sh`, `/agent-setup.ps1` and `/api/agent-setup/` through like `/api/v1/`.
 
@@ -2580,7 +2580,7 @@ per file, at most 10 files per message, the sandboxed preview). Only the two sid
 files, and only the sender can remove one.
 
 2.1313.0 (#6557): `POST /drop` with `to` works only when the person switched *Also send to agents* on for their upload token
-(Settings > Integrations > Share from your phone; a new token starts with it off, tokens from before 2.1313.0 keep it on and the
+(Settings > Connections > Share from your phone; a new token starts with it off, tokens from before 2.1313.0 keep it on and the
 first such message answers with a hint once); otherwise 403. A message sent that way carries `origin: "drop"` and
 `untrusted: true` on the message (`message.source` is `drop`) and on the `chat` event: the token lives in plain text in other
 apps and never expires, so whoever holds it can write the message. Treat it like text from outside: change, send or delete
@@ -4973,7 +4973,7 @@ The local MCP server with its fixed token stays as it is.
 
 2.630.0 (#4520): [`mcp/kalmido_cli.py`](../mcp/kalmido_cli.py) is a small command line for scripts and terminals, the way
 you would use `gh`: the common task commands over the REST API, with the same `KALMIDO_URL` / `KALMIDO_TOKEN` as the MCP
-server (an agent's token or a personal token from *Settings > Access*). Python 3 standard library only; it uses the HTTP
+server (an agent's token or a personal token from *Settings > Connections*). Python 3 standard library only; it uses the HTTP
 client of `kalmido_mcp.py` next to it (retries on 429 / 503, one `Idempotency-Key` per write). The agent starter brings it
 along (`mcp/starter_files.txt`). There is no npm package.
 
@@ -5480,7 +5480,7 @@ found = say so.
   the app, "Show me") and `translated: {lang, title, text}` - the same text in the person's language: quote that one.
 - **Keys only:** a section is read by the key of the index built from the files (`<file>#<heading>`, e.g.
   `api#scan-inboxes-folder-watcher`; a file's title: `api`); a file name, a path or an unknown key answers `404`.
-- **ui_terms:** the interface labels the section names (`*Label*`, the parts of `Settings > Integrations > ...`) with the same
+- **ui_terms:** the interface labels the section names (`*Label*`, the parts of `Settings > Connections > ...`) with the same
   label in `lang` (default the token's person), from the app's own translations: the help is English, the agent explains in
   the words the person sees.
 - **Rights:** no scope of its own, every token with `read` (also an agent of a person without an organisation). The

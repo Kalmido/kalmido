@@ -168,6 +168,9 @@
 }
 /* 2.625.0 (#4489): Settings > Integrations: one folded row per integration (like the module groups), the form inside */
 .introw{border-top:1px solid var(--line)}
+/* (#6368): Settings > Connections: the four groups (Phone and calendar, E-mail, Other programs, Agents) with their symbol */
+.intgrp{display:flex;align-items:center;gap:.5rem;margin:1.25rem 0 .25rem;font-size:var(--fs-m);font-weight:600;color:var(--text2);text-transform:none}
+.intgrp > svg{color:var(--accent);flex:none}
 .introw > summary{display:flex;align-items:center;gap:.5rem;min-height:2.75rem;cursor:pointer;list-style:none;color:var(--text);font-size:var(--fs-b)}
 .introw > summary::-webkit-details-marker{display:none}
 .introw > summary > svg:first-child{color:var(--accent);flex:none}

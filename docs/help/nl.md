@@ -2,12 +2,12 @@
 of the English text it was translated from. **Bold** = the label exactly as the interface shows it.
 Check: python3 tools/check_userhelp.py. -->
 
-<!-- help: files#how-to-set-up-a-scan-inbox src=b33c638618 -->
+<!-- help: files#how-to-set-up-a-scan-inbox src=5124ce3a66 -->
 ## Een scan-inbox instellen
 
 Een scan-inbox stuurt nieuwe scans uit een map op je computer meteen naar je documenten.
 
-1. Open **Instellingen** > **Integraties** en ga naar **Documenten: inboxen**.
+1. Open **Instellingen** > **Verbindingen** en ga naar **Documenten: inboxen**.
 2. Download onder **Mapbewaker** het programma voor je computer (Mac of Windows).
 3. Open **Nieuwe scan-inbox**, vul een **Naam** in, kies de map bij **In map** en tik op **Inbox maken**.
 4. Kalmido toont de **Installatiecode** alleen deze ene keer. Tik op **Kopiëren**, start het programma, plak de code en kies
@@ -145,19 +145,19 @@ Daarna: de persoon ziet het project en krijgt de taak. Je kunt alleen mensen uit
 
 Daarna: de afspraak staat in de agenda en op je telefoon, als die verbonden is.
 
-<!-- help: calendar#how-to-subscribe-to-another-calendar src=9f0cf2e56c -->
+<!-- help: calendar#how-to-subscribe-to-another-calendar src=349059272c -->
 ## Op een andere agenda abonneren
 
-1. Open **Agenda** > **Agenda's** > **Abonnementen…** (of **Instellingen** > **Integraties** > **Agenda's**).
+1. Open **Agenda** > **Agenda's** > **Abonnementen…** (of **Instellingen** > **Verbindingen** > **Agenda's**).
 2. Tik op **Agenda toevoegen**.
 3. Plak de link van de agenda en tik op **Toevoegen**. Voor een account kies je **CalDAV-account** en **Agenda's zoeken**.
 
 Daarna: de afspraken verschijnen in je agenda, alleen te lezen en alleen voor jou.
 
-<!-- help: calendar#how-to-show-kalmido-on-your-phone src=73923b0417 -->
+<!-- help: calendar#how-to-show-kalmido-on-your-phone src=06e571f04f -->
 ## Kalmido op je telefoon zien
 
-1. Open **Agenda** > **Agenda's** > **Op de telefoon…** (of **Instellingen** > **Integraties** > **Agenda-apps (CalDAV)**).
+1. Open **Agenda** > **Agenda's** > **Op de telefoon…** (of **Instellingen** > **Verbindingen** > **Agenda-apps (CalDAV)**).
 2. Tik op **Nieuw app-wachtwoord** en neem server, gebruikersnaam en wachtwoord over in de agenda-instellingen van je telefoon.
 
 Daarna: je afspraken en taken met datum verschijnen in de agenda van de telefoon. Gebruik daar het app-wachtwoord, nooit je

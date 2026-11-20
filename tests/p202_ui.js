@@ -188,12 +188,14 @@ const key = (w, k, o = {}) => w.document.body.dispatchEvent(new w.KeyboardEvent(
   d.querySelector('[data-m="close"]').click(); await sleep(200);
   w.eval(`settingsModal('share')`); await idle(w);
   check(!d.querySelector('#s-droptok') && /Active/.test(d.querySelector('#s-dropw')?.textContent || ''), 'reopened: no token, only "Active since"');
-  // 2.7.0 (#405 S3): the upload token lives only under Share from your phone; Account links there
+  // 2.7.0 (#405 S3): the upload token lives only under Share from your phone; (#6368): Account has no link to it any more
+  // (the section "For advanced users" is gone), the focus "share" opens it in Connections
   w.eval(`settingsModal('account')`); await idle(w);
-  const sm = d.querySelector('.modal');
-  check(!sm.querySelector('[data-acc="token-new"]') && sm.querySelector('[data-pane="account"] [data-m="go-share"]'), 'Account: no second "New token", a link to Share from your phone');
-  sm.querySelector('[data-m="go-share"]').click(); await sleep(200);
-  check(sm.querySelector('.snav [data-sec="integr"]').classList.contains('on') && sm.querySelector('#s-dropw'), 'the link opens Share from your phone');  // 2.138.0 (#1907): #s-dropw
+  let sm = d.querySelector('.modal');
+  check(!sm.querySelector('[data-acc="token-new"]') && !sm.querySelector('[data-pane="account"] [data-m="go-share"]'), 'Account: no second "New token", no link left in Account');
+  sm.querySelector('[data-m="close"]').click(); await sleep(200);
+  w.eval(`settingsModal('share')`); await idle(w); sm = d.querySelector('.modal');
+  check(sm.querySelector('.snav [data-sec="integr"]').classList.contains('on') && sm.querySelector('#s-dropw'), 'the focus "share" opens Share from your phone');  // 2.138.0 (#1907): #s-dropw
   sm.querySelector('[data-m="close"]').click(); await sleep(200);
 
   // ---- #299 "Claude is writing …" (2.13.2 #478 F6: "working" on a task without a typing signal = "is working on it")

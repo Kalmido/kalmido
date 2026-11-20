@@ -155,20 +155,13 @@ const subs = (md, sec) => [...md.querySelectorAll(`[data-pane="${sec}"] [data-ad
   await until(() => md.querySelector('#s-ws .wsorg'));
   check(secOn(md) === 'org' && !md.querySelector('[data-admsub]') && !md.querySelector('.snav [data-sec="users"]'), 'member: Organisation without sub-tabs, no Server');
   check(!md.querySelector('[data-oinv="new"]') && !md.querySelector('#s-wsdata'), 'member: no invitation, no data boxes');
-  // #3044: no own token / webhook: Access is not listed, it waits under Integrations > "For advanced users"
-  const acb = md.querySelector('.snav [data-sec="access"]');
-  check(acb && acb.hidden, 'member without a token: Access not listed');
-  const ga = md.querySelector('[data-pane="integr"] details.aczadv [data-m="go-access"]');
-  check(ga && !ga.closest('details').open, 'Integrations: Access under a closed "For advanced users"');
-  click(w, ga);
-  check(await until(() => secOn(md) === 'access' && !acb.hidden), 'the link opens Access and lists it');
-  w.close();
-  const CB = await login('bob');
-  check((await call('POST', '/api/me/tokens', {name: 'Script', scopes: ['read']}, CB)).status < 300, 'bob: an own API token');
-  w = await boot({user: 'bob'}); d = w.document;
-  w.eval(`settingsModal('integr')`);
-  md = await until(() => d.querySelector('.smodal'));
-  check(!md.querySelector('.snav [data-sec="access"]').hidden && !md.querySelector('details.aczadv') && md.querySelector('[data-pane="integr"] [data-m="go-access"]'), 'with an own token: Access listed, the link not folded');
+  // #3044 / (#6368): Access is part of Connections, always listed (decision #6368 A); the technical rows stay folded until opened
+  const cb = md.querySelector('.snav [data-sec="integr"]');
+  check(cb && !cb.hidden && !md.querySelector('.snav [data-sec="access"]'), 'member without a token: Connections listed, no tab Access');
+  const apiRow = md.querySelector('[data-pane="integr"] #s-api-h')?.closest('details.introw');
+  check(apiRow && !apiRow.open, 'Connections: the API tokens are a closed row');
+  click(w, cb);
+  check(await until(() => secOn(md) === 'integr'), 'the tab opens');
   w.close();
 
   // ================= without an organisation (P4): the own settings stay

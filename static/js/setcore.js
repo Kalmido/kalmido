@@ -128,8 +128,9 @@ function swMessage(e) {
   if (d.type === 'refresh') load().then(render).catch(() => {});
   if (d.type === 'msgpop?') mp_swAsk(e);  // 2.1130.0 (#6057): the pop-up says the chat push (liveparts.js)
 }
+// (#6368): Integrations and Access are one tab Connections (key integr; old links to access land there, settings.js SET_ALIAS)
 const SET_SECS = [['account', 'user', N_('Account')], ['org', 'building', N_('Organisation')], ['biz', 'receipt', N_('Company & office')], ['general', 'sliders', N_('General')], ['look', 'palette', N_('Appearance')], ['nav', 'menu', N_('Navigation')], ['modules', 'grid', N_('Modules')],  // 2.418.0 (#3560): nav
-  ['notify', 'bell', N_('Notifications')], ['integr', 'link', N_('Integrations')], ['docs', 'file', N_('Documents|settings')], ['access', 'key', N_('Access|settings')], ['ai', 'bot', N_('Agents')], ['data', 'download', N_('Data')], ['users', 'grid', N_('Server|settings')], ['help', 'help', N_('Help')]];
+  ['notify', 'bell', N_('Notifications')], ['integr', 'link', N_('Connections')], ['docs', 'file', N_('Documents|settings')], ['ai', 'bot', N_('Agents')], ['data', 'download', N_('Data')], ['users', 'grid', N_('Server|settings')], ['help', 'help', N_('Help')]];
 // 2.630.0 (#4519): "(Settings > Modules)" in a hint becomes a link that opens the settings at that section. It reads the way in the
 // translated text itself (the word for Settings + the section's name from SET_SECS, then any " > sub" parts up to a bracket / colon /
 // comma), so no text key changes. Returns safe HTML (text escaped; safe = true: s is HTML already). A way it does not know stays text.

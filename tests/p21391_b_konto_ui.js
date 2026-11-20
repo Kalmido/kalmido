@@ -61,13 +61,13 @@ const OPEN_ALL = `(() => { document.querySelectorAll('.smodal details.sfold:not(
       const who = p.querySelector('.acwho'), out = who?.querySelector('[data-acc="logout"]'), name = who?.querySelector('.acct b');
       const r1 = out?.getBoundingClientRect(), r2 = name?.getBoundingClientRect(), sto = p.querySelector('#s-storage-h, #s-sync-h');
       return { order: pos(p.querySelector('#s-account-h'), p.querySelector('#a-name')) && (!p.querySelector('#a-cur') || pos(p.querySelector('#a-name'), p.querySelector('#a-cur')))
-          && pos(p.querySelector('#s-ses-h'), sto) && pos(sto, p.querySelector('details.sdev')),
+          && pos(p.querySelector('#s-ses-h'), sto) && pos(sto, p.querySelector('[data-msvat]')),
         topOut: !!out, sameRow: r1 && r2 ? Math.abs((r1.top + r1.height / 2) - (r2.top + r2.height / 2)) : 99,
         lastOut: !![...p.querySelectorAll('[data-acc="logout"]')].pop()?.closest('.alogout'),
         adv: p.querySelector('details.sdev > summary')?.textContent.trim() || '', sto: p.querySelector('#s-storage-h')?.closest('.sfold, [data-pane]')?.querySelector('.stoq')?.textContent || '', q: S.storage || null }; })())`));
-    check(A.order, '#6130: Profile, then the password and the sessions, then storage before "For advanced users"');
+    check(A.order, '#6130: Profile, then the password and the sessions, then storage (then the servers, #6368)');
     check(A.topOut && A.sameRow < 24 && A.lastOut, `#6130: Sign out next to the name (${A.sameRow}) and still at the very end`);
-    check(A.adv === 'For advanced users', '#6130: "For advanced users" instead of "Advanced · for developers": ' + A.adv);
+    check(A.adv === '', '(#6368): no "For advanced users" in Account any more (its tokens are in Settings > Connections): ' + A.adv);
     if (A.q && !A.q.limit) check(/No files stored yet, no storage limit|in use, no storage limit/.test(A.sto) && !/0 B/.test(A.sto), '#6130: storage in plain words: ' + A.sto);
     else check(!/no limit/.test(A.sto), '#6130: storage with a limit: ' + A.sto);
     // the sessions: this script's one is "Program / script"

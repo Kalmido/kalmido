@@ -89,11 +89,11 @@ const set = (w, el, v) => { el.value = v; el.dispatchEvent(new w.Event('input', 
   w.eval(`openDetail(${eggs.id})`); await idle(w);
   check(/Someone via the public link/.test(d.querySelector('#detail')?.textContent || ''), 'history: someone via the public link');
   w.eval('closeDetail()');
-  // ---- API tokens (2.166.0 (#2633): Settings > Access; Account > Advanced links there)
+  // ---- API tokens (2.166.0 (#2633); (#6368): Settings > Connections > Other programs, Account has none and no link)
   w.eval(`settingsModal('account')`); await idle(w);
-  check(d.querySelector('.smodal [data-pane="account"] [data-m="go-access"]') && !d.querySelector('.smodal [data-pane="account"] #s-toks'), 'account: no token list, a link to Access');
-  click(w, d.querySelector('.smodal [data-pane="account"] [data-m="go-access"]')); await idle(w);
-  check(d.querySelector('.smodal .snav [data-sec="access"]')?.classList.contains('on') && /Access/.test(d.querySelector('.smodal .snav [data-sec="access"]').textContent), 'the link opens Settings > Access');
+  check(!d.querySelector('.smodal [data-pane="account"] #s-toks') && !d.querySelector('.smodal .snav [data-sec="access"]'), 'account: no token list; no tab Access any more');
+  click(w, d.querySelector('.smodal .snav [data-sec="integr"]')); await idle(w);
+  check(d.querySelector('.smodal .snav [data-sec="integr"]')?.classList.contains('on') && /Connections/.test(d.querySelector('.smodal .snav [data-sec="integr"]').textContent) && d.querySelector('.smodal [data-pane="integr"] #s-api-h'), 'Settings > Connections holds the API tokens');
   for (let i = 0; i < 40 && !/No tokens yet/.test(d.querySelector('.smodal #s-toks')?.textContent || ''); i++) await sleep(150);  // 2.147.2 CI: the token list loads late on a slow runner
   md = d.querySelector('.smodal');
   check(md.querySelector('#s-api-h') && /No tokens yet/.test(md.querySelector('#s-toks').textContent), 'account: API tokens section');
@@ -112,11 +112,9 @@ const set = (w, el, v) => { el.value = v; el.dispatchEvent(new w.Event('input', 
   await fetch(B + 'api/v1/tasks', {method: 'POST', headers: {Authorization: 'Bearer ' + token, 'Content-Type': 'application/json'}, body: JSON.stringify({title: 'From HA'})});
   click(w, md.querySelector('[data-tok="del"]')); await idle(w);
   check(/No tokens yet/.test(md.querySelector('#s-toks').textContent) && (await fetch(B + 'api/v1/me', {headers: {Authorization: 'Bearer ' + token}})).status === 401, 'revoke');
-  // ---- webhooks (2.166.0 (#2633): Settings > Access; Integrations links there)
-  click(w, md.querySelector('.snav [data-sec="integr"]')); await idle(w);
-  check(!md.querySelector('[data-pane="integr"] #s-whs') && md.querySelector('[data-pane="integr"] [data-m="go-access"]'), 'integrations: no webhooks, a link to Access');
-  click(w, md.querySelector('.snav [data-sec="access"]')); await idle(w);
-  check(md.querySelector('[data-pane="access"] #s-wh-h') && /No webhooks yet/.test(md.querySelector('#s-whs').textContent), 'Access: webhooks section');
+  // ---- webhooks (2.166.0 (#2633); (#6368): Settings > Connections > Other programs, next to the API tokens)
+  for (let i = 0; i < 40 && !/No webhooks yet/.test(md.querySelector('#s-whs')?.textContent || ''); i++) await sleep(150);  // the list loads late on a slow runner
+  check(md.querySelector('[data-pane="integr"] #s-wh-h') && /No webhooks yet/.test(md.querySelector('#s-whs').textContent), 'Connections: webhooks section');
   click(w, md.querySelector('[data-wh="new"]')); await sleep(200);
   let wm = [...d.querySelectorAll('.modal')].pop();
   set(w, wm.querySelector('#wh-url'), 'http://example.com/hook');

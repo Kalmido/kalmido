@@ -933,7 +933,7 @@ function dcs_paneHtml() {
     <h4 id="s-dcs-lists-h">${tr('Senders, types and tags')}</h4>
     <div class="row"><span class="muted">${tr('Senders, document types, tags and custom fields are kept in Documents.')}</span><button type="button" class="btn sm" data-dcs="lists">${ic('list', 's')} ${tr('Open in Documents')}</button></div>
     <h4 id="s-dcs-in-h">${tr('Inboxes')}</h4>
-    <div class="row"><span class="muted">${tr('The folder of the file store, the folder watcher, scan inboxes and the e-mail address: Settings > Integrations.')}</span><button type="button" class="btn sm" data-dcs="go-integr">${ic('link', 's')} ${tr('Open Integrations')}</button></div>
+    <div class="row"><span class="muted">${tr('The folder of the file store, the folder watcher, scan inboxes and the e-mail address: Settings > Connections.')}</span><button type="button" class="btn sm" data-dcs="go-integr">${ic('link', 's')} ${tr('Open Connections')}</button></div>
     <div data-dcsp="pl"></div></div>`;
 }
 async function dcs_draw(md) {

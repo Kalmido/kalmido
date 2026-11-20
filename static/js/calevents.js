@@ -778,7 +778,7 @@ async function evCalsModal() {
     const sb = !S.calendars?.enabled ? '' : `<div class="cvxgrp">${tr('Subscriptions')}</div>${subs.length ? subs.map(c => `<div class="cvxrow" style="--cc:${cssColor(c.color)}">
       <i class="cevdot"></i><span class="evcn">${esc(c.name)}${cevStaleText(c.c) ? `<span class="cevstale"> ${ic('alert', 's')} ${esc(cevStaleText(c.c))}</span>` : '' /* (#6551) */}</span>${sw(c.key, 'show', c.on, false, tr('Show {0} in my calendar', c.name))}${three(c)}
       <button data-rowmenu="cvxrow" class="iconbtn" data-cvxmenu="${c.key}" data-name="${esc(c.name)}" aria-haspopup="menu" aria-label="${esc(tr('More for {0}', c.name))}" title="${esc(tr('More'))}">${ic('dots')}</button></div>`).join('')
-      : `<p class="muted">${tr('No subscriptions yet. Add one under Settings > Integrations > Calendars.')}</p>`}`;
+      : `<p class="muted">${tr('No subscriptions yet. Add one under Settings > Connections > Calendars.')}</p>`}`;
     // 2.566.0 (#4707): the calendars in the trash (the shared core's trash): opened on demand, restore with their events
     const tr2 = !feat('events') ? '' : `<button type="button" class="evcrowbtn evctrbtn" data-evc="trash" aria-expanded="${!!st.trash}">${ic('trash', 's')}<span>${tr('Trash')}</span>${ic('right', 's')}</button>${!st.trash ? ''
       : st.trash.items.length ? `<ul class="evclist evctrash" aria-label="${esc(tr('Trash'))}">${st.trash.items.map(c => `<li class="evcrow" style="--cc:${cssColor(c.color) || 'var(--accent)'}"><i class="cevdot"></i><span class="evcn">${esc(c.name)}<span class="muted"> · ${esc(trn('{0} event', '{0} events', c.events))} · ${esc(tr('In the trash since {0}', fmtDate((c.deleted_at || '').slice(0, 10))))}</span></span><button type="button" class="btn sm" data-evctr="${c.id}">${ic('undo', 's')} ${tr('Restore')}</button></li>`).join('')}</ul>`
@@ -816,7 +816,7 @@ async function evCalsModal() {
       const key = sm.dataset.cvxmenu;
       menu(sm, [...cvxNarrowItems(key, cvxVisibleCals(true).find(x => x.key === key)?.on !== false), {label: tr('Only this calendar'), icon: 'eye', fn: async () => { await cvxOnly(key); draw(); }},
         {label: tr('Show all calendars'), icon: 'all', fn: async () => { await cvxAll(); draw(); }}, ...(typeof spl_item === 'function' ? spl_item('#cal') : []) /* 2.742.0 (#4858) */, '-',
-        {label: tr('Subscriptions…'), icon: 'gear', sub: tr('Settings > Integrations > Calendars'), fn: () => { md.remove(); settingsModal('calendars'); }}]);
+        {label: tr('Subscriptions…'), icon: 'gear', sub: tr('Settings > Connections > Calendars'), fn: () => { md.remove(); settingsModal('calendars'); }}]);
       return;
     }
     const m = e.target.closest('[data-evcmenu]');
