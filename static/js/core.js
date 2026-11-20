@@ -952,7 +952,7 @@ async function api(method, url, body, o) {
   // work (a dead spot, a proxy 502) is queued under the SAME key, so its repeat gets the first answer instead of running twice
   // (duplicate a task = one copy); o.key = the caller's own key for a write it may send again (an upload: attachments.js)
   const ik = method !== 'GET' ? o?.key || oxaKey(body) || outKey() : undefined;
-  try { let j = await rawFetch(method, url, body, ik); if (ox.on && j?.conflicts?.length && typeof le2eRekeyConflicts === 'function') j = await le2eRekeyConflicts(url, body, j, b2 => rawFetch(method, url, b2));  // 2.543.0 (#4632): a key change is no conflict
+  try { let j = await rawFetch(method, url, body, ik); if (ox.on && j?.conflicts?.length && typeof le2eRekeyConflicts === 'function') j = await le2eRekeyConflicts(url, body, j, b2 => rawFetch(method, url, b2));  // (#4632): a key change is no conflict
     if (ox.on && j?.conflicts?.length) addConflicts(j.id || +url.split('/').pop(), j.conflicts, j.title); if (method !== 'GET' && S.sel && new RegExp(`^/api/tasks/${S.sel}(/|$)`).test(url)) savedPing(); return method === 'GET' ? mvResp(url, j) : j; }  // 2.436.0 (#3620)
   catch (e) {
     if (e instanceof Offline) {
@@ -1224,7 +1224,7 @@ function enqueue(method, url, body, k) {  // k (#6332): the key an online try of
   // 2.363.3 (#3133): a whole new order of "My tasks" replaces the one still waiting, whose _prev stays the base the server confirmed
   const mo = method === 'PUT' && url === '/api/tasks/mine-order' && outSync().find((x, i) => (i > 0 || !OUT.flushing) && !x.sending && !x.done && x.url === url);
   if (mo) { outSave(() => { mo.body = {...mo.body, ids: body.ids}; }); return {ok: true}; }
-  const e = {method, url, body, uid: S.me?.id, k: k || oxaKey(body) || outKey()};  // 2.528.0 (#4305 B1): the key the press chose
+  const e = {method, url, body, uid: S.me?.id, k: k || oxaKey(body) || outKey()};  // (#4305 B1): the key the press chose
   const osp = ofc_spHdr(url); if (osp) e.osp = osp;  // 2.577.0 (#4638): a change sent later lands in the office it was made in
   if (HIST.own > 0) e.own = 1; if (HIST.gtok) e.gtok = HIST.gtok;  // 2.1358.0 (#6328 C5, C8): its undo headers go with it (rawFetch0 oq)
   if (method === 'POST' && (url === '/api/tasks' || /^\/api\/lists\/\d+\/notes$/.test(url))) e.tmp = -Date.now() - Math.floor(Math.random() * 1000);  // 2.143.0 C (#2153): + a note

@@ -70,7 +70,7 @@ async function uploadFiles(taskId, files) {
     putTask(t); render(); if (S.sel === taskId) renderDetail();
     toast(files.length === 1 ? tr('Attached') : tr('{0} files attached', files.length));
     return true;
-  } catch (e) { if (!(e instanceof Offline)) UP_KEY.sig = UP_KEY.k = ''; return e?.cancelled ? undefined : false; /* api() already showed the error / offline notice; 2.363.3 (#3134): cancelled = not again on the next flush */ }
+  } catch (e) { if (!(e instanceof Offline)) UP_KEY.sig = UP_KEY.k = ''; return e?.cancelled ? undefined : false; /* api() already showed the error / offline notice; (#3134): cancelled = not again on the next flush */ }
   finally { upBusy.delete(taskId); }
 }
 // 2.359.0 A (#3023): files of a quick add made offline (the task has only its temporary id): kept in IndexedDB "kalmido-qfiles"

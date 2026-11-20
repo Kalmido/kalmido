@@ -1269,7 +1269,7 @@ async function chatSend() {
   if (quick) { ta.value = ''; delete S.drafts['chat:' + aid]; autosize(ta); if (up) S.chat.pin = false; chatDraw(up ? {} : {bottom: true}); }
   if (files.length) toast(files.length === 1 ? tr('Uploading…') : tr('Uploading {0} files…', files.length));
   try { const m = await rawFetch('POST', `/api/agents/${aid}/chat`, payload); if (!st.msgs.some(x => x.id === m.id)) st.msgs.push(m); if (!quick) { ta.value = ''; delete S.drafts['chat:' + aid]; } delete S.chatFiles[aid]; replySent('a:' + aid); const fb = $('#chat-files'); if (fb) fb.innerHTML = ''; sent = true; }
-  catch (e) { csdKeep(ck, p); if (quick) csdBack($('#chat-in'), raw.trim(), 'chat:' + aid); toast(e instanceof Offline ? tr('You are offline: the message was not sent and stays in the box') : errText(e, tr('The message could not be sent'))); }  // 2.1211.0 (#6098)
+  catch (e) { csdKeep(ck, p); if (quick) csdBack($('#chat-in'), raw.trim(), 'chat:' + aid); toast(e instanceof Offline ? tr('You are offline: the message was not sent and stays in the box') : errText(e, tr('The message could not be sent'))); }  // (#6098)
   finally { csdDone(ck, p); st.sending = false; if (btn) btn.disabled = false; }
   if (up) S.chat.pin = false;
   chatDraw({bottom: sent && !up});
