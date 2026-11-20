@@ -265,8 +265,8 @@ function ocf_chooseHtml(slim) {
   const sug = OFC.info.pack_suggest || 'DE';
   return `<section class="ocf-choose card" aria-labelledby="ocf-ch-h"><h3 id="ocf-ch-h">${ic('globe', 's')} ${tr('Where is your office?')}</h3>
     <p class="muted">${tr('The country decides tax rates, texts and functions. You can change it later.')}</p>
-    <div class="lacts">${/*html-ok*/ opts.length ? ofcSel('ocf-ch', sug, opts, null, tr('Where is your office?')) : PKC.packs?.failed ? ofcFail(PKC.packs.err, () => { PKC.packs = null; }, 'row') : loadingHtml('row')/* 2.1094.0 (#5902): failed = the reason + "Try again", never "Loading…" for good */}${''/* 2.603.0 (#4927): the basis of the income statement, from this year on; 2.892.0 (#5449): with its visible name */}<label class="ocf-ebl" for="ocf-eb">${tr('Basis of the income statement')}</label>${ofcSel('ocf-eb', 'receipts', [['receipts', tr('Receipts')], ['bank', tr('Bank and cash (strict)')]], null, tr('Basis of the income statement'))}<button type="button" class="btn sm pri" data-ocf="choose" ${opts.length ? '' : 'disabled'}>${tr('Use')}</button></div>
-    <p class="muted ofchint">${tr('Basis of the income statement')}: ${esc(tr('Bank and cash (strict)'))} = ${esc(tr('only what went through the main account or the cash book counts; further accounts are possible, not required.'))}</p></section>`;
+    <div class="lacts">${/*html-ok*/ opts.length ? ofcSel('ocf-ch', sug, opts, null, tr('Where is your office?')) : PKC.packs?.failed ? ofcFail(PKC.packs.err, () => { PKC.packs = null; }, 'row') : loadingHtml('row')/* 2.1094.0 (#5902): failed = the reason + "Try again", never "Loading…" for good */}${''/* 2.603.0 (#4927): the basis of the income statement, from this year on; 2.892.0 (#5449): with its visible name */}<label class="ocf-ebl" for="ocf-eb">${tr('Basis of the income statement')}</label>${ofcSel('ocf-eb', 'receipts', EB_NAMES.map(([k, n]) => [k, tr(n)]), null, tr('Basis of the income statement'))}<button type="button" class="btn sm pri" data-ocf="choose" ${opts.length ? '' : 'disabled'}>${tr('Use')}</button></div>
+    <p class="muted ofchint" id="ocf-ebh" aria-live="polite">${esc(ebHint('receipts'))/* (#7594): the chosen basis is explained (was: always the other one), it follows the choice */}</p></section>`;
 }
 async function ocf_choose() {
   const code = $('#ocf-ch')?.value; if (!code) return;
@@ -290,6 +290,7 @@ async function ocf_confirmSwitch(code) {
   if (j.shown?.length) lines.push(tr('New: {0}', j.shown.map(nm).join(', ')));
   return askConfirm(tr('Change the country to “{0}”?', pkc_nm(j)), lines.join(' '), {ok: tr('Change')});
 }
+document.addEventListener('change', e => { if (e.target.id === 'ocf-eb') { const h = $('#ocf-ebh'); if (h) h.textContent = ebHint(e.target.value); } });  // (#7594)
 document.addEventListener('click', e => { const b = e.target.closest?.('[data-ocf="choose"]'); if (b) { e.preventDefault(); ocf_choose(); } });
 // 2.555.0 (#4664): "Select country" in Settings > Company & office: to the country pack field of the same page (Packs), never out of the settings
 document.addEventListener('click', e => {
