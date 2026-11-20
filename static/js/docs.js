@@ -20,12 +20,24 @@ const DC_BY = {rule: N_('set by a rule'), learn: N_('learnt from your documents'
 // the module switch (Settings > Modules), off by default like the other areas
 // 2.65.0 (#1823): the module switch (FEATS, FEAT_DESC) and dc_shareOk are in lazyload.js (this file loads on demand)
 const dc_ws = () => (typeof wsCur === 'function' ? wsCur() : 'all');
-const dc_upWs = () => { const w = dc_ws(); return w.startsWith('org:') ? w : 'private'; };
+// the workspace whose document settings are shown (the sidebar's; "All" = Private)
+const dc_setWs = () => { const w = dc_ws(); return w.startsWith('org:') ? w : 'private'; };
+// (#7309 F5): where an upload / a shared file goes: the shown workspace; under "All" the shared place (workspace.js wsNewSpace
+// 'docs': the only workspace where Documents is on and writable for me), null = several (dc_upload asks) - never quietly Private
+const dc_upWs = () => { const w = dc_ws(); return w === 'all' ? wsNewSpace('docs') : w; };
 // 2.1162.0 (#6108): may the person add documents where they go (dc_upWs)? Private: yes; an organisation: not as read-only / guest
 // (accounting uploads receipts: docs/store.py root_add_ok). Only the view follows the server's rule.
 // 2.1238.0 (#6161, Stufe 2): the shared core's canWrite (workspace.js) decides; the one exception of the server stays: accounting
 // adds receipts here (docs/web.py), so that role keeps "Add documents" though canWrite says no for it
-const dc_upOk = () => { const w = dc_upWs(); return canWrite(w) || (w.startsWith('org:') && wsOrg(w.slice(4))?.role === 'accounting'); };
+// (#7309 F5): under "All" with several workspaces: yes while Documents is on and writable in one of them (the upload asks which)
+const dc_upOk = () => { const w = dc_upWs(); if (!w) return wsCanNew('docs'); return canWrite(w) || (w.startsWith('org:') && wsOrg(w.slice(4))?.role === 'accounting'); };
+// (#7309 F5): the workspace of an upload: the given / dc_upWs one, else the required choice among wsp_list('docs', true) (areas.js
+// wsp_ask); null = cancelled or nowhere to add
+async function dc_upPick(ws) {
+  const w = ws || dc_upWs(); if (w) return w;
+  const sps = wsp_list('docs', true);
+  return wsp_ask({message: sps.length ? tr('Which workspace? Select where the new entry goes.') : tr('This module is switched off for you in every workspace you may add to.'), data: {spaces: sps.map(x => ({ws: x, name: wsName(x)}))}});
+}
 const dc_hashId = () => { try { const m = location.hash.match(/^#(docs|ablage)\/(\d+)/); return m && (m[1] === 'docs' || AB_FILEIDS.has(+m[2])) ? +m[2] : null; } catch { return null; } };  // the sheet may close after its window is gone; 2.752.0 (#4887): #ablage/<id> of a file (core.js AB_FILEIDS)
 const dc_money = (a, cur) => curMoney(a, cur);  // 2.189.0 (#2475): + £; 2.368.0 C (#2983): one money format (i18n.js curMoney)
 const dc_day = d => { const s = String(d || '').slice(0, 10); return /^\d{4}-\d\d-\d\d$/.test(s) ? fmtDateNum(pd(s)) : ''; };  // 2.583.0 (#4877): always the whole date with the year (06.11.2026), no Today / weekday
@@ -303,12 +315,16 @@ const DC_ACCEPT = 'application/pdf,image/*,.pdf,.txt,.xml,application/xml,text/x
 async function dc_upload(files, ws, source) {
   const {ok, out} = ab_upCheck(files, source ? '' : DC_ACCEPT); const box = ab_upOut(out);  // the share sheet / a scan: every kind as before; 2.1247.0 (#6173): its own list
   if (!ok.length) return [];
+  ws = await dc_upPick(ws); if (!ws) { ab_upOut(out, box); return []; }  // (#7309 F5): asked under "All" with several workspaces; cancelled = nothing sent
+  // the shared place's own field (docs/web.py: space -> wsp_new) while Documents is on and writable there; the old field ws for the
+  // rest (accounting adds receipts to an organisation it only reads: root_add_ok)
+  const named = wsp_list('docs', true).includes(ws) ? 'space' : 'ws';
   const ids = [], dups = [], parts = ab_upParts(ok, 50);
   for (let i = 0; i < parts.length; i++) {
     const fd = new FormData(); /** @type {any} */ (fd).upBar = true;
     for (const f of parts[i]) fd.append('files', f, f.name);
-    fd.append('ws', ws || dc_upWs());
-    if ((ws || dc_upWs()) === 'private') fd.append('sort', '1');  // 2.522.0 (#4433): the general input sorts (office / private; no office: nothing)
+    fd.append(named, ws);
+    if (ws === 'private') fd.append('sort', '1');  // (#4433): the general input sorts (office / private; no office: nothing)
     if (source) fd.append('source', source);
     // 2.1216.0 (#6109): rawFetch - the refused files are said once, in the list (ab_upOut), not a toast "Error 400" beside it
     let j; try { j = await rawFetch('POST', '/api/docs', fd); } catch (x) { /* 2.1412.0 (#6227 N3): logged out = the rest "Signed out" in the list (ab_upRest), the message and its history entry as usual */ if (x?.data?.errors) j = x.data; else { out.push(...ab_upRest(parts, i, x)); break; } }  // a 400 with its reasons: the list names them
@@ -328,7 +344,7 @@ async function dc_upload(files, ws, source) {
   return ids;
 }
 async function dc_shareFiles(files) {  // the share sheet: "File as document"
-  const ids = await dc_upload(files, dc_upWs(), 'share');
+  const ids = await dc_upload(files, null, 'share');  // (#7309 F5): dc_upload asks under "All" with several workspaces
   if (ids.length) location.hash = '#ablage/docs';  // 2.752.0 (#4887)
 }
 
@@ -915,7 +931,7 @@ const dc_leave = md => new Promise(res => {
 // 2.365.2 B (#2789): the settings live in Settings > Documents (dcs_paneHtml / dcs_draw, the workspace shown in the sidebar),
 // the inboxes (folder, folder watcher, mail) in Settings > Integrations (docscan.js); the module keeps the dialog for its
 // lists (senders, types, tags) and custom fields. dc_sDraw draws both, the handlers below serve both.
-async function dc_settings(ws = dc_upWs()) {
+async function dc_settings(ws = dc_setWs()) {
   let s; try { s = await api('GET', `/api/docs/settings?ws=${encodeURIComponent(ws)}`); } catch { return; }
   DC.set = s;
   const md = modal('<div class="dc-sbody"></div>');
@@ -939,7 +955,7 @@ function dcs_paneHtml() {
 async function dcs_draw(md) {
   const box = $('.dcs-pane', md); if (!box) return;
   if (!box._on) { box._on = true; box.addEventListener('click', dc_sClick); box.addEventListener('change', dc_sChange); }
-  let s; try { s = await api('GET', `/api/docs/settings?ws=${encodeURIComponent(dc_upWs())}`); } catch { $('[data-dcsp="head"]', box).textContent = ''; return; }
+  let s; try { s = await api('GET', `/api/docs/settings?ws=${encodeURIComponent(dc_setWs())}`); } catch { $('[data-dcsp="head"]', box).textContent = ''; return; }
   if (!box.isConnected) return;
   DC.set = s; dc_sDraw(box);
 }
@@ -1230,7 +1246,7 @@ async function dc_smvMove(sel, what) {
   if (orgs.size !== 1) { toast(tr('Select items of one workspace')); return null; }
   const ids = [...sel.keys()], from = [...orgs][0];
   let last = null;
-  const r = await smv_open({what, from, total: ids.length,  // 2.147.1 B (#2230): batches + progress
+  const r = await smv_open({mod: 'files', what, from, total: ids.length,  // (#2230): batches + progress
     check: async to => { try { return await rawFetch('POST', '/api/files/move-space', {ids, to: smv_ws(to), parent: 'docs', dry: 1}); } catch (x) { return {block: x.message || tr('The check failed. Please try again.')}; } },
     run: (to, _p, _o, step) => { last = {ids, to: smv_ws(to), parent: 'docs'}; return smv_post('/api/files/move-space', last, 'ids', step); }});
   if (!r?.moved || !last) return null;

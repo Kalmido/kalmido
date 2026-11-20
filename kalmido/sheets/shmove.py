@@ -80,7 +80,7 @@ def sheets_move_space(sid):
         r = sh_need(c, sid, write=True)
     tabs = shb_member_ids(c, sid)
     b = body()
-    to = smv_target(c, uid, b.get("to"))
+    to = smv_target(c, uid, b.get("to"), "sheets")
     smv_same(r["org_id"], to)
     if r["org_id"] is None and r["owner_id"] != uid:
         raise Denied(403, tr(SHM_ONLY))

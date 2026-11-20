@@ -1,7 +1,6 @@
 """Onboarding, the sample project and the app's industry (2.578.0, #4573)."""
 import json
 import os
-import re
 from datetime import datetime, timedelta, timezone
 from flask import g, has_request_context, jsonify, request
 
@@ -454,6 +453,11 @@ def ind_choices(lg):
     return out
 
 
+# (#7313): office/model.py office_pick_req (the office routes' rule: the area the request names, the setting, under "All"
+# the only office on) -- filled by the office, which stands above accounts (no upward import)
+OFFICE_PICK = []
+
+
 def ind_area(c, uid):
     """(office area id | None, may choose) of uid's industry: the area office/model.py office_where picks; the person's own
     office may be None while it was never made (then it is made on the first choice). A kid or an agent never chooses."""
@@ -461,17 +465,12 @@ def ind_area(c, uid):
     u = getattr(g, "user", None) if has_request_context() else None
     may = u is None or not (("kid" in u.keys() and u["kid"]) or (u["kind"] if "kind" in u.keys() else "user") == "agent")
     orgs = user_orgs(c, uid)
-    ws = (usettings(c, uid).get("workspace") or "").strip()
-    m = re.fullmatch(r"org:(\d{1,9})", ws)
-    if m and int(m.group(1)) in orgs:
-        oid = int(m.group(1))
-    elif ws == "private" or not orgs:
+    oid = OFFICE_PICK[0](c, uid, orgs) if OFFICE_PICK else 0  # (#7313): the office routes' own rule, no copy of it
+    if oid is None:
         with system_ctx(c):  # the person's own hidden area (office/model.py pb_personal)
             r = c.execute("SELECT id FROM orgs WHERE personal_of=?", (uid,)).fetchone()
         return (r[0] if r else None), may
-    elif len(orgs) == 1:
-        oid = orgs[0]
-    else:
+    if not oid:
         return None, False
     return oid, may and org_role(c, uid, oid) == "admin"
 

@@ -16,11 +16,10 @@ from ..accounts.orgroles import need_org_write
 from ..core.access import Denied, MANAGE_ROLES, list_role, live_sql, need_feat, tvis, vis_sql, feat_has
 from ..core.errors import BadInput
 from ..core.numtext import server_num
-from ..accounts.orgs import INSTANCE_ENV, user_orgs, is_org_admin, ws_chosen_org, _orgs_w, _org_name  # (#2517): pulled up from functions; (#7298): + _orgs_w, _org_name
-from ..accounts.modcards import mod_ws_on  # (#7298)
+from ..accounts.orgs import INSTANCE_ENV, user_orgs, is_org_admin  # (#2517): pulled up from functions
+from ..accounts.wsplace import wsp_named, wsp_new  # (#7309): the shared place of a new client
 from ..accounts.orgroles import user_orgs_full, is_write_request  # 2.369.5 (#2517): pulled up from functions
 from ..personal.timetrack import time_report  # 2.369.5 (#2517): pulled up from functions
-from ..accounts.supportgrant import sga_org_foreign
 from ..accounts.orgout import oo_denied, oo_grant, org_out
 from ..api.common import agent_time_hidden  # 2.582.0 (#4380)
 from ..office.owrite import ow_history_answer, ow_write  # 2.567.0 (#4711): the office's write layer (the clients save through it)
@@ -516,33 +515,19 @@ def client_get(cid):
     return jsonify(d)
 
 
-CL_WS_CHOOSE = N_("Clients are switched off for you in {0}. Select the workspace for the new client: {1}.")
-CL_WS_NONE = N_("Clients are switched off for you in every workspace you may add clients to.")
-
-
-def cl_ws_default(c, uid, oid):
-    """(#7298): the workspace of a new client the request did not name. The default (ws_chosen_org: the chosen /
-    only organisation, else Private) only while Clients is on for me there (accounts/modcards.py mod_ws_on, the twin of
-    areas.js mod_spaces): a client in a workspace where the module is off vanishes from the list under "All workspaces".
-    Else the only workspace (Private or an organisation I may add to) where it is on; with several a 400 that names them
-    (code ws_choose, workspaces [{org_id, name}]) - never silently. Agents keep their own workspace; alone (no
-    organisation) nothing changes."""
-    if (g.user["kind"] or "user") == "agent" or not user_orgs(c, uid) or mod_ws_on(c, uid, oid, "office", "clients"):
-        return oid
-    ok = [w for w in [None, *_orgs_w(c, uid)] if not sga_org_foreign(c, w) and mod_ws_on(c, uid, w, "office", "clients")]
-    if len(ok) == 1:
-        return ok[0]
-    if not ok:
-        raise Denied(400, tr(CL_WS_NONE), data={"code": "ws_choose", "workspaces": []})
-    ws = [{"org_id": w, "name": _org_name(c, w)} for w in ok]
-    raise Denied(400, tr(CL_WS_CHOOSE, _org_name(c, oid), ", ".join(x["name"] for x in ws)), data={"code": "ws_choose", "workspaces": ws})
+def cl_ws_default(c, uid, named):
+    """(#7298): the workspace of a new client. (#7309): the shared place decides (accounts/wsplace.py wsp_new): the
+    workspace the request names (space / org_id) while Clients is on and writable for me there, else the only such
+    workspace, else 400 space_needed with the choice - never silently Private, never the first / only organisation.
+    Agents keep their own workspace; alone (no organisation) the client is private as always."""
+    return wsp_new(c, uid, "clients", named)
 
 
 @app.post("/api/clients")
 def client_create():
     """{name, icon?, color?, contact?, contacts?, email?, phone?, address?, note?, rate?, budget_h?, budget_amount?, org_id?} -> 201.
-    org_id: one of my organisations (default: the chosen / only one, else private; #7298: only where Clients is on
-    for me, else the only such workspace, else a 400 naming them). contacts (2.40.0): [{name, role?, email?, phone?, is_default?}]."""
+    org_id / space ("private" | "org:<id>"): the workspace (#7309: accounts/wsplace.py wsp_new - named and Clients on there,
+    else the only workspace where it is on and writable, else 400 space_needed with spaces). contacts (2.40.0): [{name, role?, email?, phone?, is_default?}]."""
     c = db()
     uid = me()
     _gate(c)
@@ -555,11 +540,11 @@ def client_create():
 def cl_create_do(c, uid, b):
     """The new client of body b (POST /api/clients, #7295: its copy) -> its id. The caller bumps and commits."""
     f = clean_client(c, uid, b, new=True)
-    if "org_id" not in f:  # 2.148.1 H (#2480): the chosen / only organisation where uid may add, else private (was the first)
-        f["org_id"] = ws_chosen_org(c, uid)
-        if sga_org_foreign(c, f["org_id"]):  # 2.538.0 (#4365): a support session's new client lands privately
-            f["org_id"] = None
-        f["org_id"] = cl_ws_default(c, uid, f["org_id"])  # (#7298): never where Clients is off for me
+    # (#7309): the shared place (named space / org_id, else the only workspace where Clients is on and writable, else 400
+    # space_needed); clean_client's own checks of an org_id (exists, role) stay before it. An instance admin's client
+    # for an organisation they are not in (clean_client allows it without the boundary) stays as sent
+    if not (f.get("org_id") and f["org_id"] not in user_orgs(c, uid)):
+        f["org_id"] = cl_ws_default(c, uid, wsp_named(b) if isinstance(b, dict) else None)
     cl_bill_strip(c, uid, f.get("org_id"), f)  # (#2735)
     cl_parent_check(c, uid, None, cl_area({"org_id": f.get("org_id"), "created_by": uid}), f.get("parent_id"))  # #7292
     ts = iso(now_utc())

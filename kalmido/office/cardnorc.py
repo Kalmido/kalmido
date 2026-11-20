@@ -26,7 +26,8 @@ from .banknorc import BNR_EVERY, _alive, _next
 from .calc import dec, money
 from .fixedimport import fci_people, fci_task_end
 from .ledger import ofx_log
-from .model import office_ctx_admin, office_role, office_settings, office_settings_lock, office_settings_save
+from .model import office_ctx_admin, office_role, office_settings, office_settings_lock, office_settings_save, pb_personal
+from ..accounts.wsplace import WSP_STILL  # (#7309 F8)
 from ..files.store import fs_role  # 2.369.5 (#2517): pulled up from functions
 from .books import _uid_filter  # 2.369.5 (#2517): pulled up from functions
 from .datev import _acct  # 2.369.5 (#2517): pulled up from functions
@@ -267,3 +268,12 @@ def cc_dv_rows(c, oid, d_from, d_to, st, _s):
     return rows, hints
 
 
+def ccn_still(c, uid):
+    """(#7309 F8): the card reminder of uid's own personal office keeps running after "Also private" goes off."""
+    oid = pb_personal(c, uid, create=False)
+    if not oid:
+        return []
+    return [{"kind": "card_reminder", "count": int(ccn_clean(office_settings(c, oid))["every"] != "off")}]
+
+
+WSP_STILL.append(ccn_still)

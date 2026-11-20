@@ -1563,6 +1563,9 @@ last) to be safe against a person editing the client at the same time: changed i
 sees no clients there (`list_clients` answers an empty list, `get_client` `404`) and every change - creating, changing,
 deleting, moving into the trash, `bulk_clients` with `untrash` - answers `403` (*Only people can manage clients*). The
 clients of the office area reach an agent read-only through `list_office_data`. Ask the person to delete or restore a client.
+#7309: `create_client` with a person's token names the workspace (`space`: `private` | `org:<id>`, or `org_id`); without one
+the client goes into the only workspace where *Clients* is on for the person and they may add, with several the answer is
+`400` `code: space_needed` with `spaces: [{ws, name}]` - ask the person which one and send it again with `space`.
 
 **Locations of a client (#7292).** A client with several locations (e.g. offices in two cities) is a main client plus one
 client per location: `parent_id` names the main client (`create_client` / `update_client`; `null` removes it). One level only,

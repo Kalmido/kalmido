@@ -353,7 +353,7 @@ def state():
     from ..lists.public import public_links_on
     from ..collab.notes import notes_brief
     from ..collab.teamchat import tchat_on, tchat_unread_both
-    from ..accounts.orgs import has_workspaces, org_peers, workspaces_for, ws_mismatches
+    from ..accounts.orgs import has_workspaces, org_peers, workspaces_for, ws_mismatches, ws_places
     from ..family.family import kids_for
     from ..events.model import cals_for, events_on
     from ..contacts.model import books_for, contacts_on, task_contacts
@@ -404,6 +404,7 @@ def state():
             "since": str(u["created_at"] or "")[:10],  # 2.364.0 B (#3031): the account's first day (Today's review from the second week)
             "support_session": sga_is_support(c)},  # 2.538.0 (#4365): the app hides what a support session may not fetch
         workspaces=has_workspaces(c),  # 2.28.0 (#935): lists / agents have a workspace (private | an organisation)
+        **dict(zip(("wsp", "wsp_w"), ws_places(c, uid))),  # (#7309): {module: [ws]} on / on and writable (accounts/wsplace.py, areas.js wsp_list)
         ws_mismatches={str(k): v for k, v in ws_mismatches(c, uid).items()},  # 2.28.0: agents of another workspace in my lists
         setup_pending=bool(u["is_admin"]) and gsetting(c, "setup_step2") == "pending",  # 2.13.0 (#453 A16)
         lists=(vl := visible_lists(c, uid)),

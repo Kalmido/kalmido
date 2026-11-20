@@ -135,7 +135,7 @@ def wiki_move_space():
     uid = me()
     b = body()
     src = wiki_space(c, uid, b.get("space"), write=True)
-    to = smv_target(c, uid, b.get("to"))
+    to = smv_target(c, uid, b.get("to"), "wiki")
     smv_same(src, to)
     dry = bool(b.get("dry"))
     if wke_mode(c, src, uid)[0] or wke_mode(c, to, uid)[0]:

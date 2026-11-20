@@ -22,6 +22,7 @@ from ..tasks.validation import DATE_MIN_Y
 from ..collab.comments import user_names
 from ..core.errors import BadInput
 from ..core.config import APP_NAME, APP_VERSION  # 2.149.0 G (#2517): pulled up from functions
+from ..accounts.wsplace import wsp_named, wsp_new, wsp_oid  # (#7309)
 from ..accounts.orgs import org_role as om_role, user_orgs, clean_org_id, ws_obj_default, need_visible, ws_fit_problem  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.orgroles import org_roles_of, org_readonly  # 2.369.5 (#2517): pulled up from functions
 from ..collab.news import news_add  # 2.369.5 (#2517): pulled up from functions
@@ -277,11 +278,19 @@ def book_fields(b, create=False):
     return out
 
 
-def book_create(c, uid, b, src_id=None):
-    """2.30.0 (#1036): b.org_id = its workspace (None / 0 = private, else an organisation of uid); not given: an address book
-    mirrored from an outside account (src_id) is private, else the default of a new object (ws_obj_default)."""
+def book_create(c, uid, b, src_id=None, ask=False):
+    """(#1036): b.org_id / b.space (#7309) = its workspace (None / 0 / "private" = private, else an organisation of
+    uid); not given: an address book mirrored from an outside account (src_id) is private, else (#7309) ask=True (a
+    person's request) the shared place (wsp_new "contacts": the only workspace where Contacts is on and writable, else 400
+    space_needed); ask=False (the default book made by the server) the chosen / only organisation where it is on, else private."""
     f = book_fields(b, True)
-    oid = clean_org_id(c, b["org_id"], uid) if "org_id" in b else (None if src_id else ws_obj_default(c, uid))
+    named = wsp_named(b)
+    if named is not None:
+        oid = clean_org_id(c, wsp_oid(named), uid)
+        if ask:
+            oid = wsp_new(c, uid, "contacts", oid or "private")  # (#7309): named, but Contacts off there -> 400 space_needed
+    else:
+        oid = None if src_id else ws_obj_default(c, uid, "contacts", ask=ask)
     bk_max_check(c, uid)
     used = [r[0] for r in c.execute("SELECT color FROM books WHERE owner_id=?", (uid,))]
     col = f.get("color") or next((x for x in BOOK_COLORS if x not in used), BOOK_COLORS[0])
