@@ -1804,8 +1804,10 @@ The rules are the same for all three:
   `kalmido.dlgsize.*`.
 
 Who uses it: the lists beside their content in the page (#7303 #7304, above), the thread pane of the team chat (#7302, `tc-thread`, chat.js `tth_grip`), the open receipts beside the bank
-bookings (#7306, `bank-norc`, office_banknorc.js `bnr_grip`) and the two columns of the document view (#7315, `dv-sw` /
-`dv-mw`, docview.css maps them to `--dv-sw` / `--dv-mw`; docview.js `dcv_grips`). A grip in a view that is morphed on a
+bookings (#7306, `bank-norc`, office_banknorc.js `bnr_grip`), the two columns of the document view (#7315, `dv-sw` /
+`dv-mw`, docview.css maps them to `--dv-sw` / `--dv-mw`; docview.js `dcv_grips`), the name column of the timeline and the roadmap (#7308, `tl-name` / `rm-name`,
+app.css maps them to `--tl-name`; timeline.js `tl_nameGrip`) and the corner of the preview windows (#7310, `pv-text` /
+`pv-pdf` / `pv-doc`, mode dialog; attachments.js `tv_grip`). A grip in a view that is morphed on a
 redraw is hung again after each draw (the morph takes its marks off; during a drag the same handle stays). The other grips of
 today move onto it in their own tasks (#7312 panels, #7314 bell, #7316 split view, #7318 table frame, #7320 dialogs, #7323
 chat divider, #7324 comment split), new places build on it (#7289, #7290, #7302 - #7311). They stay on their own: the
