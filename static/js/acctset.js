@@ -665,8 +665,8 @@ async function tfaDraw(md, j) {
     : tr('Protects your account if your password gets out: after the password, the sign-in also asks for a code from an app on your phone or for a passkey (fingerprint, face or security key).'));
   box.innerHTML = h;
 }
-// #6499: the first second factor ends the other sessions, the own API tokens and the app passwords (accounts/login.py _end_other_sessions)
-const tfaFirstText = j => j.totp || (j.passkeys || []).length ? '' : tr('Switching it on signs you out everywhere else and ends your API tokens and app passwords.');
+// #6499: the first second factor ends the other sessions, the own API tokens, app passwords and feed links (accounts/login.py _end_other_sessions)
+const tfaFirstText = j => j.totp || (j.passkeys || []).length ? '' : tr('Switching it on signs you out everywhere else and ends your API tokens, app passwords and calendar feed links.');
 function tfaWire(md) {
   md.addEventListener('click', async e => {
     const b = e.target.closest('[data-tfa]'); if (!b) return;

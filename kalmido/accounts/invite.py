@@ -13,7 +13,6 @@ from ..core.config import app, APP_DIR, APP_NAME, MIN_PASSWORD, PUBLIC_URL
 from ..core.i18n import lang, N_, tr
 from ..core.db import body, bump, db, err, gsetting, iso, now_utc, parse_iso, usettings, write_lock
 from ..accounts.session import _rate_blocked, _rate_fail, _rate_keys, client_ip
-from ..accounts.session import _rate_reset  # #6498
 from ..accounts.login import login_log_ip, login_log_who  # 2.239.0 B (#2888)
 from ..accounts.login import finish_login, pend_cookie, pend_new
 from ..core.access import Denied
@@ -257,8 +256,6 @@ def invite_accept():
     ses_end(c, u["id"])
     # (#2496): a reset also revokes the app passwords (CalDAV/CardDAV) and the person's own API tokens; (#6354) and
     # the scan keys, feed links and the upload token - one place (sessions.py ses_access_end)
-    from ..docs.scankeys import sk_revoke_all  # 2.237.0 C (#2865): and the scan inbox keys
-    sk_revoke_all(c, u["id"])
     from ..accounts.sessions import ses_access_end
     ses_access_end(c, u["id"])
     if r["kind"] == "signup":  # 2.23.0 (#711): the address is confirmed; with "admin approval" the account waits now
@@ -272,13 +269,13 @@ def invite_accept():
     if r["kind"] == "reset":  # 2.266.0 (#2963): the person hears of it (a link in the wrong hands)
         from .secmail import sec_mail
         sec_mail(c, u["id"], "password_reset")
-        if r["sent_at"]:  # #6498: a reset link that came by mail makes this address known (the second step works from here)
-            _rate_reset(u["username"])
     u = c.execute("SELECT * FROM users WHERE id=?", (u["id"],)).fetchone()
     print("account set up with an invitation link:", login_log_who(u), "from", login_log_ip(client_ip()), flush=True)
     methods = twofa_methods(c, u)
     if methods:  # 2.49.0 (#1531): a reset link is no way around two-factor sign-in: the second step follows as at the login
-        tok = pend_new("2fa", u["id"], remember=True)
+        # #6498: a reset link that came by mail: its second step passes the day's ceiling of the password's way (login.py
+        # twofa_locked) and counts on its own
+        tok = pend_new("2fa", u["id"], remember=True, reset=bool(r["kind"] == "reset" and r["sent_at"]))
         return pend_cookie(jsonify(ok=False, twofa=True, methods=methods), tok)
     if gsetting(c, "twofa_required") == "1":
         tok = pend_new("enrol", u["id"], remember=True)

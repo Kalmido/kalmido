@@ -748,9 +748,12 @@ def creator_reauth(c, b):
     fresh (reauth_fresh: at most REAUTH_FRESH_MIN minutes, a password / 2FA / passkey sign-in or the OIDC step-up) or the request
     carries the current password (403 password_needed without, rate-limited like a login); an account without a password needs
     the fresh sign-in (403 reauth_needed). The login proxy signs in on every request. An error response or None."""
-    if g.get("auth_via") == "proxy" or reauth_fresh(c):
+    if g.get("auth_via") == "proxy" or g.get("reauth_ok") or reauth_fresh(c):
         return None
-    return oidc_reauth(c, b)
+    e = oidc_reauth(c, b)
+    if e is None:
+        g.reauth_ok = True  # confirmed once in this request (a route that calls another, e.g. the server code -> token_create)
+    return e
 
 
 def _oidc_alert():
