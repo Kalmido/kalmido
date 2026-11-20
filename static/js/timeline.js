@@ -182,7 +182,7 @@ function viewTimeline(listId, inCal) {
       <i class="tl-now" style="left:calc(var(--tl-name) + ${todayX + DW / 2}px)"></i>
       ${listId ? msIn(listById(listId) || {}).map(m => `<i class="tl-msl" style="left:calc(var(--tl-name) + ${diffDays(start, m.day) * DW + DW / 2}px)"></i>`).join('') : ''}
       ${deps ? '<svg class="tl-deps" id="tl-deps" aria-hidden="true" data-fl-fill></svg>' : ''}
-    </div></div>
+    </div></div><div class="tlngrip" aria-label="${esc(tr('Width of the name column'))}"></div>
     ${hintOnce('tlrange', tr('Set a date range via “Start” in the date dialog.'))}${hintOnce('tlfoot', tlHow)}<div class="muted tl-foot">${undated && !ndOn ? trn('{0} task without a date is not shown.', '{0} tasks without a date are not shown.', undated) + ' ' : ''}<div class="shint" data-iilabel="${esc(tr('How to use the timeline'))}">${tlHow}</div></div></div>`;
 }
 
@@ -270,7 +270,22 @@ function tlFocKeep() {
   const a = document.activeElement;
   if (!a || a === document.body || !a.isConnected) $(`.tl-bar[data-id="${f.id}"]`)?.focus({preventScroll: true});
 }
+// #7308: the name column of the timeline (tl-name) and the roadmap (rm-name) wider by the one grip (grip.js, docs/dev/kern.md
+// "Resizing: the one grip"): --g-tl-name / --g-rm-name on .tl, which app.css maps to --tl-name (track width, today line and
+// arrows already follow it). At least 6rem, default today's width, no fixed cap (product rule "Handles", #4829): the days keep
+// 8rem. The grip lies over the right edge of the names, as tall as the scroll area; hung again after each draw (a morph takes
+// its marks off; during a drag the same handle stays). Phones keep their narrow column (no grip).
+function tl_nameGrip(sc) {
+  const box = sc?.parentElement, g = box && $(':scope > .tlngrip', box); if (!g) return;
+  g.style.height = sc.offsetHeight + 'px';
+  if (g._grip && (g.classList.contains('grip') || document.body.classList.contains('gdrag'))) { g.classList.add('grip', 'grip-x'); g._grip.refresh(); return; }
+  const rm = box.classList.contains('rm'), rem = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+  grip_col(g, {key: rm ? 'rm-name' : 'tl-name', min: 6, def: rm ? 13 : 10.625, label: tr('Width of the name column'),
+    panel: () => $(':scope .tl-headrow > .tl-name', box), max: () => Math.max(6, Math.floor((box.clientWidth / rem() - 8) * 4) / 4),
+    onChange: () => { if (typeof tlArrowsSoon === 'function') tlArrowsSoon(); }});
+}
 function tlAfterRender(el) {  // renderView: a new timeline is in the DOM
+  tl_nameGrip(el);
   tlFocKeep();
   const ro = el.firstElementChild || el; if (tlRO && el.__ro !== ro) { if (el.__ro?.nodeType) tlRO.unobserve(el.__ro); el.__ro = ro; tlRO.observe(ro); }  // 2.46.2 (#1718): a morph may bring another first child
   tlArrows();
