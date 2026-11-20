@@ -156,5 +156,9 @@ check(badge == 0 and sent == [], f"F7: everything read elsewhere meanwhile: no s
 say(Fr, DM, "One more thing")
 sent, badge = in_app(SUM)
 check(badge == 1 and sent == ["1 notification during the quiet hours"], f"F7: the summary names at most what still waits {sent} badge={badge}")
+# reader F3: counting fails (the database hiccups): the held number goes out, the summary is not dropped silently
+FAIL = SUM.replace("sent = []", "sent = []\nimport kalmido.collab.teamchat as TC\ndef _boom(*a, **k): raise RuntimeError('count (test)')\nTC.tchat_unread_both = _boom")
+sent, badge = in_app(FAIL)
+check(badge == 0 and sent == ["3 notifications during the quiet hours"], f"F7: counting failed: the held number, not silence {sent} badge={badge}")
 
 sys.exit(kt.done("p6337_bell_devices"))

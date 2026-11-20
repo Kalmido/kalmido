@@ -406,7 +406,7 @@ def push_dismiss_tick(c):
             c.commit()
 
 
-def badge_count(uid):
+def badge_count(uid, failed=0):
     """2.19.0 (#668): the number on the app icon (Badging API). 2.367.5 (#2980): the same number as the app (setcore.js
     badgeSync, workspace.js bellCount): News for me + unread direct messages, without collaboration all unread chat."""
     from ..collab.teamchat import tchat_unread_both
@@ -417,7 +417,7 @@ def badge_count(uid):
             chat, dm = tchat_unread_both(c, uid)
             return news_unread_me(c, uid, s) + dm if collab_on(s) else chat
     except Exception:  # noqa: BLE001 - a badge never stops a push
-        return 0
+        return failed
     finally:
         c.close()
 
@@ -519,7 +519,8 @@ def quiet_held_tick(c, users, S, LG, now):
         c.execute("DELETE FROM quiet_push_held WHERE user_id=? AND last_at<=?", (uid, h["last_at"]))  # newer counts wait for the next tick
         c.commit()  # before sending: never twice
         # #6337 (F7): never more than still waits now -- read elsewhere during the quiet hours = no summary (the app icon's number)
-        n = min(h["n"], badge_count(uid)) if uid in users and h["n"] else 0
+        b = badge_count(uid, failed=None) if uid in users and h["n"] else 0
+        n = h["n"] if b is None else min(h["n"], b)  # counting failed (None): the held number, not silence
         if n:
             notify(uid, APP_NAME, trn("{0} notification during the quiet hours", "{0} notifications during the quiet hours", n, lg=LG[uid]),
                    push_prio(S[uid]), f"{PUBLIC_URL}/#today", s=S[uid], tag="quiet", kind="other", quiet=False)
