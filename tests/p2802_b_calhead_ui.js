@@ -144,7 +144,7 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
       check(h.kids.every(x => x.l >= 0 && x.r <= h.W + 1), `820 ${k}: nothing sticks out`);
       check(!h.small.length, `820 ${k}: every button of the head is 44 px for a finger ` + JSON.stringify(h.small));
       check(h.seg.every(x => x.fs >= 13.9), `820 ${k}: the view names are readable (${h.seg.map(x => x.fs).join()})`);
-      check(h.kids.some(x => x.act === 'cal-more') && h.kids.some(x => x.act === 'ev-new') && !h.kids.some(x => ['cal-done', 'tpo-list', 'ev-cals', 'tl-nd'].includes(x.act)), `820 ${k}: "+ Event" and "..." in the head, the rest in the menu`);
+      check(h.kids.some(x => x.act === 'cal-more') && !h.kids.some(x => ['cal-done', 'tpo-list', 'ev-cals', 'tl-nd', 'ev-new'].includes(x.act)), `820 ${k}: "..." in the calendar's bar, the rest in the menu; (#6370): "New event" is in the app's head bar`);
       check(h.segFull, `820 ${k}: every view name is whole (the views do not scroll)`);
       check(h.seg.filter(x => x.p === 'true').map(x => x.k).join() === k && await ev(`document.querySelectorAll('#view .calbar .seg button.on').length === 1 && document.querySelector('#view .calbar .seg button.on').dataset.k === '${k}'`), `820 ${k}: only this view is marked ` + JSON.stringify(h.seg));
       if (k === 'month') { check(h.h2Full, '820 month: the month title is whole ' + JSON.stringify(h.h2SW)); await shot('p2802-b-820-month.png'); }
@@ -160,7 +160,7 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
     await ev(`(() => { renderView(); return 1; })()`);
     await until(`!!document.querySelector('#view > .calbar')`);
     h = await ev(HEAD);
-    check(!h.kids.some(x => x.act === 'cal-more') && ['cal-done', 'tpo-list', 'ev-cals', 'ev-new'].every(a => h.kids.some(x => x.act === a)), '1280: the head keeps its buttons, no "..." ' + JSON.stringify(h.kids.map(x => x.act || x.c)));
+    check(!h.kids.some(x => x.act === 'cal-more') && ['cal-done', 'tpo-list', 'ev-cals'].every(a => h.kids.some(x => x.act === a)) && !h.kids.some(x => x.act === 'ev-new'), '1280: the head keeps its buttons, no "..."; (#6370) "New event" in the app\'s head bar ' + JSON.stringify(h.kids.map(x => x.act || x.c)));
     await shot('p2802-b-1280-month.png');
   }, true);
 

@@ -58,8 +58,9 @@ execFileSync('bash', [path.join(__dirname, 'start.sh'), DATA], {stdio: 'ignore'}
         if (W === 1270) await shot(`p2413b-${hash}.png`);
       }
       // the knowledge page's main button
-      await nav(B + '#wiki'); await ready(ev, '[data-wk="new"]');
-      const nb = await ev(`(() => { const b = document.querySelector('#view [data-wk="new"]'); return b ? {sm: b.classList.contains('sm'), pri: b.classList.contains('pri')} : null; })()`);
+      // (#6370): the head bar's New on a computer / tablet layout, the round + on a phone
+      await nav(B + '#wiki'); await ready(ev, '#top [data-wk="new"], #fab:not(.gone)');
+      const nb = await ev(`(() => { const b = document.querySelector('#top [data-wk="new"]'); return b ? {sm: b.classList.contains('sm'), pri: b.classList.contains('pri')} : !document.querySelector('#fab').classList.contains('gone') ? {pri: true, sm: false, fab: 1} : null; })()`);
       check(nb && nb.pri && !nb.sm, `${W}: wiki "New page" is btn pri, not sm ` + JSON.stringify(nb));
     }, touch);
   }

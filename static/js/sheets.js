@@ -185,6 +185,9 @@ wso_open('sheets', () => {
   if (wsOn() && wsCur() === 'all') { const sh = shvShown(); if (sh.length === 1) return sh[0]; }  // 2.1398.0 (#6722): one space left = its overview wears its colour
   return null;
 });
+// (#6370): the area's New on the overview (all tables or the ones of a project), not inside an open table
+newReg('sheets', {hk: ['shv', 'new'], get label() { return S.route.shl ? N_('Attach a new table') : N_('New table'); }, icon: 'sheet',
+  on: () => !S.route.sh && (!S.route.shl || canEditList(S.route.shl)), run: () => shvNew(S.route.shl || null)});
 function shvOverview(lid) {
   const key = lid ? 'l:' + lid : 'all', d = SHV.idx[key];
   if (!d || d.v !== S.v) shvLoadIdx(key);
@@ -196,7 +199,7 @@ function shvOverview(lid) {
   const head = `<div class="shvtop">${lid ? `<a class="btn sm" href="#l/${lid}" data-navup>${ic('back', 's')}${esc(l ? lname(l) : tr('Project'))}</a>` : ''}
     ${lid ? `<h2 class="shvh">${esc(tr('Attached to {0}', l ? lname(l) : ''))}</h2><a class="btn sm" href="#sheets">${esc(tr('All tables'))}</a>` : ''}<span class="spacer"></span>
     ${hooks ? `${typeof SHX_IMPORT_ACCEPT === 'string' ? `<input type="file" id="shx-import-file" accept="${SHX_IMPORT_ACCEPT}" hidden>` : ''}<button type="button" class="iconbtn" data-shv="omenu" aria-haspopup="menu" title="${esc(tr('More'))}" aria-label="${esc(tr('More'))}">${ic('dots')}</button>` : ''}
-    ${!lid || (l && canEditList(lid)) ? `<button type="button" class="btn sm pri" data-shv="new">${ic('plus', 's')}${lid ? tr('Attach a new table') : tr('New table')}</button>` : ''}</div>`;
+    ${''/* (#6370): "New table" / "Attach a new table" is the area's New (head bar / the +, newReg below) */}</div>`;
   if (!d?.items) return `<div class="shvwrap shvov">${head}<p class="muted lempty" role="status">${d?.err ? esc(d.err) : tr('Loading…')}</p></div>`;
   if (!items.length && (lid || !shf_data().folders.length)) return `<div class="shvwrap shvov">${head}${symEmpty('sheet', lid ? tr('No tables attached yet.') : tr('No tables yet.'), lid ? tr('Tables are independent. The ones you attached to this project appear here.') : tr('Lists and calculations; every cell can fetch figures from Kalmido: hours booked, budget, open tasks.'))}</div>`;
   const card = x => shvCardHtml(x, lid);

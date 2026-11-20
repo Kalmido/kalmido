@@ -106,7 +106,7 @@ const tourMods = () => ({
     {id: 'agents6', t: tr('Rules for agents'), d: tr('What agents may do: Settings > Agents.')},
     tourRail('agents')],
   notes: [{id: 'notes1', t: tr('Your notes'), d: tr('Meetings, briefings, decisions: written down and found again.')},
-    {id: 'notes2', sel: '[data-sb="note-new"], [data-act="nt-new"]', opt: 1, t: tr('New note'), d: tr('New notes stay private: only you see them. To share one, move it into a project.')},
+    {id: 'notes2', sel: '#top .hnew, [data-sb="note-new"], [data-act="nt-new"]', opt: 1, t: tr('New note'), d: tr('New notes stay private: only you see them. To share one, move it into a project.')},
     {id: 'notes3', sel: '#sbn-q', opt: 1, t: tr('Search notes'), d: tr('Finds notes by their title and text.')},
     {id: 'notes4', t: tr('Notes in projects'), d: tr('Every project has its own notes: the people you share the project with read them too.')},
     {id: 'notes5', on: tourNoTouch, t: tr('A note in a moment'), d: tr('Press m anywhere to start a new note.')},

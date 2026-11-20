@@ -103,7 +103,8 @@ const upFile = async (parent, name, text) => {
         first: first ? Math.round(first.bottom) : -1, vh: innerHeight, nameFull: !!nm && nm.scrollWidth <= nm.clientWidth + 1, name: nm?.textContent,
         crH: Math.round(cr?.getBoundingClientRect().height || 0), crOver: cr ? cr.scrollWidth > cr.clientWidth + 1 : true, cell: vis(document.querySelector('.abcell')),
         far: [...document.querySelectorAll('.abcrumbs .abcfar .linkbtn, .abcrumbs .linkbtn.abcfar')].some(vis), head: vis(h) ? h.textContent : '', sw: document.documentElement.scrollWidth, vw: innerWidth}; })()`);
-    check(m.n === 2 && /upload/.test(m.what) && /more/.test(m.what) && m.oneRow, `#6111 phone: ONE tool row - Upload and "…" ${JSON.stringify(m)}`);
+    check(m.n === 1 && /more/.test(m.what) && m.oneRow, `#6111 phone: ONE tool row - "…" (#6370: Upload is the round +) ${JSON.stringify(m)}`);
+    check(await ev(`!document.querySelector('#fab').classList.contains('gone') && document.querySelector('#fab').getAttribute('aria-label') === 'Upload'`), '(#6370) phone: Upload is the round +');
     check(m.first > 0 && m.first <= m.vh, `#6111 phone: the first file stands in the visible area ${m.first} / ${m.vh}`);
     check(m.nameFull && m.name === NAME, `#6111 phone: the name is readable in full ${JSON.stringify(m)}`);
     check(m.crH > 0 && m.crH <= 48 && !m.crOver && m.cell && !m.far, `#6111 phone: the path is one line with "…" ${JSON.stringify(m)}`);

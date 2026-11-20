@@ -28,7 +28,7 @@ const day = n => { const d = new Date(); d.setDate(d.getDate() + n); return `${d
 
   // ---- one date from a stale copy: 409 + hint, nothing changed
   let w = await boot({user: 'alice', hash: 'cal', ls: {'tasks.calMode': '"month"'}}), d = w.document;
-  await until(() => d.querySelector('#view [data-act="ev-new"]'));
+  await until(() => d.querySelector('#top [data-act="ev-new"]'));
   const full = await call('GET', `/api/events/${eid}`);
   w.eval(`evEditor({ev: ${JSON.stringify(full)}, occ: ${JSON.stringify(occ)}})`);
   let md = await until(() => d.querySelector('.modal.evmodal'));

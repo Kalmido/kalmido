@@ -39,8 +39,8 @@ const key = (w, el, k, o = {}) => el.dispatchEvent(new w.KeyboardEvent('keydown'
 
   // ================= the view
   let w = await boot({user: 'alice', hash: 'wiki/s/' + SP, ls: {'tasks.wkSpace': JSON.stringify(SP)}}), d = w.document;  // 2.198.0 A (#2743): under "All" the space is in the address
-  await until(() => d.querySelector('#view [data-wk="new"]'));
-  check(d.querySelector('#view [data-wk="new"]'), 'the view: "New page"');
+  await until(() => d.querySelector('#top [data-wk="new"]'));
+  check(d.querySelector('#top [data-wk="new"]'), 'the view: "New page"');
   check(d.querySelector('#srail [data-sbb="wiki"].on') && d.querySelector(`#side [data-wksp="${SP}"]`), 'the bar icon of the module (open) and its panel entry');  // 2.198.0 A (#2743): "All pages Alpha" (an entry per space)  // 2.152.2 (#2622): the area is an icon of the bar
   // 2.152.3 (#2620): a computer: the folder from the path in the panel and in the list of the space; the folder opens with its pages
   check(await until(() => [...d.querySelectorAll('#side .sbbt .sbbtn')].some(x => x.textContent.includes('Docs')) && [...d.querySelectorAll('#view .wkdrow')].some(x => x.textContent.includes('Docs'))), 'a folder from the path (panel and list)');
@@ -49,7 +49,7 @@ const key = (w, el, k, o = {}) => el.dispatchEvent(new w.KeyboardEvent('keydown'
 
   // ================= new page -> editor, [[ suggestions, autosave
   w.prompt = () => 'Docs/Start';
-  d.querySelector('#view [data-wk="new"]').click();
+  d.querySelector('#top [data-wk="new"]').click();
   const ta = await until(() => d.querySelector('#wk-body'));
   check(ta && /^#wiki\/\d+$/.test(w.location.hash), 'the new page opens in the editor ' + w.location.hash);
   const START = +(w.location.hash.split('/')[1] || 0);

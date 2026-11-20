@@ -90,7 +90,7 @@ const FEATS = 'cal,events,contacts,collab,comments';
     check(await until(() => d.querySelector('#view .calbar') && chip()), `${who}: the month shows the event "${title}"`);
     // 2.1238.0 (#6161, review fund 3): adds = may make an event here (a writer, or a reader whose own space lets him add: Bob
     // in Private gets a calendar of his own, like the contacts' F8); the read hint only where nothing can be added
-    check(!!d.querySelector('#view [data-act="ev-new"]') === adds, `${who}: "+ Event" ${adds ? 'there' : 'left out'}`);
+    check(!!d.querySelector('#top [data-act="ev-new"]') === adds, `${who}: "+ Event" ${adds ? 'there' : 'left out'}`);
     check(w.eval('evCanNew()') === adds, `${who}: evCanNew() = ${adds}`);
     check(d.querySelectorAll('#view .cwro').length === (adds ? 0 : 1), `${who}: read hint ${adds ? 'none' : 'exactly once'}: ${d.querySelectorAll('#view .cwro').length}`);
     if (!adds) check(/You can only read here/.test(d.querySelector('#view .cwro')?.textContent || ''), `${who}: the hint says so`);

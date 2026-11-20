@@ -27,9 +27,9 @@ const day = n => { const d = new Date(); d.setDate(d.getDate() + n); return `${d
 
   // ---- own repeat rules
   let w = await boot({user: 'alice', hash: 'cal', ls: {'tasks.calMode': '"month"'}}), d = w.document;
-  await until(() => d.querySelector('#view [data-act="ev-new"]'));
+  await until(() => d.querySelector('#top [data-act="ev-new"]'));
   const newEvent = async title => {
-    click(w, d.querySelector('#view [data-act="ev-new"]'));
+    click(w, d.querySelector('#top [data-act="ev-new"]'));
     await until(() => d.querySelector('.modal.evmodal'));
     const md = d.querySelector('.modal.evmodal');
     md.querySelector('#ev-title').value = title;
@@ -123,7 +123,7 @@ const day = n => { const d = new Date(); d.setDate(d.getDate() + n); return `${d
   // ---- 2.383.0 (#2587): the ordinal words follow the weekday's gender (Italian: domenica is feminine)
   await call('PATCH', '/api/settings', {lang: 'it'});
   w = await boot({user: 'alice', hash: 'cal', ls: {'tasks.calMode': '"month"'}}); d = w.document;
-  await until(() => d.querySelector('#view [data-act="ev-new"]') && w.eval('I18N.code') === 'it');
+  await until(() => d.querySelector('#top [data-act="ev-new"]') && w.eval('I18N.code') === 'it');
   const lab = r => w.eval(`repeatLabelBase(${JSON.stringify(r)})`);
   check(lab('FREQ=MONTHLY;BYDAY=1SU') === 'Ogni mese la prima domenica', 'it: the first Sunday is feminine: ' + lab('FREQ=MONTHLY;BYDAY=1SU'));
   check(lab('FREQ=MONTHLY;BYDAY=-1SU') === 'Ogni mese l’ultima domenica', 'it: the last Sunday: ' + lab('FREQ=MONTHLY;BYDAY=-1SU'));

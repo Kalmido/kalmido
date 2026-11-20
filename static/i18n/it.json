@@ -19751,5 +19751,6 @@
   "API tokens, webhooks and agent tokens are under Connections.": "Token API, webhook e token degli agenti sono in Connessioni.",
   "Open Connections": "Apri connessioni",
   "The new password revokes your app passwords (CalDAV), your own API tokens, calendar feed links and the upload token; create new ones afterwards if you need them under Settings > Connections. Agents and passkeys stay: check them after signing in (Settings > Connections > Agents, Settings > Account).": "La nuova password revoca le tue password per app (CalDAV), i tuoi token API, i link di abbonamento ai calendari e il token di caricamento; se ti servono, creane di nuovi dopo in Impostazioni > Connessioni. Agenti e passkey restano: controllali dopo l'accesso (Impostazioni > Connessioni > Agenti, Impostazioni > Account).",
-  "Settings: Connections": "Impostazioni: Connessioni"
+  "Settings: Connections": "Impostazioni: Connessioni",
+  "More to create": "Crea altro"
 }

@@ -28,7 +28,7 @@ const upload = async (ck, name, text, form) => {
 };
 const FEATS = 'files,docs,collab,comments';
 const WRITE = ['[data-ab="new-folder"]', '[data-ab="upload"]', '[data-ab="scan"]'];
-const has = (d, sel) => !!d.querySelector('#view ' + sel);
+const has = (d, sel) => !!d.querySelector('#view ' + sel + ', #top ' + sel);  // (#6370): Upload is the head bar's New
 const hints = d => d.querySelectorAll('.cwro').length;
 const vtext = d => (d.querySelector('#view')?.textContent || '').replace(/\s+/g, ' ');
 

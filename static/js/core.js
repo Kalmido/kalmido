@@ -239,13 +239,48 @@ document.addEventListener('scroll', e => {
   if (e.target !== v || QS.top == null || Date.now() - QS.at > 400 || document.activeElement?.id !== 'qinput') return;
   if (Math.abs(v.scrollTop - QS.top) > 1) v.scrollTop = QS.top;
 }, true);
-const noFab = () => ['habits', 'pomo', 'news', 'stats', 'time', 'overview', 'agents', 'team', 'notes', 'family', 'contacts', 'life', 'review', 'clients', 'workload', 'office', 'ablage', 'docs', 'wiki', 'tags', 'budget', 'msv', 'feeds', 'sheets', 'bookmarks', 'reading'].includes(S.route.mod) || NOLIST_KEYS.includes(S.route.key) || isOverview() || lmiss_id()  /* 2.1205.0 (#6133): no + on a project that is not there */
+// (#6370, decision A): the "New" of an area sits in one place per layout: the phone layout (no docked bar: the finger switch of
+// #5087, tabletDock) the round + at the bottom right, a computer / the tablet layout ONE blue button in the head bar next to the
+// title (headNew, one size). An area registers its main object here (newReg: label, run, on = may create here now, more = the
+// further kinds for the small menu: the head's arrow, a long press on the +; hk = the area's own data attribute of the button it
+// replaces, a name for tests and the tour - its own listener only acts inside the view); an area with an entry has the + (noFab).
+// Step 1: Notes, Files, Tables, Knowledge, Calendar; the other areas follow (#6370 rest tasks).
+const NEW_REG = {};
+const newCur = () => { const o = NEW_REG[S.route?.mod]; try { return o && (!o.on || o.on()) ? o : null; } catch { return null; } };
+const fabLayout = () => isMobile() && !tabletDock();
+const NEW_SIG = {v: ''};
+// the head bar and the + follow a change of the entry (a module loaded later, a folder that allows creating, a shown view)
+const newSig = (o = newCur()) => `${S.route?.mod}|${o ? o.label + (o.more?.() || []).length : ''}|${fabLayout()}`;
+function newSync() {
+  if (!S.booted) return;
+  const sig = newSig();
+  if (sig === NEW_SIG.v) return;
+  NEW_SIG.v = sig;
+  if (typeof renderTop === 'function') renderTop();
+  if (typeof fabSync === 'function') fabSync();
+}
+const newReg = (mod, o) => { NEW_REG[mod] = o; if (S.route?.mod === mod) setTimeout(newSync, 0); };
+function headNew(o = newCur()) {
+  NEW_SIG.v = newSig(o);  // drawn as it is now (newSync redraws only on a change)
+  if (!o || fabLayout()) return '';
+  const l = tr(o.label), more = o.more?.() || [];
+  return `<button type="button" class="btn pri tnew hnew${esc(o.cls ? ' ' + o.cls : '')}" data-act="${esc(o.act || 'area-new')}"${o.hk ? ` data-${esc(o.hk[0])}="${esc(o.hk[1])}"` : ''} data-ico="plus" title="${esc(l)}" aria-label="${esc(l)}">${ic('plus', 's')}<span>${esc(l)}</span></button>${more.length ? `<button type="button" class="iconbtn hnewm" data-act="area-new-more" aria-haspopup="menu" title="${esc(tr('More to create'))}" aria-label="${esc(tr('More to create'))}">${ic('chev', 's')}</button>` : ''}`;
+}
+// the main object of the area (head button, a tap on the +); false = the area has none here
+function newRun() { const o = newCur(); if (!o?.run) return false; o.run(); return true; }
+// the small menu: the main object first, then the further kinds; false = there are no further kinds
+function newMenu(anchor) {
+  const o = newCur(), more = o?.more?.() || []; if (!more.length) return false;
+  menu(anchor, [{label: tr(o.label), icon: o.icon || 'plus', fn: () => o.run()}, ...more]);
+  return true;
+}
+const noFab = () => (!newCur() && ['habits', 'pomo', 'news', 'stats', 'time', 'overview', 'agents', 'team', 'notes', 'family', 'contacts', 'life', 'review', 'clients', 'workload', 'office', 'ablage', 'docs', 'wiki', 'tags', 'budget', 'msv', 'feeds', 'sheets', 'bookmarks', 'reading'].includes(S.route.mod)) || NOLIST_KEYS.includes(S.route.key) || isOverview() || lmiss_id()  /* 2.1205.0 (#6133): no + on a project that is not there */
   || (/^l:\d+$/.test(S.route.key || '') && !!listById(+S.route.key.slice(2)) && !canAddTo(+S.route.key.slice(2)));  // 2.147.2 A (#2500): no + in a list I may not add to
 // package 3: progress bar / overview (switch "progress"), project status (+ collaboration), custom fields, dependencies
 // 2.13.0 (#453, Fold screenshots): the round + only on phones; tablets / an unfolded Fold add with the docked "Add task"
 // bar or, in views without it (calendar, Kanban, timeline), the header's "New task" button
 const dockView = () => S.route.mod === 'tasks' && !isKanban() && !isTimeline() && !isRoadmap() && !isOverview() && !noFab();
-const fabOff = () => noFab() || (isTouch() && (!isMobile() || tabletDock()));
+const fabOff = () => noFab() || (isTouch() && (!isMobile() || tabletDock())) || (!!newCur() && !fabLayout());  // (#6370): where the head bar has the area's New
 const progressOn = () => feat('progress');
 const statusOn = () => progressOn();  // 2.395.0 (#3379): a project status also without collaboration (one person / freelancer)
 // "Where is it stuck?" only pays off with several projects: 2+ active lists, or a shared list

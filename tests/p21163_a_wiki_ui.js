@@ -70,7 +70,7 @@ if (!process.env.P21163A_NOSTART) execFileSync('bash', [path.join(__dirname, 'st
       if (W < 768) await nav(B + '?w=' + W + '#wiki');
       check(await until(`/Rules|Handbook/.test(document.querySelector('#view #wk-res')?.textContent || '')`, {timeout: 20000}), `#6087 ${W}: rita sees the pages of Alpha`);
       check(await until(`WK.idx['org:${ORG}']?.mayWrite === false`), `#6087 ${W}: rita may only read`);
-      check(await ev(`!document.querySelector('#view [data-wk="new"]') && !document.querySelector('#view [data-wk="today"]') && !document.querySelector('#view [data-wk="newfolder"]')`), `#6087 ${W}: no New page, Today or New folder`);
+      check(await ev(`!document.querySelector('[data-wk="new"], #top .hnew') && !document.querySelector('#view [data-wk="today"]') && !document.querySelector('#view [data-wk="newfolder"]')`), `#6087 ${W}: no New page, Today or New folder`);
       check(await ev(vis('#wk-q')), `#6087 ${W}: Find a page stays`);
       await shot(`p21163a-reader-list-${W}.png`);
       await nav(B + '?w=' + W + '#wiki/' + OP);
@@ -117,16 +117,17 @@ if (!process.env.P21163A_NOSTART) execFileSync('bash', [path.join(__dirname, 'st
     await closeAll();
     // the list on a computer keeps its bar
     await nav(B + '?w=1280#wiki/d/Notes');
-    check(await until(`!!document.querySelector('#view .wkbar [data-wk="new"]') && /Long page/.test(document.querySelector('#view #wk-res')?.textContent || '')`, {timeout: 20000}), '#6089 1280: the list keeps its bar with New page');
+    check(await until(`!!document.querySelector('#view .wkbar #wk-q') && !!document.querySelector('#top .hnew[data-wk="new"]') && /Long page/.test(document.querySelector('#view #wk-res')?.textContent || '')`, {timeout: 20000}), '#6089 1280: the list keeps its bar; (#6370): New page in the head bar');
 
     // ================= #6089: the phone (360)
     await size(360, 760);
     await nav(B + '?w=360#wiki');
     check(await until(`/Notes/.test(document.querySelector('#view #wk-res')?.textContent || '')`, {timeout: 20000}), '#6089 360: the list');
-    const row = await ev(`(() => { const r = s => document.querySelector(s)?.getBoundingClientRect(); const q = r('#wk-q'), n = r('#view [data-wk="new"]'), d = r('#view [data-wk="lmenu"]');
+    const row = await ev(`(() => { const r = s => document.querySelector(s)?.getBoundingClientRect(); const q = r('#wk-q'), n = q, d = r('#view [data-wk="lmenu"]');  // (#6370): New page is the + on a phone
       return q && n && d ? {q: Math.round(q.top + q.height / 2), n: Math.round(n.top + n.height / 2), d: Math.round(d.top + d.height / 2), dr: Math.round(d.right), vw: innerWidth, sw: document.documentElement.scrollWidth,
         today: !!document.querySelector('#view .wkside [data-wk="today"]'), folder: !!document.querySelector('#view .wkside [data-wk="newfolder"]')} : null; })()`);
-    check(row && Math.abs(row.q - row.n) <= 4 && Math.abs(row.n - row.d) <= 4 && row.dr <= row.vw && row.sw <= row.vw, '#6089 360: one row - Find, New page, "…" ' + JSON.stringify(row));
+    check(row && Math.abs(row.q - row.n) <= 4 && Math.abs(row.n - row.d) <= 4 && row.dr <= row.vw && row.sw <= row.vw, '#6089 360: one row - Find and "…" ' + JSON.stringify(row));
+    check(await until(`!document.querySelector('#fab').classList.contains('gone') && document.querySelector('#fab').getAttribute('aria-label') === 'New page' && !document.querySelector('#view [data-wk="new"]')`), '(#6370) 360: New page is the round + (no button of its own in the list)');
     check(row && !row.today && !row.folder, '#6089 360: Today and New folder are not extra buttons ' + JSON.stringify(row));
     await shot('p21163a-list-360.png');
     await ev(`(() => { document.querySelector('#view [data-wk="lmenu"]').click(); return 1; })()`);
