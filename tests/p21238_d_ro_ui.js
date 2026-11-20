@@ -52,6 +52,7 @@ const FEAT = 'cal,comments,collab,office,clients';
   check(!d.querySelector('[data-ofd="finalize"]') && !d.querySelector('[data-ofd="it-svc"]') && !d.querySelector('[data-ofd="it-head"]') && !d.querySelector('[data-ofd="it-text"]'), 'reader: no Finalise, no Add service / Heading / Text block');
   check(!d.querySelector('.ofdmv') && !d.querySelector('[data-ofd="it-del"]') && !d.querySelector('[data-ofd="fld-add"]'), 'reader: no move / remove of a position, no Add field');
   check(!d.querySelector('[data-ofd="to-invoice"]') && !d.querySelector('[data-ofd="kva-st"]') && !d.querySelector('[data-ofd="number"]'), 'reader: no next step, no Assign number');
+  check(!d.querySelector('.ofdfoot'), '#7605: reader: no row of buttons under the sums');
   check(!d.querySelector('[data-dpj="sel"]') && !d.querySelector('#dpj-new'), 'reader: no project picker');
   const more = w.eval('ofdMoreItems(OFD.doc, false).filter(x => x && x.label).map(x => x.label)');
   check(!more.some(l => /Duplicate|Adjust prices|Delete|Move to another/.test(l)), 'reader: "More" has no write step: ' + more.join(', '));
@@ -64,6 +65,7 @@ const FEAT = 'cal,comments,collab,office,clients';
   const ii = await until(() => d.querySelector('.ofdeditor .ofdits .ofdit input[data-k="title"]'));
   check(ii && ii.value === 'Editing day', 'reader: the invoice position is there');
   check(!d.querySelector('[data-ofd="it-disc"]') && !d.querySelector('[data-ofd="finalize"]') && d.querySelectorAll('.cwro').length === 1, 'reader: invoice without Discount / Finalise, one read hint');
+  check(!d.querySelector('.ofdfoot'), '#7605: reader: no row of buttons under the invoice\'s sums');
   await idle(w); w.close();
 
   // ================= the member: everything as before
@@ -72,6 +74,15 @@ const FEAT = 'cal,comments,collab,office,clients';
   check(bi && bi.value === 'Concept workshop', 'member: the position');
   check(!!d.querySelector('[data-ofd="finalize"]') && !!d.querySelector('[data-ofd="it-svc"]') && !!d.querySelector('[data-ofd="to-invoice"]') && !!d.querySelector('.ofdmv'), 'member: Finalise, Add service, Create invoice, move');
   check(!d.querySelector('.cwro') && ![...d.querySelectorAll('fieldset.ofdfs')].some(f => f.disabled), 'member: no read hint, the fields write');
+  // #7605: the draft's row of buttons once more under the sums: the same buttons as in the head, Finalise works as up there
+  const foot = d.querySelector('.ofdeditor .ofdfoot'), tot = d.querySelector('#ofd-totals');
+  check(foot && tot && (tot.compareDocumentPosition(foot) & 4) && foot.querySelector('[data-ofd="finalize"]') && foot.querySelector('.ofdpdf') && foot.querySelector('[data-ofd="to-invoice"]'), '#7605: member: under the sums Finalise, Preview and the next step');
+  const sig = el => [...el.querySelectorAll('[data-ofd]')].filter(b => !b.closest('.ofdnum') && b.dataset.ofd !== 'back').map(b => b.dataset.ofd + (b.disabled ? '-' : '')).join(',');
+  check(foot && sig(foot) === sig(d.querySelector('.ofdhead')), '#7605: the same buttons as in the head ' + (foot && sig(foot)) + ' | ' + sig(d.querySelector('.ofdhead')));
+  w.eval('window.__fin = 0; { const g0 = ofd_missGate; ofd_missGate = d => { __fin++; return g0(d); }; }');
+  click(w, foot.querySelector('[data-ofd="finalize"]'));
+  check(await until(() => w.eval('__fin') === 1 && (d.querySelector('.modal .ofdfinno, .modal [data-m="ok"]') || d.querySelector('#ofd-miss'))), '#7605: Finalise under the sums starts the same finalising as in the head');
+  for (const m of d.querySelectorAll('.modal')) m.remove();
   check(w.eval('ofdMoreItems(OFD.doc, false).filter(x => x && x.label).map(x => x.label)').includes('Duplicate'), 'member: Duplicate in "More"');
   click(w, d.querySelector('[data-ofd="back"]'));
   check(await until(() => d.querySelector('.ofdbar [data-ofd="new"]')), 'member: New quotation in the list');
