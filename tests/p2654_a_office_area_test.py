@@ -8,8 +8,8 @@ freelancer-matrix: files
    "Move to office" with the header org:Alpha lands in Alpha's documents, the office list / sheet follow the header
    (Alpha lists it, Beta does not)
  - a foreign organisation in the header (one the person is no member of): as before (409), never that organisation
- - the general input (sort=1) is sorted by the queue without a request: as before, under "All" with two organisations
-   nothing is sorted, the header of the upload does not decide it
+ - the general input (sort=1): (#7325) the office the upload's request names is kept on the document (area_to) and the
+   queue sorts into it; nothing named under "All" with two organisations: not sorted, offered in "New in the office" ('ask')
  - a person without an organisation: her own office; a foreign organisation in the header changes nothing
 usage: p2654_a_office_area_test.py <datadir>"""
 import os
@@ -99,10 +99,16 @@ r = area(A, d2, "office", {HS: f"org:{GAMMA}"})
 check(r.status_code == 409 and row(d2)[2] == f"u{ALICE}", f"#4823: a foreign organisation in the header: as before (409) {r.status_code} {row(d2)}")
 check(area(A, d2, "office", {HS: "org:x"}).status_code == 409, "a malformed header: as before (409)")
 
-# ---- the queue (no request): the header of the upload does not decide the sorting
+# ---- (#7325): the general input keeps the office its upload's request names (doc_meta.area_to) and the queue only reads it
 d3 = upload(A, "rechnung-c.txt", sort=True, hdr=HA)
 settled(A, d3)
-check(row(d3)[:2] == ("", "") and row(d3)[2] == f"u{ALICE}", f"#4823: the general input under 'All' sorts nothing, as before {row(d3)}")
+check(row(d3)[:2] == ("office", "auto") and row(d3)[2] == f"o{ALPHA}", f"#7325: the upload named Alpha: sorted into Alpha {row(d3)}")
+d4 = upload(A, "rechnung-d.txt", sort=True)
+settled(A, d4)
+check(row(d4)[:2] == ("", "ask") and row(d4)[2] == f"u{ALICE}",
+      f"#7325: under 'All' with two organisations and nothing named: not sorted, offered ('ask') {row(d4)}")
+check(d4 in ids(A, HA, area="office", unbooked="1") and d4 in ids(A, HB, area="office", unbooked="1"),
+      "#7325: 'New in the office' of both offices offers it")
 
 # ==== a person without an organisation (freelancer-matrix: files)
 FRIDA, Fr = freelancer(B, A, "frida", features=FEAT)

@@ -29,7 +29,7 @@ from ..files.scan import sc_guard  # 2.306.0: pulled up from functions (layers b
 from ..files.store import fs_chain, fs_deleted, fs_log_add, fs_role, fs_roles_many, fs_visible_ids, fs_visible_sql, fs_version_row, need_node
 from . import store as S
 from .ingest import docs_ingest, docs_kick
-from .area import ar_sql, ar_view  # 2.522.0 (#4433)
+from .area import ar_sql, ar_to_req, ar_view  # 2.522.0 (#4433); (#7325): ar_to_req
 from .maillink import ml_token_new  # 2.424.0 B (#3450)
 from .ocr import ocr_available
 from .pagesize import pg_ok  # 2.905.0 (#5393)
@@ -176,6 +176,8 @@ def doc_json(c, m, node, full=False, role=None, pre=None):
          "thumb": bool(m["thumb"]), "thumb_l": bool(S.thumb_l_of(m)), "task_id": m["task_id"], "asn": m["asn"], "page": page1, "scan": scan, "text_cut": text_cut, "source": m["source"], "created_at": node["created_at"],
          "updated_at": m["updated_at"], "parent_id": node["parent_id"], "hand": hand,
          "edited_at": doc_ver(m)}  # 2.570.0 (#4770): the version of people's changes (expect_updated_at of PATCH)
+    if m["area_sort"] == "ask":  # (#7325): a recognised invoice no office was clear for ("New in the office" offers it)
+        d["area_ask"] = True
     # 2.210 C (#2761): only a flag whether the document is shared (no names)
     d["shared"] = bool(node["org_access"]) or (m["node_id"] in pre["shared"] if pre else
                                                 bool(c.execute("SELECT 1 FROM fs_shares WHERE node_id=? LIMIT 1", (m["node_id"],)).fetchone()))
@@ -294,11 +296,15 @@ def doc_query(c, uid, args, vis=None, rules=None):
         where.append("n.org_id = ?")
         params.append(int(ws[4:]))
     ar = ar_sql(c, uid, str(args.get("area") or ""))  # 2.522.0 (#4433): ?area=office | private (a person with an office)
-    if ar:
+    if ar and args.get("unbooked") == "1":  # put into the office, no receipt yet (Office > Receipts "New in the office")
+        # (#7325): + the person's OWN recognised invoices no office was clear for (area_sort 'ask', docs/area.py
+        # ar_sort_queued) -- in every office that is on for them (ar), never shown to another member
+        where.append(f"(({ar[0]} AND d.area='office') OR (d.area_sort='ask' AND d.created_by=? AND d.ws=?)) "
+                     "AND NOT EXISTS (SELECT 1 FROM rc_receipts r WHERE r.node_id=d.node_id)")
+        params += ar[1] + [uid, S.doc_ws(None, uid)]
+    elif ar:
         where.append(ar[0])
         params += ar[1]
-        if args.get("unbooked") == "1":  # put into the office, no receipt yet (Office > Receipts "New in the office")
-            where.append("d.area='office' AND NOT EXISTS (SELECT 1 FROM rc_receipts r WHERE r.node_id=d.node_id)")
     base_where, base_params = list(where), list(params)
     # 2.122.0 B (#2294): several tags (every one / one of them / not), several senders and types, both dates, folder, file
     # type, "without ...", and the search syntax of the search field (docs/dsearch.py)
@@ -464,6 +470,7 @@ def docs_upload():
     # 2.522.0 (#4433): area=office = the office's own upload (bookkeeping, bank); sort=1 = the general upload of the file store
     area = "office" if request.form.get("area") == "office" else ("sort" if request.form.get("sort") == "1" else None)
     src = "share" if request.form.get("source") == "share" else "upload"
+    to = ar_to_req(c, uid) if area == "sort" and not org else None  # (#7325): the office this request brings it in for, kept
     for f in files[:50]:
         data = h6d_read(f)  # 2.86.0 (N22): at most MAX_FILE_MB + 1 bytes in memory (refused in fs_put)
         parts = doc_unpack(f.filename or "", data) if unzip else None  # 2.146.0 B (#2453)
@@ -476,7 +483,7 @@ def docs_upload():
             info = {}
             try:
                 with c.savepoint():
-                    nid = docs_ingest(c, uid, org, name, pdata, pmime, src, dedup=True, info=info, area=area)
+                    nid = docs_ingest(c, uid, org, name, pdata, pmime, src, dedup=True, info=info, area=area, area_to=to)
                     if not info.get("dup"):
                         fs_log_add(c, nid, "upload")
                 if info.get("dup"):

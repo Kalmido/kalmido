@@ -64,7 +64,8 @@ from ..office.einvoice_in import ei_is  # 2.369.5 (#2517): pulled up from functi
 from ..files.store import _free_name  # 2.369.5 (#2517): pulled up from functions
 
 
-def docs_ingest(c, uid, org_id, name, data, mime=None, source="upload", meta=None, parent_id=None, dedup=False, info=None, area=None):
+def docs_ingest(c, uid, org_id, name, data, mime=None, source="upload", meta=None, parent_id=None, dedup=False, info=None, area=None,
+                area_to=None):
     """Store a new document of account uid in the workspace org_id (None: uid's own) and queue its recognition. meta:
     fields given by the caller (an import) -- date, due, amount, currency, sender, type, tags [names], text, ext_id; they
     are taken as they are ("import"), the recognition fills in the rest. An ext_id already present in the workspace
@@ -74,7 +75,11 @@ def docs_ingest(c, uid, org_id, name, data, mime=None, source="upload", meta=Non
     workspace (a document uid may see) return that document; info (a dict) then gets dup = True.
     area: 2.522.0 (#4433, docs/area.py) "sort" = the general input (own space, no folder): sorted into the office or the private
     space after the recognition; "office" = an office's own input (the receipt upload of the bookkeeping, the receipt
-    fetcher): the office's document in the own space of a personal office; None = as before (a bound input)."""
+    fetcher): the office's document in the own space of a personal office; None = as before (a bound input).
+    area_to (#7325, with area "sort"): the office the document is brought in for, written here once (doc_meta.area_to) and only
+    read by the queue (docs/area.py ar_sort_queued): a request names it (docs/web.py: ar_to_req -- the area the request names,
+    else the setting, else the only office); None = no request (a mail to the own address, a mailbox rule): only the one office
+    on for the person (ar_only), never the setting. '' = none clear (the queue offers it instead of sorting)."""
     from .dups import dup_same_file, raw_sha
     meta = dict(meta or {})
     ext = str(meta.pop("ext_id", "") or "")[:200] or None
@@ -102,7 +107,10 @@ def docs_ingest(c, uid, org_id, name, data, mime=None, source="upload", meta=Non
         c.execute("UPDATE doc_meta SET taken_at=? WHERE node_id=?", (str(up["taken_at"])[:40], nid))
     c.execute("UPDATE doc_meta SET raw_sha=? WHERE node_id=?", (sha, nid))  # 2.146.0 B (#2452)
     if area == "sort" and not org_id and not parent_id:  # 2.522.0 (#4433): only the general input is sorted
-        c.execute("UPDATE doc_meta SET area_sort='pending' WHERE node_id=?", (nid,))
+        if area_to is None:
+            from .area import ar_only  # docs/area.py loads this module at its top
+            area_to = ar_only(c, uid)
+        c.execute("UPDATE doc_meta SET area_sort='pending', area_to=? WHERE node_id=?", (area_to, nid))
     elif area == "office":  # 2.576.0 (#4487): an organisation's office upload too (the file store hides only office documents)
         c.execute("UPDATE doc_meta SET area='office' WHERE node_id=?", (nid,))
     return nid

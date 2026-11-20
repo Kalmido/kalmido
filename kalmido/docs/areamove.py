@@ -13,7 +13,7 @@ within AMV_UNDO_DAYS days (POST /api/docs/office-move/<id>/undo): the folder and
 ended, the receipt's project, the area as it was. A document changed since (recorded as a receipt in the personal office,
 booked in the organisation, deleted) stays where it is and is counted as "stays".
 
-Where to (docs/area.py ar_office): the personal office (a person without an organisation or with "private" chosen) keeps its
+Where to (docs/area.py ar_here: the office the request works in): the personal office (a person without an organisation or with "private" chosen) keeps its
 documents in the own space, so only doc_meta.area becomes 'office'; an organisation's office gets the files in its documents
 folder (fsm_plan / fsm_apply, the person's rights). Tenant boundary: in an organisation only its admin moves (review 2.522 (1)
 of #4433: out of an organisation only its admin moves a file again, org_out_ok, so a member's undo could not work); a member
@@ -37,8 +37,7 @@ from ..files.fsmove import FSM_BOOKED_STAYS, FSM_RECEIPT_STAYS, _rm, fsm_apply, 
 from ..notify.push import WD_TICKS
 from ..office.periodlock import _pl_taken, period_need_open, pl_ws_office  # 2.657.0 (#4644): amv_blocks
 from . import store as S
-from .area import ar_office
-from .split import sp_view
+from .area import ar_here, ar_kind as amv_kind  # (#7325): the one recogniser of an invoice
 
 AMV_UNDO_DAYS = 30
 AMV_GROUP = 25        # documents per transaction
@@ -51,29 +50,12 @@ AMV_WHY = {"receipt": N_("Receipt"), "einvoice": N_("E-invoice"), "invoice": N_(
 
 def amv_office(c, uid):
     """(office of ar_office, None) or (None, why): why = 'none' (no office) | 'admin' (an organisation's office, not its admin)."""
-    off = ar_office(c, uid)
+    off = ar_here(c, uid)  # (#7325): the office this request works in
     if not off:
         return None, "none"
     if off[0] == "org" and not is_org_admin(c, uid, off[2]):
         return None, "admin"
     return off, None
-
-
-def amv_kind(c, m, rc):
-    """('receipt' | 'einvoice' | 'invoice', sure) of document meta m, or None (no receipt: a letter, a stack, not read)."""
-    if rc:
-        return "receipt", True
-    if m["state"] != "done" or (sp_view(m) or {}).get("stack"):
-        return None
-    det = S.meta_json(c, m, "extracted", {})
-    if not isinstance(det, dict):
-        return None
-    if isinstance(det.get("_einv"), dict):
-        return "einvoice", True
-    signs = sum(1 for k in ("invoice_no", "net", "vat_pct") if det.get(k))
-    if not signs:
-        return None
-    return "invoice", bool(det.get("invoice_no")) and signs >= 2  # one sign alone is a doubt: it stays
 
 
 def amv_rows(c, uid, off):
