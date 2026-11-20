@@ -305,6 +305,8 @@ function lst_sorted(rows, list, get, sorts = LST_SORTS) {
   const val = r => { const v = get(r)[k]; return v == null || v === '' ? null : k === 'amount' ? +v : v; };
   return rows.map(r => [r, val(r)]).sort(([, a], [, b]) => a === null || b === null ? (a === null) - (b === null) : f * (k === 'amount' ? a - b : k === 'date' ? (a < b ? -1 : a > b ? 1 : 0) : String(a).localeCompare(String(b), uiLang(), {numeric: true, sensitivity: 'base'}))).map(x => x[0]);
 }
+// #7495: another filter / status / source keeps the rows shown dimmed until the new list is there (render.js tabh_held, like a tab switch)
+const ofd_refilter = () => { if (OFD.list) tabh_arm('ofd'); OFD.list = null; ofdLoadList(true); };
 document.addEventListener('click', e => {
   const b = e.target.closest?.('[data-lstsort]'); if (!b) return;  // not data-lsort: that is the "…" of a list in the sidebar sort mode
   e.preventDefault(); e.stopPropagation();
@@ -1100,11 +1102,11 @@ addEventListener('fdw-sent', e => {
 });
 async function ofdChange0(e) {
   const t = e.target;
-  if (t.id === 'ofd-trial') { OFD.trial = t.value; LS.set('ofdTrial', t.value); OFD.list = null; ofdLoadList(true); return; }  // 2.144.10 C (#2576)
-  if (t.id === 'ofd-src') { OFD.src = t.value; OFD.list = null; ofdLoadList(true); return; }  // (#6701)
-  if (t.dataset.oflt && !S.route.id) { OFD.flt[t.dataset.oflt] = t.value; OFD.list = null; ofdLoadList(true); return; }  // 2.351.0 A (#3312)
-  if (t.id === 'ofd-status' && !OFD.doc) { OFD.status = t.value; OFD.list = null; ofdLoadList(true); return; }
-  if (t.id === 'ofd-status' && OFD.doc && S.route.id !== OFD.doc.id) { OFD.status = t.value; OFD.list = null; ofdLoadList(true); return; }
+  if (t.id === 'ofd-trial') { OFD.trial = t.value; LS.set('ofdTrial', t.value); ofd_refilter(); return; }  // 2.144.10 C (#2576)
+  if (t.id === 'ofd-src') { OFD.src = t.value; ofd_refilter(); return; }  // (#6701)
+  if (t.dataset.oflt && !S.route.id) { OFD.flt[t.dataset.oflt] = t.value; ofd_refilter(); return; }  // 2.351.0 A (#3312)
+  if (t.id === 'ofd-status' && !OFD.doc) { OFD.status = t.value; ofd_refilter(); return; }
+  if (t.id === 'ofd-status' && OFD.doc && S.route.id !== OFD.doc.id) { OFD.status = t.value; ofd_refilter(); return; }
   if (!OFD.doc) return;
   if (typeof tpf_ctx === 'function') tpf_ctx(t);  // 2.113.0 (#2248): the open part the field belongs to
   if (t.dataset.tp && typeof tpChange === 'function') { await tpChange(t); return; }  // 2.47.0 (#1215): title / print of a part
