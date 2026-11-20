@@ -85,7 +85,7 @@ check(pay_key and nos.get("show") == [] and nos.get("steps") == [], f"a section 
 # English for an English person (the source text, without the marker comments)
 A.patch(B + "/api/settings", json={"lang": "en"})
 en = A.get(B + "/api/help/section", params={"key": USCAN}).json()
-check(en.get("lang") == "en" and en.get("title") == "Set up a scan inbox" and "**Settings** > **Integrations**" in en.get("text", "")
+check(en.get("lang") == "en" and en.get("title") == "Set up a scan inbox" and "**Settings** > **Connections**" in en.get("text", "")
       and "<!--" not in en.get("text", ""), f"English: the source text ({en.get('title')})")
 check(A.get(B + "/api/help").json()["areas"][2]["title"] == "Office", "English area name")
 A.patch(B + "/api/settings", json={"lang": "de"})

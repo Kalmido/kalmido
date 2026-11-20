@@ -1149,7 +1149,7 @@ function settingsModal(focus) {
   if (INTB_FOCUS[focus]) setTimeout(() => intr_open(md, INTB_FOCUS[focus])?.scrollIntoView({block: 'start'}), 50);  // 2.365.2 B (#2789)
   if (focus === 'fetcher') setTimeout(() => intr_open(md, '#s-fetch-h')?.scrollIntoView({block: 'start'}), 50);  // 2.425.0 C (#3453)
   if (focus === 'caldav' || focus === 'apppw') setTimeout(() => intr_open(md, focus === 'caldav' ? '#s-dav-h' : '#s-apw-h')?.scrollIntoView({block: 'start'}), 0);
-  if (focus === 'access' || focus === 'tokens' || focus === 'webhooks') setTimeout(() => intr_open(md, focus === 'webhooks' ? '#s-wh-h' : '#s-api-h')?.scrollIntoView({block: 'start'}), 0);  // (#6368): the old tab Access
+  if (focus === 'access' || focus === 'tokens' || focus === 'webhooks') setTimeout(() => intr_open(md, focus === 'webhooks' ? '#s-wh-h' : '#s-api-h')?.scrollIntoView({block: 'start'}), 0);  // sprung-ok: the person asked for this place  // (#6368): the old tab Access
   // 2.7.0 (#405 S8): the module keys land on their row (and open its options), not just on top of Modules
   const modFocus = {layout: 'cal', collab: 'collab', focus: 'pomo', time: 'time'}[focus];
   if (modFocus) setTimeout(() => { const r = $(`[data-pane="modules"] [data-modrow="${modFocus}"]`, md); if (!r) return; const gd = r.closest('details.modgrp'); if (gd) gd.open = true; const gp = r.closest('details.mgparts'); if (gp) gp.open = true; const o = $('details.mopt', r); if (o) o.open = true; r.scrollIntoView?.({block: 'start'}); r.classList.add('flash'); }, 0);
@@ -1443,7 +1443,7 @@ function settingsModal(focus) {
     if (b.dataset.m === 'hints-reset') { LS.del('hintsSeen'); toast(tr('Done')); render(); return; }
     if (b.dataset.m === 'ag-guide') { aiSubShow(md, 'setup', true); return; }  // 2.4.2 (#392); 2.7.2 (#420): the Set up tab
     if (b.dataset.m === 'go-nav') { $('.snav [data-sec="nav"]', md)?.click(); setTimeout(() => { const d = $('[data-navsec="tabbar"]', md); if (d) { d.open = true; d.scrollIntoView?.({block: 'start'}); } }, 50); return; }  // sprung-ok: the person asked for this place  // 2.1297.0 (#6129): the bottom bar lives under Navigation only
-    if (b.dataset.m === 'go-access') { $('.snav [data-sec="integr"]', md)?.click(); setTimeout(() => intr_open(md, b.dataset.to || '#s-api-h')?.scrollIntoView({block: 'start'}), 0); return; }  // 2.166.0 (#2633); (#6368): the tab Access is part of Connections
+    if (b.dataset.m === 'go-access') { $('.snav [data-sec="integr"]', md)?.click(); setTimeout(() => intr_open(md, b.dataset.to || '#s-api-h')?.scrollIntoView({block: 'start'}), 0); return; }  // sprung-ok: the person clicked the link to this place  // 2.166.0 (#2633); (#6368): the tab Access is part of Connections
     if (b.dataset.m === 'go-share') { $('.snav [data-sec="integr"]', md)?.click(); setTimeout(() => intr_open(md, '#s-share-h')?.scrollIntoView?.({block: 'start'}), 50); return; }  // 2.7.0 (#405 S3)
     if (b.dataset.m === 'go-modules') { $('.snav [data-sec="modules"]', md)?.click(); setTimeout(() => $('[data-pane="modules"] [data-modrow="agents"]', md)?.scrollIntoView?.({block: 'center'}), 50); return; }  // 2.6.0 (K09)
     if (b.dataset.m === 'cele-try') { const k = ['project', 'list', 'today'][(b._cele = ((b._cele ?? -1) + 1) % 3)]; celebrate(k, {force: true, name: k === 'project' ? tr('Example project') : tr('Example list')}); return; }  // 2.39.1 (#1292): each try shows the next level

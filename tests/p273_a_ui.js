@@ -42,7 +42,7 @@ const recode = (code, u) => { const j = JSON.parse(Buffer.from(code.slice('kalmi
   // 2.1387.0 (#7062); (#6368): "For advanced users" is gone: the servers' section stands at its place (data-msvat) right after storage
   { const sec = d.querySelector('.smodal .msvsec'), sto = d.querySelector('.smodal [data-pane="account"] #s-storage-h, .smodal [data-pane="account"] #s-sync-h');
     check(d.querySelector('#s-msv-h') && !d.querySelector('.smodal details.sdev') && sec?.nextElementSibling?.matches('[data-msvat]') && !!(sto && (sto.compareDocumentPosition(sec) & 4)),
-    'the section stands after storage, at the place of the former "For advanced users"'); }
+    'the section stands after storage, at the place of the former "For advanced users" ' + JSON.stringify({sec: !!sec, nx: sec?.nextElementSibling?.outerHTML.slice(0, 80), sto: sto?.id, pos: sto && sec ? sto.compareDocumentPosition(sec) : -1, sdev: !!d.querySelector('.smodal details.sdev')})); }
   check(/No other server connected yet/.test(box().textContent), 'the empty state');
 
   // ---- a broken code: the reason in the dialog

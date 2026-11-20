@@ -194,8 +194,8 @@ const key = (w, k, o = {}) => w.document.body.dispatchEvent(new w.KeyboardEvent(
   let sm = d.querySelector('.modal');
   check(!sm.querySelector('[data-acc="token-new"]') && !sm.querySelector('[data-pane="account"] [data-m="go-share"]'), 'Account: no second "New token", no link left in Account');
   sm.querySelector('[data-m="close"]').click(); await sleep(200);
-  w.eval(`settingsModal('share')`); await idle(w); sm = d.querySelector('.modal');
-  check(sm.querySelector('.snav [data-sec="integr"]').classList.contains('on') && sm.querySelector('#s-dropw'), 'the focus "share" opens Share from your phone');  // 2.138.0 (#1907): #s-dropw
+  w.eval(`settingsModal('share')`); await idle(w);
+  check(await until(() => { sm = [...d.querySelectorAll('.modal.smodal')].pop(); return sm?.querySelector('.snav [data-sec="integr"]')?.classList.contains('on') && sm.querySelector('#s-dropw'); }), 'the focus "share" opens Share from your phone');  // 2.138.0 (#1907): #s-dropw
   sm.querySelector('[data-m="close"]').click(); await sleep(200);
 
   // ---- #299 "Claude is writing …" (2.13.2 #478 F6: "working" on a task without a typing signal = "is working on it")
