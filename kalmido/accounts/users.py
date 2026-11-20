@@ -455,8 +455,6 @@ def user_update(uid):
             return err(tr("Password: at least {0} characters", MIN_PASSWORD))
         c.execute("UPDATE users SET password_hash=? WHERE id=?", (generate_password_hash(pw) if pw else None, uid))
         ses_end(c, uid)  # 2.190.0 A (#1991)
-        from ..docs.scankeys import sk_revoke_all  # 2.237.0 C (#2865): and the scan inbox keys
-        sk_revoke_all(c, uid)
         from .sessions import ses_access_end  # (#6354): app passwords, own API tokens, feed links, upload token
         ses_access_end(c, uid)
     if "ntfy_topic" in b:
@@ -820,8 +818,6 @@ def me_update():
         ses_end(c, u["id"], keep=_token_hash(tok) if tok else None)  # 2.190.0 A (#1991): with their push subscriptions
         # (#4375): the dialog's tick "end all app passwords and API tokens" (set by default); without the field
         # (API) they end too - the safe default. (#6354): the tick ends the feed links and the upload token too
-        from ..docs.scankeys import sk_revoke_all  # 2.237.0 C (#2865): the scan inbox keys go (a new setup code is made)
-        sk_revoke_all(c, u["id"])
         from .sessions import ses_access_end
         ses_access_end(c, u["id"], tokens=b.get("revoke_tokens", True) is not False)
     bump(c)

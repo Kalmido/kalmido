@@ -18,6 +18,7 @@ from ..core.access import acx_of
 from ..core.config import MAX_FILE_MB, PUBLIC_URL, PUBLIC_URL_SET, app
 from ..core.db import body, bump, db, err, iso, now_utc, parse_iso, uset, usettings
 from ..core.errors import BadInput, Denied, UnknownFields
+from ..accounts.sessions import SES_ACCESS_END  # #6499
 from ..core.i18n import N_, tr
 from ..core.orgcrypt import oc_active_for, oc_user_space
 from ..core.pg import insert_id, system_ctx  # 2.425.0 C (#3453): system_ctx
@@ -249,6 +250,9 @@ def sk_revoke_all(c, uid):
     with system_ctx(c):  # 2.425.0 C (#3453): the receipt fetchers' keys too (one of an organisation's place: also from a reset link)
         c.execute("DELETE FROM doc_fetchers WHERE user_id=?", (uid,))
 
+
+
+SES_ACCESS_END.append(sk_revoke_all)  # #6499: a new password, a reset and the first second factor end them (accounts/sessions.py)
 
 @app.delete("/api/docs/scan-keys/<int:kid>")
 def docs_scan_key_del(kid):
