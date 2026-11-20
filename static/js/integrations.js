@@ -214,7 +214,7 @@ const acz_agHtml = () => aiPaneOn() ? `<h4 id="s-acz-ag-h">${tr('Agent tokens')}
   <div class="shint">${tr('Each of your agents signs in with its own API token. A new token replaces the old one at once; “Set up on a computer” connects it on another machine.')}</div>
   <div class="members" id="s-acz-ags"><div class="muted mhint">${tr('Loading…')}</div></div>` : '';
 // (#6368): a group of Connections with its symbol; the heading stays outside the folds (data-sfout, settings.js sf_wrap), no rows = no group
-const intr_grp = (i, n, rows) => { const h = rows.join(''); return h ? `<h3 class="intgrp" data-intgrp="${i}" data-sfout>${ic(i, 's')}<span>${tr(n)}</span></h3>${h}` : ''; };
+const intr_grp = (i, n, rows) => { const h = rows.join(''); return h ? `<h3 class="intgrp" data-intgrp="${esc(i)}" data-sfout>${ic(i, 's')}<span>${tr(n)}</span></h3>${/*html-ok*/ h /* the rows of intr_row */}` : ''; };
 // the way from Agents to their tokens (one row, no fold: #6129 / #7230)
 const acz_linkHtml = () => `<div class="row aczlink"><span class="muted">${tr('API tokens, webhooks and agent tokens are under Connections.')}</span><button type="button" class="btn sm" data-m="go-access" data-to="#s-acz-ag-h">${ic('link', 's')} ${tr('Open Connections')}</button></div>`;
 async function acz_draw(md) {
