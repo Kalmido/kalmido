@@ -17,6 +17,7 @@ from .dlock import DL_FEAT_AREA, dl_area_locked, dl_list_hidden, dl_lists_sql, d
 from .dlock import dl_tasks_locked  # 2.674.0 B (#4194)
 from ..core.pg import system_ctx as _sys, LOOKUP  # 2.369.5 (#2517): pulled up from functions
 from .env import env_float  # (#6615): a wrong value = one warning with its name
+from .env import SRV_AGENT_MARK  # #7218
 
 
 # ---------------------------------------------------------------- access control
@@ -573,12 +574,25 @@ def acx_org_ok(c, uid, org_id):
         return True
     ctx = acx_of(c, uid)
     if ctx.role == "agent" and ctx.agent_org_id is None:
-        return True  # a private agent: its list memberships decide (as before; the boundary check counts mismatches)
+        # a private agent: its list memberships decide (as before; the boundary check counts mismatches) - #7218: a private server
+        # agent with a left-over membership in a project of an organisation that has the Kalmido AI off reads nothing of it
+        return not _srv_private_off(c, uid, org_id)
     return org_id in ctx.org_ids
 
 
+def _srv_private_off(c, uid, org_id):
+    """#7218: is uid a private server agent (agents.provider SRV_AGENT_MARK) and has organisation org_id the Kalmido AI off
+    (orgs.srv_agents 0; a person's hidden office counts as on, like agents/srvagent.py srv_org_on)?"""
+    with pg_system(c):  # the organisation's switch lies past row-level security for an agent outside it
+        return c.execute("SELECT 1 FROM agents a, orgs o WHERE a.user_id=? AND a.provider=? AND o.id=? AND o.srv_agents=0 "
+                         "AND o.personal_of IS NULL", (uid, SRV_AGENT_MARK, org_id)).fetchone() is not None
+
+
 # the organisation condition of the list scope, relative to the account column p.u (standard SQL, no parameters)
-_ORG_SCOPE_SQL = ("(l.org_id IS NULL OR EXISTS (SELECT 1 FROM agents a WHERE a.user_id=p.u AND (a.org_id IS NULL OR a.org_id=l.org_id)) "
+# #7218: a private server agent not in a project of an organisation with the Kalmido AI off (acx_org_ok _srv_private_off)
+_ORG_SCOPE_SQL = ("(l.org_id IS NULL OR EXISTS (SELECT 1 FROM agents a WHERE a.user_id=p.u AND (a.org_id=l.org_id OR (a.org_id IS NULL "
+                  f"AND NOT (a.provider='{SRV_AGENT_MARK}' AND EXISTS (SELECT 1 FROM orgs o WHERE o.id=l.org_id AND o.srv_agents=0 "
+                  "AND o.personal_of IS NULL))))) "
                   "OR (NOT EXISTS (SELECT 1 FROM agents a WHERE a.user_id=p.u) "
                   "AND EXISTS (SELECT 1 FROM org_members om WHERE om.org_id=l.org_id AND om.user_id=p.u)))")
 
