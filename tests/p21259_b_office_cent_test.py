@@ -16,6 +16,8 @@ freelancer-matrix: office
  - (d) a final invoice after a partial credit note on its progress invoice (100.03 net / 19.01 VAT, credit 50.02 / 9.50):
    the deduction takes off the VAT its text names (19.01 - 9.50 = 9.51, gross 59.52), the final invoice 200.00 net is
    149.99 + 28.49 = 178.48 (was 28.50 / 178.49: one cent too much)
+ - (e) #6637: an invoice of 0.50 past its due date stays open (list "open"), but is not overdue (state, list filter) and the
+   reminder suggestion (dunning.dun_due) skips it; 11.90 past its due date stays overdue and is suggested
  Each flow runs for an organisation's admin and for a person without organisation (personal office).
 usage: p21259_b_office_cent_test.py <datadir>"""
 import csv
@@ -36,6 +38,7 @@ N = os.path.dirname(os.path.abspath(__file__))
 DATA = sys.argv[1]
 B = "http://127.0.0.1:" + os.environ.get("KALMIDO_TEST_PORT", "3048")
 H = {"X-Requested-With": "kalmido"}
+CT = os.environ.get("KALMIDO_TEST_CONTAINER", "kalmido-test")
 from kt import FAILS, OKS, check, sess  # noqa: E402
 
 FEAT = "cal,comments,collab,office,clients,docs"
@@ -294,6 +297,39 @@ def flow(s, who):
     ct = s.get(B + f"{D}/{r.json()['id']}").json()["totals"] if r.status_code == 201 else {}
     check(ct.get("tax") == "-0.01" and ct.get("gross") == "-0.01", f"{who} #6445: its full credit note the same -0.01 {r.status_code} {ct.get('tax')} {ct.get('gross')}")
 
+def tiny_rest(s, cl, who):
+    """(e) #6637: an open invoice below 1.00 past its due date stays open, but is not overdue and gets no reminder suggestion."""
+    from datetime import timedelta
+    T = invoice(s, cl, "0.42")
+    check(T["totals"]["gross"] == "0.50", f"{who} (e): an invoice of 0.50 {T['totals'].get('gross')}")
+    big = invoice(s, cl, "10.00")
+    past = (TODAY - timedelta(days=60)).isoformat()
+    dbx("UPDATE office_docs SET due_date=? WHERE id IN (?, ?)", (past, T["id"], big["id"]), write=True)
+    v = s.get(B + f"{D}/{T['id']}").json()
+    check(v.get("state") == "issued", f"{who} (e): 0.50 past its due date is not overdue (was overdue) {v.get('state')}")
+    check(s.get(B + f"{D}/{big['id']}").json().get("state") == "overdue", f"{who} (e): 11.90 past its due date stays overdue")
+    ov = [x["id"] for x in s.get(B + D + "?kind=invoice&status=overdue").json()["docs"]]
+    op = [x["id"] for x in s.get(B + D + "?kind=invoice&status=open").json()["docs"]]
+    check(T["id"] not in ov and big["id"] in ov, f"{who} (e): the list filter overdue: without the 0.50 {ov}")
+    check(T["id"] in op, f"{who} (e): it stays in the open items {op}")
+    oid = dbx("SELECT org_id FROM office_docs WHERE id=?", (T["id"],))[0][0]
+    code = ("import app, json\nfrom kalmido.core.db import connect\nfrom kalmido.core.pg import system_ctx\nfrom kalmido.office import dunning as x\n"
+            f"c = connect()\nwith system_ctx(c):\n    g = x.dun_due(c, {int(oid)}, {DAY!r}, 0)\nprint(json.dumps(sorted(i for v in g.values() for i in v)))\nc.close()")
+    r = subprocess.run(["docker", "exec", CT, "python3", "-c", code], capture_output=True, text=True, timeout=120)
+    due = json_last(r.stdout)
+    check(r.returncode == 0 and T["id"] not in due and big["id"] in due, f"{who} (e): the reminder suggestion skips the 0.50, takes the 11.90 {due} {r.stderr[-300:]}")
+
+
+def json_last(out):
+    import json
+    for ln in reversed((out or "").strip().splitlines()):
+        try:
+            return json.loads(ln)
+        except ValueError:
+            continue
+    return []
+
+
 subprocess.run(["bash", os.path.join(N, "start.sh"), DATA], check=True, stdout=subprocess.DEVNULL)
 s0 = requests.Session()
 s0.headers.update(H)
@@ -305,8 +341,10 @@ A.patch(B + "/api/settings", json={"lang": "en", "features": FEAT, "tour": "done
 ORG = A.post(B + "/api/admin/orgs", json={"name": "Alpha", "admin_id": ALICE}).json()["id"]
 A.patch(B + "/api/settings", json={"workspace": f"org:{ORG}"})
 flow(A, "Alpha")
+tiny_rest(A, office(A, "Alpha e"), "Alpha")
 FID, Fr = freelancer(B, A)  # freelancer-matrix: office
 flow(Fr, "Frida")
+tiny_rest(Fr, office(Fr, "Frida e"), "Frida")
 
 print(f"\n{OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)
