@@ -2,7 +2,7 @@
 # kalmido-suite: fresh
 """(#6354, audit #4773 F6): every new way into an account is told by a security mail; a new password ends the ways a
 session could have left behind.
- - security mails (queued as bg_jobs kind mail:security, no SMTP server needed): a new API token, a new app password,
+ - security mails (queued as bg_jobs kind mail:security, counted - the payload is sealed; no SMTP server needed): a new API token, a new app password,
    app codes switched on, a new passkey, a new personal agent and a new token of it (to the owner)
  - the own password change with the tick (revoke_tokens true, and without the field): app passwords, API tokens, the task
    feed link (users.ical_token_hash), the event calendar and absences feed links (ev_cal_feeds, abs_cal_feeds) and the
@@ -48,8 +48,9 @@ def dbx(q, args=()):
         c.close()
 
 
-def mails(uid, subject):
-    return dbx("SELECT count(*) FROM bg_jobs WHERE kind='mail:security' AND user_id=? AND payload LIKE ?", (uid, f"%{subject}%"))[0][0]
+def mails(uid):
+    """The security mails queued for uid (bg_jobs, its payload is sealed: counted, the subject is checked in p2266_api's way)."""
+    return dbx("SELECT count(*) FROM bg_jobs WHERE kind='mail:security' AND user_id=?", (uid,))[0][0]
 
 
 def b64u(b):
@@ -118,28 +119,28 @@ def leave_ways(s, uid, tag):
 
 
 # ================================================================ security mails for new ways in (frida, no organisation)
+A.put(B + "/api/admin/agent-policy", json={"user_agents": True})  # personal agents on (the server's switch)
+n0 = mails(FID)
 check(F.post(B + "/api/me/tokens", json={"name": "Backup script", "scopes": ["read"]}).status_code == 201, "frida creates an API token")
-check(mails(FID, "A new API token") == 1, "#6354: a mail about the new API token")
+check(mails(FID) == n0 + 1, "#6354: a mail about the new API token")
 check(F.post(B + "/api/me/app-passwords", json={"name": "Thunderbird"}).status_code == 201, "frida creates an app password")
-check(mails(FID, "A new app password") == 1, "#6354: a mail about the new app password")
+check(mails(FID) == n0 + 2, "#6354: a mail about the new app password")
 r = F.post(B + "/api/me/2fa/totp", json={"password": "password123"})
 check(r.ok, f"frida starts the authenticator app {r.text[:120]}")
 r = F.post(B + "/api/me/2fa/totp/confirm", json={"code": totp(r.json()["secret"].replace(" ", ""))})
 check(r.ok, f"frida switches the app codes on {r.text[:120]}")
-check(mails(FID, "Two-factor sign-in was switched on") == 1, "#6354: a mail about the app codes")
+check(mails(FID) == n0 + 3, "#6354: a mail about the app codes")
 o = F.post(B + "/api/me/passkeys/options", json={"password": "password123"})
 check(o.ok, f"passkey options {o.text[:120]}")
 r = F.post(B + "/api/me/passkeys", json={"credential": passkey_cred(o.json()), "name": "Laptop"})
 check(r.ok, f"frida adds a passkey {r.text[:160]}")
-check(mails(FID, "A passkey was added") == 1, "#6354: a mail about the new passkey")
-check("Laptop" in (dbx("SELECT payload FROM bg_jobs WHERE kind='mail:security' AND user_id=? AND payload LIKE '%A passkey was added%'", (FID,)) or [[""]])[0][0],
-      "#6354: the mail names the passkey")
+check(mails(FID) == n0 + 4, "#6354: a mail about the new passkey")
 r = F.post(B + "/api/my/agents", json={"username": "frida-helper", "display_name": "Frida Helper"})
 check(r.status_code == 201, f"frida makes a personal agent {r.text[:160]}")
 AG = r.json()["id"]
-check(mails(FID, "A new token for your agent") == 1, "#6354: a mail about the agent's token (to frida)")
+check(mails(FID) == n0 + 5, "#6354: a mail about the agent's token (to frida)")
 check(F.post(B + f"/api/my/agents/{AG}/token", json={}).ok, "frida makes a new token for the agent")
-check(mails(FID, "A new token for your agent") == 2, "#6354: and again for the new token")
+check(mails(FID) == n0 + 6, "#6354: and again for the new token")
 check(not dbx("SELECT 1 FROM bg_jobs WHERE kind='mail:security' AND user_id=?", (AG,)), "#6354: the agent itself gets no mail")
 
 # ================================================================ the own password change ends the links (tick set)
