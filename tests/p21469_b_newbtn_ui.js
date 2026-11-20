@@ -56,7 +56,7 @@ const label = d => heads(d)[0]?.getAttribute('aria-label') || '';
   check(await until(() => w.location.hash === '#sheets' && heads(d).length === 1), 'tables: Back leads to the overview with its button');
   // Knowledge: a page; the arrow beside it has Today and New folder
   b = await area('wiki', 'New page');
-  check(![...d.querySelectorAll('#view [data-wk="new"]')].some(x => !x.closest('.zleempty')), 'knowledge: no second "New page" in the view (the empty state keeps its own, #6371)');
+  check(![...d.querySelectorAll('#view [data-wk="new"]')].some(x => !x.closest('.zleempty, .eacts')), 'knowledge: no second "New page" in the view (the empty state keeps its own, #6371)');
   const more = d.querySelector('#top .hnewm');
   if (more) {
     more.click();
