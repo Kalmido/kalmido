@@ -74,6 +74,31 @@ exports.PooledLoader = PooledLoader;
 exports.dropConnections = () => { const {Agent, setGlobalDispatcher} = require('undici'); setGlobalDispatcher(new Agent()); };
 const B = process.env.BASE || `http://127.0.0.1:${process.env.KALMIDO_TEST_PROXY_PORT || 3041}/`;
 exports.B = B; exports.errs = [];
+// #7493: a slow line, held by the test (shared; was p6381 slow / p7509 hold).
+// slow(w, re): answers to URLs matching re come back only once w.__go() is called (all at once); w.__held = how many were asked
+exports.slow = (w, re) => {
+  const f0 = w.fetch; let rel = null; const held = new Promise(r => { rel = r; });
+  w.__held = 0; w.__go = () => rel();
+  w.fetch = (u, o = {}) => re.test(String(u)) ? (w.__held++, held.then(() => f0(u, o))) : f0(u, o);
+};
+// hold(w, re, o): writes (not GET) to URLs matching re are held one by one on the line. w.__n = how many were asked,
+// w.__go() lets the oldest held one through to the server and back (or the next one, when none waits yet), w.__fail(st)
+// answers it with status st without the server (a refusal), w.__drop() drops it like a lost line (a TypeError, the server never
+// saw it). o.gets: GET requests too
+exports.hold = (w, re, o = {}) => {
+  const f0 = w.fetch, q = []; let free = 0;
+  w.__n = 0; w.__q = q;
+  w.__go = () => { const r = q.shift(); if (r) r.ok(); else free++; };
+  w.__fail = (st = 500) => { const r = q.shift(); if (r) r.bad(st); };
+  w.__drop = () => { const r = q.shift(); if (r) r.net(); };  // (w.__net is the window's request count, boot)
+  w.__off = () => { w.fetch = f0; };
+  w.fetch = (u, opt = {}) => {
+    if (!re.test(String(u)) || (!o.gets && (opt.method || 'GET') === 'GET')) return f0(u, opt);
+    w.__n++;
+    if (free > 0) { free--; return f0(u, opt); }
+    return new Promise((res, rej) => q.push({ok: () => f0(u, opt).then(res, rej), bad: st => res(new w.Response(JSON.stringify({error: 'held by the test'}), {status: st, headers: {'Content-Type': 'application/json'}})), net: () => rej(new TypeError('Failed to fetch'))}));
+  };
+};
 // 2.609.0 (#4512): the test data folder (KALMIDO_TEST_DATA, the same as DATA in tests/kt.py) and the state files a suite writes
 // there for the suites after it in its group (ids.json of api_test.py, cal_ids.json of calendars_test.py): not in tests/, so two
 // runs in one work tree never overwrite each other's. meId(cookie): the user id of a login, instead of a fixed /api/users/1.

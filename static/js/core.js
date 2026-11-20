@@ -1790,13 +1790,122 @@ const OPT_DONE = new Set();
 // 2.651.0 (#5064, #5076): o.mod = the change lives in a module's own data (RSS, BW, BG ...), not in S: applyState never
 // overwrites it and the module's loader puts what is still on its way (OPT) itself, so a finished write is not kept for
 // applyState; it used to come back over a later own step (an undo of "Mark all read", a duplicate's provisional row)
+// #7493 o.keep: an error keeps the local change (the rows of a writer show "Not saved - Try again", rwRows), nothing taken back
 async function optWrite(put, req, draw = render, o) {  // draw: how the screen follows (default: everything)
   const p = {put}, back = put();
   OPT.add(p); draw();
   try { const r = await req(); p.v = S.wv || 0; if (!o?.mod) OPT_DONE.add(p); return r; }
-  catch (e) { OPT.delete(p); back?.(); draw(); throw e; }
+  catch (e) { OPT.delete(p); if (!o?.keep) back?.(); draw(); throw e; }
   finally { OPT.delete(p); }
 }
+// #7493: "write shows at once", the core's one building block for editors with rows (positions, lines) and for text editors
+// without rows (docs/dev/kern.md "Write shows at once"). Built on optWrite:
+// - a change is the local state at once (put) and drawn light at once (o.draw: the rows' marks and the sums, never the whole
+//   editor); the request runs behind it.
+// - order: one save of the object at a time (W.run, also for its saves without rows); each save of the rows is built when it
+//   goes (o.send: the newest local state, the version of the last answer), so a change made while an answer is on its way is
+//   never lost; changes that come while a save waits join it (one request).
+// - each row shows its state (rwState: 'saving' | 'failed', rwMarkHtml); an error keeps the row with "Not saved - Try again"
+//   (o.keep) or takes the change back (a removed or moved row comes back: {back: true}); o.fail(x) = true when the area shows
+//   the error itself (a 409: the conflict bar), then the rows carry no mark.
+// - the answer gives only what the server assigns and computes (version, sums, ids of new rows: rwIds); the area's send / take
+//   does that, and W.last() says whether no further save waits (only then may an answer stand for the local state).
+// - W.calc: a save of the rows waits for its answer, the sums say "Calculating…" (the server is the only one that computes).
+// A row's key: its id, or a provisional key kept on the object (rwKey); a row is looked up by its key (rwFind), never by its
+// place or an object held over a wait.
+let RW_SEQ = 0;
+const RW_ALL = new Map();
+const rwKey = it => it._rk || (it.id ? 'i' + it.id : (it._rk = 'n' + (++RW_SEQ)));
+const rwFind = (rows, k) => (rows || []).find(it => rwKey(it) === k) || null;
+// the one place where provisional rows get their ids: sent[i] without an id takes got[i].id (the same order, the server's answer)
+function rwIds(sent, got) { (sent || []).forEach((x, i) => { if (x && !x.id && got?.[i]?.id) x.id = got[i].id; }); }
+// o: {name, send(): Promise<answer> (throws on error), draw(), fail?(x) -> true = shown by the area, again?(x) -> Promise,
+//     whole: each save sends all rows (a save that went through saved the failed ones too)}
+function rwRows(o) {
+  const W = {chain: Promise.resolve(), pend: 0, st: new Map(), dirty: new Set(), wait: null, calc: false, err: null, o};
+  // the row of saves of this object (every save of it goes here, also one without rows)
+  W.run = fn => { W.pend++; const p = W.chain.then(fn, fn), dn = () => { W.pend--; }; p.then(dn, dn); W.chain = p.catch(() => { /* the caller reports it */ }); return p; };
+  W.state = it => it ? W.st.get(rwKey(it)) || '' : '';
+  W.failed = () => [...W.st.values()].includes('failed');
+  // no further save of the object waits and no row is unsaved: only then may an answer stand for the local state (a failed
+  // row stays until it is saved or the person takes the stored state)
+  W.last = () => !(W.pend > 1) && !W.dirty.size && !W.failed();
+  // one save of the rows' newest state: joins the one that waits, else a new one at the end of the row
+  W.mark = keys => { for (const k of keys) { W.st.set(k, 'saving'); W.dirty.add(k); } W.calc = true; };
+  W.save = (keys = []) => {
+    W.mark(keys);
+    if (W.wait) return W.wait;
+    const p = W.wait = W.run(async () => {
+      W.wait = null;
+      const ks = [...W.dirty]; W.dirty.clear();
+      try {
+        const j = await o.send();
+        for (const k of ks) if (!W.dirty.has(k)) W.st.delete(k);
+        if (o.whole) for (const [k, v] of [...W.st]) if (v === 'failed') W.st.delete(k);  // each save sends all rows: the failed ones are saved now too
+        W.err = null; return j;
+      } catch (x) {
+        const shown = !!o.fail?.(x);
+        for (const k of ks) if (!W.dirty.has(k)) { if (shown) W.st.delete(k); else W.st.set(k, 'failed'); }
+        if (!shown) W.err = x;
+        throw x;
+      } finally { W.calc = !!W.wait || W.dirty.size > 0; o.draw(); }  // the answer drawn light (optWrite draws only the change and an error)
+    });
+    return p;
+  };
+  // a change of rows: put = the local change (once), keys = the rows it touches (rwKey); {back: true}: an error takes it back
+  // (such a change names no keys: a row put back carries no mark)
+  W.write = (put, keys, wo) => {
+    let done = false;
+    const put1 = () => { if (done) return null; done = true; return put(); };  // applyState puts what is on its way again: once is enough here
+    W.mark(keys);  // the first draw shows the rows' marks and "Calculating…" already
+    return optWrite(put1, () => W.save(), o.draw, {mod: true, keep: !wo?.back}).catch(x => {
+      // a change taken back after no answer / no connection (x.rwQuiet: the area said nothing): said once, "Try again" does it anew
+      if (wo?.back && x?.rwQuiet) toast(errText(x instanceof NoAnswer ? tr('no answer from the server') : x, tr('The change was not saved, it is back as before')), () => W.write(put, keys, wo).catch(() => null), 15000, tr('Try again'));
+      throw x;
+    });
+  };
+  // "Try again": a request without an answer goes once more as it was (its key and version: applied once, o.again), then
+  // the newest state; any other error: the newest state once more
+  W.retry = async () => {
+    const x = W.err, ks = [...W.st].filter(([, s]) => s === 'failed').map(([k]) => k);
+    W.err = null;
+    if (x instanceof NoAnswer && o.again) {
+      for (const k of ks) W.st.set(k, 'saving');
+      W.calc = true; o.draw();
+      try { await W.run(() => o.again(x)); for (const k of ks) if (W.st.get(k) === 'saving' && !W.dirty.has(k)) W.st.delete(k); }
+      catch (e) { const shown = !!o.fail?.(e); for (const k of ks) if (shown) W.st.delete(k); else W.st.set(k, 'failed'); if (!shown) W.err = e; W.calc = false; o.draw(); return; }
+      if (!W.dirty.size) { W.calc = !!W.wait; o.draw(); return; }
+    }
+    W.save(ks).catch(() => { /* the rows say it */ });
+    o.draw();
+  };
+  W.reset = () => { W.st.clear(); W.dirty.clear(); W.err = null; W.calc = !!W.wait; };  // another object opens / the stored state is shown
+  if (o.name) RW_ALL.set(o.name, W);
+  return W;
+}
+// the state of a row as a mark (in the row): "Saving…" for screen readers (the row's amount dims), "Not saved" with "Try again" (the row stays)
+function rwMarkHtml(W, it) {
+  const s = W?.state(it);
+  if (s === 'saving') return `<span class="rwmark rwsaving sr" role="status">${esc(tr('Saving…'))}</span>`;  // heard, not seen: the row dims its amount (rw-saving), its width never changes
+  if (s === 'failed') return `<span class="rwmark rwfail" role="alert">${ic('info', 's')}<span>${esc(tr('Not saved'))}</span><button type="button" class="linkbtn" data-rwagain="${esc(W.o.name || '')}">${esc(tr('Try again'))}</button></span>`;
+  return '';
+}
+const rwCls = (W, it) => { const s = W?.state(it); return s ? ' rw-' + s : ''; };
+// the light draw: only the parts sel of root take the new html (morphed, focus and typed text kept); false = a part is
+// missing on one side (the caller draws the whole view)
+function rwPatch(root, html, sels) {
+  if (!root) return false;
+  const t = document.createElement('div'); t.innerHTML = html;
+  const pairs = sels.map(s => [root.querySelector(s), t.querySelector(s)]);
+  if (pairs.some(([a, b]) => !a !== !b)) return false;
+  for (const [a, b] of pairs) if (a && b) { a.className = b.className; for (const n of ['aria-busy']) { if (b.hasAttribute(n)) a.setAttribute(n, b.getAttribute(n)); else a.removeAttribute(n); } keepFocus(a, () => fl_set(a, b.innerHTML)); }
+  return true;
+}
+document.addEventListener('click', e => {
+  const b = /** @type {any} */ (e.target)?.closest?.('[data-rwagain]'); if (!b) return;
+  const W = RW_ALL.get(b.dataset.rwagain); if (!W) return;
+  e.preventDefault(); e.stopPropagation(); W.retry();
+}, true);
 // the usual put: set vals on the object get() finds (looked up again after a reload); the values before are kept once
 function optSet(get, vals) {
   let old = null;

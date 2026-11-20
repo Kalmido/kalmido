@@ -8,7 +8,7 @@
 //    the new line is there (view and server)
 const path = require('path');
 const {execFileSync} = require('child_process');
-const {boot, sleep, B, login, errs} = require('./boot');
+const {boot, sleep, B, login, errs, hold} = require('./boot');  // hold: each write's answer held (#7493: shared)
 const F = []; let ok = 0;
 const check = (c, what) => { if (c) ok++; else { F.push(what); console.log('FAIL:', what); } };
 const H = {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'};
@@ -20,16 +20,6 @@ const until = (fn, ms = 15000) => require('./boot').until(async () => { try { re
 const click = (w, el) => el && el.dispatchEvent(new w.MouseEvent('click', {bubbles: true, cancelable: true}));
 const change = (w, el, v) => { if (!el) return; el.value = v; el.dispatchEvent(new w.Event('change', {bubbles: true})); };
 const svc = (title, qty, rate) => ({kind: 'service', title, qty, unit: 'day', rate, tax: 'standard', raw_fee: 0, producing: 0, intext: 'intern', cost: 0, discountable: 1});
-// the answers of requests matching re are held one by one: w.__n = how many were asked, w.__go() lets the oldest held one through
-function hold(w, re) {
-  const f0 = w.fetch, q = []; let free = 0;  // free = answers let through before they arrived from the server
-  w.__n = 0; w.__go = () => { const r = q.shift(); if (r) r(); else free++; };
-  w.fetch = (u, o = {}) => {
-    if (!re.test(String(u)) || (o.method || 'GET') === 'GET') return f0(u, o);
-    w.__n++;
-    return f0(u, o).then(r => new Promise(res => { if (free > 0) { free--; res(r); } else q.push(() => res(r)); }));  // the server has it; only the answer waits
-  };
-}
 const qtyIn = (d, i) => d.querySelector(`.ofdeditor .ofdits [data-i="${i}"][data-k="qty"]`);
 const num = v => +String(v).replace(',', '.');
 

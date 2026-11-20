@@ -10,7 +10,7 @@
 // 4. Completed: the click shows the page at once (its loading block, not "Nothing completed yet"); the rows with the answer
 const {execFileSync} = require('child_process');
 const path = require('path');
-const {boot, B, login, sleep, until: until0} = require('./boot');
+const {boot, B, login, sleep, until: until0, slow} = require('./boot');  // slow: answers held until w.__go() (#7493: shared)
 const F = []; let ok = 0;
 const check = (c, what) => { if (c) ok++; else { F.push(what); console.log('FAIL:', what); } };
 const H = {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'};
@@ -21,12 +21,6 @@ if (!process.env.KMT_NOSTART) {
 let CK;
 const call = async (method, url, body, ck = CK) => { const r = await fetch(B + url.replace(/^\//, ''), {method, headers: {...H, Cookie: ck}, body: body ? JSON.stringify(body) : undefined}); return {...(await r.json().catch(() => ({}))), status: r.status}; };
 const until = (fn, ms = 20000) => until0(async () => { try { return await fn(); } catch { return false; } }, {timeout: ms, step: 50});
-// answers to URLs matching re come back only once w.__go() is called (a slow network, held by the test)
-function slow(w, re) {
-  const f0 = w.fetch; let rel = null; const held = new Promise(r => { rel = r; });
-  w.__held = 0; w.__go = () => rel();
-  w.fetch = (u, o = {}) => re.test(String(u)) ? (w.__held++, held.then(() => f0(u, o))) : f0(u, o);
-}
 // every text the view showed (sampled on each change), from now on
 function watchView(w) {
   const seen = []; const v = w.document.querySelector('#view');
