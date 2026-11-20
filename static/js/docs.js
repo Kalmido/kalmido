@@ -1262,7 +1262,7 @@ async function dc_smvMove(sel, what) {
 async function dcx_csv(ids = dc_selIds()) {
   if (!ids.length) return;
   try {
-    const r = await fetch('/api/docs/export.csv', {method: 'POST', headers: {'X-Requested-With': 'kalmido', 'Content-Type': 'application/json'}, body: JSON.stringify({ids})});
+    const r = await netRaw('/api/docs/export.csv', {method: 'POST', headers: {'X-Requested-With': 'kalmido', 'Content-Type': 'application/json'}, body: JSON.stringify({ids})});
     if (!r.ok) throw new Error(httpErrText(r.status));
     const a = document.createElement('a'); a.href = URL.createObjectURL(await r.blob()); a.download = 'documents.csv';
     document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);

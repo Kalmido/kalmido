@@ -2544,7 +2544,7 @@ window.msvvQuick = async () => false;
 window.msvvTitle = () => '?';
 // a list of another server opened straight away (a link, a reload): load and boot (its first answer draws the view)
 window.msvvViewList = () => { if (!S.msvv.ld) { S.msvv.ld = 1; loadModule('msvview').then(() => msvvBoot(), () => { S.msvv.ld = 0; }); } return loadingHtml('big'); };  // 2.891.0 (#5440)
-const msvv_probe = () => fetch('/api/servers', {headers: {'X-Requested-With': 'kalmido'}, redirect: 'manual', credentials: 'same-origin'})
+const msvv_probe = () => netRaw('/api/servers', {headers: {'X-Requested-With': 'kalmido'}, redirect: 'manual', credentials: 'same-origin'})
   .then(r => r.ok ? r.json() : null, () => null)
   .then(j => { if ((Array.isArray(j?.links) && j.links.length) || S.route.mod === 'msv') { S.msvv.pre = j && typeof j === 'object' ? j : null; return loadModule('msvview').then(() => msvvBoot()); } })
   .catch(() => {});

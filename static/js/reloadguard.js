@@ -9,6 +9,7 @@ const RL_TXT = {en: ['Kalmido could not be loaded completely.', 'Reload'], de: [
 const rl_sleep = ms => new Promise(r => setTimeout(r, ms));
 async function rl_ok(url, css) {
   try {
+    // #7521: stays a plain fetch - this file runs before core.js (netRaw is not there yet)
     const r = await fetch(url, {cache: 'no-store', credentials: 'same-origin'});
     return r.status === 200 && (!css || /css/.test(r.headers.get('content-type') || ''));
   } catch { return false; }

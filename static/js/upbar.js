@@ -45,6 +45,7 @@ function upRow(label, cancel) {
 // body is out at once, the server stores it while the row waits, so Cancel could only stop the waiting and call stored files cancelled
 function upFetch(url, opt, fd) {
   const row = upRow(upLabel(fd), null); row.sent();
+  // #7521: stays a plain fetch - the upload with its progress row and its own Cancel (upbar)
   return fetch(url, opt).finally(() => row.done());
 }
 function upSend(url, opt, fd) {
@@ -66,7 +67,7 @@ function upSend(url, opt, fd) {
     // a redirect to a login on another host ends as a network error here: a bodyless look tells it from being offline
     x.onerror = async () => {
       row.done();
-      const r = await fetch('/api/state?lz=1&lzl=', {redirect: 'manual', headers: {'X-Requested-With': 'kalmido'}}).catch(() => null);
+      const r = await netRaw('/api/state?lz=1&lzl=', {redirect: 'manual', headers: {'X-Requested-With': 'kalmido'}}).catch(() => null);
       if (r?.type === 'opaqueredirect') ok(r); else no(new Error('offline'));
     };
     x.send(fd);

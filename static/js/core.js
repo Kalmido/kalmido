@@ -826,6 +826,7 @@ const ofc_spFetch = (url, opt = {}) => { const sp = ofc_spHdr(url); if (sp) opt 
 function netRaw(url, opt = {}, lim) {
   const m = (opt.method || 'GET').toUpperCase();
   const tm = netLimit(lim ?? (opt.body instanceof FormData || NET_LONG.test(String(url).split('?')[0]) ? NET_T.long : m === 'GET' ? NET_T.r : NET_T.w));
+  // #7521: stays - this is netRaw itself (the shared time limit)
   return Promise.race([fetch(url, opt), tm.p]).catch(e => { if (e instanceof NoAnswer) { e.status = 408; e.data = {code: 'no_answer'}; } throw e; }).finally(tm.stop);
 }
 ['click', 'auxclick', 'contextmenu'].forEach(t => document.addEventListener(t, e => {
@@ -880,6 +881,7 @@ async function rawFetch0(method, url, body, key, osp, oq, lim) {
   // 2.655.0 (#5045): an answer that arrives after the page is gone (its window closed: no document) goes nowhere: it never settles,
   // so no caller draws into a page that is not there (outFlush -> renderTop, chatReact, rel_load, ld_go -> applyState, ...)
   // (#6338): every form with files counts as a transfer that runs while it goes (upbar.js upRun)
+  // #7521: stays - rawFetch0 itself (its time limit tm, NET_T)
   try { const fp = upb ? upSend(url, opt, body) : fetch(url, opt); r = await Promise.race([body instanceof FormData && typeof upRun === 'function' ? upRun(fp) : fp, tm.p]); } catch (e) { if (e instanceof NoAnswer) throw noAns(e); tm.stop(); if (!globalThis.document) return new Promise(() => {}); if (e.cancelled) throw e; const ch = OUT.down; OUT.down = false; setOnline(false); if (ch && S.booted) renderTop(); throw new Offline('offline'); }
   tm.stop();
   // 2.21.0 (#673): the device is online but the server is not (a proxy answers 502 / 503 / 504 without Kalmido's JSON): the
@@ -1138,6 +1140,7 @@ function outStash(list) {
 // the queue entry's key with it: the queued copy sent at the next start gets the server's first answer (never applied twice)
 function keepSend(method, url, body, key) {
   const h = key ? {'Idempotency-Key': key} : {};
+  // #7521: stays a plain fetch - a keepalive sending when the page goes (nobody waits for its answer)
   try { fetch(url, {method, keepalive: true, credentials: 'same-origin', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido', ...h}, body: JSON.stringify(body)}).catch(() => {}); return true; } catch { return false; }
 }
 // a write that waits for its debounce (notes, the diary): into the queue and out with keepalive (url without a temporary id)
@@ -1650,7 +1653,7 @@ async function userSwitchAsk(id, n) {
   const ok = await askConfirm(trn('{0} change of the previous account on this device is not synced yet', '{0} changes of the previous account on this device are not synced yet', n),
     tr('Signing in with another account deletes them from this device, a copy is downloaded as a text file first. Cancel signs out again: the previous account can then sign in and send them.'), {ok: tr('Delete and continue'), danger: true});
   if (ok) { try { cfDownload(id, LS.get('uid', 0)); } catch (e) { console.warn('conflict copies: download failed', e); } userSwitch(id); return; }  // 2.527.0 (#4304 A20)
-  try { await fetch('/api/auth/logout', {method: 'POST', headers: {'X-Requested-With': 'kalmido'}}); } catch { /* offline */ }
+  try { await netRaw('/api/auth/logout', {method: 'POST', headers: {'X-Requested-With': 'kalmido'}}); } catch { /* offline */ }
   location.reload();
 }
 // 2.527.0 (#4304 A20): the conflict copies and the changes still waiting of the previous account are not deleted silently at

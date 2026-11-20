@@ -564,6 +564,7 @@ async function dcv_pvDraw(md, d, nb) {
   try {
     await loadModule('pdf');
     const lib = typeof pv_load === 'function' ? await pv_load() : null; if (!live()) return; if (!lib) { bad(tr('The preview could not be loaded.')); return; }
+    // #7521: stays a plain fetch - the file's bytes with its own abort (signal)
     const r = await fetch(dcv_fileUrl(d), {credentials: 'same-origin', signal: nb?.ctrl.signal}); if (!live()) return;
     if (!r.ok) { bad(r.status === 404 || r.status === 410 ? tr('File damaged or missing') : tr('The preview could not be loaded.')); return; }
     // as in pdfview.js: nothing in the file runs (no eval, no scripts, no links)
@@ -616,6 +617,7 @@ async function dcv_pvOther(box, d, nb) {
     box.innerHTML = `<div class="tvmsg muted">${esc(tr('Loading…'))}</div>`;
     let text = null, fail = '';
     try {
+      // #7521: stays a plain fetch - the file's bytes with its own abort (signal)
       const r = await fetch(dcv_fileUrl(d, true), {credentials: 'same-origin', signal: nb?.ctrl.signal});
       if (!r.ok) fail = r.status === 404 || r.status === 410 ? tr('File damaged or missing') : tr('Could not load the file');
       else { const buf = await r.arrayBuffer(); if (buf.byteLength > TV_MAX) fail = tr('Too large for the preview, please download it'); else text = new TextDecoder('utf-8').decode(buf); }

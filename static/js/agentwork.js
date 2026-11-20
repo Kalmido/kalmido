@@ -27,7 +27,7 @@ function aw_budgetLine(b) {
   return `<div class="awstate ${b.paused ? 'warn' : ''}" role="status">${esc(t)}${b.paused ? ' · ' + esc(b.resets_at ? tr('Paused until {0}', fmtWhen(b.resets_at)) : tr('Paused')) : ''}</div>`;
 }
 // the queue: a plain fetch, not api() - a missing route or an error must give "no list", never the page reload api() does on an HTML answer
-const aw_queue = base => fetch(base + '/queue', {headers: {'X-Requested-With': 'kalmido'}}).then(r => r.ok ? r.json() : null).catch(() => null);
+const aw_queue = base => netRaw(base + '/queue', {headers: {'X-Requested-With': 'kalmido'}}).then(r => r.ok ? r.json() : null).catch(() => null);
 function aw_queueHtml(q) {
   if (!q) return '';
   const items = q.items || [];

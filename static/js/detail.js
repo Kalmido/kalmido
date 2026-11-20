@@ -900,6 +900,7 @@ async function saveLink(v) {
     const t = taskById(id); if (!t || !listById(t.list_id)?.agent_tidy || listById(t.list_id).agent_tidy === 'off') return;
     if (id === lastId && Date.now() - last < 20000) return;
     last = Date.now(); lastId = id;
+    // #7521: stays a plain fetch - a presence ping, fire and forget (no answer read, never queued)
     fetch(`/api/tasks/${id}/editing`, {method: 'POST', headers: {'X-Requested-With': 'kalmido'}}).catch(() => {});  // never queued offline
   };
   document.addEventListener('focusin', ping);

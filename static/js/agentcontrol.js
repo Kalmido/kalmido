@@ -121,7 +121,7 @@ function awc_mount(md, agent) {
   /** @type {any} */ let st = null;
   const err = m => { const e = $('#aw-err', md); if (e) { e.textContent = m || ''; e.hidden = !m; } };
   const draw = (k) => { box.innerHTML = awc_html(st); const el = k && $(`[data-awc="${k}"]`, box); if (el) savedTick(el); };
-  fetch(base, {headers: {'X-Requested-With': 'kalmido'}}).then(r => r.ok ? r.json() : null).catch(() => null)
+  netRaw(base, {headers: {'X-Requested-With': 'kalmido'}}).then(r => r.ok ? r.json() : null).catch(() => null)
     .then(j => { if (j) { st = j; draw(); } });  // 404 / offline: no section
   let chain = Promise.resolve();
   const save = (k, v) => chain = chain.then(async () => {

@@ -37,6 +37,7 @@ function cer_send(e) {
   const body = {msg: e.msg.slice(0, 500), src: cer_path(e.src || ''), line: e.line || 0, col: e.col || 0,
     stack: String(e.stack || '').split('\n').map(cer_line).filter(Boolean).join('\n').slice(0, 2048), ver, view: cer_view(), kind: e.kind};
   try {
+    // #7521: stays a plain fetch - keepalive, runs before core.js; an error report never waits for an answer
     fetch('/api/client-errors', {method: 'POST', keepalive: true, credentials: 'same-origin',
       headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify(body)}).catch(() => {});
   } catch { /* never an error about an error */ }

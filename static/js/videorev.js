@@ -462,7 +462,7 @@ async function vdr_pageGo(st, n) {
   try {
     if (!st.pdf || st.pdf.ver !== v.id) {
       await loadModule('pdf');
-      const res = await fetch(v.content, {credentials: 'same-origin'});
+      const res = await netRaw(v.content, {credentials: 'same-origin'});
       if (!res.ok) throw new Error(tr('File damaged or missing'));
       const data = new Uint8Array(await res.arrayBuffer());
       const lib = await pv_timed(pv_load());

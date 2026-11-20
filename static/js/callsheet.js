@@ -187,7 +187,7 @@ async function cs_open(job, org) {
     }
   };
   const pdfBlob = async () => {
-    const r = await fetch(cs_url(job, org, '/pdf'), {credentials: 'same-origin', headers: {'X-Requested-With': 'kalmido'}});
+    const r = await netRaw(cs_url(job, org, '/pdf'), {credentials: 'same-origin', headers: {'X-Requested-With': 'kalmido'}});
     if (!r.ok) throw new Error(tr('The PDF could not be made.'));
     return r.blob();
   };

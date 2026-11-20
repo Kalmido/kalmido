@@ -45,7 +45,7 @@ function awr_mount(md, agent) {
   const fail = e => err(e instanceof Offline ? tr('Only available online.') : e.message);
   const draw = () => { box.innerHTML = j ? awr_html(j, agent.id) : ''; };
   // a plain fetch for the first look: no rights / an older server = no section, never the reload api() does on an HTML answer
-  fetch(base, {headers: {'X-Requested-With': 'kalmido'}}).then(r => r.ok ? r.json() : null).catch(() => null).then(x => { j = x; draw(); });
+  netRaw(base, {headers: {'X-Requested-With': 'kalmido'}}).then(r => r.ok ? r.json() : null).catch(() => null).then(x => { j = x; draw(); });
   const reload = async () => { try { j = await api('GET', base); draw(); } catch (e) { fail(e); } };
   const add = async () => {
     const i = $('#awr-new', box), v = i.value.trim(); if (!v) return;

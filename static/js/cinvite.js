@@ -7,7 +7,7 @@
 const CNV = {items: [], limits: {}, made: null};
 const cnv_$ = (s, r) => /** @type {any} */ ((r || document).querySelector(s));  // typed loosely (inputs, dialogs as root)
 const CNV_KEY = 'kalmido.cinv';  // the token of an opened link waits here over a sign-in (the login reloads the page)
-const cnv_post = (path, b) => fetch(path, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify(b)})
+const cnv_post = (path, b) => netRaw(path, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify(b)})
   .then(async r => ({r, j: await r.json().catch(() => ({}))}));
 
 // ------------------------------------------------------------------ the inviting person: make, show, take back

@@ -29,6 +29,7 @@ async function srchServer(q, f = {}) {
   for (const k of SRCH_ARGS) if (f[k] != null && f[k] !== '') p.set(k, String(f[k]));
   const url = '/api/search?' + p;
   /** @type {any} */ let j;
+  // #7521: stays a plain fetch - the search aborts its own request (signal) when the next one starts
   if (f.signal) { const r = await fetch(url, {headers: {'X-Requested-With': 'kalmido'}, signal: f.signal}); if (!r.ok) throw new Error(String(r.status)); j = await r.json(); }
   else j = await rawFetch('GET', url);
   if (!j) j = {};
@@ -43,6 +44,7 @@ async function srchServer(q, f = {}) {
 // asked for here (GET /api/search?kind=groups&groups=<kinds>: {groups, pending}) -- each answer brings at least one kind
 async function srchPending(q, kinds, f = {}) {
   const url = '/api/search?' + new URLSearchParams({q, kind: 'groups', groups: kinds.join(','), glimit: String(f.glimit || 5)});
+  // #7521: stays a plain fetch - aborted by the next search (signal)
   const r = await fetch(url, {headers: {'X-Requested-With': 'kalmido'}, signal: f.signal});
   if (!r.ok) throw new Error(String(r.status));
   return (await r.json()) || {};

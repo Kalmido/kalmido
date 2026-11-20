@@ -962,7 +962,7 @@ function evImport(c, done, file) {  // 2.143.0 C (#2154): file = an .ics shared 
     if (to === 'private') c = pc;
     const fd = new FormData(); fd.append('file', f);
     try {
-      const r = await fetch(`/api/evcals/${c.id}/import`, {method: 'POST', body: fd, headers: {'X-Requested-With': 'kalmido'}, credentials: 'same-origin'});
+      const r = await netRaw(`/api/evcals/${c.id}/import`, {method: 'POST', body: fd, headers: {'X-Requested-With': 'kalmido'}, credentials: 'same-origin'});
       const j = await r.json();
       if (!r.ok) { toast(errText(j.error || '', tr('Import failed'))); return; }  // 2.1212.0 (#6159): what failed, the server's text in brackets
       const msg = tr('Imported: {0} new, {1} updated', j.created, j.updated) + (j.errors ? ' · ' + trn('{0} not readable', '{0} not readable', j.errors) : '') + (j.kept_newer ? ' · ' + trn('{0} event not overwritten, it is newer here', '{0} events not overwritten, they are newer here', j.kept_newer) : '');

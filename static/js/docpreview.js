@@ -90,7 +90,7 @@ async function dpvOpen(o) {
   if (o.aid) dpvSumMount(m, o);
   try {
     if (!navigator.onLine) throw new TypeError('offline');
-    const r = await fetch(o.url, {credentials: 'same-origin', headers: {'X-Requested-With': 'kalmido'}});
+    const r = await netRaw(o.url, {credentials: 'same-origin', headers: {'X-Requested-With': 'kalmido'}});
     let d = null; try { d = await r.json(); } catch { d = null; }
     if (gone) return;
     if (!r.ok) { fail(d?.error || (r.status === 404 ? tr('File damaged or missing') : tr('The preview could not be loaded.'))); return; }
@@ -162,6 +162,7 @@ async function dpvInline(host, o) {
   let j;
   try {
     if (!navigator.onLine) throw new TypeError('offline');
+    // #7521: stays a plain fetch - a download with its own abort (signal), no time limit of netRaw
     const r = await fetch(o.url, {credentials: 'same-origin', headers: {'X-Requested-With': 'kalmido'}, signal: o.signal});
     let d = null; try { d = await r.json(); } catch { d = null; }
     if (!live()) return;

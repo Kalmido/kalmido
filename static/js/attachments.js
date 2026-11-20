@@ -279,7 +279,7 @@ async function textView(o) {
   document.body.appendChild(m);
   $('[data-tv="x"]', m)?.focus();
   try {
-    const r = await fetch(o.url, {credentials: 'same-origin'});
+    const r = await netRaw(o.url, {credentials: 'same-origin'});
     if (!r.ok) throw new Error(r.status === 404 || r.status === 410 ? tr('File damaged or missing') : tr('Could not load the file'));
     const buf = await r.arrayBuffer();
     if (buf.byteLength > TV_MAX) throw new Error(tr('Too large for the preview, please download it'));

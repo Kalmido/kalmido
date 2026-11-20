@@ -44,7 +44,7 @@ async function tkh_zipClick(e, a, md) {
   e.preventDefault();
   if (S.me?.drop_token_set && !await askConfirm(tr('Download a new HTTP Shortcuts import?'), tr('The file contains a new upload token. The previous shortcut stops working then (also the one on the iPhone).'), {ok: tr('Download')})) return;
   let r;
-  try { r = await fetch(a.getAttribute('href'), {headers: {'X-Requested-With': 'kalmido'}, credentials: 'same-origin'}); } catch { toast(tr('Only available online.')); return; }
+  try { r = await netRaw(a.getAttribute('href'), {headers: {'X-Requested-With': 'kalmido'}, credentials: 'same-origin'}); } catch { toast(tr('Only available online.')); return; }
   if (!r.ok) { let m = ''; try { m = (await r.json()).error || ''; } catch { /* not JSON */ } toast(m || tr('Download failed')); return; }
   const d = document.createElement('a'); d.href = URL.createObjectURL(await r.blob()); d.download = a.getAttribute('download') || 'kalmido-http-shortcuts.zip';
   document.body.append(d); d.click(); d.remove(); setTimeout(() => URL.revokeObjectURL(d.href), 4000);
@@ -835,6 +835,7 @@ function bkWire(md) {
     const j = $('#s-bk', md)?._j || {};
     toast(tr('Uploading and checking…'));
     try {
+      // #7521: stays a plain fetch - a backup file of any size: its upload time counts before the answer, a time limit would cut a slow line
       const r = await fetch('/api/admin/backups/upload', {method: 'POST', headers: {'X-Requested-With': 'kalmido', 'Content-Type': 'application/octet-stream'}, body: f});
       const res = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(res.error || httpErrText(r.status));
