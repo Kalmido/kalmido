@@ -150,11 +150,11 @@ async function ofdLoadList(force) {
   // push came here through onumListFresh and showed "Loading" instead of the rows for a moment)
   if (OFD.kind === 'archive') { OFD.list = []; if (typeof oimRefreshList === 'function') oimRefreshList(); else ofdDraw(); return; }
   OFD.loading = true; OFD.loadAgain = false;
-  const u = ofdListUrl();
-  try { const j = await api('GET', `${u}&limit=${ofd_reloadN()}`); if (u === ofdListUrl()) { OFD.list = j.docs || []; OFD.next = j.next_cursor || null; OFD.role = j.role; OFD.err = ''; OFD.dunning = j.dunning || null; tri_meta(j); } }  // 2.147.1 B (#2054): dunning; 2.144.10 C (#2576): + trial filter / meta
-  catch (x) { if (u === ofdListUrl()) { OFD.list = []; OFD.next = null; OFD.err = ofcErrHere(x); } }
+  const u = ofdListUrl(), wk = ofc_wsKey(), same = () => u === ofdListUrl() && wk === ofc_wsKey();  // (#7313 F15): + the office shown
+  try { const j = await api('GET', `${u}&limit=${ofd_reloadN()}`); if (same()) { OFD.list = j.docs || []; OFD.next = j.next_cursor || null; OFD.role = j.role; OFD.err = ''; OFD.dunning = j.dunning || null; tri_meta(j); } }  // (#2054): dunning; (#2576): + trial filter / meta
+  catch (x) { if (same()) { OFD.list = []; OFD.next = null; OFD.err = ofcErrHere(x); } }
   OFD.loading = false;
-  if (OFD.loadAgain || u !== ofdListUrl()) { ofdLoadList(true); return; }
+  if (OFD.loadAgain || !same()) { ofdLoadList(true); return; }
   const el = $('.office .ofcbody'); if (el) keepFocus(el, ofdDraw); else ofdDraw();  // 2.369.0 A (#3200): the search box keeps the cursor
   ofd_qLoad();
 }
@@ -162,7 +162,8 @@ async function ofdLoadDoc(id, force) {
   if (OFD.docLoading) return;
   if (OFD.doc && OFD.doc.id === id && !force) return;
   OFD.docLoading = true; OFD.docId = id;
-  try { OFD.doc = await api('GET', `/api/office/docs/${id}`); OFD.viaFolder.delete(id); OFD.err = ''; OFD.conflict = null; if (OFD.doc?.kind && OFD.doc.kind !== OFD.kind) { OFD.kind = OFD.doc.kind; OFD.list = null; } }
+  const wk = ofc_wsKey();
+  try { const d = await api('GET', `/api/office/docs/${id}`); if (wk !== ofc_wsKey()) { OFD.docLoading = false; return; } OFD.doc = d; /* (#7313 F15): another office meanwhile: dropped */ OFD.viaFolder.delete(id); OFD.err = ''; OFD.conflict = null; if (OFD.doc?.kind && OFD.doc.kind !== OFD.kind) { OFD.kind = OFD.doc.kind; OFD.list = null; } }
   catch (x) {  // 2.199.0 B (#2742): no office right for it, but a shared folder holds it -> read through the folder (its PDF too)
     OFD.doc = null; OFD.err = ofcErrHere(x);
     // 2.351.0 A (#2823): a draft with edit through the folder is edited (saved over the folder way, ofd_viaUrl)
