@@ -658,7 +658,7 @@ function ofcSettingsHtml() {
     ${/*html-ok*/ ofcRowF('os-oexp-days', tr('Notice before it runs out'), `<span class="lacts"><input id="os-oexp-days" value="${esc(String(s.offer_exp_days ?? 3))}" inputmode="numeric" class="numin" ${/*html-ok*/ dis}><span class="muted">${tr('days')}</span></span>`)}
     ${ofcChk('os-accept-on', tr('Print the order confirmation with signature line'), s.accept_on ?? 1)}
     <div class="row"><button type="button" class="btn sm" data-ltm="sig">${ic('edit', 's')} ${tr('E-mail signature…')}</button></div>
-    ${ofcChk('os-sign-offers', tr('Signature under quotations and payment reminders'), s.sign_offers)}<p class="muted ofchint">${esc(tr('The signature picture of the person who finalises the document (Correspondence > Signature); drafts stay without.'))}</p>
+    ${ofcChk('os-sign-offers', tr('Signature under quotations and payment reminders'), s.sign_offers)}<p class="muted ofchint">${esc(tr('The signature picture of the person who finalises the document (Correspondence > Signature); drafts stay without.'))} <button type="button" class="btn sm" data-ost-sig>${ic('edit', 's')}<span>${tr('Signature…')}</span></button></p>${''/* (#7012, audit #5248 B9): the way to the own signature picture (was: the place only as text) */}
     <h3>${tr('Invoices')}</h3>
     ${ofcChk('os-small', p.code === 'DE' ? tr('Small business: no VAT (section 19 UStG)') : tr('Small business: no VAT'), s.small_business)}${typeof ux_info === 'function' ? ux_info('small_business') : ''}
     ${ofcSchemeHtml('os-inv-scheme', 'invoice', tr('Invoice numbers'), s.invoice_scheme, dis)}
@@ -1421,4 +1421,11 @@ document.addEventListener('change', e => {
   else if (t.id === 'os-logo') { ofcLogoUpload(t.files[0]); t.value = ''; }
   else if (t.id === 'os-import' && t.files?.length) { ofcImport(t.files[0], $('#os-overwrite')?.checked); t.value = ''; }  // 2.591.0 (#4894)
   else if (t.id === 'os-counter') { const sc = $('#os-scheme'); if (sc) ofcSchemePv(sc, true); }  // 2.118.0 A (#2265): the preview of the counter chosen
+});
+
+// (#7012): Settings > Company & office > Documents & numbers: "Signature…" opens the own signature picture (the dialog of Settings > Account)
+document.addEventListener('click', e => {
+  if (!e.target.closest?.('[data-ost-sig]')) return;
+  e.preventDefault();
+  (typeof ltSigSettings === 'function' ? Promise.resolve() : loadModule('settings')).then(() => ltSigSettings(), x => ofcErr(x));
 });

@@ -7819,7 +7819,6 @@
   "Import…": "Importieren…",
   "Clients, services, equipment and fixed costs from a spreadsheet, leads from a CSV file; old invoices and quotations as an archive.": "Kunden, Leistungen, Geräte und feste Kosten aus einer Tabelle, Anfragen aus einer CSV-Datei; alte Rechnungen und Angebote als Archiv.",
   "A cancelled invoice cannot be repeated": "Eine stornierte Rechnung kann nicht wiederholt werden",
-  "A new series starts in the editor of an invoice: \"Repeat as series\".": "Eine neue Serie beginnt im Editor einer Rechnung: „Als Serie wiederholen“.",
   "Check and send the invoice draft of series {0}": "Rechnungsentwurf der Serie {0} prüfen und senden",
   "Deleted series": "Gelöschte Serien",
   "Edit invoice series": "Rechnungsserie bearbeiten",
@@ -19729,5 +19728,12 @@
   "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Der Kunde der Vorlage-Rechnung ist nicht mehr in diesem Büro (in einen anderen Arbeitsbereich umgezogen). Wähle eine andere Vorlage-Rechnung und schalte die Serie wieder ein.",
   "Please transfer the outstanding amount within {days} days to the bank account below.|pack": "Wir bitten Sie darum, den offenen Betrag innerhalb von {days} Tagen auf unser unten genanntes Bankkonto zu überweisen.",
   "Please transfer the total amount outstanding within {days} days to the bank account below. If you have already arranged payment, please disregard this letter.|pack": "Wir bitten Sie, den offenen Gesamtbetrag innerhalb von {days} Tagen auf unser unten genanntes Bankkonto zu überweisen. Sollten Sie die Zahlung inzwischen veranlasst haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.",
-  "This is our final request to transfer the total amount outstanding within {days} days to the bank account below. If payment is not received by then, we will take legal action without further notice; any costs arising from this will be charged to you.|pack": "Wir fordern Sie hiermit letztmalig auf, den offenen Gesamtbetrag innerhalb von {days} Tagen auf unser unten genanntes Bankkonto zu überweisen. Geht die Zahlung bis dahin nicht ein, werden wir ohne weitere Ankündigung rechtliche Schritte einleiten; die dadurch entstehenden Kosten gehen zu Ihren Lasten."
+  "This is our final request to transfer the total amount outstanding within {days} days to the bank account below. If payment is not received by then, we will take legal action without further notice; any costs arising from this will be charged to you.|pack": "Wir fordern Sie hiermit letztmalig auf, den offenen Gesamtbetrag innerhalb von {days} Tagen auf unser unten genanntes Bankkonto zu überweisen. Geht die Zahlung bis dahin nicht ein, werden wir ohne weitere Ankündigung rechtliche Schritte einleiten; die dadurch entstehenden Kosten gehen zu Ihren Lasten.",
+  "Record payment…": "Zahlung erfassen…",
+  "Nothing open on this invoice": "Auf dieser Rechnung ist nichts mehr offen",
+  "Layout & numbers…": "Layout & Nummern einstellen…",
+  "Recurring invoice (series)…": "Wiederkehrende Rechnung (Serie)…",
+  "No invoice series yet: an invoice that repeats every month, quarter or year.": "Noch keine Rechnungsserie: eine Rechnung, die sich jeden Monat, jedes Quartal oder jedes Jahr wiederholt.",
+  "Or from an invoice you have: \"Repeat as series\" in its editor.": "Oder aus einer vorhandenen Rechnung: „Als Serie wiederholen“ in ihrem Editor.",
+  "Signature…": "Unterschrift…"
 }
