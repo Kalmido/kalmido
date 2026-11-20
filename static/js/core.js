@@ -2249,7 +2249,7 @@ function parseHash() {
   if (a === 'ablage' && b === 'recent') return {mod: 'ablage', key: 'ablage', nid: null, zle: true};  // 2.880.0 (#5561): the page "Recently edited"
   if (a === 'ablage') return {mod: 'ablage', key: 'ablage', nid: +b || null, ...(/^aus-[a-z]{2,12}$/.test(b || '') ? {aus: b.slice(4)} : {})};  // 2.48.0 (#1207): ablage/<folder or file id>; 2.429.0 (#3580): ablage/aus-<key> (a collection)
   if (a === 'office' && b === 's') { const p = h.split('/'); return {mod: 'office', key: 'office', wsp: p[2] || '', tab: p[3] || '', id: +p[4] || null}; }  // 2.577.0 (#4638): office/s/<space>[/<tab>[/<id>]] under "All workspaces"
-  if (a === 'office' && b && S.route?.mod === 'office' && S.route.wsp && typeof wsCur === 'function' && (wsCur() === 'all' || wsCur() !== S.route.wsp)) {  // 2.577.0 (#4638): a link inside an open area keeps it (the address says it too); (#7328): also another workspace's office under a chosen one
+  if (a === 'office' && b && S.route?.mod === 'office' && S.route.wsp && typeof wsCur === 'function' && (wsCur() === 'all' || wsCur() !== S.route.wsp)) {  // (#4638): a link inside an open area keeps it (the address says it too); (#7328): also another workspace's office under a chosen one
     history.replaceState(history.state, '', '#office/s/' + S.route.wsp + '/' + h.slice(7));
     return {mod: 'office', key: 'office', wsp: S.route.wsp, tab: b, id: +(h.split('/')[2]) || null};
   }

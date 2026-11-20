@@ -73,7 +73,7 @@ def pk2_area(c, uid, aid):
     from ..office.agentdocs import ofa_area
     a = agent_row(c, aid)
     org = a["org_id"] if a else None
-    if org and org_role(c, uid, org) not in ("admin", "member"):  # 2.143.0 A (#2151): not the limited roles
+    if org and org_role(c, uid, org) not in ("admin", "member"):  # (#2151): not the limited roles
         org = None
     return org, ofa_area(c, a, uid) if a and (org or not a["org_id"]) else None
 
@@ -93,7 +93,7 @@ def pk2_office(c, uid, aid, oid):
     from ..office.model import office_on, office_role, office_settings
     from ..office.rights import ofr_allows
     a = agent_row(c, aid)
-    if not a or ofa_area(c, a, uid) != oid or not ofa_agent_on(c, a, oid, "offers", "edit"):  # 2.187.0 C (#2476): switch or groups; (#7326): on for uid
+    if not a or ofa_area(c, a, uid) != oid or not ofa_agent_on(c, a, oid, "offers", "edit"):  # (#2476): switch or groups; (#7326): on for uid
         return False, "agent_no_office"
     # 2.51.0 (#1351) review: office data only with the scope office too (like part A's v1 routes; agentdocs.py)
     from ..api.scopes import scopes_effective
