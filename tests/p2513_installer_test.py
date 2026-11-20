@@ -512,6 +512,42 @@ for img, loud in (("ghcr.io/kalmido/kalmido:2.1336.0@" + DG, True), ("ghcr.io/ka
           f"#6505: pull of {img} fails: built locally, loud={loud} ({rc} {err[-300:]} {calls()})")
 check("RELEASE IMAGE NOT DOWNLOADED" in PS, "#6505: install.ps1 says it as loudly")
 
+# ------------------------------------------------------------------ #7180: a local build of a release tag gets its version
+def src(ver="2.1453.0", cache=580):
+    d = folder()
+    os.makedirs(os.path.join(d, "tools"))
+    os.makedirs(os.path.join(d, "static"))
+    shutil.copy(os.path.join(ROOT, "tools", "stamp_release.py"), os.path.join(d, "tools", "stamp_release.py"))
+    with open(os.path.join(d, "VERSION"), "w", encoding="utf-8") as f:
+        f.write(ver + "\n")
+    with open(os.path.join(d, "static", "sw.js"), "w", encoding="utf-8") as f:
+        f.write("const CACHE = 'tasks-shell-v%d';  // app %s\n" % (cache, ver))
+    return d
+
+
+def ver_of(d):
+    with open(os.path.join(d, "VERSION"), encoding="utf-8") as f:
+        v = f.read().strip()
+    with open(os.path.join(d, "static", "sw.js"), encoding="utf-8") as f:
+        return v, f.read()
+
+
+d = src()
+rc, out, err = run('DIR="%s"; VERSION=v2.1460.0; IMAGE=""; stamp_local' % d)
+v, sw = ver_of(d)
+check(rc == 0 and v == "2.1460.0" and "// app 2.1460.0" in sw and "v580'" not in sw, f"#7180: a local build of tag v2.1460.0 carries its version and a new cache number ({rc} {err[:200]} {v})")
+d = src()
+rc, out, err = run('DIR="%s"; VERSION=v2.1460.0; IMAGE="ghcr.io/kalmido/kalmido:2.1460.0"; stamp_local' % d)
+check(rc == 0 and ver_of(d)[0] == "2.1453.0", "#7180: the prebuilt image (stamped by release.yml) leaves the source folder alone")
+d = src()
+rc, out, err = run('DIR="%s"; VERSION=main; IMAGE=""; stamp_local' % d)
+check(rc == 0 and ver_of(d)[0] == "2.1453.0", "#7180: a branch keeps the version of its tree (no release tag)")
+d = src("2.1470.0", 2014700000)  # a tree stamped higher already: a lower cache number is refused
+rc, out, err = run('DIR="%s"; VERSION=v2.1460.0; IMAGE=""; stamp_local' % d)
+check(rc == 0 and ver_of(d)[0] == "2.1470.0" and "Note:" in err, f"#7180: a refused stamp is a note, the installation goes on ({rc} {err[:200]})")
+check(re.search(r"choose_image\n\s*stamp_local\n\s*write_override", SH) is not None, "#7180: main stamps right after choose_image (IMAGE known), before the build")
+check("python3 is missing" in SH, "#7180: without python3 a note instead of a stop")
+
 shutil.rmtree(TMP, ignore_errors=True)
 print(f"p2513_installer: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)
