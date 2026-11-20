@@ -36,7 +36,7 @@ function ms_clGdHtml(c) {
   if (MSC.gd?.id !== c.id) { if (!MSC.gdLoading) setTimeout(() => ms_clGdLoad(c.id), 0); return ''; }
   const ds = MSC.gd.docs; if (!ds) return '';
   const st = {draft: tr('Draft'), final: tr('Finished'), signed: tr('Signed'), declined: tr('Rejected')};
-  return `<div class="ctsec"><h4>${tr('Letters & contracts')}</h4>${ds.length ? `<ul class="ctlinks">${ds.map(x => `<li><a class="linkbtn" href="#office/gendocs/${x.id}">${ic('file', 's')} ${esc(x.title || x.kind_label)}</a><span class="muted"> · ${esc([x.list_name, st[x.status] || x.status].filter(Boolean).join(' · '))}</span></li>`).join('')}</ul>` : `<p class="muted">${tr('No letters or contracts yet.')}</p>`}<a class="btn sm" href="#office/gendocs">${ic('plus', 's')} ${tr('New letter or contract')}</a></div>`;  // 2.491.0 (#4020): the texts follow the name of the area (Schreiben & Verträge)
+  return `<div class="ctsec"><h4>${tr('Letters & contracts')}</h4>${ds.length ? `<ul class="ctlinks">${ds.map(x => `<li><a class="linkbtn" href="#${esc(ofc_link('gendocs/' + x.id, c.org_id))}">${ic('file', 's')} ${esc(x.title || x.kind_label)}</a><span class="muted"> · ${esc([x.list_name, st[x.status] || x.status].filter(Boolean).join(' · '))}</span></li>`).join('')}</ul>` : `<p class="muted">${tr('No letters or contracts yet.')}</p>`}<a class="btn sm" href="#office/gendocs">${ic('plus', 's')} ${tr('New letter or contract')}</a></div>`;  // (#4020): the texts follow the name of the area (Schreiben & Verträge)
 }
 async function ms_clGdLoad(id, q) {
   MSC.gdLoading = true;
@@ -50,7 +50,7 @@ function ms_clLtHtml(c) {
   if (MSC.lt?.id !== c.id) { if (!MSC.ltLoading) setTimeout(() => ms_clLtLoad(c.id), 0); return ''; }
   const ls = MSC.lt.letters; if (!ls) return '';
   const st = {draft: tr('Draft'), sent: tr('Sent'), delivered: tr('Delivered')};
-  return `<div class="ctsec"><h4>${tr('Letters')}</h4>${ls.length ? `<ul class="ctlinks">${ls.slice(0, 20).map(x => `<li><a class="linkbtn" href="#office/letters/${x.id}">${ic('mail', 's')} ${esc(x.subject || x.rcpt_name || tr('Letter'))}</a><span class="muted"> · ${esc([fmtDateLoc(x.letter_date), st[x.status] || x.status].filter(Boolean).join(' · '))}</span></li>`).join('')}</ul>` : `<p class="muted">${tr('No letters yet.')}</p>`}</div>`;
+  return `<div class="ctsec"><h4>${tr('Letters')}</h4>${ls.length ? `<ul class="ctlinks">${ls.slice(0, 20).map(x => `<li><a class="linkbtn" href="#${esc(ofc_link('letters/' + x.id, c.org_id))}">${ic('mail', 's')} ${esc(x.subject || x.rcpt_name || tr('Letter'))}</a><span class="muted"> · ${esc([fmtDateLoc(x.letter_date), st[x.status] || x.status].filter(Boolean).join(' · '))}</span></li>`).join('')}</ul>` : `<p class="muted">${tr('No letters yet.')}</p>`}</div>`;
 }
 async function ms_clLtLoad(id, q) {
   MSC.ltLoading = true;
@@ -226,7 +226,7 @@ function ms_clCard(c) {
       ${f('tag', tr('Document language'), esc((S.languages || []).find(L => L.code === b.doc_lang)?.name || ''))}${''/* 2.460.0 (#3767) */}
     </div>`,
       persons: ks.length ? `<div class="ctsec"><h4>${tr('Contact persons')}</h4><ul class="ctlinks msclks">${ks.map(k => `<li>${ic('user', 's')} ${k.contact_id && feat('contacts') ? `<a href="#contacts/${k.contact_id}" title="${esc(tr('Open contact'))}"><b>${esc(k.name)}</b></a>` : `<b>${esc(k.name)}</b>`}${k.role ? ` <span class="muted">${esc(k.role)}</span>` : ''}${k.is_default && ks.length > 1 ? ` <span class="rotag">${tr('Default')}</span>` : ''}${k.email ? ` · <a href="mailto:${esc(k.email)}">${esc(k.email)}</a>` : ''}${k.phone ? ` · <a href="tel:${esc(k.phone.replace(/[^\d+]/g, ''))}">${esc(k.phone)}</a>` : ''}</li>`).join('')}</ul></div>` : '',
-      invoices: typeof officeOn === 'function' && officeOn() && MSC.inv !== null ? `<div class="ctsec"><h4>${tr('Open invoices')}</h4>${inv.length ? `<ul class="ctlinks">${inv.map(x => `<li><a class="linkbtn" href="#office/invoices/${x.id}">${ic('receipt', 's')} ${esc(x.number || tr('Draft'))}</a><span class="muted"> · ${esc(x.date ? fmtDateLoc(x.date) : '')} · ${esc(x.open_text || '')} · ${esc(x.status_text || '')}</span></li>`).join('')}</ul>` : `<p class="muted">${tr('No open invoices.')}</p>`}</div>` : '',
+      invoices: typeof officeOn === 'function' && officeOn() && MSC.inv !== null ? `<div class="ctsec"><h4>${tr('Open invoices')}</h4>${inv.length ? `<ul class="ctlinks">${inv.map(x => `<li><a class="linkbtn" href="#${esc(ofc_link('invoices/' + x.id, c.org_id))}">${ic('receipt', 's')} ${esc(x.number || tr('Draft'))}</a><span class="muted"> · ${esc(x.date ? fmtDateLoc(x.date) : '')} · ${esc(x.open_text || '')} · ${esc(x.status_text || '')}</span></li>`).join('')}</ul>` : `<p class="muted">${tr('No open invoices.')}</p>`}</div>` : '',
       privacy: dsb_clHtml(c),  // 2.154.0 C (#2192): the data protection sheets (office admins)
       tickets: typeof ptl_clientHtml === 'function' ? ptl_clientHtml(c) : '',  // 2.63.0 B (#1513): the client's reports
       gendocs: ms_clGdHtml(c),  // 2.93.0 A (#1927): the documents made from templates (office admins)
@@ -448,14 +448,15 @@ kb_on('view:clients', 'Escape', () => {  // 2.630.0 (#4510): key registry (keys.
 // read-only copy goes into the target's archive. One undo step (the same move back); redo = the move again.
 const ofm_on = () => typeof officeOn === 'function' && officeOn() && S.me?.kind !== 'agent';
 const ofm_can = from => ofm_on() && smv_can(from);
-function ofm_officeFrom() {  // the workspace of the office shown (org id | null = the personal office)
-  if (typeof OFC !== 'undefined' && OFC.info?.personal) return null;
-  const w = typeof wsCur === 'function' ? wsCur() : 'private', ws = S.me?.workspaces || [];
-  return w.startsWith('org:') ? +w.slice(4) : w === 'all' && ws.length === 1 ? ws[0].id : null;
+function ofm_officeFrom() {  // the office shown (org id | null = the personal office)
+  // (#7309 F6): the office's own area (core.js ofc_spCur: also "All > Org", the open client's office), never the workspace on top
+  if (typeof OFC !== 'undefined' && OFC.info && S.route?.mod === 'office') return OFC.info.personal ? null : OFC.info.org_id;
+  const w = typeof ofc_spCur === 'function' ? ofc_spCur() : '';
+  return w.startsWith('org:') ? +w.slice(4) : null;
 }
 async function ofm_move({what, ids, from, label, after, only = null}) {  // 2.356.0 A (#2926): only = the possible targets
   const req = (to, extra) => rawFetch('POST', '/api/office/move-space', {what, ids, to: smv_ws(to), ...extra});
-  const r = await smv_open({what: label, from, only, option: ['clients', 'office'].includes(what) ? {label: tr('Take issued documents along as a read-only copy')} : null,
+  const r = await smv_open({mod: 'office', what: label, from, only, option: ['clients', 'office'].includes(what) ? {label: tr('Take issued documents along as a read-only copy')} : null,
     check: (to, _pl, opt) => req(to, {dry: 1, copy_issued: opt ? 1 : 0}),
     run: async (to, _pl, opt) => { try { return {...await req(to, {copy_issued: opt ? 1 : 0}), to, opt}; } catch (e) { toast(errText(e, tr('The move was not saved'))); throw e; } }});
   if (!r || !r.ok) return null;
