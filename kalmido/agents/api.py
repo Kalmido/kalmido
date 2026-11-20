@@ -21,10 +21,11 @@ from ..collab.news import news_add, notif_ok
 from ..core.errors import BadInput, UnknownFields
 from ..notify.push import push_prio
 from ..api.common import v1_args, v1_err, v1_json, v1_view
+from ..core.longslots import long_slot_give, long_slot_take
 from ..agents.core import (
     _AGENT_COND, _AGENT_CONDS, _AGENT_GEN, _AGENT_GENS, _AGENT_LOCK, _AGENT_WAITERS, agent_active, AGENT_EVENTS, AGENT_EVENTS_STALE_H, agent_ids, AGENT_JOBS_KEEP, AGENT_OFFLINE_S,
     AGENT_POLL_WRITE_S, agent_public, agent_row, agent_runtime, agent_shares, agent_usable, AGENT_STATUSES, AGENT_WAIT_MAX,
-    AGENT_WAITERS_ALL, AGENT_WAITERS_PER, job_dict, JOB_LOG_MAX, JOB_STATES, JOB_TITLE_MAX, job_visible, need_agent,
+    AGENT_WAITERS_PER, job_dict, JOB_LOG_MAX, JOB_STATES, JOB_TITLE_MAX, job_visible, need_agent,
     STATUS_TEXT_MAX, f8f_job_name_in, job_task_ids, job_words_muted,
 )
 from ..agents.chat import chat_delivered, chat_event_mids
@@ -228,13 +229,14 @@ def h6e_events_visible(c, aid, envs):
 def _waiter(aid, on):
     with _AGENT_COND:
         if on:
-            if _AGENT_WAITERS.get(aid, 0) >= AGENT_WAITERS_PER or sum(_AGENT_WAITERS.values()) >= AGENT_WAITERS_ALL:
+            if _AGENT_WAITERS.get(aid, 0) >= AGENT_WAITERS_PER or not long_slot_take("poll"):  # (#6408): the shared budget
                 return False
             _AGENT_WAITERS[aid] = _AGENT_WAITERS.get(aid, 0) + 1
             if aid not in _AGENT_CONDS:  # 2.658.0 (#4193): the agent's own condition while it has waiters
                 _AGENT_CONDS[aid] = threading.Condition(_AGENT_LOCK)
                 _AGENT_GENS[aid] = 0
         else:
+            long_slot_give("poll")
             _AGENT_WAITERS[aid] = max(0, _AGENT_WAITERS.get(aid, 0) - 1)
             if not _AGENT_WAITERS[aid]:
                 _AGENT_WAITERS.pop(aid, None)
@@ -248,7 +250,8 @@ def _waiter(aid, on):
 def v1_agent_events():
     """Events after ?since=<seq> (oldest first, at most ?limit=). ?wait=1..60: long-polling -- when there is nothing yet the
     request waits until an event arrives or the time is up (no busy loop; the database and the maintenance gate are released
-    meanwhile). At most AGENT_WAITERS_PER waiting requests per agent and AGENT_WAITERS_ALL on the server: beyond that the
+    meanwhile). At most AGENT_WAITERS_PER waiting requests per agent and AGENT_WAITERS_ALL places on the process, shared with
+    hosted MCP calls and assistant calls (#6408, core/longslots.py): beyond that the
     answer comes at once with busy: true (poll again later)."""
     a = v1_args(("since", "limit", "wait"))
     aid = need_agent()

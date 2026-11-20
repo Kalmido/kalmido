@@ -1295,7 +1295,7 @@ them with the right people.
   person who gave a hosted MCP access) is locked:
   nothing to fix on the host, it works again once the account is unlocked.
 - **`EVENTS: http 000`**: Kalmido is not reachable: check the firewall rule for Kalmido (step 3) and `KALMIDO_URL`.
-- **`"busy": true`**: too many waiting requests (2 per agent, and on the whole server as many as the web threads less 8, see `KALMIDO_AGENT_WAITERS`); only one event loop per agent. The answer carries `Retry-After` (3-8 s): come back after it.
+- **`"busy": true`**: too many waiting requests (2 per agent, and on the whole server as many as the web threads less 8, shared with hosted MCP calls and assistant calls, see `KALMIDO_AGENT_WAITERS`); only one event loop per agent. The answer carries `Retry-After` (3-8 s): come back after it.
 - **Long polling ends early behind a proxy**: allow responses longer than 60 seconds (nginx `proxy_read_timeout 75s;`).
 - **The MCP server is not connected**: `claude mcp list` in `~/agent`; run `~/kalmido/mcp/run.sh < /dev/null` to see
   its error message.

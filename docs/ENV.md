@@ -292,7 +292,7 @@ an empty value counts as unset. See [SELF-HOSTING.md](SELF-HOSTING.md) for the c
 | `KALMIDO_AGENT_CONTROL_NEW` | `approve_all` | Control level a new agent starts with: approve_all, routine, free, or legacy (no level, works as before 2.235.0; the test containers use it). |
 | `KALMIDO_AGENT_EVENTS_STALE_H` | `48` | Hours after which unread agent events count as stale. |
 | `KALMIDO_AGENT_PUSH_DAY` | `500` | Push notifications per agent and day. |
-| `KALMIDO_AGENT_WAITERS` | `threads - 8 (at least `6` but at most half of the threads; `16` with the default 24 threads)` | Agent connections waiting for events on the whole server at the same time. Each one holds a web thread, so the default follows `KALMIDO_THREADS`; beyond it the answer is `busy: true` with a `Retry-After` of 3-8 s. |
+| `KALMIDO_AGENT_WAITERS` | `threads - 8 (at least `6` but at most half of the threads; `16` with the default 24 threads)` | Requests that hold a web thread for long, on the whole server at the same time: agent connections waiting for events, hosted MCP calls and assistant calls share this one budget (#6408), so the rest of the threads stays free for people. The default follows `KALMIDO_THREADS`; beyond it a waiting agent gets `busy: true` with a `Retry-After` of 3-8 s, hosted MCP and the assistant answer 503. |
 | `KALMIDO_AI_BASE_URL` | `(empty)` | Address of an OpenAI-compatible service for the optional assistant (empty = assistant off); the assistant sends task texts to it. |
 | `KALMIDO_AI_KEY` | `(empty)` | Key of that service. |
 | `KALMIDO_AI_KEY_FILE` | `(empty)` | File that holds that key. |
