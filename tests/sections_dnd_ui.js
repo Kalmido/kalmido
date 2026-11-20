@@ -83,7 +83,7 @@ const spy = w => { const calls = []; const of = w.fetch; w.fetch = (u, o = {}) =
   // ---- section menu: move down = the same request
   await w.eval('load()'); calls.length = 0;
   w.eval(`moveSection(${A}, 1)`);
-  check(await until(async () => JSON.stringify(await secOrder(L)) === JSON.stringify([Bs, A, C])), 'menu "Move right / down"');
+  check(await until(async () => JSON.stringify(await secOrder(L)) === JSON.stringify([Bs, A, C])), 'menu "Move down"');
   // 2.53.1 CI: count only the section requests (a background write of another part, e.g. settings, is not the move)
   check(calls.filter(c => c[0] !== 'GET' && /sections/.test(c[1])).length === 1, 'moveSection: one request (was one PATCH per section) ' + JSON.stringify(calls.filter(c => c[0] !== 'GET').map(c => c[0] + ' ' + c[1])));
   await call('POST', `/api/lists/${L}/sections/order`, {ids: [A, Bs, C]});

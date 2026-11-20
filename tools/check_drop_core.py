@@ -13,6 +13,10 @@ is counted per file (comment lines and trailing // comments do not count). The p
 the baseline (tools/drop_core_baseline.json, "file" -> count): it only ever shrinks; a count above it is red (exit 1),
 --update writes the lower counts (never adds; without a baseline file it writes the first one).
 
+(#7519) render.js draws My tasks (ALLOW) but the head of a section comes from the adapters' section side (dragmulti.js
+sh_head / sh_menu, DROP_ADAPTERS sec): there HEAD_PAT counts instead - mseOn(, .mosec, mseHeadHtml, mseMenu (a head that asks
+"is this an own section of My tasks?" itself again).
+
 The way out: a file that only draws My tasks (not a drop path) or a new adapter file is an entry of ALLOW with its reason -
 the reason is read in the review. A drop path asks the adapter (DROP_ADAPTERS on() / where() / put()) instead.
 
@@ -33,6 +37,10 @@ ALLOW = {
     "static/js/views.js": "draws the groups of My tasks' own sections (no drop path)",
 }
 PAT = re.compile(r"\bmoActive\s*\(|\bmseOn\s*\(|\bmbcol\b|data-key\^=[\"']?ms:")
+# (#7519): files of ALLOW that still may not draw a section's head on their own (they ask sh_head of the adapters)
+HEAD = {"static/js/render.js": "draws the section heads from the adapters' section side (dragmulti.js sh_head)"}
+HEAD_PAT = re.compile(r"\bmseOn\s*\(|\.mosec\b|\bmseHeadHtml\b|\bmseMenu\b")
+HEAD_HELP = "draw the head from the adapter's section side (dragmulti.js sh_head / sh_menu, DROP_ADAPTERS sec)"
 HELP = "ask the drop core's adapter (DROP_ADAPTERS on / where / put in dragmulti.js, My tasks in mineorder.js) instead"
 
 
@@ -45,15 +53,21 @@ def code_part(line):
     return line if i < 0 else line[:i]
 
 
+def pat_of(rel):
+    """The pattern a file is counted with: HEAD_PAT for the drawing files of HEAD, else PAT."""
+    return HEAD_PAT if rel in HEAD else PAT
+
+
 def counts(root=ROOT):
     """{file: number of places} of static/js/*.js outside ALLOW."""
     out = {}
     for p in sorted(glob.glob(os.path.join(root, "static", "js", "*.js"))):
         rel = os.path.relpath(p, root).replace(os.sep, "/")
-        if rel in ALLOW:
+        if rel in ALLOW and rel not in HEAD:
             continue
+        pat = pat_of(rel)
         with open(p, encoding="utf-8", errors="replace") as f:
-            n = sum(len(PAT.findall(code_part(ln))) for ln in f)
+            n = sum(len(pat.findall(code_part(ln))) for ln in f)
         if n:
             out[rel] = n
     return out
@@ -62,7 +76,7 @@ def counts(root=ROOT):
 def places(root, rel):
     """[(line number, text)] of the places in one file (for the message)."""
     with open(os.path.join(root, rel), encoding="utf-8", errors="replace") as f:
-        return [(i, ln.strip()[:120]) for i, ln in enumerate(f, 1) if PAT.search(code_part(ln))]
+        return [(i, ln.strip()[:120]) for i, ln in enumerate(f, 1) if pat_of(rel).search(code_part(ln))]
 
 
 def main(argv):
@@ -83,7 +97,8 @@ def main(argv):
     err = []
     for rel, n in sorted(have.items()):
         if n > base.get(rel, 0):
-            err.append(f"{rel}: {n} place(s) of moActive / mseOn / mbcol / data-key^=ms:, {base.get(rel, 0)} allowed - {HELP}")
+            what = "mseOn / .mosec / mseHeadHtml / mseMenu at a section's head" if rel in HEAD else "moActive / mseOn / mbcol / data-key^=ms:"
+            err.append(f"{rel}: {n} place(s) of {what}, {base.get(rel, 0)} allowed - {HELP if rel not in HEAD else HEAD_HELP}")
             err += [f"  {rel}:{i}: {t}" for i, t in places(root, rel)]
     fewer = {rel: n for rel, n in base.items() if have.get(rel, 0) < n}
     if "--update" in argv and not err:

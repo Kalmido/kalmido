@@ -434,7 +434,57 @@ function plPut(ids, w) {
   if (w.row) return dgBlock(ids, w.row, w.after);
   return dgToSection(ids, w.sid ? S.sections.find(s => s.id === w.sid)?.list_id ?? lid : lid, w.sid);
 }
-DROP_ADAPTERS.push({name: 'list', on: () => !(typeof moActive === 'function' && moActive()), where: plWhere, put: plPut});
+// ---- (#7519): the section side of the adapters - one head for every group that is a section (a project's section, an own
+// section of My tasks). What a section can comes from its adapter (sec), render.js draws the head from it and sh_menu is its
+// one menu (the same order and texts everywhere); renaming, moving and deleting go through the adapter's saving:
+//   of(g) -> the section of a group (null = not one of this adapter; a project's group without section = {id: null})
+//   byId(id), label(s), drag(s) (the head drags: grip, no Move up / down on a touch screen), add(s, v, ro) (its "+"),
+//   menu(s, ro) (its "…"), grip(s) / chip(g) (html), pos(s) -> [i, n], rename(s, name), move(s, d), del(s), extra(s, anchor)
+//   head(h) / fold(s): an adapter that keeps the folding itself (My tasks: on the server for every device)
+const sh_ad = name => DROP_ADAPTERS.find(a => a.name === (name || 'list') && a.sec);
+function sh_of(g) { for (const a of DROP_ADAPTERS) { const s = a.sec?.of(g); if (s) return {a, s}; } return null; }
+// the head's parts: {grip, chip, add, menu} (html, add a boolean)
+function sh_head(g, v, ro) {
+  const x = sh_of(g); if (!x) return {grip: '', chip: '', add: false, menu: ''};
+  const {a, s} = x, c = a.sec;
+  return {grip: s.id && !ro && c.drag(s) ? c.grip(s) : '', chip: c.chip ? c.chip(g) : '', add: !!c.add(s, v, ro),
+    menu: s.id && c.menu(s, ro) ? `<button data-rowmenu="ghead" class="iconbtn gact" data-act="section-menu" data-sk="${esc(a.name)}" data-id="${esc(s.id)}" title="${esc(tr('More') + ': ' + g.name)}" aria-label="${esc(tr('More') + ': ' + g.name)}">${ic('dots', 's')}</button>` : ''};
+}
+// the one menu of a section's head (the "…", a long press, the hold of a head); head = items on top (the head's "+")
+// a board's column (.khead) moves left / right, a list's head up / down
+function sh_menu(anchor, name, id, head = []) {
+  const a = sh_ad(name), s = a?.sec.byId(id); if (!s) return;
+  const c = a.sec, [i, n] = c.pos(s), x = !!anchor?.closest?.('.khead, .kcol'), mv = !(isTouch() && c.drag(s));
+  menu(anchor, [...head,
+    {label: tr('Rename'), icon: 'edit', fn: () => sh_rename(a, s)},
+    ...(mv && i > 0 ? [{label: x ? tr('Move left') : tr('Move up'), icon: x ? 'left' : 'up', fn: () => c.move(s, -1)}] : []),
+    ...(mv && i >= 0 && i < n - 1 ? [{label: x ? tr('Move right') : tr('Move down'), icon: x ? 'right' : 'down', fn: () => c.move(s, 1)}] : []),
+    ...c.extra(s, anchor),
+    '-',
+    {label: tr('Delete section (tasks stay)'), icon: 'trash', cls: 'flag-5', fn: () => c.del(s)},
+  ]);
+}
+// folding a section's head: the group folds as every group (events.js collapse); an adapter that keeps it (fold) saves it
+document.addEventListener('click', e => {
+  const h = e.target.closest?.('#view .ghead[data-key]');
+  if (!h || e.target.closest('.gact, .shandle')) return;
+  for (const a of DROP_ADAPTERS) { const s = a.sec?.fold && a.sec.head(h); if (s) { a.sec.fold(s); return; } }
+}, true);
+async function sh_rename(a, s) {
+  const old = a.sec.label(s), n = (await askPrompt(tr('Rename section'), old, {ok: tr('Rename'), input: {max: 200}}))?.trim();
+  if (n && n !== old) await a.sec.rename(s, n);
+}
+// a project's sections (S.sections; the sections API, dnd.js sectionRename / moveSection / sectionDelete)
+const plSec = {
+  of: g => g.section === undefined ? null : g.section ? S.sections.find(x => x.id === g.section) || {id: g.section, name: g.name} : {id: null, name: g.name},
+  byId: id => S.sections.find(x => x.id === id), label: s => s.name,
+  drag: () => true, add: (s, v, ro) => !ro && !!v?.list && canAddTo(v.list), menu: (s, ro) => !ro,
+  grip: s => secHandle(s.id), chip: g => g.section ? wip_ghead(g) : '',
+  pos: s => { const ids = secIds(s.list_id); return [ids.indexOf(s.id), ids.length]; },
+  rename: (s, n) => sectionRename(s.id, n), move: (s, d) => moveSection(s.id, d), del: s => sectionDelete(s.id),
+  extra: (s, anchor) => [wip_menuItem(s.id) /* 2.60.0 (#1510) */, dw_menuItem(s.id) /* 2.410.0 B (#3515) */, sk_menuItem(s.id, anchor) /* 2.577.0 (#3354) */],
+};
+DROP_ADAPTERS.push({name: 'list', on: () => !(typeof moActive === 'function' && moActive()), where: plWhere, put: plPut, sec: plSec});
 
 // ---- dragging (desktop); dnd.js asks dgOver on every dragover and dgDrop on the drop
 const dgZone = (row, y) => { const r = row.getBoundingClientRect(), f = r.height > 0 ? (y - r.top) / r.height : .5; return f < .28 ? 'before' : f > .72 ? 'after' : 'onto'; };

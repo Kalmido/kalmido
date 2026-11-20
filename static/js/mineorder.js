@@ -141,7 +141,23 @@ async function moPut(ids, w) {
     if (!dtToast(msg, dt)) offerUndo(msg, e);  // (#6436): "Don't adopt"; the Undo of the whole step stays in the history
   });
 }
-if (typeof DROP_ADAPTERS !== 'undefined') DROP_ADAPTERS.push({name: 'mine', on: moActive, where: moWhere, put: (ids, w) => w.fresh ? mseMoveToNew(ids) : moPut(ids, w)});
+// (#7519): the section side of this adapter (dragmulti.js sh_head / sh_menu): an own section (not "Recently assigned") has the
+// "…" with Rename, Move up / down, Rules… and Delete; no "+" and no grip yet (#7512 / #7518 are this adapter's next abilities)
+const mseSec = {
+  of: g => g.mosec || null, byId: id => mseList().find(x => x.id === id), label: s => mseName(s),
+  drag: () => false, add: () => false, menu: s => s.kind !== 'recent',
+  pos: s => { const own = mseList().filter(x => x.kind !== 'recent'); return [own.indexOf(s), own.length]; },
+  rename: (s, n) => mseRename(s, n), move: (s, d) => mseMove(s, d), del: s => mseDelete(s),
+  extra: () => mseOn() ? [{label: tr('Rules…'), icon: 'zap', fn: () => mr_open()}] : [],  // 2.823.0 (#4773): the own rules (minerules.js)
+  // folding: the server keeps it for every device (sh_fold, dragmulti.js)
+  head: h => h.dataset.key?.startsWith('ms:') ? mseList().find(x => x.id === +h.dataset.key.slice(3)) || null : null,
+  fold: s => {
+    const v = s.collapsed = !s.collapsed;
+    mseFoldP.set(s.id, v);
+    api('PATCH', `/api/mine-sections/${s.id}`, {collapsed: v}).catch(() => {}).finally(() => { if (mseFoldP.get(s.id) === v) mseFoldP.delete(s.id); });
+  },
+};
+if (typeof DROP_ADAPTERS !== 'undefined') DROP_ADAPTERS.push({name: 'mine', on: moActive, where: moWhere, put: (ids, w) => w.fresh ? mseMoveToNew(ids) : moPut(ids, w), sec: mseSec});
 // (#7354, step 2 of the drop core): the board of My tasks as an adapter - a column, and a card (before / after it; its middle stays
 // "make subtasks", before the core) mean what the column means (date / priority / list) for one task and for a selection alike
 // (mineboard.js mb_drop / mb_dropMany: one step with Undo). Was: a selection onto a card was put into the project's order
@@ -289,8 +305,7 @@ function mseGroups(arr) {
   if (by.get(null)?.length) out.push({id: 'ms:none', name: '', tasks: by.get(null)});
   return out;
 }
-// render.js: the "…" of an own section in its head; the button "New section" under the last one
-const mseHeadHtml = g => g.mosec && g.mosec.kind !== 'recent' ? `<button data-rowmenu="mosec" type="button" class="iconbtn gact" data-mse-menu="${g.mosec.id}" title="${esc(tr('More') + ': ' + g.name)}" aria-label="${esc(tr('More') + ': ' + g.name)}">${ic('dots', 's')}</button>` : '';
+// render.js: the button "New section" under the last one (the head of a section: dragmulti.js sh_head, #7519)
 const mseAddHtml = () => mseOn() ? `<button type="button" class="linkbtn msenew" data-mse-add="1" data-dropnew="1">${ic('plus', 's')}<span>${esc(tr('New section'))}</span></button>` : '';
 // (#6962): tasks (ids, in this order) into own section sid - before / after targetId, else on top of it (where its first
 // task stands; an empty one = at the end). "Move to section…" of the task menu and of the multi panel; (#7344): the
@@ -329,9 +344,8 @@ async function mseCall(method, url, b) {
   try { const j = await api(method, url, b); if (j?.mine_sections) S.mineSecs = {...mseKeepFold(j.mine_sections), ...(OUT.q.some(e => e.url === '/api/tasks/mine-order') ? {tasks: S.mineSecs.tasks} : {})}; if (j?.order_kept) toast(tr('The sections were changed on another device: that order stays.')); render(); return j; }
   catch (e) { if (e?.status === 409 || e?.status === 404) { await load(); render(); } return null; }  // api() showed the reason; the current state instead of an old one
 }
-async function mseRename(s) {
-  const old = mseName(s), n = (await askPrompt(tr('Rename section'), old, {ok: tr('Rename'), input: {max: 200}}))?.trim();
-  if (!n || n === old) return;
+async function mseRename(s, n) {  // (#7519): the name asked by the core (dragmulti.js sh_rename)
+  const old = mseName(s);
   const j = await mseCall('PATCH', `/api/mine-sections/${s.id}`, {name: n, expect_updated_at: s.updated_at});
   if (j?.section) toast(tr('Section renamed'), () => mseCall('PATCH', `/api/mine-sections/${s.id}`, {name: old, expect_updated_at: j.section.updated_at}));
 }
@@ -349,29 +363,10 @@ async function mseAdd() {
   const n = (await askPrompt(tr('New section'), '', {ok: tr('Create'), input: {placeholder: tr('Name'), max: 200}}))?.trim();
   if (n) await mseCall('POST', '/api/mine-sections', {name: n});
 }
-function mseMenu(anchor, sid) {
-  const s = mseList().find(x => x.id === sid); if (!s) return;
-  const own = mseList().filter(x => x.kind !== 'recent'), i = own.indexOf(s);
-  menu(anchor, [
-    {label: tr('Rename'), icon: 'edit', fn: () => mseRename(s)},
-    ...(i > 0 ? [{label: tr('Move up'), icon: 'up', fn: () => mseMove(s, -1)}] : []),
-    ...(i < own.length - 1 ? [{label: tr('Move down'), icon: 'down', fn: () => mseMove(s, 1)}] : []),
-    '-',
-    {label: tr('Delete section (tasks stay)'), icon: 'trash', cls: 'flag-5', fn: () => mseDelete(s)},
-  ]);
-}
 document.addEventListener('click', e => {
-  const m = e.target.closest?.('#view [data-mse-menu]'), a = !m && e.target.closest?.('#view [data-mse-add]');
-  if (m || a) { e.preventDefault(); e.stopPropagation(); if (m) mseMenu(m, +m.dataset.mseMenu); else mseAdd(); return; }
-  const h = e.target.closest?.('#view .ghead[data-key^="ms:"]');  // folding: the server keeps it for every device (events.js toggles it here)
-  if (!h || e.target.closest('.gact, .shandle') || h.dataset.key === 'ms:none') return;
-  const s = mseList().find(x => x.id === +h.dataset.key.slice(3)); if (!s) return;
-  const v = s.collapsed = !s.collapsed;
-  mseFoldP.set(s.id, v);
-  api('PATCH', `/api/mine-sections/${s.id}`, {collapsed: v}).catch(() => {}).finally(() => { if (mseFoldP.get(s.id) === v) mseFoldP.delete(s.id); });
+  const a = e.target.closest?.('#view [data-mse-add]');
+  if (a) { e.preventDefault(); e.stopPropagation(); mseAdd(); }
 }, true);
-// 2.695.0 (#4619): a long press (phone) / right click (computer) on a row opens what its "…" opens (multisel.js lm_btnMenu)
-if (typeof lm_btnMenu === 'function') lm_btnMenu('#view .ghead.mosec', '[data-mse-menu]');  // the head of an own section of My tasks
 
 // ---- 2.823.0 (#4773): the person's own rules (kalmido/tasks/minerules.py; the dialog: minerules.js, module minerules). The
 // server decides and moves; the app only says which tasks "My tasks" shows (no hidden projects) when they change, at most every

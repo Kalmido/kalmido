@@ -7,6 +7,8 @@
 // - dragging onto a section head or a row of it, a new section ("New section"), renaming, folding (kept on the server)
 // - deleting a section: its tasks fall into the topmost section; after deleting Now nothing moves any more
 // - the list's own order and sections stay untouched
+// - (#7519) one head for both: an own section and a project's section show the same basic menu items (Rename, Move up,
+//   Move down, Delete) in the same order, the extras come from the adapter (Rules… / WIP limit…)
 // Firefox 320 x 640 (touch): the section heads, their "…" and "New section" inside the screen, no sideways scrolling.
 // freelancer-matrix: tasks - frida has no organisation.
 const path = require('path');
@@ -49,7 +51,7 @@ const click = (w, el) => el.dispatchEvent(new w.MouseEvent('click', {bubbles: tr
   check(inSec(/Recently assigned/, TB) && inSec(/Recently assigned/, TC), '(3) tasks without a place stand in "Recently assigned"');
   // 2.823.0 (#4773): Now gets them through the person's first own rule (server, one answer later): waited for
   check(await until(() => inSec(/\bNow\b/, TA) && inSec(/\bNow\b/, TE)), '(7) overdue tasks in Now by themselves');
-  check(!head(/Recently assigned/).querySelector('[data-mse-menu]') && head(/Soon/).querySelector('[data-mse-menu]'), '"Recently assigned" has no "…", own sections have one');
+  check(!head(/Recently assigned/).querySelector('[data-act="section-menu"]') && head(/Soon/).querySelector('[data-act="section-menu"]'), '"Recently assigned" has no "…", own sections have one');
   check(d.querySelector(`#view .trow[data-id="${TB}"] .mosub`), '(4) the origin "List › Section" stays');
 
   // drag onto a head, onto a row
@@ -71,7 +73,7 @@ const click = (w, el) => el.dispatchEvent(new w.MouseEvent('click', {bubbles: tr
   click(w, d.querySelector('#view [data-mse-add]'));
   check(await until(() => head(/Errands/) && heads().at(-1) === head(/Errands/)), 'a new section at the end');
   w.prompt = () => 'This week';
-  click(w, head(/Soon/).querySelector('[data-mse-menu]'));
+  click(w, head(/Soon/).querySelector('[data-act="section-menu"]'));
   await until(() => d.querySelector('#pop [role="menuitem"]'));
   const mi = txt => [...d.querySelectorAll('#pop [role="menuitem"]')].find(b => b.textContent.trim() === txt);
   check(mi('Rename') && mi('Delete section (tasks stay)'), 'the "…" of a section: Rename, Delete');
@@ -84,13 +86,38 @@ const click = (w, el) => el.dispatchEvent(new w.MouseEvent('click', {bubbles: tr
   click(w, head(/This week/));
   await until(() => inSec(/This week/, TB));
 
+  // (#7519): one head, one menu - the same basic items in the same order at an own section and at a project's section
+  const BASE = ['Rename', 'Move up', 'Move down', 'Delete section (tasks stay)'];
+  const items = () => [...d.querySelectorAll('#pop [role="menuitem"]')].map(b => b.textContent.trim());
+  const base = xs => JSON.stringify(xs.filter(x => BASE.includes(x)));
+  click(w, head(/This week/).querySelector('[data-act="section-menu"]'));
+  await until(() => mi('Rename'));
+  const mineItems = items();
+  w.eval('closePop()');
+  const SMID = (await call(CF, 'POST', '/api/sections', {list_id: L, name: 'Doing'})).id;
+  await call(CF, 'POST', '/api/sections', {list_id: L, name: 'Later'});
+  await w.eval('load().then(render)');
+  w.eval(`go('l/${L}')`);
+  const pm = () => d.querySelector(`#view .ghead[data-section="${SMID}"] [data-act="section-menu"]`);
+  check(await until(() => pm()), '#7519: the project shows its middle section with its "…"');
+  click(w, pm());
+  await until(() => mi('Rename'));
+  const projItems = items();
+  w.eval('closePop()');
+  check(base(mineItems) === JSON.stringify(BASE) && base(projItems) === JSON.stringify(BASE),
+    `#7519: both heads show the same basic menu items in the same order - mine ${JSON.stringify(mineItems)}, project ${JSON.stringify(projItems)}`);
+  check(mineItems.at(-1) === BASE.at(-1) && projItems.at(-1) === BASE.at(-1) && mineItems.includes('Rules…') && projItems.some(x => /WIP limit/.test(x)),
+    '#7519: Delete last at both, the extras from the adapter (My tasks: Rules…, the project: WIP limit…)');
+  w.eval(`go('assigned')`);
+  check(await until(() => head(/This week/) && inSec(/This week/, TB)), '#7519: back in My tasks');
+
   // delete Someday: TA falls into the topmost section (Now)
-  click(w, head(/Someday/).querySelector('[data-mse-menu]'));
+  click(w, head(/Someday/).querySelector('[data-act="section-menu"]'));
   await until(() => mi('Delete section (tasks stay)'));
   click(w, mi('Delete section (tasks stay)'));
   check(await until(() => !head(/Someday/) && inSec(/\bNow\b/, TA)), 'deleted: its task in the topmost section');
   // TE: placed by the drag above (shown in Now), not by hand; delete Now -> no more moving, TE into the topmost left
-  click(w, head(/\bNow\b/).querySelector('[data-mse-menu]'));
+  click(w, head(/\bNow\b/).querySelector('[data-act="section-menu"]'));
   await until(() => mi('Delete section (tasks stay)'));
   click(w, mi('Delete section (tasks stay)'));
   check(await until(() => !head(/\bNow\b/) && heads().length), 'Now deleted');
@@ -142,7 +169,7 @@ const click = (w, el) => el.dispatchEvent(new w.MouseEvent('click', {bubbles: tr
     check(there, '320 px: the sections are there ' + await ev(`JSON.stringify({h: location.hash, k: S.route?.key, m: S.route?.mod, own: typeof moOwn === 'function' && moOwn(), secs: S.mineSecs?.list?.length, heads: [...document.querySelectorAll('#view .ghead')].map(x => x.dataset.key), add: !!document.querySelector('#view [data-mse-add]')})`).catch(e => String(e)));
     const box = await ev(`(() => { const b = e => { const x = e.getBoundingClientRect(); return {l: Math.round(x.left), r: Math.round(x.right)}; };
       return {vw: innerWidth, sw: document.documentElement.scrollWidth, heads: [...document.querySelectorAll('#view .ghead[data-key^="ms:"]')].map(b),
-        dots: [...document.querySelectorAll('#view [data-mse-menu]')].map(b), add: b(document.querySelector('#view [data-mse-add]'))}; })()`);
+        dots: [...document.querySelectorAll('#view [data-act="section-menu"]')].map(b), add: b(document.querySelector('#view [data-mse-add]'))}; })()`);
     check(box && box.sw <= box.vw + 1, '320 px: no sideways scrolling ' + JSON.stringify(box && [box.sw, box.vw]));
     check(box && box.heads.every(x => x.l >= 0 && x.r <= box.vw + 1) && box.dots.length >= 3 && box.dots.every(x => x.l >= 0 && x.r <= box.vw + 1), '320 px: the heads and their "…" inside the screen ' + JSON.stringify(box && box.dots));
     check(box && box.add.l >= 0 && box.add.r <= box.vw + 1, '320 px: "New section" inside the screen');
