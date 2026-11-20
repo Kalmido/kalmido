@@ -8,6 +8,7 @@ import urllib.request
 from cryptography.hazmat.primitives.asymmetric import ec
 from flask import g, jsonify, Response
 
+from .wsplace import WSP_KEYS, wsp_all, wsp_drop, wsp_still_running  # (#7309)
 from ..core.config import app, APP_NAME, PUBLIC_URL
 from ..core.schema import USER_DEFAULTS
 from ..core.i18n import LANGS, N_, tr
@@ -739,6 +740,7 @@ def settings_update():
         rs_done_sync(c, me(), usettings(c, me()).get("show_done_views"), vals["show_done_views"])  # 2.593.0 (#4590): one import for both
     if "show_progress" in vals:  # 2.757.0 (#4501): an own choice against a folder's "Show the progress bar" is marked
         rs_done_sync(c, me(), usettings(c, me()).get("show_progress"), vals["show_progress"], "show_progress")
+    sr = wsp_still_running(c, me(), vals) if any(k in vals for k in WSP_KEYS) else None  # (#7309 F8): read before the switch is stored
     for k, v in vals.items():
         uset(c, me(), k, v)
         if k == "dashboard" or k in LAYOUT_KEYS:  # 2.55.0 (#1069): the active saved arrangement follows
@@ -746,6 +748,10 @@ def settings_update():
             lyv_follow(c, me(), k, v)
     bump(c)
     c.commit()
+    if any(k in vals for k in WSP_KEYS):  # (#7309): the lists of the shared place fresh (no state load needed)
+        wsp_drop()
+        wsp, wsp_w = wsp_all(c, me())
+        return jsonify(ok=True, wsp=wsp, wsp_w=wsp_w, **({"still_running": sr} if sr else {}))
     return jsonify(ok=True)
 
 

@@ -272,7 +272,8 @@ check(OV in [x["id"] for x in Bo.get(B + "/api/trash/lists").json()["lists"]] an
 Er = sess("erin")
 Er.patch(B + "/api/settings", json={"workspace": "all"})
 r = Er.post(B + "/api/books", json={"name": "Erin book"})
-check(r.ok and dbx("SELECT org_id FROM books WHERE id=?", (r.json()["id"],))[0][0] is None, "several organisations, none chosen: a new address book is private " + r.text[:200])
+check(r.status_code == 400 and r.json().get("code") == "space_needed" and len(r.json().get("spaces") or []) >= 3,
+      "#7309: several organisations, none chosen: a new address book asks (400 space_needed; was: silently private) " + r.text[:200])
 Da.patch(B + "/api/settings", json={"workspace": "private"})
 r = Da.post(B + "/api/books", json={"name": "Dave private book"})
 check(r.ok and dbx("SELECT org_id FROM books WHERE id=?", (r.json()["id"],))[0][0] is None, "the switch on Private: a new address book is private " + r.text[:200])

@@ -50,6 +50,8 @@ from ..agents.core import agent_online, agent_usable  # 2.369.5 (#2517): pulled 
 from ..agents.usage import usage_block  # 2.369.5 (#2517): pulled up from functions
 from ..office.agentdocs import ofa_agent_on, ofa_area, ofa_area_agents, _doc_v1, ofa_agent_ok, OFA_OFF  # 2.369.5 (#2517): pulled up from functions
 from ..office.model import office_on, office_role, office_settings, pb_personal, TEXT_MAX, office_org  # 2.369.5 (#2517): pulled up from functions
+from ..office.model import office_obj_area  # (#7313)
+from ..accounts.orgs import user_orgs  # (#7313)
 from ..files.store import need_node  # 2.369.5 (#2517): pulled up from functions
 from ..docs import store as S  # 2.369.5 (#2517): pulled up from functions
 from ..agents.proposals import prop_agent_ok  # 2.369.5 (#2517): pulled up from functions
@@ -162,8 +164,7 @@ def ast_agents_get(c, uid, a):
     kind = a.get("kind")
     try:
         if kind == "office_text":
-            from ..office.model import office_org
-            r = _office_doc(c, uid, office_org(c, uid, area="offers"), a.get("doc_id"))[1]
+            r = _office_doc(c, uid, _doc_office(c, uid, a.get("doc_id")), a.get("doc_id"))[1]
             editable = not (r["locked_at"] or r["status"] == "sent")  # a finalised / sent document takes no text
             ags = ast_office_agents(c, uid, r["org_id"]) if r["kind"] in AST_DOC_KINDS and editable else []
         elif kind in ("doc_summary", "receipt_read"):  # 2.299.0 E (#3194): receipt_read with the receipts right
@@ -181,6 +182,12 @@ def ast_agents_get(c, uid, a):
 
 
 # ---------------------------------------------------------------- the inputs
+def _doc_office(c, uid, did):
+    """(#7313 F12): the office of document did (its own area, office/model.py office_obj_area), checked like every office
+    route (office_org); the shown or saved workspace does not decide (under "All" the list stayed empty)."""
+    return office_org(c, uid, area="offers", obj=office_obj_area(c, uid, user_orgs(c, uid), "office_docs", did))
+
+
 def _office_doc(c, uid, oid, did):
     if not oid or office_role(c, uid, oid) not in ("admin", "member") or not office_on(c, uid):
         raise Denied(403)
@@ -270,7 +277,7 @@ def ast_request(c, uid, b):
     oid = doc_id = None
     if kind == "office_text":
         _p_keys(b, "", (*common, "doc_id", "field"))
-        oid, r = _office_doc(c, uid, office_org(c, uid, area="offers"), b.get("doc_id"))
+        oid, r = _office_doc(c, uid, _doc_office(c, uid, b.get("doc_id")), b.get("doc_id"))
         if r["kind"] not in AST_DOC_KINDS:
             raise BadInput(tr("Invalid value: {0}", "doc_id"))
         field = b.get("field") or "intro"

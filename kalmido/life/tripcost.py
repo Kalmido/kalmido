@@ -16,6 +16,7 @@ from ..core.pg import insert_id, write_lock
 from ..core.access import Denied, live_sql, otr_live, vis_sql
 from ..accounts.session import me
 from ..accounts.orgroles import office_allowed
+from ..accounts.modcards import mc_need_private_office  # (#7309 F7)
 from ..core.orgcrypt import oc_enc_fields
 from ..life.model import need_life
 from ..office.model import OFFICE_ADMIN_ONLY, office_gate, office_role, pb_owner, pb_personal
@@ -45,6 +46,8 @@ def ltc_office(c, uid, oid_list):
     office_gate(c)  # agents, kid accounts, the module office off: 403
     if g.get("auth_via") == "token":
         raise Denied(403, tr("Agents cannot use this endpoint"))
+    if not oid_list:
+        mc_need_private_office(c, uid)  # (#7309 F7): never into my own office while "Also private" is off
     oid = oid_list or pb_personal(c, uid)
     from ..office.rights import office_can, ofr_level, ofr_rights
     if office_role(c, uid, oid) == "admin":

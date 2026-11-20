@@ -158,10 +158,13 @@ async function ws_save(p, from) {
 }
 // (#7297): wsCur never falls back to "All" without a word: a state whose organisations no longer hold the saved one (the
 // person left or was removed) switches to "All workspaces" with a note and saves it (applyState calls this after every load)
-const WSG = {names: {}};
+const WSG = {names: {}, last: ''};
 function ws_gone() {
-  const v = S.settings?.workspace || 'all';
+  const v = S.settings?.workspace || 'all', prev = WSG.last;
   for (const w of S.me?.workspaces || []) WSG.names['org:' + w.id] = w.name;
+  WSG.last = v;
+  // (#7313 F16): the server resets the setting itself on leaving (office/model.py _ws_left): the shown one gone = the same note
+  if (S.booted && S.workspaces && v === 'all' && prev?.startsWith('org:') && !wsOrg(prev.slice(4)) && WSG.names[prev]) { toast(tr('You are no longer a member of {0}: all workspaces are shown', WSG.names[prev]), null, 9000); return; }
   if (!S.booted || !S.workspaces || !v.startsWith('org:') || wsOrg(v.slice(4))) return;  // the last organisation gone too (wsOn() off)
   const nm = WSG.names[v] || tr('Organisation');
   setTimeout(() => {
@@ -174,7 +177,7 @@ function ws_gone() {
 // only follows the filter (a list or private module not there -> the inbox, as before) and the caller then opens its target
 // o.local: (#7297) only shown, not saved (ws_save takes a failed switch back with it)
 async function wsSet(ws, o = {}) {
-  if (!wsOptions().includes(ws)) ws = 'all';
+  if (!wsOptions().includes(ws) && ws !== 'all') return;  // (#7313 F2): an unknown / gone workspace switches nothing (was: silently "All", and saved)
   const from = wsCur();
   if (WSV.ws === from) wsv_save(from);  // 2.397.0 (#3404)
   if (typeof vm_leave === 'function') vm_leave();  // 2.497.0 (#4048): the place of the view left: no route may follow (the page stays)
@@ -302,9 +305,20 @@ function wsMenu(anchor) {
 }
 // the default workspace of a new list: the shown one; with "All" the one of the folder's lists, else the first organisation
 // 2.364.0 D (#3033): proj = a new project: with "All" (and no folder rule) the workspace picked last for a new project, else Private
-// 2.1238.0 (#6161): the organisation a NEW calendar / address book goes into: wsDefaultOrg, but under "All workspaces" not
-// one the person may not add to (read-only, guest, accounting) - then Private (null)
-const wsNewOrg = () => { const o = wsDefaultOrg(); return o && wsCur() === 'all' && !canWrite('org:' + o) ? null : o; };
+// (#7309 F4): where a NEW entry of module mod (a FEATS key: 'events', 'contacts', 'files' ...) goes without a question - the
+// shared place of the server (accounts/wsplace.py, read through areas.js wsp_list): the workspace shown on top while mod is on
+// and writable for me there; under "All" the only such workspace. null = several (the dialog asks) or none - never the first
+// organisation, never quietly Private (replaces wsNewOrg / wsDefaultOrg for calendars, address books, contacts, uploads)
+function wsNewSpace(mod) {
+  if (!wsOn()) return 'private';
+  const w = wsp_list(mod, true), cur = wsCur();
+  if (cur !== 'all') return w.includes(cur) ? cur : null;
+  return w.length === 1 ? w[0] : null;
+}
+// may a new entry of mod be made where I look: the shown workspace lets me add it; under "All" one of them (the dialog asks which)
+const wsCanNew = mod => { if (!wsOn()) return wsp_list(mod, true).includes('private'); const w = wsp_list(mod, true), cur = wsCur(); return cur === 'all' ? w.length > 0 : w.includes(cur); };
+// (#1036): the default workspace of a new PROJECT / folder share (listmodal.js, foldershare.js; projects are no module
+// of wsp_list): the shown one; with "All" the one of the folder's lists, else the first organisation
 function wsDefaultOrg(folder = '', proj = false) {
   const cur = wsCur();
   if (cur === 'private') return null;
@@ -336,16 +350,25 @@ function wsSelectHtml(id, cur, dis = '', wr = false) {
   if (!wsOn()) return '';
   return `<select id="${id}" ${dis}>${wsOptions().filter(w => w !== 'all' && (!wr || canWrite(w) || (cur ? 'org:' + cur : 'private') === w)).map(ws => `<option value="${ws === 'private' ? '' : ws.slice(4)}" ${(cur ? 'org:' + cur : 'private') === ws ? 'selected' : ''}>${esc(wsName(ws))}</option>`).join('')}</select>`;
 }
-// 2.30.0 (#1036): "New calendar / address book": the name and (with an organisation) its workspace -> {name, org_id} or null
-async function wsAskNew(title) {
-  let org = wsDefaultOrg();
-  if (org && !canWrite('org:' + org)) org = null;  // 2.1238.0 (#6161): not into a space the person only reads (the select offers only writable ones)
-  const p = askPrompt(title, '', {input: {max: 100, placeholder: tr('Name')}, ok: tr('Create'),
-    html: wsOn() ? `<label class="wsnew"><span>${esc(tr('Workspace'))}</span>${/*html-ok*/ wsSelectHtml('ws-new', org, '', true) /* options from esc() */}</label>` : ''});
-  const sel = $('#ws-new');
-  if (sel) sel.addEventListener('change', () => { org = sel.value ? +sel.value : null; });
-  const n = await p;
-  return n && n.trim() ? {name: n.trim(), org_id: org} : null;
+// (#1036): "New calendar / address book": the name and (with an organisation) its workspace -> {name, space} or null.
+// (#7309 F4): the workspaces are those where module mod is on and writable for me (wsp_list); one = that one, no question;
+// several = a required choice (the shown one preselected while mod is on there, under "All" nothing preselected)
+async function wsAskNew(title, mod) {
+  const w = wsOn() ? wsp_list(mod, true) : ['private'];
+  if (!w.length) { toast(tr('This module is switched off for you in every workspace you may add to.')); return null; }
+  let sp = w.length === 1 ? w[0] : wsNewSpace(mod);
+  const pick = w.length > 1;
+  const html = !pick ? (wsOn() && sp !== wsCur() ? `<p class="muted wsnew">${esc(tr('Workspace: {0}', wsName(sp)))}</p>` : '') : `<label class="wsnew"><span>${esc(tr('Workspace'))}</span><select id="ws-new" required aria-required="true">${sp ? '' : `<option value="" selected>${esc(tr('Select the workspace…'))}</option>`}${w.map(ws => `<option value="${esc(ws)}" ${ws === sp ? 'selected' : ''}>${esc(wsName(ws))}</option>`).join('')}</select></label>`;
+  const n = await askPrompt(title, '', {input: {max: 100, placeholder: tr('Name')}, ok: tr('Create'), html,
+    // Create waits for the choice (the empty first entry says what is missing)
+    after: md => { const s = $('#ws-new', md), y = $('[data-cd="yes"]', md); if (!s || !y) return; const upd = () => { y.disabled = !s.value; }; s.addEventListener('change', upd); upd(); },
+    submit: v => {
+      if (!pick || !String(v || '').trim()) return true;
+      sp = $('#ws-new')?.value || null;
+      if (!sp) { toast(tr('Select the workspace…')); return false; }
+      return true;
+    }});
+  return n && n.trim() && sp ? {name: n.trim(), space: sp} : null;
 }
 // the menu "Workspace" of an own calendar / address book: Private | <organisations>, the current one ticked; fn(org_id)
 function wsMoveMenu(anchor, cur, fn) {

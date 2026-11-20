@@ -89,7 +89,7 @@ const ofcTax = k => { const t = OFC.info?.pack?.tax; const pct = t ? t[k] : null
 
 // ---- loading
 async function ofcInfo(force) {
-  if (OFC.infoLoading || OFC.pbWait) return;  // 2.47.3 (#1360): not while the new workspace is being saved
+  if (OFC.infoLoading) return;  // (#7313): no wait for the saved workspace any more (every request names its area)
   if (OFC.info && !force) return;
   OFC.infoLoading = true;
   const ws = OFC.ws;  // 2.80.0 (#1842): an answer for the workspace before a switch is dropped and read again
@@ -123,6 +123,25 @@ function ofcAreaHint() {
 // switched off per workspace too, areas.js wsa_wsOn / mc_wsOn); 2.1398.0 (#6722): the shared core areas.js mod_spaces
 const ofc_spaces = () => mod_spaces('office');
 const ofc_sp = () => { const sp = ofc_spOpen(); return sp && ofc_spaces().includes(sp) ? sp : ''; };  // the open area under "All" ('' = none / not mine)
+// (#7313): an address #office/s/<area> whose area is not mine or whose office is off for me: a note with the offices that are on
+const ofc_wspBad = () => wsOn() && wsCur() === 'all' && !!S.route?.wsp && !ofc_sp();
+// (#7313 F13): a link to an object without an area (#office/offers/<id> from a chat, a mail, another page) under "All" with
+// several offices: its office is asked once (the server answers in the object's own office and names it, header
+// X-Kalmido-Office-Area) and the address gets the area (#office/s/<area>/<tab>/<id>); unknown / failed = the overview
+const OFC_OBJ = {asked: new Set()};
+const OFC_OBJ_URL = {offers: 'docs', invoices: 'docs', letters: 'letters'};
+function ofc_objGo() {
+  const r = S.route, u = OFC_OBJ_URL[r?.tab];
+  if (!u || !r.id || r.wsp || !wsOn() || wsCur() !== 'all' || ofc_spaces().length < 2) return false;
+  const k = r.tab + '/' + r.id; if (OFC_OBJ.asked.has(k)) return false;
+  OFC_OBJ.asked.add(k);
+  fetch(`/api/office/${u}/${r.id}`, {headers: {'X-Requested-With': 'kalmido'}}).then(res => res.ok ? res.headers.get('X-Kalmido-Office-Area') : '', () => '').then(ws => {
+    if (S.route?.mod !== 'office' || S.route.id !== r.id || S.route.tab !== r.tab) return;
+    if (ws && ofc_spaces().includes(ws)) location.replace(`#office/s/${ws}/${r.tab}/${r.id}`);
+    else ofcDraw();
+  });
+  return true;
+}
 const ofc_allOvr = () => wsOn() && wsCur() === 'all' && ofc_spaces().length > 1 && !ofc_sp();
 const ofc_allUpHtml = () => ofc_sp() && ofc_spaces().length > 1 ? `<a href="#office" class="linkbtn ofcallup" data-ofcall="up">${esc(tr('All workspaces'))}</a><span class="abcsep" aria-hidden="true">/</span>` : '';  // 2.1392.0 (#6717): not for the only office under "All" (no overview)
 const ofc_wsKey = () => (typeof wsCur === 'function' ? wsCur() : '') + (ofc_sp() ? '>' + ofc_sp() : '');  // OFC.ws: the shown office (a workspace, or "All" + an area)
@@ -147,9 +166,12 @@ async function ofcLoad(kind, force) {
   if (OFC.data[kind] && !force) return;
   OFC.loading[kind] = true;
   ++OFC.seq;
-  try { const j = await api('GET', `/api/office/${kind}?archived=1`); OFC.data[kind] = j.items || []; }
-  catch (x) { OFC.data[kind] = {error: ofcErrHere(x)}; }
+  const wk = ofc_wsKey();  // (#7313 F15): an answer of the office shown before a switch is dropped (the new one loads on drawing)
+  let v;
+  try { const j = await api('GET', `/api/office/${kind}?archived=1`); v = j.items || []; }
+  catch (x) { v = {error: ofcErrHere(x)}; }
   OFC.loading[kind] = false;
+  if (wk === ofc_wsKey()) OFC.data[kind] = v;
   ofcDraw();
 }
 function ofcDraw() { if ($('#s-biz')) biz_paint(); if (S.route.mod !== 'office') return; const el = $('#view'); if (el) keepFocus(el, () => ofcPaint(el)); ost_markBack(); wso_sync(); /* 2.1254.0 (#6180): the page's organisation after a load */ }
@@ -217,10 +239,12 @@ function viewOffice() {
   if (OFC.tab !== tab) { OFC.tab = tab; OFC.q = ''; }  // the search belongs to one tab
   if (tab === 'start' && ofm_menuOff(S.route.tab)) setTimeout(() => { if (ofm_menuOff(S.route.tab)) location.replace('#office/start'); }, 0);  // 2.440.0 (#3609)
   pb_wsFollow();
+  if (ofc_wspBad()) return `<div class="dash office">${noAccessState({sub: tr('The office is off for you in this workspace.'), action: ofc_spaces().length ? `<div class="eacts ofcnoarea">${ofc_spaces().map(w => `<a class="btn sm" href="#office/s/${esc(w)}">${/*html-ok*/ wsIcon(w)}<span>${esc(wsName(w))}</span></a>`).join('')}</div>` : ''})}</div>`;  // (#7313): route.wsp not mine / office off there
+  if (ofc_objGo()) return loadingHtml('big');  // (#7313 F13)
   if (ofc_allOvr()) return `<div class="dash office ofcall">${spo_html(sp => 'office/s/' + sp, ofc_spaces().map(w => [w, wsName(w), wsIcon(w)]))}</div>`;  // 2.543.0 (#4606); 2.577.0 (#4638): the area's own address
   if (!OFC.info && !OFC.infoErr && !OFC.infoLoading) setTimeout(ofcInfo, 0);
   // 2.87.9 (#1917): no tab row any more -- the office menu (areas.js ofm_menuHtml, via mg_wrap) leads to every tab
-  if (OFC.info) ofm_admSeen(OFC.info.role === 'admin', OFC.info.rights, OFC.info.used, OFC.info.settings?.menu_off);  // 2.276.0 A (#3039): + used; 2.440.0 (#3609): + the points switched off
+  if (OFC.info) ofm_admSeen(OFC.info.role === 'admin', OFC.info.rights, OFC.info.used, OFC.info.settings?.menu_off, OFC.info.features);  // (#3039): + used; (#3609): + the points switched off
   if (OFC.info && !OFC.infoErr && S.route.tab === 'settings' && tab === 'settings') ofc_setJump();
   let body;
   if (OFC.infoErr) body = errorState({sub: OFC.infoErr, retry: () => { OFC.infoErr = null; ofcDraw(); }, action: ofc_noAreaBtns(OFC.infoErr)});  // (#7297): + the workspaces  // (#5450): the reason + "Try again" (viewOffice loads the info again)
@@ -281,7 +305,7 @@ async function ofsu_hide(b) {
 // so the office is read for the new workspace only once the server knows it; a switch on another device is caught here.
 function pb_reset(nav) {
   OFC.info = null; OFC.infoErr = null; OFC.data = {};
-  if (typeof OFD !== 'undefined') { OFD.list = null; OFD.doc = null; OFD.docId = null; OFD.log = null; OFD.flt = {client_id: '', project: '', year: ''}; }  // 2.351.0 F (#3312, review N7): + the filters (clients / projects of the other office)
+  if (typeof OFD !== 'undefined') { OFD.list = null; OFD.doc = null; OFD.docId = null; OFD.log = null; OFD.err = '';  /* (#7313 F15): the old office's error goes too */ OFD.flt = {client_id: '', project: '', year: ''}; }  // (#3312, review N7): + the filters (clients / projects of the other office)
   if (typeof OIM !== 'undefined') { OIM.list = null; OIM.runs = null; OIM.clients = null; }  // 2.80.0 (#1836): runs, counter and clients of the new workspace
   if (nav && S.route.mod === 'office' && S.route.id) setTimeout(() => go('office/' + (S.route.tab || 'offers')), 0);  // a document of the other area
 }
@@ -291,8 +315,9 @@ function pb_wsFollow() {
   if (OFC.ws !== undefined && OFC.ws !== ws) pb_reset();
   OFC.ws = ws;
 }
+// (#7313): the office no longer waits for the save (OFC.pbWait gone): each office request names the area it shows (core.js
+// ofc_spCur), so the new office loads at once; after the save what failed meanwhile loads again
 function pb_wsChanged(saving) {
-  OFC.pbWait = !!saving;
   if (saving) { pb_reset(true); OFC.ws = ofc_wsKey(); return; }
   // 2.1437.0 (#7297 d): what failed meanwhile (the office's settings, the documents' list) loads again instead of keeping its error
   OFC.infoErr = null;
@@ -1036,7 +1061,7 @@ function biz_paint() {
   const box = $('#s-biz'); if (!box) return;
   pb_wsFollow();
   if (OFC.infoErr) { const b = ofc_noAreaBtns(OFC.infoErr); box.innerHTML = `<p class="muted">${esc(OFC.infoErr)}</p>${/*html-ok*/ b ? `<div class="eacts ofcnoarea">${/*html-ok*/ b}</div>` : ''}`; return; }  // (#7297): + the workspaces
-  if (!OFC.info) { if (!OFC.infoLoading && !OFC.pbWait) setTimeout(ofcInfo, 0); box.innerHTML = loadingHtml('row'); return; }
+  if (!OFC.info) { if (!OFC.infoLoading) setTimeout(ofcInfo, 0); box.innerHTML = loadingHtml('row'); return; }
   const rights = typeof orr_html === 'function' && OFC.info.rights;  // 2.470.0 (#3596): members too, their "My rights" (was a tab of the old page)
   // 2.470.0 (#3596): the areas are put in order before the drawing: setHtml keeps input being typed, and a field moved afterwards would lose the focus
   const t = document.createElement('template');

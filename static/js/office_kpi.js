@@ -63,13 +63,17 @@ function kp_html() {
 }
 
 // the start page block "Figures" (dashboard.js): only for the admins of the office (a 403 hides it), loaded once per visit
-const KPT = {data: undefined, loading: false, at: 0};
+// (#7313 F15): per office area (core.js ofc_spCur): figures of another office are dropped, an answer that arrives after a switch
+// too; a failed read is asked again after the minute like the figures (was never)
+const KPT = {data: undefined, loading: false, at: 0, sp: null};
 function kp_tile(card) {
   if (typeof ofcFeat === 'function' && !ofcFeat('money.kpi')) return '';  // 2.380 F (#3411): Figures switched off
-  if (KPT.data === undefined || (KPT.data && Date.now() - KPT.at > 60000 && !KPT.loading)) {  // fresh after a minute
+  const sp = typeof ofc_spCur === 'function' ? ofc_spCur() : '';
+  if (KPT.sp !== sp) { KPT.sp = sp; KPT.data = undefined; KPT.at = 0; }
+  if (KPT.data === undefined || (Date.now() - KPT.at > 60000 && !KPT.loading)) {  // fresh after a minute
     if (!KPT.loading) {
       KPT.loading = true;
-      rawFetch('GET', '/api/office/kpi').then(j => { KPT.data = j; KPT.at = Date.now(); }, () => { KPT.data = null; }).finally(() => { KPT.loading = false; if (S.route.mod === 'home') renderView(); else if (S.route.mod === 'office' && ofcTab() === 'start') ofcDraw(); });  // 2.87.9 (#1917): the office start page
+      rawFetch('GET', '/api/office/kpi', undefined, undefined, sp).then(j => { if (KPT.sp === sp) { KPT.data = j; KPT.at = Date.now(); } }, () => { if (KPT.sp === sp) { KPT.data = null; KPT.at = Date.now(); } }).finally(() => { KPT.loading = false; if (S.route.mod === 'home') renderView(); else if (S.route.mod === 'office' && ofcTab() === 'start') ofcDraw(); });  // (#1917): the office start page
     }
   }
   const row = (label, v, extra = '') => `<li><span class="muted">${esc(label)}</span><span class="spacer"></span><b class="rksum ${extra}">${v}</b></li>`;

@@ -12,14 +12,14 @@ function cl_iconPickHtml(cur) {
   const old = cur && !cur.startsWith('ic:') ? `<button type="button" class="avopt on" data-clico="${esc(cur)}" aria-pressed="true" aria-label="${esc(cur)}"><span class="semo" aria-hidden="true">${esc(cur)}</span></button>` : '';
   return `<input type="hidden" id="cl-icon" value="${esc(cur)}"><div class="lipick clico" role="group" aria-labelledby="cl-icon-l"><button type="button" class="avopt none ${cur ? '' : 'on'}" data-clico="" aria-pressed="${!cur}" title="${esc(tr('No icon'))}" aria-label="${esc(tr('No icon'))}">${ic('ban', 's')}</button>${old}${CL_ICONS.map(k => `<button type="button" class="avopt ${cur === 'ic:' + k ? 'on' : ''}" data-clico="ic:${k}" aria-pressed="${cur === 'ic:' + k}" aria-label="${k}">${ic(k)}</button>`).join('')}</div>`;
 }
-// (#7298): the workspace of a new client under "All workspaces" (else the workspace on top decides, server
-// ws_chosen_org): the area the office shows (ofc_sp), else the only workspace where Clients is on for me and I may add
-// (areas.js mod_spaces, the rule of the list under "All"); several -> {choose} = a required field in the dialog. Never
-// silently a workspace whose list hides the client (the server refuses that too, team/clients.py cl_ws_default)
+// (#7298): the workspace of a new client. (#7309): the choice is the shared place's (areas.js wsp_list: where Clients is on
+// for me and I may add, the server's own list): under "All" the area the office shows (ofc_sp), else the only one;
+// several -> {choose} = a required field in the dialog; a chosen workspace on top is named as it is while it is in the list
+// (else the choice too). The server never guesses (400 space_needed, wsp_post asks then)
 function cl_newWs() {
-  if (typeof wsOn !== 'function' || !wsOn() || wsCur() !== 'all') return {};
-  const sps = mod_spaces('office', 'clients').filter(canWrite);
-  const open = S.route?.mod === 'office' && typeof ofc_sp === 'function' ? ofc_sp() : '';
+  if (typeof wsOn !== 'function' || !wsOn()) return {};
+  const sps = wsp_list('clients', true), cur = wsCur();
+  const open = cur === 'all' && S.route?.mod === 'office' && typeof ofc_sp === 'function' ? ofc_sp() : cur !== 'all' ? cur : '';
   const ws = open && sps.includes(open) ? open : sps.length === 1 ? sps[0] : '';
   return ws ? {ws} : sps.length > 1 ? {choose: sps} : {};
 }
@@ -130,8 +130,8 @@ function clientModal(c, o = {}) {  // 2.80.0 (#1842): o.org_id (the office's are
       let r, gone = false;
       // 2.576.0 (#4794): a change through objsave.js (only the fields that differ from the client as opened, with
       // expect_updated_at; saved elsewhere meanwhile -> the merge bar, never overwritten)
-      const send = async () => { if (!c) return rawFetch('POST', '/api/clients', body); await loadModule('objsave'); objSess(`/api/clients/${c.id}`, c.updated_at); return (await objSaveForm(md, `/api/clients/${c.id}`, c, body)) || c; };  // 2.747.0 (#5246): objSess = the undo session of this save
-      try { r = await send(); }
+      const send = async () => { if (!c) return wsp_post('/api/clients', body, {quiet: true}); /* (#7309): space_needed -> the choice */ await loadModule('objsave'); objSess(`/api/clients/${c.id}`, c.updated_at); return (await objSaveForm(md, `/api/clients/${c.id}`, c, body)) || c; };  // (#5246): objSess = the undo session of this save
+      try { r = await send(); if (r === null) return; }  // (#7309): the choice of the workspace cancelled - the dialog stays
       catch (x) {
         // 2.81.0 (#1852): a linked contact was deleted elsewhere -> drop that link, save once more, tell the person
         if (x.data?.code !== 'contact_gone' || !body.contacts.some(k => k.contact_id === x.data.contact_id)) throw x;

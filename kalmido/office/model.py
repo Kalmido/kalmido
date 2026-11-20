@@ -15,6 +15,7 @@ from datetime import date
 from flask import g, has_request_context, jsonify, request
 
 from ..core.config import app  # (#7297): OfficeNoArea's answer
+from ..core import objhooks  # (#7313 F16): _ws_left
 from ..core.i18n import LANGS, N_, tr
 from ..core.pg import DatabaseError, insert_id, like_escape, qi, table_columns, system_ctx, write_lock
 from ..core.db import db, iso, local_now, now_utc, usettings
@@ -30,6 +31,9 @@ from ..core.db import iso_ms  # 2.269.0 C (#3017)
 from ..notify.alerts import aa_now  # 2.312.0 C (#3265)
 from ..core.pg import write_lock  # 2.269.0 C (#3017)
 from ..accounts.orgroles import office_allowed  # 2.369.5 (#2517): pulled up from functions
+from ..accounts.orgroles import org_role_key  # (#7313): office_cands
+from ..accounts.modcards import mod_ws_on  # (#7313): office_cands
+from ..accounts import onboarding as _onb  # (#7313): ind_area asks office_pick (OFFICE_PICK)
 from ..accounts.orgs import org_role, user_orgs, instance_mode, workspaces_for  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.supportgrant import sga_scope_check  # 2.538.0 (#4365)
 from .packs import PACK_FEATURES  # 2.369.5 (#2517): pulled up from functions
@@ -225,7 +229,7 @@ def office_gate(c):
     return u["id"]
 
 
-def office_org(c, uid, admin=False, area=None):
+def office_org(c, uid, admin=False, area=None, obj=None):
     """The office area uid works in (its id, the org_id of every office_* row): the organisation of the setting "workspace"
     (org:<id>, a membership); 2.47.3 (#1360): the workspace "private", no organisation at all or the mode shared -> the
     person's own personal office (pb_personal, the person is its admin); "all" with exactly one organisation -> that one
@@ -234,7 +238,7 @@ def office_org(c, uid, admin=False, area=None):
     (area: given by a caller outside /api/office) instead of the admin role; everybody else exactly as before.
     2.538.0 (#4365): a write of a support session into the office of an organisation that is not the person's own office and
     has no support access of its own answers 403 code support_session (sga_scope_check); reading stays."""
-    oid, role = office_where(c, uid)
+    oid, role = office_where(c, uid, obj)  # (#7313) obj: the area of the object the caller works on (office_obj_area)
     if oid and has_request_context() and request.method not in ("GET", "HEAD", "OPTIONS"):
         sga_scope_check(c, oid)  # 2.538.0 (#4365): a support session writes into no office of a foreign organisation without its own grant
     def feat(oid):  # 2.380 F (#3411): a point of Money switched off answers 404 (its data stays). 2.666.0 (#4074 13): only after
@@ -269,51 +273,172 @@ OFFICE_SPACE_HDR = "X-Kalmido-Office-Space"
 OFFICE_SPACE_ARG = "_osp"
 
 
-def office_space(orgs, ws):
-    """2.577.0 (#4638): the workspace an office request works in: the setting ws, or -- only while it is "All workspaces"
-    ("" / all) -- the header's area: "private" or "org:<id>" of one of the person's own organisations orgs (exactly what the
-    setting workspace may hold, so the header can do nothing the setting cannot). Another value = 400 instead of silently
-    some other office (a change meant for an organisation the person left never lands elsewhere). Agents and API tokens:
-    no header (as before, their own setting).
-    (#7297): the header wins under a chosen workspace too -- the app names the office's area with EVERY office
-    request (core.js ofc_spHdr), so a setting the server never got (a failed PATCH, the split view's right half that sends
-    none, miniwin.js MW_GUARD) or one another tab changed meanwhile cannot open another office or "Choose a workspace".
-    Checked the same way: only "private" or one of the person's own organisations, anything else stays refused."""
+def office_named(orgs):
+    """(#7313 F1): the office area the request names itself: the header X-Kalmido-Office-Space or ?_osp= (links,
+    window.open: no header; the header wins) -- "private" or "org:<id>" of one of the person's own organisations orgs (exactly
+    what the setting workspace may hold, so the header can do nothing the setting cannot); "" = none named. Another value =
+    400 (OfficeNoArea) instead of silently some other office (a change meant for an organisation the person left never lands
+    elsewhere). Agents and API tokens name none (their setting decides, office_where)."""
     if not has_request_context() or g.get("auth_via") == "token":
-        return ws
+        return ""
     u = getattr(g, "user", None)
     if u is not None and "kind" in u.keys() and u["kind"] == "agent":
-        return ws
-    # 2.577.0 (#4638, review): a download link / window.open / image cannot carry a header: the same area as the query
-    # parameter _osp (core.js ofc_spUrl), checked exactly the same way; the header wins
+        return ""
     sp = (request.headers.get(OFFICE_SPACE_HDR) or request.args.get(OFFICE_SPACE_ARG) or "").strip()
     if not sp:
-        return ws
+        return ""
     m = re.fullmatch(r"org:(\d{1,9})", sp)
     if sp == "private" or (m and int(m.group(1)) in orgs):
         return sp
     raise OfficeNoArea()
 
 
-def office_where(c, uid):
-    """2.187.0 (#2476): (office area id, uid's role there) -- the first half of office_org without the role checks.
-    (#4638): under "All workspaces" the request's own area (office_space); (#7297): under any workspace."""
-    orgs = user_orgs(c, uid)
-    ws = office_space(orgs, (usettings(c, uid).get("workspace") or "").strip())
+def office_space(orgs, ws):
+    """(#4638): the workspace an office request works in: the area the request names (office_named; #7297 / #7313:
+    under any workspace -- the app names it with EVERY office request, core.js ofc_spHdr), else the setting ws."""
+    return office_named(orgs) or ws
+
+
+# (#7313): the office routes that carry an object's number: without a named area they work in the object's own office
+OFFICE_OBJ_PATHS = (("docs", "office_docs"), ("letters", "office_letters"))
+_OFFICE_OBJ_RE = re.compile(r"^/api/office/(%s)/(\d{1,12})(?:/|$)" % "|".join(p for p, _t in OFFICE_OBJ_PATHS))
+
+
+def office_obj_area(c, uid, orgs, table, rid):
+    """(#7313): the office area of row rid of office table (office_docs, office_letters): only one of the person's own areas
+    (an organisation of orgs, their own personal office); None = no such row / not theirs. Whether the person may see the
+    object decides the route as before."""
+    try:
+        rid = int(rid)
+    except (TypeError, ValueError):
+        return None
+    with system_ctx(c):  # only the area's number
+        r = c.execute(f"SELECT org_id FROM {qi(table, dict(OFFICE_OBJ_PATHS).values())} WHERE id=?", (rid,)).fetchone()
+    if not r or not r[0]:
+        return None
+    oid = int(r[0])
+    return oid if oid in orgs or oid == pb_personal(c, uid, create=False) else None
+
+
+def _office_obj(c, uid, orgs):
+    """(#7313): the office area of the object a request without a named area works on (GET /api/office/docs/<id> ...)."""
+    if not has_request_context():
+        return None
+    m = _OFFICE_OBJ_RE.match(request.path)
+    return office_obj_area(c, uid, orgs, dict(OFFICE_OBJ_PATHS)[m.group(1)], m.group(2)) if m else None
+
+
+def pb_used(c, uid):
+    """(#7313): does uid's personal office hold data -- documents, master data, receipts' purchases, bank, cash book or
+    private clients (not the trash)? The same question as accounts/orgs.py _office_keep_on_join (2.356.0 B, #2932): an
+    office opened once and left empty is no office to choose between."""
+    with system_ctx(c):  # the person's own area
+        pid = c.execute("SELECT id FROM orgs WHERE personal_of=?", (uid,)).fetchone()
+        if not pid:
+            return False
+        return bool(c.execute(f"SELECT 1 FROM office_docs WHERE org_id=? AND {live_sql()} UNION ALL SELECT 1 FROM office_services WHERE org_id=? AND {live_sql()} "
+                              f"UNION ALL SELECT 1 FROM office_purchases WHERE org_id=? AND doc_id IN (SELECT id FROM office_docs WHERE {live_sql()}) "
+                              "UNION ALL SELECT 1 FROM office_bank_tx WHERE org_id=? "
+                              "UNION ALL SELECT 1 FROM office_cash_entries WHERE org_id=? "
+                              "UNION ALL SELECT 1 FROM clients WHERE org_id IS NULL AND created_by=? LIMIT 1", (pid[0],) * 5 + (uid,)).fetchone())
+
+
+def office_cands(c, uid, orgs=None):
+    """(#7313 F17, #7309 F9): the office areas that are on for person uid, in the order of the workspaces: their own office
+    (once it holds data) unless "Also private" is off, then each organisation whose office is on for them (its area, my module switches, the
+    module card: accounts/modcards.py mod_ws_on, the twin of areas.js mod_spaces('office')) and where they are no guest.
+    None = the own (personal) office."""
+    orgs = user_orgs(c, uid) if orgs is None else orgs
+    # the own office counts once it holds data (pb_used, the rule of #2932): a person who never used it has one office to
+    # tell (their organisation's), as the API tokens' scripts had it before
+    out = [None] if mod_ws_on(c, uid, None, "office", OFFICE_FEAT) and pb_used(c, uid) else []
+    return out + [o for o in orgs if org_role_key(c, uid, o) not in (None, "guest") and mod_ws_on(c, uid, o, "office", OFFICE_FEAT)]
+
+
+def office_pick(c, uid, orgs, ws, named="", obj=None):
+    """(#7313): which office area a request works in -- (oid | None = the own personal office | 0 = none to tell).
+    1. the office of the object it works on (obj: the caller's office_obj_area; else _office_obj: a document, a letter by
+       its number) when it is one of the person's own areas -- a save sent late after a switch, a link without an area;
+    2. the area the request names (named: header / _osp, office_named; a foreign one = 400 before anything else);
+    3. the setting workspace (ws) as the default of callers that name nothing (API tokens, old clients): org:<id> of a
+       membership, or "private";
+    4. "All workspaces", an organisation the person left (#7313 F16) or an unknown value: the only office that is on for
+       the person (office_cands; decision #7297: "All" with one office on opens it) -- never a guess between
+       several, never an office that is off for them or where they are a guest (F17)."""
+    if orgs:  # the object's own office wins over a named one too: a save sent after a switch (office_letters.js ltSaveSoon)
+        ob = obj if obj is not None else _office_obj(c, uid, orgs)
+        if ob is not None:
+            return ob if ob in orgs else None
+    ws = named or ws
     m = re.fullmatch(r"org:(\d{1,9})", ws)
     if m and int(m.group(1)) in orgs:
-        oid = int(m.group(1))
-        role = org_role(c, uid, oid)
-    elif ws == "private" or not orgs:  # 2.47.3 (#1360): no silent fallback to the only organisation in "private"
-        oid, role = pb_personal(c, uid), "admin"
-    elif len(orgs) == 1:
-        oid = orgs[0]
-        role = org_role(c, uid, oid)
-    else:
-        raise OfficeNoArea()
+        return int(m.group(1))
+    if ws == "private" or not orgs:  # (#1360): no silent fallback to the only organisation in "private"
+        return None
+    cs = office_cands(c, uid, orgs)
+    if not cs:  # no office of an organisation on for them (a guest, switched off): their own, when it is on (made on first use)
+        return None if mod_ws_on(c, uid, None, "office", OFFICE_FEAT) else 0
+    return cs[0] if len(cs) == 1 else 0
+
+
+def office_pick_req(c, uid, orgs):
+    """(#7313): office_pick for uid's request as it stands (the area named, the setting) -- accounts/onboarding.py ind_area."""
+    return office_pick(c, uid, orgs, (usettings(c, uid).get("workspace") or "").strip(), office_named(orgs))
+
+
+_onb.OFFICE_PICK.append(office_pick_req)
+
+
+def office_where(c, uid, obj=None):
+    """(#2476): (office area id, uid's role there) -- the first half of office_org without the role checks.
+    (#7313): the object's own office, then the area the request names, then the setting as a default; under "All" only the one
+    office on for the person (office_pick); several = 400 OfficeNoArea (code office_no_area)."""
+    orgs = user_orgs(c, uid)
+    oid = office_pick(c, uid, orgs, (usettings(c, uid).get("workspace") or "").strip(), office_named(orgs), obj)
+    if oid is None:
+        _office_area_note(uid, "private")
+        return pb_personal(c, uid), "admin"
+    role = org_role(c, uid, oid) if oid else None
     if not oid or not role:
         raise OfficeNoArea()
+    _office_area_note(uid, "org:%d" % oid)
     return oid, role
+
+
+# (#7313 F13): the answer names the area of the office it came from (header X-Kalmido-Office-Area), so a link to an object
+# without an area (#office/offers/<id> from a chat or a mail) opens under "All workspaces" in its own office (office.js ofc_objGo)
+OFFICE_AREA_HDR = "X-Kalmido-Office-Area"
+
+
+def _office_area_note(uid, ws):
+    u = getattr(g, "user", None) if has_request_context() else None
+    if u is not None and int(u["id"]) == int(uid):  # only the person's own request
+        g.office_ws = ws
+
+
+@app.after_request
+def _office_area_hdr(resp):
+    ws = g.get("office_ws") if has_request_context() else None
+    if ws and request.path.startswith("/api/office/"):
+        resp.headers[OFFICE_AREA_HDR] = ws
+    return resp
+
+
+def _ws_left(c, uid, org, reason, heir=None, role=None):
+    """(#7313 F16): a person who leaves organisation org (or it retires: everybody) keeps no setting workspace "org:<org>"
+    -- it becomes "All workspaces" (the app says so too, workspace.js ws_gone); office_pick treats a stale one as "All"
+    meanwhile. core/objhooks.person_revoked (accounts/orgs.py, orginvite.py, agents/admin.py, orgretain.py)."""
+    if reason not in ("leave", "retire") or not org:
+        return {}
+    with system_ctx(c):  # another person's setting row (the organisation retires); only this one value
+        if uid:
+            n = c.execute("UPDATE user_settings SET value='all' WHERE key='workspace' AND value=? AND user_id=?", ("org:%d" % int(org), int(uid))).rowcount
+        else:
+            n = c.execute("UPDATE user_settings SET value='all' WHERE key='workspace' AND value=?", ("org:%d" % int(org),)).rowcount
+    return {"workspace_reset": n} if n else {}
+
+
+objhooks.REVOKE.append(_ws_left)
 
 
 def office_ctx(admin=False):

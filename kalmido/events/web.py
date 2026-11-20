@@ -53,8 +53,8 @@ def op_cals(c, uid):
 
 
 def op_cal_new(c, uid, b):
-    _unknown(b, ("name", "color", "description", "org_id"))  # 2.30.0 (#1036): org_id = its workspace
-    cid = cal_create(c, uid, b)
+    _unknown(b, ("name", "color", "description", "org_id", "space"))  # (#1036): org_id = its workspace; (#7309): or space
+    cid = cal_create(c, uid, b, ask=True)  # (#7309): a person's request -> the shared place (400 space_needed to choose)
     bump(c)
     c.commit()
     return cal_public(c, c.execute("SELECT * FROM ev_cals WHERE id=?", (cid,)).fetchone(), uid)

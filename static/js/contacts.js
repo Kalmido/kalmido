@@ -27,7 +27,8 @@ const ctCardW = c => { const b = ctBook(c.book_id); return c.role ? canWrite({ro
 // may a new contact be made here: an address book I may write in the shown workspace, or the space lets me add (then
 // ct_ownBook asks first and creates my own book, 2.1174.0 #6122 - nothing quiet). A reader of the space (an organisation's
 // read-only role) gets no New, no Import; who only reads a book shared into his own Private keeps them (his own book)
-const ctCanNew = (bs = (S.books || []).filter(b => wsObjIn(b))) => bs.some(ctWrite) || canWrite(wsNewOrg() ? 'org:' + wsNewOrg() : 'private');
+// (#7309 F4): an address book counts only where Contacts is on for me (ctBookOn); else the shared place (wsCanNew 'contacts')
+const ctCanNew = (bs = (S.books || []).filter(ctBookOn)) => bs.some(ctWrite) || wsCanNew('contacts');
 // 2.53.0 (#1410): ctAv lives in ctlinks.js
 // 2.1177.0 (#6116): an error after api() is said there already (e.shown): no second toast; rawFetch's own error in plain words
 const ct_errToast = (x, what) => { if (x && !x.shown && x.message !== 'auth') toast(errText(x, what)); };
@@ -415,14 +416,17 @@ async function ctk_makeClient(c, b) {
   const after = async () => { await load().catch(() => {}); if (CT.card?.id === c.id) await ctOpen(c.id); if (typeof clReload === 'function') clReload(); };
   const make = async () => {
     let r;
-    try { r = await rawFetch('POST', '/api/clients', body); }
+    // (#7309): the shared place (areas.js wsp_post): Clients off / not writable in the book's workspace = the server asks where
+    try { r = await wsp_post('/api/clients', body, {quiet: true}); }
     catch (x) {  // the contact went away / its book no longer fits: the client without the link
       if (x.data?.code !== 'contact_gone') throw x;
-      body.contacts[0].contact_id = null; r = await rawFetch('POST', '/api/clients', body);
+      body.contacts[0].contact_id = null; r = await wsp_post('/api/clients', body, {quiet: true});
     }
+    if (!r) return null;  // the choice of the workspace was cancelled
     id = r.id; await after(); return r;
   };
   let r; try { r = await make(); } catch (x) { ct_errToast(x); return; }
+  if (!r) return;
   offerUndo(tr('Added: {0}', r.name), histAdd({label: tr('Create as client'), undo: async () => { await api('DELETE', `/api/clients/${id}`); await after(); }, redo: make}));
 }
 document.addEventListener('input', e => {
@@ -556,7 +560,7 @@ async function bk_barAct(k, el) {
   } else if (k === 'edit') bk_edit(ids);
   else if (k === 'merge') ctm_merge(ids);  // 2.66.0 A (#1835)
   else if (k === 'move') {
-    const books = (S.books || []).filter(b => ctWrite(b) && wsObjIn(b) && !b.imported);
+    const books = (S.books || []).filter(b => ctWrite(b) && ctBookOn(b) && !b.imported);  // (#7309 F4): never into a book whose list is hidden
     if (!books.length) { toast(tr('There is no address book you can change')); return; }  // 2.1292.0 (#6124): the sentence of dupprop.js
     menu(el, books.map(b => ({label: b.name, icon: 'folder', fn: () => bk_move(ids, b)})), null, null, tr('Move'));
   }
@@ -1015,7 +1019,7 @@ function ct_expGo(url) { location.href = url; }  // the server sends the file as
 // 2.1174.0 (#6123): the contacts' "…" menu has one "Import…" and one "Export…": with several address books of the shown
 // workspace the second level asks which one (Export then the format), with one it goes straight on (no line per book)
 function ct_ioItems() {
-  const bs = (S.books || []).filter(b => wsObjIn(b)), wr = bs.filter(ctWrite);
+  const bs = (S.books || []).filter(b => wsObjIn(b)), wr = bs.filter(b => ctWrite(b) && ctBookOn(b));  // (#7309 F4): import never into a book whose list is hidden
   return [wr.length > 1 ? {label: tr('Import…'), icon: 'upload', more: wr.map(b => ({label: b.name, icon: 'book', fn: () => ct_impFile(b.id)}))}
     : ctCanNew(bs) && {label: tr('Import…'), icon: 'upload', fn: () => { if (wr.length) ct_impFile(wr[0].id); else ct_ownBook().then(b => { if (b) ct_impFile(b.id); }); }},  // 2.1238.0 (#6161, Stufe 1): not for a reader
   bs.length && {label: tr('Export…'), icon: 'download', more: bs.length > 1 ? bs.map(b => ({label: b.name, icon: 'book', more: ct_fmtItems(b)})) : ct_fmtItems(bs[0])}];
@@ -1024,13 +1028,14 @@ function ct_ioItems() {
 // no address book of the shown workspace reads one sentence and creates an own one with the button, then it goes on
 async function ct_ownBook() {
   if (!await askConfirm(tr('You cannot add contacts to any address book here.'), tr('Create your own address book for your contacts; the others stay as they are.'), {ok: tr('Create your own address book')})) return null;
-  try { const bk = await api('POST', '/api/books', {name: tr('Contacts'), org_id: wsNewOrg() /* 2.1238.0 (#6161): never into a space read only */}); await load(); return bk; } catch { return null; }
+  // (#7309 F4): the shared place names the workspace (Contacts on and writable there); several = the server's 400 asks (wsp_post)
+  try { const sp = wsNewSpace('contacts'), bk = await wsp_post('/api/books', {name: tr('Contacts'), ...(sp ? {space: sp} : {})}); if (!bk) return null; await load(); return bk; } catch { return null; }
 }
 // 2.1174.0 (#6122, #6123): "Delete" of the card's menu, last: with the address book's own right (also through the book's folder,
 // S.books). The contact's own folder alone opens editing but never deleting (the server: need_contact own=True)
 const ct_delItem = c => ctWrite(ctBook(c.book_id)) ? ['-', {label: tr('Move to the trash') /* 2.1292.0 (#6124) */, icon: 'trash', cls: 'danger', fn: () => ct_delAsk(c)}] : [];
 function ctImport(bookId, kind, file) {  // 2.143.0 C (#2154): file = a .vcf shared from another app (no file picker); 2.633.0 (#4920): or the files of #ct-impfile
-  const books = (S.books || []).filter(b => ctWrite(b) && wsObjIn(b));
+  const books = (S.books || []).filter(b => ctWrite(b) && ctBookOn(b));  // (#7309 F4): of the shown workspace, Contacts on there
   const run = async bid => {
     const inp = document.createElement('input');
     inp.type = 'file'; inp.accept = kind === 'csv' ? '.csv,.txt,.tsv,text/csv,text/plain' : '.vcf,.vcard,.zip,text/vcard,text/x-vcard,application/zip';  // 2.119.1 A (#2080)
@@ -1040,7 +1045,7 @@ function ctImport(bookId, kind, file) {  // 2.143.0 C (#2154): file = a .vcf sha
       // 2.87.9 (#1940): where the contacts go, in words; from an organisation's book also into an own private book
       const b = (S.books || []).find(x => x.id === bid);
       const ph = {}, nr = {};  // 2.306.0 C (#2889): vCard files only (a CSV has no pictures); 2.1151.0 D (#4562): nr = cards without REV win
-      const to = await importTargetConfirm({what: tr('the contacts'), ws: wsOf(b), place: b?.name || '', privOk: true,
+      const to = await importTargetConfirm({what: tr('the contacts'), ws: wsOf(b), place: b?.name || '', privOk: wsp_list('contacts', true).includes('private') /* (#7309 F4): not into a hidden Private */,
         check: kind === 'csv' ? null : [{label: tr('Import contact photos too'), hint: tr('For photos that are only linked in the file, this server fetches the pictures from the internet.'), out: ph},
           {label: tr('Take over cards without a change date too'), hint: tr('A card without a change date (REV) then also overwrites a contact that was changed here.'), out: nr, off: true}]});
       if (!to) return;
@@ -1255,9 +1260,9 @@ async function ctBooksModal() {
     if (k === 'close') md.remove();
     if (k === 'phone') { md.remove(); settingsModal('caldav'); }
     if (k === 'new') {
-      const n = await wsAskNew(tr('New address book'));  // 2.30.0 (#1036): with its workspace
+      const n = await wsAskNew(tr('New address book'), 'contacts');  // (#1036): with its workspace; (#7309 F4): where Contacts is on for me
       if (!n) return;
-      try { await api('POST', '/api/books', n); } catch { return; }
+      try { if (!await wsp_post('/api/books', n)) return; } catch { return; }
       refresh();
     }
   });

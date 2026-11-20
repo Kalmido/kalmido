@@ -8,7 +8,6 @@ organisation role (office_allowed: guests nothing) and the level "view" of the a
 membership as GET /api/clients. A short list per kind (BS_LIMIT), ILIKE on the plain columns (no index, no migration).
 No routes of its own; the agents' API (fts_v1) never asks for it."""
 import json
-import re
 
 from flask import g, has_request_context, request
 
@@ -20,7 +19,7 @@ from ..core.access import live_sql, feat_has  # 2.1005.0 (#5415)
 from ..core.srchreg import srch_q, srch_register  # 2.1026.0 (#5280)
 from ..accounts.orgroles import office_allowed, user_orgs_full
 from ..accounts.orgs import user_orgs
-from .model import office_on, office_where, pb_cl_sql, pb_owner, pb_personal
+from .model import office_named, office_on, office_pick, pb_cl_sql, pb_owner, pb_personal
 from .rights import office_can
 
 BS_LIMIT = 5
@@ -47,13 +46,15 @@ def bs_office_oid(c, uid):
         return None
     # 2.250.0 (#2992 review): office_where would make the personal office on this read (pb_personal create=True); without
     # one there is nothing to find
-    orgs, ws = user_orgs(c, uid), (usettings(c, uid).get("workspace") or "").strip()
-    m = re.fullmatch(r"org:(\d{1,9})", ws)
-    if not (m and int(m.group(1)) in orgs) and (ws == "private" or not orgs) and pb_personal(c, uid, create=False) is None:
-        return None
+    # (#7313): the office the request names (the app names the shown office with the search, ftsearch.js), else the
+    # office routes' own rule (office_pick) -- no copy of it
     try:
-        oid, _role = office_where(c, uid)
+        orgs = user_orgs(c, uid)
+        oid = office_pick(c, uid, orgs, (usettings(c, uid).get("workspace") or "").strip(), office_named(orgs))
     except (BadInput, Denied):
+        return None
+    oid = pb_personal(c, uid, create=False) if oid is None else oid
+    if not oid:
         return None
     if office_allowed(c, uid, oid, write=False) or not office_can(c, uid, oid, "offers", "view"):
         return None

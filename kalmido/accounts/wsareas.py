@@ -121,7 +121,8 @@ def _in_req():
 
 def _req_org(c, uid, area):
     """The organisation a request works in: its explicit space ("org:<id>" / "private"; the knowledge pages also take the
-    bare id) first, else the setting workspace; None = Private / All / not a member."""
+    bare id) first, (#7309 F10) else the org_id a write's JSON body names (POST /api/clients {org_id}: the card's cap and
+    the switched-off areas count there), else the setting workspace; None = Private / All / not a member."""
     key = "ws" if request.path.startswith("/api/docs") else "space"  # the documents name their workspace "ws" (docs/web.py)
     sp = request.args.get(key)
     if sp is None and request.is_json:
@@ -129,6 +130,10 @@ def _req_org(c, uid, area):
         sp = b.get(key) if isinstance(b, dict) else None
     if sp is None and request.form:
         sp = request.form.get(key)
+    if sp is None and request.method not in ("GET", "HEAD") and request.is_json:  # (#7309 F10): the workspace a new entry names
+        b = request.get_json(silent=True)
+        v = b.get("org_id") if isinstance(b, dict) else None
+        sp = "org:%d" % v if isinstance(v, int) and not isinstance(v, bool) and v > 0 else None
     if isinstance(sp, int) and not isinstance(sp, bool):
         sp = str(sp)
     if area in ("wiki", "ablage") and isinstance(sp, str) and sp.isdigit():

@@ -105,6 +105,23 @@ const off = wss => ({ws_areas_off: JSON.stringify(Object.fromEntries(wss.map(w =
     check(await ready(ev, `/Kunde Nord/.test(${txt})`, 60), 'B: clients lists Nord');
     check(!await ev(`/Kunde Süd|Kunde Privat/.test(${txt})`), 'B: clients leaves out Private and Süd');
     await shot('p21398a-B-clients.png');
+    // (#7309): New client under "All" through the dialog (the API calls above name org_id and would never have caught it):
+    // one workspace with Clients (Nord) = no question, it lands there and the list one comes back to shows it
+    const newClient = async (name, ws) => {
+      await ev(`(document.querySelector('#view [data-act="client-new"]').click(), 1)`);
+      check(await ready(ev, `!!document.querySelector('.modal.cldlg #cl-name')`, 40), name + ': the New client dialog opens');
+      const opts = await ev(`JSON.stringify([...document.querySelectorAll('.modal.cldlg #cl-ws option')].map(o => o.value).filter(Boolean))`);
+      await ev(`(m => { const e = m.querySelector('#cl-name'); e.value = ${JSON.stringify(name)}; e.dispatchEvent(new Event('input', {bubbles: true}));
+        const s = m.querySelector('#cl-ws'); if (s && ${JSON.stringify(ws)}) { s.value = ${JSON.stringify(ws)}; s.dispatchEvent(new Event('change', {bubbles: true})); }
+        m.querySelector('[data-m="save"]').click(); return 1; })(document.querySelector('.modal.cldlg'))`);
+      check(await ready(ev, `!document.querySelector('.modal.cldlg')`, 60), name + ': saved, the dialog closes');
+      await go('clients');
+      check(await ready(ev, `${txt}.includes(${JSON.stringify(name)})`, 60), name + ': the clients list under All shows it');
+      const x = (await call(CA, 'GET', '/api/clients')).clients?.find(c => c.name === name);
+      return {opts: JSON.parse(opts), org: x ? x.org_id || null : 'missing'};
+    };
+    let nc = await newClient('Neukunde B', '');
+    check(nc.opts.length === 0 && nc.org === O1, 'B #7309: one workspace with Clients: no question, it lands in Nord: ' + JSON.stringify(nc));
     await go('contacts');
     check(await ready(ev, `/Kontakt Nord|Nord, Kontakt/.test(${txt})`, 60), 'B: contacts lists Nord');
     check(!await ev(`/Süd|Privat/.test([...document.querySelectorAll('#view .ctrow, #view [data-cid]')].map(e => e.textContent).join(' '))`), 'B: contacts leaves out Private and Süd');
@@ -121,6 +138,21 @@ const off = wss => ({ws_areas_off: JSON.stringify(Object.fromEntries(wss.map(w =
     check(await ready(ev, `!wk_open() && wk_all() && !!document.querySelector('#view [data-spov="${N}"], #view a[href="#wiki/s/${N}"]')`, 60), 'C: Back leads to the overview again');
     await go('wiki/s/org:' + O2);
     check(await ready(ev, `!wk_open()`, 20), 'C: the address of Süd leads to the overview (Knowledge off there)');
+    // (#7309): under "All" the dialogs offer only the workspaces where the module is on (Private + Nord, not Süd), required
+    await go('clients');
+    nc = await newClient('Neukunde C', 'private');
+    check(JSON.stringify(nc.opts) === JSON.stringify(['private', N]) && nc.org === null, 'C #7309: New client offers Private + Nord, not Süd; Private chosen lands there: ' + JSON.stringify(nc));
+    await ev(`(evCalsModal(), 1)`);
+    check(await ready(ev, `!!document.querySelector('[data-evc="new"]')`, 40), 'C #7309: the Calendars window opens');
+    await ev(`(document.querySelector('[data-evc="new"]').click(), 1)`);
+    check(await ready(ev, `!!document.querySelector('.cdlg #cdlg-in')`, 40), 'C #7309: New calendar asks for the name');
+    const copts = await ev(`JSON.stringify([...document.querySelectorAll('.cdlg #ws-new option')].map(o => o.value).filter(Boolean))`);
+    check(copts === JSON.stringify(['private', N]), 'C #7309: New calendar offers Private + Nord, not Süd: ' + copts);
+    await ev(`(m => { const e = m.querySelector('#cdlg-in'); e.value = 'Kalender C'; e.dispatchEvent(new Event('input', {bubbles: true}));
+      const s = m.querySelector('#ws-new'); s.value = ${JSON.stringify(N)}; s.dispatchEvent(new Event('change', {bubbles: true})); m.querySelector('[data-cd="yes"]').click(); return 1; })(document.querySelector('.cdlg'))`);
+    check(await ready(ev, `(S.evcals || []).some(c => c.name === 'Kalender C' && c.org_id === ${O1})`, 60), 'C #7309: the calendar lands in Nord');
+    check(await ready(ev, `[...document.querySelectorAll('.evcnm')].some(x => x.textContent === 'Kalender C')`, 40), 'C #7309: the Calendars window lists it');
+    await ev(`(document.querySelector('[data-evc="done"]')?.click(), 1)`);
 
     // ================= everything on again: the spaces and entries come back
     check(await patch(ev, {workspace: 'all', ws_areas_off: '{}', ws_mods_off: '{}'}) === 200, 'on again');
