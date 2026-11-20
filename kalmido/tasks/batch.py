@@ -362,8 +362,9 @@ def task_batch():
     unblock_events(c, finished)
     bump(c)
     c.commit()
+    # (#7351): + section_moved as the reorder answers it (#3354): a drag into a done column runs through patch_each now
     return jsonify(ok=True, count=done, errors=list(dict.fromkeys(errors)), undo=undo, conflicts=conflicts, skipped=skipped,
-                   now=iso_ms(now_utc()))
+                   now=iso_ms(now_utc()), **sk_answer(ids))
 
 
 @app.get("/api/occurrences")

@@ -38,9 +38,10 @@ const stub = w => { const calls = [], of = w.fetch; w.fetch = (u, o = {}) => { c
   w.eval(`dropTask(${X}, document.querySelector('#view .trow[data-id="${S}"]'), 0)`);
   const moved = await until(async () => { const t = await task(X); return t.parent_id === Q && t.list_id === L2 && t; });
   check(moved, '#4798: the drop made it a subtask in the other list on the server');
-  const ro = await until(() => calls.find(c => c[0] === 'POST' && c[1] === '/api/tasks/reorder' && c[2]?.items?.[0]?.id === X));
-  const prev = ro?.[2]?.items?.[0]?._prev || {};
-  check(prev.list_id === L1, '#4798: the reorder request\'s _prev has the list before the drop ' + JSON.stringify(prev));
+  // (#7351): the single drag runs through the drop core: one patch_each batch whose item carries _prev (was the reorder request)
+  const ro = await until(() => calls.find(c => c[0] === 'POST' && c[1] === '/api/tasks/batch' && c[2]?.data?.items?.[X]));
+  const prev = ro?.[2]?.data?.items?.[X]?._prev || {};
+  check(prev.list_id === L1, '#4798: the batch item\'s _prev has the list before the drop ' + JSON.stringify(prev));
   check(await undoToast(w, /Moved to Garden/), '#4798: the drop offers Undo ("Moved to Garden")');
   const back = await until(async () => { const t = await task(X); return !t.parent_id && t.list_id === L1 && t; });
   check(back, '#4798: Undo puts parent and list back on the server ' + JSON.stringify(await task(X).then(t => [t.parent_id, t.list_id])));
@@ -64,7 +65,7 @@ const stub = w => { const calls = [], of = w.fetch; w.fetch = (u, o = {}) => { c
   // the drop's own part (section, sort) remembers the task as it was before the drop - before the fix it had the new parent already
   const snap0 = w.eval(`(() => { const e = HIST.undo[HIST.undo.length - 1]; const ps = (e.parts || [e]).filter(p => p.pairs); const p = ps[ps.length - 1]; return p && p.pairs[0][0]; })()`);
   check(snap0 && snap0.id === Y && snap0.parent_id == null && snap0.section_id == null, '#4798: same list: the step\'s state before = no parent, no section ' + JSON.stringify(snap0 && [snap0.parent_id, snap0.section_id]));
-  check(await undoToast(w, /Beds/), '#4798: same list: the drop offers Undo (moved to the section)');
+  check(await undoToast(w, /subtask of “Water the plants”/), '#4798: same list: the drop offers Undo (now a subtask, #7351: the core\'s words)');
   const b2 = await until(async () => { const t = await task(Y); return !t.parent_id && !t.section_id && t; });
   check(b2, '#4798: same list: Undo puts parent and section back on the server ' + JSON.stringify(await task(Y).then(t => [t.parent_id, t.section_id])));
   await idle(w);

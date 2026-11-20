@@ -85,7 +85,7 @@ async function ml_drop(t, o) {
   else if (o.kcol) b.section_id = o.kcol.dataset.kcol ? +o.kcol.dataset.kcol : null;
   else if (o.row) { const g = o.row.closest('.group')?.querySelector('.ghead[data-section]'); if (g) b.section_id = g.dataset.section ? +g.dataset.section : null; }
   const tg = o.row && S.tasks.get(+o.row.dataset.id);
-  if (tg && tg.id !== t.id) b.sort = ml_sortOf(tg, v) + (dropAfter(o.row, o.y) ? 0.5 : -0.5);
+  if (tg && tg.id !== t.id) b.sort = ml_sortOf(tg, v) + ((o.after ?? dropAfter(o.row, o.y)) ? 0.5 : -0.5);  // (#7351): after = the drop core's half
   if (!Object.keys(b).length) return true;
   const prev = {section_id: a.section_id ?? null, sort: a.sort};
   try { await api('PATCH', `/api/tasks/${t.id}/links/${v}`, b).then(r => { if (r?.id) putTask(r); }); } catch { render(); return true; }
