@@ -9,6 +9,7 @@
 //   task's printable page (title, project, description, subtasks) that closes again, History leads to the task's history
 //   in the panel; the list row's context menu is the same read menu. In the folder's Share dialog she sees the people with
 //   their role as text: no share by address, no invitations, no role choice, no remove, no add; the owner keeps all of it.
+//   #6679: the dialog's head names the real owner (Alice) for the reader, "(me)" only for the owner herself.
 // - #6139: a refused write of the lists names what was not saved (a section, a task's move through the outbox), the server's
 //   text only in brackets; the open invitations and the folder's people: a failed load shows the error with "Try again"
 //   (not an empty list = "not shared"), "Try again" shows them; removing an invitation offers Undo, Undo brings it back
@@ -96,6 +97,8 @@ const hints = d => d.querySelectorAll('.cwro').length;  // the core's ONE read h
   check(fm && !fm.querySelector('#fsh-email') && !fm.querySelector('#fsh-open') && !fm.querySelector('[data-fprole], [data-rm], #fp-user, [data-m="add"]'),
     '#6136: no share by address, no invitations, no role choice / remove / add for who does not own it');
   check(fm && /Only your own projects can be shared/.test(txt(fm)), '#6136: ... and says why');
+  const heads = [...(fm?.querySelectorAll('#fsh-members .fshowner') || [])].map(txt);
+  check(heads.length === 1 && /Alice/.test(heads[0]) && !/Dora|\(me\)/.test(heads[0]), '#6679: the head names the real owner (Alice), not the reader as "(me) Owner": ' + JSON.stringify(heads));
   d.querySelectorAll('.modal').forEach(m => m.remove());
   w.close();
 
@@ -105,6 +108,8 @@ const hints = d => d.querySelectorAll('.cwro').length;  // the core's ONE read h
   w.eval(`S.peopleVis = 'contacts'; folderShareModal('Clients')`);
   const om = await until(() => d.querySelector(`.fshmodal #fsh-members [data-fprole="${UD.id}"]`) && d.querySelector('.fshmodal'));
   check(om && om.querySelector('#fsh-email') && om.querySelector('#fsh-open') && om.querySelector(`[data-rm="${UD.id}"]`), '#6136: the owner of the folder\'s projects manages its people (address, role, remove)');
+  const oh = [...(om?.querySelectorAll('#fsh-members .fshowner') || [])].map(txt);
+  check(oh.length === 1 && /Alice/.test(oh[0]) && /\(me\)/.test(oh[0]), '#6679: the owner sees herself as "(me) Owner": ' + JSON.stringify(oh));
   d.querySelectorAll('.modal').forEach(m => m.remove());
   // the owner's task menu stays the writing one
   w.eval(`openDetail(${T})`);
