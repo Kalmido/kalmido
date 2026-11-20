@@ -614,7 +614,7 @@ def wsp_clean_ws_colors(v):
 
 
 # 2.143.0 D (#2155): the keys of LOOK_KEYS (dialogs.js); the client decides what a value means, the server only bounds it
-LOOK_KEYS = ("theme", "density", "densitySide", "densityRows", "densSideV", "densRowsV", "fsize", "font", "accent", "pack", "headShow", "chatHuman", "chatAgent", "railLabels", "wkEd", "wkSt", "wkW", "ntW", "split", "splW", "splR", "splMin", "navArrows")  # 2.1040.0 (#5813); #7395: navArrows = Back / Forward in the header (a bool): splMin = split from window width (px)  # 2.742.0 (#4858): split view on / right width (rem) / right route  # 2.599.0 (#4808): wkW / ntW = the default page width of knowledge pages / notes  # 2.319.0 B (#3288); 2.350.0 B (#3147): wkEd = the knowledge editor; 2.371.3 (#3152): wkSt = the own reading style
+LOOK_KEYS = ("theme", "density", "densitySide", "densityRows", "densSideV", "densRowsV", "fsize", "font", "accent", "pack", "headShow", "chatHuman", "chatAgent", "railLabels", "wkEd", "wkSt", "wkW", "ntW", "split", "splW", "splR", "splMin", "navArrows")  # (#5813); #7395: navArrows = Back / Forward in the header (a bool): splMin = split from window width (px)  # (#4858): split view on / right width (rem) / right route  # (#4808): wkW / ntW = the default page width of knowledge pages / notes  # (#3288); (#3147): wkEd = the knowledge editor; (#3152): wkSt = the own reading style
 
 
 def clean_look_pref(v):
