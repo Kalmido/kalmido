@@ -10,6 +10,7 @@ from decimal import Decimal, InvalidOperation
 
 from flask import g, jsonify, request
 
+from ..accounts.wsplace import wsp_new, wsp_private_off  # (#7309)
 from ..core.config import app, ATT_DIR
 from ..core.coltype import ct_iso  # 2.1095.0 (#5306): a time column as the canonical text in SQL
 from ..core.db import body, bump, db, err, iso, iso_ms, now_utc, insert_id
@@ -439,14 +440,22 @@ def docs_list():
 
 @app.post("/api/docs")
 def docs_upload():
-    """Multipart files (field "files", several) -> documents in the workspace ws (form field: private | org:<id>).
+    """Multipart files (field "files", several) -> documents in the workspace ws (form field: private | org:<id>; #7309: or
+    space, decided by accounts/wsplace.py wsp_new).
     2.146.0 B (#2452 #2453): a file whose bytes are already a document of the workspace is not stored again (answer "dups":
     [{id, name}]); unzip=1 (the receipt upload) takes the PDFs / pictures out of a ZIP or a winmail.dat."""
     from ..admin.hosting import QuotaExceeded
     c = db()
     uid = me()
     _no_agent()
-    org, _ws = ws_param(c, request.form.get("ws"), uid)
+    # (#7309): the form field space ("private" | "org:<id>") asks the shared place (wsp_new: Documents on and writable there,
+    # else 400 space_needed); without ws / space the documents go to Private as always -- unless Documents is off for me in
+    # Private, then the shared place decides too (never where the list hides them). The office's own upload keeps its area
+    raw, area0 = request.form.get("ws"), request.form.get("area")
+    if request.form.get("space") or (not raw and area0 != "office" and wsp_private_off(c, uid, "docs")):
+        oid = wsp_new(c, uid, "docs", request.form.get("space") or None)
+        raw = f"org:{oid}" if oid else "private"
+    org, _ws = ws_param(c, raw, uid)
     files = request.files.getlist("files") or request.files.getlist("file")
     if not files:
         return err(tr("No file"))

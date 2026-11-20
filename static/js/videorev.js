@@ -425,7 +425,7 @@ async function vdr_move(st) {
   const req = (to, extra) => rawFetch('POST', `/api/videos/${rid}/move-space`, {to: smv_ws(to), ...extra});
   const places = async to => (S.lists || []).filter(l => !l.is_inbox && !l.archived && !l.e2e && (l.org_id || null) === (to || null) && canEditList(l.id))
     .map(l => ({id: l.id, label: lname(l)}));
-  const res = await smv_open({what: qn(r0.title), from, places, check: (to, place) => req(to, {dry: 1, place: place || null}),
+  const res = await smv_open({mod: 'videos', what: qn(r0.title), from, places, check: (to, place) => req(to, {dry: 1, place: place || null}),
     run: async (to, place) => { try { return await req(to, {place: place || null}); } catch (e) { toast(e.message); throw e; } }});
   if (!res || !res.ok) return;
   let mid = res.move_id;

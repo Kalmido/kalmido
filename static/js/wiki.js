@@ -1326,7 +1326,7 @@ async function wk_smvMove(p, folder) {
     return ps.map(x => { const rest = folder ? x.path.slice(cut) : wk_base(x.path); return {id: x.id, path: wkeClean(d ? d + '/' + rest : rest)}; });
   };
   let dest = '', lk = false;
-  const r = await smv_open({what, from: wk_smvOrg(from), places: to => wk_smvFolders(smv_ws(to)),
+  const r = await smv_open({mod: 'wiki', what, from: wk_smvOrg(from), places: to => wk_smvFolders(smv_ws(to)),
     check: async (to, d) => await locked(to) ? wkr_check(from, smv_ws(to), plan(d)) : req(to, d, true),
     run: async (to, d) => {
       try {

@@ -142,7 +142,7 @@ function ofm_adm() {
     rawFetch('GET', '/api/office/settings', undefined, undefined, sp === 'all' ? '' : sp).then(j => ofm_for(asked, () => {
       if (!j || ofm_ws() !== ws) return;
       const no = ofm_get('ofmNo'); if (no[ws]) { delete no[ws]; ofm_put('ofmNo', no); }  // #7387: the office answers me again
-      const seen = () => ofm_adm() + JSON.stringify([ofm_lv(), ofm_used(), ofm_offList()]), was = seen(); ofm_admSeen(j.role === 'admin', j.rights, j.used, j.settings?.menu_off);
+      const seen = () => ofm_adm() + JSON.stringify([ofm_lv(), ofm_used(), ofm_offList()]), was = seen(); ofm_admSeen(j.role === 'admin', j.rights, j.used, j.settings?.menu_off, j.features);
       if (was !== seen() && mg_areaOf(S.route.mod)?.[0] === 'office') { if (asked) sbb_officeSync(); else renderView(); }
     }), e => {
       // #7387: the office refuses me altogether (office groups without any right): no entry for it under "All" (ofm_allPanelHtml)
@@ -152,7 +152,8 @@ function ofm_adm() {
   }
   return !!ofm_get('ofmAdm')[ws];
 }
-function ofm_admSeen(adm, rights, used, menuOff = []) {
+function ofm_admSeen(adm, rights, used, menuOff = [], feats = null) {
+  if (feats) { const x = ofm_get('ofmFeat'); if (JSON.stringify(x[ofm_ws()] || null) !== JSON.stringify(feats)) { x[ofm_ws()] = feats; ofm_put('ofmFeat', x); } }  // (#7313 F14)
   const f = ofm_get('ofmOff'); if (JSON.stringify(f[ofm_ws()] || []) !== JSON.stringify(menuOff)) { f[ofm_ws()] = menuOff; ofm_put('ofmOff', f); }  // (#3609)
   const o = ofm_get('ofmAdm'); if (!!o[ofm_ws()] !== adm) { o[ofm_ws()] = adm; ofm_put('ofmAdm', o); }
   const u = ofm_get('ofmUsed'); if (used && JSON.stringify(u[ofm_ws()] || null) !== JSON.stringify(used)) { u[ofm_ws()] = used; ofm_put('ofmUsed', u); }  // (#3039)
@@ -197,7 +198,9 @@ function nav_pref(area) {
   const m = NAV.o[area] || {};
   return {order: Array.isArray(m.order) ? m.order : [], hidden: new Set(m.hidden || []), shown: new Set(m.shown || [])};
 }
-const nav_orgOff = (area, key) => { const w = area === 'office' ? ofm_area() : typeof wsCur === 'function' ? wsCur() : '';  // #7387: the office of the menu (under "All" its organisation)
+// #7387 / (#7313 F14): the organisation of what is shown: the office of the menu (ofm_area: also "All > Org" and the panel's
+// entry per office under "All"), the open space under "All" (#<view>/s/<space>), else the workspace on top
+const nav_orgOff = (area, key) => { const c = typeof wsCur === 'function' ? wsCur() : '', w = area === 'office' ? ofm_area() : c === 'all' ? S.route?.wsp || '' : c;
   return w.startsWith('org:') && (wsOrg(w.slice(4))?.nav_off || []).includes(area + ':' + key); };
 // hidden by the person: by hand; the parts hidden in the old sidebar settings
 // (sidebar "e:<part>", before 2.418.0) count as hidden too until shown again
@@ -252,7 +255,9 @@ const ofm_all = () => typeof OFC_TABS === 'undefined' ? OFM_ITEMS : [...OFM_ITEM
 const OFR_ORDER = ['pipeline', 'offers', 'invoices', 'gendocs', 'clients', 'contacts', 'contracts', 'receipts', 'cashflow', 'kpi', 'bank', 'cards', 'books', 'subs', 'travel', 'meals', 'equipment', 'agreements', 'settings'];
 const ofr_rank = i => { const n = OFR_ORDER.indexOf(i.key); return n < 0 ? OFR_ORDER.length : n; };
 // 2.147.0 (#2459): need = a function of the country pack ('books.…'); off in this office = no menu point (office.js ofcFeat)
-const ofm_need = i => !i.need || typeof ofcFeat !== 'function' || !ofm_info() || ofcFeat(i.need);  // #7387: another office's pack is not loaded (its points show)
+// (#7313 F14) / #7387: an office not loaded (another office's entry under "All", or before the office loads) reads the functions
+// of the last answer for that office area (LS ofmFeat, ofm_admSeen): a point of Money switched off there does not show
+const ofm_need = i => !i.need || (ofm_info() ? typeof ofcFeat !== 'function' || ofcFeat(i.need) : (ofm_get('ofmFeat')[ofm_ws()] || {})[i.need] !== false);
 // 2.440.0 (#3609): points the office switched off for everybody (office setting menu_off, Settings > Functions > Menu points):
 // not in the menu, the tiles or the search, a link opens the start page (office.js ofcTab); per workspace like the role (LS ofmOff)
 const ofm_offList = () => (ofm_info() ? ofm_info().settings?.menu_off : ofm_get('ofmOff')[ofm_ws()]) || [];
@@ -1264,10 +1269,64 @@ const mc_offIn = cur => mc_all().filter(f => cur === 'all' ? !wsa_spaces().some(
 // areaId = the area of WSA_AREAS (null for a module without one, e.g. the calendar), featKey = the module (FEATS key).
 // mod_spaces -> the workspaces in order (Private, organisations); one left = the module opens it directly (its colour, #6697).
 // featKey may be a list (on when one of them is on: a part of an area with several modules, wscolor.js wso_scope)
-const mod_spaces = (areaId, featKey = areaId) => { const fs = featKey == null ? [] : [].concat(featKey); return wsa_spaces().filter(w => (!areaId || wsa_wsOn(w, areaId)) && (!fs.length || fs.some(f => mc_wsOn(w, f)))); };
+// (#7309): the server answers it (accounts/wsplace.py, /api/state wsp / wsp_w, docs/dev/kern.md "Where does New go"); a key
+// the server has no list for (an area's own name: 'ablage', 'life') and an older server: the browser's own calculation
+const mod_spaces = (areaId, featKey = areaId) => {
+  const fs = featKey == null ? [] : [].concat(featKey), on = f => S.wsp && wsOn() && Array.isArray(S.wsp[f]) ? S.wsp[f] : wsa_spaces().filter(w => mc_wsOn(w, f));
+  const ok = fs.length ? new Set(fs.flatMap(on)) : null;
+  return wsa_spaces().filter(w => (!areaId || wsa_wsOn(w, areaId)) && (!ok || ok.has(w)));
+};
 // an entry of a mixed list (contacts, clients, events, time entries): hidden under "All" when its workspace has the module off.
 // o = an organisation's id, 'org:<id>', 'private' or an object with org_id (wscolor.js wso_ws); one workspace on top = shown
 const mod_entryOn = (o, areaId, featKey = areaId) => !wsOn() || wsCur() !== 'all' || mod_spaces(areaId, featKey).includes(wso_ws(o) || 'private');
+// ---- (#7309): the shared place of the server (accounts/wsplace.py). wsp_list(mod, write) = the workspaces module mod (a FEATS
+// key) is on in for me (write: and I may add there), Private first; read from /api/state (S.wsp / S.wsp_w), else the old
+// calculation (an older server). A new entry names its workspace (body field space); without one the server answers
+// 400 code space_needed with the choice (spaces [{ws, name}]): wsp_ask shows it, wsp_post sends, asks and sends again.
+const WSP_AREA = {office: 'office', contacts: 'office', clients: 'office', time: 'time', pomo: 'time', review: 'review', stats: 'review',
+  contracts: 'life', home: 'life', care: 'life', health: 'life', travel: 'life', family: 'life', budget: 'life', reading: 'reading',
+  feeds: 'reading', files: 'ablage', docs: 'ablage', wiki: 'wiki', sheets: 'sheets'};
+function wsp_list(mod, write = false) {
+  const m = write ? S.wsp_w : S.wsp;
+  if (m && Array.isArray(m[mod])) return m[mod];
+  if (!wsOn()) return ['private'];
+  const sps = mod_spaces(WSP_AREA[mod] || null, mod);
+  return write ? sps.filter(w => w === 'private' || canWrite(w)) : sps;
+}
+// a PATCH /api/settings answer with fresh lists (the module / area switches): taken at once; still_running = what keeps
+// running in my private office after "Also private" went off (named, nothing stopped)
+// the one writer of S.wsp / S.wsp_w (core.js applyState and the PATCH answer below)
+function wsp_state(j) { if (j?.wsp) { S.wsp = j.wsp; S.wsp_w = j.wsp_w || S.wsp_w; } }
+function wsp_take(r) {
+  if (!r || typeof r !== 'object' || !r.wsp) return;
+  wsp_state(r);
+  const xs = (r.still_running || []).filter(x => x && x.count > 0);
+  const nm = x => x.kind === 'invoice_series' ? trn('{0} invoice series', '{0} invoice series', x.count)
+    : x.kind === 'bank_reminder' ? tr('the reminder for bank bookings without a receipt') : x.kind === 'card_reminder' ? tr('the reminder for card payments without a receipt') : '';
+  const t = xs.map(nm).filter(Boolean);
+  if (t.length) toast(tr('Still running in your private office: {0}. Nothing was stopped; stop it in the office if you want.', t.join(', ')), null, 12000);
+}
+// the required choice of a 400 space_needed (err = the thrown error or its JSON): the workspace or null (cancelled)
+async function wsp_ask(err) {
+  const d = err?.data || err || {}, sps = (Array.isArray(d.spaces) ? d.spaces : []).filter(x => x && typeof x.ws === 'string');
+  if (!sps.length) { toast(err?.message || d.error || tr('unknown')); return null; }
+  if (sps.length === 1) return sps[0].ws;
+  let pick = '';
+  const ok = await askDialog({title: tr('Workspace'), ok: tr('Create'),
+    html: `<p>${esc(err?.message || d.error || '')}</p><div class="wspask" role="radiogroup" aria-label="${esc(tr('Workspace'))}">${sps.map(x => `<label class="chkl wspopt"><input type="radio" name="wsp-ask" value="${esc(x.ws)}">${/*html-ok*/ wsIcon(x.ws)}<span>${esc(x.name || wsName(x.ws))}</span></label>`).join('')}</div>`,
+    submit: () => { const r = document.querySelector('input[name="wsp-ask"]:checked'); if (!r) { toast(tr('Select the workspace…')); return false; } pick = r.value; return true; }});
+  return ok ? pick : null;
+}
+// POST a new entry; asks for the workspace when the server needs one (space_needed) and sends again with it. null = cancelled.
+// o.quiet: another error is only thrown (a dialog shows it itself), not said as a toast
+async function wsp_post(url, body = {}, o = {}) {
+  try { return await rawFetch('POST', url, body); } catch (e) {
+    if (e?.data?.code === 'space_needed') { const ws = await wsp_ask(e); return ws == null ? null : o.quiet ? rawFetch('POST', url, {...body, space: ws}) : api('POST', url, {...body, space: ws}); }
+    if (e instanceof Offline) return api('POST', url, body);
+    if (!o.quiet && e?.message !== 'auth' && !e?.shown) { toast(errText(e, apiWhat('POST', url, body))); e.shown = true; }
+    throw e;
+  }
+}
 // an area of the main switch that is on (some part) -- what Settings > Modules offers per workspace
 const wsa_mainOn = id => wsa_raw(() => mg_area(id) ? mg_on(id) : modOn(id));
 // Settings > Modules: one group per workspace with a switch per area (only with organisations: alone, Private = the main switches)
