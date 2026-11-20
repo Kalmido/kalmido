@@ -559,6 +559,17 @@ and e-mail, always), of a reached limit of new clients or of 200 changes of clie
 invoicing fields a person may not see (VAT ID, e-mail for invoices, buyer reference) show in the mark as "changed" only. An
 organisation import keeps a client's mark but not its issuer (issuers are not exported).
 
+**Finalise and send all checked** (#7249, follow-up of #6703; `office_docs.js` `ofd_issBatch`): with the invoice list filtered to
+*From invoice issuers* (or one issuer) a button lists the issuer's drafts. Ticked are only those without a mark; the others stay
+for one-by-one work and name why: a new client (`client_new`), client data not confirmed (the hold mark, also *another client
+with the same name or VAT ID*), reverse charge, any other flag of the issuer (`over_limit`, `vat_territory`), the issuer's
+payment statement (*issue as paid* needs a person's confirmation), *no sending* wished, something missing, a date in an earlier
+year, an e-invoice warning, no e-mail address, a trial document. The person ticks what was checked; per draft the office's own
+routes run one after the other (looked at again just before: `POST .../finalize` without a hold's confirmation, then
+`POST .../send` to the recipients the send dialog proposes with the server's subject and default text, DATEV as the dialog's
+default). The result names each: sent with its number, finalised but not sent (refused mail, terms missing) or skipped. No
+automation, no key finalises or sends, no new way of computing, booking or sending.
+
 **Paid at issue, the issuer's bank account** (2.1435, #6819; `office/docpay.py`): the payment block of an invoice is chosen when a
 person finalises it and frozen with the sender snapshot (`sender.pay`); PDF, GiroCode and e-invoice read it from there.
 - *Issue as paid* (finalise dialog, every invoice with an amount, only who may record payments: `403`; body

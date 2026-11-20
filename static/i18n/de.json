@@ -19751,5 +19751,21 @@
   "invoice series": "Rechnungsserien",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "Der Kunde dieses Dokuments ist nicht mehr in diesem Büro (in einen anderen Arbeitsbereich umgezogen). Wähle zuerst einen anderen Kunden.",
   "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Der Kunde der Vorlage-Rechnung ist nicht mehr in diesem Büro (in einen anderen Arbeitsbereich umgezogen). Wähle eine andere Vorlage-Rechnung und schalte die Serie wieder ein.",
-  "Width of the cell details": "Breite der Zell-Details"
+  "Width of the cell details": "Breite der Zell-Details",
+  "Finalise and send all checked": "Alle geprüften festschreiben und senden",
+  "No longer a draft": "Kein Entwurf mehr",
+  "New client: check it on its own": "Neuer Kunde: einzeln prüfen",
+  "Client data from the invoice issuer not confirmed yet": "Kundendaten vom Rechnungs-Aussteller noch nicht bestätigt",
+  "Reverse charge: check it on its own": "Umkehr der Steuerschuld: einzeln prüfen",
+  "Marked by the invoice issuer: check it on its own": "Vom Rechnungs-Aussteller markiert: einzeln prüfen",
+  "Payment statement of the invoice issuer: confirm it on its own": "Zahlungsangabe des Rechnungs-Ausstellers: einzeln bestätigen",
+  "The invoice issuer wished no sending": "Der Rechnungs-Aussteller wünscht keinen Versand",
+  "Something is missing before finalising": "Vor dem Festschreiben fehlt noch etwas",
+  "Dated in an earlier year: finalise it on its own": "Datum in einem früheren Jahr: einzeln festschreiben",
+  "No e-mail address for invoices": "Keine E-Mail-Adresse für Rechnungen",
+  "No drafts of invoice issuers": "Keine Entwürfe von Rechnungs-Ausstellern",
+  "Only drafts of invoice issuers without a mark. Each one you tick is finalised and sent as by hand; the others stay drafts for you to check one by one.": "Nur Entwürfe von Rechnungs-Ausstellern ohne Marke. Jeder angehakte wird festgeschrieben und gesendet wie von Hand; die anderen bleiben Entwürfe, die du einzeln prüfst.",
+  "{0} of {1} drafts can go": "{0} von {1} Entwürfen können raus",
+  "Finalise and send": "Festschreiben und senden",
+  "Finalised, not sent: {0}": "Festgeschrieben, nicht gesendet: {0}"
 }
