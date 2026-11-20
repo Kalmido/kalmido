@@ -168,6 +168,12 @@ TOK = r.json()["url"].split("/s/q/")[1] if r.ok else "x"
 p = requests.get(B + f"/s/q/{TOK}/pdf")
 check(p.status_code == 200 and b"AGBSEITE-ZWEI" in p.content, f"#3619: the approval link's PDF carries the terms ({p.status_code})")
 check(requests.get(B + f"/s/q/{TOK}/terms").content == AGB, "#3619: the link's own terms download stays")
+# #7416: the terms really are in the PDF: the page says so with the page they start on, and offers no terms button
+pg = requests.get(B + f"/s/q/{TOK}")
+sa = re.search(r'<p class="sigagb">(.*?)</p>', pg.text, re.S)
+check(pg.ok and sa and "01.10.2026" in sa.group(1) and f" {own + 1})." in sa.group(1)
+      and "<a" not in sa.group(1) and f"/s/q/{TOK}/terms" not in pg.text,
+      "#7416: the terms joined: 'included in the PDF (from page N)', no own link " + (sa.group(1) if sa else pg.text[-400:]))
 
 # invoices stay as they are
 INV = A.post(B + D, json={"kind": "invoice", "client_id": CL, "service_from": "2026-10-01", "items": [{"title": "Schnitt", "qty": 1, "rate": 100}]}).json()["id"]
