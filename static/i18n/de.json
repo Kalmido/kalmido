@@ -19734,22 +19734,5 @@
   "documents from templates": "Dokumente aus Vorlagen",
   "invoice series": "Rechnungsserien",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "Der Kunde dieses Dokuments ist nicht mehr in diesem Büro (in einen anderen Arbeitsbereich umgezogen). Wähle zuerst einen anderen Kunden.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Der Kunde der Vorlage-Rechnung ist nicht mehr in diesem Büro (in einen anderen Arbeitsbereich umgezogen). Wähle eine andere Vorlage-Rechnung und schalte die Serie wieder ein.",
-  "No subscriptions yet. Add one under Settings > Connections > Calendars.": "Noch keine abonnierten Kalender. Füge einen unter Einstellungen > Verbindungen > Kalender hinzu.",
-  "Settings > Connections > Calendars": "Einstellungen > Verbindungen > Kalender",
-  "A personal API token of your account there (Settings > Connections) with the permissions: read, change tasks, delete, calendar, comments.": "Ein persönliches API-Token deines Kontos dort (Einstellungen > Verbindungen) mit den Rechten: lesen, Aufgaben ändern, löschen, Kalender, Kommentare.",
-  "The folder of the file store, the folder watcher, scan inboxes and the e-mail address: Settings > Connections.": "Der Ordner in Dateien, der Ordner-Wächter, Scan-Eingänge und die E-Mail-Adresse: Einstellungen > Verbindungen.",
-  "Connect a newsletter service first: Settings > Connections.": "Verbinde zuerst einen Newsletter-Dienst: Einstellungen > Verbindungen.",
-  "Please share images and files with HTTP Shortcuts or the Shortcuts app (Settings > Connections > Share from your phone)": "Bilder und Dateien bitte mit HTTP Shortcuts oder der Kurzbefehle-App teilen (Einstellungen > Verbindungen > Teilen vom Handy)",
-  "Sending to agents is switched off for this upload token (Settings > Connections > Share from your phone).": "Senden an Agenten ist für dieses Upload-Token ausgeschaltet (Einstellungen > Verbindungen > Teilen vom Handy).",
-  "Messages through the upload token reach your agents marked as from outside. You can switch this off: Settings > Connections > Share from your phone.": "Nachrichten über das Upload-Token kommen bei deinen Agenten als „von außen“ gekennzeichnet an. Abschalten kannst du das unter Einstellungen > Verbindungen > Teilen vom Handy.",
-  "Phone and calendar": "Handy und Kalender",
-  "Other programs": "Andere Programme",
-  "Agent tokens": "Agenten-Tokens",
-  "Phone and calendar, e-mail, other programs, agents": "Handy und Kalender, E-Mail, andere Programme, Agenten",
-  "API tokens, webhooks and agent tokens are under Connections.": "API-Tokens, Webhooks und Agenten-Tokens stehen unter Verbindungen.",
-  "Open Connections": "Verbindungen öffnen",
-  "The new password revokes your app passwords (CalDAV), your own API tokens, calendar feed links and the upload token; create new ones afterwards if you need them under Settings > Connections. Agents and passkeys stay: check them after signing in (Settings > Connections > Agents, Settings > Account).": "Das neue Passwort widerruft deine App-Passwörter (CalDAV), deine eigenen API-Tokens, Kalender-Feed-Links und den Upload-Token; lege bei Bedarf danach unter Einstellungen > Verbindungen neue an. Agenten und Passkeys bleiben: prüfe sie nach der Anmeldung (Einstellungen > Verbindungen > Agenten, Einstellungen > Konto).",
-  "Settings: Connections": "Einstellungen: Verbindungen",
-  "More to create": "Weiteres anlegen"
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Der Kunde der Vorlage-Rechnung ist nicht mehr in diesem Büro (in einen anderen Arbeitsbereich umgezogen). Wähle eine andere Vorlage-Rechnung und schalte die Serie wieder ein."
 }
