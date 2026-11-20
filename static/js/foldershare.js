@@ -12,6 +12,16 @@ const fshId = k => k === 'ntf' ? 'fp' : 'fsh';  // the notifications part keeps 
 const FSH_ADP = {sec: k => `${fshId(k)}-sec-${k}`, st: k => `${fshId(k)}-st-${k}`, hid: FSH_HID};  // 2.913.0 (#5587): the folder's adapter of the shared block (dialogs.js shSecHtml / shFrameHtml)
 const fshSec = (k, title, inner, open = false) => shSecHtml(FSH_ADP, k, title, inner, false, open);
 const fshGrey = (txt, why) => `<div class="fshgrey" aria-disabled="true"><span>${esc(txt)}</span><small class="muted">${esc(why)}</small></div>`;
+// #6679: the owners of a folder's projects ({id, name}, the viewer first when one of them; an empty folder: the viewer, who files it)
+function fshOwners(f) {
+  const ls = folderLists(f), out = new Map();
+  for (const l of ls) {
+    const id = isOwner(l) ? S.me?.id : l.owner_id;
+    if (id != null && !out.has(id)) out.set(id, {id, name: id === S.me?.id ? S.me?.display_name || '' : l.owner_name || '?'});
+  }
+  if (!ls.length && S.me) out.set(S.me.id, {id: S.me.id, name: S.me.display_name || ''});
+  return [...out.values()].sort((a, b) => (b.id === S.me?.id ? 1 : 0) - (a.id === S.me?.id ? 1 : 0));
+}
 function folderShareModal(f, opt = {}) {
   if (!collab()) return null;
   const own = folderLists(f).some(l => isOwner(l)) || !folderLists(f).length;
@@ -43,7 +53,9 @@ function folderShareModal(f, opt = {}) {
     shWsFill($('#fsh-ws', md), fws(), own ? () => $('[data-m="fsh-props"]', md)?.click() : null);  // 2.46.4 (#1737)
     const nm = p => p.name || users?.find(u => u.id === p.user_id)?.display_name || '?';
     const cand = (users || []).filter(u => !u.agent && u.id !== S.me?.id && !have.some(p => p.user_id === u.id));
-    box.innerHTML = `<div class="mrow fshowner">${av(S.me?.id, S.me?.display_name || '')}<span class="n">${esc(S.me?.display_name || '')} ${tr('(me)')}</span><span class="muted">${tr('Owner')}</span></div>`
+    // #6679: the head names the real owner(s) of the folder's projects (isOwner, #6136); the viewer only when they own one
+    const owners = fshOwners(f);
+    box.innerHTML = owners.map(o => `<div class="mrow fshowner" data-owner="${o.id}">${av(o.id, o.name)}<span class="n">${esc(o.name)}${o.id === S.me?.id ? ' ' + tr('(me)') : ''}</span><span class="muted">${tr('Owner')}</span></div>`).join('')
       // 2.1292.0 (#6136): who does not own the folder's projects sees the people only (no role choice, no remove, no add):
       // the server shares only one's own projects of a folder (lists.py folder_people_put)
       + have.map(p => `<div class="mrow" data-uid="${p.user_id}">${avBtn(p.user_id, nm(p))}<span class="n"><span class="fpn">${esc(nm(p))}</span> <small class="muted">${tr('new projects too')}</small></span>${own ? `${roleSel(`data-fprole="${p.user_id}"`, p.role, tr('Role of {0}', nm(p)))}<button class="iconbtn" data-rm="${p.user_id}" title="${esc(tr('Stop sharing'))}" aria-label="${esc(tr('Stop sharing with {0}', nm(p)))}">${ic('x', 's')}</button>` : `<span class="muted" title="${esc(roleHelp(p.role))}">${esc(roleLabel(p.role))}</span>`}</div>`).join('')
