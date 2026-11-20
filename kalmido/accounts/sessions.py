@@ -82,13 +82,11 @@ def ses_end(c, uid, hashes=None, keep=None):
 
 def ses_access_end(c, uid, tokens=True):
     """(#6354): what a new password ends besides the sessions - one place for the own change (PATCH /api/me), the admin's
-    reset (PATCH /api/users/<id>) and the reset link (invite.py). Always the scan inbox keys (2.237.0 C, #2865); with tokens
-    (the dialog's tick, 2.539.0 B #4375; a reset always) also the app passwords, the person's own API tokens (an agent's
+    reset (PATCH /api/users/<id>) and the reset link (invite.py); the callers end the scan inbox keys first (docs/scankeys.py
+    sk_revoke_all, 2.237.0 C #2865). With tokens (the dialog's tick, 2.539.0 B #4375; a reset always) the app passwords, the person's own API tokens (an agent's
     tokens belong to the agent's account: they stay, 2.360.0 A #2496), the task feed link (users.ical_token_hash), the event
     calendar and absences feed links (ev_cal_feeds, abs_cal_feeds) and the upload token (users.drop_token_hash): someone who
     was in a session once must not keep reading or writing through a link made then. The caller commits."""
-    from ..docs.scankeys import sk_revoke_all
-    sk_revoke_all(c, uid)
     if not tokens:
         return
     c.execute("DELETE FROM app_passwords WHERE user_id=?", (uid,))

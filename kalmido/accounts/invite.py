@@ -256,6 +256,8 @@ def invite_accept():
     ses_end(c, u["id"])
     # 2.190.0 A (#2496): a reset also revokes the app passwords (CalDAV/CardDAV) and the person's own API tokens; (#6354) and
     # the scan keys, feed links and the upload token - one place (sessions.py ses_access_end)
+    from ..docs.scankeys import sk_revoke_all  # 2.237.0 C (#2865): and the scan inbox keys
+    sk_revoke_all(c, u["id"])
     from ..accounts.sessions import ses_access_end
     ses_access_end(c, u["id"])
     if r["kind"] == "signup":  # 2.23.0 (#711): the address is confirmed; with "admin approval" the account waits now
