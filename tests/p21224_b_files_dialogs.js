@@ -149,6 +149,25 @@ const items = d => [...d.querySelectorAll('#pop:not(.hidden) [role="menuitem"]')
   check(xb && !d.querySelector('.dv-view #dv-p-share .xl-sec'), '#6172: links not to be seen: no section, the button "Link for external people…" shows');
   w.close();
 
+  // ================= #7590: the view of a plain file, Actions > "Link for external people…" > Create link: the view reads the
+  // file again over its node - no request for a document (404) and no "Not found" over the new link
+  w = await boot({user: 'frida', hash: 'ablage/' + DEEP}); d = w.document;
+  check(await until(() => d.querySelector(`#view .abrow[data-abid="${FB}"]`)), '#7590: the folder shows lageplan.txt');
+  w.eval(`dc_open(${FB})`);
+  check(await until(() => w.eval('DC.doc && DC.doc.id') === FB && w.eval('!!DC.doc.file') && d.querySelector('.dv-view')), '#7590: the view of the plain file');
+  w.eval(`window.__t = []; { const t0 = toast; toast = (m, ...a) => { __t.push(String(m)); return t0(m, ...a); }; }
+    window.__dq = []; { const r0 = rawFetch; rawFetch = (m, u, ...a) => { if (/^\\/api\\/docs\\/\\d+$/.test(u)) __dq.push(u); return r0(m, u, ...a); }; }
+    dcv_actItems(DC.doc, true, document.querySelector('.dv-view [data-dc="actsmore"]') || document.querySelector('.dv-view')).find(x => x && x.label === tr('Link for external people…')).fn()`);
+  const mk7590 = await until(() => d.querySelector('.xldlg [data-xn="make"]'));
+  mk7590?.click();
+  check(await until(() => d.querySelector('.xldlg .xl-out:not([hidden])')), '#7590: the new link shows');
+  check(await until(async () => ((await call(FK, 'GET', `/api/files/nodes/${FB}/ext-links`)).links || []).length === 2), '#7590: the link is on the server');
+  await sleep(600);
+  check(w.eval('__dq.length') === 0, '#7590: no request for a document of the plain file ' + w.eval('JSON.stringify(__dq)'));
+  check(!w.eval('__t.some(m => /Not found/.test(m))') && !/Not found/.test(d.querySelector('#toast, .toast')?.textContent || ''), '#7590: no "Not found" ' + w.eval('JSON.stringify(__t)'));
+  check(w.eval('DC.doc && DC.doc.id') === FB && w.eval('!!DC.doc.file') && d.querySelector('.dv-view'), '#7590: the view still shows the file');
+  w.close();
+
   // ================= Share: choosing adds at once with "Can view" (alice, Alpha)
   const BOX = (await call(CA, 'POST', '/api/files/folders', {name: 'Drehorte', space: 'org:' + ORG})).id;
   check(BOX, 'setup: alice\'s folder in Alpha');
