@@ -203,6 +203,20 @@ r = A.patch(B + f"/api/team/messages/{M5}", json={"enc": chan(1)})
 check(r.ok, f"alice edits the leftover under the lock {r.status_code} {r.text[:200]}")
 check(hist(M5) == [] and versions(Bo, M5) == (200, []), "no plain version of a leftover under the lock")
 
+# ================================================================== #6232: the versions follow a project that changes its organisation
+L2 = A.post(B + "/api/lists", json={"name": "Umzug", "kind": "project", "org_id": ORG}).json()["id"]
+R2 = next(x for x in A.get(B + "/api/team").json()["rooms"] if x["kind"] == "list" and x["list_id"] == L2)["id"]
+M6 = A.post(B + f"/api/team/rooms/{R2}/messages", json={"body": "Erste Fassung"}).json()["id"]
+check(A.patch(B + f"/api/team/messages/{M6}", json={"body": "Zweite Fassung"}).ok and [o for _, o, _ in hist(M6)] == [ORG],
+      "setup: a version of the organisation")
+r = A.patch(B + f"/api/lists/{L2}", json={"org_id": None})
+check(r.ok, f"the project becomes private {r.status_code} {r.text[:200]}")
+check([o for _, o, _ in hist(M6)] == [None], f"#6232: its versions follow: no organisation any more {hist(M6)}")
+check(versions(A, M6) == (200, versions(A, M6)[1]) and [x["body"] for x in versions(A, M6)[1] or []] == ["Erste Fassung"],
+      f"#6232: and are still read {versions(A, M6)}")
+r = A.patch(B + f"/api/lists/{L2}", json={"org_id": ORG})
+check(r.ok and [o for _, o, _ in hist(M6)] == [ORG], f"#6232: back into the organisation: the versions too {r.status_code} {hist(M6)}")
+
 # ================================================================== a person without an organisation
 FID, Fr = freelancer(B, A)
 FIO, Fi = freelancer(B, A, "fiona")
