@@ -830,11 +830,12 @@ def me_update():
 
 def drop_agent_set(c, u, b):
     """2.1313.0 (#6557): PATCH /api/me {drop_agent: bool} = may the upload token (/drop) also send messages to the person's
-    agents; {drop_agent_hint: false} = the one-time hint about it was seen (setting the switch clears it too). Only in a
-    signed-in session of the person (not an API token, an app password, a support session or a child account): the switch
-    opens a way to instruct agents. An error response or None."""
+    agents; {drop_agent_hint: false} = the one-time hint about it was seen (setting the switch clears it too). Only when the
+    person is signed in in the app - a session or the sign-in proxy, like every other session check (#6870) - not an API
+    token, an app password, a support session or a child account: the switch opens a way to instruct agents. An error
+    response or None."""
     from ..accounts.supportgrant import sga_is_support
-    if u["kid"] or g.auth_via != "session" or sga_is_support(c):
+    if u["kid"] or g.auth_via not in ("session", "proxy") or sga_is_support(c):
         return err(tr("Not allowed"), 403)
     if "drop_agent" in b:
         if not isinstance(b["drop_agent"], bool):
