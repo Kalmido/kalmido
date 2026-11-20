@@ -157,8 +157,8 @@ function grip_line(el, axis, o) {
     if (el.style[X ? 'left' : 'top'] !== v) el.style[X ? 'left' : 'top'] = v;
   };
   const ro = o.place && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => { if (el.isConnected) place(); }) : null;
-  let seen = null;
-  const show = () => { put(cur != null ? clamp(cur) : def(), scope); aria(); place(); };
+  let seen = null, live = null;  // live: the width of a running drag - a redraw in between (refresh) keeps it, not the stored one
+  const show = () => { put(cur != null ? clamp(cur) : def(), scope); if (live != null) put(live, dscope); aria(); place(); };
   const h = {
     el, o, key: o.key, axis, cls: X ? 'x' : 'y',
     get: () => cur, now,
@@ -181,10 +181,10 @@ function grip_line(el, axis, o) {
   const unwire = grip_wire(el, h, () => {
     const L = lim(), w = upx(), v0 = now();
     let v = v0;
-    const f = rafThrottle((dx, dy) => { v = clamp(v0 + sgn * (X ? dx : dy) / w, L); put(v, dscope); place(); });
+    const f = rafThrottle((dx, dy) => { v = live = clamp(v0 + sgn * (X ? dx : dy) / w, L); put(v, dscope); place(); });
     const mv = (dx, dy) => f(dx, dy);
     mv.end = keep => {
-      f.flush();
+      f.flush(); live = null;
       if (dscope !== scope) dscope.style.removeProperty(vn);
       if (keep) h.set(v); else show();
       if (keep && o.onEnd) o.onEnd(cur, h);
