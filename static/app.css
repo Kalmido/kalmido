@@ -74,7 +74,6 @@ a{color:var(--accent);text-decoration:none}
 /* 2.223.0 B (#2819): the import link of the client page is drawn without the office module, so its rules live here */
 .oimlink{margin:.5rem 0 1rem;font-size:var(--fs-b)}
 .oimlink a{color:var(--muted);display:inline-flex;align-items:center;gap:.25rem;min-height:2.75rem}
-.oimlink a:hover{color:var(--accent);text-decoration:none}
 .oimlink.e a{color:var(--accent)}
 input,select,textarea{background:var(--bg3);border:1px solid var(--line2);border-radius:var(--radius);padding:.375rem .5625rem;outline:0;min-width:0}
 input:focus,select:focus,textarea:focus{border-color:var(--accent)}
@@ -7324,14 +7323,7 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 .sprsoon{font-size:var(--fs-xs)}
 .sprm{display:inline-flex;align-items:center;gap:.25rem;color:var(--muted)}
 .sprm.cur .i{color:var(--accent)}
-.sprrv{list-style:none;margin:.25rem 0 .75rem;padding:0;display:flex;flex-wrap:wrap;gap:.5rem 1.25rem}
-.sprrv b{font-size:var(--fs-h);color:var(--text);font-variant-numeric:tabular-nums}
-.sprto{border:0;margin:0 0 .5rem;padding:0;display:flex;flex-direction:column;gap:.375rem}
-.sprto legend{padding:0;margin-bottom:.25rem;color:var(--muted)}
-.sprall{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.5rem;max-height:60vh;overflow:auto}
-.sprall li{padding:.5rem .75rem;border:1px solid var(--line2);border-radius:.625rem;display:flex;flex-direction:column;gap:.25rem}
 .sprall li.active{border-color:var(--accent)}
-.spract{display:flex;gap:.5rem;margin-top:.25rem}
 .sprseg button,.sprunit button{white-space:nowrap}
 .sprtop .btn.sm{align-self:center}
 @media (max-width:599px){.sprh{padding:.5rem .625rem}.sprtop{gap:.25rem .5rem}.sprtop .spacer{display:none}
@@ -7525,17 +7517,13 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 .mtgreq .mtgadd{min-height:2.75rem;display:inline-flex;align-items:center;gap:.375rem;cursor:pointer}
 .mtgreq .mtgadd.dis{opacity:.5;pointer-events:none}
 .mtgreq .mtgimgs{display:flex;flex-wrap:wrap;gap:.375rem;margin:-.25rem 0 .5rem}
-.mtgcard{border:1px solid color-mix(in srgb,var(--accent) 35%,var(--line2));background:var(--accent-soft);border-radius:var(--radius);padding:.5rem .625rem}
 .mtgcard .mtgh{display:flex;align-items:center;gap:.375rem;flex-wrap:wrap;margin-bottom:.375rem}
 .mtgcard .mtgh .muted{font-size:var(--fs-s)}
 .mtgcard .mtgsum{font-size:var(--fs-m);color:var(--text2);margin-bottom:.375rem}
 .mtgcard .mtgl{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.125rem}
 .mtgcard .mtgl li.off{opacity:.55}
-.mtgcard .mtgl label{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;min-height:2.75rem;padding:.25rem 0;cursor:pointer}
-.mtgcard .mtgl input{flex:none;width:1.125rem;height:1.125rem}
 .mtgcard .mtgt{flex:1 1 10rem;min-width:0;overflow-wrap:anywhere}
 .mtgcard .mtgm{display:inline-flex;gap:.625rem;font-size:var(--fs-s)}
-.mtgcard .mtgm span{display:inline-flex;align-items:center;gap:.25rem}
 .mtgcard .mtgf{display:flex;align-items:center;gap:.375rem;flex-wrap:wrap;margin-top:.375rem}
 .mtgcard .mtgf .btn{min-height:2.5rem}
 
@@ -7591,7 +7579,6 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 .bgview{max-width:var(--w-seite);margin:0 auto;padding:0;display:flex;flex-direction:column;gap:.875rem;min-width:0}
 .bgmonth .iconbtn{min-width:2.75rem;min-height:2.75rem}
 .bgtiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem}
-.bgneg,.bg-saldo b.bgneg{color:var(--danger)}
 .bgtm.on small{color:var(--text);font-weight:600}
 .bgtb i.in{background:var(--accent)}
 .bgtb i.out{background:var(--muted);opacity:.6}
@@ -7601,7 +7588,6 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 .bgel{display:flex;flex-direction:column;min-width:0;flex:1 1 auto;gap:.125rem}
 .bgamt.in{color:var(--accent)}
 .bgdlg .seg button.on{background:var(--accent);color:#fff}
-.bgcr .bgcn{flex:1 1 9rem;min-width:0}
 .bgcr .numin,.bgcnew .numin{width:6.5rem}
 /* 2.140.0 B (#2136) a private device <-> office equipment: the link line in the task panel (devlink.js) and the equipment editor */
 .dlbox:empty{display:none}
@@ -7737,10 +7723,8 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 @keyframes o3c-pop{0%{transform:scale(.7);opacity:.4}60%{transform:scale(1.15);opacity:1}100%{transform:scale(1);opacity:1}}
 /* 2.84.0 A (#1198) e-mail as an input of the hub: the section "E-mails" (client card, project page), the reading view, the inbox */
 .hbmq:focus-within{border-color:var(--accent)}
-.hbmhl:empty{display:none}
 .hbmlist,.hbmspaces,.hbmpicks,.hbmatt{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
 .hbmrow{display:flex;align-items:center;gap:.25rem;border-bottom:1px solid var(--line)}
-.hbmrow:last-child{border-bottom:0}
 .hbmopen{flex:1;min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:.125rem;text-align:left;background:none;border:0;color:inherit;padding:.5rem .25rem;min-height:2.75rem;border-radius:var(--r-s);cursor:pointer}
 .hbmopen:hover,.hbmopen:focus-visible{background:var(--bg3)}
 .hbmhub{max-width:var(--w-seite);padding:0}
@@ -7752,7 +7736,6 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 .hbmhf{display:flex;gap:.5rem;min-width:0}
 .hbmhf>span:first-child{flex:0 0 5.5rem}
 .hbmhf>span:last-child{min-width:0;overflow-wrap:anywhere}
-.hbmpick:hover,.hbmpick:focus-visible{background:var(--bg3)}
 .hbmadlg .card{max-height:85vh;overflow:auto}
 /* 2.141.0 B (#2140, #2139): HTML view of a filed mail (sandboxed frame, light inside also in dark mode), Task / Event from it */
 .hbmdlg .card{max-height:90vh;overflow:auto}
@@ -7851,10 +7834,8 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 /* 2.143.0 A (#2151): read-only / accounting in an organisation's office: no create or delete buttons (the server refuses them) */
 .dash.office[data-ofcro] :is([data-ofc="new"], [data-ofd^="new"], .iconbtn.danger, .btn.danger) { display: none; }
 /* 2.139.0 B (#2128): voice messages in the team chat (voice.js): the recording bar over the composer, the player of an audio file */
-.tvcrec{position:absolute;inset:0;z-index:3;display:flex;align-items:center;gap:.5rem;padding:0 .75rem;background:var(--bg);border-top:1px solid var(--line)}
 .tvcrec .tvcclock{font-variant-numeric:tabular-nums;font-size:var(--fs-m);min-width:2.75rem}
 .tvcrec .tvcmax{font-size:var(--fs-xs)}
-.tvcdot{width:.625rem;height:.625rem;border-radius:50%;background:var(--danger);flex:none}
 @media (prefers-reduced-motion:no-preference){.tvcrec.on .tvcdot{animation:tvcblink 1.2s ease-in-out infinite}}
 @keyframes tvcblink{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.85)}}
 .chatts .att.tvcp,.att.tvcp{display:flex;align-items:center;gap:.5rem;flex:0 1 18rem;min-width:13rem;max-width:100%;padding:.375rem .5rem;border:1px solid var(--line2);border-radius:var(--radius);background:var(--bg2)}
@@ -7863,7 +7844,6 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 .tvcp .tvcmain{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:.125rem}
 .tvcp .tvcn{font-size:var(--fs-xs);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tvcp .tvcseek{width:100%;margin:0;accent-color:var(--accent);min-height:1.5rem}
-.tvcp .tvct{font-size:var(--fs-xs);color:var(--muted);font-variant-numeric:tabular-nums;min-width:2.25rem;text-align:right}
 .tvcp .tvcrt{flex:none;border:1px solid var(--line2);background:transparent;color:var(--text2);border-radius:var(--r-s);font-size:var(--fs-xs);padding:.125rem .375rem;min-width:2.25rem;cursor:pointer}
 .tvcp .tvcdl{flex:none}
 .tvcp.err .tvcpb{background:var(--bg4);color:var(--muted)}
