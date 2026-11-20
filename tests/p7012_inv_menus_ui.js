@@ -55,7 +55,7 @@ const item = (d, re) => items(d).find(b => re.test(b.textContent));
     check(!!pay, `${u}: the row menu of an open invoice has "Record payment…" ` + items(d).map(b => b.textContent.trim()).join(' | '));
     if (pay) click(w, pay);
     const md = await until(() => d.querySelector('.modal #ofd-p-amount'));
-    check(md && /100/.test(md.value), `${u}: the payment dialog opens with the open amount ` + (md && md.value));
+    check(md && /^119/.test(md.value), `${u}: the payment dialog opens with the open amount (gross 119) ` + (md && md.value));
     const rec = md && [...d.querySelectorAll('.modal .foot button, .modal button')].find(b => /^Record$/.test(b.textContent.trim()));
     if (rec) click(w, rec);
     check(await until(async () => (await call(ck, 'GET', `/api/office/docs/${inv.id}`)).status === 'paid'), `${u}: the payment is booked: paid`);
