@@ -122,10 +122,12 @@ const key = (w, el, k) => el.dispatchEvent(new w.KeyboardEvent('keydown', {key: 
   // reader F9 (job/6017, #7528): the panel of a stranger's task - its bar is no conflict bar (the panel follows changes), and
   // the yes goes to the text the panel drew, never to a newer copy in the store
   const K4 = (await call(null, 'POST', '/api/v1/tasks', {list_id: L, title: 'Text A', notes: 'Read this'}, GH)).id;
+  check((await call(CF, 'PATCH', `/api/tasks/${K4}`, {locked: false})).http === 200, 'setup: unlocked (an agent\'s task starts locked)');
   const p = await boot({user: 'frida', hash: `t/${K4}`}), pd = p.document;
   check(!!(await until(() => p.eval(`S.tl && S.tl.id === ${K4}`) && pd.querySelector('#d-cf .ordbar.ordopen'))), 'the panel shows "Not confirmed as an order"');
   check(!pd.querySelector('#detail .cfbar'), 'the bar is no conflict bar (cfbar holds the panel\'s redraw)');
-  check((await call(null, 'PATCH', `/api/v1/tasks/${K4}`, {title: 'Text B'}, GH)).http === 200, 'the agent rewrites the title meanwhile');
+  const chg = await call(CG, 'PATCH', `/api/tasks/${K4}`, {title: 'Text B'});
+  check(chg.http === 200, 'gert rewrites the title meanwhile ' + JSON.stringify(chg).slice(0, 200));
   p.eval(`taskById(${K4}).title = 'Text B'`);  // the store has the newer copy, the panel still shows Text A
   await p.eval(`cf_yes(${K4}).catch(() => 0)`); await idle(p);
   const k4 = await call(CF, 'GET', `/api/tasks/${K4}`);
