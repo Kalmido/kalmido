@@ -1920,7 +1920,45 @@ a big state is no hang).
 - **The quotation editor** (`office_docs.js ofd_save1`): "Try again" goes through the editor's row of saves with the key and
   version of the first try (never over a later save: then the conflict bar). While further saves of the document wait in the
   row, an answer only gives what the server assigns and computes (version, sums, ids of new lines, new parts) and the local
-  positions stay (#7509, `ofd_take`); the building block "write shows at once" (#7493) takes both over.
+  positions stay (#7509, `ofd_take`). Its positions go through the building block "write shows at once" (#7493, next section):
+  a save without an answer marks its rows "Not saved - Try again" instead of the toast.
 
 Tests shorten the limits (`w.eval('NET_T.w = 400')`) and hold answers back: `tests/p7494_zeitgrenze_ui.js`,
 `tests/p7509_editor_kette_ui.js`.
+
+## Write shows at once: editors with rows (#7493)
+
+One building block for every editor whose content is rows (positions, lines, bookings) and for text editors without rows:
+`rwRows(o)` in `static/js/core.js`, built on `optWrite`. No editor keeps its own row of saves, its own "wait for the answer,
+then draw" or its own id swap beside it.
+
+- **At once:** a change is the local state at once and drawn light (`W.write(put, keys, {back})`: `put` changes the local rows
+  and returns how to take it back, `keys` = the rows it touches). The caller goes on at once (focus the new line's field); it
+  never waits for the answer.
+- **Order:** one save of the object at a time (`W.run(fn)`, also for its saves without rows: the editor's head, its number, a
+  part's sheet). A save of the rows is built when it goes (`o.send()`: the newest local state and the version of the last
+  answer), so a change made while an answer is on its way is in the next save and never lost. Changes that come while a save
+  waits join it (one request).
+- **State of a row:** `rwMarkHtml(W, row)` / `rwCls(W, row)` in the row: "Saving…" while its save is on its way, "Not saved" with
+  "Try again" after an error or without a connection - the row stays, nothing vanishes. `{back: true}` takes the change back
+  instead (a removed or moved row comes back where it was). `o.fail(x)` = true when the area shows the error itself (a 409: the
+  conflict bar), then the rows carry no mark. "Try again" (`data-rwagain="<name>"`, one listener in core.js) sends a request
+  that got no answer once more as it was (its idempotency key and version: applied once, `o.again`, #7494), then the newest state.
+  `o.whole`: each save sends all rows, so a save that went through saved the failed rows too.
+- **The answer** gives only what the server assigns and computes (version, sums, ids, computed lines): the area's `send` / `take`.
+  New rows get their ids in one place, `rwIds(sent, got)` (by order). `W.last()` says whether no further save waits: only then
+  may an answer stand for the local state.
+- **Keys, not places:** a row is looked up by `rwKey(row)` (its id, or a provisional key kept on the object until the object is
+  replaced) through `rwFind(rows, key)`, written into the row as `data-rwk` - never by `data-i` or an object held over a wait.
+- **Sums:** `W.calc` is true while a save of rows waits for its answer: the sums say "Calculating…" (`.rwcalc`, `aria-busy`). The
+  server is the only one that computes; the browser never adds up.
+- **Light draw:** `o.draw()` draws only the rows, their marks and the sums, never the whole editor: `rwPatch(root, html, sels)`
+  morphs just the parts `sels` (focus, caret and typed text stay); false = a part is missing on one side, then the whole view.
+- **Text editors without rows** use `W.run` / `W.save()` without keys: the same order (one save at a time, the newest text,
+  the version of the last answer).
+
+First user: the quotation and invoice editor (`office_docs.js`: `OFD_W`, `ofd_rows`, `ofd_add`, `ofd_itemsSend`, `ofd_lite`;
+`#ofd-pos` is the positions' section, `ofd_inChain` = `OFD_W.run`). The parts and the calculation sheet (#7496), bank, cards,
+cash book, times, receipts, travel (#7497 - #7503) and the letters' autosave (#7504) follow on it. The `fdWrite` input guard
+(#4547) stays under it. Tests hold the answers with `hold(w, re)` of `tests/boot.js` (`w.__go()`, `w.__fail(status)`,
+`w.__drop()`; `slow(w, re)` holds them all at once): `tests/p7493_schreiben_sofort_ui.js`, `tests/p7509_editor_kette_ui.js`.
