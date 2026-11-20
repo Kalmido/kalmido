@@ -15,6 +15,7 @@ import hmac
 import html
 import json
 import secrets
+import subprocess
 import threading
 import time
 from collections import OrderedDict
@@ -41,6 +42,8 @@ from ..accounts.login import auth_key, seal, unseal
 from ..api.common import hit_budget, hit_limit
 from ..notify.alerts import aa_count
 from ..core.errors import BadInput
+from ..docs.pdfopt import PoError, po_pages  # #7416
+from .pdf import PdfaMissing  # #7416
 from ..core.retention import ret_keep_years
 from .olock import olk_need_unheld, olk_person_office  # 2.545.0 (#4595)
 from ..tasks.validation import valid_date
@@ -771,7 +774,6 @@ def sig_offer_pages(c, r):
                 return v
             del SIG_PAGES[key]
     try:
-        from ..docs.pdfopt import po_pages
         d = doc_row(c, r["org_id"], r["doc_id"])
         data = epdf_stored(c, r["org_id"], d, "pdf", commit=False)
         data = data if data is not None else _render(c, r["org_id"], d)[0]
@@ -780,7 +782,8 @@ def sig_offer_pages(c, r):
         out = epdf_out(c, r["org_id"], d, data)  # agb_offer_pdf gives the PDF unchanged when the terms could not be joined
         v = (n, bool(out is not data and out != data))
         until = None if v[1] else time.monotonic() + SIG_PAGES_FAIL_S  # terms not joined: tried again a minute later
-    except Exception as ex:  # noqa: BLE001 -- #7416: the page shows the sentence without "in the PDF", never a 500
+    except (Denied, OSError, ValueError, KeyError, TypeError, LookupError, RuntimeError, MemoryError, OrgCryptError, BadInput,
+            PdfaMissing, PoError, subprocess.SubprocessError) as ex:  # #7416: every error of render / store / join -> no "in the PDF", never a 500
         print("signoff: pages of the quotation unknown", r["id"], type(ex).__name__, flush=True)
         v, until = (None, False), time.monotonic() + SIG_PAGES_FAIL_S
     with SIG_PAGES_LOCK:
