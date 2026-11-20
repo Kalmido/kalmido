@@ -19741,7 +19741,5 @@
   "Invoice of series {0} sent from the server's address": "Factura de la serie {0} enviada desde la dirección del servidor",
   "The e-mail left from the server's address: the mailbox of the workspace is switched off. Switch it on again in Settings > Company & office > E-mail.": "El correo salió desde la dirección del servidor: el buzón del espacio de trabajo está desactivado. Vuelve a activarlo en Ajustes > Empresa y oficina > Correo.",
   "Sending: {0}": "Envío: {0}",
-  "The sender address must belong to this SMTP account (its own address or one the provider allows for it): servers check it against the domain's SPF and DKIM, other addresses are refused or land in spam.": "La dirección del remitente debe pertenecer a esta cuenta SMTP (su propia dirección o una que el proveedor permita): los servidores la comprueban con el SPF y el DKIM del dominio; otras direcciones se rechazan o acaban en spam.",
-  "The display name cannot contain @ or a web address.": "El nombre visible no puede contener @ ni una dirección web.",
-  "Our terms and conditions as of {0} apply.": "Se aplican nuestras condiciones generales, versión del {0}."
+  "The sender address must belong to this SMTP account (its own address or one the provider allows for it): servers check it against the domain's SPF and DKIM, other addresses are refused or land in spam.": "La dirección del remitente debe pertenecer a esta cuenta SMTP (su propia dirección o una que el proveedor permita): los servidores la comprueban con el SPF y el DKIM del dominio; otras direcciones se rechazan o acaban en spam."
 }

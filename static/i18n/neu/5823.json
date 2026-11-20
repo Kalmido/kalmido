@@ -1,0 +1,22 @@
+{
+  "de": {
+    "The display name cannot contain @ or a web address.": "Der Anzeigename darf kein @ und keine Webadresse enthalten.",
+    "Our terms and conditions as of {0} apply.": "Es gelten unsere AGB, Stand {0}."
+  },
+  "es": {
+    "The display name cannot contain @ or a web address.": "El nombre visible no puede contener @ ni una dirección web.",
+    "Our terms and conditions as of {0} apply.": "Se aplican nuestras condiciones generales, versión del {0}."
+  },
+  "fr": {
+    "The display name cannot contain @ or a web address.": "Le nom affiché ne peut contenir ni @ ni adresse web.",
+    "Our terms and conditions as of {0} apply.": "Nos conditions générales, version du {0}, s’appliquent."
+  },
+  "it": {
+    "The display name cannot contain @ or a web address.": "Il nome visualizzato non può contenere @ né un indirizzo web.",
+    "Our terms and conditions as of {0} apply.": "Si applicano le nostre condizioni generali, versione del {0}."
+  },
+  "nl": {
+    "The display name cannot contain @ or a web address.": "De weergavenaam mag geen @ of webadres bevatten.",
+    "Our terms and conditions as of {0} apply.": "Onze algemene voorwaarden, stand {0}, zijn van toepassing."
+  }
+}
