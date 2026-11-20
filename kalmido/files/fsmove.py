@@ -693,7 +693,7 @@ def files_move_space():
     uid = me()
     b = body()
     dry = b.get("dry") in (1, True, "1", "true")
-    to = smv_target(c, uid, b.get("to"))
+    to = smv_target(c, uid, b.get("to"), "files")
     plan = fsm_plan(c, uid, b, to, dry)
     if dry:
         return jsonify(smv_answer(plan["notes"], plan["block"], files=plan["files"], folders=plan["folders"], size=plan["size"],

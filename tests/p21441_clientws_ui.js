@@ -79,6 +79,22 @@ const FEATS = 'cal,comments,collab,contacts,office,clients,time';
   check(c1 && c1.org_id === O1, 'the client is in Studio Nord: ' + JSON.stringify(c1 && c1.org_id));
   check((await listed('Kunde Auswahl')).hit, 'the clients list under All shows it (#7298: it no longer vanishes)');
 
+  // ---- (#7309) wsp_post: the server needs the workspace -> the required choice (wsp_ask), then sent again with space
+  ({w, d} = await listed('Kunde Auswahl'));
+  check(w.eval("JSON.stringify(wsp_list('clients', true))") === JSON.stringify(['org:' + O1, 'org:' + O2]), '#7309 wsp_list: where I may add a client: ' + w.eval("JSON.stringify(wsp_list('clients', true))"));
+  const pr = w.eval("wsp_post('/api/clients', {name: 'Kunde Frage'})");
+  await until(() => d.querySelector('.cdlg input[name="wsp-ask"]'), 40);
+  const radios = [...d.querySelectorAll('.cdlg input[name="wsp-ask"]')].map(x => x.value);
+  check(JSON.stringify(radios) === JSON.stringify(['org:' + O1, 'org:' + O2]), '#7309 wsp_ask: the server\'s choice: ' + radios);
+  d.querySelector('.cdlg [data-cd="yes"]').click();
+  await sleep(300);
+  check(!!d.querySelector('.cdlg input[name="wsp-ask"]'), '#7309 wsp_ask: without a choice the dialog stays');
+  d.querySelector(`.cdlg input[value="org:${O2}"]`).checked = true;
+  d.querySelector('.cdlg [data-cd="yes"]').click();
+  const made = await pr;
+  check(made && made.org_id === O2, '#7309 wsp_post: sent again with the chosen workspace -> Süd: ' + JSON.stringify(made && made.org_id));
+  check((await listed('Kunde Frage')).hit, '#7309: and the list under All shows it');
+
   // ---- Clients off in Süd too: no question, Nord
   check((await set({ws_mods_off: {['org:' + O2]: ['clients']}})).http === 200, 'Clients off in Süd');
   ({w, d} = await listed('Kunde Auswahl'));
@@ -95,6 +111,13 @@ const FEATS = 'cal,comments,collab,contacts,office,clients,time';
   check((await listed('Kunde Direkt')).hit, 'and the list under All shows it');
 
   // ---- contacts: no address book of a workspace where Contacts is off
+  // (#7309): a book goes only where Contacts is on (the office area, Contacts' area, is still off in Private here): on first
+  check((await set({ws_areas_off: {}, ws_mods_off: {}})).http === 200, 'the office area on again in Private');
+  const bOff = await call('POST', '/api/books', {name: 'Buch Gesperrt', org_id: null});
+  await set({ws_areas_off: {private: ['office']}});
+  const bOff2 = await call('POST', '/api/books', {name: 'Buch Gesperrt', org_id: null});
+  check(bOff.http === 201 && bOff2.http === 400 && bOff2.code === 'space_needed', '#7309: a new book named Private while Contacts is off there -> 400 space_needed: ' + bOff2.http + ' ' + bOff2.code);
+  await set({ws_areas_off: {}});
   const bP = await call('POST', '/api/books', {name: 'Buch Privat', org_id: null});
   const bN = await call('POST', '/api/books', {name: 'Buch Nord', org_id: O1});
   check(bP.id && bN.id, 'an address book in Private and in Nord');

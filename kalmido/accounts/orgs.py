@@ -519,15 +519,24 @@ def _orgs_w(c, uid):
     return [o for o in user_orgs_full(c, uid, write=True) if o in mine]
 
 
-def ws_obj_default(c, uid):
-    """2.30.0 (#1036): the workspace of a new calendar / address book when the client names none: an agent's own workspace,
-    else the chosen / only organisation (ws_chosen_org, 2.148.1 H #2480: as a new list), else private."""
+def ws_obj_default(c, uid, mod="events", ask=True):
+    """(#1036): the workspace of a new calendar / address book when the client names none. (#7309): a thin
+    shell of the shared place (accounts/wsplace.py wsp_new): an agent's own workspace, else the only workspace where
+    module mod is on and I may add, else 400 space_needed -- never silently Private or the first organisation.
+    ask=False: made by the server itself where nobody can choose (the default calendar / address book, CalDAV, a
+    migration): the chosen / only organisation where mod is on and I may add (ws_chosen_org), else Private."""
     if not has_workspaces(c):
         return None
-    u = c.execute("SELECT kind FROM users WHERE id=?", (uid,)).fetchone()
-    if u and (u["kind"] or "user") == "agent":
-        return agent_org(c, uid)
-    return _ws_sga(c, ws_chosen_org(c, uid))  # 2.148.1 H (#2480): the chosen / only organisation, else private (was the first one)
+    if ask:
+        from .wsplace import wsp_new  # wsplace builds on this module
+        return wsp_new(c, uid, mod)
+    return _ws_sga(c, ws_chosen_org(c, uid, mod))
+
+
+def ws_places(c, uid):
+    """(#7309): /api/state's wsp / wsp_w -- accounts/wsplace.py wsp_all (the core reads it through here)."""
+    from .wsplace import wsp_all  # wsplace builds on this module
+    return wsp_all(c, uid)
 
 
 def _ws_sga(c, oid):
@@ -536,14 +545,17 @@ def _ws_sga(c, oid):
     return None if sga_org_foreign(c, oid) else oid
 
 
-def ws_chosen_org(c, uid):
+def ws_chosen_org(c, uid, mod="lists"):
     """2.148.1 A (#2480): the organisation a person chose in the workspace switch (setting workspace = org:<id>) while they
     may add content there; else their only organisation (one they may add content to); with several, None (private) --
-    never simply the first one. An agent: its own workspace."""
+    never simply the first one. An agent: its own workspace. (#7309): what a person may add to is the shared place's
+    (accounts/wsplace.py wsp_spaces(write=True) of module mod; "lists" has no switch). Only the projects (ws_default_org)
+    still follow the saved switch; whatever has a module asks wsp_new."""
     u = c.execute("SELECT kind FROM users WHERE id=?", (uid,)).fetchone()
     if u and (u["kind"] or "user") == "agent":
         return agent_org(c, uid)
-    mine = _orgs_w(c, uid)  # 2.143.0 A (#2151): never where uid only reads / is a guest
+    from .wsplace import wsp_spaces  # wsplace builds on this module
+    mine = [int(w[4:]) for w in wsp_spaces(c, uid, mod, True) if w != "private"]  # (#2151): never where uid only reads / is a guest
     ws = str(usettings(c, uid).get("workspace") or "")
     m = re.fullmatch(r"org:(\d{1,9})", ws)
     oid = int(m.group(1)) if m else None

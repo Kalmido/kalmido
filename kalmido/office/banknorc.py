@@ -35,7 +35,8 @@ from .calc import dec, dstr, money
 from .cfbank import cfb_balances
 from .fixedimport import fci_people, fci_task_end
 from .ledger import ofx_log
-from .model import office_settings, office_settings_lock, office_settings_save
+from .model import office_settings, office_settings_lock, office_settings_save, pb_personal
+from ..accounts.wsplace import WSP_STILL  # (#7309 F8)
 from .periodlock import pl_is_locked
 
 BNR_DIRS = ("out", "in")
@@ -311,3 +312,14 @@ def bnr_rem_put():
     bump(c)
     c.commit()
     return jsonify(_public(c, oid, s))
+
+
+def bnr_still(c, uid):
+    """(#7309 F8): the bank reminder of uid's own personal office keeps running after "Also private" goes off."""
+    oid = pb_personal(c, uid, create=False)
+    if not oid:
+        return []
+    return [{"kind": "bank_reminder", "count": int(bnr_clean(office_settings(c, oid))["every"] != "off")}]
+
+
+WSP_STILL.append(bnr_still)

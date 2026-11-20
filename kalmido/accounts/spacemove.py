@@ -14,9 +14,11 @@ Without an organisation there is no other workspace: the routes answer 409 (smv_
 from flask import g, has_request_context
 
 from ..core.access import Denied
+from ..core.db import body
 from ..core.i18n import tr
 from .orgs import user_orgs
 from .orgroles import need_org_write  # 2.369.5 (#2517): pulled up from functions
+from .wsplace import wsp_new  # (#7309 F6)
 
 SMV_MAX = 2000  # objects per move (a folder with everything in it counts its content)
 
@@ -28,20 +30,30 @@ def smv_refuse_agent():
         raise Denied(403, tr("Agents cannot move data to another workspace"))
 
 
-def smv_target(c, uid, v):
-    """The target workspace a client sent: None = private, else the id of an organisation uid is a member of (409)."""
+def smv_target(c, uid, v, mod=None):
+    """The target workspace a client sent ("to": "private" / null = private, "org:<id>" / an id = an organisation uid is a
+    member of, 409 otherwise). (#7309 F6): a request without "to" is refused (400) instead of meaning Private; with mod
+    (the module that moves) the target must be one of accounts/wsplace.py wsp_spaces(write=True) -- a workspace where the
+    module is off for me (or I may not add) is a 400 space_needed with the choice."""
+    if v is None:
+        b = body()
+        if not isinstance(b, dict) or "to" not in b:
+            raise Denied(400, tr("Invalid value: {0}", "to"))
     if v in (None, "", 0, "0", "private"):
-        return None
-    s = str(v)
-    if s.startswith("org:"):
-        s = s[4:]
-    try:
-        oid = int(s)
-    except (TypeError, ValueError):
-        raise Denied(400, tr("Invalid value: {0}", "to")) from None
-    if oid not in user_orgs(c, uid):
-        raise Denied(409, tr("You are not a member of this organisation"))
-    need_org_write(c, uid, oid)  # 2.143.0 A (#2151)
+        oid = None
+    else:
+        s = str(v)
+        if s.startswith("org:"):
+            s = s[4:]
+        try:
+            oid = int(s)
+        except (TypeError, ValueError):
+            raise Denied(400, tr("Invalid value: {0}", "to")) from None
+        if oid not in user_orgs(c, uid):
+            raise Denied(409, tr("You are not a member of this organisation"))
+        need_org_write(c, uid, oid)  # (#2151)
+    if mod:
+        wsp_new(c, uid, mod, oid or "private")  # (#7309 F6): 400 space_needed where mod is off / not writable for me
     return oid
 
 

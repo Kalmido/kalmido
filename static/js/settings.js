@@ -131,7 +131,7 @@ async function setApply(patch, label, o = {}) {
   if (Object.keys(patch).every(k => String(before[k]) === String(patch[k]))) return null;
   // 2.41.2 (#1501): the value counts at once (a view that reads it while the request runs), put back on an error
   // 2.269.0 B (#3014): o.send / o.back = the request body of the change / of its undo (e.g. set_delta: one entry, not the whole value)
-  try { await optWrite(optSet(() => S.settings, patch), () => api('PATCH', '/api/settings', o.send || patch), () => { if (Object.keys(patch).some(k => SET_RENDER.includes(k) && !SET_SLOW.includes(k))) render(); }); } catch { settingsSync(o.keep); return false; }  // 2.359.2 B (#3049): o.keep = a typed field that keeps its text
+  try { await optWrite(optSet(() => S.settings, patch), () => api('PATCH', '/api/settings', o.send || patch).then(r => (wsp_take(r), r)), () => { if (Object.keys(patch).some(k => SET_RENDER.includes(k) && !SET_SLOW.includes(k))) render(); }); } catch { settingsSync(o.keep); return false; }  // (#3049): o.keep = a typed field that keeps its text
   await setAfter(patch);
   const e = histAdd({label: tr('Changed setting: {0}', label), sett: true, post: settingsSync,
     undo: () => setStep(before, patch, label, o.back), redo: () => setStep(patch, before, label, o.send)});
@@ -147,7 +147,7 @@ async function setStep(to, from, label, wire) {  // one way of a settings step; 
   const part = k => wire?.set_delta?.[k] || (wire?.notify && typeof wire.notify === 'object' && (k === 'notify' || k === 'news_kinds'));
   for (const k in to) { if (!part(k) && String(S.settings[k] ?? '') !== String(from[k] ?? '')) skip.push(label); else body[k] = to[k]; }
   if (!Object.keys(body).length) return {skipped: skip, none: true};
-  await api('PATCH', '/api/settings', wire && !skip.length ? wire : body);  // 2.269.0 B (#3014)
+  wsp_take(await api('PATCH', '/api/settings', wire && !skip.length ? wire : body));  // (#3014); (#7309): the fresh lists of the shared place
   Object.assign(S.settings, body);
   await setAfter(body);
   return {skipped: skip};

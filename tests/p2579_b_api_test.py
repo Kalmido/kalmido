@@ -134,11 +134,11 @@ def scenario(s, who, org):
     check(s.post(B + "/api/deps", json={"task_id": W, "blocker_id": T}).ok, f"{who}: W waits on T")
     entry(s, T, 300)
     entry(s, O, 400, 90)
-    book = ok(s.post(B + "/api/books", json={"name": "Clients"}))["id"]
+    book = ok(s.post(B + "/api/books", json={"name": "Clients", "space": "private"}))["id"]  # (#7309): named (several organisations = 400 space_needed)
     ct = ok(s.post(B + "/api/contacts", json={"book_id": book, "fn": "Dana Example"}))["id"]
     check(s.post(B + f"/api/tasks/{T}/contacts", json={"contact_id": ct}).ok, f"{who}: contact linked to T")
     check(s.post(B + f"/api/tasks/{O}/contacts", json={"contact_id": ct}).ok, f"{who}: contact linked to O")
-    cal = ok(s.post(B + "/api/evcals", json={"name": "Work"}))["id"]
+    cal = ok(s.post(B + "/api/evcals", json={"name": "Work", "space": "private"}))["id"]  # (#7309): named, as the book
     day = (NOW + timedelta(days=2)).date().isoformat()
     check(s.post(B + "/api/events", json={"title": "Export review", "cal_id": cal, "start": f"{day}T10:00", "task_id": T}).ok,
           f"{who}: event prepares T")

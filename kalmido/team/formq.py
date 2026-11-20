@@ -27,6 +27,7 @@ from ..core.i18n import N_, lang, tr, dec_comma
 from ..personal.timetrack import _csv_cell
 from ..core.serializers import csv_download  # 2.1324.0 (#6589)
 from ..core.errors import BadInput
+from ..accounts.wsplace import wsp_on  # (#7309 F7)
 from ..api.common import hit_limit  # 2.149.0 G (#2517): pulled up from functions
 from ..core.access import Denied, list_state_sql, live_sql  # 2.149.0 G (#2517): pulled up from functions
 from .forms import FRM_FILE_MAX, h6d_form_bytes, form_url, _gate, need_form_manager, _form_row  # 2.369.5 (#2517): pulled up from functions
@@ -320,7 +321,10 @@ def fq_client(c, f, email, name, lg):
     if cid:
         cl = c.execute("SELECT name FROM clients WHERE id=?", (cid,)).fetchone()
         return cid, tr("Client: {0}", cl["name"] if cl else "", lg=lg) + " " + tr("(by the typed e-mail address, not confirmed)", lg=lg), True
-    if f["client_new"] and clients_on(c, f["l_owner"]) and not hit_limit(f"fqnc:{f['id']}", FQ_NEW_CLIENTS_DAY, 86400):
+    # (#7309 F7): only where Clients is on for the list's owner in the list's workspace (the shared place) - never a client
+    # that vanishes from their list under "All workspaces"
+    if (f["client_new"] and clients_on(c, f["l_owner"]) and wsp_on(c, f["l_owner"], "clients", f["l_org"])
+            and not hit_limit(f"fqnc:{f['id']}", FQ_NEW_CLIENTS_DAY, 86400)):
         ts = iso(now_utc())
         nm = (name or email)[:80]
         cid = insert_id(c, "INSERT INTO clients(org_id,name,email,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?)",

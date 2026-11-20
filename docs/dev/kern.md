@@ -1653,6 +1653,50 @@ The frame colour of #6697 (`wscolor.js wso_scope`: a page whose module is on in 
 `mod_spaces` too (featKey may be a list: on when one of them is on), so the list and the colour never disagree.
 Do not ask `wsa_wsOn` / `mc_wsOn` in an area for this; build on these two. Test: `tests/p21398_a_modspaces_ui.js`.
 
+### Where does New go (#7309)
+
+ONE place answers for person P and module X two questions, the server and the browser alike: `kalmido/accounts/wsplace.py`.
+Before #7309 the server decided "where does a new entry go" (the saved switch / the only organisation) and only the browser
+knew "where is the module on"; new entries landed where the list then hid them.
+
+- `wsp_spaces(c, uid, mod, write=False)` -> `["private", "org:3", …]`: the workspaces module `mod` (a key of `FEATS` / the
+  cards; `"calendar"` = `events`, `"ablage"` = `files`) is on in for `uid`, Private first, then the organisations as
+  `user_orgs`. It checks the main switch (`features`), the organisation's `areas_off`, the card's cap, my own `ws_areas_off`
+  / `ws_mods_off` (the single question stays `modcards.mod_ws_on`); `write=True` also the role (member / admin; never guest,
+  read-only, accounting) and a support session (`sga_org_foreign`). Alone (no organisation, or no workspaces): `["private"]`.
+- `wsp_new(c, uid, mod, named=None)` -> an organisation's id or `None` (Private): the workspace the request names wins while
+  `mod` is on and writable there; nothing named: the workspace on top (setting `workspace`) while `mod` is on and writable
+  there, else exactly ONE workspace of `wsp_spaces(write=True)`; else `SpaceNeeded` = HTTP 400 `{"error", "code":
+  "space_needed", "spaces": [{"ws": "org:3", "name": "…"}, …]}` (never where `mod` is off, never silently Private). An
+  organisation I am not in: 403. Agents: their own workspace (`agent_org`). Transition until its follow-up task (old tests
+  and API users): a call without a name still gets the only organisation the person may add to while `mod` is on there
+  (`_wsp_transition`); the browser always names its workspace, so it never decides there.
+- the request names its workspace in the JSON body as `space` (`"private"` | `"org:<id>"`), multipart as the form field
+  `space`; `org_id` stays accepted (the same). `wsp_named(body)` reads it (None = nothing named; `org_id: null` = Private).
+- `wsp_on(c, uid, mod, oid, write=False)`: one workspace (`oid` None = Private); `wsp_private_off(c, uid, mod)`: switched off
+  in my Private while I have organisations (`modcards.mc_private_office_off` = this for the office).
+- `/api/state` carries `wsp` = `{mod: [ws…]}` (on) and `wsp_w` = `{mod: [ws…]}` (on and writable) for every module
+  (`wsp_all`); the answer of `PATCH /api/settings` with `ws_areas_off` / `ws_mods_off` / `features` carries them fresh.
+- browser (`static/js/areas.js`): `wsp_list(mod, write = false)` reads `S.wsp` / `S.wsp_w` (an older server without the
+  field: the old calculation); `mod_spaces` / `ofc_spaces` / `rd_spaces` read through it. `wsp_ask(err)` shows the required
+  choice of `err.spaces` (organisation colours) and returns the chosen ws (null = cancelled); `wsp_post(url, body)` sends,
+  catches `space_needed`, asks and sends again with `space`.
+
+```python
+from ..accounts.wsplace import wsp_named, wsp_new
+oid = wsp_new(c, uid, "clients", wsp_named(b))     # 400 space_needed when the person has to choose
+```
+```js
+const r = await wsp_post('/api/clients', {name});   // asks for the workspace when the server needs it; null = cancelled
+const sps = wsp_list('clients', true);              // where I may add a client (the dialog's choice)
+```
+
+The old server rules are shells of it now: `orgs.ws_obj_default` (= `wsp_new`), `orgs.ws_chosen_org` (the projects' default
+only, what I may add to read from `wsp_spaces`), `modcards.mc_private_office_off`. Who asks `wsp_new`: a new client
+(`/api/clients`, `/api/v1/clients`, `team/formq.py`), calendar and address book, an upload into the file store without a
+folder. Test: `tests/p21465_a_wsplace_test.py` (the matrix: organisations 0 / 1 / 1 read-only / 2 x module on / off in
+Private and in the organisation x named / not named), `tests/p21441_clientws_test.py`.
+
 ## Resizing: the one grip (#7293)
 
 Everything a person can make wider, taller or bigger uses **one grip**, no drag handling of its own: a grip between two
@@ -1732,7 +1776,3 @@ chat divider, #7324 comment split), new places build on it (#7289, #7290, #7302 
 dashboard's blocks (`.lygrip`, snaps to the grid), the columns of a table (`.shvrsz`, the table's data with an undo step) and
 the columns of a list (`.lchead .lcg`, per list in the account).
 Test: `tests/p21437_a_grip_ui.js` (a test page with one grip of each form).
-- server twin (2.1441.0, #7298): `kalmido/accounts/modcards.py` -- `mod_ws_on(c, uid, oid, area, feat)` answers the same
-  question for one workspace (`oid` None = Private). For whatever lands somewhere without the person naming the workspace:
-  a new client (`team/clients.py cl_ws_default`) never goes silently where its list hides it. The browser names the
-  workspace under "All" itself (`clientdlg.js cl_newWs`). Test: `tests/p21441_clientws_test.py`.

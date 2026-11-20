@@ -26,6 +26,7 @@ from ..tasks.validation import (
 from ..collab.comments import user_names
 from ..core.errors import BadInput
 from ..accounts.orgroles import org_roles_of, org_readonly  # 2.369.5 (#2517): pulled up from functions
+from ..accounts.wsplace import wsp_named, wsp_new, wsp_oid  # (#7309)
 from ..accounts.orgs import clean_org_id, ws_obj_default, need_visible, ws_fit_problem, may_see  # 2.369.5 (#2517): pulled up from functions
 from ..collab.news import news_add, notif_ok  # 2.369.5 (#2517): pulled up from functions
 from ..collab.comments import lang_of  # 2.369.5 (#2517): pulled up from functions
@@ -270,11 +271,19 @@ def cal_fields(b, create=False):
     return out
 
 
-def cal_create(c, uid, b):
-    """2.30.0 (#1036): b.org_id = its workspace (None / 0 = private, else an organisation of uid); not given: the default
-    of a new object (ws_obj_default: an agent's workspace, else the person's first organisation)."""
+def cal_create(c, uid, b, ask=False):
+    """(#1036): b.org_id / b.space (#7309) = its workspace (None / 0 / "private" = private, else an organisation of
+    uid); not given: (#7309) ask=True (a person's request) the shared place (wsp_new: the only workspace where Events is
+    on and writable, else 400 space_needed); ask=False (made by the server: the default calendar, CalDAV, a migration) the
+    chosen / only organisation where Events is on, else private."""
     f = cal_fields(b, True)
-    oid = clean_org_id(c, b["org_id"], uid) if "org_id" in b else ws_obj_default(c, uid)
+    named = wsp_named(b)
+    if named is not None:
+        oid = clean_org_id(c, wsp_oid(named), uid)
+        if ask:
+            oid = wsp_new(c, uid, "events", oid or "private")  # (#7309): named, but Events off there -> 400 space_needed
+    else:
+        oid = ws_obj_default(c, uid, "events", ask=ask)
     if c.execute("SELECT COUNT(*) FROM ev_cals WHERE owner_id=? AND deleted_at IS NULL", (uid,)).fetchone()[0] >= EV_CALS_MAX:
         raise Denied(409, tr("At most {0} calendars", EV_CALS_MAX))  # 2.566.0 (#4707): the ones in the trash do not count
     ts = iso_ms(now_utc())
