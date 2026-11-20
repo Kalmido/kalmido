@@ -672,9 +672,11 @@ function startDrop() { LS.del('cache'); S.lpCache = null; if (typeof oc_drop ===
 // 2.663.0 (#4200): the offline start state (S.lpCache) goes to IndexedDB when the browser is idle (offcache.js, loaded on demand);
 // an own window (miniwin.js) writes none; without IndexedDB or the module localStorage as before
 // (#6340): now = the page is being hidden (liveparts.js lpCacheNow): written at once, not when idle
+// (#6340): another tab signed out / switched account (tasks.uid gone or another): nothing of this one goes back
+const startMine = () => S.me?.id != null && LS.get('uid', null) === S.me.id;
 function startSave(now) {
   if (!S.lpCache || (typeof MW_GUARD !== 'undefined' && MW_GUARD)) return;  // 2.891.0 (#5358): nor the split view's right half
-  if (S.me?.id == null || LS.get('uid', null) !== S.me.id) return;  // (#6340): another tab signed out / switched account (tasks.uid gone): nothing of this one goes back
+  if (!startMine()) return;
   if (typeof loadModule !== 'function' || !globalThis.indexedDB) { LS.set('cache', S.lpCache); return; }
   if (typeof oc_soon === 'function') { if (now) oc_now(); else oc_soon(); return; }
   if (now) return;  // the module is not here yet (the first seconds): the planned write below follows

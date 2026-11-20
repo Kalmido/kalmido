@@ -269,7 +269,7 @@ function lpCacheSoon() {
 let lpCacheW = 0;
 function lpCacheNow() {
   const c = S.lpCache;
-  if (!c || !S.booted || OUT.q.length || !OUT.online) return;
+  if (!c || !S.booted || OUT.q.length || !OUT.online || !startMine()) return;
   if (!lpCacheT && c.v === S.v && Date.now() - lpCacheW < 600e3) return;
   lpCacheT = 0; lpCacheW = Date.now();  // a pending lpCacheSoon timer sees it and does nothing
   lpCacheFold(c);
