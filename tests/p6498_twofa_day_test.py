@@ -13,7 +13,6 @@ import sys
 import base64
 import hashlib
 import hmac
-import os
 import struct
 import time
 
