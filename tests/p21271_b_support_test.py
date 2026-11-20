@@ -81,6 +81,17 @@ end_in_db(G2)
 check(X.get(B + "/api/state").status_code == 401, "the short grant's end passes without a click: the session answers 401 (not the long one's end)")
 check(F.get(B + "/api/state").ok, "frida's own session stays")
 
+# ---- (#6500): a support session never stays signed in - the operator's browser keeps no offline copy of the client's account,
+# also with a grant of 72 hours (a session longer than one day used to count as "Stay signed in")
+G72 = grant(72)
+X, r = sign_in(link())
+check(r.ok and kt.dbx("SELECT via, remember FROM sessions WHERE user_id=? AND grant_id=?", (FID, G72)) == [("support", False)],
+      "#6500: a support session of a 72-hour grant: sessions.remember false " + r.text[:120])
+check(X.get(B + "/api/me").json().get("remember") is False and X.get(B + "/api/state").json()["me"].get("remember") is False,
+      "#6500: ... /api/me and /api/state say remember: false (no offline copy in the operator's browser)")
+check(F.get(B + "/api/me").json().get("remember") is True, "#6500: frida's own sign-in (Stay signed in) says remember: true")
+check(F.delete(B + f"/api/support-access/{G72}").ok, "the 72-hour grant ends")
+
 # ---- (c) the operator loses the admin right between link and sign-in
 G3 = grant(24)
 T = link()

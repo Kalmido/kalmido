@@ -174,7 +174,8 @@ def sga_session_cap(c, uid, token_hash):
                       "WHERE i.user_id=? AND i.kind='login'", (uid,)).fetchone()
         if not r:
             return False
-        c.execute("UPDATE sessions SET via='support', grant_id=?, expires_at=LEAST(expires_at, ?) WHERE token_hash=?",
+        # (#6500): remember FALSE - a support session keeps no offline copy of the client's account (session.py session_remember)
+        c.execute("UPDATE sessions SET via='support', grant_id=?, expires_at=LEAST(expires_at, ?), remember=FALSE WHERE token_hash=?",
                   (r[0], r[1], token_hash))
     if has_request_context():  # 2.503.0 (#4307): the sign-in is the first entry of the log
         g.sga_support = uid
