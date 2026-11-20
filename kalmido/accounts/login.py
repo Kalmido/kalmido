@@ -1038,7 +1038,7 @@ def _end_other_sessions(c, uid):
     must not outlive it (an agent's tokens belong to the agent's account and stay; the dialog names it, acctset.js). The same
     shared place as a new password (scan inbox keys and receipt fetchers, sessions.py ses_access_end: feed links, upload token)."""
     tok = request.cookies.get(COOKIE)
-    from ..accounts.sessions import ses_access_end, ses_end  # 2.190.0 A (#1991): with the push subscriptions made in them
+    from ..accounts.sessions import ses_access_end, ses_end  # (#1991) sessions end with the push subscriptions made in them
     ses_end(c, uid, keep=_token_hash(tok) if tok else None)
     ses_access_end(c, uid)
 
