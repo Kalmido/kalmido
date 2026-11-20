@@ -121,9 +121,9 @@ const secAddSec = (a, sec) => a?.sec.byId(sec) || (a?.name === 'list' ? {id: sec
 const secAddBody = (a, s, r = {}) => a?.sec.newAt ? a.sec.newAt(s, r) : {list_id: routeList()?.id, section_id: s?.id || null};
 function secAddOpen(sec, sk) {
   const a = secAddAd(sk), s = secAddSec(a, sec); if (!a || !s) return;
-  // 2.13.4: phones get the quick sheet (its box sits above the keyboard) with the section set; the inline field under the
+  // phones get the quick sheet (its box sits above the keyboard) with the section set; the inline field under the
   // section head ended up behind the keyboard (Android: keyboard up, no box to type into)
-  if (isTouch()) {  // 2.655.0 (#5081): every touch screen (tablet keyboard covered the inline field too)
+  if (isTouch()) {  // (#5081): every touch screen (tablet keyboard covered the inline field too)
     const b = secAddBody(a, s);
     if (a.name === 'list' && !b.list_id) return;
     openQuickSheet('', {...b, section_name: a.sec.label(s) || '',
@@ -131,7 +131,7 @@ function secAddOpen(sec, sk) {
     return;
   }
   S.secAdd = {key: S.route.key, sec: sec || 0, sk: a.name, v: ''};
-  if (a.name === 'list') { S.collapsed.delete('s:' + (sec || 0)); LS.set('collapsed', [...S.collapsed]); scl_push(); }  // 2.156.0 C (#2073)
+  if (a.name === 'list') { S.collapsed.delete('s:' + (sec || 0)); LS.set('collapsed', [...S.collapsed]); scl_push(); }  // (#2073)
   else if (s.collapsed && a.sec.fold) a.sec.fold(s);  // an own section folded on the server opens for the new task
   renderView();
   $('#view .secadd-in')?.focus();
@@ -149,7 +149,7 @@ async function secAddSubmit(inp) {
   inp.value = ''; sa.v = '';
   try {
     const t = await createTask(qa2_body(r, {title: (r.title || text).slice(0, 500), ...b, due: r.due || null, due_time: r.due_time,
-      priority: r.priority ?? 0, tags: r.tags || [], repeat: r.repeat || ''}));  // 2.111.0 C (#2057)
+      priority: r.priority ?? 0, tags: r.tags || [], repeat: r.repeat || ''}));  // (#2057)
     if (t?.id && a.sec.placed) await a.sec.placed(s, t);  // (#7512): the same step (the creation's Undo takes it away)
   } catch { inp.value = text; sa.v = text; }
   $('#view .secadd-in')?.focus();
