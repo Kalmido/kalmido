@@ -56,7 +56,7 @@ function rinListHtml() {
   rinFresh();
   const items = RIN.items || [];
   if (RIN.err && !items.length) return errorState({sub: RIN.err, size: 'row', retry: rinReload});  // 2.1076.0 (#5450): a failure is said above the invoices (was: no section, as if there were no series)
-  if (!items.length && !RIN.showBin) return '';
+  if (!RIN.items && !RIN.showBin) return '';  // (#7012, audit #5248 B2): loaded and empty = the section with its empty line (was: no section until a series existed)
   const row = s => `<li class="rin-it${s.active ? '' : ' rin-off'}" data-rin="tap" data-sid="${s.id}"><span class="ofcn"><b>${esc(s.title || tr('Invoice series'))}${s.template?.client ? ` · ${esc(s.template.client)}` : ''}</b>
     <small class="muted">${esc([rinEvery(s.every), rinWhen(s), s.auto_send ? tr('sent automatically') : tr('as a draft')].filter(Boolean).join(' · '))}</small></span>
     <b class="rin-sum">${esc(s.template?.gross_text || '')}</b>
@@ -66,9 +66,9 @@ function rinListHtml() {
     <button type="button" class="ib" data-rin="del" data-sid="${s.id}" aria-label="${esc(tr('Delete'))}">${ic('trash', 's')}</button></span></li>`;
   const bin = RIN.showBin ? `<h4 class="ofcgrp">${tr('Deleted series')}</h4>${(RIN.bin || []).length ? `<ul class="ofclist rin-list" role="list">${RIN.bin.map(s => `<li class="rin-it rin-off"><span class="ofcn"><b>${esc(s.title || tr('Invoice series'))}</b><small class="muted">${esc(rinEvery(s.every))}</small></span><button type="button" class="btn sm" data-rin="restore" data-sid="${s.id}">${tr('Restore')}</button></li>`).join('')}</ul>` : `<p class="muted">${tr('Nothing deleted.')}</p>`}` : '';
   return `<details class="ofdsec rin-sec" ${RIN.open ? 'open' : ''} data-rin-sec><summary><h3>${tr('Invoice series')}</h3><span class="c muted">${items.length}</span></summary><div class="ofdsecb">
-    ${items.length ? `${hintOnce('ofclp', tr('Hold a row to see what you can do with it.'))}<ul class="ofclist rin-list" role="list">${items.map(row).join('')}</ul>` : ''}${bin}
-    <div class="lacts"><button type="button" class="linkbtn" data-rin="bin">${RIN.showBin ? tr('Hide deleted series') : tr('Deleted series')}</button></div>
-    <p class="muted ofchint">${tr('A new series starts in the editor of an invoice: "Repeat as series".')}</p></div></details>`;
+    ${items.length ? `${hintOnce('ofclp', tr('Hold a row to see what you can do with it.'))}<ul class="ofclist rin-list" role="list">${items.map(row).join('')}</ul>` : `<p class="muted rin-none">${tr('No invoice series yet: an invoice that repeats every month, quarter or year.')}</p>`}${bin}
+    <div class="lacts"><button type="button" class="btn sm" data-rin="new0">${ic('repeat', 's')}<span>${tr('Recurring invoice (series)…')}</span></button><button type="button" class="linkbtn" data-rin="bin">${RIN.showBin ? tr('Hide deleted series') : tr('Deleted series')}</button></div>
+    <p class="muted ofchint">${tr('Or from an invoice you have: "Repeat as series" in its editor.')}</p></div></details>`;
 }
 function rinRowTag(r) {
   const x = RIN.docs?.[r.id]; if (!x) return '';
@@ -91,6 +91,12 @@ function rinBox(d) {
   return `<div class="rin-box">${out.join('')}${btn ? `<div class="lacts">${btn}</div>` : ''}</div>`;
 }
 
+// (#7012, audit #5248 B2): "New invoice" > "Recurring invoice (series)…" and the section's button: a new invoice draft is the
+// template, its editor opens and the series sheet over it (the positions are filled in the draft afterwards, the series takes them)
+async function rin_newEmpty() {
+  await tri_new('invoice');
+  const d = OFD.doc; if (d?.kind === 'invoice' && !d.trial) rinSheet(d);
+}
 // ---- the sheet: a new series from invoice d, or series s changed
 function rinFirstStart(d) {
   const t = new Date(), nextFirst = new Date(t.getFullYear(), t.getMonth() + 1, 1);
@@ -162,6 +168,7 @@ async function rinClick(e) {
   if (a === 'active' || (a === 'tap' && !isMobile())) return;  // the change event below; 2.452.0 (#3836): only a phone opens a series by tapping its row
   e.preventDefault();
   if (a === 'new') { if (OFD.doc && OFD.doc.id === +b.dataset.did) rinSheet(OFD.doc); return; }
+  if (a === 'new0') { rin_newEmpty(); return; }  // (#7012)
   if (a === 'bin') { RIN.showBin = !RIN.showBin; RIN.open = true; rinReload(); return; }
   if ((a === 'edit' || a === 'tap') && s) { rinSheet(OFD.doc && OFD.doc.id === s.template_id ? OFD.doc : {}, s); return; }
   if (a === 'restore' && s) { await rinDo('POST', `/api/office/series/${s.id}/restore`); offerUndo(tr('Restored'), histAdd({label: tr('Invoice series restored'), undo: () => rinDo('DELETE', `/api/office/series/${s.id}`), redo: () => rinDo('POST', `/api/office/series/${s.id}/restore`)})); return; }

@@ -1208,7 +1208,9 @@ function ofdMoreItems(d, inList) {
       d.kind === 'credit' || !rw ? null : {label: tr('Duplicate'), icon: 'copy', fn: async () => { try { const ask = await ofdDupAsk(d); if (!ask) return; const j = await ofdRefCall(`dup${d.id}`, ref => rawFetch('POST', `/api/office/docs/${d.id}/duplicate`, {client_ref: ref, ...ask})); OFD.list = null; OFD.doc = j; toast(tr('Copied as {0}', j.number || tr('Draft'))); go(ofd_href(j.id, j.kind)); } catch (x) { ofcErr(x); } }},
       rw && !inList && d.kind === 'offer' && d.status === 'draft' && !d.locked && !d.via_folder && d.can_edit !== false ? {label: tr('Adjust prices…'), icon: 'calc', act: 'reprice', fn: () => loadModule('reprice').then(() => orp_open(OFD.doc || d), x => ofcErr(x))} : null,  // 2.1041.0 (#5812): Nachkalkulieren (office_reprice.js)
       rw && d.kind === 'offer' && d.client_id && ofcAdmin() && typeof dtFromOffer === 'function' ? {label: tr('Create order confirmation'), icon: 'file', fn: () => dtFromOffer(d)} : null,  // 2.93.0 A (#1927)
-      rw && inList && d.kind === 'offer' ? {label: tr('Create invoice'), icon: 'receipt', fn: () => kvaToInvoice(d, true)} : null,  // 2.144.7 (#2572): in the list row menu; the editor has the button in its bar
+      rw && inList && d.kind === 'offer' ? {label: tr('Create invoice'), icon: 'receipt', fn: () => kvaToInvoice(d, true)} : null,
+      // (#7012, audit #5248 B1): an open invoice books its payment from the row too - the same dialog as in the open document
+      rw && inList && ofd_payRow(d) ? {label: tr('Record payment…'), icon: 'plus', fn: () => ofd_payFromRow(d)} : null,  // 2.144.7 (#2572): in the list row menu; the editor has the button in its bar
       !inList ? null : {label: tr('Preview (PDF)'), icon: 'eye', fn: () => ofdPdfOpen(d, false)},  // 2.40.0 (#1364): the PDF, not the JSON print model; 2.138.2 A (#2393): a list row opens marked; 2.380.0 A (#3410): a draft opens at once, too; 2.356.0 C (#3005): the editor has its Preview button, the menu no second one
       !inList ? null : {label: tr('Download PDF'), icon: 'download', fn: () => d.status === 'draft' && !d.locked ? ofdPdfAskGo(d, true) : ofdPdfOpen(d, true)},  // 2.435.0 B (#3618)
       !inList || !rw || !ofdCanSend(d) || d.trial ? null : {label: tr('Send by e-mail…'), icon: 'send', fn: async () => { try { ofdSendDialog(d.timesheet_ok === undefined ? await api('GET', `/api/office/docs/${d.id}`) : d); } catch (x) { ofcErr(x); } }},  // 2.435.0 B (#3618): the list row may lack fields, load the whole document first
@@ -1225,6 +1227,8 @@ function ofdMoreItems(d, inList) {
       }} : null,
       rw && d.kind === 'invoice' && d.status === 'cancelled' && d.time_billed?.entries && ofcAdmin() ? {label: tr('Release the time again'), icon: 'clock', fn: () => tbill_release(d)} : null,  // 2.144.6 A (#2053)
       rw && d.kind === 'invoice' && d.status === 'cancelled' && (d.outlays_billed?.receipts || d.outlays_billed?.trips) && ofcAdmin() ? {label: tr('Release the outlays again'), icon: 'receipt', fn: () => au_release(d)} : null,  // 2.1342.0 (#6479)
+      // (#7012, audit #5248 B9): from a quotation or invoice to its look and numbers (letterhead, logo, number schemes, closing texts)
+      rw && ['offer', 'invoice'].includes(d.kind) && ofcAdmin() ? {label: tr('Layout & numbers…'), icon: 'gear', fn: () => settingsModal('biz-company')} : null,
       rw && d.can_delete ? '-' : null,
       rw && d.can_delete ? {label: tr('Delete'), icon: 'trash', cls: 'danger', fn: async () => {
         if (d.trial) { if (!await askConfirm(tr('Delete trial document?'), tr('{0} is a trial document and disappears permanently.', d.number || ofdKindName(d.kind, true)), {ok: tr('Delete'), danger: true})) return; }  // 2.144.10 C (#2576)
@@ -1260,7 +1264,8 @@ async function ofdClick(e) {
   if (a === 'dun-open') { dun_open(); return; }  // 2.147.1 B (#2054): the suggested reminder drafts
   if (a === 'new-inv') {
     menu(b, [{label: tr('Empty invoice'), icon: 'plus', fn: () => tri_new('invoice')}, {label: tr('From time entries…'), icon: 'clock', fn: ofdFromTimeDialog},
-      {label: tr('From a quotation…'), icon: 'receipt', fn: oil_pickOffer}]);  // 2.356.0 C (#3005): a choice of the open quotations (was a text only); 2.417.0 C (#3445): no trial entry (the test mode decides)
+      {label: tr('From a quotation…'), icon: 'receipt', fn: oil_pickOffer},
+      ...(typeof rinOn === 'function' && rinOn() ? [{label: tr('Recurring invoice (series)…'), icon: 'repeat', fn: rin_newEmpty}] : [])]);  // (#7012, audit #5248 B2)  // 2.356.0 C (#3005): a choice of the open quotations (was a text only); 2.417.0 C (#3445): no trial entry (the test mode decides)
     return;
   }
   if (a === 'remind') { ofdReminderDialog(); return; }
@@ -1666,12 +1671,19 @@ function ofdRefundsHtml(d, adm) {
   const sum = `<p class="ofdpaysum"><span>${trh('Paid back: {0}', ofdMoney(d.paid || 0, d))}</span><b>${trh('Refund open: {0}', ofdMoney(d.refund_open || 0, d))}</b></p>`;
   return list + sum + (adm && +d.refund_open > 0 ? `<button type="button" class="btn sm" data-ofd="pay">${ic('plus', 's')}<span>${tr('Record refund')}</span></button>` : '');
 }
-function ofdPaymentDialog(d) {
+// (#7012): a list row of an invoice that still waits for money (finalised, not cancelled, something open) - the admin books it there
+const ofd_payRow = r => r.kind === 'invoice' && r.locked && !['cancelled', 'paid', 'draft'].includes(r.status) && ofcAdmin() && !r.trial && !r.via_folder;
+async function ofd_payFromRow(r) {
+  let d; try { d = await api('GET', `/api/office/docs/${r.id}`); } catch (x) { ofcErr(x); return; }
+  if (!(+d.open > 0) && !ofdNegRest(d)) { toast(tr('Nothing open on this invoice')); return; }
+  ofdPaymentDialog(d, () => ofdLoadList(true));
+}
+function ofdPaymentDialog(d, after) {  // (#7012): after = what follows a booked payment (the list row: reload the list)
   const rf = d.kind === 'credit' || ofdNegRest(d);  // 2.354.0 D (#2837): a refund on a credit note; 2.545.0 (#4387): on a negative final invoice
   ofdDlg(rf ? tr('Record refund') : tr('Record payment'), ofdF('p-date', tr('Date'), dateIn('ofd-p-date', today(), {label: tr('Date'), clear: false}))
     + ofdF('p-amount', tr('Amount'), `<span class="lacts"><input id="ofd-p-amount" inputmode="decimal" class="numin" value="${esc(ofdNumIn(d.kind === 'credit' ? d.refund_open : rf ? d.overpaid : d.open))}" maxlength="14"><span class="muted">${ofcSym(d.currency)}</span></span>`)
     + ofdF('p-method', tr('Method'), ofcSel('ofd-p-method', 'transfer', OFD_PAY.map(([v, n]) => [v, tr(n)]))) + ofdF('p-note', tr('Note'), `<input id="ofd-p-note" maxlength="500">`),
-    tr('Record'), async md => { const j = await ofdRefCall(`pay${d.id}`, ref => ofdSave('POST', `/api/office/docs/${d.id}/payments`, {date: $('#ofd-p-date', md).value, amount: ofcNum($('#ofd-p-amount', md).value), method: $('#ofd-p-method', md).value, note: $('#ofd-p-note', md).value, client_ref: ref})); if (!j) return false; toast(rf ? tr('Refund recorded') : j.state === 'paid' ? tr('Paid in full') : tr('Payment recorded')); });
+    tr('Record'), async md => { const j = await ofdRefCall(`pay${d.id}`, ref => ofdSave('POST', `/api/office/docs/${d.id}/payments`, {date: $('#ofd-p-date', md).value, amount: ofcNum($('#ofd-p-amount', md).value), method: $('#ofd-p-method', md).value, note: $('#ofd-p-note', md).value, client_ref: ref})); if (!j) return false; toast(rf ? tr('Refund recorded') : j.state === 'paid' ? tr('Paid in full') : tr('Payment recorded')); after?.(); });
 }
 // 2.912.0 (#5419): a reminder fee marked paid (or its day changed) asks the day the money came (default: the stored day, else
 // today; not before the reminder, not in the future - the server checks it too); it decides the month and year the fee counts in

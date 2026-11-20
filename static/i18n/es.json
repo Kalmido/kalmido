@@ -7838,7 +7838,6 @@
   "Import…": "Importar…",
   "Clients, services, equipment and fixed costs from a spreadsheet, leads from a CSV file; old invoices and quotations as an archive.": "Clientes, servicios, equipos y costes fijos desde una hoja de cálculo, leads desde un archivo CSV; facturas y presupuestos antiguos como archivo.",
   "A cancelled invoice cannot be repeated": "Una factura anulada no se puede repetir",
-  "A new series starts in the editor of an invoice: \"Repeat as series\".": "Una serie nueva empieza en el editor de una factura: «Repetir como serie».",
   "Check and send the invoice draft of series {0}": "Revisa y envía el borrador de factura de la serie {0}",
   "Deleted series": "Series eliminadas",
   "Edit invoice series": "Editar serie de facturas",
@@ -19729,5 +19728,12 @@
   "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "El cliente de la factura plantilla ya no está en esta oficina (movido a otro espacio de trabajo). Elige otra factura plantilla y vuelve a activar la serie.",
   "Please transfer the outstanding amount within {days} days to the bank account below.|pack": "Le rogamos transfiera el importe pendiente en un plazo de {days} días a la cuenta bancaria indicada abajo.",
   "Please transfer the total amount outstanding within {days} days to the bank account below. If you have already arranged payment, please disregard this letter.|pack": "Le rogamos transfiera el importe total pendiente en un plazo de {days} días a la cuenta bancaria indicada abajo. Si ya ha realizado el pago, le rogamos que ignore esta carta.",
-  "This is our final request to transfer the total amount outstanding within {days} days to the bank account below. If payment is not received by then, we will take legal action without further notice; any costs arising from this will be charged to you.|pack": "Le requerimos por última vez que transfiera el importe total pendiente en un plazo de {days} días a la cuenta bancaria indicada abajo. Si para entonces no hemos recibido el pago, emprenderemos acciones legales sin previo aviso; los costes derivados correrán a su cargo."
+  "This is our final request to transfer the total amount outstanding within {days} days to the bank account below. If payment is not received by then, we will take legal action without further notice; any costs arising from this will be charged to you.|pack": "Le requerimos por última vez que transfiera el importe total pendiente en un plazo de {days} días a la cuenta bancaria indicada abajo. Si para entonces no hemos recibido el pago, emprenderemos acciones legales sin previo aviso; los costes derivados correrán a su cargo.",
+  "Record payment…": "Registrar pago…",
+  "Nothing open on this invoice": "No queda nada pendiente en esta factura",
+  "Layout & numbers…": "Diseño y numeración…",
+  "Recurring invoice (series)…": "Factura recurrente (serie)…",
+  "No invoice series yet: an invoice that repeats every month, quarter or year.": "Aún no hay series de facturas: una factura que se repite cada mes, trimestre o año.",
+  "Or from an invoice you have: \"Repeat as series\" in its editor.": "O a partir de una factura existente: «Repetir como serie» en su editor.",
+  "Signature…": "Firma…"
 }
