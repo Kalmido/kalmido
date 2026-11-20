@@ -95,6 +95,7 @@ FS_TITLE = 14.0   # document / appendix titles
 FS_BRAND = 15.0   # the company name in the head
 PDF_SUM_FILL = 1.0        # share of the free room of the last main page put ABOVE the totals (1 = totals + closing sit at the bottom)
 PDF_SUM_FILL_MAX = 25 * MM  # 2.1179.0 A (#6174): ... but at most this much (was unlimited: up to 10 cm hole between table and totals)
+#   (#7523): the limit holds only when no footer-glued block (bank line, payment block, signature lines) follows the totals
 PDF_INTRO_GAP = 10 * MM  # 2.1179.0 A (#6174): wished air intro -> table (was PDF_SUM_GAP, 18 mm)
 PDF_OV_KINDS = ("offer", "invoice")  # 2.438.0 B (#3622): the documents with an overview of the part totals (progress and final invoices are invoices)
 PDF_LOOK_A = contextvars.ContextVar("pdf_look_a", default=False)  # per request: parallel PDFs never see each other's look
@@ -2283,8 +2284,12 @@ def office_pdf(model, logo_bytes=None, xml=None, meta=None):
                 while je + 1 < n_blocks and not blocks[je + 1]["brk"]:
                     je += 1
                 free = bot - y - need(i, je, False)
+                # (#7523): a block glued to the footer follows (bank line + GiroCode, payment block, signature lines) on a
+                # one-page document: totals + closing go all the way down, the white stays ONE hole above the totals (no second
+                # hole between closing and bank line); without such a block the #6174 limit stays
+                to_foot = n_pages == 1 and any(blocks[k]["foot"] for k in range(i, je + 1))
                 if free > 0:
-                    y += min(free * PDF_SUM_FILL, PDF_SUM_FILL_MAX)
+                    y += free * PDF_SUM_FILL if to_foot else min(free * PDF_SUM_FILL, PDF_SUM_FILL_MAX)
             if b["foot"]:  # 2.434.0 A (#3603): down to the bottom of the page together with what follows up to the next page break
                 je = i
                 while je + 1 < n_blocks and not blocks[je + 1]["brk"]:

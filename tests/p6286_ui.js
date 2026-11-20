@@ -134,7 +134,7 @@ const lsj = (br, k) => { const v = br.shared.store['tasks.' + k]; return v == nu
   const b2 = browser();
   w = await win(b2, 'frida', {ck: CK, hash: ''});
   await until(() => w.eval('!!S.me && S.booted'));
-  w.eval(`document.activeElement?.blur?.(); verIdle = Date.now() - 60000; window.__dirty = false; fgWatch(() => window.__dirty);
+  w.eval(`document.activeElement?.blur?.(); verIdle = Date.now() - 60000; verAway = () => true; window.__dirty = false; fgWatch(() => window.__dirty);
     rl_waitServer = () => new Promise(ok => { window.__srv = ok; }); sessionStorage.removeItem('kalmido-reloaded'); 1`);
   check(w.eval('verCalm()') === true, `C2 setup: the window is quiet ${w.eval('JSON.stringify({q: verQuiet(), e: editing(), f: editFocused(), d: verDraft(), n: OUT.q.length})')}`);
   w.eval('verReload(true); 1');

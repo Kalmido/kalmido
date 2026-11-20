@@ -45,7 +45,16 @@ const bfbBooksStale = () => {
   if (typeof KPS === 'object') KPS.data = null;
   if (typeof OFD === 'object') OFD.list = null;
 };
-const bnkReload = () => { BNK.data = null; BNK.imports = BNK.showImp ? BNK.imports : null; BNK.other = null; BNK.cand = null; bfbBooksStale(); ofcDraw(); };
+// #7495: a write, an undo or the switch Open / Matched keeps the bookings on screen (dimmed) until the fresh ones are there
+// (the imports with them when they are open)
+async function bnkGet() {
+  const q = 'state=' + BNK.state, imp = !!BNK.showImp; BNK.q = q;
+  const [j, im] = await Promise.all([api('GET', '/api/office/bank/tx?' + q), imp ? api('GET', '/api/office/bank/imports').catch(x => ({err: ofcErrHere(x)})) : null]);
+  return () => { if (BNK.q !== q) return; BNK.data = j; BNK.err = null; if (im) { BNK.imports = im.items || []; BNK.impErr = im.err || null; } };  // (#5450): a failure is no "No imports yet"
+}
+const bnk_norc = () => typeof BNR === 'object' && BNK.state === 'norc';
+const bnk_refetch = () => ofcRefetch('bank', ofcTab() === 'bank' && !!BNK.data && !bnk_norc(), bnkGet, () => { BNK.data = null; });
+const bnkReload = () => { BNK.imports = BNK.showImp ? BNK.imports : null; BNK.other = null; BNK.cand = null; bfbBooksStale(); bnk_refetch(); };
 // 2.979.0 (#5667): an undo / redo the server did: the bank bookings and imports come again (with the books, cash flow and key figures)
 histReloader('bank', () => { if (!BNK.data && !BNK.imports) return; BNK.imports = null; bnkReload(); });
 const bnkAmt = v => `${+v > 0 ? '+' : '−'}${ofcMoney(Math.abs(+v))}`;
@@ -56,7 +65,8 @@ function bnkHtml() {
   if (!ofcAdmin()) return ofcLockedHtml();  // 2.356.0 D (#3006): why, and the way to hand in receipts
   if (BNK.err) return ofcFail(BNK.err, () => { BNK.err = null; BNK.data = null; });  // 2.1076.0 (#5450): the reason + "Try again"
   const norc = typeof BNR === 'object' && bnr_route() && BNK.state === 'norc';  // 2.299.0 C (#3192): #office/bank/norc (the reminder task's link)
-  if (!norc && (!BNK.data || BNK.q !== 'state=' + BNK.state)) { setTimeout(() => { if (BNK.q !== 'state=' + BNK.state || !BNK.data) bnkLoad(); }, 0); if (!BNK.data) return loadingHtml('big'); }
+  if (!norc && !BNK.data) { setTimeout(() => { if (!BNK.data) bnkLoad(); }, 0); return loadingHtml('big'); }
+  if (!norc && BNK.q !== 'state=' + BNK.state) setTimeout(() => { if (BNK.q !== 'state=' + BNK.state) bnk_refetch(); }, 0);  // #7495: Open / Matched: the old rows dimmed until the new ones are there
   const d = BNK.data || {}, n = d.counts || {};
   const segs = [['open', tr('Open|payment state'), n.open], ['matched', tr('Matched'), n.matched], ['all', tr('All'), null]];
   if (typeof BNR === 'object') segs.splice(1, 0, ['norc', tr('Without receipt'), BNR.data?.counts?.out]);  // 2.299.0 C (#3192)

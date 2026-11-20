@@ -86,13 +86,30 @@ const menuItems = d => [...d.querySelectorAll('#pop [role="menuitem"]')].map(x =
   check(!d.querySelector('#newver'), '#968: back in step: the bar goes');
   // quiet + an update: one reload by itself, not a second time for the same version
   // 2.619.0 (#3890): the random wait before the reload by itself (spread over all windows) off here; p2619_d_reload_ui.js tests it
-  w.eval(`VER_SPREAD_MS = 0; document.activeElement.blur(); document.querySelector('#qinput').value = ''; verIdle = Date.now() - 60000; sessionStorage.removeItem('kalmido-reloaded'); window.__rl = 0; verCheck('99.0.1')`);
+  // (#6364): by itself only while the window is not seen (verAway); a window in view keeps the bar and reloads at the next page
+  w.eval(`VER_SPREAD_MS = 0; document.activeElement.blur(); document.querySelector('#qinput').value = ''; verIdle = Date.now() - 60000; sessionStorage.removeItem('kalmido-reloaded'); window.__rl = 0; window.__rla = []; verReload = a => { window.__rl++; window.__rla.push(a); }; window.__away = false; window.__realAway = verAway; verAway = () => window.__away; verCheck('99.0.1')`);
   check(!w.__rl, '#1094: the first report of a new version does not reload yet (maybe in the middle of the update)');
+  w.eval(`verCheck('99.0.1'); verCheck('99.0.1')`);
+  check(w.eval('verQuiet()') && !w.__rl && d.querySelector('#newver'), '#6364: in view and quiet (no input for a minute): no reload by itself, the bar stays');
+  w.__away = true;
+  w.eval(`(() => { const i = document.createElement('input'); i.type = 'text'; i.id = 'nv6364'; document.body.appendChild(i); i.value = 'half a sentence'; verCheck('99.0.1'); })()`);
+  check(!w.__rl && d.querySelector('#newver'), '#6364: hidden with a draft: no reload (nothing typed is lost)');
+  w.eval(`document.querySelector('#nv6364').remove()`);
+  w.__away = false;
+  const why = () => JSON.stringify(w.eval(`({stale: verStale(), busy: verBusy, quiet: verQuiet(), editing: editing(), focused: editFocused(), act: document.activeElement?.id, modal: !!$('.modal'), pop: !!$('#pop:not(.hidden)'), sheet: !!$('.qadd.sheet'), q: OUT.q.length, multi: !!S.multiMode, draft: verDraft(), fg: typeof fgAny === 'function' && fgAny(), up: typeof upAny === 'function' && upAny(), once: sessionStorage.getItem('kalmido-reloaded'), seen: S.verSeen, hash: location.hash})`));
+  w.eval(`document.querySelector('#qinput')?.focus()`);
+  check(w.eval('verQuiet(true)'), '#6364: the empty add box the list focuses by itself holds no reload at a change of page ' + why());
+  w.eval(`location.hash = '#inbox'`); await until(() => w.__rl === 1, 20);
+  check(w.__rl === 1 && w.eval('window.__rla[0]') === 'nav', '#6364: in view: the next change of page reloads ' + JSON.stringify(w.eval('window.__rla')) + why());
+  w.eval(`document.activeElement?.blur?.(); window.__rl = 0; window.__rla = []; S.verSeen = {v: '', n: 0}; sessionStorage.removeItem('kalmido-reloaded'); verCheck('99.0.1')`);
+  w.__away = true;
   w.eval(`verCheck('99.0.1')`);
-  check(w.__rl === 1, '#968: quiet: reloads once by itself (#1094: after the second report)');
+  check(w.__rl === 1 && w.eval('window.__rla[0]') === true, '#968 / #6364: hidden and quiet: reloads once by itself (#1094: after the second report) ' + why());
   w.eval(`sessionStorage.setItem('kalmido-reloaded', '99.0.1'); window.__rl = 0; verCheck('99.0.1')`);
   check(!w.__rl && d.querySelector('#newver'), '#968: never twice for the same version (the bar stays)');
-  w.eval(`S.serverVer = '${appVer}'; verCheck('${appVer}')`);
+  w.eval(`location.hash = '#l/${L}'`); await until(() => d.querySelector('#view .trow'));
+  check(!w.__rl, '#6364: never twice for the same version, also not at a change of page');
+  w.eval(`verAway = window.__realAway; S.serverVer = '${appVer}'; verCheck('${appVer}')`);
   w.eval('td_polling = false');
 
   // ================= #957 comments last; #994 more lines of the description

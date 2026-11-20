@@ -25,7 +25,15 @@ function ccCardClose() { CC.card = null; f8d_viewDrop('ccc'); ofcDraw(); }
 function ccStmtShow(id) { CC.sid = id; CC.sheet = null; f8d_viewStep('ccs', ccStmtClose); ofcDraw(); }
 function ccStmtClose() { CC.sid = null; CC.sheet = null; CC.sheetErr = null; CC.pick = null; CC.bank = null; CC.stmts = null; f8d_viewDrop('ccs'); ofcDraw(); }
 // a write changes the receipts' payment days too: the bookkeeping's loaded figures go
-const ccStale = () => { CC.sheet = null; CC.stmts = null; CC.data = null; CC.pick = null; CC.cand = null; CC.bank = null; if (typeof bfbBooksStale === 'function') bfbBooksStale(); ofcDraw(); };
+// #7495: the cards, the card's statements or the statement on screen stay (dimmed) until the fresh ones are there
+const ccStale = () => {
+  CC.pick = null; CC.cand = null; CC.bank = null; if (typeof bfbBooksStale === 'function') bfbBooksStale();
+  const sid = CC.sid, card = CC.card;
+  ofcRefetch('cards', ofcTab() === 'cards' && !!CC.data && (!sid || !!CC.sheet) && (!card || sid || Array.isArray(CC.stmts)), async () => {
+    const [d, st, sh] = await Promise.all([api('GET', '/api/office/cards'), card && !sid ? api('GET', `/api/office/cards/${card}/statements`) : null, sid ? api('GET', `/api/office/cards/statements/${sid}`) : null]);
+    return () => { CC.data = d; CC.err = null; CC.stmts = st ? st.items || [] : null; if (st) CC.stmtsErr = null; if (CC.sid === sid) { CC.sheet = sh; if (sh) CC.sheetErr = null; } };
+  }, () => { CC.sheet = null; CC.stmts = null; CC.data = null; });
+};
 // 2.979.0 (#5667): an undo / redo the server did: the card statements and the reminder setting come again
 histReloader('cards', () => { if (CC.data || CC.sheet || CC.stmts) ccStale(); if (CC.rem) { if ($('#ccn-every')) ccn_load(); else CC.rem = null; } });
 const ccName = k => `${k.provider_name} ·· ${k.last4}`;

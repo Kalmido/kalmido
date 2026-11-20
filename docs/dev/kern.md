@@ -1576,6 +1576,21 @@ selectors, the list adapter's `on()`, palette.js' board check; it only shrinks, 
 way asks the adapter (`DROP_ADAPTERS` `on()` / `where()` / `put()`) instead; a new adapter file is an `ALLOW` entry with its
 reason. Tests: `tests/p21389_a_mine_multidrag_ui.js`, `tests/p21453_7354_mine_core_ui.js`, `tests/p21462_7351_list_core_ui.js`, `tests/check_drop_core_test.py`.
 
+**The section side (#7519):** the head of a group that is a section (a project's section, an own section of My tasks) is
+drawn and served **once**. Each adapter brings `sec` next to `where` / `put`: `of(g)` (the section of a group, null = not one
+of this adapter), `byId`, `label`, the abilities `drag(s)` (grip; on a touch screen the head drags, so no Move up / down),
+`add(s, v, ro)` (the head's "+"), `menu(s, ro)` (its "…"), the html `grip(s)` / `chip(g)` (a project's WIP count), `pos(s)`
+(its place among its siblings), the saving `rename(s, name)` / `move(s, d)` / `del(s)` (project: the sections API, `dnd.js`
+`sectionRename` / `moveSection` / `sectionDelete`; My tasks: `/api/mine-sections`, `mineorder.js` `mseRename` / `mseMove` /
+`mseDelete`), `extra(s, anchor)` (project: WIP limit, time limits, meaning; My tasks: Rules…) and, where the adapter keeps the
+folding itself, `head(h)` / `fold(s)` (My tasks: on the server for every device). `dragmulti.js` `sh_head(g, v, ro)` gives
+render.js grip, chip, "+" and "…"; `sh_menu(anchor, adapter, id, head)` is the one menu of every section's head (the "…", a
+long press `multisel.js` `LM_SECHEAD`, the hold of a project's head `dnd.js` `secHeadMenu`, a board's column): Rename, Move
+up / down (a board's column: left / right), the adapter's extras, Delete - the same order and texts everywhere. A new
+ability of a head (the "+" of My tasks #7512, its grip #7518, board columns #7517) is a field of the adapter, no code at the
+head. `tools/check_drop_core.py` counts `mseOn(` / `.mosec` / `mseHeadHtml` / `mseMenu` in render.js (`HEAD`). Test:
+`tests/p2569_a_mine_sections_ui.js` (both heads show the same basic items).
+
 ## Calm view: a redraw keeps the reading place (2.924.0, #5224)
 
 The view moves only when the person makes it move; a jump the person asked for (a link, a search hit, "go to ...") is one
@@ -1602,6 +1617,16 @@ calm jump. A new area does not keep scroll positions itself:
   box back unchanged; the new sheet replaces it once. Bars above a part that comes or goes with the tab carry a `data-k`, so
   the morph keeps them (time.js `tv-period`). A box that an area fills after the render keeps its content through a
   redraw only with `data-fl-fill` (render.js `morphKids`).
+- An office area that fetches again what it shows (after a write, an undo, a conflict, another filter / period / year;
+  #7495): `ofcRefetch(key, has, get, drop)` (static/js/office.js) instead of setting its data to null. The data stay on
+  screen and usable (a dialog built from them keeps its choices, #7064), `.ofcbody` is dimmed and `aria-busy` until the
+  answer is there, an older answer never overwrites a newer one, a failure keeps the rows and puts the reason with "Try
+  again" above them (`ofcHeldErr`); `has` false (another tab, nothing loaded yet) = `drop()` and the area loads as on its
+  first view with the loading block. `get` resolves to a function that puts the answer in place. The 4 s hold of the old
+  page and the replay of a tap on it (OFCP.stale / OFCP.replay) are gone. Users: subscriptions, contracts, cash flow,
+  letters & contracts, entertainment, travel, logbook, cash book, cards, bank, without receipt, pipeline, ledger, books
+  and the shared lists (`ofcReload(kind)`); the quotations / invoices list holds its rows with `tabh_arm('ofd')` on a
+  filter change too.
 - `tools/check_scrolljump.py` (CI lint) is red for a NEW `scrollIntoView` / `scrollTo` / `scrollBy` / `scrollTop =` /
   `focus()` without `preventScroll` outside a dialog; a jump the person asked for carries `// sprung-ok: <reason>`. The
   places from before are the baseline `tools/scrolljump_baseline.json` (only shrinks, `--update`).

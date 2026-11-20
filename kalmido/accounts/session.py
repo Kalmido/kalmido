@@ -105,6 +105,17 @@ def session_gen(u, ws):
     return hashlib.sha256(raw.encode()).hexdigest()[:24]
 
 
+def session_remember(c):
+    """(#6500): did this sign-in ask for "Stay signed in"? A session without it lives one day (start_session), with it
+    SESSION_DAYS; the client keeps an offline start state and the knowledge pages' copy only then (a shared computer keeps
+    nothing after the browser is closed). Not a session cookie (a proxy login, an API token): True, as before."""
+    tok = request.cookies.get(COOKIE) if g.auth_via == "session" else None
+    if not tok:
+        return True
+    r = c.execute("SELECT expires_at - created_at > INTERVAL '36 hours' FROM sessions WHERE token_hash=?", (_token_hash(tok),)).fetchone()
+    return bool(r[0]) if r else False
+
+
 def sgen_shares(c, uid):
     """2.666.0 (#4074 9): the live folder / page shares of the file store uid gets (directly or through a group), as part of
     the sign-in mark: a share taken back (or expired, or a group left) changes sgen, so sessGuard (core.js) drops the offline
@@ -678,6 +689,8 @@ def start_session(c, uid, remember, via="password"):
     via: password | 2fa | passkey | oidc | link (sign-in link) | restore (the admin after a backup restore)."""
     tok = secrets.token_urlsafe(32)
     days = SESSION_DAYS if remember else 1
+    # (#6500): the push subscriptions made in an ended session go with it (the send filters them too, push.py webpush_user)
+    c.execute("DELETE FROM push_subs WHERE session_hash<>'' AND session_hash IN (SELECT token_hash FROM sessions WHERE expires_at<?)", (iso(now_utc()),))
     c.execute("DELETE FROM sessions WHERE expires_at<?", (iso(now_utc()),))
     from flask import has_request_context
     from ..accounts.sessions import ses_ua  # 2.115.0 B (#2062): last activity + the browser for "Active sessions"

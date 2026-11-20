@@ -226,7 +226,10 @@ def webpush_user(uid, payload, prio="4", ttl=86400, topic=None, only=None, stats
     from ..notify.alerts import aa_count, aa_fail, aa_ok
     if not WEBPUSH_ON:
         return 0
-    q, a = "SELECT * FROM push_subs WHERE user_id=?", [uid]
+    # (#6500): only devices whose session still lives - one made in a session that ended (expired, signed out elsewhere) gets
+    # nothing, even before the clean-up removes it; '' = not bound to a session (a proxy login, from before 2.115) as before
+    q, a = ("SELECT * FROM push_subs WHERE user_id=? AND (session_hash='' OR EXISTS (SELECT 1 FROM sessions s "
+            "WHERE s.token_hash=push_subs.session_hash AND s.expires_at>?))"), [uid, iso(now_utc())]
     if only is not None:
         q, a = q + " AND id=?", a + [only]
     ok, now = 0, time.time()

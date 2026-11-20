@@ -1393,7 +1393,7 @@ function wko_idb() {
     fdel: async k => wko_rq((await os('readwrite', 'f')).delete(k)), fkeys: async () => wko_rq((await os('readonly', 'f')).getAllKeys()),
     clear: async () => { const t = await h.tx(['c', 'f'], 'readwrite'); await Promise.all(['c', 'f'].map(n => wko_rq(t.objectStore(n).clear()))); }, close: h.close};
 }
-const wko_st = () => WKO.dead ? null : WKO.st ||= globalThis.__wkoStore || wko_idb();  // after logout nothing is written again (a sync still on its way)
+const wko_st = () => WKO.dead || (typeof keepOff === 'function' && keepOff()) ? null : WKO.st ||= globalThis.__wkoStore || wko_idb();  // (#6500): no copy without "Stay signed in" (core.js keepOff)  // after logout nothing is written again (a sync still on its way)
 async function wko_get(k) { try { const r = S.me ? await wko_st()?.get(k) : null; return r && r.uid === S.me.id && (r.g || '') === (S.me.sgen || '') ? r : null; } catch { return null; } }  // private mode: no copy, as before; 2.238.0 B (#2872): only this sign-in's records
 async function wko_put(r) {
   if (!S.me || WKO.dead) return;
