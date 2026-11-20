@@ -425,7 +425,7 @@ function shv_sideGrip() {
   grip_col(g, {key: 'sheets-side', edge: 'start', min: 14, def: 17.5, label: tr('Width of the cell details'),
     max: () => Math.max(14, Math.floor((box.clientWidth / rem() - 14 - 0.75) * 4) / 4)});  // the box minus the grid's 14rem and the grip's room
 }
-function shvAfter() { shv_sideGrip(); shvBarSync(); shvDepsDraw(); if (typeof shz_fill === 'function') shz_fill(); if (typeof shk_after === 'function') shk_after(); }  // 2.124.0 B (#2111): + the rows / columns kept in view  // 2.98.0 C (#2181): the empty cells that fill the frame
+function shvAfter() { shv_sideGrip(); shvBarSync(); shvDepsDraw(); if (typeof shz_fill === 'function') shz_fill(); if (typeof shk_after === 'function') shk_after(); }  // (#2111): + the rows / columns kept in view  // (#2181): the empty cells that fill the frame
 // after a write: the changed cells and the rows they colour are drawn in place (an open editor stays)
 function shvPatchAll() {
   const sh = SHV.sh, tb = $('#shv-scroll tbody'); if (!sh || !tb) return;
