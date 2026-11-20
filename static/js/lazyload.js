@@ -386,6 +386,7 @@ function loadModule(name, again) {
   if (LD_P[name]) return LD_P[name];
   const files = LD_MODS[name];
   if (!files) return Promise.reject(new Error('unknown module ' + name));
+  if (typeof verStale === 'function' && verStale() && files.some(f => !LD_RAN.has(f))) return ld_stale();  // 2.1467 (#6338 D3)
   ld_bar(1);
   const need = Promise.all((LD_NEED[name] || []).map(m => loadModule(m)));  // 2.65.0 (#1823)
   // the files of one module run one after the other (later ones use the first one's globals); the browser fetches them side
@@ -404,6 +405,19 @@ function loadModule(name, again) {
     throw e;
   });
   return p;
+}
+// 2.1467 (#6338 D3): this window runs older code than the server (core.js verStale): a module that has not run yet would come in
+// the server's new version (the new service worker dropped the old cache, the server answers any ?v= with its current file) and
+// run on this window's old core - errors or wrong behaviour until a reload. So no module is loaded here: asked for by a click
+// (input within the last seconds) the window reloads first, with the checks of the reload by itself (verQuiet: nothing typed,
+// no dialog, no waiting change, no upload); not quiet, a hint with "Reload". Asked for in the background (preload, the offline
+// start state) nothing happens, the bar "New version available" stays. The promise is rejected ({stale}: no "Try again")
+function ld_stale() {
+  if (Date.now() - verIdle < 3000) {
+    if (verQuiet()) { toast(tr('New version available') + ' · ' + tr('Loading…')); verReload(); }
+    else toast(tr('New version available'), () => verReload(), 10000, tr('Reload'));
+  }
+  return Promise.reject(Object.assign(new Error('outdated window: reload first'), {stale: true, shown: true}));
 }
 const LD_DONE = new Set();  // modules that have run
 function ld_all() { return Promise.all(Object.keys(LD_MODS).map(m => loadModule(m)).concat(Object.values(LD_CSS).flat().map(loadCss))); }  // the test suites (tests/boot.js: window.ld_all)
@@ -597,7 +611,7 @@ function ld_idle(i) {
   const m = LD_IDLE[i]; if (!m) return;  // 2.191.0 F2 (#2518): the texts of every module load on their own (i18n.js i18nWarm)
   (window.requestIdleCallback || (f => setTimeout(f, 0)))(() => {
     if (!S.me || document.hidden) return;
-    if (netLite()) return;  // data saver / a slow mobile connection: nothing in the background, the areas load on their first click
+    if (netLite() || verStale()) return;  // 2.1467 (#6338 D3): an outdated window preloads nothing (ld_stale)  // data saver / a slow mobile connection: nothing in the background, the areas load on their first click
     (m[1]() ? loadModule(m[0]) : Promise.resolve()).catch(() => {}).then(() => ld_idle(i + 1));
   });
 }

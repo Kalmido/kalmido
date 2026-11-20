@@ -5,6 +5,8 @@
 //   during writes elsewhere)
 // - an update of the server: the reload by itself waits a random part of VER_SPREAD_MS (the windows do not all reload in the
 //   same poll); the bar shows meanwhile; once the wait is over it reloads
+// - 2.1467 (#6338): a running upload holds the reload by itself back and closing the tab asks; an outdated window loads no
+//   module of the new version (a click reloads first, a background load does nothing)
 // Every wait is on a real state (the app's own change poll, held where a step needs it).
 const {execFileSync} = require('child_process');
 const path = require('path');
@@ -92,6 +94,36 @@ const until = fn => until0(fn, {timeout: 20000, step: 100});
   check(await until(() => !w.eval('verBusy')), '#6892: third run over (server not reachable)');
   check(!nv().disabled && nv().textContent === word, '#6892: the button is free again after a failed wait');
   w.eval(`document.querySelector('#nv-draft')?.remove(); rl_waitServer = window.__realWait; S.serverVer = '${appVer}'; verCheck('${appVer}'); td_polling = false`);
+
+  // ================= 2.1467 (#6338): a running upload holds the reload by itself back and closing the tab asks; once it is done
+  // the reload comes. An outdated window loads no module of the new version: a click reloads first, the background nothing
+  check(await until(() => w.eval('td_polling ? false : (td_polling = true)')), '#6338: the poll held');
+  w.eval(`window.__rl = 0; window.__rla = []; window.__realVR2 = verReload; verReload = a => { window.__rl++; window.__rla.push(a); }; VER_SPREAD_MS = 0;
+    verIdle = Date.now() - 60000; sessionStorage.removeItem('kalmido-reloaded'); document.activeElement?.blur?.(); 1`);
+  check(await until(() => w.eval('verQuiet()')), '#6338 setup: the window is quiet');
+  // an upload whose answer is held (a form with a file through rawFetch, as every upload of the app)
+  w.eval(`window.__f0 = window.fetch; window.__upGate = null;
+    window.fetch = (u, o) => o && o.body instanceof FormData ? new Promise(r => { window.__upGate = () => r(window.__f0('/api/version', {headers: {'X-Requested-With': 'kalmido'}})); }) : window.__f0(u, o);
+    const fd = new FormData(); fd.append('file', new Blob(['sunflower, marigold']), 'seed list.txt'); window.__up = rawFetch('POST', '/api/files/upload', fd).catch(() => 0); 1`);
+  check(await until(() => w.eval('!!window.__upGate')), '#6338: the upload is on its way');
+  check(w.eval('upAny()') === true && w.eval('verQuiet()') === false, '#6338: a running upload makes the window not quiet (verQuiet)');
+  const bu = () => w.eval(`(() => { const e = new Event('beforeunload', {cancelable: true}); window.dispatchEvent(e); return e.defaultPrevented; })()`);
+  check(bu() === true, '#6338: closing / reloading the tab asks while the upload runs');
+  w.eval(`S.serverVer = '99.3.0'; S.verSeen = {v: '', n: 0}; verCheck('99.3.0'); verCheck('99.3.0'); 1`);
+  check(w.eval('window.__rl') === 0 && !!d.querySelector('#newver'), '#6338: a new version does not reload by itself during the upload, the bar shows');
+  w.eval('window.__upGate()');
+  check(await until(() => !w.eval('upAny()')), '#6338: the upload is done');
+  check(bu() === false, '#6338: closing asks no more');
+  w.eval(`verIdle = Date.now() - 60000; verCheck('99.3.0'); 1`);
+  check(await until(() => w.eval('window.__rl') === 1), '#6338: after the upload the reload by itself comes');
+  // D3: the window is outdated (S.serverVer 99.3.0); a module that has not run here
+  w.eval(`LD_MODS.t6338 = ['t6338none']; window.__rl = 0; window.__rla = []; 1`);
+  const bg = await w.eval(`(verIdle = Date.now() - 60000, loadModule('t6338').then(() => 'loaded', e => e.stale ? 'stale' : 'err:' + e.message))`);
+  check(bg === 'stale' && w.eval('window.__rl') === 0 && !d.querySelector('script[data-ld="t6338none"]'), `#6338 D3: asked in the background, nothing is loaded and nothing reloads (${bg})`);
+  const fg = await w.eval(`(verIdle = Date.now(), loadModule('t6338').then(() => 'loaded', e => e.stale ? 'stale' : 'err:' + e.message))`);
+  check(fg === 'stale' && w.eval('window.__rl') === 1 && w.eval('window.__rla[0]') === undefined && !d.querySelector('script[data-ld="t6338none"]'),
+    `#6338 D3: after a click the window reloads first (with the checks of the reload: quiet), the module of the new version is not loaded (${fg}, ${w.eval('window.__rl')})`);
+  w.eval(`window.fetch = window.__f0; verReload = window.__realVR2; delete LD_MODS.t6338; S.serverVer = '${appVer}'; verCheck('${appVer}'); td_polling = false`);
   w.close();
 
   console.log(`p2619_d_reload_ui: ${ok} ok, ${F.length} failed`);

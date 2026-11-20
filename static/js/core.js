@@ -680,7 +680,7 @@ function startSave(now) {
   // the start fetches no module (p265_b): the first write waits for the idle preload (lazyload.js, 5 s), it takes the newest state then
   const wait = 6000 - performance.now();
   if (wait > 0) { if (!startSave.t) startSave.t = setTimeout(() => { startSave.t = 0; startSave(); }, wait); return; }
-  loadModule('offcache').then(() => oc_soon(), e => { console.warn('Kalmido: offline start state: module not loaded, localStorage', e); if (S.lpCache) LS.set('cache', S.lpCache); });
+  loadModule('offcache').then(() => oc_soon(), e => { if (e?.stale) return; /* 2.1467 (#6338): an outdated window, the reload comes */ console.warn('Kalmido: offline start state: module not loaded, localStorage', e); if (S.lpCache) LS.set('cache', S.lpCache); });
 }
 // 2.1467 (#6340): the real age of a start state: when the server last confirmed it (ms; set by load() / the delta / the hidden
 // page, offcache.js fills it for a record of before from its write time); null = unknown (a localStorage copy of before).
@@ -770,7 +770,8 @@ async function rawFetch0(method, url, body, key, osp, oq) {
   // 2.363.3 (#3134): a form with files of some size goes with a progress bar and Cancel (upbar.js); Cancel is no lost connection
   // 2.655.0 (#5045): an answer that arrives after the page is gone (its window closed: no document) goes nowhere: it never settles,
   // so no caller draws into a page that is not there (outFlush -> renderTop, chatReact, rel_load, ld_go -> applyState, ...)
-  try { r = await (body instanceof FormData && typeof upSend === 'function' && upWanted(body) ? upSend(url, opt, body) : fetch(url, opt)); } catch (e) { if (!globalThis.document) return new Promise(() => {}); if (e.cancelled) throw e; const ch = OUT.down; OUT.down = false; setOnline(false); if (ch && S.booted) renderTop(); throw new Offline('offline'); }
+  // 2.1467 (#6338): every form with files counts as a transfer that runs while it goes (upbar.js upRun)
+  try { const fp = body instanceof FormData && typeof upSend === 'function' && upWanted(body) ? upSend(url, opt, body) : fetch(url, opt); r = await (body instanceof FormData && typeof upRun === 'function' ? upRun(fp) : fp); } catch (e) { if (!globalThis.document) return new Promise(() => {}); if (e.cancelled) throw e; const ch = OUT.down; OUT.down = false; setOnline(false); if (ch && S.booted) renderTop(); throw new Offline('offline'); }
   // 2.21.0 (#673): the device is online but the server is not (a proxy answers 502 / 503 / 504 without Kalmido's JSON): the
   // same as offline (cached data, changes wait), the hint says "server not reachable"; never a reload loop on a proxy page
   // 2.24.0 (#907): 503 (the proxy's maintenance page) or a notice of the kind "maintenance": "server in maintenance"
@@ -1898,7 +1899,8 @@ const verDraft = () => ['#c-input', '#tc-in', '#chat-in', '#qinput', '#qsheet', 
   || [...document.querySelectorAll(VER_DRAFT_SEL)].some(e => !e.readOnly && !e.disabled && e.value !== e.defaultValue && e.value.trim() !== '');
 // 2.1257.0 (#6286 C2): + unsaved input the form guard knows (formguard.js fgAny: the import preview, a project dialog's save
 // waiting, a typing timer of a locked project)
-const verQuiet = () => !editing() && !editFocused() && !$('.modal') && !$('#pop:not(.hidden)') && !$('.qadd.sheet') && !OUT.q.length && !S.multiMode && !verDraft() && !(typeof fgAny === 'function' && fgAny());
+// 2.1467 (#6338): + a transfer that runs (upbar.js upAny: an upload, its portions)
+const verQuiet = () => !editing() && !editFocused() && !$('.modal') && !$('#pop:not(.hidden)') && !$('.qadd.sheet') && !OUT.q.length && !S.multiMode && !verDraft() && !(typeof fgAny === 'function' && fgAny()) && !(typeof upAny === 'function' && upAny());
 const verCalm = () => verQuiet() && (document.hidden || Date.now() - verIdle > 20000);
 let verBusy = false, verWant = false;
 // 2.1337.0 (#6892): the "Reload" button shows "Loading…" while it waits and is never left disabled: every early exit frees it
