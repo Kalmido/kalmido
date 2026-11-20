@@ -5032,7 +5032,7 @@ projects with different people (2.30.0) and a prompt-injection checklist with ou
   @name in its title or notes is no mention) and every comment without a Kalmido account (`comment.origin` /
   `comment.untrusted` in `comment` / `mention` events, in `task.comments` and in the comment list: `mail` = a reply by
   e-mail to a ticket, `portal` = the reporter on the status page, `public_link` = a customer through the public link,
-  `git` = synced from the git host). A comment of a person or an agent with an account carries neither field. A task made
+  `git` = synced from the git host; #6643: `former_account` = written by an account that was deleted since, still untrusted). A comment of a person or an agent with an account carries neither field. A task made
   from a GitHub / GitLab issue (issue import or issue sync) carries `origin: "git"` as well (in later events and `get_task`; a new
   synced issue sends no `task_added`), and an @name in the issue is no mention.
 - 2.1313.0 (#6557): a chat message sent through the person's upload token (`POST /drop` with `to`) carries `origin: "drop"`

@@ -11,6 +11,9 @@ freelancer-matrix: agents
  - a comment of a person with an account: neither field; the agent's comment list marks only the ones from outside
  - the reference launcher frames a comment marked untrusted as data
  - everything as a person without an organisation (Bea) with her own agent
+ - #6643: a comment whose account was deleted since: origin former_account (was public_link), untrusted; the start's one-shot
+   marks the tasks of before 2.1269 whose history says webhook / form / error report (a person's task stays without); the
+   account move keeps the origin at the end of the task's new key
 usage: p21269_c_fremd_test.py <datadir>"""
 import email
 import email.message
@@ -239,5 +242,43 @@ r = requests.get(V + f"/tasks/{T1}/comments", headers=AH)
 cs = r.json().get("data") or [] if r.ok else []
 check(any(c.get("origin") == "mail" and c.get("untrusted") is True for c in cs)
       and all("untrusted" not in c for c in cs if (c.get("author") or {}).get("id") == BU), f"#6431: the comment list of the API marks them too {r.status_code}")
+
+# ---------------------------------------------------------------- #6643: the rest of the marks
+def in_ct(code):
+    r = subprocess.run(["docker", "exec", CT, "python3", "-c", "import app\nfrom kalmido.core.db import connect\n" + code],
+                       capture_output=True, text=True, timeout=120)
+    check(r.returncode == 0, f"in the container: {r.stderr[-400:]}")
+    return r.stdout.strip().splitlines()[-1] if r.stdout.strip() else ""
+
+
+# (3) a comment whose account was deleted since (the database set its author NULL, it has no name): former_account, untrusted
+BCM = (dbx("SELECT id FROM obj_comments WHERE kind='task' AND ref_id=? AND user_id=? ORDER BY id DESC LIMIT 1", (T1, BU)) or [(0,)])[0][0]
+wr("UPDATE obj_comments SET user_id=NULL WHERE id=?", (BCM,))
+r = requests.get(V + f"/tasks/{T1}/comments", headers=AH)
+cs = r.json().get("data") or [] if r.ok else []
+k = next((c for c in cs if c.get("id") == BCM), {})
+check(k.get("origin") == "former_account" and k.get("untrusted") is True, f"#6643: a comment of a deleted account: origin former_account, untrusted (was public_link) {k.get('origin')}")
+check(any(c.get("origin") == "portal" for c in cs) and any(c.get("origin") == "mail" for c in cs), "#6643: the status page and the mail keep their origin")
+# (1) the tasks of before 2.1269: the start's one-shot gives back the mark where the history says webhook / form / error report
+TF = Bo.post(B + "/api/tasks", json={"title": "Old form task", "list_id": LB}).json()["id"]
+TE = Bo.post(B + "/api/tasks", json={"title": "Old error report", "list_id": LB}).json()["id"]
+wr("UPDATE activity SET data=CAST(? AS JSONB) WHERE task_id=? AND kind='created'", ('{"form": "Kontakt"}', TF))
+wr("UPDATE activity SET data=CAST(? AS JSONB) WHERE task_id=? AND kind='created'", ('{"report": "web"}', TE))
+wr("UPDATE tasks SET tt_id=NULL WHERE id IN (?, ?, ?, ?)", (TW, TP, TF, TE))
+wr("DELETE FROM settings WHERE key='migr_origin6643'")
+in_ct("from kalmido.core.oncesteps import migr_origin6643\nc = connect()\nmigr_origin6643(c)\nc.commit()\nc.close()")
+got = dict(dbx("SELECT id, tt_id FROM tasks WHERE id IN (?, ?, ?, ?)", (TW, TP, TF, TE)))
+check(got.get(TW) == f"origin:webhook:{TW}" and got.get(TF) == f"origin:form:{TF}" and got.get(TE) == f"origin:errors:{TE}",
+      f"#6643: the one-shot marks the old webhook, form and error report tasks {got}")
+check(got.get(TP) is None, f"#6643: a person's task stays without a mark {got.get(TP)}")
+g = requests.get(V + f"/tasks/{TF}", headers=AH)
+check(g.ok and g.json().get("origin") == "form" and g.json().get("untrusted") is True, f"#6643: get_task of the old form task: origin form {g.text[:160]}")
+# (2) the account move keeps the origin in the task's new key (admin/acctimport.py umz_tt_id), a plain task gets none
+out = in_ct("import json\nfrom kalmido.admin.acctimport import umz_tt_id\nfrom kalmido.api.v1 import tt_origin\n"
+            "ks = [umz_tt_id('e' * 20, 5, 7, s) for s in ('origin:webhook:3', 'mail:<a@b>', 'github:o/r#4', None, 'kalmido:x:p:2:origin:form')]\n"
+            "print(json.dumps([[k, tt_origin(k)] for k in ks]))")
+ks = json.loads(out) if out.startswith("[") else []
+check([o for _, o in ks] == ["webhook", "mail", "git", None, "form"] and all(k.startswith("kalmido:eeeeeeeeeeeeeeee:o5:7") for k, _ in ks),
+      f"#6643: the moved task keeps webhook / mail / git / form, a plain one none; the key stays kalmido:<export>:<target>:<old id> {ks}")
 
 sys.exit(done("p21269_c_fremd"))

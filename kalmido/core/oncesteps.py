@@ -120,6 +120,21 @@ def migr_srvorg6363(c):  # (#6363): the Kalmido AI per organisation (orgs.srv_ag
     gset(c, "migr_srvorg6363", "1")
 
 
+def migr_origin6643(c):  # (#6643): the outside origin of the tasks made before 2.1269.0 (#6431), once from their history
+    # A task without a source key (tasks.tt_id NULL) whose "created" entry says it came through the inbound webhook (via webhook),
+    # a public form (form) or an error report (report) gets 'origin:<webhook|form|errors>:<task id>' as agents/core.py
+    # task_mark_origin writes it today (read by api/v1.py tt_origin: origin + untrusted for agents). No history = left as it is.
+    with pg_system_ctx(c):  # every organisation's tasks (row-level security)
+        c.execute("""UPDATE tasks t SET tt_id = 'origin:' || a.o || ':' || CAST(t.id AS TEXT)
+                     FROM (SELECT DISTINCT ON (task_id) task_id, CASE WHEN data->>'via' = 'webhook' THEN 'webhook'
+                                  WHEN data->>'form' IS NOT NULL THEN 'form' ELSE 'errors' END AS o
+                           FROM activity WHERE kind = 'created' AND (data->>'via' = 'webhook' OR data->>'form' IS NOT NULL
+                                                                     OR data->>'report' IS NOT NULL)
+                           ORDER BY task_id, id) a
+                     WHERE t.id = a.task_id AND t.tt_id IS NULL""")
+    gset(c, "migr_origin6643", "1")
+
+
 STEPS = [  # (phase, key, once, f): the order of init_db (2.1356.0, #6824); 2.1380.0 (#6826): the one-shots before MIN_FROM are gone
     ("cdn_backfill", "migr_upg2103", True, migr_upg2103),
     ("cdn_backfill", "migr_upg2360", True, migr_upg2360),
@@ -129,6 +144,7 @@ STEPS = [  # (phase, key, once, f): the order of init_db (2.1356.0, #6824); 2.13
     ("cdn_backfill", "migr_liststate5537", False, migr_liststate5537),
     ("cdn_backfill", "migr_textby6677", True, migr_textby6677),
     ("cdn_backfill", "migr_srvorg6363", True, migr_srvorg6363),
+    ("cdn_backfill", "migr_origin6643", True, migr_origin6643),
 ]
 
 

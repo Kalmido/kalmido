@@ -1945,13 +1945,17 @@ def umz_task_roles(c, run, t, who):
     return out
 
 
-def umz_tt_id(eid, org, old):
+def umz_tt_id(eid, org, old, src=None):
     """2.1235.0 (#6240): the tt_id of an imported task, unique per person (tasks_tt_user): the export, the workspace the task
     really lands in (org = the org of its list: o<org id>, p = private - the inbox and the Home & life lists stay private
     whatever the target, review) and the old id. The same export copied into a second workspace by the same person gets its
     own keys, so its tasks come along; a second run into the same target skips them as before (run.there), and the private
-    tasks of a file are never taken twice."""
-    return f"kalmido:{eid[:16]}:{f'o{org}' if org else 'p'}:{_oid(old) or 0}"
+    tasks of a file are never taken twice.
+    (#6643): src = the task's key in the file; its outside origin (api/v1.py tt_origin: mail, form, errors, webhook, git) stays
+    as ':origin:<origin>' at the end, so the moved task still reaches agents with origin + untrusted (was lost)."""
+    from ..api.v1 import tt_origin
+    o = tt_origin(src)
+    return f"kalmido:{eid[:16]}:{f'o{org}' if org else 'p'}:{_oid(old) or 0}" + (f":origin:{o}" if o else "")
 
 
 def umz_write(c, run, uid, man, zf, files, data, people):
@@ -2056,7 +2060,7 @@ def umz_write(c, run, uid, man, zf, files, data, people):
             "list_id": lid, "section_id": sid, "title": _txt(t.get("title"), TITLE_MAX) or "…",
             "content": _txt(t.get("content"), CONTENT_MAX), "status": status, "milestone_id": run.m("list_milestones", t.get("milestone_id")),
             "created_by": uid, "completed_by": uid if status else None, "assignee_id": aid, "assigned_by": uid if aid else None,
-            "tt_id": umz_tt_id(eid, run.list_org.get(lid), t.get("id")), "parent_id": None, "updated_at": ts,
+            "tt_id": umz_tt_id(eid, run.list_org.get(lid), t.get("id"), t.get("tt_id")), "parent_id": None, "updated_at": ts,
             **_umz_delivery(t)}, ts)
         tid = umz_insert(c, "tasks", d, told=True) if d else None
         if not tid:
