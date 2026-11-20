@@ -599,6 +599,18 @@ const j = await objSaveForm(md, url, rec, body);   // saveDialog against rec (md
 catch (x) { if (await objConflict(md, x, state => openDialog(state))) return; ... }
 ```
 
+### The area's "New" (2.1469.0, #6370)
+
+A new area does not draw its own create button. It registers its main object in `static/js/core.js`:
+
+```js
+newReg('mymod', {label: N_('New thing'), icon: 'plus', on: () => mayCreateHere(), run: () => openNewDialog(),
+                 more: () => [{label: tr('New folder'), icon: 'folder', fn: newFolder}]});   // more = the small menu
+```
+
+The phone layout shows the round + at the bottom right (tap = `run`, long press = the menu), a computer and the tablet
+layout one blue button in the head bar next to the title (`headNew`, arrow = the menu). Never a second button in the view.
+
 ## 7. Tests
 
 A new area tests its kind with a suite of its own (the role matrix of tests/obj_core_test.py is the pattern: two
