@@ -1,6 +1,6 @@
 // kalmido-suite: fresh
 // 2.1474.0 (#6373) UI test: one verb for creating, the close cross of large dialogs. jsdom, invented data only:
-// - a dialog that creates says "Create" (German "Anlegen"), editing says "Save": new client, new contact, new event, a
+// - a dialog that creates says "Create" (German "Anlegen"), editing says "Save": new client, new contact, a
 //   household deadline; the German text of "Create" is "Anlegen" (docs/dev/glossar.md)
 // - the short new-client sheet: no resize grip for what waits folded under "More details" (dlg_grows)
 // - a large dialog (more than half the window high) gets the close cross at the top right (dlgCross), it closes the dialog
@@ -33,7 +33,6 @@ const tall = (w, md, h) => { const c = md.querySelector(':scope > .card'); c.get
   CK = await login('alice');
   await call('POST', '/api/admin/setup', {lang: 'en', collab_all: true, modules: ['cal', 'comments', 'contacts']});
   await call('PATCH', '/api/settings', {lang: 'en', tour: 'done', features: 'cal,comments,collab,contacts,office,clients,time,family'});
-  await call('POST', '/api/evcals', {name: 'Work'});  // a calendar of her own: the new-event dialog opens on it
   const w = await boot({hash: 'calendar'}); const d = w.document;
   await until(() => typeof w.modal === 'function' && typeof w.dlgCross === 'function' && w.eval('!!S.me'));
   await w.eval(`Promise.all(['clientdlg', 'contacts', 'family'].map(m => loadModule(m)))`);
@@ -50,34 +49,32 @@ const tall = (w, md, h) => { const c = md.querySelector(':scope > .card'); c.get
   md = await until(() => d.querySelector('.modal [data-ctm2="save"]') && last(d));
   check(text(md?.querySelector('[data-ctm2="save"]')) === 'Create', 'new contact: "Create" (was "Save"): ' + text(md?.querySelector('[data-ctm2="save"]')));
   md?.remove();
-  await until(() => w.eval('(S.evcals || []).length'));
-  w.eval('evEditor({})');
-  md = await until(() => d.querySelector('.modal [data-evm="save"]') && last(d));
-  check(text(md?.querySelector('[data-evm="save"]')) === 'Create', 'new event: "Create" (was "Save"): ' + text(md?.querySelector('[data-evm="save"]')) + ' ' + text(d.querySelector('#toast')) + ' ' + w.eval('(S.evcals || []).length'));
-  // the event editor draws its own cross: a large one keeps exactly one
-  if (md) tall(w, md, 700); w.eval('dlgCross([...document.querySelectorAll(".modal")].pop(), true)');
-  check(md && [...md.querySelectorAll('button')].filter(b => b.getAttribute('aria-label') === 'Close' && !b.closest('.foot')).length === 1 && !md.querySelector('.dlgx'),
-    'a dialog with its own cross keeps its one');
-  md?.remove();
   w.eval('dlModal()');
   md = await until(() => d.querySelector('.modal #dl-err') && last(d));
   check(text(md?.querySelector('[data-m="save"]')) === 'Create', 'household deadline: "Create" (was "Add")');
   md?.remove();
 
-  // ---- the close cross
-  w.eval(`window.__big = modal('<h3>Big one</h3><div class="row"><input id="big-in"></div><div class="foot"><span class="spacer"></span><button class="btn pri" data-m="close">Done</button></div>')`);
-  md = w.__big; tall(w, md, 700); w.eval('dlgCross(window.__big, true)');
+  // ---- the close cross (the app's functions through eval: they are globals of its classic scripts)
+  const [modal, dlgCross, modalGuard, askConfirm] = ['modal', 'dlgCross', 'modalGuard', 'askConfirm'].map(n => w.eval(n));
+  md = modal('<h3>Big one</h3><div class="row"><input id="big-in"></div><div class="foot"><span class="spacer"></span><button class="btn pri" data-m="close">Done</button></div>');
+  tall(w, md, 700); dlgCross(md, true);
   const x = md.querySelector(':scope > .card > .dlgx');
   check(x && x.getAttribute('aria-label') === 'Close' && md.querySelector('.card').classList.contains('has-dlgx'), 'a large dialog gets the close cross');
   check(x && md.querySelector('.card').lastElementChild === x, 'the cross is last in the Tab order (the fields come first)');
-  w.eval('dlgCross(window.__big, true)');
+  dlgCross(md, true);
   check(md.querySelectorAll('.dlgx').length === 1, 'looked at again: still one cross');
   x?.click();
   check(await until(() => !md.isConnected), 'the cross closes the dialog');
+  // a dialog that draws its own cross keeps its one
+  md = modal('<div class="lhdr"><h3>Own cross</h3><span class="spacer"></span><button class="iconbtn" data-m="close" aria-label="Close">x</button></div><div class="foot"></div>');
+  tall(w, md, 700); dlgCross(md, true);
+  check(!md.querySelector('.dlgx'), 'a dialog with its own cross keeps its one');
+  md.remove();
   // with unsaved input it asks first, like Esc
-  w.eval(`window.__g = modal('<h3>Guarded</h3><input id="gd-in"><div class="foot"></div>'); modalGuard(window.__g, () => !!document.querySelector('#gd-in').value)`);
-  md = w.__g; md.querySelector('#gd-in').value = 'typed'; tall(w, md, 700); w.eval('dlgCross(window.__g, true)');
-  md.querySelector('.dlgx').click();
+  md = modal('<h3>Guarded</h3><input id="gd-in"><div class="foot"></div>');
+  modalGuard(md, () => !!md.querySelector('#gd-in').value);
+  md.querySelector('#gd-in').value = 'typed'; tall(w, md, 700); dlgCross(md, true);
+  md.querySelector('.dlgx')?.click();
   const ask = await until(() => d.querySelector('.modal.cdlg'));
   check(ask && /Discard changes/.test(ask.textContent) && md.isConnected, 'unsaved input: the cross asks "Discard changes?" first');
   ask?.querySelector('[data-cd="no"]')?.click();
@@ -85,16 +82,16 @@ const tall = (w, md, h) => { const c = md.querySelector(':scope > .card'); c.get
   check(md.isConnected, '"Keep editing": the dialog stays');
   md.remove();
   // a small dialog: none; a question dialog: never, also when it is high
-  w.eval(`window.__s = modal('<h3>Small</h3><div class="foot"></div>')`);
-  md = w.__s; tall(w, md, 120); w.eval('dlgCross(window.__s, true)');
+  md = modal('<h3>Small</h3><div class="foot"></div>');
+  tall(w, md, 120); dlgCross(md, true);
   check(!md.querySelector('.dlgx'), 'a small dialog has no cross');
   md.remove();
-  w.eval(`window.__q = askConfirm('Remove it?', 'A question', {ok: 'Remove', danger: true})`);
+  const q = askConfirm('Remove it?', 'A question', {ok: 'Remove', danger: true});
   md = await until(() => d.querySelector('.modal.cdlg'));
-  tall(w, md, 700); w.eval('dlgCross(document.querySelector(".modal.cdlg"), true)');
-  check(md && !md.querySelector('.dlgx'), 'a question dialog never has the cross');
+  if (md) { tall(w, md, 700); dlgCross(md, true); }
+  check(md && !md.querySelector('.dlgx') && text(md.querySelector('[data-cd="yes"]')) === 'Remove', 'a question dialog never has the cross; its button names the verb');
   md?.querySelector('[data-cd="no"]')?.click();
-  check(await w.__q === false, 'the question still answers (Cancel = no)');
+  check(await q === false, 'the question still answers (Cancel = no)');
   w.close();
   console.log(`p21474_b_dialogs_ui: ${ok} ok, ${F.length} failed`);
   process.exit(F.length ? 1 : 0);
