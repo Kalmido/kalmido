@@ -786,6 +786,9 @@ def tchat_post(rid):
 # later after an answer that got lost - no time window any more, index ix6332_* of migrations.d/6332.py). Without
 # client_id (agents, older apps) nothing changes. The check runs under a lock per conversation and person, so two
 # requests arriving at the same moment cannot both pass it.
+CSD_TABLES = ("tchat_msgs", "agent_chat")
+
+
 def csd_client_id(b):
     v = b.get("client_id") if isinstance(b, dict) else None
     return v.strip()[:64] if isinstance(v, str) and v.strip() else None
@@ -795,7 +798,8 @@ def csd_dup(c, table, where, args, cid, text):
     """The row of table (where + args = the conversation and the sender) sent with client_id cid and the same text, else
     None (#6332: at any time, was within 10 seconds). Takes the lock that the caller's insert then holds until its commit."""
     write_lock(c, f"csd:{table}:{':'.join(str(a) for a in args)}")
-    r = c.execute(f"SELECT * FROM {table} WHERE {where} AND client_id=? ORDER BY id DESC LIMIT 1", (*args, cid)).fetchone()
+    from ..core.pg import qi
+    r = c.execute(f"SELECT * FROM {qi(table, CSD_TABLES)} WHERE {where} AND client_id=? ORDER BY id DESC LIMIT 1", (*args, cid)).fetchone()
     return r if r and (r["body"] or "") == (text or "") else None
 
 

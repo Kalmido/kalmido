@@ -935,14 +935,6 @@
   },
   {
    "rule": "semgrep.kalmido-sql-ident-without-qi",
-   "file": "kalmido/collab/teamchat.py",
-   "code": "r = c.execute(f\"SELECT * FROM {table} WHERE {where} AND client_id=? AND created_at>=? ORDER BY id DESC LIMIT 1\",",
-   "reason": "Existing SQL text before qi() (#5296): the interpolated name comes from fixed code, a registry or the schema, never from a request; listed, not rewritten (decision 08.11.2026); a touched place moves to qi().",
-   "date": "2026-11-09",
-   "task": 5296
-  },
-  {
-   "rule": "semgrep.kalmido-sql-ident-without-qi",
    "file": "kalmido/contacts/bulk.py",
    "code": "c.execute(f\"UPDATE contacts SET {','.join(k + '=?' for k in f)} WHERE id=?\", [*f.values(), i])",
    "reason": "Existing SQL text before qi() (#5296): the interpolated name comes from fixed code, a registry or the schema, never from a request; listed, not rewritten (decision 08.11.2026); a touched place moves to qi().",
