@@ -22,7 +22,7 @@ scanners). A red run is soft green only when: it ended as failure (2.940.0, #560
 shard, every hard shard is green, every red shard names its red suites (annotations "suite X failed" of tests/run_all.sh) and
 none of them is hard (by name or by the name of its test group, tools/shards.py groups(); a suite in no group = hard), and no
 other hard job is red (name matches a pattern: e-invoice validators, semgrep, ZAP ...; a red step of "Lint ..." only when it is a
-scanner). Hard red, only the push stage = no image, as before (2.940.0: "failure" above reads "failure or cancelled").
+scanner; #7412: a SKIPPED job that per ci.yml runs only at night or by hand is no red one, nightly_jobs). Hard red, only the push stage = no image, as before (2.940.0: "failure" above reads "failure or cancelled").
 2.940.0 (#5600): a CANCELLED full run counts like a red one - soft green when every hard shard and hard job ended green and
 only soft shards were cut (a newer push cancels the running CI with cancel-in-progress once the fast lane has the version
 live; v2.883, v2.897, v2.902 had all hard shards green and got no image). A hard shard or hard job that was cancelled before
@@ -155,6 +155,54 @@ def groups(tree):
     return d if isinstance(d, dict) and d else None
 
 
+_NIGHT_RE = re.compile(r"\(?github\.event_name=='schedule'\|\|github\.event_name=='workflow_dispatch'\)?")
+
+
+def nightly_jobs(tree):
+    """#7412 (decision 20.11.2026): the names of the jobs of TREE's .github/workflows/ci.yml that run
+    ONLY at night or by hand - their `if:` is (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'),
+    alone or as a top-level `&&` part (`always() && ... && (...)`). A skipped one of them is no red one (judge_soft, like
+    judge_queue since #7366); every other job stays as it is. set() = no ci.yml / nothing readable (then nothing changes)."""
+    try:
+        with open(os.path.join(tree, ".github", "workflows", "ci.yml"), encoding="utf-8") as f:
+            lines = f.read().splitlines()
+    except (OSError, UnicodeDecodeError):
+        return set()
+    out, inside, job = set(), False, {}
+
+    def done():
+        name, cond = job.get("name"), (job.get("if") or "").replace(" ", "")
+        if not name or "${{" in name or not cond:
+            return
+        if cond.startswith("${{") and cond.endswith("}}"):
+            cond = cond[3:-2]
+        parts = cond.split("&&") if "||" not in _NIGHT_RE.sub("N", cond) else []
+        if any(_NIGHT_RE.fullmatch(x) for x in parts):
+            out.add(name)
+    for ln in lines:
+        if re.match(r"^\S", ln):
+            if inside:
+                done()
+                job = {}
+            inside = ln.rstrip() == "jobs:"
+            continue
+        if not inside:
+            continue
+        if re.match(r"^  [A-Za-z0-9_-]+:\s*$", ln):
+            done()
+            job = {}
+            continue
+        m = re.match(r"^    (name|if):\s*(.*?)\s*$", ln)
+        if m:
+            v = m.group(2)
+            if len(v) > 1 and v[0] == v[-1] and v[0] in "'\"":
+                v = v[1:-1]
+            job[m.group(1)] = v
+    if inside:
+        done()
+    return out
+
+
 def hard_suite(name, pats, grp):
     """Is a red suite hard: its name or the name of its test group matches a pattern; a suite in no known group = hard."""
     low = (name or "").lower()
@@ -183,9 +231,9 @@ def hard_job(job, pats):
     return any(fnmatch.fnmatch(low, m) for m in pats)
 
 
-def judge_soft(jobs, suites_of, pats, grp):
+def judge_soft(jobs, suites_of, pats, grp, nightly=()):
     """jobs = the jobs of a finished red run (dicts: id, name, status, conclusion, steps); suites_of(job) -> the names of its red
-    suites (None = not readable). -> (soft?, text, {"suites": [...], "jobs": [...], "cut": [...]}) - see the head comment."""
+    suites (None = not readable); nightly = the names of nightly / by-hand jobs (nightly_jobs(), #7412). -> (soft?, text, {"suites": [...], "jobs": [...], "cut": [...]}) - see the head comment."""
     info = {"suites": [], "jobs": [], "cut": []}
     if not pats:
         return False, "no tests/hard_suites.txt in the tagged tree (unknown = hard)", info
@@ -231,6 +279,10 @@ def judge_soft(jobs, suites_of, pats, grp):
             # fable 2.940.0 M1 (#5600): a job without a result in a finished (cancelled) run = unknown = hard
             return False, "job without a result: %s (%s)" % (j.get("name"), j.get("status")), info
         if j.get("conclusion") == "skipped":  # review (#5324): a hard job that did not run is no green one
+            if (j.get("name") or "") in nightly:
+                # #7412 (decision 20.11.2026): a job that per ci.yml runs only at night or by hand
+                # (install-upgrade ... back (update.sh --restore), hard by its name *restore*) is skipped in every other run
+                continue
             if hard_job(j, pats) or (j.get("name") or "").lower().startswith("lint"):  # fable 2.940.0 M1: Lint too
                 return False, "hard job did not run: %s" % j.get("name"), info
             continue
@@ -297,8 +349,8 @@ def judge_queue(event, needs, jobs, suites_of, pats, grp):
             continue
         if j.get("conclusion") in ("skipped", "neutral"):
             # #7366 (decision 19.11.2026): in the queue only the fixed list must (above, a skipped must job is red there) has
-            # to have run; a skipped job outside it (the nightly upgrade / restore job ...) is no red one. The nightly / main
-            # judgement (judge_soft) stays hard.
+            # to have run; a skipped job outside it (the nightly upgrade / restore job ...) is no red one. judge_soft lets only
+            # the nightly / by-hand jobs of ci.yml pass skipped (#7412, nightly_jobs).
             continue
         if j.get("status") not in (None, "completed") or j.get("conclusion") is None:
             if hard_job(j, pats) and not name.lower().startswith("lint"):
@@ -482,8 +534,8 @@ def main():
 
     def judge(rid):
         if "pats" not in hard:
-            hard["pats"], hard["grp"] = patterns(a.tree), groups(a.tree)
-        ok, txt, info = judge_soft(jobs_full(rid), suites_of, hard["pats"], hard["grp"])
+            hard["pats"], hard["grp"], hard["night"] = patterns(a.tree), groups(a.tree), nightly_jobs(a.tree)
+        ok, txt, info = judge_soft(jobs_full(rid), suites_of, hard["pats"], hard["grp"], hard["night"])
         hard[rid] = info
         return ok, txt
 
