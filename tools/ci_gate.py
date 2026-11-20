@@ -279,7 +279,7 @@ def judge_soft(jobs, suites_of, pats, grp, nightly=()):
             # fable 2.940.0 M1 (#5600): a job without a result in a finished (cancelled) run = unknown = hard
             return False, "job without a result: %s (%s)" % (j.get("name"), j.get("status")), info
         if j.get("conclusion") == "skipped":  # review (#5324): a hard job that did not run is no green one
-            if (j.get("name") or "") in nightly:
+            if (j.get("name") or "") in nightly and not (j.get("name") or "").lower().startswith("lint"):  # Lint stays hard
                 # #7412 (decision 20.11.2026): a job that per ci.yml runs only at night or by hand
                 # (install-upgrade ... back (update.sh --restore), hard by its name *restore*) is skipped in every other run
                 continue
