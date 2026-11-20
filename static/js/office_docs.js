@@ -325,7 +325,7 @@ function ofdListHtml() {
   // 2.46.1 (#1637): an empty offer list shows its one big button below the text, not a second one up here
   const noTop = k === 'offer' && rows && !rows.length && !q && !OFD.status && !OFD.trial;
   const bar = kinds + `${/*html-ok*/ rows?.length || (!rows && tabh_held('ofd')) ? hintOnce('ofclp', tr('Hold a row to see what you can do with it.')) : '' /* hintOnce escapes its text; #7390: stays while rows are held */}<div class="ofcbar ofdbar"><div class="ctsearch">${ic('search', 's')}<input id="ofd-q" type="search" value="${esc(OFD.q)}" placeholder="${esc(tr('Search'))}" aria-label="${esc(tr('Search documents'))}" autocomplete="off" enterkeyhint="search"></div>
-    <select id="ofd-status" aria-label="${esc(tr('Status'))}"><option value="">${tr('All|status')}</option>${sts.map(([v, n]) => `<option value="${v}" ${OFD.status === v ? 'selected' : ''}>${tr(n)}</option>`).join('')}</select>${ofd_fltHtml()}${tri_filterHtml()}${/*html-ok*/ ofd_srcHtml(k) /* built from esc() */}${lst_sortBtn(ofd_listKey(k))}<span class="spacer"></span>${ofcAdmin('offers') && ofd_canNew() /* (#6161) */ ? `<button type="button" class="btn sm" data-ofd="trash" title="${esc(tr('Trash'))}" aria-label="${esc(tr('Trash'))}">${ic('trash', 's')}</button>` : ''}${/*html-ok*/ noTop || !ofd_canNew() /* (#6161, Stufe 3): a reader adds nothing */ ? '' : newBtn}</div>${tri_barHtml()}`;
+    <select id="ofd-status" aria-label="${esc(tr('Status'))}"><option value="">${tr('All|status')}</option>${sts.map(([v, n]) => `<option value="${v}" ${OFD.status === v ? 'selected' : ''}>${tr(n)}</option>`).join('')}</select>${ofd_fltHtml()}${tri_filterHtml()}${/*html-ok*/ ofd_srcHtml(k) /* built from esc() */}${/*html-ok*/ ofd_issBtn(k, rows) /* (#7249) a button built from tr() and ic() */}${lst_sortBtn(ofd_listKey(k))}<span class="spacer"></span>${ofcAdmin('offers') && ofd_canNew() /* (#6161) */ ? `<button type="button" class="btn sm" data-ofd="trash" title="${esc(tr('Trash'))}" aria-label="${esc(tr('Trash'))}">${ic('trash', 's')}</button>` : ''}${/*html-ok*/ noTop || !ofd_canNew() /* (#6161, Stufe 3): a reader adds nothing */ ? '' : newBtn}</div>${tri_barHtml()}`;
   if (!rows) return bar + (tabh_held('ofd') || loadingHtml('big'));  // #7390: a tab switch keeps the last tab's rows, dimmed, until its list is there
   if (OFD.err && !rows.length) return tabh_drop('ofd'), bar + ofcFail(OFD.err, () => { OFD.err = ''; OFD.list = null; ofdLoadList(true); });  // (#5450)
   const hit = r => !q || [r.number, r.recipient_name, r.project_title, r.project_ref, r.order_ref /* #6945 */].some(v => (v || '').toLowerCase().includes(q));
@@ -1232,6 +1232,7 @@ async function ofdClick(e) {
     return;
   }
   if (a === 'remind') { ofdReminderDialog(); return; }
+  if (a === 'iss-batch') { ofd_issBatch(); return; }  // (#7249)
   if (a === 'listmore') { ofdMore(); return; }
   if (!d) return;
   if (a === 'pdf-ask') { await ofdPdfAskGo(OFD.doc, !!b.dataset.dl); return; }  // 2.138.2 A (#2393)
@@ -1705,6 +1706,70 @@ async function ofdSendDialog(d, o = {}) {
     ms.smtp ? tr('Send|mail') : tr('Download PDF'), async md => { if (!ms.smtp) { const a = document.createElement('a'); a.href = ofdPdfUrl(d.id); a.download = ''; document.body.appendChild(a); a.click(); a.remove(); return; } const tk = $('#ofd-s-terms', md);
       if (hold && !$('#ofd-ihd-ok', md)?.checked) { toast(tr('Confirm the client data from the invoice issuer first')); return false; }  // 2.1384.0 (#6700)
       const j = await ofcSendTerms(x => ofdSave('POST', `/api/office/docs/${d.id}/send`, {...(hold ? {client_hold_ok: hold.at} : {}), to: $('#ofd-s-to', md).value.trim(), cc: $('#ofd-s-cc', md).value.trim(), subject: $('#ofd-s-subject', md).value, text: $('#ofd-s-text', md).value, datev: !!$('#ofd-s-datev', md)?.checked, timesheet: !!$('#ofd-s-ts', md)?.checked, nonbillable: !!$('#ofd-s-tsnb', md)?.checked, ...(tk ? {terms: tk.checked} : {}), ...(typeof ofmSendBody === 'function' ? ofmSendBody(md) : {}), ...x})); if (!j) return false; toast(j.datev_error || tr('Sent')); });  // 2.534.0 (#4339): terms only with the tick (a quotation: the server's default, its terms as pages or a separate file)  // 2.269.0 D (#3046): DATEV failed after the mail = a hint, the dialog closes
+}
+// (#7249, follow-up of #6703): "Finalise and send all checked" for the drafts of invoice issuers without a mark (the invoice
+// list filtered by an issuer). No automation and no new way: per draft the office's own finalising (POST .../finalize without a
+// hold's confirmation and without "issue as paid") and its own sending (POST .../send to the recipients the send dialog
+// proposes, the server's subject, the default text, DATEV as the dialog's default), one draft after the other. A draft with a
+// mark stays for the person: client_new, a hold of the client's data (also client_lookalike, changed data), reverse charge,
+// any other flag of the issuer, its payment statement, no sending wished, something missing, an earlier year, an e-invoice
+// warning, no address, a trial document. The person ticks what was checked; just before each one the draft is looked at again;
+// the result names each: sent / skipped with its reason / finalised but not sent with the reason.
+const ofd_issOn = (k, rows) => k === 'invoice' && String(OFD.src || '').startsWith('issuer:') && !!rows?.some(r => r.status === 'draft');
+const ofd_issBtn = (k, rows) => ofd_issOn(k, rows) ? `<button class="btn" data-ofd="iss-batch">${ic('send', 's')}<span>${tr('Finalise and send all checked')}</span></button>` : '';
+function ofd_issWhy(d, pv, rc) {  // '' = it may go, else why it stays for the person
+  const iw = d.issuer_wish || {}, w = iw.wish || {}, fl = iw.flags || [];
+  if (d.status !== 'draft' || !d.issuer) return tr('No longer a draft');
+  if (d.trial) return tr('A trial document cannot be sent by e-mail; create a real document for your client');
+  if (fl.includes('client_new')) return tr('New client: check it on its own');
+  if (pv?.client_hold || rc?.client_hold || fl.includes('client_changed')) return tr('Client data from the invoice issuer not confirmed yet');
+  if (d.vat_note === 'reverse' || iw.vat_note === 'reverse') return tr('Reverse charge: check it on its own');
+  if (fl.length) return tr('Marked by the invoice issuer: check it on its own');
+  if (w.paid) return tr('Payment statement of the invoice issuer: confirm it on its own');
+  if (w.send === false) return tr('The invoice issuer wished no sending');
+  if (ofd_missBlocks(d).length) return tr('Something is missing before finalising');
+  if (pv?.past_year) return tr('Dated in an earlier year: finalise it on its own');
+  if (pv?.einvoice_warn) return String(pv.einvoice_warn);
+  if (!rc?.to) return tr('No e-mail address for invoices');
+  return '';
+}
+async function ofd_issLook(id) {  // the draft as it is now, with the finalise dialog's preview and the send dialog's recipients
+  const d = await rawFetch('GET', `/api/office/docs/${id}`);
+  const pv = await rawFetch('GET', `/api/office/docs/${id}/number-preview`).catch(() => null);
+  const rc = d.client_id ? await rawFetch('GET', `/api/office/docs/${id}/recipients`).catch(() => null) : null;
+  return {d, pv, rc, why: ofd_issWhy(d, pv, rc)};
+}
+async function ofd_issBatch() {
+  let ms = null, rows = [];
+  try { ms = await rawFetch('GET', '/api/office/mail-status'); rows = await docsAll(`/api/office/docs?kind=invoice&status=draft${ofd_srcQs()}`, rawFetch); } catch (x) { ofcErr(x); return; }
+  if (!ms?.smtp) { toast(tr('E-mail sending is not set up: download the PDF and send it yourself.')); return; }
+  const all = [];
+  for (const r of rows.filter(x => x.status === 'draft')) { try { all.push({r, ...await ofd_issLook(r.id)}); } catch (x) { all.push({r, why: ofcErrTxt(x)}); } }
+  if (!all.length) { toast(tr('No drafts of invoice issuers')); return; }
+  const nm = x => ((x.d?.recipient_name || x.r.recipient_name || ofdKindName('invoice', true)) + (x.d?.issuer_wish?.client_ref ? ` · ${x.d.issuer_wish.client_ref}` : ''));
+  const list = `<ul class="ofdpick ofdissb" role="list">${all.map((x, i) => `<li><label class="chkl"><input type="checkbox" data-iss="${esc(String(i))}" ${x.why ? 'disabled' : 'checked'}> <span class="ofcn"><b>${esc(nm(x))}</b><small class="muted">${esc([x.r.gross_text || x.d?.gross_text || '', x.why].filter(Boolean).join(' · '))}</small></span></label></li>`).join('')}</ul>`;
+  const n = all.filter(x => !x.why).length;
+  ofdDlg(tr('Finalise and send all checked'), `<p class="muted ofchint">${esc(tr('Only drafts of invoice issuers without a mark. Each one you tick is finalised and sent as by hand; the others stay drafts for you to check one by one.'))}</p>`
+    + `<p class="ofdisscnt">${esc(tr('{0} of {1} drafts can go', n, all.length))}</p>${/*html-ok*/ list /* built above with esc() */}`, tr('Finalise and send'), async md => {
+    const picked = [...md.querySelectorAll('[data-iss]:checked')].map(e => all[+e.dataset.iss]);
+    if (!picked.length) { toast(tr('Nothing selected')); return false; }
+    const out = [], datev = !!(ms.datev_email && ms.datev_auto && ms.datev_on !== false);
+    for (const x of picked) {
+      let fin = false;
+      try {
+        const now = await ofd_issLook(x.r.id);  // looked at again: someone may have changed it meanwhile
+        if (now.why) { out.push([x, 'skip', now.why]); continue; }
+        const f = await rawFetch('POST', `/api/office/docs/${x.r.id}/finalize`, {}); fin = true;
+        const d2 = await rawFetch('GET', `/api/office/docs/${x.r.id}`);
+        const sj = await rawFetch('POST', `/api/office/docs/${x.r.id}/send`, {to: now.rc.to, cc: (now.rc.cc || []).join(', '), subject: d2.mail_subject || `${ofdKindName('invoice', true)} ${f.number || d2.number || ''}`, text: '', datev});
+        if (sj?.terms_missing) out.push([x, 'fin', sj.message || tr('Terms and conditions missing')]);
+        else out.push([x, 'sent', f.number || d2.number || '']);
+      } catch (e) { out.push([x, fin ? 'fin' : 'skip', ofcErrTxt(e)]); }
+    }
+    OFD.list = null; ofdLoadList(true);
+    const txt = ([x, st, v]) => st === 'sent' ? tr('Sent as {0}', v) : st === 'fin' ? tr('Finalised, not sent: {0}', v) : tr('Skipped: {0}', v);
+    ofdDlg(tr('Result'), `<ul class="ofdpick ofdissr" role="list">${out.map(o => `<li data-st="${esc(o[1])}"><span class="ofcn"><b>${esc(nm(o[0]))}</b><small class="muted">${esc(txt(o))}</small></span></li>`).join('')}</ul>`, tr('Close'), () => true);
+  });
 }
 async function ofdReminderDialog() {
   let rows = [];

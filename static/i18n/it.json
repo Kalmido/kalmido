@@ -19752,5 +19752,21 @@
   "invoice series": "serie di fatture",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "Il cliente di questo documento non è più in questo ufficio (spostato in un altro spazio di lavoro). Scegli prima un altro cliente.",
   "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Il cliente della fattura modello non è più in questo ufficio (spostato in un altro spazio di lavoro). Scegli un'altra fattura modello e riattiva la serie.",
-  "Width of the cell details": "Larghezza dei dettagli della cella"
+  "Width of the cell details": "Larghezza dei dettagli della cella",
+  "Finalise and send all checked": "Blocca e invia tutti quelli controllati",
+  "No longer a draft": "Non è più una bozza",
+  "New client: check it on its own": "Nuovo cliente: controllalo singolarmente",
+  "Client data from the invoice issuer not confirmed yet": "Dati del cliente dell'emittente di fatture non ancora confermati",
+  "Reverse charge: check it on its own": "Inversione contabile: controllala singolarmente",
+  "Marked by the invoice issuer: check it on its own": "Segnalato dall'emittente di fatture: controllalo singolarmente",
+  "Payment statement of the invoice issuer: confirm it on its own": "Indicazione di pagamento dell'emittente di fatture: confermala singolarmente",
+  "The invoice issuer wished no sending": "L'emittente di fatture non desidera l'invio",
+  "Something is missing before finalising": "Manca qualcosa prima del blocco",
+  "Dated in an earlier year: finalise it on its own": "Data di un anno precedente: bloccala singolarmente",
+  "No e-mail address for invoices": "Nessun indirizzo e-mail per le fatture",
+  "No drafts of invoice issuers": "Nessuna bozza di emittenti di fatture",
+  "Only drafts of invoice issuers without a mark. Each one you tick is finalised and sent as by hand; the others stay drafts for you to check one by one.": "Solo bozze di emittenti di fatture senza segnalazione. Ognuna che spunti viene bloccata e inviata come a mano; le altre restano bozze da controllare una per una.",
+  "{0} of {1} drafts can go": "{0} bozze su {1} possono partire",
+  "Finalise and send": "Blocca e invia",
+  "Finalised, not sent: {0}": "Bloccata, non inviata: {0}"
 }
