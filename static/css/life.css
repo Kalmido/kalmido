@@ -1,5 +1,10 @@
 /* Kalmido web client: the styles of the module "life" (2.65.0, #1824), loaded with it (static/js/lazyload.js LD_CSS).
    Moved unchanged from app.css (same order); later than app.css in the cascade. */
+/* 2.1464.0 (#4742): moved unchanged from app.css, only this module draws them (start budget). They stand before the file's own rules, so the cascade stays as it was. Where only part of a section moved, its comment stands in both places. */
+/* 2.72.0 B (#1333) the household budget (budget.js): view, card on Home & life, dialogs; phone first, one accent */
+.bgneg,.bg-saldo b.bgneg{color:var(--danger)}
+.bgcr .bgcn{flex:1 1 9rem;min-width:0}
+/* the rules of this file */
 /* 2.1305.0 (#4742): moved unchanged from app.css, only this module draws them (start budget). They stand before the file's own rules, so the cascade stays as it was. Where only part of a section moved, its comment stands in both places. */
 .lcare{flex-wrap:nowrap}
 .lpre{display:flex;flex-wrap:wrap;gap:.375rem;margin:0 0 .75rem}

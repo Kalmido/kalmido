@@ -1,0 +1,19 @@
+/* Kalmido web client: the styles of the module "recent" (2.1464.0, #4742), loaded with it (static/js/lazyload.js LD_CSS).
+   Moved unchanged from the start file start-recent-5352.css (same order); later than the start files in the cascade. */
+/* 2.1464.0 (#4742): moved unchanged from start-recent-5352.css, only this module draws them (start budget). They stand before the file's own rules, so the cascade stays as it was. Where only part of a section moved, its comment stands in both places. */
+.zleh{display:flex;align-items:center;gap:.5rem;margin:.25rem 0 .5rem;font-size:var(--fs-l)}
+.zlel{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
+.zler:hover,.zler:focus-visible{background:var(--bg3)}
+.zlep{overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}
+.zlec{flex:0 1 auto;display:inline-flex;align-items:center;gap:.25rem;max-width:10rem;padding:.0625rem .5rem;border:1px solid var(--line);border-radius:99rem;font-size:var(--fs-s);white-space:nowrap;overflow:hidden}
+.zlec>span{overflow:hidden;text-overflow:ellipsis}
+.zlew{flex:none;white-space:nowrap}
+.zleempty{display:flex;flex-wrap:wrap;align-items:center;gap:.75rem;padding:.75rem 0}
+.zleempty p{margin:0}
+.zlepin{margin-bottom:1rem}
+.zletrash{margin:.25rem 0 0}
+.zlehead{display:flex;align-items:center;gap:.25rem;margin:0 0 .5rem}
+.zlehead h2{margin:0;font-size:var(--fs-l)}
+.zlefs{display:flex;flex-wrap:wrap;gap:.375rem;margin:0 0 .75rem}
+.zlefc{min-height:2.75rem;padding:0 .875rem;border:1px solid var(--line);border-radius:99rem;background:none;color:var(--text2);font:inherit;font-size:var(--fs-s);cursor:pointer;max-width:14rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* the rules of this file */

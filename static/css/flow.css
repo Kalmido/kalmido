@@ -1,0 +1,10 @@
+/* Kalmido web client: the styles of the module "flow" (2.1464.0, #4742), loaded with it (static/js/lazyload.js LD_CSS).
+   Moved unchanged from the start file start-flow.css (same order); later than the start files in the cascade. */
+/* 2.1464.0 (#4742): moved unchanged from start-flow.css, only this module draws them (start budget). They stand before the file's own rules, so the cascade stays as it was. Where only part of a section moved, its comment stands in both places. */
+/* 2.393.2 A (#3374): the card "Flow" of a project page (static/js/flow.js) */
+.flwnote{font-size:var(--fs-xs);margin:.375rem 0 0}
+.flwcfd{height:7.5rem}
+.flwbug{display:block;max-width:100%;height:5.5rem}
+.flwlg{display:flex;flex-wrap:wrap;gap:.25rem .75rem;font-size:var(--fs-xs);color:var(--text2);margin:.25rem 0}
+.flwlg i{display:inline-block;width:.625rem;height:.625rem;border-radius:2px;margin-right:.25rem;vertical-align:-1px}
+/* the rules of this file */
