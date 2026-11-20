@@ -50,7 +50,7 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from agent_common import defuse_fence, write_json  # noqa: E402,F401  #7151: the starter's shared helpers
+from agent_common import ApiError, defuse_fence, write_json  # noqa: E402,F401  #7151: the starter's shared helpers
 CONFIG_FILE = "KALMIDO-DISPATCH.json"
 STOP_FILE = "dispatch-STOP"
 STATE_FILE = "dispatch.json"
@@ -1518,7 +1518,7 @@ class Dispatcher:
             return
         try:
             st = card_state(self.host.api, tids[0], e["pr"])
-        except Exception as x:  # noqa: BLE001 - an unreadable comment list never ends the round
+        except (ApiError, OSError, ValueError) as x:  # an unreadable comment list never ends the round
             log(f"card of {e['pr']}: {type(x).__name__}")
             return
         if st == "rejected":
