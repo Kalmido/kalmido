@@ -12,6 +12,8 @@ quotations, invoices and the office settings. Invented names and companies only.
  - an organisation of the server's admin (POST /api/admin/orgs) keeps "Previous access" for its new members (no row, an update
    changes nothing): the member reads the quotations as before and the role picker says so
  - frida turns bob into an admin and back into a member: he keeps the row he has
+ - #7413: the server admin's whole set of admins demotes like admins_remove (the start group + the log); a stored start
+   group with special rights (projects) is never given
 usage: p21429_a_newmember_office_test.py <datadir>   (KMT_NOSTART=1: against a running instance on KALMIDO_TEST_PORT)"""
 import os
 import subprocess
@@ -123,5 +125,30 @@ check(r.status_code == 200, f"dan reads quotations and invoices as before: 200 (
 o = next(x for x in A.get(B + "/api/orgs").json()["orgs"] if x["id"] == ORG)
 rm = {x["key"]: x for x in o.get("roles", [])}
 check("quotations, invoices" in rm.get("member", {}).get("office", ""), f"role picker there: a member works on quotations and invoices ({rm.get('member')})")
+
+# #7413: the server admin's route with the old whole set of admins (no _prev) demotes like admins_remove: with a default
+# group the demoted admin starts in it (a row + the log), never in the silent "Previous access"
+c = dbxm.connect(os.path.join(DATA, "tasks.db"), timeout=10)
+c.execute("UPDATE orgs SET office_new_tpl='staff' WHERE id=?", (ORG,))
+c.commit()
+c.close()
+ERIC, _ = person("eric", "member", ORG, A)
+c = dbxm.connect(os.path.join(DATA, "tasks.db"), timeout=10)
+c.execute("DELETE FROM office_rgroup_members WHERE org_id=? AND user_id=?", (ORG, ERIC))  # an admin of before: no group row
+c.commit()
+c.close()
+check(A.patch(B + f"/api/admin/orgs/{ORG}", json={"admins": [ALICE, ERIC]}).ok and rows(ORG, ERIC) == [], "eric is an admin by the whole set, no group row")
+r = A.patch(B + f"/api/admin/orgs/{ORG}", json={"admins": [ALICE]})
+check(r.ok and sql("SELECT role FROM org_members WHERE org_id=? AND user_id=?", (ORG, ERIC)) == [("member",)], f"the whole set demotes eric ({r.status_code} {r.text[:120]})")
+check(rows(ORG, ERIC) == ["staff"], f"#7413: demoted by the whole set, eric starts in Staff ({rows(ORG, ERIC)})")
+check(sql("SELECT COUNT(*) FROM office_rights_log WHERE org_id=? AND action='member_start' AND target_user=?", (ORG, ERIC))[0][0] == 1,
+      "#7413: the start is in the rights log")
+# #7413: only the groups without special rights can be a start group; a stored "projects" counts as none
+c = dbxm.connect(os.path.join(DATA, "tasks.db"), timeout=10)
+c.execute("UPDATE orgs SET office_new_tpl='projects' WHERE id=?", (ORG,))
+c.commit()
+c.close()
+FINN, _ = person("finn", "member", ORG, A)
+check(rows(ORG, FINN) == [], f"#7413: a start group with special rights is never given ({rows(ORG, FINN)})")
 
 sys.exit(done("p21429_a_newmember_office_test"))
