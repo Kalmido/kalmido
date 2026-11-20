@@ -13,6 +13,7 @@ freelancer-matrix: files
  - "Also private" off with one organisation: an invoice uploaded in Private stays in the file store ('ask', offered in the
    organisation's office), never area 'office' behind the switch; what lay in the own office before shows in the file store
  - a second member of the organisation never sees the person's offered document
+ - (#7321 point 3) the office's own upload (area=office) goes only into the office the request works in: 409 for another one
 usage: p7325_a_area_to_test.py <datadir>"""
 import email.message
 import json
@@ -163,6 +164,19 @@ r = A.post(B + f"/api/docs/{d1}/area", json={"to": "office"}, headers=HA)
 check(r.ok and r.json().get("org_id") == ALPHA and row(d1)[:3] == ("office", "person", f"o{ALPHA}"),
       f"#7325: taken over into Alpha {r.status_code} {r.text[:200]} {row(d1)}")
 check(d1 not in ids(A, HB, area="office", unbooked="1"), "#7325: Beta no longer offers it")
+
+# ---- (#7321 point 3): the office's own upload (area=office) only into the office the request works in
+def office_up(ws, hdr, name):
+    return A.post(B + "/api/docs", data={"ws": ws, "area": "office"}, headers=hdr,
+                  files=[("files", (name, INVOICE.format(n=sum(map(ord, name)) * 7 % 9000 + 1000).encode(), "text/plain"))])
+
+
+r = office_up(f"org:{ALPHA}", HB, "beleg-falsch.txt")
+check(r.status_code == 409, f"#7321: Alpha's upload while Beta's office is open: 409, never into the wrong books {r.status_code} {r.text[:160]}")
+r = office_up(f"org:{ALPHA}", HA, "beleg-richtig.txt")
+check(r.status_code == 201 and kt.dbx("SELECT area, ws FROM doc_meta WHERE node_id=?", (r.json()["ids"][0],))[0] == ("office", f"o{ALPHA}"),
+      f"#7321: Alpha's upload in Alpha's office: as before {r.status_code} {r.text[:160]}")
+check(office_up(f"org:{ALPHA}", {}, "beleg-ohne.txt").status_code == 400, "#7321: no office clear under 'All' (two offices): 400")
 
 # ---- a mail to her own document address with two offices: never the setting, offered
 put(A, workspace=f"org:{BETA}")  # the setting names Beta -- a mail is no request: it must not decide
