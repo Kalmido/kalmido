@@ -44,14 +44,17 @@ def code(r):
     return (e or {}).get("code") if isinstance(e, dict) else None, (e or {}).get("message", "") if isinstance(e, dict) else str(e or "")
 
 
-def agent(who, s):
-    """A personal agent of person s with both office switches of her own office -> its token."""
-    s.get(B + OF + "/settings", headers=PV)  # opens the own office once
-    r = s.post(B + "/api/my/agents", json={"username": f"{who}bot", "display_name": f"{who} Bot", "scopes": ["read", "office"]})
+def agent(who, s, ws="private"):
+    """A personal agent of person s in workspace ws ("private" = her own office; a new agent's default is her first
+    organisation) with both office switches of that office -> its token."""
+    hs = {HS: ws}
+    s.get(B + OF + "/settings", headers=hs)  # opens the office once
+    r = s.post(B + "/api/my/agents", json={"username": f"{who}bot", "display_name": f"{who} Bot", "scopes": ["read", "office"],
+                                           "org_id": None if ws == "private" else int(ws[4:])})
     check(r.status_code == 201, f"{who}: setup: the personal agent {r.text[:200]}")
     aid, tok = r.json()["id"], r.json()["token"]
-    check(s.patch(B + f"{OF}/agents/{aid}", json={"office_drafts": True}, headers=PV).ok and s.put(B + OF + "/settings", json={"agents_read": 1}, headers=PV).ok,
-          f"{who}: setup: both office switches of the own office")
+    check(s.patch(B + f"{OF}/agents/{aid}", json={"office_drafts": True}, headers=hs).ok and s.put(B + OF + "/settings", json={"agents_read": 1}, headers=hs).ok,
+          f"{who}: setup: both office switches of the office {ws}")
     return tok
 
 
@@ -112,6 +115,19 @@ check(Fr.patch(B + "/api/settings", json={"ws_mods_off": json.dumps({})}).ok, "F
 check(own_offers(Fr) == before, f"#7326: nothing was written while off {own_offers(Fr)} vs {before}")
 r = offer(TOK, CL, "Wieder an")
 check(r.status_code == 201, f"#7326: switched on again, the agent drafts as before {r.status_code} {r.text[:160]}")
+
+# ---- 2b. her personal agent placed in Alpha: drafts in Alpha, the link names Alpha; Alpha's office off for her = 409
+WA = f"org:{ORG}"
+TOKA = agent("fridaalpha", Fr, WA)
+r = Fr.post(B + "/api/clients", json={"name": "Alpha Kunde", "email": "alpha@example.com", "space": WA})
+r = offer(TOKA, r.json().get("id"), "Alpha Film")
+d = r.json().get("doc") or {} if r.ok else {}
+check(r.status_code == 201 and re.match(rf"^#office/s/{WA}/offers/{d.get('id')}$", d.get("app_url") or ""),
+      f"#7326: an agent placed in Alpha drafts there, its link names Alpha {r.status_code} {d.get('app_url')!r} {r.text[:160]}")
+check(Fr.patch(B + "/api/settings", json={"ws_mods_off": json.dumps({WA: ["office"]})}).ok, "Frida switches the office off in Alpha")
+r = offer(TOKA, None, "Alpha versteckt")
+check(r.status_code == 409 and code(r)[0] == "office_off", f"#7326: Alpha's office off for her: 409 office_off {r.status_code} {r.text[:200]}")
+check(Fr.patch(B + "/api/settings", json={"ws_mods_off": json.dumps({})}).ok, "on again")
 
 # ---- 3. P4: a person without an organisation, her agent as always
 FID2, Fi = freelancer(B, A, "fiona")

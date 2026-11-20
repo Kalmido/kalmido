@@ -92,7 +92,6 @@ const WS_VIEWS = {
   'static/js/listadmin.js': 'draw',           // 2.102.0 A (#1988): the deleted lists of the trash filtered by wsObjIn while drawing
   'static/js/dashboard.js': 'draw',           // 2.144.0 C (#2418): the start page names overdue tasks of other workspaces (wsCur / wsHidden while drawing)
   'static/js/collab.js': 'draw',              // 2.145.0 A (#2444): News names unread items of the other workspaces (wsCur while drawing)
-  'static/js/devlink.js': 'helper',           // 2.140.1 (#2136): "open the equipment" switches to the office's workspace first (no view)
   'kalmido/hub/absence.py': 'check:absences', // abs_org: the area of the saved setting; absences and disposition load again
                                               // with the state that follows the saved setting (core.js)
   'kalmido/office/model.py': 'check:office',  // office_org: the saved setting
@@ -109,8 +108,8 @@ const WS_VIEWS = {
                                               // like office_where (no view keeping data; p2250_a_officesearch checks Private)
   'kalmido/docs/area.py': 'helper',            // 2.522.0 (#4433): ar_office - the office a person works in (the saved setting, per request or
                                               // queue run; no view keeping data)
-  'kalmido/accounts/onboarding.py': 'helper',  // 2.578.0 (#4573): ind_area - which area the app's industry belongs to (the saved setting,
-                                              // per request like office_where; no view keeping data)
+  'kalmido/accounts/wsplace.py': 'helper',    // (#7309): wsp_new - the workspace on top as the default of a new entry while its module
+                                              // is on and writable there (per request; no view keeping data)
   'kalmido/accounts/wsareas.py': 'helper',    // 2.409.0 (#3490): _req_org - which organisation an area lock applies to when a
                                               // request names no space (the saved setting, per request; no view keeping data)
 };
