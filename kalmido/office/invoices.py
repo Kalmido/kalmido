@@ -228,9 +228,19 @@ def inv_state(r, pm, today=None):
         if p["paid"] > 0:
             return "partial"
         due = _col(r, "due_date") or ""
-        if due and due < (today or local_now().date().isoformat()):
+        if due and due < (today or local_now().date().isoformat()) and not inv_tiny(gross - covered):  # (#6637)
             return "overdue"
     return st
+
+
+INV_TINY = Decimal("1.00")  # (#6637): an open rest below this (the invoice's currency) is never overdue nor suggested for a reminder
+
+
+def inv_tiny(open_):
+    """(#6637): True for an open rest above 0 and below INV_TINY (a final invoice after rounded instalments: 0.01 VAT). It stays
+    open and visible (list, open items), but is not "overdue" and gets no reminder suggestion or overdue notice."""
+    o = money(dec(open_ or 0))
+    return Decimal(0) < o < INV_TINY
 
 
 def inv_money_fields(r, pm):
@@ -952,18 +962,23 @@ def inv_reminder_paid_claim(c, oid, r):
     its fee + the part of its interest and flat fee (inv_reminder_claim) that no other paid reminder over one of the same
     invoices counted already -- a later reminder level repeats the interest up to its own day and the flat fee, so two paid
     levels never count them twice. What another reminder counted beyond its fee = its stored amount - its fee (a mark of
-    before 2.1259 stored nothing: its fee alone)."""
+    before 2.1259 stored nothing: its fee alone).
+    (#6637): the highest interest / flat fee of the paid levels (this one and the others over the same invoices) is what all of
+    them count together, whatever the order of the marks: level 2 opened again and marked after level 3 tops up to level 3's
+    sum (it took only its own interest before, and the sum over the levels stayed below the claim)."""
     fee = money(dec(_col(r, "reminder_fee") or 0))
     extra = inv_reminder_claim(r) - fee
     ids = {int(i) for i in _j(_col(r, "ref_doc_ids") or "[]", []) if str(i).isdigit()}
-    done = Decimal(0)
+    done, top = Decimal(0), extra
     if extra > 0 and ids:
-        for x in c.execute(f"SELECT ref_doc_ids, reminder_fee, reminder_fee_paid_amount FROM office_docs WHERE org_id=? AND kind='reminder' AND id<>? "
+        for x in c.execute(f"SELECT ref_doc_ids, reminder_fee, reminder_fee_paid_amount, totals FROM office_docs WHERE org_id=? AND kind='reminder' AND id<>? "
                            f"AND locked_at IS NOT NULL AND {live_sql()} AND reminder_fee_state='paid' AND reminder_fee_paid_amount IS NOT NULL",
                            (oid, r["id"])).fetchall():
             if ids & {int(i) for i in _j(x["ref_doc_ids"] or "[]", []) if str(i).isdigit()}:
-                done += max(money(dec(x["reminder_fee_paid_amount"])) - money(dec(x["reminder_fee"] or 0)), Decimal(0))
-    return fee + max(extra - done, Decimal(0))
+                xfee = money(dec(x["reminder_fee"] or 0))
+                done += max(money(dec(x["reminder_fee_paid_amount"])) - xfee, Decimal(0))
+                top = max(top, inv_reminder_claim(x) - xfee)  # (#6637)
+    return fee + max(top - done, Decimal(0))
 
 
 def inv_reminder_extra_rows(t, lang, cur):
