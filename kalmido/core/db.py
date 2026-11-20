@@ -1612,6 +1612,8 @@ LV_ONCE = ("office",)  # 2.937.0 (#5632): areas that tick at most once per reque
 def bump(c, area=None):
     area = area or lv_area()  # 2.558.0 (#4709): a core object names its area (core/objects.py obj_register area=)
     r = c.execute("UPDATE settings SET value=CAST(CAST(value AS BIGINT)+1 AS TEXT) WHERE key='version' RETURNING value").fetchone()
+    if r and has_request_context():  # 2.1474 (#7150): the highest version this request wrote (X-Kalmido-V, lv_self_header)
+        g.lv_v = max(int(g.get("lv_v") or 0), int(r[0]))
     if r:  # 2.42.0 (#1376): the task changes of this transaction belong to the new version (GET /api/state/delta)
         from ..tasks.delta import dl_scope, dl_stamp
         u = getattr(g, "user", None) if has_request_context() else None
@@ -1718,10 +1720,18 @@ def lv_state_setting():
 
 @app.after_request
 def lv_self_header(resp):
-    """2.280.0 A (#3109): the own "self" counter of a write (the window that wrote does not reload for it)."""
+    """2.280.0 A (#3109): the own "self" counter of a write (the window that wrote does not reload for it).
+    2.1474 (#7150): X-Kalmido-V = the server version (settings.version, "v" of GET /api/state) this write moved to. One
+    counter for all areas: every bump() ticks it inside the write's transaction (one row: the writes take it one after the
+    other), and /api/state reads its v before its data - a state with v >= X-Kalmido-V holds the write. The client orders its
+    own writes and the states it fetches by it (core.js applyState / ld_go). A write without a tick sends none. Runs after
+    lv_auto_bump (registered later = called first), so its tick counts too."""
     n = g.get("lv_self")
     if n is not None and resp.status_code < 400:
         resp.headers["X-Kalmido-Lv"] = f"self:{n}"
+    v = g.get("lv_v")
+    if v and resp.status_code < 400 and request.method != "GET":
+        resp.headers["X-Kalmido-V"] = str(v)
     return resp
 
 
