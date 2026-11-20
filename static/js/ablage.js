@@ -51,6 +51,8 @@ const ab_icon = n => n.kind === 'folder' ? ic(n.agent_id ? 'bot' : 'folder') : n
 // 2.199.0 A (#2742): the hint after a folder went into the trash: what may not be deleted stayed, one level up (kept of the server)
 
 // ---- loading
+// #6405: a folder loads its children in pages (the server's ?limit, its order); "Load more" asks again with one page more
+const AB_PAGE = 500, AB_LIM = {};
 const ab_key = r => r.nid ? 'n:' + r.nid : r.aus ? 'c:' + r.aus + ':' + ab_curSpace() : 's:' + ab_curSpace();  // 2.429.0 (#3580): + a collection
 async function ab_load() {
   if (ab_ovr()) return;  // 2.540.0 (#4575): the overview loads nothing
@@ -65,7 +67,7 @@ async function ab_load() {
   try {
     // 2.780.0 (#5391): a node address may be a file (#ablage/<file id>): its folder query says 409 "Not a folder" -- rawFetch says nothing,
     // the way below opens the file; 2.1216.0 (#6109): any other failure of a folder load is said once, in the view (errorState), no toast
-    const j = await rawFetch('GET', r.nid ? `/api/files?parent=${r.nid}` + dq : `/api/files?space=${encodeURIComponent(ab_curSpace())}` + dq);
+    const j = await rawFetch('GET', r.nid ? `/api/files?parent=${r.nid}&limit=${AB_LIM[key] || AB_PAGE}` + dq : `/api/files?space=${encodeURIComponent(ab_curSpace())}` + dq);
     if (typeof fsl_prep !== 'function' && typeof loadModule === 'function') await loadModule('fslock').catch(() => {});  // 2.353.0 A (#2758)
     if (typeof fsl_prep === 'function') await fsl_prep(j);  // 2.353.0 A (#2758): names of a locked folder decrypted here
     if (seq !== AB.seq) return;
@@ -148,6 +150,7 @@ function viewAblage() {
   else body = `<div class="ablist${AB.selOn ? ' abselon' : ''}" role="list">${d.items.map(n => ab_rowHtml(n, trash)).join('')}${(d.collections || []).map(ab_collRow).join('')}</div>`;  // 2.429.0 (#3580): + "From <area>" after the folders and files
   if (d?.items.length && !trash && typeof abd_cardsOn === 'function' && abd_cardsOn(key)) body = abd_cardsHtml(d, key);  // 2.353.0 D (#2759): the folder as cards
   if (fold) body = abd_foldHtml(d, key);  // 2.752.0 (#4887)
+  if (d?.more && !trash) body += `<div class="abmore"><button type="button" class="btn sm" data-ab="more">${esc(tr('Load more'))}</button></div>`;  // #6405
   if (d?.node?.locked && typeof fsl_bannerHtml === 'function') body = fsl_bannerHtml(d) + body;  // 2.353.0 A (#2758)
   if (!fold && d && typeof dt_abOn === 'function' && dt_abOn(sp || d.space)) body = dt_abBody(sp || d.space);  // 2.122.0 B (#2099): the tag filter of the space
   const search = !trash && !fold /* 2.752.0 (#4887): the documents' search of the folder */ && !d?.node?.locked && typeof ftxtBox === 'function' ? ftxtBox() : '';  // 2.61.0 (#1820): names + recognised text; 2.353.0 F (#2758, review N9): a locked folder searches its names here only (the banner)
@@ -815,6 +818,7 @@ document.addEventListener('click', e => {
   const n = ab_item(b.dataset.id), a = b.dataset.ab;
   if (a === 'space') { ab_pick(b.dataset.sp); AB.key = ''; if (ab_all()) go(ab_home(b.dataset.sp)); else if (S.route.nid || S.route.aus) go('ablage'); else ab_load(); return; }  // 2.540.0 (#4575): under "All" its address  // 2.429.0 (#3580): + from a collection
   if (a === 'new-folder') { ab_newFolder(); return; }
+  if (a === 'more') { const k = ab_key(S.route); AB_LIM[k] = (AB_LIM[k] || AB_PAGE) + AB_PAGE; b.disabled = true; ab_load(); return; }  // #6405: one page more
   if (a === 'crumbs') { ab_crumbMenu(b); return; }  // 2.1163.0 (#6111): the phone's "…" of the path
   if (a === 'upload') { $('#ab-file')?.click(); return; }
   if (a === 'scan') { abm_scan(); return; }  // 2.112.1 A (#2058)

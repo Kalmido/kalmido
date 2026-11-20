@@ -342,11 +342,12 @@ def fs_chains(c, ids):
     return out
 
 
-def fs_roles_many(c, ids, uid, chains=None):
+def fs_roles_many(c, ids, uid, chains=None, trash=False):
     """2.546.0 (#4186): {nid: (in_trash, role)} for many nodes -- fs_deleted(fs_chain) and fs_role of each, with the chains
     and what fs_role reads per node fetched once for all of them (_FsPre). Nodes that do not exist: (False, None); in the trash: (True, None).
     The rules are fs_role's own (the same function runs per node), only the reads are shared. uid falsy (0 / None): only
-    the trash is looked at, role None (no default to the signed-in person: bk_receipts' uid=0 means "all, for jobs")."""
+    the trash is looked at, role None (no default to the signed-in person: bk_receipts' uid=0 means "all, for jobs").
+    #6405: trash=True: the role of a node in the trash too (fs_role ignores the trash; the trash listing, files/web.py)."""
     chains = fs_chains(c, ids) if chains is None else chains  # 2.1284.0 (#6453): given = read once for several people (agents/circle.py)
     pre = _FsPre({r["id"] for ch in chains.values() for r in ch})
     out = {}
@@ -356,7 +357,7 @@ def fs_roles_many(c, ids, uid, chains=None):
             out[i] = (False, None)
             continue
         gone = fs_deleted(ch)
-        out[i] = (gone, fs_role(c, i, uid, chain=ch, pre=pre) if uid and not gone else None)  # in the trash: callers skip it first
+        out[i] = (gone, fs_role(c, i, uid, chain=ch, pre=pre) if uid and (trash or not gone) else None)  # in the trash: callers skip it first
     return out
 
 
@@ -475,60 +476,76 @@ def fs_visible_sql(uid, c=None):
 
 
 def fs_visible_sql_c(c, uid):
-    """fs_visible_sql with the connection (reads the account's organisations / groups once)."""
+    """fs_visible_sql with the connection (reads the account's organisations / groups once).
+    #6405: the start is a UNION of arms that each have an index (own nodes: owner_id; an admin's / an "everyone in the
+    organisation" folder's organisation: org_id; shares: fs_shares user_id / group_id / agent_id; an agent's nodes:
+    agent_id) instead of one OR over fs_nodes of every organisation; the walk down takes live nodes only. The trash is
+    looked at upward from the tops of that set only (a node whose parent is not in it), not over the deleted nodes of
+    all organisations: a node is in the trash when it or a node above it is deleted -- below a top everything is live by
+    the walk, so only the tops' own ancestors can still be deleted (their branch then drops out). The same set as before."""
     uid = int(uid)
     ctx = acx_of(c, uid)
     agent = ctx.role == "agent"
     now = _now().replace("'", "")
     roots = []  # 2.1340.0 (#6613): the documents folders of the organisations where uid is accounting
+    arms = []  # #6405: the conditions of the start, each one indexed
     if agent:
         orgs = f"n.org_id IS NULL OR n.org_id = {int(ctx.agent_org_id)}" if ctx.agent_org_id else "n.org_id IS NULL"
-        seed = (f"n.agent_id = {uid} OR n.id IN (SELECT node_id FROM fs_shares WHERE (agent_id = {uid} OR user_id = {uid}) "
-                f"AND (expires_at IS NULL OR expires_at > '{now}') AND COALESCE(list_own, 0)=0)")  # 2.568.0 (#4739, review F6)
+        valid = f"(expires_at IS NULL OR expires_at > '{now}') AND COALESCE(list_own, 0)=0"  # 2.568.0 (#4739, review F6)
+        arms += [f"n.agent_id = {uid}",
+                 f"n.id IN (SELECT node_id FROM fs_shares WHERE agent_id = {uid} AND {valid})",
+                 f"n.id IN (SELECT node_id FROM fs_shares WHERE user_id = {uid} AND {valid})"]
     else:
         oids = ",".join(str(int(x)) for x in ctx.org_ids) or "0"
         orgs = f"n.org_id IS NULL OR n.org_id IN ({oids})"
         admin = [int(o) for o in ctx.org_ids if is_org_admin(c, uid, o)]
-        seed = f"n.owner_id = {uid}"
         lim = [int(o) for o in ctx.org_ids if org_role_key(c, uid, o) in ("guest", "accounting", "readonly")]
         oa = _fs_open_area_sql(lim)  # 2.200.0 A (#2747, review 4): a demoted admin's ownership of an open area's tree gives nothing
-        if oa:
-            seed = f"(n.owner_id = {uid} AND n.id NOT IN {oa})"
+        arms.append(f"n.owner_id = {uid} AND n.id NOT IN {oa}" if oa else f"n.owner_id = {uid}")
         if admin:
-            seed += f" OR n.org_id IN ({','.join(map(str, admin))})"
+            arms.append(f"n.org_id IN ({','.join(map(str, admin))})")
         # 2.143.0 A (#2151): "everyone in the organisation" folders only for member / admin / read-only; accounting: the
         # organisation's documents folder; guests: their own nodes and shares
         rks = {int(o): org_role_key(c, uid, o) for o in ctx.org_ids}
-        full = ",".join(str(o) for o, rk in rks.items() if rk not in ("guest", "accounting")) or "0"
-        seed += f" OR (n.org_access IN ('view', 'edit') AND n.org_id IN ({full}))"
+        full = [str(o) for o, rk in rks.items() if rk not in ("guest", "accounting")]
+        if full:
+            arms.append(f"n.org_access IN ('view', 'edit') AND n.org_id IN ({','.join(full)})")
         acc = [o for o, rk in rks.items() if rk == "accounting"]
         roots = [int(x) for x in (_fs_docs_root(c, o) for o in acc) if x]
         if roots:  # 2.1340.0 (#6613): the receipts below the documents folder, not its whole tree (fs_role's rule)
-            seed += (f" OR n.id IN (SELECT r.node_id FROM rc_receipts r WHERE r.org_id IN ({','.join(map(str, acc))}) AND "
-                     f"r.node_id IN (WITH RECURSIVE dr(id) AS (SELECT id FROM fs_nodes WHERE id IN ({','.join(map(str, roots))}) "
-                     f"UNION SELECT x.id FROM fs_nodes x JOIN dr ON x.parent_id = dr.id) SELECT id FROM dr))")
+            arms.append(f"n.id IN (SELECT r.node_id FROM rc_receipts r WHERE r.org_id IN ({','.join(map(str, acc))}) AND "
+                        f"r.node_id IN (WITH RECURSIVE dr(id) AS (SELECT id FROM fs_nodes WHERE id IN ({','.join(map(str, roots))}) "
+                        f"UNION SELECT x.id FROM fs_nodes x JOIN dr ON x.parent_id = dr.id) SELECT id FROM dr))")
         if collab_all():
-            seed += (f" OR n.id IN (SELECT node_id FROM fs_shares WHERE (user_id = {uid} OR group_id IN "
-                     f"(SELECT group_id FROM group_members WHERE user_id = {uid})) AND (expires_at IS NULL OR expires_at > '{now}') "
-                     f"AND COALESCE(list_own, 0)=0)")  # 2.568.0 (#4739, review F6): not "Shared with me" through a project's own row
+            valid = f"(expires_at IS NULL OR expires_at > '{now}') AND COALESCE(list_own, 0)=0"  # 2.568.0 (#4739, review F6)
+            arms += [f"n.id IN (SELECT node_id FROM fs_shares WHERE user_id = {uid} AND {valid})",
+                     f"n.id IN (SELECT node_id FROM fs_shares WHERE group_id IN (SELECT group_id FROM group_members "
+                     f"WHERE user_id = {uid}) AND {valid})"]
+    start = " UNION ALL ".join(f"SELECT n.id FROM fs_nodes n WHERE ({a}) AND ({orgs}) AND {live_sql('n')}" for a in arms)
     # 2.1045.0 (#5823): an excluded knowledge folder is listed only when it (or a node below it) is shared itself; 2.1225.0
     # (#5862): for people too (the exclusions of a whole knowledge area shared with them)
     step = dl_wiki_step_sql(c, uid)
     # #6613: the accounting role's documents folder itself is listed, without descending into it (fv would);
     # #6953 (reader job/5148 F3): so are the folders between it and a receipt of the organisation (fs_role's rule)
     rl = ",".join(map(str, roots))
-    root_u = (f" UNION SELECT id FROM fs_nodes WHERE id IN ({rl})"
-              f" UNION SELECT id FROM fs_nodes WHERE kind = 'folder' AND id IN (WITH RECURSIVE ra(id, pid) AS ("
+    root_u = (f" UNION SELECT r0.id FROM fs_nodes r0 WHERE {live_sql('r0')} AND (r0.id IN ({rl})"
+              f" OR r0.kind = 'folder' AND r0.id IN (WITH RECURSIVE ra(id, pid) AS ("
               f"SELECT n.id, n.parent_id FROM fs_nodes n JOIN rc_receipts r ON r.node_id = n.id WHERE r.org_id IN ({','.join(map(str, acc))}) AND {live_sql('n')} "
               f"UNION SELECT p.id, p.parent_id FROM fs_nodes p JOIN ra ON p.id = ra.pid WHERE ra.id NOT IN ({rl})) "
               f"SELECT id FROM ra WHERE id IN (WITH RECURSIVE dr(id) AS (SELECT id FROM fs_nodes WHERE id IN ({rl}) "
-              f"UNION SELECT x.id FROM fs_nodes x JOIN dr ON x.parent_id = dr.id) SELECT id FROM dr))") if roots else ""
-    return (f"(WITH RECURSIVE fv(id) AS (SELECT n.id FROM fs_nodes n WHERE ({seed}) AND ({orgs}) "
-            f"UNION SELECT n.id FROM fs_nodes n JOIN fv ON n.parent_id = fv.id WHERE ({orgs}){step}), "
-            f"fd(id) AS (SELECT id FROM fs_nodes WHERE deleted_at IS NOT NULL "
-            f"UNION SELECT n.id FROM fs_nodes n JOIN fd ON n.parent_id = fd.id), "
-            f"fr(id) AS (SELECT id FROM fv{root_u}) "
-            f"SELECT id FROM fr WHERE id NOT IN (SELECT id FROM fd){_mail_hidden(c, uid)}{_receipts_hidden_sql(c, uid, ctx.org_ids)}"  # 2.187.1 A (#2735): agents too
+              f"UNION SELECT x.id FROM fs_nodes x JOIN dr ON x.parent_id = dr.id) SELECT id FROM dr)))") if roots else ""
+    # fv: the start and everything live below it; fr: + the accounting role's folders (every node in fr is itself live);
+    # ft: the tops of fr; fa: their ancestors; fx: the tops below a deleted ancestor and their branches in fr
+    return (f"(WITH RECURSIVE fv(id) AS (SELECT s0.id FROM ({start}) s0 "
+            f"UNION SELECT n.id FROM fs_nodes n JOIN fv ON n.parent_id = fv.id WHERE ({orgs}) AND {live_sql('n')}{step}), "
+            f"fr(id) AS (SELECT id FROM fv{root_u}), "
+            f"ft(id, pid) AS (SELECT t.id, t.parent_id FROM fs_nodes t JOIN fr ON t.id = fr.id "
+            f"WHERE t.parent_id IS NOT NULL AND t.parent_id NOT IN (SELECT id FROM fr)), "
+            f"fa(top, id) AS (SELECT id, pid FROM ft UNION SELECT fa.top, a.parent_id FROM fs_nodes a JOIN fa ON a.id = fa.id "
+            f"WHERE a.parent_id IS NOT NULL), "
+            f"fx(id) AS (SELECT fa.top FROM fa JOIN fs_nodes d ON d.id = fa.id WHERE d.deleted_at IS NOT NULL "
+            f"UNION SELECT b.id FROM fs_nodes b JOIN fx ON b.parent_id = fx.id WHERE b.id IN (SELECT id FROM fr)) "
+            f"SELECT id FROM fr WHERE id NOT IN (SELECT id FROM fx){_mail_hidden(c, uid)}{_receipts_hidden_sql(c, uid, ctx.org_ids)}"  # 2.187.1 A (#2735): agents too
             f"{_ref_hidden(c, uid)}{_lock_hidden(c, agent)}{_for_sql(c, uid)})")
 
 

@@ -116,3 +116,4 @@
 .abtrashed{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
 .abtrimg{margin:.5rem 0;height:min(50vh,16rem);display:flex;align-items:center;justify-content:center}
 .abtrimg img{max-width:100%;max-height:100%;border-radius:var(--radius);object-fit:contain}
+.abmore{display:flex;justify-content:center;padding:.75rem 0}  /* #6405: "Load more" under a folder of more than one page */
