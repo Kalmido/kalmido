@@ -518,8 +518,10 @@ def quiet_held_tick(c, users, S, LG, now):
             continue
         c.execute("DELETE FROM quiet_push_held WHERE user_id=? AND last_at<=?", (uid, h["last_at"]))  # newer counts wait for the next tick
         c.commit()  # before sending: never twice
-        if uid in users and h["n"]:
-            notify(uid, APP_NAME, trn("{0} notification during the quiet hours", "{0} notifications during the quiet hours", h["n"], lg=LG[uid]),
+        # #6337 (F7): never more than still waits now -- read elsewhere during the quiet hours = no summary (the app icon's number)
+        n = min(h["n"], badge_count(uid)) if uid in users and h["n"] else 0
+        if n:
+            notify(uid, APP_NAME, trn("{0} notification during the quiet hours", "{0} notifications during the quiet hours", n, lg=LG[uid]),
                    push_prio(S[uid]), f"{PUBLIC_URL}/#today", s=S[uid], tag="quiet", kind="other", quiet=False)
 
 

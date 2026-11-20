@@ -477,12 +477,16 @@ async function newsMore(b) {
 }
 const newsMoreHtml = () => S.nf.next && !S.nf.unread ? `<div class="audmore"><button type="button" class="btn sm" data-act="news-more">${tr('Load more')}</button></div>` : '';
 // 2.13.0 (#453 A5): "Mark all as read" says how many and can be undone (the server returns the ids it marked)
+// #6337 (F2): with the highest id shown as the upper bound (like the team chat's read mark last_id): an item that arrived after
+// the list was drawn stays unread; the toast counts what the server turned read (the unread before minus after), not the old number
+const newsShownTop = () => Math.max(0, ...(S.nf.items || []).flatMap(x => [x.id, ...(x.ids || [])]).filter(Number.isFinite));
 async function newsReadAll() {
-  const before = (S.nf.items || []).filter(x => !x.read), n = S.news?.unread || before.length;
+  const before = (S.nf.items || []).filter(x => !x.read), u0 = S.news?.unread || before.length, top = newsShownTop();
   before.forEach(x => { x.read = true; });
-  const j = await newsRead({all: true});
+  const j = await newsRead(top ? {all: true, max_id: top} : {all: true});
   const ids = j?.marked || before.flatMap(x => x.ids || []);
   if (!ids.length) return;
+  const n = j && Number.isFinite(j.unread) ? Math.max(1, u0 - j.unread) : before.length || u0;
   toast(trn('{0} marked as read', '{0} marked as read', n), async () => {
     before.forEach(x => { x.read = false; x.keep = true; });
     try { const k = await rawFetch('POST', '/api/news/read', {unread: true, ids}); S.news = {unread: k.unread, unread_me: k.unread_me ?? S.news?.unread_me ?? 0, sig: k.sig, due: k.due ?? S.news?.due}; S.nf.sig = null; } catch { toast(tr('Only available online.')); }

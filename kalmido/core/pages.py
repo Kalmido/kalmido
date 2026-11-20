@@ -683,7 +683,7 @@ def version_sigs(c, uid):
     """2.149.0 C (#2507): the values of the 4-second poll -- the version, news_sig, cal_sig, tchat_sig, steps_sig and
     lv_versions -- read in ONE statement (each module keeps its query + formatting: *_sig_q / *_sig_fmt, the single
     functions use the same). Returns (v, n, c, t, sp, a)."""
-    from ..collab.news import news_sig_fmt, news_sig_q
+    from ..collab.news import NEWS_SIG_COLS, news_sig_fmt, news_sig_q
     from ..calendars.subscriptions import cal_sig_fmt, cal_sig_q
     from ..collab.teamchat import TCHAT_SIG_COLS, tchat_sig_fmt, tchat_sig_q
     from ..agents.steps import steps_sig_fmt, steps_sig_q
@@ -691,7 +691,7 @@ def version_sigs(c, uid):
     # of the own organisations, set by bump): a v that moved while vs stayed = only changes elsewhere (the client skips them)
     parts = [("SELECT (SELECT value FROM settings WHERE key='version'), (SELECT MAX(CAST(value AS BIGINT)) FROM settings "
               "WHERE key IN ('version:all', 'version:u:' || CAST(? AS TEXT)) OR key IN (SELECT 'version:org:' || CAST(org_id AS TEXT) "
-              "FROM org_members WHERE user_id=?))", (int(uid or 0), int(uid or 0)), 2), (*news_sig_q(uid), 2), (*cal_sig_q(uid), 3),
+              "FROM org_members WHERE user_id=?))", (int(uid or 0), int(uid or 0)), 2), (*news_sig_q(uid), NEWS_SIG_COLS), (*cal_sig_q(uid), 3),
              (*steps_sig_q(uid), 1), (*lv_versions_q(), 2)]
     chat = collab_all()
     if chat:

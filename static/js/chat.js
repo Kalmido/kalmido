@@ -8,13 +8,16 @@
 // Desktop: the list of conversations next to the open one; phones: the list, then the conversation full screen.
 S.tc = {rooms: null, people: [], users: {}, avatars: {}, rid: null, room: null, msgs: [], more: false, loading: false, edit: null, err: null};
 const teamOn = () => collab() && !!S.team?.enabled;
+// #6337 (F1): the answers of /api/team and the read routes carry unread + dm_unread: the team chat's number and the bell's
+// direct messages follow at once (a new message elsewhere: the poll's "t" -> teamChanged -> loadTeam), no full state needed
+function tcUnreadTake(j) { if (!S.team || !j) return; if (j.unread != null) S.team.unread = j.unread; if (j.dm_unread != null) S.team.dm_unread = j.dm_unread; }
 async function loadTeam() {
   if (!teamOn()) return;
   try {
     const j = await rawFetch('GET', '/api/team');
     Object.assign(S.tc, {rooms: j.rooms, people: j.people, users: {...S.tc.users, ...j.users}, err: null});
     if (j.avatars) S.avatars = {...(S.avatars || {}), ...j.avatars};
-    if (S.team) S.team.unread = j.unread;
+    tcUnreadTake(j);  // #6337 (F1): + the bell's direct messages
   } catch (e) { S.tc.err = chatErrKey(e); }  // 2.1211.0 (#6098): 'offline' / 'fail', the list shows the shared block
 }
 async function loadRoom(rid, older = false) {
@@ -40,7 +43,7 @@ async function loadRoom(rid, older = false) {
   if (!before && S.tc.newAt?.rid !== rid) tc_newMark(rid, j.room.last_read || 0);  // 2.1162.0 (#6097): before the read mark below moves
   const last = S.tc.msgs[S.tc.msgs.length - 1];
   if (last && (!j.room.last_read || last.id > j.room.last_read) && !document.hidden) {
-    try { const r = await rawFetch('POST', `/api/team/rooms/${rid}/read`, {last_id: last.id}); if (S.team) S.team.unread = r.unread; } catch { /* offline */ }
+    try { const r = await rawFetch('POST', `/api/team/rooms/${rid}/read`, {last_id: last.id}); tcUnreadTake(r); } catch { /* offline */ }
     const rr = (S.tc.rooms || []).find(x => x.id === rid); if (rr) { rr.unread = 0; rr.mention = false; }
     wpSweep(tag => tag === 'team-' + rid);  // 2.19.0 (#668): the conversation's notifications close here
     renderSide(); renderTabs();
@@ -56,7 +59,7 @@ async function teamChanged() {
   const tcDraw = () => { if (S.route.mod !== 'team') return; if (editingTeam()) tcPatch(); else renderView(); };
   if (S.route.mod === 'team' && !rsw_later('team', tcDraw)) tcDraw();
   if (typeof cw_teamLive === 'function') cw_teamLive();  // 2.47.1 (#1720): the team chats in the chat panel
-  renderSide(); renderTabs(); renderTop();
+  renderSide(); renderTabs(); renderTop(); badgeSync();  // #6337 (F1): the app icon's number follows the bell
 }
 // 2.979.0 (#5667): an undo / redo the server did (undo.js histRedraw): the conversations (and the open one) come again like after a change elsewhere
 histReloader('team', () => { if (S.tc.rooms == null) return; return teamChanged(); });
@@ -383,7 +386,8 @@ async function tcEditSave(mid) {
 }
 async function tcMute() {
   const rid = S.tc.rid, on = !S.tc.room?.muted;
-  try { await rawFetch('POST', `/api/team/rooms/${rid}/read`, {muted: on}); } catch (e) { toast(errText(e, tr('The change could not be saved'))); return; }  // 2.1211.0 (#6098)
+  let k; try { k = await rawFetch('POST', `/api/team/rooms/${rid}/read`, {muted: on}); } catch (e) { toast(errText(e, tr('The change could not be saved'))); return; }  // 2.1211.0 (#6098)
+  const dm0 = S.team?.dm_unread; tcUnreadTake(k); if (S.team && S.team.dm_unread !== dm0) { renderTop(); renderSide(); badgeSync(); }  // #6337 (F1): a muted DM leaves the bell's number
   S.tc.room.muted = on; const r = (S.tc.rooms || []).find(x => x.id === rid); if (r) r.muted = on;
   toast(on ? tr('Muted: only mentions notify you') : tr('Notifications on'));
   // 2.1247.0 (#6102): only the head's bell changes (the box, the draft and the focus stay), no renderView
@@ -589,7 +593,7 @@ async function tth_load(older = false) {
   tth_decrypt(rid, th);
   const last = th.msgs[th.msgs.length - 1];
   if (last && last.id > th.read && !document.hidden) {  // seen = read (my mark in the thread; only looking does not make me take part)
-    try { const r = await rawFetch('POST', `/api/team/rooms/${rid}/read`, {thread: th.id, last_id: last.id}); th.read = r.last_id; if (S.team) S.team.unread = r.unread; } catch { /* offline */ }
+    try { const r = await rawFetch('POST', `/api/team/rooms/${rid}/read`, {thread: th.id, last_id: last.id}); th.read = r.last_id; tcUnreadTake(r); } catch { /* offline */ }
     tth_each(th.id, x => { x.thread_unread = 0; });
     loadTeam().then(() => { renderSide(); renderTabs(); if (typeof cw_headSync === 'function' && S.cw?.lt) cw_headSync(S.cw.lt); });
   }
