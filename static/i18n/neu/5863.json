@@ -1,0 +1,27 @@
+{
+  "de": {
+    "Tag missing: the rule does nothing until you select a tag again": "Tag fehlt: Die Regel tut nichts, bis du wieder einen Tag wählst",
+    "Crew|mail group": "Drehpersonal",
+    "Please select a contact": "Bitte einen Kontakt wählen"
+  },
+  "es": {
+    "Tag missing: the rule does nothing until you select a tag again": "Falta la etiqueta: la regla no hace nada hasta que vuelvas a elegir una etiqueta",
+    "Crew|mail group": "Equipo de rodaje",
+    "Please select a contact": "Elige un contacto"
+  },
+  "fr": {
+    "Tag missing: the rule does nothing until you select a tag again": "Étiquette manquante : la règle ne fait rien tant que tu ne choisis pas une autre étiquette",
+    "Crew|mail group": "Équipe de tournage",
+    "Please select a contact": "Choisis un contact"
+  },
+  "it": {
+    "Tag missing: the rule does nothing until you select a tag again": "Tag mancante: la regola non fa nulla finché non scegli di nuovo un tag",
+    "Crew|mail group": "Troupe di ripresa",
+    "Please select a contact": "Scegli un contatto"
+  },
+  "nl": {
+    "Tag missing: the rule does nothing until you select a tag again": "Tag ontbreekt: de regel doet niets tot je opnieuw een tag kiest",
+    "Crew|mail group": "Draaiploeg",
+    "Please select a contact": "Kies een contact"
+  }
+}
