@@ -193,6 +193,30 @@ def mc_check(c, uid, oid, mod):
         raise Denied(403, tr(MC_OFF_TEXT))
 
 
+MC_OFFICE_OF = []  # (#7392 F3): docs/area.py ar_office, entered there (the documents layer stands above the accounts)
+MC_DOCS_OFFICE = re.compile(r"/api/docs/(?:\d+(?:/.*)?|office-move(?:/.*)?)")
+
+
+def mc_docs_office(c, uid, oid, p):
+    """(#7392 F10, reader F3): the /api/docs calls of the office -- its receipts are documents: one by its id (open, PDF,
+    receipt, e-invoice), the move into the office, the documents settings it reads, its own upload and list (area=office).
+    The office on the module card carries these, as mc_file_ok does for files; the module's other views (list, facets,
+    export, bulk, rules, fetchers, addresses) stay behind the card's Documents."""
+    p = p.rstrip("/")
+    if MC_DOCS_OFFICE.fullmatch(p):
+        return True
+    if p == "/api/docs/settings":
+        return request.method == "GET"
+    if p == "/api/docs" and request.method == "POST":
+        return request.form.get("area") == "office"  # the office's own upload lands in its area
+    if p == "/api/docs" and request.method == "GET" and request.args.get("area") == "office":
+        # reader F3 (2nd round): area=office narrows the list only while the person's office is this organisation's
+        # (docs/area.py ar_sql: no office = no filter, the whole list) -- else the card's Documents decides
+        off = MC_OFFICE_OF[0](c, uid) if MC_OFFICE_OF else None
+        return bool(off) and off[0] == "org" and off[2] == oid
+    return False
+
+
 def mc_file_ok(c, uid, oid):
     """2.1324.0 (#6589): may person uid open a file of the file store of organisation oid by its id as far as their module
     card goes? No only when oid is one of their organisations and their cap there holds neither "files" nor "office" (a
@@ -260,7 +284,7 @@ def mc_gate(p=None):
     if mod == "files" and (request.method != "GET" or p.rstrip("/") not in MC_FILE_VIEWS):
         return None
     oid = _req_org(c, u["id"], "ablage" if mod == "files" else mod)
-    if oid:
+    if oid and not (mod == "docs" and "office" in (mc_cap(c, u["id"], oid) or ()) and mc_docs_office(c, u["id"], oid, p)):
         mc_check(c, u["id"], oid, mod)
     return None
 

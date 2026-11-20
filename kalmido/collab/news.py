@@ -66,6 +66,7 @@ NEWS_KINDS += ("aprequest",)  # 2.367.2 (#2968): someone asks ME for an approval
 NEWS_KINDS += ("docpaid", "docoverdue")  # 2.367.4 (#2972): a payment on an invoice / invoices past their due date (row "office", office/dunning.py)
 NEWS_KINDS += ("orglogin", "orgjoinres", "orgrole")  # 2.367.4 (#2974): an organisation admin signed in from a new address (row "usage"); the answer to my invitation; my role changed (row "share")
 NEWS_KINDS += ("oxdone",)  # #6581: my export of an organisation / my office is ready or failed (row "export", admin/orgexport.py ox_tell)
+NEWS_KINDS += ("wspstill",)  # #7392: "Also private" of my office went off while series / reminders keep running there (row "office", accounts/wsplace.py wsp_still_tell)
 NEWS_KINDS += ("umzdone",)  # #6583: my account / organisation import is finished or failed (row "import", admin/acctimport.py umz_tell)
 NEWS_KINDS += ("integfail",)  # 2.367.3 (#2971): a channel, webhook, mailbox, git connection or inbox of mine stopped (row "integration", collab/integfail.py)
 NEWS_KINDS += ("job_watch",)  # 2.392.2 (#3366): the watchdog found a job of an agent stalled / its branch stranded (row "approval", agents/watch.py)
@@ -114,7 +115,7 @@ NEWS_FOR_ME_ANY = ("evinvite", "tbl_urgent", "proposal", "playbook_proposal", "j
 
 def news_to_me(kind, actor_id, data, agents, s=None):
     # 2.61.0 (#1818): my own file was locked (no actor); 2.122.0 A (#2097): files for me; 2.138.0 C (#1972): recovery key
-    if kind in ("upscan", "attskip", "filereq", "orgkey", "ptlimit", "apblimit", "fetcherr", "evchange", "apbooking", "calsub", "integfail", "docoverdue", "orglogin", "budgetwarn", "docflow", "offerexp", "oxdone", "umzdone"):  # oxdone (#6581): my own export; umzdone (#6583): my own import; ptlimit (#2380): the portal's sign-in mails used up
+    if kind in ("upscan", "attskip", "filereq", "orgkey", "ptlimit", "apblimit", "fetcherr", "evchange", "apbooking", "calsub", "integfail", "docoverdue", "orglogin", "budgetwarn", "docflow", "offerexp", "oxdone", "umzdone", "wspstill"):  # wspstill (#7392); oxdone (#6581): my own export; umzdone (#6583): my own import; ptlimit (#2380): the portal's sign-in mails used up
         return True
     if kind in NEWS_DUE_KINDS:  # 2.1037.0 (#5801): a follow-up day / an agent's proposal waits on me (were "For you" in the app only)
         return True
@@ -342,6 +343,7 @@ KIND_ROW["chatmention"] = "mention"  # 2.1037.0 (#5800): switched with the menti
 KIND_ROW["support"] = "support"  # 2.1350.0 (#6502)
 KIND_ROW["oxdone"] = "export"  # #6581
 KIND_ROW["umzdone"] = "import"  # #6583
+KIND_ROW["wspstill"] = "office"  # #7392: my office's series / reminders keep running (News only)
 KIND_ROW["wiki_shared"] = "share"  # 2.126.2 B (#2355): switched with the sharing row (News on, no push by default)
 
 
@@ -890,7 +892,7 @@ def news_items(c, uid, s=None, mentions_only=False, to_me=False):
                 continue
         elif kind in ("orggone", "whorgcut"):  # 2.361.0 (#2920): the organisation is gone (name + my numbers in data)
             pass  # 2.380 G (#3391): whorgcut = webhook + organisation names in data, no task, no list
-        elif kind in ("fetcherr", "integfail", "oxdone", "umzdone"):  # my receipt fetcher's portal error (#3453), my export (#6581), my import (#6583): no task, no list
+        elif kind in ("fetcherr", "integfail", "oxdone", "umzdone", "wspstill"):  # wspstill (#7392); my receipt fetcher's portal error (#3453), my export (#6581), my import (#6583): no task, no list
             pass
         elif kind == "docflow":  # 2.581.0 (#4803): a document flow's note, while I still see the document
             from ..files.store import fs_role
