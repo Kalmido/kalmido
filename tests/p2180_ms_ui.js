@@ -198,7 +198,8 @@ const task = async id => (await state()).tasks.find(t => t.id === id);
     if (!AXE) return;
     if ((await ev('typeof axe')) === 'undefined') await ev(AXE + '\n;1');
     const r = await ev(`axe.run(document.querySelector('#detail'), {runOnly: {type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']}, resultTypes: ['violations']})
-      .then(r => r.violations.map(v => v.id + '(' + v.nodes.length + ') ' + v.nodes[0].target.join(' ')))`);
+      .then(r => r.violations.map(v => { const n = v.nodes[0], e = document.querySelector(n.target.join(' ')), q = e && e.getBoundingClientRect();  // #7465: what axe measured (size / neighbour) and the box
+        return v.id + '(' + v.nodes.length + ') ' + n.target.join(' ') + (v.id === 'target-size' ? ' [' + (n.any || []).concat(n.none || []).map(a => a.message).join('; ') + (q ? '; box ' + [q.left, q.top, q.width, q.height].map(Math.round).join(',') : '') + ']' : ''); }))`);
     check(!r.length, `${where}: no axe violations in the milestone panel: ` + r.join(' | ').slice(0, 500));
   };
   for (const th of ['light', 'dark']) await firefox(async o => {
