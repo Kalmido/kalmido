@@ -275,12 +275,13 @@ r = A.post(B + f"{D}/{Q}/signoff", json={})
 check(r.ok, "approval link " + r.text[:160])
 TOK = r.json()["url"].split("/s/q/")[1]
 pg = anon("/s/q/" + TOK)
-# #7338: the quotation's PDF carries the terms pages (#3619): no own button on its page, a sentence at the acceptance with the
-# state and the page they start on (the one-page quotation: page 2); the route /terms stays for older links
-check(pg.status_code == 200 and f"/s/q/{TOK}/terms" not in pg.text, "#7338: the quotation's page has no terms button of its own")
-sent = re.search(r'<p class="sigagb">([^<]*)</p>', pg.text)
-check(sent and sent.group(1) == "Es gelten unsere AGB, Stand 01.10.2026, im PDF enthalten (ab Seite 2)." and pg.text.index('class="sigagb"') > pg.text.index('name="ok"'),
-      "#7338: the sentence at the acceptance names the state and the page " + (sent.group(1) if sent else pg.text[-600:]))
+# #7338 / #7416: the terms of this suite are invented files with a PDF header only (fake_pdf): they cannot be joined to the
+# quotation's PDF (the log says "terms not appended"). So the page never says "included in the PDF": it names the state at
+# the acceptance and links the terms file (the joined case: p2434_l_api, real PDFs)
+sent = re.search(r'<p class="sigagb">(.*?)</p>', pg.text, re.S)
+check(pg.status_code == 200 and sent and sent.group(1).startswith("Es gelten unsere AGB, Stand 01.10.2026.") and "im PDF" not in sent.group(1)
+      and f'href="/s/q/{TOK}/terms"' in sent.group(1) and pg.text.index('class="sigagb"') > pg.text.index('name="ok"'),
+      "#7416: terms not joined: the sentence at the acceptance names the state and links the terms " + (sent.group(1) if sent else pg.text[-600:]))
 r = anon(f"/s/q/{TOK}/terms")
 check(r.status_code == 200 and r.content == DE1 and "AGB-Stand-2026-10-01.pdf" in r.headers.get("Content-Disposition", ""), f"/terms: the frozen file ({r.status_code})")
 check("noindex" in r.headers.get("X-Robots-Tag", "") and r.headers.get("Referrer-Policy") == "no-referrer", "/terms: noindex, no referrer")
@@ -382,6 +383,9 @@ FQ = r.json()["id"] if r.status_code == 201 else 0
 check(r.status_code == 201 and Fr.get(B + f"{D}/{FQ}/terms").json()["terms"]["date"] == "2026-09-30", "freelancer: the quotation has the terms")
 check(Fr.get(B + f"{D}/{FQ}/render").json().get("terms_line") == "Our terms and conditions (as of 30.09.2026) apply, see attachment."
       or Fr.get(B + f"{D}/{FQ}/render").json().get("terms_line", "").startswith("Our terms and conditions (as of "), "freelancer: the English line")
+# a quotation needs the sender's name and address before it is finalised: the freelancer's data first
+check(Fr.put(B + O + "/settings", json={"company_fields": {"name": "Pia Privat Film", "street": "Ufer 3", "zip": "10115", "city": "Berlin", "country": "DE",
+                                                       "tax_number": "12/345/67891", "iban": "DE02120300000000202051"}}).ok, "setup: freelancer sender data")
 r = Fr.post(B + f"{D}/{FQ}/finalize")
 check(r.ok, f"freelancer: finalises {r.status_code} {r.text[:300]}")
 n2 = len(mails())
