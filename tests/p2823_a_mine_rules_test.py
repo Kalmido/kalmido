@@ -152,7 +152,7 @@ ALL.append(T_W3)
 check(apply(ALL).get("moved") == 1 and sec_of(T_W3) == ERR, "a new high task of Work: the topmost rule (Errands), not Someday")
 TAG = Fr.post(B + f"/api/lists/{WORK}/tags", json={"name": "call"}).json()["id"]
 r = Fr.post(B + "/api/mine-rules", json={"trigger": {"kind": "ltag", "tag_id": TAG}, "section_id": SOON, "place": "top"})
-check(r.ok and r.json()["rules"][-1]["trigger"] == {"kind": "ltag", "tag_id": TAG, "list_id": WORK}, f"a tag rule {r.text[:200]}")
+check(r.ok and r.json()["rules"][-1]["trigger"] == {"kind": "ltag", "tag_id": TAG, "list_id": WORK, "tag_name": "call"}, f"a tag rule {r.text[:200]}")
 RT = r.json()["id"]
 check(apply(ALL).get("moved") == 0, "no task has the tag yet")
 check(Fr.patch(B + f"/api/tasks/{T_W2}", json={"ltags": ["call"]}).ok and apply(ALL).get("moved") == 1 and sec_of(T_W2) == SOON
