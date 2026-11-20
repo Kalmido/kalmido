@@ -2648,6 +2648,11 @@ monthly | quarterly | yearly, start, until?, auto_send?, title?}, `PATCH /api/of
 /api/office/series/<id>` (into the bin), `POST /api/office/series/<id>/restore`, `POST /api/office/series/<id>/run` (make the
 next period now). Table `office_inv_series`.
 
+More ways of the invoices (#7012): an open finalised invoice books its payment from the row menu of the invoice list too
+("Record payment…", the dialog of the open document); the "…" of a quotation or invoice has "Layout & numbers…" (Settings >
+Company & office: letterhead, logo, number schemes, closing texts); Documents & numbers has a "Signature…" button for the
+own signature picture.
+
 ## Sending and DATEV
 
 `POST /api/office/docs/<id>/send` with `{to, cc?, subject?, text?, datev?}` mails a finalised document with its files
@@ -3579,13 +3584,8 @@ recorded.
 ## How to: Record a payment
 <!-- user-help: office -->
 
-1. Open the finalised invoice and select **Record payment** - or in the invoice list open the row's menu (**…**, right
-   click or long press) and select **Record payment…**.
+1. Open the finalised invoice and select **Record payment**.
 2. Check the date and the amount and select **Record**.
-
-The look and the numbers of quotations and invoices (letterhead, logo, number schemes, closing texts): **…** > **Layout &
-numbers…** in a quotation or invoice. Your signature picture: **Settings** > **Company & office** > **Documents & numbers** >
-**Signature…**.
 
 Or let the bank statement do it: **Office** > **Bank** > **Import bank statement**, then **Take over** the suggestion that
 matches the invoice.
