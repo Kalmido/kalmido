@@ -145,11 +145,11 @@ document.addEventListener('click', async ev => {
 // current stage: parked / waiting with its reason, "2× back" (reopened twice) and with whom the task lies now. A phone shows
 // the current stage written out and the others as dots; a tap opens every stage with its date.
 const STL_CSS = `.stl{margin:.1rem 0 .35rem;font-size:var(--fs-s)}.stl>summary{list-style:none;cursor:pointer;display:flex;flex-wrap:wrap;align-items:center;gap:.15rem .3rem}
-.stl>summary::-webkit-details-marker{display:none}.stl .stl-s{display:inline-flex;align-items:center;gap:.2rem;color:var(--fg3)}
-.stl .stl-s.d{color:var(--fg2)}.stl .stl-s.c{color:var(--accent);font-weight:600}.stl .stl-s.c.bad{color:var(--danger)}
-.stl .stl-x{color:var(--fg3)}.stl .stl-ex{color:var(--st-wait-t);font-weight:400}.stl .stl-dot{width:.45rem;height:.45rem;border-radius:50%;background:var(--bg4)}
-.stl .stl-s.d .stl-dot{background:var(--fg3)}.stl .stl-s.c .stl-dot{background:var(--accent)}.stl ol{margin:.3rem 0 0;padding-left:1.2rem}
-.stl li.o{color:var(--fg3)}@media (max-width:640px){.stl .stl-s:not(.c) .stl-n,.stl .stl-x{display:none}}`;
+.stl>summary::-webkit-details-marker{display:none}.stl .stl-s{display:inline-flex;align-items:center;gap:.2rem;color:var(--muted)}
+.stl .stl-s.d{color:var(--text2)}.stl .stl-s.c{color:var(--accent);font-weight:600}.stl .stl-s.c.bad{color:var(--danger)}
+.stl .stl-x{color:var(--muted)}.stl .stl-ex{color:var(--st-wait-t);font-weight:400}.stl .stl-dot{width:.45rem;height:.45rem;border-radius:50%;background:var(--bg4)}
+.stl .stl-s.d .stl-dot{background:var(--muted)}.stl .stl-s.c .stl-dot{background:var(--accent)}.stl ol{margin:.3rem 0 0;padding-left:1.2rem}
+.stl li.o{color:var(--muted)}@media (max-width:640px){.stl .stl-s:not(.c) .stl-n,.stl .stl-x{display:none}}`;
 function stl_css() { if (!document.getElementById('stl-css')) { const s = document.createElement('style'); s.id = 'stl-css'; s.textContent = STL_CSS; document.head.appendChild(s); } }
 const stl_ver = v => String(v || '').replace(/^v/i, '').replace(/(\.0)+$/, '');  // 2.151 == 2.151.0 == v2.151.0 (as gitbuild.gb_key)
 // the stages of t: [{k, label, on, at, bad}] (on = reached); null = no line here (no repository, no environment)
