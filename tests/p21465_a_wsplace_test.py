@@ -7,7 +7,9 @@ Invented names only. The matrix: organisations 0 / 1 / 1 read-only / 2 x the mod
 organisation x the workspace named / not named; besides it the PATCH /api/settings answer (fresh lists, F8 still_running),
 calendar / address book (#7309: they ask too), the move without a target (F6) and the card's cap of a named org_id (F10).
 usage: p21465_a_wsplace_test.py <datadir>      (KMT_NOSTART=1 / P21448_NOSTART=1: a running server)"""
+import importlib.util
 import json
+import os
 import sys
 
 import requests
@@ -84,6 +86,12 @@ r = requests.post(B + "/api/v1/clients", headers=BT, json={"name": "Bob V1"})
 e = r.json().get("error") if r.status_code == 400 else None
 check(isinstance(e, dict) and e.get("code") == "space_needed" and [x["ws"] for x in e.get("spaces") or []] == ["private", f"org:{NORD}"],
       f"#7385: API v1 (token) without a name -> 400 space_needed with the choice {r.status_code} {r.text[:200]}")
+_spec = importlib.util.spec_from_file_location("kalmido_mcp", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "mcp", "kalmido_mcp.py"))
+_mcp = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_mcp)
+m = _mcp.Kalmido._err_msg(_mcp.Kalmido.__new__(_mcp.Kalmido), 400, r.content)
+check("space_needed" in m and "private = " in m and f"org:{NORD} = Studio Nord" in m,
+      f"#7385: MCP: the error text carries the choice, so the agent can ask the person {m[:200]}")
 r = requests.post(B + "/api/v1/clients", headers=BT, json={"name": "Bob V1 Nord", "space": f"org:{NORD}"})
 check(r.status_code == 201 and where(r.json()["id"]) == NORD, f"#7385: API v1 names space -> there {r.status_code} {r.text[:160]}")
 r = new(Bo, "Bob Privat", space="private")

@@ -102,8 +102,9 @@ const FEAT = 'comments,collab,contacts';
     await click(ev, '.modal [data-cd="yes"]');
     // (#7385): Bob (one organisation, Contacts on in Private and in Alpha) names the workspace in the required choice, as before: Alpha
     const WSQ = `document.querySelector('.cdlg input[name="wsp-ask"][value="org:${ORG}"]')`;
-    if (await ready(ev, `!!${WSQ} || !!document.querySelector('.modal.ctmodal #ct-given')`) && await ev(`!!${WSQ}`))
-      await ev(`(() => { const q = ${WSQ}; q.checked = true; q.closest('form').querySelector('[data-cd="yes"]').click(); return 1; })()`);
+    check(await ready(ev, `!!${WSQ}`) && !await ev(`!!document.querySelector('.modal.ctmodal #ct-given')`),
+          '#7385: one organisation under "All": the new address book asks for its workspace first (no editor yet)');
+    await ev(`(() => { const q = ${WSQ}; q.checked = true; q.closest('form').querySelector('[data-cd="yes"]').click(); return 1; })()`);
     check(await ready(ev, `!!document.querySelector('.modal.ctmodal #ct-given')`), '#6122: the button creates the book, then the editor opens');
     check(await bobBooks() === 2, '#6122: ... one address book of his own ' + await bobBooks());
     await ev(`(document.querySelectorAll('.modal').forEach(m => m.remove()), 1)`);
