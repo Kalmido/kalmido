@@ -957,6 +957,7 @@
   on('GET', '/api/office/settings', () => ofInfo());
   // 2.137.0 A (#2344): the personal office's export box and its encryption state (creating an export stays a server step)
   on('GET', '/api/orgs/\\d+/export', () => ({state: 'none'}));
+  on('GET', '/api/orgs/\\d+/moving', () => ({moving: false}));  // #6937: Office > Settings shows the move of the own office (org id 0)
   on('GET', '/api/orgs/\\d+/encryption', () => ({enabled: true, active: true, key_ok: true}));
   on('PUT', '/api/office/settings', (q, b) => { const o = OF();
     if (b.company_fields) for (const k of CO_KEYS) if (k in b.company_fields) o.company[k] = String(b.company_fields[k] ?? '');
