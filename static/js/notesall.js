@@ -60,7 +60,7 @@ function sb_notesSearch() {
   const q = S.sbn.q.trim(); if (!q) { S.sbn.hits = null; sb_notesPatch(); return; }
   S.sbn.qT = setTimeout(async () => {
     const want = q + '|' + S.sbn.lid;
-    let j; try { j = await rawFetch('GET', '/api/notes?q=' + encodeURIComponent(q) + (S.sbn.lid ? '&list_id=' + S.sbn.lid : '')); } catch (e) { toast(e instanceof Offline ? tr('Notes are only available online.') : e.message); return; }
+    let j; try { j = await rawFetch('GET', '/api/notes?q=' + encodeURIComponent(q) + (S.sbn.lid ? '&list_id=' + S.sbn.lid : '')); } catch (e) { toast(e instanceof Offline ? tr('Notes are only available online.') : errText(e, tr('The search did not work'))); return; }
     if (want !== S.sbn.q.trim() + '|' + S.sbn.lid) return;
     S.sbn.hits = j.notes || []; sb_notesPatch();
     announce(trn('{0} note', '{0} notes', S.sbn.hits.length));
@@ -108,7 +108,7 @@ function qn_titleOf(text) {
 }
 async function qn_listId() {
   const l = qn_list(); if (l) return l.id;
-  let j; try { j = await rawFetch('POST', '/api/notes/quick-list'); } catch (e) { toast(e instanceof Offline ? tr('The list Notes is made with the first quick note: that needs a connection once.') : e.message); return 0; }
+  let j; try { j = await rawFetch('POST', '/api/notes/quick-list'); } catch (e) { toast(e instanceof Offline ? tr('The list Notes is made with the first quick note: that needs a connection once.') : errText(e, tr('The note could not be created'))); return 0; }
   await load();
   return j.list_id;
 }
@@ -149,7 +149,7 @@ function qn_create() {
   const sent = d.text, url = `/api/lists/${d.list_id}/notes`, body = {title: qn_titleOf(sent), body: sent, client_ref: outKey()};
   S.nt.creating = (async () => {
     let r = null;
-    if (ntLocked(d.list_id)) try { r = await rawFetch('POST', url, body); } catch (e) { toast(e instanceof Offline ? tr('Only available online.') : e.message); return; }  // 2.536.0 (#4567): else the outbox, online too
+    if (ntLocked(d.list_id)) try { r = await rawFetch('POST', url, body); } catch (e) { toast(errText(e, tr('The note could not be created'))); return; }  // (#4567): else the outbox, online too
     if (S.nt.lid === d.list_id && !S.nt.notes) S.nt.notes = [];
     if (!r) r = enqueue('POST', url, body);  // offline: the outbox (ntLocal draws it)
     else {
