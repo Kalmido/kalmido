@@ -289,6 +289,25 @@ check(bad_t.status_code == 404 and bad_t.status_code == bad_p.status_code and ba
 check(A.post(B + f"{D}/{QE}/status", json={"status": "sent"}).ok, "setup: the English quotation sent")
 TOKE = A.post(B + f"{D}/{QE}/signoff", json={}).json()["url"].split("/s/q/")[1]
 check(anon(f"/s/q/{TOKE}/terms").status_code == 404 and "/terms" not in anon("/s/q/" + TOKE).text and "sigagb" not in anon("/s/q/" + TOKE).text, "a link without terms: no link, no sentence, 404")
+# #7416: the terms pages could not be joined (an unreadable terms file): the page never says "in the PDF"; it names the state
+# and links the terms file (the way out), the page and its PDF still answer
+QB = A.post(B + D, json={"kind": "offer", "client_id": CL, "items": [{"title": "Ton", "qty": 1, "rate": 300}]}).json()["id"]
+check(A.post(B + f"{D}/{QB}/finalize").ok and A.post(B + f"{D}/{QB}/status", json={"status": "sent"}).ok, "setup: #7416 quotation sent")
+BADF = "terms-de-7416741674167416.pdf"
+subprocess.run(["docker", "exec", CT, "python", "-c", f"open('/data/office/{ORG}/{BADF}', 'wb').write(b'%PDF-1.4 broken, no pages')"], check=True)
+c7 = dbxm.connect(os.path.join(DATA, "tasks.db"), timeout=10)
+fz7 = json.loads(c7.execute("SELECT terms FROM office_docs WHERE id=?", (QB,)).fetchone()[0] or "{}")
+c7.execute("UPDATE office_docs SET terms=? WHERE id=?", (json.dumps({**fz7, "file": BADF}), QB))
+c7.commit()
+c7.close()
+check(fz7.get("file") and fz7.get("date"), f"setup: #7416 quotation froze its terms {fz7}")
+TOKB = A.post(B + f"{D}/{QB}/signoff", json={}).json()["url"].split("/s/q/")[1]
+pb = anon("/s/q/" + TOKB)
+sb = re.search(r'<p class="sigagb">(.*?)</p>', pb.text, re.S)
+check(pb.status_code == 200 and sb and sb.group(1).startswith("Es gelten unsere AGB, Stand ") and "im PDF" not in sb.group(1)
+      and f'href="/s/q/{TOKB}/terms"' in sb.group(1), "#7416: terms not joined: the sentence without 'in the PDF', with the terms link " + (sb.group(1) if sb else pb.text[-600:]))
+check(anon(f"/s/q/{TOKB}/pdf").status_code == 200, "#7416: the PDF of that link still answers")
+check(anon("/s/q/" + TOKB).status_code == 200, "#7416: the page again (the failure is kept, no new render each time)")
 r = requests.post(B + "/s/q/" + TOK, data={"f": form_key(pg.text), "name": "Max Muster", "ok": "1", "do": "accept"}, allow_redirects=False)
 check(r.status_code == 303, f"the customer accepts ({r.status_code})")
 done = anon("/s/q/" + TOK)
