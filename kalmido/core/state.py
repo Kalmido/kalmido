@@ -353,7 +353,7 @@ def state():
     from ..lists.public import public_links_on
     from ..collab.notes import notes_brief
     from ..collab.teamchat import tchat_on, tchat_unread_both
-    from ..accounts.orgs import has_workspaces, org_peers, workspaces_for, ws_mismatches
+    from ..accounts.orgs import has_workspaces, office_moving, org_peers, workspaces_for, ws_mismatches
     from ..family.family import kids_for
     from ..events.model import cals_for, events_on
     from ..contacts.model import books_for, contacts_on, task_contacts
@@ -402,6 +402,7 @@ def state():
             **drop_agent_of(u),
             "workspaces": (ws := workspaces_for(c, uid)), "sgen": session_gen(u, ws),  # 2.28.0 (#935): my organisations [{id, name, icon, role}]; 2.238.0 B (#2872): + the sign-in mark
             "since": str(u["created_at"] or "")[:10],  # 2.364.0 B (#3031): the account's first day (Today's review from the second week)
+            **office_moving(c, uid),  # (#6937): the own personal office is moving (read only): the bar (render.js mvSync)
             "support_session": sga_is_support(c)},  # 2.538.0 (#4365): the app hides what a support session may not fetch
         workspaces=has_workspaces(c),  # 2.28.0 (#935): lists / agents have a workspace (private | an organisation)
         ws_mismatches={str(k): v for k, v in ws_mismatches(c, uid).items()},  # 2.28.0: agents of another workspace in my lists

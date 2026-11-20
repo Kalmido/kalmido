@@ -37,13 +37,15 @@ function annSync() {
   if (!bar || bar.innerHTML !== html || bar.className !== cls) barKeep(() => { if (!bar) { bar = document.createElement('div'); bar.id = 'annbar'; bar.setAttribute('role', 'status'); main.prepend(bar); } bar.className = cls; bar.innerHTML = html; });  // its class too: the padding counts
 }
 // ---- 2.1337.0 (#6600): an organisation of mine is moving (read only): one bar for every member with the reason and who started
-// it (S.me.workspaces[].moving, accounts/orgmove.py); not hideable, it goes when the move ends
+// it (S.me.workspaces[].moving, accounts/orgmove.py); not hideable, it goes when the move ends. (#6937): the own personal office
+// too (S.me.office_moving: it is in no workspaces list)
 function mvSync() {
   const main = $('#main'); if (!main) return;
   const ws = (S.me?.workspaces || []).filter(w => w.moving);
+  const om = S.me?.office_moving;
   let bar = $('#mvbar');
-  if (!ws.length || S.me?.kid) { if (bar) barKeep(() => bar.remove()); return; }
-  const html = ws.map(w => `<span class="annt">${ic('lock', 's')} <b>${esc(tr('{0} is moving', w.name))}:</b> ${esc(tr('everything in it is read-only until the move ends.'))} ${esc(tr('Started by {0}', w.moving.by_name || '?'))}${w.moving.why ? ` <span class="muted">· ${esc(w.moving.why)}</span>` : ''}</span>`).join('');
+  if ((!ws.length && !om) || S.me?.kid) { if (bar) barKeep(() => bar.remove()); return; }
+  const html = (om ? `<span class="annt">${ic('lock', 's')} <b>${esc(tr('Your office is moving'))}:</b> ${esc(tr('everything in it is read-only until the move ends.'))}${om.why ? ` <span class="muted">· ${esc(om.why)}</span>` : ''}</span>` : '') + ws.map(w => `<span class="annt">${ic('lock', 's')} <b>${esc(tr('{0} is moving', w.name))}:</b> ${esc(tr('everything in it is read-only until the move ends.'))} ${esc(tr('Started by {0}', w.moving.by_name || '?'))}${w.moving.why ? ` <span class="muted">· ${esc(w.moving.why)}</span>` : ''}</span>`).join('');
   if (!bar || bar.innerHTML !== html) barKeep(() => { if (!bar) { bar = document.createElement('div'); bar.id = 'mvbar'; bar.className = 'annbar mvbar'; bar.setAttribute('role', 'status'); const ab = $('#annbar'); if (ab) ab.after(bar); else main.prepend(bar); } bar.innerHTML = html; });
 }
 // ---- 2.940.0 (#5226): a bar above the view (notice, notifications question, encrypted list, supporter hint) that comes,

@@ -49,10 +49,10 @@ function oxDraw(root) {
 // an organisation's, with the office and the owner's private clients only (admin/orgexport.py ox_build_personal)
 function ox_pbBoxHtml(oid) {
   if (oid == null) return '';  // 0 = the own personal office (2.138.0 #1972)
-  setTimeout(() => { const r = document.querySelector('.oxpb'); if (r) { oxDraw(r); ocDraw(r); } }, 0);
+  setTimeout(() => { const r = document.querySelector('.oxpb'); if (r) { oxDraw(r); ocDraw(r); mvDraw(r); } }, 0);  // (#6937): + the move
   return `<section class="oxpb" data-fg-skip aria-labelledby="oxpb-h"><h3 id="oxpb-h">${tr('Export the office')}</h3>
     <p class="muted">${tr('An encrypted archive with this office, your private clients and the receipts and filed documents of the office, to take them to another Kalmido server: there under Settings > Data into an organisation or into your own office. It opens with the recovery key.')}</p>
-    <div class="oxbox" data-oxorg="${+oid}"><div class="oxst" aria-live="polite"><div class="muted mhint">${tr('Loading…')}</div></div></div>${ocBoxHtml({id: +oid}, {title: ''})}</section>`;
+    <div class="oxbox" data-oxorg="${+oid}"><div class="oxst" aria-live="polite"><div class="muted mhint">${tr('Loading…')}</div></div></div>${ocBoxHtml({id: +oid}, {title: ''})}${+oid === 0 ? mvBoxHtml({id: 0, own: true}) : ''}</section>`;
 }
 // ---- 2.146.0 D (#2468): the retention export (kalmido/admin/retexport.py): a readable ZIP of the records the law asks to
 // keep (invoices with e-invoice XML, receipts with files, cash books, bank statements, office log) -- in the settings for the
@@ -146,13 +146,21 @@ async function rxAsk(info, title) {
 // ---- 2.1337.0 (#6600): Settings > Organisation > Data, "Move the organisation" (its admins). Started (second confirmation: the
 // name typed), the whole organisation is read only for everybody until an admin ends the move (accounts/orgmove.py); the export
 // above then shows a fixed state. Every member sees the bar of render.js mvSync.
+// (#6937, P4): {id: 0, own: true} = the own personal office (Office > Settings beside its export): the same lock, its owner
+// starts and ends it, the second confirmation is the own user name (the office's name is hidden)
 function mvBoxHtml(o) {
-  if (!o || !o.id) return '';
+  if (!o || !(o.id || o.own)) return '';
+  if (o.own) return `<div class="mvbox" data-mvorg="0" data-mvown="1" data-mvname="${esc(S.me?.username || '')}"><h5>${tr('Move the office')}</h5>
+    <div class="shint">${tr('Before you export the office to take it to another server: start the move. Then nothing in the office can be changed any more (also not by your agents, API keys, forms, booking pages or incoming e-mail), no new numbers are given and invoice series, payment reminders and fetching rest. Reading, downloading and the export stay possible, so the export shows a fixed state. Your private area outside the office stays as it is.')}</div>
+    <div class="mvst" aria-live="polite"><div class="muted mhint">${tr('Loading…')}</div></div></div>`;
   return `<div class="mvbox" data-mvorg="${esc(String(+o.id))}" data-mvname="${esc(o.name || '')}"><h5>${tr('Move the organisation')}</h5>
     <div class="shint">${tr('Before you export the organisation to take it to another server: start the move. Then nobody can change anything in it any more (members, agents, API keys, forms, booking pages, incoming e-mail), no new numbers are given and invoice series, payment reminders and fetching rest. Reading, downloading and the export stay possible, so the export shows a fixed state.')}</div>
     <div class="mvst" aria-live="polite"><div class="muted mhint">${tr('Loading…')}</div></div></div>`;
 }
-function mvStateHtml(j) {
+function mvStateHtml(j, own) {
+  if (own && j.moving) return `<div class="shint keep warn">${ic('lock', 's')} ${esc(tr('The move of your office runs since {0}: the office is read-only.', fmtWhen(j.since)))}${j.why ? ' ' + esc(tr('Reason: {0}', j.why)) : ''}</div>
+    <div class="row"><button type="button" class="btn sm" data-mv="end">${ic('unlock', 's')} ${tr('End the move')}</button></div>
+    <div class="shint">${tr('Ending it lets everything run again. Invoice series whose date came during the move are not made late: they are paused, and you get a task for each.')}</div>`;
   if (!j.moving) return `<div class="row"><button type="button" class="btn sm" data-mv="start">${ic('lock', 's')} ${tr('Start the move…')}</button></div>`;
   return `<div class="shint keep warn">${ic('lock', 's')} ${esc(tr('The move runs since {0}, started by {1}: the organisation is read-only.', fmtWhen(j.since), j.by_name || '?'))}${j.why ? ' ' + esc(tr('Reason: {0}', j.why)) : ''}</div>
     <div class="row"><button type="button" class="btn sm" data-mv="end">${ic('unlock', 's')} ${tr('End the move')}</button></div>
@@ -161,7 +169,7 @@ function mvStateHtml(j) {
 async function mvLoad(box) {
   const st = $('.mvst', box);
   let j; try { j = await api('GET', `/api/orgs/${+box.dataset.mvorg}/moving`); } catch { st.innerHTML = `<div class="muted mhint">${tr('Only available online.')}</div>`; return; }
-  st.innerHTML = mvStateHtml(j);
+  st.innerHTML = mvStateHtml(j, box.dataset.mvown === '1');
 }
 function mvDraw(root) {
   root.querySelectorAll('.mvbox').forEach(mvLoad);
@@ -169,9 +177,19 @@ function mvDraw(root) {
   root._mvWired = true;
   root.addEventListener('click', async e => {
     const b = e.target.closest('[data-mv]'); if (!b) return;
-    const box = b.closest('.mvbox'), oid = +box.dataset.mvorg, name = box.dataset.mvname || '';
+    const box = b.closest('.mvbox'), oid = +box.dataset.mvorg, name = box.dataset.mvname || '', own = box.dataset.mvown === '1';
     try {
-      if (b.dataset.mv === 'start') {
+      if (b.dataset.mv === 'start' && own) {  // (#6937): the own personal office
+        if (!await askConfirm(tr('Start the move of your office?'), tr('From now on your office is read-only, also for your agents, API keys, forms, booking pages and incoming e-mail, until you end the move. Your private area outside the office stays as it is.'), {ok: tr('Continue'), danger: true})) return;
+        let dm = null, why = '';
+        const typed = await askDialog(/** @type {any} */ ({title: tr('Start the move'), danger: true, ok: tr('Start the move'),
+          html: `<div class="row"><label for="mv-why">${esc(tr('Reason'))}</label><input id="mv-why" maxlength="500" autocomplete="off"></div><p>${esc(tr('Type your user name to start the move'))}</p>`,
+          input: {placeholder: name, max: 200}, after: m => { dm = m; }, submit: () => { why = ($('#mv-why', dm)?.value || '').trim(); return true; }}));
+        if (typed === null) return;
+        if (typed.trim().toLowerCase() !== name.trim().toLowerCase()) { toast(tr('The user name does not match: the move did not start')); return; }
+        await api('POST', '/api/orgs/0/moving', {confirm: typed.trim(), why});
+        toast(tr('The move has started: your office is read-only'));
+      } else if (b.dataset.mv === 'start') {
         if (!await askConfirm(tr('Start the move of “{0}”?', name), tr('From now on the whole organisation is read-only for all members, agents, API keys, forms, booking pages and incoming e-mail, until an admin ends the move. Every member sees a notice with your name and the reason.'), {ok: tr('Continue'), danger: true})) return;
         let dm = null, why = '';
         const typed = await askDialog(/** @type {any} */ ({title: tr('Start the move'), danger: true, ok: tr('Start the move'),

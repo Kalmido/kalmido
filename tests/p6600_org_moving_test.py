@@ -15,6 +15,10 @@ Invented companies, people and figures only. tenant-matrix: org
    a queue row added by a writing request is strict (runs inside the lock), by a reading one or after mv_allow not (the export's
    row: not strict); an instance admin who is no member ends a move only when the organisation has no active admin of its own
    (else 409; noted in the organisation's history), anybody else still 404
+ - (#6937, P4) a person without an organisation moves her own personal office (org id 0, her user name typed; none yet = 404,
+   never through an API token, the hidden id is nobody's way in): her state carries office_moving for the bar, her office's
+   writes answer 423, her private area (private client, tasks) and the office's export go on; ending it, the office writes again
+freelancer-matrix: office
 usage: p6600_org_moving_test.py <datadir>"""
 import os
 import re
@@ -255,4 +259,43 @@ check(r.status_code == 409 and dbx("SELECT moving_at IS NOT NULL FROM orgs WHERE
       and len(dbx("SELECT 1 FROM org_list_log WHERE org_id=? AND action='move_off'", (ORG2,))) == n0,
       f"#7199 F7: the instance admin does not end a retired organisation's move, nothing written {r.status_code} {r.text[:160]}")
 check(not any(k in r.json() for k in ("by_name", "why", "since")), f"#7199 (reader F2): the answer names no person and no reason {r.text[:200]}")
+
+# ================================================================== (6) (#6937, P4): the move of a freelancer's own personal office
+P = "/api/orgs/0/moving"
+dbx("UPDATE users SET disabled=false WHERE id=?", (CAROL,))
+check(Fr.get(B + P).status_code == 404, "#6937: no personal office yet: 404 (none is made for it)")
+assert Fr.put(B + OFF + "/settings", json={"lang": "de", "company_fields": {**COMPANY, "name": "Frida Film"}}).ok
+FCL = Fr.post(B + "/api/clients", json={"name": "Kunde Frida", "street": "Weg 2", "zip": "12345", "city": "Musterstadt", "country": "DE",
+                                        "email_invoice": "rechnung@kunde.example"}).json()["id"]
+r = Fr.post(B + OFF + "/docs", json={"kind": "invoice", "lang": "de", "client_id": FCL, "items": [{"title": "Schnitt", "qty": 1, "rate": 300}]})
+check(r.status_code == 201, f"#6937: setup, frida's office has an invoice draft {r.status_code} {r.text[:160]}")
+PB = dbx("SELECT id FROM orgs WHERE personal_of=?", (FID,))[0][0]
+check(Fr.get(B + P).json() == {"moving": False}, "#6937: her office is not moving")
+check(Fr.post(B + P, json={"confirm": "Frida Film"}).status_code == 400 and Fr.post(B + P, json={}).status_code == 400,
+      "#6937: without her user name typed: 400, nothing starts")
+FTK = Fr.post(B + "/api/me/tokens", json={"name": "frida probe", "scopes": ["read", "write"]}).json()["token"]
+FTH = {"Authorization": "Bearer " + FTK, "X-Requested-With": "kalmido"}
+check(all(requests.post(B + u, headers=FTH, json={"confirm": "frida"}).status_code in (401, 403, 404) for u in (P, "/api/v1/orgs/0/moving"))
+      and Fr.get(B + P).json() == {"moving": False}, "#6937: never through an API token of hers")
+check(Bo.get(B + f"/api/orgs/{PB}/moving").status_code == 404 and A.post(B + f"/api/orgs/{PB}/moving", json={"confirm": "frida"}).status_code in (403, 404),
+      "#6937: the hidden id of her office is nobody's way in")
+r = Fr.post(B + P, json={"confirm": "Frida ", "why": "Eigener Server"})
+check(r.ok and r.json().get("moving") is True and r.json().get("why") == "Eigener Server", f"#6937: she starts the move with her user name {r.status_code} {r.text[:200]}")
+om = Fr.get(B + "/api/state").json()["me"].get("office_moving") or {}
+check(om.get("why") == "Eigener Server" and om.get("since"), f"#6937: her state carries it for the bar {om}")
+check("office_moving" not in A.get(B + "/api/state").json()["me"], "#6937: nobody else's state")
+check(Fr.post(B + P, json={"confirm": "frida"}).status_code == 409, "#6937: a second start: 409")
+moving423(Fr.post(B + OFF + "/docs", json={"kind": "invoice", "lang": "de", "client_id": FCL, "items": [{"title": "x", "qty": 1, "rate": 1}]}),
+          "#6937: a new document of her office")
+check(Fr.patch(B + f"/api/clients/{FCL}", json={"city": "Andere Stadt"}).ok, "#6937: her private area (a private client, no org id) stays writable")
+check(Fr.post(B + "/api/tasks", json={"title": "Frida during her move", "list_id": FL}).status_code in (200, 201), "#6937: her private tasks too")
+r = Fr.post(B + "/api/orgs/0/export")
+check(r.status_code in (200, 201, 202), f"#6937: the export of her office runs during the move {r.status_code} {r.text[:160]}")
+r = Fr.delete(B + P)
+check(r.ok and r.json().get("moving") is False and Fr.get(B + P).json() == {"moving": False}, f"#6937: she ends it {r.status_code} {r.text[:160]}")
+check(Fr.post(B + OFF + "/docs", json={"kind": "invoice", "lang": "de", "client_id": FCL, "items": [{"title": "y", "qty": 1, "rate": 2}]}).status_code == 201,
+      "#6937: her office writes again")
+check("office_moving" not in Fr.get(B + "/api/state").json()["me"], "#6937: the bar goes")
+log = dbx("SELECT action FROM org_list_log WHERE org_id=? ORDER BY id", (PB,))
+check([x[0] for x in log][-2:] == ["move_on", "move_off"], f"#6937: start and end in her office's history {log}")
 sys.exit(done("p6600_org_moving"))
