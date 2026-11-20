@@ -10,7 +10,7 @@ OFC_TABS.splice(OFC_TABS.findIndex(t => t[0] === 'settings'), 0, /** @type {any}
 /** @param {string} s @param {any} [r] @returns {any} */
 const cb$ = (s, r) => (r || document).querySelector(s);  // $ with a dialog as root (typed loosely)
 // #7495: a write, an undo or a switch of book / year keeps the entries on screen (dimmed) until the fresh ones are there
-const cbReload = (all) => ofcRefetch('cashbook', ofcTab() === 'cashbook' && !!CB.base && !!CB.list && !CB.err, () => cbGet(all), () => { if (all) CB.base = null; CB.list = null; CB.err = null; });  // 2.144.11 (#2354, N5): a failed load does not stick
+const cbReload = (all) => ofcRefetch('cashbook', ofcTab() === 'cashbook' && !!CB.base && !!CB.list && !CB.err, () => cbGet(all), () => { if (all) CB.base = null; CB.list = null; CB.err = null; });  // (#2354, N5): a failed load does not stick
 async function cbGet(all) {
   const base = all || !CB.base ? await api('GET', '/api/office/cashbooks') : CB.base, act = base.books.filter(b => !b.archived);
   const bid = base.books.some(b => b.id === CB.bid) ? CB.bid : (act[0] || base.books[0])?.id || null, y = CB.year;

@@ -148,7 +148,7 @@ const mseSec = {
   drag: () => false, add: () => false, menu: s => s.kind !== 'recent',
   pos: s => { const own = mseList().filter(x => x.kind !== 'recent'); return [own.indexOf(s), own.length]; },
   rename: (s, n) => mseRename(s, n), move: (s, d) => mseMove(s, d), del: s => mseDelete(s),
-  extra: () => mseOn() ? [{label: tr('Rules…'), icon: 'zap', fn: () => mr_open()}] : [],  // 2.823.0 (#4773): the own rules (minerules.js)
+  extra: () => mseOn() ? [{label: tr('Rules…'), icon: 'zap', fn: () => mr_open()}] : [],  // (#4773): the own rules (minerules.js)
   // folding: the server keeps it for every device (sh_fold, dragmulti.js)
   head: h => h.dataset.key?.startsWith('ms:') ? mseList().find(x => x.id === +h.dataset.key.slice(3)) || null : null,
   fold: s => {

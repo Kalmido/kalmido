@@ -482,7 +482,7 @@ const plSec = {
   grip: s => secHandle(s.id), chip: g => g.section ? wip_ghead(g) : '',
   pos: s => { const ids = secIds(s.list_id); return [ids.indexOf(s.id), ids.length]; },
   rename: (s, n) => sectionRename(s.id, n), move: (s, d) => moveSection(s.id, d), del: s => sectionDelete(s.id),
-  extra: (s, anchor) => [wip_menuItem(s.id) /* 2.60.0 (#1510) */, dw_menuItem(s.id) /* 2.410.0 B (#3515) */, sk_menuItem(s.id, anchor) /* 2.577.0 (#3354) */],
+  extra: (s, anchor) => [wip_menuItem(s.id) /* (#1510) */, dw_menuItem(s.id) /* (#3515) */, sk_menuItem(s.id, anchor) /* (#3354) */],
 };
 DROP_ADAPTERS.push({name: 'list', on: () => !(typeof moActive === 'function' && moActive()), where: plWhere, put: plPut, sec: plSec});
 
