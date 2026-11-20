@@ -37,7 +37,7 @@ function tokWire(md) {
     const row = b.closest('[data-tokid]'), t = ($('#s-toks', md)._t || []).find(x => x.id === +row?.dataset.tokid); if (!t) return;
     if (b.dataset.tok === 'edit') {  // 2.15.0 (#479): what the token may do + from where
       permModal(tr('Permissions of {0}', t.name), $('#s-toks', md)._j?.scopes || [], t.scopes, t.allowed_ips, async (scopes, ips, pm) => {
-        await reauthReq('PATCH', `/api/me/tokens/${t.id}`, {scopes, allowed_ips: ips, list_ids: listCapVal(pm, 'pm-lcap')}); toast(tr('Saved')); tokDraw(md);  // 2.30.0 (#919)
+        await reauthReq('PATCH', `/api/me/tokens/${t.id}`, {scopes, allowed_ips: ips, list_ids: listCapVal(pm, 'pm-lcap')}); toast(tr('Saved')); tokDraw(md);  // (#919) the projects; #6499 wider rights confirm the sign-in
       }, `<div class="row"><label>${tr('Projects')}</label>${listCapHtml(t.list_ids, tokLists(t.list_ids), 'pm-lcap')}</div>`);
       return;
     }
