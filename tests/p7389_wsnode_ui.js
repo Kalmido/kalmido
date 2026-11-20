@@ -61,7 +61,7 @@ const until = (fn, n) => require('./boot').until(fn, {timeout: n ? n * 150 : 150
     ['Files', 'ablage', {}],
     ['Contacts', 'contacts', {}],
     ['Tables', 'sheets', {}],
-    ['Office', 'office/offers', {'tasks.sbbOpen': '["of:a:offers"]', 'tasks.ofmAll': 'true'}],
+    ['Office', 'office', {'tasks.ofmAll': 'true'}],  // #7387: one entry per office (it unfolds to that office's menu)
   ];
   for (const [area, hash, ls] of AREAS) {
     w = await boot({hash, allWs: true, ls}); d = w.document;
