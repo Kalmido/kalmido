@@ -898,16 +898,18 @@ CARD_TRIES = 3  # (#7199, reader F6): rounds an approval card may fail to be wri
 CARD_SUMMARY_MAX, CARD_DETAILS_MAX = 2000, 10000
 
 
-def card_text(summary, details=""):
-    """(summary, details) for the card "Ready to merge": both within the server's limits, nothing lost silently."""
+def card_text(summary, details="", tail=""):
+    """(summary, details) for the card "Ready to merge": both within the server's limits, nothing lost silently. tail (the
+    reading's verdict line) always closes the summary: a long list is cut before it, never the verdict (reader F1 of 2.1488)."""
     def cut(x):
         return x if len(x) <= CARD_DETAILS_MAX else x[:CARD_DETAILS_MAX - 1] + "…"
-    if len(summary) <= CARD_SUMMARY_MAX:
-        return summary, cut(details)
+    tail = "\n" + tail if tail else ""
+    if len(summary) + len(tail) <= CARD_SUMMARY_MAX:
+        return summary + tail, cut(details)
     note = "\n… (the whole list in the details)"
-    head = summary[:CARD_SUMMARY_MAX - len(note)]
+    head = summary[:CARD_SUMMARY_MAX - len(note) - len(tail)]
     head = head.rsplit("\n", 1)[0] if "\n" in head else head
-    return head + note, cut(summary + ("\n\n" + details if details else ""))
+    return head + note + tail, cut(summary + ("\n\n" + details if details else ""))
 
 
 READ_LINE = {"green": "green - no findings", "findings": "findings - read them before you merge",
@@ -1461,11 +1463,12 @@ class Dispatcher:
         reading's verdict (green / findings / none) in its text and summary when the pull request was read first."""
         url, c = e["pr"], e.get("card") or {}
         tids, summary = c.get("tids") or [], c.get("summary") or ""
+        tail = ""
         if verdict:
             r = e.get("read") or {}
             who = f"job #{r['job']}" if r.get("job") else "not started" + (f": {r['why']}" if r.get("why") else "")
-            summary = f"{summary}\nReading ({who}): {READ_LINE.get(verdict, READ_LINE['none'])}."
-        summary, details = card_text(summary, c.get("details") or "")
+            tail = f"Reading ({who}): {READ_LINE.get(verdict, READ_LINE['none'])}."
+        summary, details = card_text(summary, c.get("details") or "", tail)
         if not tids:
             e["carded"] = True
             return

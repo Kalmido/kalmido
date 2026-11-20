@@ -1024,6 +1024,11 @@ big = "\n".join(f"- #{i} a task with a long enough title number {i}" for i in ra
 sm, dt = ad.card_text(big)
 check(len(sm) <= 2000 and sm.startswith("- #0 ") and "in the details" in sm and dt == big, f"#7561: a long summary: its first lines + the whole text in details ({len(sm)}, {len(dt)})")
 check(len(ad.card_text("x", "y" * 12000)[1]) <= 10000, "#7561: details within the comment limit")
+# reader F1 (2.1488): the reading's verdict closes the summary also when the list is cut (it was cut away with the list)
+vl = "Reading (job #9): open findings - read them before merging."
+sm, dt = ad.card_text(big, "", vl)
+check(len(sm) <= 2000 and sm.endswith("\n" + vl) and "in the details" in sm, f"reader F1: a long list keeps the verdict line at its end ({len(sm)})")
+check(ad.card_text("- #1 short", "", vl)[0] == "- #1 short\n" + vl, "reader F1: a short summary gets the verdict line below")
 
 print(f"p2481_dispatch: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)
