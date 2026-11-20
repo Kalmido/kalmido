@@ -18,6 +18,7 @@ from ..core.numtext import user_num
 from ..core.db import body, bump, db, err, gsetting, inbox_default, iso, local_now, now_utc, parse_iso, test_seconds, uset, usettings
 from ..accounts.session import _rate_blocked, _rate_fail, _token_hash, FAIL_WINDOW, client_ip, me, rate_ip
 from ..accounts.login import twofa_methods
+from ..accounts.oidc import creator_reauth  # #6499
 from ..core.access import collab_all, Denied, list_role, my_inbox, need_collab, need_list, need_task, need_time, time_all, token_lists, live_sql, tvis, vis_search_lids, vis_sql  # 2.955.0 (#5276): live_sql
 from ..core.serializers import load_tasks, rel_of
 from ..core.objfollow import OFL_WATCHING_SQL, ofl_bells_here  # 2.972.0 (#5285); 2.981.0 (#5287): a project's bell
@@ -662,7 +663,6 @@ def token_create():
     """{name, scopes: [read, write, admin-read], expires_days: null | 1..3650, password?} -> the token, shown this once.
     #6499: without the field expires_days the token ends after TOKEN_DAYS_DEFAULT days (null / 0 = never, chosen on purpose);
     the sign-in is confirmed once more (accounts/oidc.py creator_reauth)."""
-    from ..accounts.oidc import creator_reauth
     from ..api.scopes import ips_clean, scopes_clean
     need_api()
     b, c = body(), db()
@@ -732,7 +732,6 @@ def token_update(tid):
     if "docs:upload" in api_scopes(r["scopes"]) and ("scopes" in b or "list_ids" in b):  # 2.207.0 A (#2763): a scan inbox stays upload-only
         return err(tr("A scan inbox key only uploads documents; its permissions cannot be changed"))
     if _token_wider(c, r, b):  # #6499: wider rights for a token confirm the sign-in once more (a name or narrower rights do not)
-        from ..accounts.oidc import creator_reauth
         e = creator_reauth(c, b)
         if e:
             return e
