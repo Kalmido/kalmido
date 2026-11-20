@@ -35,7 +35,7 @@ const person = async (CA, name, orgs) => {
   return u.id;
 };
 const WRITE = ['[data-ab="new-folder"]', '[data-ab="upload"]', '[data-ab="scan"]'];
-const has = (d, sel) => !!d.querySelector('#view ' + sel);
+const has = (d, sel) => !!d.querySelector('#view ' + sel + ', #top ' + sel);  // (#6370): Upload is the head bar's New
 // a dragover of files from the computer onto el (jsdom has no DataTransfer: the event carries a plain stand-in)
 const dragFiles = (w, el, type = 'dragover') => { const e = new w.Event(type, {bubbles: true, cancelable: true}); Object.defineProperty(e, 'dataTransfer', {value: {types: ['Files'], files: [], dropEffect: 'none', getData: () => ''}}); el.dispatchEvent(e); return e; };
 

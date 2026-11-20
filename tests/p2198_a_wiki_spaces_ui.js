@@ -25,7 +25,7 @@ const icHtml = (w, x) => w.eval(`(() => { const t = document.createElement('span
 const h2 = d => d.querySelector('#view .wkfolder h2')?.textContent || '';
 const items = d => [...d.querySelectorAll('#view #wk-res .wkitem')].map(a => a.textContent);
 async function newPage(w, d, name) {  // "New page" in the bar, the name typed, Create
-  w.__dialogs = 'manual'; d.querySelector('#view [data-wk="new"]').click();
+  w.__dialogs = 'manual'; d.querySelector('#top [data-wk="new"]').click();
   const md = await until(() => d.querySelector('.cdlg #cdlg-in') && d.querySelector('.cdlg'));
   const sp = md?.querySelector('[data-wk-sp]')?.value || null;
   if (md) { md.querySelector('#cdlg-in').value = name; md.querySelector('form').dispatchEvent(new w.Event('submit', {bubbles: true, cancelable: true})); }

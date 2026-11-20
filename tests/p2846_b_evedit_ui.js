@@ -44,11 +44,11 @@ const D1 = dstr(new Date(Date.now() + 86400000));
   const inv = await call('GET', '/api/evinvite');
 
   const w = await boot({user: 'alice', hash: 'cal', ls: {'tasks.calMode': '"month"'}}), d = w.document;
-  await until(() => d.querySelector('#view [data-act="ev-new"]') && w.eval(`typeof evEditor === 'function'`));
+  await until(() => d.querySelector('#top [data-act="ev-new"]') && w.eval(`typeof evEditor === 'function'`));
   const editor = () => d.querySelector('.modal.evmodal');
   const ask = () => d.querySelector('.modal.cdlg');
   const openNew = async () => {
-    click(w, d.querySelector('#view [data-act="ev-new"]'));
+    click(w, d.querySelector('#top [data-act="ev-new"]'));
     return until(() => editor()?.querySelector('#ev-rems .evchip') && editor());
   };
   const events = async () => (await call('GET', `/api/events?from=${dstr(new Date(Date.now() - 40 * 86400000))}&to=${dstr(new Date(Date.now() + 40 * 86400000))}`)).items || [];

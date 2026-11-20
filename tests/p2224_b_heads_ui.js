@@ -72,7 +72,7 @@ const FEAT = 'cal,comments,collab,contacts,office,clients,sheets';
     if (!await ready(ev, `!document.querySelector('.smodal')`, 20)) await ev(`(() => { document.querySelector('.smodal')?.remove(); return 1; })()`);
     // ---- Tables: one heading, one new button
     await nav(B + '#sheets');
-    check(await ready(ev, `!!document.querySelector('.shvov [data-shv="new"]')`, 80), '#2816: the tables overview');
+    check(await ready(ev, `!!document.querySelector('.shvov') && !!document.querySelector('#top .hnew[data-shv="new"]')`, 80), '#2816: the tables overview; (#6370): New table in the head bar');
     check(await ev(`${h1} === 'Tables' && !document.querySelector('.shvh')`), '#2816: Tables: one heading ' + await ev(h1));
     check(await ev(`document.querySelectorAll('[data-shv="new"]').length === 1 && !document.querySelector('[data-act="sbb-shnew"]')`), '#2816: "New table" only in the head');
     await shot('p2224-b-tables.png');
@@ -81,8 +81,8 @@ const FEAT = 'cal,comments,collab,contacts,office,clients,sheets';
     await nav(B + '#office/start');
     check(await ready(ev, `!!document.querySelector('.ocf-choose #ocf-ch') && !document.querySelector('.ocf-slim')`, 80), '#2816 phone: the card on the start list');
     await nav(B + '#sheets');
-    check(await ready(ev, `!!document.querySelector('.shvov [data-shv="new"]')`, 80), '#2816 phone: the tables overview');
-    check(await ev(`document.querySelectorAll('[data-shv="new"]').length === 1 && !document.querySelector('.shvh') && document.documentElement.scrollWidth <= window.innerWidth + 1`), '#2816 phone: one heading, one button, no sideways scroll');
+    check(await ready(ev, `!!document.querySelector('.shvov') && !document.querySelector('#fab').classList.contains('gone')`, 80), '#2816 phone: the tables overview; (#6370): New table is the round +');
+    check(await ev(`document.querySelectorAll('[data-shv="new"]').length === 0 && document.querySelector('#fab').getAttribute('aria-label') === 'New table' && !document.querySelector('.shvh') && document.documentElement.scrollWidth <= window.innerWidth + 1`), '#2816 phone: one heading, the + as the one button, no sideways scroll');
   }, false);
 
   console.log(`p2224_b_heads_ui: ${ok} ok, ${F.length} failed`);

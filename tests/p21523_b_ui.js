@@ -71,7 +71,7 @@ const rowOf = (d, txt) => [...d.querySelectorAll('#side .sbbt')].find(r => r.que
   w = await boot({user: 'frida', hash: 'wiki', ls: {'tasks.wkSpace': JSON.stringify('private')}}); d = w.document;
   check(await until(() => rowOf(d, 'Docs')), 'the panel shows the top folder Docs');
   check(!rowOf(d, 'Deep'), 'its subfolder is not drawn before the click');
-  check(!d.querySelector('#view .wkside') && d.querySelector('#view .wkbar #wk-q') && d.querySelector('#view .wkbar [data-wk="new"]') && d.querySelector('#view .wkbar [data-wk="amenu"]'), 'no tree column; search, New page and the space menu in the bar');
+  check(!d.querySelector('#view .wkside') && d.querySelector('#view .wkbar #wk-q') && d.querySelector('#top .hnew[data-wk="new"]') && d.querySelector('#view .wkbar [data-wk="amenu"]'), 'no tree column; search, New page and the space menu in the bar');
   check(d.querySelector('#side .sbbi[data-go="wiki"].on') && [...d.querySelectorAll('#view .wkitem')].some(a => /Top page/.test(a.textContent)), '"All pages": the top of the space with its page');
   rowOf(d, 'Docs').querySelector('[data-act="sbb-tree"]').click();
   check(await until(() => rowOf(d, 'Deep')), 'the arrow opens Docs: Deep appears');

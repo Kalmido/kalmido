@@ -136,7 +136,7 @@ c.commit(); c.close()`);
     check(await undoToast(w, 'Event deleted'), '#5466: the toast offers Undo');
     check(await until(async () => (await items()).some(x => x.title === 'Tuning the piano')), '#5466: Undo brings it back');
     // the own repeat: "Apply"
-    click(w, d.querySelector('#view [data-act="ev-new"]'));
+    click(w, d.querySelector('#top [data-act="ev-new"]'));
     md = await until(() => d.querySelector('.modal.evmodal'));
     md.querySelector('#ev-rep').value = '__custom'; md.querySelector('#ev-rep').dispatchEvent(new w.Event('change', {bubbles: true}));
     const cm = await until(() => d.querySelector('.modal.crrmodal'));

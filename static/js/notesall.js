@@ -50,7 +50,7 @@ function sb_notesListHtml() {
   const sel = ls.length > 1 || S.sbn.lid ? `<select id="sbn-l" class="sbnsel" aria-label="${esc(tr('Project'))}"><option value="0">${tr('All projects')}</option>${prj.length && oth.length ? `<optgroup label="${esc(tr('Projects'))}">${prj.map(opt).join('')}</optgroup><optgroup label="${esc(tr('Other projects'))}">${oth.map(opt).join('')}</optgroup>` : ls.map(opt).join('')}</select>` : '';
   return `<div class="ntlist sbnlist">
     <div class="ntbar sbnbar"><div class="ssearch">${ic('search', 's')}<input id="sbn-q" type="search" value="${esc(S.sbn.q)}" placeholder="${esc(tr('Search notes'))}" aria-label="${esc(tr('Search notes'))}" autocomplete="off"></div>${sel}
-      ${S.me?.kid ? '' : `<button type="button" class="btn sm pri" data-sb="note-new">${ic('plus', 's')}${tr('New note')}</button>` /* 2.477.0 (#3881): always (the list Notes comes with it) */}</div>
+      ${''/* (#6370): "New note" is the area's New (head bar / the +, newReg below), no button of its own here */}</div>
     ${o3a_orgView() && !S.me?.kid && (!S.sbn.lid || qn_isList(S.sbn.lid)) ? `<p class="muted shint sbnpriv">${ic('lock', 's')} ${esc(tr('New notes stay private: only you see them. To share one, move it into a project.'))}</p>` : '' /* 2.398.0 (#3405) */}
     <div id="sbn-res">${sb_noteCardsHtml()}</div></div>`;
 }
@@ -203,5 +203,12 @@ function qn_heal(lid) {
 async function qn_shareAsk(people, l) {
   return askDialog({title: tr('Move the note to {0}?', lname(l)), html: `<p><b>${esc(tr('After the move these people see this note:'))}</b></p><ul class="qnwho">${people.map(p => `<li><b>${esc(p)}</b></li>`).join('')}</ul><p class="muted">${esc(tr('The list Notes itself stays private.'))}</p>`, ok: tr('Move'), cancel: tr('Cancel')});
 }
-// the phone: holding the Plus button = a quick note (a tap stays a new task)
-const QN_FAB = ms_longPress('#fab', () => false, () => qn_new());
+// the phone: holding the Plus button = a quick note (a tap stays a new task); (#6370): in an area with further kinds the small menu
+const QN_FAB = ms_longPress('#fab', () => false, () => newMenu($('#fab')) || qn_new());
+// (#6370): the area's New: a note in the list filtered here (else the private list "Notes"), in a project's notes one there
+function nt_newRun() {
+  if (S.nt?.lid && typeof noteNew === 'function') { noteNew(); return; }  // lazy-ok: chat.js is a start script (the notes of a project)
+  const f = sb_noteWritable().find(l => l.id === S.sbn.lid);
+  qn_new(f ? f.id : 0);
+}
+newReg('notes', {label: N_('New note'), icon: 'note', on: () => !S.me?.kid && (!S.nt?.lid || !!S.nt.mayWrite), run: nt_newRun});

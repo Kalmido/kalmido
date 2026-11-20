@@ -80,14 +80,14 @@ const notesOf = async lid => (await call('GET', `/api/lists/${lid}/notes`)).note
 
   // ================= the notes overview: no question
   w.eval("go('notes')");
-  check(await until(() => !!$('[data-sb="note-new"]')), 'the notes overview');
-  $('[data-sb="note-new"]').click();
+  check(await until(() => !!$('#top .hnew')), 'the notes overview');
+  $('#top .hnew').click();
   check(await until(() => w.eval(`S.nt.id === QN_DRAFT && S.nt.draft.list_id === ${Q}`)), 'overview without a filter: into the list Notes, no question');
   check($('#pop').classList.contains('hidden') && !$('.modal'), '… no list picker');
   w.eval("go('notes')");
-  check(await until(() => w.eval("S.route.mod === 'notes' && !S.nt.lid && !S.nt.draft") && !!$('[data-sb="note-new"]')), 'back in the overview');
+  check(await until(() => w.eval("S.route.mod === 'notes' && !S.nt.lid && !S.nt.draft") && !!$('#top .hnew')), 'back in the overview');
   w.eval(`S.sbn.lid = ${P}`);
-  $('[data-sb="note-new"]').click();
+  $('#top .hnew').click();
   check(await until(() => w.eval(`S.nt.id === QN_DRAFT && S.nt.draft.list_id === ${P}`)), 'a list filtered: into that list');
   type(w, '#nt-body', 'Tulips in October\nand daffodils');
   check(await until(async () => (await notesOf(P)).some(n => n.title === 'Tulips in October')), 'saved in the filtered list, the first line the title');

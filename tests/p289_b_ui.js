@@ -219,7 +219,8 @@ const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y
   // ---- phone width: tap = choose, a second tap edits; dave without an organisation
   w = await boot({user: 'dave', hash: 'sheets', mobile: true}); d = w.document;
   w.prompt = () => 'Kit';
-  click(w, d.querySelector('[data-shv="new"]'));
+  check(await until(() => !d.querySelector('#fab').classList.contains('gone') && d.querySelector('#fab').getAttribute('aria-label') === 'New table'), '(#6370) phone: New table is the round +');
+  click(w, d.querySelector('#fab'));
   check(await until(() => w.eval('!!SHV.sh') && d.querySelector('#shv-scroll td.shvc')), 'dave: a new table');
   const ds = await call('GET', '/api/sheets/' + w.eval('SHV.sh.id'), null, CD);
   check(ds.space === 'private', 'dave: the table is private ' + ds.space);

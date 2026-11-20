@@ -44,7 +44,7 @@ const ALL = 'cal,timeline,comments,collab,events,contacts';
   // ================= switched off: nothing
   let w = await boot({user: 'alice', hash: 'cal'}), d = w.document;
   await until(() => d.querySelector('#view .calbar'));
-  check(!d.querySelector('#view [data-act="ev-new"]') && !d.querySelector('#side [data-go="contacts"]') && !d.querySelector('#view .calbar [data-k="agenda"]'),
+  check(!d.querySelector('#top [data-act="ev-new"]') && !d.querySelector('#side [data-go="contacts"]') && !d.querySelector('#view .calbar [data-k="agenda"]'),
     'off: no "+ Event", no Agenda, no Contacts in the sidebar');
   w.close();
   await call('PATCH', '/api/settings', {features: ALL});
@@ -72,7 +72,7 @@ const ALL = 'cal,timeline,comments,collab,events,contacts';
   check(chips.some(x => /Dentist/.test(x)) && chips.some(x => /Standup/.test(x)) && chips.some(x => /Holiday/.test(x)), 'month: own events as chips ' + chips.slice(0, 6));
   const dc = [...d.querySelectorAll('#view .cal .cev')].find(c => /Dentist/.test(c.textContent));
   check(/f87171/i.test(dc.getAttribute('style')), 'the chip has the colour of its calendar');
-  check(d.querySelector('#view [data-act="ev-new"]') && d.querySelector('#view [data-act="ev-cals"]') && d.querySelector('#view .calbar [data-k="agenda"]'),
+  check(d.querySelector('#top [data-act="ev-new"]') && d.querySelector('#view [data-act="ev-cals"]') && d.querySelector('#view .calbar [data-k="agenda"]'),
     'on: "+ Event", "Calendars", the Agenda mode');
   // the popover
   click(w, d.querySelector('#view .agenda .cevrow[data-cev]') ? [...d.querySelectorAll('#view .agenda .cevrow')].find(r => /Dentist/.test(r.textContent)) : dc);
@@ -93,7 +93,7 @@ const ALL = 'cal,timeline,comments,collab,events,contacts';
   check(await until(async () => { const e = await call('GET', `/api/events/${E1.id}`); return e.title === 'Dentist (check-up)' && e.reminders.sort().join() === '30,60'; }), 'saved: title + a second reminder');
   check(await until(() => !d.querySelector('.modal.evmodal') && /Event saved/.test(d.querySelector('#toast').textContent)), 'closed, toast');
   // a new event with "+ Event": all day, weekly, a person from the server, an address
-  click(w, d.querySelector('#view [data-act="ev-new"]'));
+  click(w, d.querySelector('#top [data-act="ev-new"]'));
   await until(() => d.querySelector('.modal.evmodal'));
   md = d.querySelector('.modal.evmodal');
   md.querySelector('#ev-title').value = 'Team day';

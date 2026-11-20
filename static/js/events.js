@@ -547,6 +547,8 @@ document.addEventListener('click', async e => {
       const k = a.dataset.key; S.collapsed.has(k) ? S.collapsed.delete(k) : S.collapsed.add(k); LS.set('collapsed', [...S.collapsed]); an_rowsIn(renderView); if (k.startsWith('s:')) scl_push(); break;  // 2.46.1 (#1559): opened rows fade in; 2.156.0 C (#2073): a section's fold on every device
     }
     case 'palette': closeSide(); openPalette(); break;
+    case 'area-new': newRun(); break;  // (#6370): the head's blue button of an area (core.js headNew)
+    case 'area-new-more': newMenu(a); break;
     case 'new-task': { const q = currentQuickInput(); if (q && (!isMobile() || tabletDock())) q.focus(); else openQuickSheet(); break; }
     case 'side': $('#side').classList.add('open'); $('#scrim').classList.remove('hidden'); popOnClose = closeSide; sideRet = a; if (a.closest('#tabs') || S.sideToLists) { S.sideToLists = false; sideToLists(); } setTimeout(() => { if (document && $('#side.open') && !$('#side').contains(document.activeElement)) { sideRove(); const f = sideItems().find(x => x.tabIndex === 0) || sideItems()[0]; f?.focus({preventScroll: true}); } }, 60); break;  // 2.16.0 (#473): the drawer takes the focus
     case 'settings': closeSide(); settingsModal(); break;
@@ -950,7 +952,7 @@ function swp_end(cancel) {
 }
 document.addEventListener('touchend', () => swp_end(false));
 document.addEventListener('touchcancel', () => swp_end(true));
-$('#fab').addEventListener('click', () => { if (typeof QN_FAB === 'object' && ms_lpRecent(QN_FAB)) return; if (typeof calFabEv === 'function' && calFabEv()) { const d = S.calSel || today(); evEditor({start: `${d}T${pad(Math.min(22, new Date().getHours() + 1))}:00`}); return; } openQuickSheet(); });  // 2.477.0 (#3881): the click ending a hold opens no task
+$('#fab').addEventListener('click', () => { if (typeof QN_FAB === 'object' && ms_lpRecent(QN_FAB)) return; if (newRun()) return; /* (#6370): the area's main object */ if (typeof calFabEv === 'function' && calFabEv()) { const d = S.calSel || today(); evEditor({start: `${d}T${pad(Math.min(22, new Date().getHours() + 1))}:00`}); return; } openQuickSheet(); });  // 2.477.0 (#3881): the click ending a hold opens no task
 
 // 2.1356.0 (#6326): the base of the conflict guard (_prev) is the text the field showed before this input, not the task in
 // S.tasks - a change of another device may have reached S.tasks while the focused field kept the old text (the redraw leaves
