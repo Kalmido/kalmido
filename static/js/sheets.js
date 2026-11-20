@@ -254,7 +254,7 @@ function shvSheetHtml(sh) {
   const foot = `<div class="shvfoot">${w ? `<button type="button" class="btn sm" data-shv="rowadd">${ic('plus', 's')}${tr('Add row')}</button>` : ''}${nf ? `<span class="muted">${trh('{0} of {1} rows shown', rows.length, all)}</span>` : ''}</div>`;
   return `<div class="shvwrap shvsheet" data-k="shv-${sh.id}">${top}${pres}${shvRefsHtml(sh)}${typeof shc_html === 'function' ? shc_html(sh) : ''}${bar}${typeof shfm_barHtml === 'function' ? shfm_barHtml(sh) : '' /* 2.578.0 (#3462 C) */}
     <div class="shvbody"><div class="shvgridw"><div class="shzbox"${typeof shz_boxAttr === 'function' ? shz_boxAttr(sh) : ''}><div class="shvscroll" id="shv-scroll" tabindex="0" role="grid" aria-label="${esc(sh.title || tr('Table'))}" aria-rowcount="${all + 1}" aria-colcount="${cols.length + 1}" aria-multiselectable="true" ${c0 ? `aria-activedescendant="shv-c-${c0.r}-${c0.c}"` : ''}>
-      <table class="shvgrid" role="presentation">${colgroup}${head}${body}</table><svg class="shvdeps" id="shv-deps" aria-hidden="true"></svg></div>${typeof shz_gripHtml === 'function' ? shz_gripHtml(sh) : ''}</div>${foot}${typeof shb_barHtml === 'function' ? shb_barHtml(sh) : ''}</div>
+      <table class="shvgrid" role="presentation">${colgroup}${head}${body}</table><svg class="shvdeps" id="shv-deps" aria-hidden="true"></svg></div>${typeof shz_gripHtml === 'function' ? shz_gripHtml(sh) : ''}</div>${foot}${typeof shb_barHtml === 'function' ? shb_barHtml(sh) : ''}</div><div class="shvsgrip" data-k="shvsgrip" aria-label="${esc(tr('Width of the cell details'))}"></div>
     <aside class="shvside" id="shv-side" aria-label="${esc(tr('Cell details'))}">${shvSideHtml(sh)}</aside></div></div>`;
 }
 function shvPresHtml(sh) {  // "Anna is editing B4" (others only)
@@ -415,7 +415,17 @@ function shvBarSync() {
   if (typeof shfm_sync === 'function') shfm_sync();  // 2.578.0 (#3462 C): the format bar shows the active cell's format
 }
 function shvSideSync() { const s = $('#shv-side'); if (s && SHV.sh && !s.contains(document.activeElement)) s.innerHTML = shvSideHtml(SHV.sh); }
-function shvAfter() { shvBarSync(); shvDepsDraw(); if (typeof shz_fill === 'function') shz_fill(); if (typeof shk_after === 'function') shk_after(); }  // 2.124.0 B (#2111): + the rows / columns kept in view  // 2.98.0 C (#2181): the empty cells that fill the frame
+// #7305: the cell details wider by the one grip (grip.js, docs/dev/kern.md "Resizing: the one grip"): --g-sheets-side on
+// .shvbody, at least 14rem, default 17.5rem, no fixed cap (product rule "Handles", #4829): the grid keeps 14rem. Hung again after
+// each draw (a morph takes the grip's marks and the variable off; during a drag the same handle stays).
+function shv_sideGrip() {
+  const g = $('.shvbody > .shvsgrip'), box = g?.parentElement; if (!g || !box) return;
+  if (g._grip && (g.classList.contains('grip') || document.body.classList.contains('gdrag'))) { g.classList.add('grip', 'grip-x'); g._grip.refresh(); return; }
+  const rem = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+  grip_col(g, {key: 'sheets-side', edge: 'start', min: 14, def: 17.5, label: tr('Width of the cell details'),
+    max: () => Math.max(14, Math.floor((box.clientWidth / rem() - 14 - 0.75) * 4) / 4)});  // the box minus the grid's 14rem and the grip's room
+}
+function shvAfter() { shv_sideGrip(); shvBarSync(); shvDepsDraw(); if (typeof shz_fill === 'function') shz_fill(); if (typeof shk_after === 'function') shk_after(); }  // (#2111): + the rows / columns kept in view  // (#2181): the empty cells that fill the frame
 // after a write: the changed cells and the rows they colour are drawn in place (an open editor stays)
 function shvPatchAll() {
   const sh = SHV.sh, tb = $('#shv-scroll tbody'); if (!sh || !tb) return;

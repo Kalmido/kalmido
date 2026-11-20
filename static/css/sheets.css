@@ -26,7 +26,8 @@
 .shvinw{position:relative;flex:1;min-width:0;display:flex}  /* 2.543.0 (#4611): holds the formula's coloured mirror */
 .shvpres{display:flex;align-items:center;gap:.375rem;font-size:var(--fs-s);color:var(--muted)}
 /* grid + panel */
-.shvbody{display:grid;grid-template-columns:minmax(0,1fr) 17.5rem;gap:.75rem;min-height:0}
+.shvbody{display:grid;grid-template-columns:minmax(0,1fr) auto var(--g-sheets-side,17.5rem);column-gap:.0625rem;row-gap:.75rem;min-height:0}
+.shvsgrip{width:.625rem}  /* #7305: the grip of the cell details (grip.js); the old gap .75rem = grip + the two small gaps */
 .shvgridw{min-width:0;display:flex;flex-direction:column;gap:.375rem}
 .shvscroll{position:relative;overflow:auto;max-height:calc(100dvh - 15rem);border:1px solid var(--line2);border-radius:var(--radius);background:var(--bg);outline:0}
 .shvscroll:focus-visible{box-shadow:0 0 0 .125rem var(--accent-soft)}
@@ -119,6 +120,7 @@
 }
 @media (max-width:767px){
   .shvbody{grid-template-columns:minmax(0,1fr)}
+  .shvsgrip{display:none}
   .shvscroll{max-height:60dvh}
   .shvside{max-height:none;overflow:visible}
   .shvbk{display:none}
