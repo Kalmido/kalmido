@@ -162,6 +162,7 @@ async function pdfView(o) {
     <button type="button" class="iconbtn" data-pv="x" title="${esc(tr('Close'))}" aria-label="${esc(tr('Close'))}">${ic('x')}</button></div>
     <div class="tvbody pvbody" tabindex="-1"><div class="tvmsg muted">${tr('Loading…')}</div></div></div>`;
   const body = $('.pvbody', m);
+  if (typeof tv_grip === 'function') tv_grip(m, 'pv-pdf', 64);  // #7310 (attachments.js)
   // the focus goes back to the link that opened it (or its new copy when the view behind was drawn again meanwhile)
   const backHref = back?.getAttribute?.('href');
   const close = () => {
