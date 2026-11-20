@@ -219,7 +219,7 @@ Zurückholen lässt sich rückgängig machen.
 <!-- help: sheets#how-to-make-a-table-with-a-formula src=b8056fbeac -->
 ## Eine Tabelle mit Formel anlegen
 
-1. Öffne **Tabellen**, tippe auf **Neue Tabelle**, gib einen Namen ein und tippe auf **Erstellen**.
+1. Öffne **Tabellen**, tippe auf **Neue Tabelle**, gib einen Namen ein und tippe auf **Anlegen**.
 2. Tippe auf **Spalte hinzufügen** und **Zeile hinzufügen**, bis das Raster passt, und trage die Werte in die Zellen ein.
 3. Beginne eine Zelle mit `=`, zum Beispiel `=B2*C2` (Stunden mal Satz) oder `=SUMME(C2:C9)`.
 
