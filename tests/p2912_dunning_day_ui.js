@@ -20,7 +20,7 @@ const dbx = (sql, args = []) => JSON.parse(execFileSync('python3', [path.join(__
 const FEAT = 'cal,comments,collab,office,clients';
 const iso = dt => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
 const ago = n => { const t = require('./boot').testNow(); t.setHours(12, 0, 0, 0); t.setDate(t.getDate() - n); return iso(t); };
-const TODAY = ago(0);
+// "today" is read when the dialog opens - a run that crosses midnight saw yesterday's date as stale
 // the paid day lies in the reminder's month or later and not in the future: reminder 6 days ago, then 4 and 2 days ago
 const REM_DAY = ago(6), DAY1 = ago(4), DAY2 = ago(2);
 const click = (w, el) => el.dispatchEvent(new w.MouseEvent('click', {bubbles: true, cancelable: true}));
@@ -56,8 +56,8 @@ async function run(user, ck, who, booked) {
   click(w, d.querySelector('[data-ofd="fee"][data-st="paid"]'));
   check(await until(() => dlg()), `${who}: "Fee paid" opens the dialog with the day`);
   const m0 = dlg();
-  check(m0 && /Paid on/.test(m0.textContent) && m0.querySelector('#ofd-fee-day').value === TODAY && /money came/.test(m0.textContent),
-    `${who}: the dialog asks "Paid on", default today ${TODAY}: ${m0?.querySelector('#ofd-fee-day')?.value} / ${(m0?.textContent || '').replace(/\s+/g, ' ').slice(0, 160)}`);
+  check(m0 && /Paid on/.test(m0.textContent) && m0.querySelector('#ofd-fee-day').value === ago(0) && /money came/.test(m0.textContent),
+    `${who}: the dialog asks "Paid on", default today ${ago(0)}: ${m0?.querySelector('#ofd-fee-day')?.value} / ${(m0?.textContent || '').replace(/\s+/g, ' ').slice(0, 160)}`);
   click(w, m0.querySelector('[data-m="close"]'));
   check(await until(() => !dlg()), `${who}: Cancel closes the dialog`);
   const st0 = feeDay(rid);
