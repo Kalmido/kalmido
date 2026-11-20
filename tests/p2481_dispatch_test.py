@@ -608,6 +608,62 @@ check("never merge, never push, never open a pull request, never deploy" in b an
       "#7028: the brief fixes the job's end")
 res = d.tick(force=True)
 check(len([x for x in open(prlog, encoding="utf-8")]) == 1, "#7028: a landed job is never landed again")
+# ---- (#7562): after the yes on the card the project's approved_cmd runs exactly once (no shell); rejected / open: never
+fakeok, oklog = os.path.join(side, "fakeok.py"), os.path.join(side, "ok.log")
+with open(fakeok, "w") as f:
+    f.write("import json, os, sys\n"
+            f"open({oklog!r}, 'a').write(json.dumps(sys.argv[1:]) + '\\n')\n"
+            "sys.exit(3 if os.path.exists(sys.argv[1] + '.fail') else 0)\n")
+okflag = os.path.join(side, "flag")
+os.environ["KALMIDO_DISPATCH_APPROVED_CMD"] = f'"{sys.executable}" "{fakeok}" "{okflag}" {{url}} {{number}} {{branch}} {{base}} {{title}}'
+PR7 = "https://git.example.com/o/r/pull/7"
+
+
+def okruns():
+    return [json.loads(x) for x in open(oklog, encoding="utf-8")] if os.path.exists(oklog) else []
+
+
+def cardc(state, url=PR7, agent=True):
+    COMMENTS[301] = [{"id": 900, "author": {"id": 99, "name": "Bot", "agent": agent}, "text": "Ready to merge",
+                      "suggestion": {"kind": "merge_request", "pr_url": url, "summary": "x", "state": state}}]
+
+
+cardc("open")
+d.tick(force=True)
+check(okruns() == [] and "approved" not in d.reg["jobs"]["601"], f"#7562: an open card runs nothing {okruns()}")
+cardc("approved", agent=False)
+d.tick(force=True)
+check(okruns() == [], "#7562: a person's comment with the same address is not the card")
+cardc("approved", url=PR7 + "8")
+d.tick(force=True)
+check(okruns() == [], "#7562: the card of another pull request does not count")
+cardc("approved")
+d.tick(force=True)
+runs = okruns()
+check(runs == [[okflag, PR7, "7", "job/601", "main", "#301: Feature A"]] and d.reg["jobs"]["601"]["approved"] == "done",
+      f"#7562: approved -> approved_cmd once with the pull request's placeholders {runs} {d.reg['jobs']['601'].get('approved')}")
+d.tick(force=True)
+check(len(okruns()) == 1, "#7562: never a second time")
+check(not any(p_.endswith("/complete") for _, p_ in h.api.calls), "#7562: the yes closes nothing (the merge is the integrator's)")
+d.reg["jobs"]["601"].pop("approved")
+cardc("rejected")
+d.tick(force=True)
+check(len(okruns()) == 1 and d.reg["jobs"]["601"]["approved"] == "rejected", "#7562: rejected -> no call, never looked at again")
+d.reg["jobs"]["601"].pop("approved")
+cardc("approved")
+open(okflag + ".fail", "w").close()
+nchat = len(h.api.chats)
+d.tick(force=True)
+d.tick(force=True)
+told = "\n".join(t for _, t in h.api.chats[nchat:])
+check(len(okruns()) == 2 and d.reg["jobs"]["601"]["approved"] == "failed" and "exit 3" in told and told.count(PR7) == 1,
+      f"#7562: a failing command -> told once, no endless retry {len(okruns())} {told!r}")
+os.remove(okflag + ".fail")
+d.reg["jobs"]["601"]["approved"] = "done"
+cardc("approved", url=PR7)
+os.environ.pop("KALMIDO_DISPATCH_APPROVED_CMD")
+check([a for a in ad.approved_args({"approved_cmd": "gh pr edit {number} --add-label approved --title {title}"}, PR7, "job/1", "main", "x {url} y")]
+      == ["gh", "pr", "edit", "7", "--add-label", "approved", "--title", "x {url} y"], "#7562: one pass of the placeholders (a title's {url} stays text)")
 h2 = Host("dry")
 h2.state_dir = os.path.join(proj, ".state4")
 os.makedirs(h2.state_dir)
