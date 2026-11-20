@@ -19730,8 +19730,5 @@
   "documents from templates": "des documents issus de modèles",
   "invoice series": "des séries de factures",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "Le client de ce document n'est plus dans ce bureau (déplacé vers un autre espace de travail). Choisis d'abord un autre client.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Le client de la facture modèle n'est plus dans ce bureau (déplacé vers un autre espace de travail). Choisis une autre facture modèle et réactive la série.",
-  "This upload is meant for another office than the one open. Reload the page and try again.": "Ce téléversement est destiné à un autre bureau que celui qui est ouvert. Recharge la page et réessaie.",
-  "The office is switched off for you in this workspace.": "Le bureau est désactivé pour toi dans cet espace de travail.",
-  "The office is switched off for this person in this workspace (Settings > Modules, for the own office “Also private”). Nothing was written: the draft would not show there. Ask the person to switch it on.": "Le bureau est désactivé pour cette personne dans cet espace de travail (Paramètres > Modules, pour le bureau personnel « Aussi en privé »). Rien n’a été écrit : le brouillon n’y serait pas visible. Demande à la personne de l’activer."
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Le client de la facture modèle n'est plus dans ce bureau (déplacé vers un autre espace de travail). Choisis une autre facture modèle et réactive la série."
 }
