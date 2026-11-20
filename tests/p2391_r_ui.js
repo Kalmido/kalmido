@@ -58,6 +58,8 @@ const FEAT = 'cal,comments,collab,office,clients';
     check(await ready(ev, `location.hash === '#office/services'`), '#7596: the hint opens the Services tab');
     await call(CA, 'POST', '/api/office/services', {name_de: 'Schnitt', name_en: 'Editing', category: 'Post', daily_rate: 700, unit: 'day'});
     await nav(B + '#office/offers/' + offer.id);
+    await ready(ev, `!!document.querySelector('.ofdeditor')`, 60);
+    await ev(`(() => { ofcLoad('services', true); return 1; })()`);  // the catalogue was read empty before (a hash step keeps it)
     check(await ready(ev, `!!document.querySelector('.ofdeditor') && (OFC.data.services || []).length === 1 && !document.querySelector('.ofdsvchint')`, 60), '#7596: with a service the hint is gone');
     await vp(900, 560); await sleep(300);
     await ev(`(() => { document.querySelector('[data-ofd="it-svc"]').click(); return 1; })()`);
