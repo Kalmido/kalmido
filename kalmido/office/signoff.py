@@ -777,9 +777,8 @@ def sig_offer_pages(c, r):
         data = data if data is not None else _render(c, r["org_id"], d)[0]
         n = po_pages(data)
         n = n if isinstance(n, int) and n > 0 else None
-        out = epdf_out(c, r["org_id"], d, data)
-        m = po_pages(out) if out is not data else None
-        v = (n, bool(n and isinstance(m, int) and m > n))
+        out = epdf_out(c, r["org_id"], d, data)  # agb_offer_pdf gives the PDF unchanged when the terms could not be joined
+        v = (n, bool(out is not data and out != data))
         until = None if v[1] else time.monotonic() + SIG_PAGES_FAIL_S  # terms not joined: tried again a minute later
     except Exception as ex:  # noqa: BLE001 -- #7416: the page shows the sentence without "in the PDF", never a 500
         print("signoff: pages of the quotation unknown", r["id"], type(ex).__name__, flush=True)
