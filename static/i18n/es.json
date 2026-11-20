@@ -19731,5 +19731,7 @@
   "invoice series": "series de facturas",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "El cliente de este documento ya no está en esta oficina (movido a otro espacio de trabajo). Elige primero otro cliente.",
   "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "El cliente de la factura plantilla ya no está en esta oficina (movido a otro espacio de trabajo). Elige otra factura plantilla y vuelve a activar la serie.",
+  "This upload is meant for another office than the one open. Reload the page and try again.": "Esta subida es para otra oficina distinta de la abierta. Vuelve a cargar la página e inténtalo de nuevo.",
+  "The office is switched off for you in this workspace.": "La oficina está desactivada para ti en este espacio de trabajo.",
   "The office is switched off for this person in this workspace (Settings > Modules, for the own office “Also private”). Nothing was written: the draft would not show there. Ask the person to switch it on.": "La oficina está desactivada para esta persona en este espacio de trabajo (Ajustes > Módulos, para la oficina propia «También privado»). No se ha escrito nada: el borrador no se vería allí. Pide a la persona que la active."
 }

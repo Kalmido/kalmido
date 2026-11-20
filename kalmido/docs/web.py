@@ -29,7 +29,7 @@ from ..files.scan import sc_guard  # 2.306.0: pulled up from functions (layers b
 from ..files.store import fs_chain, fs_deleted, fs_log_add, fs_role, fs_roles_many, fs_visible_ids, fs_visible_sql, fs_version_row, need_node
 from . import store as S
 from .ingest import docs_ingest, docs_kick
-from .area import ar_sql, ar_to_req, ar_view  # 2.522.0 (#4433); (#7325): ar_to_req
+from .area import ar_sql, ar_to_req, ar_upload_need, ar_view  # 2.522.0 (#4433); (#7325): ar_to_req; (#7321)
 from .maillink import ml_token_new  # 2.424.0 B (#3450)
 from .ocr import ocr_available
 from .pagesize import pg_ok  # 2.905.0 (#5393)
@@ -462,6 +462,8 @@ def docs_upload():
         oid = wsp_new(c, uid, "docs", request.form.get("space") or None)
         raw = f"org:{oid}" if oid else "private"
     org, _ws = ws_param(c, raw, uid)
+    if area0 == "office":
+        ar_upload_need(c, uid, org)  # (#7321): the office's own upload only into the office this request works in
     files = request.files.getlist("files") or request.files.getlist("file")
     if not files:
         return err(tr("No file"))

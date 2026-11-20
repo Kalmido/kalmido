@@ -15,7 +15,8 @@ generated PDFs.
  - another person sees, switches and disconnects none of it; an account without the office has no fetchers (403), a key
    whose person turned the office off gets 403
  - an organisation's fetcher uploads into the organisation's documents; another member cannot make one of a foreign
-   organisation; after its person left the organisation the key gets 403
+   organisation; after its person left the organisation the key gets 403; (#7321) with the office switched off for its
+   person in that workspace its upload gets 409
  - disconnecting stops the key at once (401); a password change revokes the fetchers too
 freelancer-matrix: files
 tenant-matrix: document
@@ -211,6 +212,12 @@ check(status(K2, [{"key": "telekom", "name": "Telekom"}]).ok, "carol's helper re
 r = up(K2, pdf("Telekom Oktober"), portal="telekom", order="T-1")
 D2 = r.json().get("id") if r.status_code == 201 else None
 check(D2 and kt.dbx("SELECT org_id FROM fs_nodes WHERE id=?", (D2,))[0][0] == ORG, f"the receipt lands in Alpha's documents {r.text[:200]}")
+# (#7321): the fetcher keeps its workspace once; when carol switches the office off for herself in Alpha, it uploads nothing there
+check(Ca.patch(B + "/api/settings", json={"ws_areas_off": json.dumps({f"org:{ORG}": ["office"]})}).ok, "setup: carol's office in Alpha off")
+r = up(K2, pdf("Telekom November"), portal="telekom", order="T-2")
+check(r.status_code == 409, f"#7321: the office off in Alpha: the fetcher's upload 409, no receipt behind the switch {r.status_code} {r.text[:160]}")
+check(Ca.patch(B + "/api/settings", json={"ws_areas_off": "{}"}).ok, "setup: carol's office in Alpha on again")
+check(up(K2, pdf("Telekom Dezember"), portal="telekom", order="T-3").status_code == 201, "#7321: on again: it uploads")
 check(not any(f["name"] == "Buero-PC" for f in Ca.get(B + "/api/docs/fetchers?ws=private").json()["fetchers"]), "listed with Alpha, not in carol's own")
 check([f["name"] for f in Ca.get(B + f"/api/docs/fetchers?ws=org:{ORG}").json()["fetchers"]] == ["Buero-PC"], "listed with Alpha")
 check(not Bo.get(B + f"/api/docs/fetchers?ws=org:{ORG}").json()["fetchers"], "bob (admin of Alpha) does not see carol's fetcher")

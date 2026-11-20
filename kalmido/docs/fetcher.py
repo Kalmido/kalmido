@@ -36,7 +36,9 @@ from ..files.store import fs_log_add
 from ..files.upsafe import h6d_read
 from ..notify.push import push_prio
 from ..office.model import office_on
+from ..accounts.wsplace import wsp_on  # (#7321)
 from . import store as S
+from .area import AR_OFFICE_OFF  # (#7321)
 from .ingest import docs_ingest, docs_kick
 from .scankeys import _sk_org_ok, _v1, sk_resolve
 from .web import _no_agent, ws_param
@@ -291,6 +293,8 @@ def v1_fetcher_upload():
     """multipart: file (a PDF), portal (its key), order (the order number, optional) -> 201 {id, name, duplicate}. The same
     file or the same order of the same portal again returns the document that is there (duplicate true, 200)."""
     c, uid, fx, oid, _place = _fx_row()
+    if not wsp_on(c, uid, "office", oid):  # (#7321): its workspace is kept once; the office there may be off for the person by now
+        raise Denied(409, tr(AR_OFFICE_OFF))
     extra = sorted((set(request.form) - {"portal", "order"}) | (set(request.files) - {"file"}))
     if extra:
         raise UnknownFields(extra)

@@ -19731,5 +19731,7 @@
   "invoice series": "Rechnungsserien",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "Der Kunde dieses Dokuments ist nicht mehr in diesem Büro (in einen anderen Arbeitsbereich umgezogen). Wähle zuerst einen anderen Kunden.",
   "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Der Kunde der Vorlage-Rechnung ist nicht mehr in diesem Büro (in einen anderen Arbeitsbereich umgezogen). Wähle eine andere Vorlage-Rechnung und schalte die Serie wieder ein.",
+  "This upload is meant for another office than the one open. Reload the page and try again.": "Dieser Upload ist für ein anderes Büro als das geöffnete. Lade die Seite neu und versuche es noch einmal.",
+  "The office is switched off for you in this workspace.": "Das Büro ist für dich in diesem Arbeitsbereich ausgeschaltet.",
   "The office is switched off for this person in this workspace (Settings > Modules, for the own office “Also private”). Nothing was written: the draft would not show there. Ask the person to switch it on.": "Das Büro ist für diese Person in diesem Arbeitsbereich ausgeschaltet (Einstellungen > Module, für das eigene Büro „Auch privat“). Nichts wurde geschrieben: Der Entwurf wäre dort nicht zu sehen. Bitte die Person, es einzuschalten."
 }
