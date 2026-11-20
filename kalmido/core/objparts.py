@@ -52,6 +52,8 @@ from .access import Denied, acx_of, live_sql, trash_sql  # 2.783.0 (#5368): live
 from .conflict import ccf_check
 from .db import iso, now_utc
 from .pg import insert_id, qi, write_lock  # 2.783.0 (#5368): insert_id, qi
+from .objhooks import OBJ  # #6357: purged_tables
+from .schema import PURGED_BASE, PURGED_EXTRA  # #6357: purged_tables
 
 PART_KINDS = {}  # kind -> {kind, table, lock, version, key, agent, live, trash_prune, prune, on_prune, copy}
 PART_COL = re.compile(r"^[a-z_][a-z0-9_]*$")
@@ -70,6 +72,20 @@ def part_kind(kind, table, *, lock, version=None, key=None, agent=True, live=Non
                         "live": live, "trash_prune": bool(trash_prune), "prune": prune or "", "on_prune": on_prune,
                         "copy": bool(copy)}
     return PART_KINDS[kind]
+
+
+def purged_tables():
+    """#6357: the tables whose rows deleted for good stay deleted after a restore (core/schema.py purged_trigger;
+    admin/backup.py bkr_purged_after), derived from the core's register instead of a hand list: PURGED_BASE first (their own
+    delete ways, the big ones first: what goes with them needs no step of its own), then the table of every kind registered
+    with trash_prune (obj_register -- ofk_register too -- and part_kind; sorted), then PURGED_EXTRA. Read at call time: every
+    area has registered its kinds once the package is loaded (init_db runs in kalmido/startup.py, after the areas)."""
+    reg = {r["table"] for r in OBJ.values() if r.get("trash_prune")} | {k["table"] for k in PART_KINDS.values() if k["trash_prune"]}
+    out = list(PURGED_BASE)
+    for t in sorted(reg) + list(PURGED_EXTRA):
+        if t not in out:
+            out.append(t)
+    return tuple(out)
 
 
 def _kind(kind):
