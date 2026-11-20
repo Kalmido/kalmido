@@ -778,7 +778,7 @@ function renderDetail0(D = $('#detail')) {
     <div class="dbody ${ck ? 'ckbody' : ''}">
       ${/*html-ok*/ roDet}${crumbsHtml(t, l, parent)}
       ${ml_detailHtml(t)}${''/* 2.320.0 (#3289): the field Projects (multilist.js) */}
-      ${le2uLk ? '' : stl_lineHtml(t)}${''/* (#7537): the stage line (envs.js) */}
+      ${/*html-ok*/ le2uLk ? '' : stl_lineHtml(t) /* (#7537): the stage line, built escaped in envs.js stl_html */}
       ${le2uLk ? le2u_detailHtml(t) : ''}<div class="dtitle" ${le2uLk ? 'hidden' : ''}><textarea id="d-title" rows="1" placeholder="${tr('Title')}" aria-label="${tr('Title')}" ${tlkR ? 'readonly' : ''}>${esc(t.title)}</textarea></div>
       ${whoOn || jump ? `<div class="dmeta">${whoOn ? dWhoChip(t, tlkR) : ''}${whoOn && myGroup(t.assignee_group_id) ? `<button class="btn sm dtake" data-act="take" type="button">${ic('check', 's')} ${tr('Take it')}</button>` : ''}${jump}</div>` : ''}
       ${dlg_rowHtml(t, ck, tlkR, shared)}${''/* 2.473.0 (#3357): delegated to an agent, watchers (taskbell.js) */}

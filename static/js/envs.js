@@ -193,5 +193,5 @@ function stl_html(t) {
     + `<span class="stl-dot" aria-hidden="true"></span><span class="stl-n">${s.on && i !== cur ? '✓ ' : ''}${esc(s.label)}</span>`
     + `${i === cur && ex.length ? ` <span class="stl-ex">· ${esc(ex.join(' · '))}</span>` : ''}</span>`).join('');
   const all = st.map((s, i) => `<li class="${s.on ? 'd' : 'o'}">${esc(s.label)}${day(s) ? ` <span class="muted">· ${esc(day(s))}</span>` : ''}${i === cur ? ` <b>${esc(tr('now'))}</b>` : ''}</li>`).join('');
-  return `<details class="stl" id="d-stages"><summary aria-label="${esc(tr('Stage {0} of {1}: {2}', cur + 1, st.length, st[cur].label) + (ex.length ? ' · ' + ex.join(' · ') : ''))}">${chain}</summary><ol>${all}</ol></details>`;
+  return `<details class="stl" id="d-stages"><summary aria-label="${esc(tr('Stage {0} of {1}: {2}', cur + 1, st.length, st[cur].label) + (ex.length ? ' · ' + ex.join(' · ') : ''))}">${/*html-ok*/ chain /* the stages above, built escaped */}</summary><ol>${/*html-ok*/ all /* the rows above, built escaped */}</ol></details>`;
 }
