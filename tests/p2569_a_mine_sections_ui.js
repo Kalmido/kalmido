@@ -83,7 +83,8 @@ const click = (w, el) => el.dispatchEvent(new w.MouseEvent('click', {bubbles: tr
   check(NT && await until(() => inSec(/Soon/, NT)), '(#7512) Enter adds it into Soon');
   check(await until(async () => (await call(CF, 'GET', '/api/state')).mine_sections.tasks[NT] === sid(/Soon/)), '(#7512) the server keeps it in Soon');
   const nts = (await call(CF, 'GET', '/api/state')).tasks.find(t => t.id === NT);
-  check(nts && nts.list_id !== L && nts.assignee_id === fu.id, '(#7512) mine, in the quick add\'s project (the Inbox) ' + JSON.stringify(nts && [nts.list_id, nts.assignee_id]));
+  check(nts && nts.list_id !== L && (nts.assignee_id === fu.id || (!w.eval('collab()') && nts.assignee_id == null)),  // alone: no assignment, mine by its list
+    '(#7512) mine, in the quick add\'s project (the Inbox) ' + JSON.stringify(nts && [nts.list_id, nts.assignee_id]));
   sai = d.querySelector('#view .secadd-in');
   sai?.dispatchEvent(new w.KeyboardEvent('keydown', {key: 'Escape', bubbles: true, cancelable: true}));
   w.close?.();
