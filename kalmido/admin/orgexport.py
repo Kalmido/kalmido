@@ -643,7 +643,7 @@ OX_LEFT = {
     "office_procdocs": "the head of the procedure documentation (its versions: office/procdocs.json)",
     "playbooks": "the head of a project's Playbook (its versions: lists/playbooks.json)",
     # list column
-    "agent_audit": _AGENT, "agent_burst_held": _SERVER, "agent_decisions": _AGENT, "agent_jobs": _AGENT, "agent_list_access": _AGENT, "agent_schedules": _AGENT, "agent_usage": _AGENT,
+    "agent_audit": _AGENT, "agent_burst_held": _SERVER, "agent_decisions": _AGENT, "agent_jobs": _AGENT, "agent_list_access": _AGENT, "agent_schedules": _AGENT, "agent_usage": _AGENT, "agent_usage_month": _AGENT,
     "assistant_access": _PERSONAL, "assistant_log": _PERSONAL, "budget_cats": _PERSONAL, "budget_entries": _PERSONAL,
     "budget_files": _PERSONAL, "budget_meta": _PERSONAL, "budget_recurring": _PERSONAL, "contact_srcs": _SECRET, "ctr_notices": _PERSONAL, "dav_sync": _DERIVED,
     "dl_changes": _DERIVED, "env_deploys": _SECRET, "git_conns": _SECRET,
