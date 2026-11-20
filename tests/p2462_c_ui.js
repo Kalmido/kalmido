@@ -140,7 +140,9 @@ const item = (d, t) => items(d).find(x => (x.querySelector('.ml')?.firstChild?.t
   check(sq.hasAttribute('readonly'), '#1651: readonly until it is used');
   sq.dispatchEvent(new w.FocusEvent('focus')); check(!sq.hasAttribute('readonly'), '#1651: focus makes it writable');
   const cur = d.querySelector('#a-cur');
-  check(!cur || (cur.previousElementSibling?.getAttribute('autocomplete') === 'username' && cur.getAttribute('autocomplete') === 'current-password'), '#1651: the account password has a hidden username field before it');
+  // #5515: since #6130 #a-cur sits in span.pwcol - the hidden username field stands before it in the same .pwrow (document order)
+  const un = cur?.closest('.pwrow')?.querySelector('input[autocomplete="username"]');
+  check(!cur || (un && un.hidden && (un.compareDocumentPosition(cur) & w.Node.DOCUMENT_POSITION_FOLLOWING) && cur.getAttribute('autocomplete') === 'current-password'), '#1651: the account password has a hidden username field before it');
   w.close();
 
   // ================= #1726: the note in the UI (the project page)
