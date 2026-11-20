@@ -124,7 +124,8 @@ const items = async ck => JSON.parse((await call(ck, 'GET', '/api/state')).setti
     await shot('p2441-bar.png');
     // an object opens (the office follows the workspace)
     await ev(`(() => { document.querySelector('#kbar .fv2-tile[data-fv2="r:office_doc:${OFA}"]').click(); return 1; })()`);
-    check(await ready(ev, `location.hash === '#office/offers/${OFA}'`), 'a favourite opens its object ' + await ev('location.hash'));
+    // (#7328): a link into another workspace's office opens its address office/s/<area>/... instead of switching the workspace
+    check(await ready(ev, `/^#office\\/(s\\/[^/]+\\/)?offers\\/${OFA}$/.test(location.hash)`), 'a favourite opens its object ' + await ev('location.hash'));
     // the star in a header
     await ev(`(() => { go('wiki'); return 1; })()`);
     check(await ready(ev, `S.route.mod === 'wiki' && !!document.querySelector('#top [data-fv2-star]')`), 'a star in the header of an area');
