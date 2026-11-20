@@ -574,11 +574,21 @@ const obxReq = r => new Promise((ok, no) => { r.onsuccess = () => ok(r.result); 
 // closing" - before, that went to window.onerror. idbHeld(open): db() = the connection (opened again once it was closed),
 // tx(stores, mode) = a transaction, on a closing connection the connection is dropped and the access goes once more to a fresh
 // one (nothing is lost: the write was not started yet), close(). open() = a Promise of the IDBDatabase (the module's own open).
+// (#7549): open() gets a time limit (IDB_T.open). WebKit (iOS Safari / the PWA) can leave an indexedDB.open without any
+// event at a start: before, the outbox (outOpen) and the offline start state (offcache.js) waited for it forever - a blank
+// page with the Offline chip, also once the server was back. Past the limit the access fails (TimeoutError) like a refused
+// IndexedDB: each module takes its way without it (localStorage, "Server not reachable") and says so; the next access opens
+// anew, a connection that comes late is closed. Tests shorten it (IDB_T.open = ...).
+const IDB_T = {open: 3000};
 function idbHeld(open) {
   let dbp = null;
   const db = () => {
     if (dbp) return dbp;
-    const p = dbp = open().then(d => {
+    let late = false, tm = 0;
+    const o = open();
+    o.then(d => { if (late) d.close(); }, () => {});
+    const lim = new Promise((_, no) => { tm = setTimeout(() => { late = true; no(new DOMException(`IndexedDB did not open within ${IDB_T.open} ms`, 'TimeoutError')); }, IDB_T.open); });
+    const p = dbp = Promise.race([o, lim]).finally(() => clearTimeout(tm)).then(d => {
       const drop = () => { if (dbp === p) dbp = null; };
       d.addEventListener('close', drop);
       d.addEventListener('versionchange', () => { d.close(); drop(); });
