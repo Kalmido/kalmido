@@ -111,34 +111,46 @@ document.addEventListener('dblclick', e => {
 });
 
 // ---- #283 "+" on a section header: an input right below it, Enter adds the task there and stays open for the next one
-S.secAdd = null;  // {key, sec, v}
-function secAddOpen(sec) {
+// (#7512): one "+" for every group that takes a new task - the adapter of its sections (dragmulti.js DROP_ADAPTERS sec) says
+// where the task goes (newAt) and what follows in the same step (placed): a project = its list + section, My tasks = assigned
+// to me, the project of the quick add there, put into the own section. No second input for My tasks.
+S.secAdd = null;  // {key, sec, sk, v}
+const secAddAd = sk => sh_ad(sk || 'list');
+const secAddSec = (a, sec) => a?.sec.byId(sec) || (a?.name === 'list' ? {id: sec || null} : null);
+// the new task's fields: the adapter's (newAt) or the project's list and section
+const secAddBody = (a, s, r = {}) => a?.sec.newAt ? a.sec.newAt(s, r) : {list_id: routeList()?.id, section_id: s?.id || null};
+function secAddOpen(sec, sk) {
+  const a = secAddAd(sk), s = secAddSec(a, sec); if (!a || !s) return;
   // 2.13.4: phones get the quick sheet (its box sits above the keyboard) with the section set; the inline field under the
   // section head ended up behind the keyboard (Android: keyboard up, no box to type into)
-  const rl = routeList();
-  if (isTouch() && rl) {  // 2.655.0 (#5081): every touch screen (tablet keyboard covered the inline field too)
-    const g = S.sections.find(x => x.id === sec);
-    openQuickSheet('', {list_id: rl.id, section_id: sec || null, section_name: g ? g.name : ''});
+  if (isTouch()) {  // 2.655.0 (#5081): every touch screen (tablet keyboard covered the inline field too)
+    const b = secAddBody(a, s);
+    if (a.name === 'list' && !b.list_id) return;
+    openQuickSheet('', {...b, section_name: a.sec.label(s) || '',
+      ...(a.sec.placed ? {placed: t => a.sec.placed(s, t)} : {})});
     return;
   }
-  S.secAdd = {key: S.route.key, sec: sec || 0, v: ''};
-  S.collapsed.delete('s:' + (sec || 0)); LS.set('collapsed', [...S.collapsed]); scl_push();  // 2.156.0 C (#2073)
+  S.secAdd = {key: S.route.key, sec: sec || 0, sk: a.name, v: ''};
+  if (a.name === 'list') { S.collapsed.delete('s:' + (sec || 0)); LS.set('collapsed', [...S.collapsed]); scl_push(); }  // 2.156.0 C (#2073)
+  else if (s.collapsed && a.sec.fold) a.sec.fold(s);  // an own section folded on the server opens for the new task
   renderView();
   $('#view .secadd-in')?.focus();
 }
 function secAddHtml(g) {
-  const sa = S.secAdd;
-  if (!sa || sa.key !== S.route.key || sa.sec !== (g.section || 0)) return '';
+  const sa = S.secAdd, x = sa && sh_of(g);
+  if (!sa || sa.key !== S.route.key || !x || x.a.name !== (sa.sk || 'list') || sa.sec !== (x.s.id || 0)) return '';
   return `<div class="secadd">${ic('plus', 's')}<input class="secadd-in" data-sec="${g.section || 0}" placeholder="${esc(tr('Add a task to {0}', g.name))}" aria-label="${esc(tr('Add a task to {0}', g.name))}" enterkeyhint="done" autocomplete="off"></div>`;
 }
 async function secAddSubmit(inp) {
   const sa = S.secAdd, text = inp.value.trim(); if (!sa || !text) return;
-  const lid = routeList()?.id; if (!lid) return;
-  const r = parseQuick(text, new Set());
+  const a = secAddAd(sa.sk), s = secAddSec(a, sa.sec); if (!s) return;
+  const r = parseQuick(text, new Set()), b = secAddBody(a, s, r);
+  if (a.name === 'list' && !b.list_id) return;
   inp.value = ''; sa.v = '';
   try {
-    await createTask(qa2_body(r, {title: (r.title || text).slice(0, 500), list_id: lid, section_id: sa.sec || null, due: r.due || null, due_time: r.due_time,
+    const t = await createTask(qa2_body(r, {title: (r.title || text).slice(0, 500), ...b, due: r.due || null, due_time: r.due_time,
       priority: r.priority ?? 0, tags: r.tags || [], repeat: r.repeat || ''}));  // 2.111.0 C (#2057)
+    if (t?.id && a.sec.placed) await a.sec.placed(s, t);  // (#7512): the same step (the creation's Undo takes it away)
   } catch { inp.value = text; sa.v = text; }
   $('#view .secadd-in')?.focus();
 }

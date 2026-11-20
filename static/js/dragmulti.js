@@ -439,15 +439,18 @@ function plPut(ids, w) {
 // one menu (the same order and texts everywhere); renaming, moving and deleting go through the adapter's saving:
 //   of(g) -> the section of a group (null = not one of this adapter; a project's group without section = {id: null})
 //   byId(id), label(s), drag(s) (the head drags: grip, no Move up / down on a touch screen), add(s, v, ro) (its "+"),
+//   newAt(s, r) -> the new task's fields of its "+" (r = parseQuick of the text; default: the project's list + section),
+//   placed(s, t) -> what follows the creation in the same step (My tasks: into the own section) (#7512)
 //   menu(s, ro) (its "…"), grip(s) / chip(g) (html), pos(s) -> [i, n], rename(s, name), move(s, d), del(s), extra(s, anchor)
 //   head(h) / fold(s): an adapter that keeps the folding itself (My tasks: on the server for every device)
 const sh_ad = name => DROP_ADAPTERS.find(a => a.name === (name || 'list') && a.sec);
 function sh_of(g) { for (const a of DROP_ADAPTERS) { const s = a.sec?.of(g); if (s) return {a, s}; } return null; }
 // the head's parts: {grip, chip, add, menu} (html, add a boolean)
 function sh_head(g, v, ro) {
-  const x = sh_of(g); if (!x) return {grip: '', chip: '', add: false, menu: ''};
+  const x = sh_of(g); if (!x) return {grip: '', chip: '', add: false, ak: '', aid: 0, menu: ''};
   const {a, s} = x, c = a.sec;
-  return {grip: s.id && !ro && c.drag(s) ? c.grip(s) : '', chip: c.chip ? c.chip(g) : '', add: !!c.add(s, v, ro),
+  // (#7512): add = the "+" of this head; ak / aid = the adapter and section the new task goes to (secAddOpen, listedit.js)
+  return {grip: s.id && !ro && c.drag(s) ? c.grip(s) : '', chip: c.chip ? c.chip(g) : '', add: !!c.add(s, v, ro), ak: a.name, aid: s.id || 0,
     menu: s.id && c.menu(s, ro) ? `<button data-rowmenu="ghead" class="iconbtn gact" data-act="section-menu" data-sk="${esc(a.name)}" data-id="${esc(s.id)}" title="${esc(tr('More') + ': ' + g.name)}" aria-label="${esc(tr('More') + ': ' + g.name)}">${ic('dots', 's')}</button>` : ''};
 }
 // the one menu of a section's head (the "…", a long press, the hold of a head); head = items on top (the head's "+")

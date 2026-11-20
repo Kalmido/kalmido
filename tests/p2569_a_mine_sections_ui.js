@@ -9,6 +9,7 @@
 // - the list's own order and sections stay untouched
 // - (#7519) one head for both: an own section and a project's section show the same basic menu items (Rename, Move up,
 //   Move down, Delete) in the same order, the extras come from the adapter (Rules… / WIP limit…)
+// - (#7512) the "+" of an own section adds a task right there (one Undo takes it away), not on "Recently assigned"
 // Firefox 320 x 640 (touch): the section heads, their "…" and "New section" inside the screen, no sideways scrolling.
 // freelancer-matrix: tasks - frida has no organisation.
 const path = require('path');
@@ -67,6 +68,37 @@ const click = (w, el) => el.dispatchEvent(new w.MouseEvent('click', {bubbles: tr
   await w.eval(`dropTask(${TA}, document.querySelector('#view .ghead[data-key="${key(/Someday/)}"]'), 0)`);
   check(await until(() => inSec(/Someday/, TA)) && !inSec(/\bNow\b/, TA), '(7) an overdue task dragged by hand stays where it was put');
   check(JSON.stringify((await call(CF, 'GET', '/api/state')).tasks.filter(t => t.list_id === L).map(t => [t.id, t.sort, t.section_id])) === list0, 'the list\'s order and sections untouched');
+
+  // (#7512): the "+" of an own section - a new task right there (assigned to me, the Inbox as the quick add of My tasks), after
+  // a reload still there, Undo takes it away; "Recently assigned" has no "+"
+  check(head(/Soon/).querySelector('.gadd[data-sk="mine"]') && !head(/Recently assigned/).querySelector('.gadd'), '(#7512) "+" on an own section, none on "Recently assigned"');
+  click(w, head(/Soon/).querySelector('.gadd'));
+  let sai = await until(() => head(/Soon/)?.closest('.group')?.querySelector('.secadd-in'));
+  check(sai && d.activeElement === sai && /Soon/.test(sai.placeholder), '(#7512) the input right under Soon, focused ' + (sai && sai.placeholder));
+  sai.value = 'Call the plumber'; sai.dispatchEvent(new w.Event('input', {bubbles: true}));
+  sai.dispatchEvent(new w.KeyboardEvent('keydown', {key: 'Enter', bubbles: true, cancelable: true}));
+  const NT = await until(() => [...w.eval('S.tasks').values()].find(t => t.title === 'Call the plumber' && t.id > 0)?.id);
+  check(NT && await until(() => inSec(/Soon/, NT)), '(#7512) Enter adds it into Soon');
+  check(await until(async () => (await call(CF, 'GET', '/api/state')).mine_sections.tasks[NT] === sid(/Soon/)), '(#7512) the server keeps it in Soon');
+  const nts = (await call(CF, 'GET', '/api/state')).tasks.find(t => t.id === NT);
+  check(nts && nts.list_id !== L && nts.assignee_id === fu.id, '(#7512) mine, in the quick add\'s project (the Inbox) ' + JSON.stringify(nts && [nts.list_id, nts.assignee_id]));
+  sai = d.querySelector('#view .secadd-in');
+  sai?.dispatchEvent(new w.KeyboardEvent('keydown', {key: 'Escape', bubbles: true, cancelable: true}));
+  w.close?.();
+  w = await boot({user: 'frida', hash: 'assigned'}); d = w.document;
+  check(await until(() => inSec(/Soon/, NT)), '(#7512) after a reload still in Soon');
+  click(w, head(/Soon/).querySelector('.gadd'));
+  sai = await until(() => head(/Soon/)?.closest('.group')?.querySelector('.secadd-in'));
+  sai.value = 'Fix the gate'; sai.dispatchEvent(new w.Event('input', {bubbles: true}));
+  sai.dispatchEvent(new w.KeyboardEvent('keydown', {key: 'Enter', bubbles: true, cancelable: true}));
+  const N2 = await until(() => [...w.eval('S.tasks').values()].find(t => t.title === 'Fix the gate' && t.id > 0)?.id);
+  check(N2 && await until(() => inSec(/Soon/, N2)), '(#7512) a second one in Soon');
+  d.querySelector('#view .secadd-in')?.dispatchEvent(new w.KeyboardEvent('keydown', {key: 'Escape', bubbles: true, cancelable: true}));
+  await until(() => !d.querySelector('#view .secadd-in') && !w.eval('HIST.busy'));
+  d.body.dispatchEvent(new w.KeyboardEvent('keydown', {key: 'z', ctrlKey: true, bubbles: true, cancelable: true}));
+  check(await until(() => !inSec(/Soon/, N2)) && await until(async () => !(await call(CF, 'GET', '/api/state')).tasks.some(t => t.id === N2)),
+    '(#7512) one Undo takes the new task away (also from the section)');
+  check(inSec(/Soon/, NT), '(#7512) the first one stays');
 
   // a new section, rename, fold
   w.prompt = () => 'Errands';
