@@ -72,7 +72,13 @@ for lid, ms in ((W, (CL, BOB)), (W3, (CL, BOB, CAROL))):  # Carol only in the ta
 
 
 def wait_move(task):
+    from kt import circle_yes
     r = requests.patch(V + f"/tasks/{task}", headers=CLH, json={"list_id": W3})
+    # (#6453, #7142): Work -> Elsewhere (+ Carol) is a write into a wider circle: the circle's card first (alice says Yes),
+    # its step then waits for the move's approval as before (#2405)
+    e = (r.json().get("error") or {}) if r.status_code == 409 else {}
+    check(isinstance(e, dict) and e.get("circle") == "wider", f"the agent's move into a wider circle asks for its card {r.status_code} {r.text[:200]}")
+    r = circle_yes(r, CLH, CL, A, V, ALICE, base=B)
     check(r.status_code == 202, f"the agent's move waits {r.status_code} {r.text[:200]}")
     return (r.json().get("job") or {}).get("id")
 
