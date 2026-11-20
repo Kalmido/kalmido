@@ -502,7 +502,7 @@ function ofdEditorHtml() {
     <button type="button" class="btn sm" data-ofd="more" aria-haspopup="menu" aria-label="${esc(tr('More'))}">${ic('dots', 's')}</button></span>`;  // 2.356.0 C (#3004): "…" never wraps alone into a line of its own
   const head = `<div class="ofdhead">${back}<span class="ofdnum"><b>${inv ? `<span class="ofdkn">${esc(absKindName(d) || ofdKindName(kind, true))} </span>` : '' /* 2.936.0 (#5448): a phone puts the kind small above the number (office.css) */}${lk ? ic('lock', 's') + ' ' : ''}${esc(numTxt)}</b>${tri_tag(d) /* 2.144.10 C (#2576) */}${/*html-ok*/ ofd_marks(d, true) /* 2.1289.0 (#6481): tags built with esc() */}${typeof onumDocHtml === 'function' ? onumDocHtml(d) : ''}${d.number || lk || d.number_at_finalize || !adm || rd ? '' : `<button type="button" class="btn sm" data-ofd="number">${tr('Assign number')}</button>`}</span>
     ${stSel}<span class="spacer"></span>
-    <span class="ofdsave muted" aria-live="polite">${OFD.saving ? tr('Saving…') : OFD.err ? esc(OFD.err) : ''}</span>${btns}</div>`;
+    <span class="ofdsave muted" aria-live="polite">${OFD.saving ? tr('Saving…') : OFD.err ? esc(OFD.err) : ''}</span>${/*html-ok*/ btns /* the buttons, built above with esc() */}</div>`;
   const invFields = inv && kind !== 'reminder' ? `${ofdIssuerNote(d)}
     ${d.dup_times_from && !lk ? `<p class="cdnmiss" role="status">${ic('info', 's')} ${esc(tr('Copy of {0}: the hours of that invoice are already billed. This copy binds no times.', d.dup_times_from))}</p>` : ''}
     ${ofd_poF(d)}
