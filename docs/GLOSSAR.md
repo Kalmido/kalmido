@@ -905,7 +905,7 @@ The start-up module.
 - `static/js/asstprop.js` (`ast`) - Texts worded by a connected agent, on request
 - `static/js/attachments.js` (`md`) - Attachments and the share target
 - `static/js/backclose.js` (`f8d`) - On a touch device the Back key / swipe closes the topmost dialog, sheet, menu or the search palette instead of changing the route
-- `static/js/backnav.js` (`bn`) - Desktop only - a plain Back arrow at the left of the head bar (#top)
+- `static/js/backnav.js` (`bn`) - Back and Forward between the views of Kalmido: two arrows right before the bell (#7395), the keys and the mouse buttons
 - `static/js/basket.js` (`kb`) - #1185: the sidebar - one button folds / unfolds every group and folder at once (stored like a single fold)
 - `static/js/bookmarks.js` (`bm`) - Bookmarks: the view "Bookmarks"
 - `static/js/budget.js` (`bg`) - The household budget (module "budget", part of the area Home)

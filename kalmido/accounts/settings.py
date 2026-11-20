@@ -614,7 +614,7 @@ def wsp_clean_ws_colors(v):
 
 
 # 2.143.0 D (#2155): the keys of LOOK_KEYS (dialogs.js); the client decides what a value means, the server only bounds it
-LOOK_KEYS = ("theme", "density", "densitySide", "densityRows", "densSideV", "densRowsV", "fsize", "font", "accent", "pack", "headShow", "chatHuman", "chatAgent", "railLabels", "wkEd", "wkSt", "wkW", "ntW", "split", "splW", "splR", "splMin")  # 2.1040.0 (#5813): splMin = split from window width (px)  # 2.742.0 (#4858): split view on / right width (rem) / right route  # 2.599.0 (#4808): wkW / ntW = the default page width of knowledge pages / notes  # 2.319.0 B (#3288); 2.350.0 B (#3147): wkEd = the knowledge editor; 2.371.3 (#3152): wkSt = the own reading style
+LOOK_KEYS = ("theme", "density", "densitySide", "densityRows", "densSideV", "densRowsV", "fsize", "font", "accent", "pack", "headShow", "chatHuman", "chatAgent", "railLabels", "wkEd", "wkSt", "wkW", "ntW", "split", "splW", "splR", "splMin", "navArrows")  # 2.1040.0 (#5813); #7395: navArrows = Back / Forward in the header (a bool): splMin = split from window width (px)  # 2.742.0 (#4858): split view on / right width (rem) / right route  # 2.599.0 (#4808): wkW / ntW = the default page width of knowledge pages / notes  # 2.319.0 B (#3288); 2.350.0 B (#3147): wkEd = the knowledge editor; 2.371.3 (#3152): wkSt = the own reading style
 
 
 def clean_look_pref(v):
@@ -638,6 +638,8 @@ def clean_look_pref(v):
         if k in ("wkW", "ntW") and x not in ("breit", "voll"):  # 2.599.0 (#4808): a fixed choice ('' / lesen = never stored)
             continue
         if k == "splMin" and not (isinstance(x, (int, float)) and not isinstance(x, bool) and 0 < x <= 10000):  # 2.1040.0 (#5813): px, the client bounds it
+            continue
+        if k == "navArrows" and not isinstance(x, bool):  # #7395: on / off only (unset = the device's default)
             continue
         if k == "splR" and not (isinstance(x, str) and re.fullmatch(r"#[\w/:.,%-]{0,39}", x)):  # 2.742.0 (#4858): an app address only
             continue
