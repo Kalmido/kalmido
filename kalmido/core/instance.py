@@ -16,6 +16,7 @@ from ..core.schema import USER_DEFAULTS
 from ..core.i18n import LANGS, N_, tr
 from ..core.db import body, bump, connect, db, err, gset, gsetting, iso, now_utc, parse_iso, uset
 from ..core.pg import write_lock  # 2.528.0 (#4305)
+from ..core.env import env_str
 from ..core.pgbus import bus_on, bus_send  # 2.622.0 (#3891)
 from ..accounts.session import GATE, me
 from ..accounts.oidc import oidc_public, oidc_reauth
@@ -98,6 +99,7 @@ def about_info(c, u):
         from ..core.config import SECRET_KEY, SECRET_KEY_PROBLEM, SECRET_KEY_SRC
         d.update(secret_key=bool(SECRET_KEY), secret_key_problem=SECRET_KEY_PROBLEM, secret_key_src=SECRET_KEY_SRC)  # 2.45.0 (#1515)
         d.update(backup_tools_problem=gsetting(c, "bk_tools_problem"))  # 2.359.3 (#2945): "<pg_dump>|<server>", else empty
+        d.update(test_mode=env_str("KALMIDO_TEST") == "1")  # (#6871): Settings > Server names the open test routes
         # 2.513.0 (#4356): Administration > Server compares them with the address the page was opened on
         # (the extra passkey origins, read like accounts/login.py WA_ORIGINS_ENV: core does not import from accounts)
         from ..core.config import PUBLIC_URL, PUBLIC_URL_SET

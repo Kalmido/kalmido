@@ -42,7 +42,7 @@ function onumHtml() {
   const s = OFC.info?.settings || {}, sch = k => (k === 'offer' ? s.offer_scheme : s[k + '_scheme'] || s.offer_scheme) || '';
   const sig = [OFC.info?.org_id, s.offer_counter || 'org', s.credit_shared ? 1 : 0, ...Object.keys(ONUM_NAMES).map(sch)].join('|');  // 2.433.0 (#3597): + the shared counter
   if (ONUM.sig !== sig) { ONUM.sig = sig; ONUM.ranges = null; }  // another office area / a saved scheme: read again
-  if (!ONUM.ranges) { if (!ONUM.loading) setTimeout(onumLoad, 0); return `<div id="onum-box" class="onum" data-fg-skip></div>`; }
+  if (!ONUM.ranges) { if (!ONUM.loading) setTimeout(onumLoad, 0); return `<div id="onum-box" class="onum" data-fg-skip>${/*html-ok*/ loadingHtml('row') /* the shared block escapes its text */}</div>`; }  // (#7507): says it loads (was an empty box)
   const rows = onumRows().map(r => {
     // 2.433.0 (#3597): invoice corrections on the invoices' counter - the row greyed, the next number set with the invoices
     if (r.shared) return `<div class="row onumrow onumshared" data-kind="${r.kind}"><label for="onum-${r.kind}">${esc(tr(ONUM_NAMES[r.kind]))}</label>
@@ -62,7 +62,7 @@ function onumHtml() {
   const dirty = onumDirty().length > 0;
   return `<div id="onum-box" class="onum" data-fg-skip><h4>${tr('Next running number')}</h4><div class="shint">${esc(tr('With a year in the scheme it applies to the current year.'))}</div>
     <p class="muted ofchint">${esc(tr('E.g. to continue your previous program. Only upwards.'))}</p>
-    ${/*html-ok*/ ONUM.err ? errorState({sub: ONUM.err, size: 'row'}) /* 2.1076.0 (#5450) */ : ''}${rows}
+    ${/*html-ok*/ ONUM.err ? errorState({sub: ONUM.err, size: 'row', retry: () => { ONUM.err = ''; ONUM.ranges = null; onumRedraw(); }}) /* (#5450); (#7507): + Try again */ : ''}${rows}
     ${ONUM.ranges.some(r => !r.shared) ? `<div class="row onumfoot"><span class="lacts"><button type="button" class="btn sm" data-onum="nr-add">${ic('plus', 's')}<span>${tr('Add number range')}</span></button><button type="button" class="btn sm pri" data-onum="apply" ${dirty && !ONUM.busy ? '' : 'disabled'}>${tr('Apply')}</button></span></div>` : ''}</div>`;
 }
 // 2.1315.0 (#6472): the gaps of the series (the same check as the auditor's export, number_ranges.csv) - each range with its reason

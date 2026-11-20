@@ -1320,8 +1320,9 @@ async function wsp_ask(err) {
 // POST a new entry; asks for the workspace when the server needs one (space_needed) and sends again with it. null = cancelled.
 // o.quiet: another error is only thrown (a dialog shows it itself), not said as a toast
 async function wsp_post(url, body = {}, o = {}) {
-  try { return await rawFetch('POST', url, body); } catch (e) {
-    if (e?.data?.code === 'space_needed') { const ws = await wsp_ask(e); return ws == null ? null : o.quiet ? rawFetch('POST', url, {...body, space: ws}) : api('POST', url, {...body, space: ws}); }
+  const send = o.send || ((u, b) => rawFetch('POST', u, b));  // (#7507): a dialog's create brings its own (dlgCreate: the dialog's key)
+  try { return await send(url, body); } catch (e) {
+    if (e?.data?.code === 'space_needed') { const ws = await wsp_ask(e); return ws == null ? null : o.quiet ? send(url, {...body, space: ws}) : api('POST', url, {...body, space: ws}); }
     if (e instanceof Offline) return api('POST', url, body);
     if (!o.quiet && e?.message !== 'auth' && !e?.shown) { toast(errText(e, apiWhat('POST', url, body))); e.shown = true; }
     throw e;

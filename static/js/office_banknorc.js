@@ -217,7 +217,7 @@ document.addEventListener('change', async e => {
 // and the upload / drop field of the booking (the receipt is matched at once, as on every row). Below the list: the providers
 // with their portal link, the hint on / off and "No receipt needed" (their bookings leave this list); the days. Every field
 // saves itself, one undo step each.
-const BNV = {oid: null, data: null, loading: false, open: false, all: false};
+const BNV = {oid: null, data: null, loading: false, open: false, all: false, err: ''};
 const BNV_HINTS = 5;  // hints shown before "Show all"
 const BNV_EVERY = {week: N_('Weekly'), month: N_('Monthly'), quarter: N_('Quarterly'), year: N_('Yearly')};
 function bnv_missHtml(hs) {
@@ -233,7 +233,7 @@ function bnv_missHtml(hs) {
 async function bnv_load() {
   if (BNV.loading) return;
   BNV.loading = true;
-  try { BNV.data = await api('GET', '/api/office/bank/vendors'); } catch (x) { BNV.data = false; }
+  try { BNV.data = await api('GET', '/api/office/bank/vendors', undefined, {quiet: true}); BNV.err = ''; } catch (x) { BNV.data = false; BNV.err = ofcErrHere(x); }  // (#7507): the section says it, not a toast
   BNV.loading = false;
   ofcDraw();
 }
@@ -241,7 +241,8 @@ async function bnv_load() {
 histReloader('bank-vendors', () => { if (!BNV.data) return; if (S.route.mod === 'office') return bnv_load(); BNV.data = null; });
 function bnv_html() {
   if (BNV.oid !== OFC.info?.org_id) Object.assign(BNV, {oid: OFC.info?.org_id, data: null});
-  if (BNV.data === false) return '';
+  // (#7507): a failed load keeps the section with the error block and Try again (it used to vanish)
+  if (BNV.data === false) return `<details class="bnvlist" open><summary data-bnv-open>${tr('Recurring providers')}</summary>${/*html-ok*/ errorState({sub: BNV.err || undefined, size: 'sec', retry: () => { BNV.data = null; BNV.err = ''; ofcDraw(); }}) /* the shared block escapes its texts */}</details>`;
   if (!BNV.data) { if (!BNV.loading) setTimeout(bnv_load, 0); return ''; }
   const vs = BNV.data.items || [];
   const rows = vs.length ? `<ul class="bnklist" role="list">${vs.map(v => {

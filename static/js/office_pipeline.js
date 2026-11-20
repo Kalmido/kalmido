@@ -122,7 +122,7 @@ function pp_modal(x, stage) {
     $('.pplost', md).hidden = v !== 'lost';
     if (lf) { $('.leadf', md).hidden = v !== 'lead'; $$('.ppnolead', md).forEach(r => { r.hidden = v === 'lead'; }); }
   });
-  md.addEventListener('click', async e => {
+  md.addEventListener('click', busyClick(async e => {
     const b = e.target.closest('[data-m]'); if (!b) return;
     if (b.dataset.m === 'close') { close(); return; }
     const err = m => { const el = $('.aerr', md); if (el) el.textContent = m || ''; };
@@ -136,7 +136,7 @@ function pp_modal(x, stage) {
         return;
       }
       if (b.dataset.m === 'offer') {
-        const j = await api('POST', `/api/office/deals/${x.id}/offer`); md.remove(); pp_reload();
+        const j = await dlgCreate(md, `/api/office/deals/${x.id}/offer`); md.remove(); pp_reload();  // (#7507): busy, the dialog's id: one quotation
         if (typeof OFD === 'object') { OFD.list = null; OFD.kind = 'offer'; }
         toast(tr('Quotation draft created'), async () => { await api('DELETE', `/api/office/docs/${j.doc_id}`); await undoWrite(`/api/office/deals/${x.id}`, {offer_id: null, stage: x.stage, probability: x.probability}, j.deal?.updated_at, {label: x.title}).catch(() => null); pp_reload(); });  // 2.566.0 (#4704): the deal against the version the offer left
         go(`office/offers/${j.doc_id}`);
@@ -144,7 +144,7 @@ function pp_modal(x, stage) {
       }
       if (b.dataset.m === 'convert') { await leadConvert(x, md); return; }  // 2.94.0 A (#1930)
       if (b.dataset.m === 'project') {
-        const j = await api('POST', `/api/office/deals/${x.id}/project`); md.remove(); pp_reload();
+        const j = await dlgCreate(md, `/api/office/deals/${x.id}/project`); md.remove(); pp_reload();  // (#7507): one project
         if (typeof load === 'function') await load();
         if (typeof modulesOnToast === 'function') modulesOnToast(j.modules_on);
         toast(tr('Project created'), async () => { await api('PATCH', `/api/lists/${j.list_id}`, {archived: true}); await undoWrite(`/api/office/deals/${x.id}`, {list_id: null}, j.deal?.updated_at, {label: x.title}).catch(() => null); pp_reload(); if (typeof load === 'function') await load(); });  // 2.566.0 (#4704): the deal against the version the project left
@@ -169,7 +169,7 @@ function pp_modal(x, stage) {
       pp_itemSet(j, tmp); pp_refresh();
       toast(tr('Added'), async () => { await api('DELETE', `/api/office/deals/${j.id}`); pp_refresh(); });
     } catch (x2) { err(x2.message); }
-  });
+  }, '[data-m="offer"],[data-m="project"],[data-m="convert"]'));
   setTimeout(() => $('#pp-title', md)?.focus(), 30);
   return md;
 }

@@ -1802,6 +1802,37 @@ function errorState(o = {}) {
   return emptyState({icon: 'alert', title: o.title || tr('Could not be loaded'), size: o.size, cls: 'eerr' + (o.cls ? ' ' + o.cls : ''), action: act,
     sub: o.sub ?? (navigator.onLine === false ? tr('You are offline') : tr('Check the connection and try again.'))});
 }
+// (#7507): the one save run of a dialog button (Save / Add / OK): while it runs the button is disabled and marked busy
+// (aria-busy, "…" via CSS), a second press does nothing; afterwards it works again (an error stays in the dialog). -> fn's result
+async function busyRun(btn, fn) {
+  if (!btn) return fn();
+  if (btn.dataset.busy) return undefined;
+  btn.dataset.busy = '1'; btn.disabled = true; btn.setAttribute('aria-busy', 'true');
+  try { return await fn(); } finally { delete btn.dataset.busy; btn.disabled = false; btn.removeAttribute('aria-busy'); }
+}
+// (#7507): a dialog's click handler whose Save / Add / OK button (sel) runs through busyRun: md.addEventListener('click', busyClick(async e => ...))
+const busyClick = (fn, sel = '[data-m="save"],[data-m="ok"]') => e => busyRun(e.target.closest?.(sel), () => fn(e));
+// (#7507): opening a dialog that loads first: the thin loading bar (lazyload.js ld_bar, after 300 ms) while it loads, and a
+// second tap on the same thing (key) while it opens does nothing (it used to open twice). -> fn's result
+const OPEN_ONCE = new Set();
+async function openOnce(key, fn) {
+  if (OPEN_ONCE.has(key)) return undefined;
+  OPEN_ONCE.add(key); if (typeof ld_bar === 'function') ld_bar(1);
+  try { return await fn(); } finally { OPEN_ONCE.delete(key); if (typeof ld_bar === 'function') ld_bar(-1); }
+}
+// (#7507): a dialog's own id for what it creates (like the cash book's client_ref), the same for every press of this dialog:
+// sent as the Idempotency-Key (rawFetch key), a second press or a retry after a lost answer gets the first answer, nothing twice.
+// Kept on the dialog element md; a write without an answer of its own (the server's short answer) is reloaded by the caller.
+// #7494 review F2: the key follows what is sent (url + body): a field changed after "not saved" is a new create with the new
+// content, not the first answer for the old one; the same content again stays one create.
+const dlgHash = t => { let h = 2166136261; for (let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619); return (h >>> 0).toString(36); };
+const dlgKey = (md, url = '', body) => md ? 'dlg-' + (md._dlgKey ||= outKey()) + '-' + dlgHash(url + '\n' + (body instanceof FormData ? '' : JSON.stringify(body ?? null))) : undefined;
+// (#7507): a dialog's create: rawFetch with the dialog's id (dlgKey); the dialog shows the error itself (no toast on top).
+// A repeat's short answer (_replayed: ok, ids, updated_at) gets the fields that were sent, so the caller can name what it made.
+const dlgCreate = async (md, url, body, method = 'POST') => {
+  const j = await rawFetch(method, url, body, dlgKey(md, url, body));
+  return j?._replayed && body && typeof body === 'object' && !(body instanceof FormData) && !Array.isArray(j) ? Object.defineProperty({...body, ...j}, '_replayed', {value: true}) : j;
+};
 const noAccessState = (o = {}) => emptyState({icon: 'lock', title: o.title || tr('No access'), sub: o.sub ?? tr('Ask the owner to share it with you.'), size: o.size, cls: 'enoacc' + (o.cls ? ' ' + o.cls : ''), action: o.action});  // 2.1076.0 (#5450): + action (the office's "Submit receipt")
 // 2.1205.0 (#6133): a project address without a project (deleted, no access, a typo): the shared state with the way to Projects,
 // no section, no add field and no + (nothing could be added there)

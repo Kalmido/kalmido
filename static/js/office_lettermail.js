@@ -55,7 +55,7 @@ async function ltmBlocksModal(pick) {
         ${pick ? `<button type="button" class="btn sm" data-m="edit" data-id="${b.id}" aria-label="${esc(tr('Edit'))}" title="${esc(tr('Edit'))}">${ic('edit', 's')}</button>` : ''}</div></li>`).join('')
       : `<li>${/*html-ok*/ q ? ofcNoHit('', 'row') : emptyState({title: tr('No text blocks yet. Add a sample or write your own.'), size: 'row'})}</li>`;  // 2.1076.0 (#5450)
   };
-  const reload = async () => { try { blocks = (await api('GET', '/api/office/letter-blocks')).blocks || []; draw(); } catch (x) { /* the list stays */ } };
+  const reload = async () => { try { blocks = (await api('GET', '/api/office/letter-blocks')).blocks || []; draw(); } catch (x) { ofcErr(x); /* (#7507): said once; the list stays */ } };
   draw();
   $('#ltm-q', md).addEventListener('input', draw);
   setTimeout(() => $('#ltm-q', md)?.focus(), 0);

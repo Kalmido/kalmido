@@ -599,6 +599,19 @@ const j = await objSaveForm(md, url, rec, body);   // saveDialog against rec (md
 catch (x) { if (await objConflict(md, x, state => openDialog(state))) return; ... }
 ```
 
+A dialog on a slow connection (#7507) uses the helpers of `static/js/render.js`, never its own flags:
+
+```js
+md.addEventListener('click', busyClick(async e => { ... }));  // Save / Add / OK disabled + aria-busy while it runs, a 2nd press = nothing
+const j = await dlgCreate(md, url, body);   // a create with the dialog's own id (dlgKey) as Idempotency-Key: a 2nd press or a
+                                            // retry after a lost answer gets the first answer (only ok, ids, updated_at, plus
+                                            // the fields sent); the key follows url + body: changed content = a new create
+await openOnce('my-sheet', () => load());   // a dialog that loads before it opens: the loading bar, one open at a time
+```
+
+A load that fails shows `errorState({retry})` (never "does not exist" / "nothing found" / an empty place); a failed write is
+said (the dialog's `.aerr`, or `ofcErr` in the office). The time limit and the key of every other write come with rawFetch (#7494).
+
 ### The area's "New" (2.1469.0, #6370)
 
 A new area does not draw its own create button. It registers its main object in `static/js/core.js`:
@@ -1818,3 +1831,37 @@ Test: `tests/p21437_a_grip_ui.js` (a test page with one grip of each form).
   question for one workspace (`oid` None = Private). For whatever lands somewhere without the person naming the workspace:
   a new client (`team/clients.py cl_ws_default`) never goes silently where its list hides it. The browser names the
   workspace under "All" itself (`clientdlg.js cl_newWs`). Test: `tests/p21441_clientws_test.py`.
+
+## No request hangs without a word: the time limit of the client (#7494)
+
+Every request of the browser goes through `rawFetch` (`static/js/core.js`) and has a time limit; there is no second
+mechanism per view. The limits are one constant, `NET_T` (ms): `r` a read (15 s), `w` a write (20 s), `long` a long task
+(5 min). The limit counts until the answer's head arrives; reading the body then gets `NET_T.long` (a slow line that brings
+a big state is no hang).
+
+- **Long tasks** get `NET_T.long` without the caller naming it: a form with files, and every address with a path part of
+  `NET_LONG` (import, export, zip, backup, bank / FinTS, Peppol, DATEV, PDF, OCR, scan, send / mail, newsletter, sync,
+  agents and AI, finalize, upload ...). A route that is slow and not in that list belongs into it; a single caller may also
+  name its own limit (`rawFetch(..., lim)`, `api(method, url, body, {lim})`, `0` = none). An upload with the progress bar
+  (`upbar.js`) has no limit: its Cancel is the way out.
+- **Read** (GET) without an answer: tried once more without a word, then `NoAnswer` is thrown (status 408, `data.code`
+  `no_answer`). The view shows its error block with "Try again" (`errorState`, `ofcFail`); a failed load waits for that
+  button and is not started again by every draw.
+- **Write** without an answer: `NoAnswer` (not `Offline`, not saved). Every write carries an `Idempotency-Key` (the
+  caller's, else its own; `kalmido/core/idem.py`), so `e.retry()` sends the very same request with the same key: applied
+  once, also when the first try did reach the server. `api()` says it once with `netAgain(e, what, then)`: "Not saved: no
+  answer from the server" with "Try again", then "Saved" (or the caller's `then`). The office's `ofcErr` does the same. A
+  repeat may bring the short stored answer (ok, ids, `updated_at`; marked `j._replayed`): the caller reads the object anew.
+  The client's own key starts with `n.` (`IDEM_NET`): it keeps only the short answer, also on `IDEM_FULL` (no sealed text in
+  `idem_keys`), and `idem_prune` drops it after `IDEM_NET_S` (an hour), so it never crowds the outbox keys out of
+  `IDEM_MAX_KEYS`. Presence pings (`/seen`, `/typing`, `/editing`) carry no key.
+- **The outbox** (tasks, habits, times) keeps such an entry like a server error (408) and sends it again later with its key.
+- **Raw fetch()** where a caller needs the Response itself (a refusal must not reload the page, bytes, a stream): `netRaw(url,
+  opt, lim)` - the same limit; `ofc_spFetch` goes through it.
+- **The quotation editor** (`office_docs.js ofd_save1`): "Try again" goes through the editor's row of saves with the key and
+  version of the first try (never over a later save: then the conflict bar). While further saves of the document wait in the
+  row, an answer only gives what the server assigns and computes (version, sums, ids of new lines, new parts) and the local
+  positions stay (#7509, `ofd_take`); the building block "write shows at once" (#7493) takes both over.
+
+Tests shorten the limits (`w.eval('NET_T.w = 400')`) and hold answers back: `tests/p7494_zeitgrenze_ui.js`,
+`tests/p7509_editor_kette_ui.js`.

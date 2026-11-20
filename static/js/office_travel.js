@@ -412,15 +412,15 @@ async function rk_billModal(t) {
     <div class="aerr" role="alert"></div>
     <div class="foot"><span class="spacer"></span><button class="btn" data-m="close">${tr('Cancel')}</button>${docs.length ? `<button class="btn pri" data-m="save">${tr('Bill on')}</button>` : ''}</div>`);
   md.classList.add('ofcdlg');
-  md.addEventListener('click', async e => {
+  md.addEventListener('click', busyClick(async e => {
     const b = e.target.closest('[data-m]'); if (!b) return;
     if (b.dataset.m === 'close') { md.remove(); return; }
     try {
-      const j = await api('POST', '/api/office/trips/bill', {doc_id: +$('#rk-doc', md).value, item_ids: ids, markup_pct: ofcNum($('#rk-mk', md).value), one: $('#rk-one', md)?.checked ? 1 : 0});
+      const j = await dlgCreate(md, '/api/office/trips/bill', {doc_id: +$('#rk-doc', md).value, item_ids: ids, markup_pct: ofcNum($('#rk-mk', md).value), one: $('#rk-one', md)?.checked ? 1 : 0});
       md.remove(); RK.sel.clear(); rk_reload();
-      toast(tr('Billed on {0}', j.number || tr('Draft')), async () => { await api('POST', '/api/office/trips/unbill', {item_ids: j.items, positions: j.positions}); rk_reload(); });
+      toast(tr('Billed on {0}', j.number || tr('Draft')), j.items ? async () => { await api('POST', '/api/office/trips/unbill', {item_ids: j.items, positions: j.positions}); rk_reload(); } : undefined);  // (#7507): busy + the dialog's id (billed once); a repeat's short answer has no undo
     } catch (x) { const el = $('.aerr', md); if (el) el.textContent = ofcErrHere(x); }
-  });
+  }));
 }
 
 function rk_tripClose() { RK.open = null; RK.sel.clear(); ofcDraw(); }

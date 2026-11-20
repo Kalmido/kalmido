@@ -13,10 +13,13 @@ if (typeof fgWatch === 'function') fgWatch(() => !!OIM.pv || OIM.arch.some(x => 
 // list of runs, a counter that stays on "Loading…" or a template choice that is simply missing
 async function oimLoad() {
   const e = OIM.errs = {};
-  try { const j = await api('GET', '/api/office/legacy/runs'); OIM.runs = j.runs || []; } catch (x) { OIM.runs = []; e.runs = ofcErrHere(x); }
-  try { OIM.counter = await api('GET', '/api/office/legacy/counter'); } catch (x) { OIM.counter = null; e.counter = ofcErrHere(x); }
-  try { OIM.fnt = await api('GET', '/api/office/legacy/archive/templates'); } catch (x) { OIM.fnt = null; e.fnt = ofcErrHere(x); }  // 2.621.0 (#4600)
-  await fx8a_oimClients();
+  // (#7507): the four at once (were one after the other), each with its own error block as before
+  await Promise.all([
+    api('GET', '/api/office/legacy/runs').then(j => { OIM.runs = j.runs || []; }, x => { OIM.runs = []; e.runs = ofcErrHere(x); }),
+    api('GET', '/api/office/legacy/counter').then(j => { OIM.counter = j; }, x => { OIM.counter = null; e.counter = ofcErrHere(x); }),
+    api('GET', '/api/office/legacy/archive/templates').then(j => { OIM.fnt = j; }, x => { OIM.fnt = null; e.fnt = ofcErrHere(x); }),  // (#4600)
+    fx8a_oimClients()]);
+  ofcDraw();  // (#7507): the clients may come first (their draw then still shows the page loading): drawn once all are there
 }
 // "Try again" of a part: the whole page reads again (oimHtml starts oimLoad while OIM.runs is null)
 const oim_fail = (k, size = 'row') => ofcFail(OIM.errs?.[k], () => { OIM.runs = null; OIM.counter = null; OIM.fnt = null; OIM.errs = {}; }, size);
@@ -187,7 +190,7 @@ function oimArchHtml() {
       <label class="oimfl w2"><span>${tr('Client')}</span><select data-oim-a="${i}" data-k="client_id" ${x.done ? 'disabled' : ''}>${oimClientOpts(x.client_id)}</select></label>
       <label class="oimfl"><span>${tr('Amount')}</span><input data-oim-a="${i}" data-k="amount" value="${esc(x.amount ?? '')}" inputmode="decimal" class="numin" placeholder="${esc(x.kind === 'invoice' ? tr('gross') : tr('net'))}" ${x.done ? 'disabled' : ''}></label>
       <label class="chkl oimfl"><input type="checkbox" data-oim-a="${i}" data-k="paid" ${x.paid ? 'checked' : ''} ${x.done || x.kind !== 'invoice' ? 'disabled' : ''}> ${tr('Paid')}</label></div>${oimAddrHtml(x, i)}</li>`).join('')}</ul>
-    <div class="foot stfoot oimfoot"><span class="spacer"></span><button type="button" class="btn" data-oim="arch-clear">${tr('Clear list')}</button><button type="button" class="btn pri" data-oim="arch-go" ${n && !OIM.archBusy ? '' : 'disabled'}>${OIM.archBusy ? esc(tr('Archiving…')) : esc(trn('Archive {0} document', 'Archive {0} documents', n))}</button></div>`;
+    <div class="foot stfoot oimfoot"><span class="spacer"></span><button type="button" class="btn" data-oim="arch-clear">${tr('Clear list')}</button><button type="button" class="btn pri" data-oim="arch-go" ${n && !OIM.archBusy ? '' : 'disabled'}>${OIM.archBusy ? esc(OIM.archN ? tr('Archiving {0} of {1}…', OIM.archAt, OIM.archN) : tr('Archiving…')) : esc(trn('Archive {0} document', 'Archive {0} documents', n))}</button></div>`;
 }
 
 // 2.40.0 (#1421): the recipient's address read from page 1 of the PDF and the proposals (each only with a tick)
@@ -397,11 +400,12 @@ async function oimPickPdf(files) {
 async function oimArchiveGo() {
   const todo = OIM.arch.filter(x => !x.done);
   if (!todo.length) return;
-  OIM.archBusy = true; ofcDraw();
+  OIM.archBusy = true; OIM.archAt = 0; OIM.archN = todo.length; ofcDraw();
   let run;
   try { run = (await api('POST', '/api/office/legacy/archive/run')).run_id; } catch (x) { ofcErr(x); OIM.archBusy = false; ofcDraw(); return; }
   let ok = 0;
   for (const x of todo) {
+    OIM.archAt++; ofcDraw();  // (#7507): the button says which file of how many (Archiving {0} of {1}…)
     const fd = new FormData();
     fd.append('file', x.file, x.file_name);
     const amt = String(x.amount ?? '').trim().replace(/\s/g, '');
@@ -416,7 +420,7 @@ async function oimArchiveGo() {
       x.done = true; x.err = ''; ok++;
     } catch (e) { x.err = ofcErrHere(e); }
   }
-  OIM.archBusy = false; OIM.list = null;
+  OIM.archBusy = false; OIM.archN = 0; OIM.list = null;
   toast(trn('{0} document archived', '{0} documents archived', ok));
   await oimLoad();
 }

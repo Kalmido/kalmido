@@ -361,7 +361,7 @@ VARS = (
     # ---- tests and development
     _v("KALMIDO_TEST_TIMING_ALL", "", "Tests: Server-Timing for every account, not only instance admins (1).", "test"),  # 2.360.2 (#2561)
     _v("KALMIDO_TEST_ROT_ABORT", "", "Tests: stop the key rotation right after the switch (1).", "test"),
-    _v("KALMIDO_TEST", "0", "Switch: marks a test container (set by tests/start.sh); only then KALMIDO_TEST_NOW and KALMIDO_TEST_RATE_WINDOW_S work. Never on a real server.", "test"),
+    _v("KALMIDO_TEST", "0", "Switch: marks a test container (set by tests/start.sh); only then KALMIDO_TEST_NOW and KALMIDO_TEST_RATE_WINDOW_S work. Never on a real server: it opens test routes that bypass the separation of accounts; every start warns in the log and admins see it in Settings > Server.", "test"),
     _v("KALMIDO_TEST_NOW", "", "Test containers only (with KALMIDO_TEST=1): the server clock starts at this ISO time and runs on from there.", "test"),
     _v("KALMIDO_TEST_RQ_WINDOW_S", "3600", "Test containers only (with KALMIDO_TEST=1): seconds of the hourly limits of requests by e-mail.", "test"),  # 2.1322.0 (#6560)
     _v("KALMIDO_TEST_RATE_WINDOW_S", "60", "Test containers only (with KALMIDO_TEST=1): seconds of the request rate window instead of a minute.", "test"),  # 2.522.0 (#4180)

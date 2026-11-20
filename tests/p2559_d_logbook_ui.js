@@ -97,6 +97,24 @@ async function round(who, ck) {
   check(await until(() => toastHas(/Saved/)), `${who}: "Saved" after the answer`);
   unhold(w);
 
+  // ================= (#7507): a refresh in flight across an at-once change: its older answer does not put the old destination back
+  hold(w, /^(GET \/api\/office\/drives\?|PATCH \/api\/office\/drives\/\d+$)/);
+  w.eval('window.__rfd = 0; lbRefresh().then(() => { window.__rfd = 1; })');
+  check(await until(() => w.__held.some(h => /\/drives\?/.test(h.u))), `${who}: race: the refresh's drives are held`);
+  click(w, rowOf(/Hamburg/)); await until(() => dlg()?.querySelector('#lgb-dest')?.value === 'Kiel Hafen');
+  dlg().querySelector('#lgb-dest').value = 'Kiel Süd'; click(w, dlg().querySelector('[data-m="save"]'));
+  check(await until(() => w.__held.some(h => /\/drives\/\d+$/.test(h.u))), `${who}: race: the Save is held`);
+  check(await until(() => /Kiel Süd/.test(rowOf(/Hamburg/)?.textContent || '')), `${who}: race: the row shows the new destination`);
+  w.__held.find(h => /\/drives\?/.test(h.u)).go();
+  check(await until(() => w.eval('window.__rfd') === 1), `${who}: race: the older refresh is through`);
+  check(/Kiel Süd/.test(rowOf(/Hamburg/)?.textContent || ''), `${who}: race: the row still shows the new destination (the older answer is dropped)`);
+  w.__held.find(h => /\/drives\/\d+$/.test(h.u)).go();
+  check(await until(async () => (await onServer()).find(x => x.id === kiel.id)?.dest === 'Kiel Süd'), `${who}: race: the server stores it`);
+  unhold(w);
+  check((await call(ck, 'PATCH', `/api/office/drives/${kiel.id}`, {dest: 'Kiel Hafen'})).http === 200, `${who}: race: back to Kiel Hafen for the next part`);
+  w.eval('lbRefresh()');
+  check(await until(() => /Kiel Hafen/.test(rowOf(/Hamburg/)?.textContent || '')), `${who}: race: the row shows Kiel Hafen again`);
+
   // ================= saved elsewhere meanwhile (#4700 on the at-once path): the row goes back, the dialog opens again with the input and
   // 2.576.0 (#4794): the shared merge bar of objsave.js ("Take theirs" instead of the own "Reload")
   check(await until(() => (LBrow => LBrow && LBrow.updated_at)(w.eval(`LB.drives.find(x => x.id === ${kiel.id})`))), `${who}: the row knows its version`);

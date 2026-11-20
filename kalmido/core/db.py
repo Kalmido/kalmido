@@ -15,7 +15,7 @@ from werkzeug.security import generate_password_hash
 from ..core.config import app, ATT_DIR, BOOT_NAME, BOOT_PROXY, BOOT_USER, DATABASE_URL, DB, NTFY_TOPIC, ONBOARDING_ENV, PUBLIC_URL, TZ
 from ..core.config import APP_VERSION
 from ..core import config as skfp_cfg  # 2.190.0 B (#2592): the server key for skfp_check
-from ..core.env import env_bool, env_int
+from ..core.env import env_bool, env_int, env_str
 from ..core.pg import (  # noqa: F401  (re-exported: the app imports the database API from here)
     Conn, DatabaseError, DataError, Error as DbError, IntegrityError, OperationalError, Row, UniqueViolation, connect_direct,
     connect_pooled, insert_id, like_escape, qi, table_columns, table_exists, table_names, wait_ready, write_lock,
@@ -750,6 +750,17 @@ def skfp_fresh_blockers(c, limit=5):
         return ["(unknown)"]
     c.execute("RELEASE SAVEPOINT skfp_fresh")
     return out[:limit]
+
+
+def test_mode_warn():
+    """(#6871): KALMIDO_TEST=1 opens test routes that bypass the tenant separation (/api/test/objrole ?as=, core/objlight.py);
+    every server start names it loudly (app.py, the first web process). The start is not refused: the test containers run the
+    switch together with KALMIDO_HOSTED=1. Admins also see it in Settings > Server (about_info test_mode)."""
+    if env_str("KALMIDO_TEST") == "1":
+        print("WARNING test mode: KALMIDO_TEST=1 is set -- test routes are open (they bypass the separation of accounts and "
+              "organisations). Never on a real server: remove KALMIDO_TEST from .env / compose and restart.", file=sys.stderr, flush=True)
+        return True
+    return False
 
 
 def skfp_warn_changed():

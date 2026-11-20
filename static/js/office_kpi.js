@@ -23,8 +23,10 @@ const kp_mon = ym => { const [y, m] = ym.split('-').map(Number); return new Date
 function kp_html() {
   if (KPS.oid !== OFC.info?.org_id) Object.assign(KPS, {oid: OFC.info?.org_id, data: null, err: null});  // another office area
   if (!ofcAdmin()) return ofcLockedHtml();  // 2.356.0 D (#3006): why, and the way to hand in receipts
-  if (KPS.err) return ofcFail(KPS.err, () => { KPS.err = null; KPS.data = null; });  // 2.1076.0 (#5450)
-  if (!KPS.data || KPS.q !== (KPS.year ? `?year=${KPS.year}` : '')) { setTimeout(() => { if (!KPS.data || KPS.q !== (KPS.year ? `?year=${KPS.year}` : '')) kp_load(); }, 0); if (!KPS.data) return loadingHtml('big'); }
+  if (KPS.err && !KPS.data) return ofcFail(KPS.err, () => { KPS.err = null; KPS.data = null; });  // (#5450)
+  // (#7507): a reload that failed keeps the figures shown (their year in the bar) with an error row and Try again above them
+  const errRow = KPS.err ? errorState({sub: KPS.err, size: 'row', retry: () => { KPS.err = null; kp_load(); }}) : '';
+  if (!KPS.err && (!KPS.data || KPS.q !== (KPS.year ? `?year=${KPS.year}` : ''))) { setTimeout(() => { if (!KPS.data || KPS.q !== (KPS.year ? `?year=${KPS.year}` : '')) kp_load(); }, 0); if (!KPS.data) return loadingHtml('big'); }
   const d = KPS.data, r = d.revenue, y = d.year, thisY = +String(d.today).slice(0, 4);
   const bar = `<div class="ofcbar"><button class="iconbtn" data-kp="prev" aria-label="${esc(tr('Earlier'))}" title="${esc(tr('Earlier'))}">${ic('left', 's')}</button><b>${y}</b>${y < thisY ? `<button class="iconbtn" data-kp="next" aria-label="${esc(tr('Later'))}" title="${esc(tr('Later'))}">${ic('right', 's')}</button><button class="btn sm ghost" data-kp="now">${tr('This year')}</button>` : ''}</div>`;
   const tile = (label, val, sub = '', go = '', extra = '') => `<${go ? `button type="button" data-kp="go" data-go="${go}"` : 'div'} class="kptile ${extra}"><small class="muted">${esc(label)}</small><b>${val}</b>${sub ? `<small class="muted">${sub}</small>` : ''}</${go ? 'button' : 'div'}>`;
@@ -58,7 +60,7 @@ function kp_html() {
       ${c.projects.map(p => `<div class="kprow kpproj"><a href="#l/${p.id}">${ic('brief', 's')}<span>${esc(p.name)}</span></a><span>${hrs(p.hours, p.budget_h)}</span>${pct(p.pct_h, p.pct_h >= 100 ? 'over' : p.pct_h >= 80 ? 'warn' : '')}</div>`).join('')}</li>`;
   }).join('')}</ul>` : emptyState({icon: 'users', title: tr('No client with hours, a budget or invoices yet.'), size: 'sec'});  // 2.1076.0 (#5450)
   // 2.298.0 A2 (#3186): the margin formula behind the (i) of the heading, only the revenue rule stays visible
-  return bar + tiles + chart + `<h3 class="ofcgrp">${tr('Clients: budget and margin')}</h3><div class="shint">${tr('Margin = invoiced (net) minus purchases of accepted quotations and travel expenses of the client. Hours as you see them in the projects.')}</div>` + cl
+  return bar + errRow + tiles + chart + `<h3 class="ofcgrp">${tr('Clients: budget and margin')}</h3><div class="shint">${tr('Margin = invoiced (net) minus purchases of accepted quotations and travel expenses of the client. Hours as you see them in the projects.')}</div>` + cl
     + `<p class="muted ofchint">${tr('Revenue = payments received on invoices, net.')}</p>`;
 }
 
@@ -100,8 +102,8 @@ function kp_openItems(st = 'open') {
 document.addEventListener('click', e => {
   const b = e.target.closest?.('[data-kp]'); if (!b) return;
   const a = b.dataset.kp, cur = KPS.data ? +String(KPS.data.today).slice(0, 4) : new Date().getFullYear();
-  if (a === 'prev' || a === 'next') { KPS.year = (KPS.year || cur) + (a === 'prev' ? -1 : 1); if (KPS.year >= cur) KPS.year = 0; ofcDraw(); }
-  else if (a === 'now') { KPS.year = 0; ofcDraw(); }
+  if (a === 'prev' || a === 'next') { KPS.err = null; KPS.year = (KPS.year || cur) + (a === 'prev' ? -1 : 1); if (KPS.year >= cur) KPS.year = 0; ofcDraw(); }
+  else if (a === 'now') { KPS.err = null; KPS.year = 0; ofcDraw(); }
   else if (a === 'tip') toast(b.dataset.t);
   else if (a === 'go') {
     const g = b.dataset.go;

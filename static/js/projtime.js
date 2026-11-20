@@ -43,11 +43,12 @@ async function tz_open(ids, name) {
     <div class="foot"><a class="btn" id="tz-csv" download>${ic('download', 's')} CSV</a><button class="btn" data-m="tz-open">${tr('Open in time tracking')}</button><span class="spacer"></span><button class="btn" data-m="close">${tr('Close')}</button></div>
     ${one && !isViewer(one) ? `<div class="tzdanger"><button class="btn danger" data-m="tz-wipe">${ic('trash', 's')} ${tr('Delete all times of this project')}</button></div>` : ''}`);
   md.classList.add('tzmodal');
+  let seq = 0;  // (#7507): only the answer of the last chosen period is drawn (a slower earlier one never overwrites it)
   const load = async () => {
-    const q = tz_query(ids, per, from, to), box = $('#tz-body', md);
+    const q = tz_query(ids, per, from, to), box = $('#tz-body', md), my = ++seq;
     $('#tz-csv', md).href = '/api/time/export.csv?' + q;
-    try { const d = await rawFetch('GET', '/api/time/report?' + q); if (box.isConnected) box.innerHTML = tz_body(ids, d); }
-    catch (e) { box.innerHTML = `<div class="muted mhint">${e instanceof Offline ? tr('Only available online.') : esc(e.message)}</div>`; }
+    try { const d = await rawFetch('GET', '/api/time/report?' + q); if (my === seq && box.isConnected) box.innerHTML = tz_body(ids, d); }
+    catch (e) { if (my === seq) box.innerHTML = `<div class="muted mhint">${e instanceof Offline ? tr('Only available online.') : esc(e.message)}</div>`; }
   };
   $('#tz-per', md).onchange = e => { per = e.target.value; $('#tz-cust', md).hidden = per !== 'custom'; if (per !== 'custom' || (from && to)) load(); };
   $('#tz-from', md).onchange = e => { from = e.target.value; if (from && to) load(); };

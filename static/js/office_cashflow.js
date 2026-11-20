@@ -12,10 +12,11 @@ const rk_ym = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1)
 const rk_ymAdd = (ym, n) => { const [y, m] = ym.split('-').map(Number); return rk_ym(new Date(y, m - 1 + n, 1)); };
 async function rk_cfLoad() {
   const q = rk_cfQ(); RKF.q = q;
-  try { const j = await api('GET', '/api/office/cashflow?' + q); if (RKF.q === q) { RKF.data = j; RKF.err = null; } }
-  catch (x) { RKF.err = ofcErrHere(x); }
-  try { const fj = await api('GET', '/api/office/fixed-costs'); RKF.fixed = fj.items || []; RKF.agr = fj.agreements || []; RKF.fixErr = null; } catch (x) { RKF.fixed = []; RKF.agr = []; RKF.fixErr = ofcErrHere(x); }  // 2.92.0 A (#1925): agr; 2.1076.0 (#5450): + fixErr
-  try { RKF.check = await api('GET', '/api/office/cashflow/check'); } catch (x) { RKF.check = null; }  // 2.67.0 (#1838)
+  // (#7507): the three at once (were one after the other), each with its own error as before
+  const [cf, fx, ck] = await Promise.allSettled([api('GET', '/api/office/cashflow?' + q), api('GET', '/api/office/fixed-costs'), api('GET', '/api/office/cashflow/check')]);
+  if (cf.status === 'fulfilled') { if (RKF.q === q) { RKF.data = cf.value; RKF.err = null; } } else RKF.err = ofcErrHere(cf.reason);
+  if (fx.status === 'fulfilled') { RKF.fixed = fx.value.items || []; RKF.agr = fx.value.agreements || []; RKF.fixErr = null; } else { RKF.fixed = []; RKF.agr = []; RKF.fixErr = ofcErrHere(fx.reason); }  // (#1925): agr; (#5450): + fixErr
+  if (ck.status === 'fulfilled') RKF.check = ck.value; else { RKF.check = null; if (!RKF.err) ofcErr(ck.reason); }  // (#1838); (#7507): said once, not silent
   ofcDraw();
 }
 const rk_cfReload = () => { RKF.data = null; ofcDraw(); };
@@ -144,7 +145,7 @@ function rk_fixedModal(f) {
     <div class="foot">${f ? `<button class="btn danger solid" data-m="del">${tr('Delete')}</button>` : ''}${f && typeof ofm_can === 'function' && ofm_can(ofm_officeFrom()) ? `<button class="btn" data-m="move">${ic('brief', 's')} ${esc(tr('Move to another workspace…'))}</button>` : ''}<span class="spacer"></span><button class="btn" data-m="close">${tr('Cancel')}</button><button class="btn pri" data-m="save">${f ? tr('Save') : tr('Create')}</button></div>`);
   md.classList.add('ofcdlg');
   const close = fgModal(md);
-  md.addEventListener('click', async e => {
+  md.addEventListener('click', busyClick(async e => {
     const b = e.target.closest('[data-m]'); if (!b) return;
     if (b.dataset.m === 'close') { close(); return; }
     if (b.dataset.m === 'move') { md.remove(); ofm_move({what: 'fixed', ids: [f.id], from: ofm_officeFrom(), label: qn(f.label), after: async () => rk_cfReload()}); return; }  // 2.356.0 A (#2926)
@@ -166,7 +167,7 @@ function rk_fixedModal(f) {
         if (Object.keys(back).length) toast(tr('Saved'), async () => { await undoWrite(`/api/office/fixed-costs/${f.id}`, back, sv.updated_at, {label: f.label}).catch(() => null); rk_cfReload(); });  // 2.566.0 (#4704): core.js undoWrite
         else toast(tr('Saved'));
       } else {
-        const j = await api('POST', '/api/office/fixed-costs', body); md.remove(); rk_cfReload();
+        const j = await dlgCreate(md, '/api/office/fixed-costs', body); md.remove(); rk_cfReload();  // (#7507): the dialog's id, nothing twice
         toast(tr('Added'), async () => { await api('DELETE', `/api/office/fixed-costs/${j.id}`); rk_cfReload(); });
       }
     } catch (x) {
@@ -174,7 +175,7 @@ function rk_fixedModal(f) {
       if (typeof objConflict === 'function' && await objConflict(md, x, r => { const m2 = rk_fixedModal(r); rk_cfReload(); return m2; })) return;  // 2.576.0 (#4794): the merge bar, nothing typed is lost
       el.textContent = ofcErrHere(x);
     }
-  });
+  }));
   return md;
 }
 
@@ -314,7 +315,7 @@ function cfs_modal(a, mo) {
   md.classList.add('ofcdlg');
   const close = fgModal(md);
   const keep = x => ({month: x.month, dir: x.dir, amount: x.amount, note: x.note || ''});
-  md.addEventListener('click', async e => {
+  md.addEventListener('click', busyClick(async e => {
     const b = e.target.closest('[data-m]'); if (!b) return;
     if (b.dataset.m === 'close') { close(); return; }
     try {
@@ -339,7 +340,7 @@ function cfs_modal(a, mo) {
         if (ks.length) offerUndo(tr('Saved'), histAdd({label: tr('Correction changed'), undo: () => step(old), redo: () => step(now)}));
         else toast(tr('Saved'));
       } else {
-        const j = await api('POST', '/api/office/cashflow/adjust', body); md.remove(); rk_cfReload();
+        const j = await dlgCreate(md, '/api/office/cashflow/adjust', body); md.remove(); rk_cfReload();  // (#7507)
         let id = j.id;
         offerUndo(tr('Added'), histAdd({label: tr('Correction added'), undo: async () => { await api('DELETE', `/api/office/cashflow/adjust/${id}`); rk_cfReload(); },
           redo: async () => { id = (await api('POST', '/api/office/cashflow/adjust', body)).id; rk_cfReload(); }}));
@@ -349,7 +350,7 @@ function cfs_modal(a, mo) {
       if (typeof objConflict === 'function' && await objConflict(md, x, r => { const m2 = cfs_modal(r); rk_cfReload(); return m2; })) return;  // 2.576.0 (#4794): the merge bar
       el.textContent = ofcErrHere(x);
     }
-  });
+  }));
 }
 document.addEventListener('click', e => {
   const b = e.target.closest?.('[data-cfs]'); if (!b) return;

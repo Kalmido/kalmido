@@ -52,7 +52,7 @@ async function bw_saveNow(m, b, pend) {  // the button "Save draft": the dialog 
   const tmp = -Date.now();
   try { j = await optWrite(bw_in(tmp, bw_local(b)), () => api('POST', BW_U, b), ofcDraw, {mod: true}); } catch { return null; }
   bw_mealSet(j, tmp);
-  if (pend) { try { j = await api('POST', `${BW_U}/${j.id}/file`, bw_fd(pend)); bw_mealSet(j); } catch { /* api() said why; the draft is stored */ } }
+  if (pend) { try { j = await api('POST', `${BW_U}/${j.id}/file`, bw_fd(pend)); bw_mealSet(j); } catch (x) { if (!x?.cancelled) toast(tr('The entertainment receipt is saved, but the bill was not attached: {0}', ofcErrTxt(x))); } }  // (#7507): says the bill is missing (the draft is stored)
   bw_refresh();
   const id = j.id; toast(tr('Added'), async () => { await api('DELETE', `${BW_U}/${id}`); bw_refresh(); });
   return j;
@@ -287,7 +287,7 @@ function bw_modal(m0) {
       m = j;
       const id = m.id, now = m; toast(tr('Saved'), async () => { await undoWrite(`${BW_U}/${id}`, old, now?.updated_at, {now: b}).catch(() => null); bw_reload(); });  // 2.566.0 (#4704): core.js undoWrite - only the keys this save changed, against its version; changed since -> said, kept
     } else {
-      m = await api('POST', BW_U, b);
+      m = await dlgCreate(md, BW_U, b);  // (#7507): the dialog's id - a second press of Approve creates nothing twice
       if (pend) { try { m = await api('POST', `${BW_U}/${m.id}/file`, bw_fd(pend)); } catch (x) { ofcErr(x); } }
       const id = m.id; toast(tr('Added'), async () => { await api('DELETE', `${BW_U}/${id}`); bw_reload(); });
     }
@@ -314,7 +314,7 @@ function bw_modal(m0) {
   });
   md.addEventListener('input', e => { if (/** @type {any} */ (e.target).id === 'bw-pname') $('.bwpnew', md).dataset.typed = '1'; sum(); });
   md.addEventListener('keydown', e => { if (e.key === 'Enter' && /** @type {any} */ (e.target).closest?.('.bwgnew')) { e.preventDefault(); /** @type {any} */ ($('[data-bwm="addguest"]', md))?.click(); } });
-  md.addEventListener('click', async e => {
+  md.addEventListener('click', busyClick(async e => {
     const b = /** @type {any} */ (e.target).closest('[data-bwm]'); if (!b) return;
     const a = b.dataset.bwm;
     if (a === 'close') { close(); return; }
@@ -349,7 +349,7 @@ function bw_modal(m0) {
         catch (x) { md.remove(); bw_modal(m).querySelector('.aerr').textContent = tr('Saved as a draft.') + ' ' + ofcErrHere(x); }
       }
     } catch (x) { if (typeof objConflict === 'function' && await objConflict(md, x, r => { const m2 = bw_modal(r); bw_refresh(); return m2; })) return; err(x.message); }  // 2.576.0 (#4794)
-  });
+  }, '[data-bwm="approve"]'));
   place(); host(); sum();
   return md;
 }
