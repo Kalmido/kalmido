@@ -54,7 +54,7 @@ async function cf_yes(id) {
   // since (or the description not loaded): 409, said by api(), the task reloads
   const seen = CF_SEEN.get(id);
   if (!seen || S.detailStale === id) {  // the panel shows an older state than the store: draw it, the person reads it, then confirms
-    S.detailStale = 0; if (S.sel === id) renderDetail();
+    if (S.detailStale === id) lpDetailLeft(); else if (S.sel === id) renderDetail();  // liveparts.js draws a held panel once no field is being typed in
     toast(tr('The text changed since you read it: look at it again, then confirm')); return;
   }
   let j;
