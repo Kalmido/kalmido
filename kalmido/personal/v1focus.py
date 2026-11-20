@@ -1,7 +1,9 @@
 """2.116.0 D (#2067): focus sessions (pomodoro) and habit statistics over API v1.
 
 Focus sessions are private to a person: only a person's own token reaches them (scope read for reading, time for
-start / pause / resume / stop -- a focus session on a task becomes a time entry). An agent token -- team agent or
+start / pause / resume / stop -- a focus session on a task becomes a time entry). (#6843, decision #2067: read first) The
+writing routes answer 403 until an admin switches on "Start and stop focus sessions through the API" (instance switch
+focus_api_write, Settings > Server > Server > Whole server, default off). An agent token -- team agent or
 personal agent -- always gets 403, so no agent sees the focus data of a member of the organisation. The rules are the
 app's own (pomo_start / pomo_action / pomo_stats_api run through v1_call), nothing is duplicated."""
 from datetime import timedelta
@@ -10,7 +12,7 @@ from flask import g, jsonify
 
 from ..core.config import app
 from ..core.access import Denied, need_task, tvis, vis_sql
-from ..core.db import db, local_now
+from ..core.db import db, gsetting, local_now
 from ..core.i18n import tr
 from ..accounts.session import me
 from ..api.v1 import BadInput, UnknownFields, v1_limit
@@ -25,6 +27,13 @@ def v1f_person():
     """Focus data belongs to a person: an agent token (team or personal) is refused."""
     from ..agents.core import need_person
     need_person(403, tr("Focus sessions are private to a person"))
+
+
+def v1f_write():
+    """(#6843, decision #2067): a person's token, and writing only with the instance switch focus_api_write (default off)."""
+    v1f_person()
+    if gsetting(db(), "focus_api_write") != "1":
+        raise Denied(403, tr("Focus sessions can only be read through the API on this server: an admin can allow starting and stopping them under Settings > Server > Server > Whole server"))
 
 
 def v1f_dict(r, title=None, task_ok=True):
@@ -64,7 +73,7 @@ def v1_focus_stats():
 def v1_focus_start():
     """{kind?: focus|short|long|stopwatch (default focus), minutes?: 1-600 (default: the person's setting), task_id?}.
     A running session ends first (one at a time, as in the app)."""
-    v1f_person()
+    v1f_write()
     v1_args(())
     b = v1_json()
     unknown = sorted(k for k in b if k not in ("kind", "minutes", "task_id"))
@@ -85,7 +94,7 @@ def v1_focus_start():
 
 
 def v1f_action(pid, action):
-    v1f_person()
+    v1f_write()
     v1_args(())
     j = v1_call(pomo_action, pid, action, body={})
     r = db().execute("SELECT * FROM pomos WHERE id=? AND user_id=?", (pid, me())).fetchone()

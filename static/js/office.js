@@ -1379,8 +1379,8 @@ document.addEventListener('click', async e => {
   else if (a === 'import') { e.preventDefault(); $('#os-import')?.click(); }  // 2.591.0 (#4894): the input's change reads the file (a drop onto the window too, dropany.js)
   else if (a === 'chain') { e.preventDefault(); try { OFC.chain = await api('GET', '/api/office/log/chain'); } catch (x) { ofcErr(x); OFC.chain = null; } ofcDraw(); }  // 2.531.0 (#4497)
   else if (a === 'log') { e.preventDefault(); try { const j = await api('GET', '/api/office/log?limit=50'); OFC.log = j.log || []; } catch (x) { ofcErr(x); OFC.log = []; } ofcDraw(); }
-  else if (a === 'scheme-reset') { e.preventDefault(); const inp = $('#' + b.dataset.for); if (!inp || inp.disabled) return;  // 2.114.2 (#2264): last saved valid scheme (the server fills the default when none is saved)
-    inp.value = OFC.info.settings?.[b.dataset.kind + '_scheme'] || ''; inp.focus(); inp.dispatchEvent(new Event('input', {bubbles: true})); }
+  else if (a === 'scheme-reset') { e.preventDefault(); const inp = $('#' + b.dataset.for); if (!inp || inp.disabled) return;  // (#2264, #6843): the pack's default scheme, not the last saved one
+    inp.value = OFC.info.pack?.schemes?.[b.dataset.kind] || ''; inp.focus(); inp.dispatchEvent(new Event('input', {bubbles: true})); inp.dispatchEvent(new Event('change', {bubbles: true})); }  // saved at once (ost_save)
   else if (a === 'bb') { e.preventDefault(); const inp = $('#' + b.dataset.for); if (!inp || inp.disabled) return;  // 2.40.0 (#1382): a building block at the caret
     const p0 = inp.selectionStart ?? inp.value.length, p1 = inp.selectionEnd ?? p0, t = b.dataset.bb;
     inp.value = inp.value.slice(0, p0) + t + inp.value.slice(p1); inp.focus(); inp.setSelectionRange(p0 + t.length, p0 + t.length); inp.dispatchEvent(new Event('input', {bubbles: true})); }

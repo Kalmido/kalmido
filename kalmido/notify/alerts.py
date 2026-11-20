@@ -96,6 +96,7 @@ AA_SWITCH_LABEL = {"collab_all": N_("Collaboration for everyone"), "time_all": N
                    "oidc_autocreate": N_("Create accounts on the first OIDC sign-in"), "bk_on": N_("Automatic backups"),
                    "public_links": N_("Public links to projects"),
                    "mcp_remote": N_("Hosted MCP access"),  # 2.488.0 (#3363)
+                   "focus_api_write": N_("Start and stop focus sessions through the API"),  # (#6843)
                    "server_agents": N_("Server agents (run on this server with their own API key)"),  # (#4670)
                    "org_server_agents": N_("Kalmido AI in this organisation")}  # (#6363): aa_org_switch
 _AA_LOCK = threading.Lock()
