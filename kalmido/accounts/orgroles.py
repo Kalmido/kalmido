@@ -210,8 +210,9 @@ ROLE_TEXTS = (
     ("guest", N_("Guest"), N_("Sees only what is shared with them personally")),
 )
 # #6527: the built-in office groups (office/rights.py TEMPLATES) an organisation may name as the start of its new members
-# (orgs.office_new_tpl; "legacy" = "Previous access" is no row at all, so never named here)
-OFFICE_START_TPLS = ("staff", "readonly", "none", "projects", "bookkeeping")
+# (orgs.office_new_tpl; "legacy" = "Previous access" is no row at all, so never named here). #7413: only the groups without
+# special rights; "projects" / "bookkeeping" would hand every new member those rights (no setting offers them yet)
+OFFICE_START_TPLS = ("staff", "readonly", "none")
 
 
 def office_new_tpl(c, oid):

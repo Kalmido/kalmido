@@ -1214,6 +1214,7 @@ def org_update(oid):
             for x in b["admins"]:
                 c.execute("UPDATE org_members SET role='admin' WHERE org_id=? AND user_id=? AND user_id IN (SELECT id FROM users WHERE kind!='agent')", (oid, x))
             for x in sorted(was - set(rck_org_admins(c, oid))):  # 2.539.0 (#4373): demoted by the whole set
+                _office_start(c, oid, x, "member")  # #7413: like admins_remove, the company's start group (never "Previous access")
                 rck_admin_gone(c, oid, x)
             keep_own_admin(c, oid, had)  # 2.306.0 Fix-1 (#2875 review): hosted: the organisation keeps an admin of its own
             acx_drop()  # 2.143.0 A (#2151, review): the request's cached roles follow
