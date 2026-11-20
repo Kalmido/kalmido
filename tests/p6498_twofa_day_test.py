@@ -7,7 +7,8 @@ freelancer-matrix: auth (bob is a person without an organisation)
    one security mail "2fa_fail" (once), at 20 a second one; afterwards an unknown address gets 429 twofa_locked right after
    the password, a known address (bob signed in from it before) still reaches the second step and signs in
  - an open second-step ticket ends with a new password set by an admin (the old ticket: 401 expired)
- - a reset link that came by mail makes its address known: the second step works from there despite the ceiling
+ - the second step after a reset link that came by mail passes the ceiling of the password's way (its own count; the address
+   does not become known: afterwards the password alone from there is still refused, reader F1)
 usage: p6498_twofa_day_test.py <datadir>      (KMT_NOSTART=1 / P6498_NOSTART=1: a running server)"""
 import sys
 import base64
@@ -105,5 +106,7 @@ Bn = at("192.0.2.77")  # a new device
 r = Bn.post(B + "/api/auth/invite/accept", json={"token": tok, "password": "third-password-789"})
 check(r.ok and r.json().get("twofa") is True, f"reset from a new address: the second step follows {r.status_code} {r.text[:160]}")
 r = Bn.post(B + "/api/auth/2fa", json={"recovery": CODES.pop()})
-check(r.ok, f"reset link: its address is known, the second step works despite the ceiling {r.status_code} {r.text[:160]}")
+check(r.ok, f"reset link: its second step works despite the ceiling {r.status_code} {r.text[:160]}")
+r = password_step(at("192.0.2.77"), "third-password-789")
+check(r.status_code == 429 and r.json().get("twofa_locked") is True, f"reset link: the address did not become known - the password alone from there is still refused {r.status_code} {r.text[:120]}")
 sys.exit(done("p6498_twofa_day"))

@@ -19753,7 +19753,7 @@
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "Il cliente di questo documento non è più in questo ufficio (spostato in un altro spazio di lavoro). Scegli prima un altro cliente.",
   "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Il cliente della fattura modello non è più in questo ufficio (spostato in un altro spazio di lavoro). Scegli un'altra fattura modello e riattiva la serie.",
   "Width of the name column": "Larghezza della colonna dei nomi",
-  "Switching it on signs you out everywhere else and ends your API tokens and app passwords.": "Attivandola esci da tutte le altre sessioni e i tuoi token API e password per app smettono di funzionare.",
+  "Switching it on signs you out everywhere else and ends your API tokens, app passwords and calendar feed links.": "Attivandola esci da tutte le altre sessioni e i tuoi token API, password per app e link dei feed di calendario smettono di funzionare.",
   "A new way into your account: please confirm it is you.": "Un nuovo accesso al tuo account: conferma che sei tu.",
   "Someone knows your password": "Qualcuno conosce la tua password",
   "Your account {0} was signed in to with the right password but a wrong second factor: {1} wrong tries in 24 hours, the last from address {2}.": "Qualcuno ha effettuato l’accesso al tuo account {0} con la password giusta ma un secondo fattore sbagliato: {1} tentativi falliti in 24 ore, l’ultimo dall’indirizzo {2}.",

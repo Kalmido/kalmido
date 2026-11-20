@@ -84,6 +84,10 @@ r = A.post(B + f"/api/my/agents/{AG}/token", json={"password": PW})
 check(r.ok and r.json().get("token"), f"old session: with the password the agent gets its new token {r.status_code}")
 r = A.post(B + f"/api/my/agents/{AG}/setup-code", json={"os": "mac", "folder": "~/kalmido-agent"})
 check(r.status_code == 403 and r.json().get("password_needed") is True, f"old session: a setup code asks for the password {r.status_code} {r.text[:120]}")
+r = A.post(B + "/api/servers/code", json={"name": "Laptop"})
+check(r.status_code == 403 and r.json().get("password_needed") is True, f"old session: a server code asks for the password (reader F2) {r.status_code} {r.text[:120]}")
+r = A.post(B + "/api/servers/code", json={"name": "Laptop", "password": PW})
+check(r.status_code == 201 and r.json().get("code"), f"old session: with the password the server code is made {r.status_code} {r.text[:120]}")
 r = A.post(B + "/api/admin/agents", json={"username": "team-bot", "display_name": "Team Bot"})
 check(r.status_code == 403 and r.json().get("password_needed") is True, f"old session: an admin's team agent asks for the password {r.status_code}")
 
@@ -117,6 +121,7 @@ r = A2.post(B + "/api/me/2fa/totp/confirm", json={"code": totp(sec, int(time.tim
 check(r.ok, f"2FA on {r.status_code} {r.text[:120]}")
 check(toks(ALICE) == 0 and not dbx("SELECT 1 FROM app_passwords WHERE user_id=?", (ALICE,)),
       f"2FA on: alice's API tokens and app passwords ended ({toks(ALICE)})")
+check(dbx("SELECT ical_token_hash FROM users WHERE id=?", (ALICE,)) == [(None,)], "2FA on: the task feed link ended too (the shared place, reader F5)")
 check(toks(AG) == 1, "2FA on: her agent's token belongs to the agent and stays")
 check(A2.get(B + "/api/state").ok, "2FA on: this session stays")
 sys.exit(done("p6499_creator_reauth"))
