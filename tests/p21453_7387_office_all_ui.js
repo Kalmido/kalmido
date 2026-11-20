@@ -52,7 +52,9 @@ const R = '/api/office/rights';
   check((await call(CA, 'PUT', `${R}/people/${bob.id}`, {groups: [gA]}, WA)).http === 200, 'setup: Bob in Alpha\'s group Staff');
   check(gB && (await call(CA, 'PUT', `${R}/people/${bob.id}`, {groups: [gB]}, WB)).http === 200, 'setup: Bob in Bravo\'s group without rights');
   const CB = await login('bob');
-  await call(CB, 'PATCH', '/api/settings', {lang: 'en', tour: 'done', features: FEAT, workspace: 'all'});
+  // (#3560 / #6841): a Money point not used yet (travel) starts under Hidden; Bob brought it back, so the menu shows exactly
+  // what his rights allow
+  await call(CB, 'PATCH', '/api/settings', {lang: 'en', tour: 'done', features: FEAT, workspace: 'all', nav_menus: JSON.stringify({office: {shown: ['travel']}})});
 
   const arrow = (d, k) => [...d.querySelectorAll('#side [data-act="sbb-tree"]')].find(b => b.dataset.k === k);
   const entries = d => [...d.querySelectorAll('#side .sbbt[data-ofmsp]')].map(x => x.dataset.ofmsp).join();
