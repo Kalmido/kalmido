@@ -224,11 +224,22 @@ beat = dbx("SELECT beat_at FROM agent_runs WHERE id=?", (run[0],))[0][0] if run 
 at2 = datetime.fromisoformat(step2[0]["at"]) if step2 else None
 check(run and run[0] > rid and beat and at2 and datetime.fromisoformat(beat) >= at2.replace(microsecond=0) - timedelta(seconds=1),
       f"the beat came after the slow tool (VIES time limit), not only after the model call {beat} {step2 and step2[0]['at']}")
-dbx("UPDATE agent_runs SET state='failed', ended=?, error='The server agent was interrupted' WHERE id=?",  # as the watchdog in _claim
-    (datetime.now(timezone.utc).isoformat(timespec="seconds"), run[0]))
+# #7181: the watchdog in _claim takes the run for lost and tells its person once (SRV_LOST_SAY); the run's own end then says
+# nothing more - so the real watchdog runs here (its beat older than SRV_LOST_S), not only its UPDATE (that left the chat silent)
+dbx("UPDATE agent_runs SET beat_at=? WHERE id=?", ((datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(timespec="seconds"), run[0]))
+wd = subprocess.run(["docker", "exec", CT, "python", "-c",
+                     "import app\nfrom kalmido.core.db import connect\nfrom kalmido.agents import srvagent_run as sr\n"
+                     f"c = connect()\no = {{}}\nsr._claim(c, {AID}, probe=True, out=o)\nc.commit()\nc.close()\n"
+                     "sr._lost_say(o.get('lost'))\nprint('lost', o.get('lost'))"], capture_output=True, text=True)
+check("lost [(" in wd.stdout and dbx("SELECT state FROM agent_runs WHERE id=?", (run[0],)) == [("failed",)],
+      f"the watchdog took the slow run for lost {wd.stdout[-300:]} {wd.stderr[-500:]}")
 open(os.path.join(DATA, "slow-go"), "w").close()
-m = agent_says(after, "")
-check(m and "could not finish" in m["body"] and "slow ok" not in m["body"], f"the lost run ended itself {(m or {}).get('body', '')[:200]}")
+m = agent_says(after, "could not finish")
+check(m and "slow ok" not in m["body"], f"the lost run ended itself, its person heard it once {(m or {}).get('body', '')[:200]}")
+check(until(lambda: not dbx("SELECT 1 FROM bg_jobs WHERE kind='srvagent:run' AND state='run'"), 40), "the slow run's process has ended")
+ms = [x for x in Fr.get(B + f"/api/agents/{AID}/chat").json()["messages"] if x["from"] == "agent" and x["id"] > after]
+check(sum("could not finish" in (x["body"] or "") for x in ms) == 1 and not any("slow ok" in (x["body"] or "") for x in ms),
+      f"#7181: one note only, the run's own end says nothing more {[x['body'][:80] for x in ms]}")
 # 2.972.0 (#5272): the task comments are rows of the core's obj_comments (kind 'task', ref_id = the task)
 check(not dbx("SELECT 1 FROM obj_comments WHERE kind='task' AND ref_id=? AND user_id=? AND body LIKE 'INJECTED slow%'", (T1, AID)),
       "no comment after the run was taken for lost (the web gate never fell)")
