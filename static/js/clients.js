@@ -42,14 +42,14 @@ function clientsSideHtml(onTasks) {
 }
 
 // ---- the view: all clients / one client
-async function clLoad(quiet, nd) {  // 2.431.0 C (#3602): quietly for ms_clLive (no draw, a failure keeps the card); #7399: nd = no draw (ms_clFetch draws once)
+async function clLoad(quiet, nd) {  // (#3602): quietly for ms_clLive (no draw, a failure keeps the card); #7399: nd = no draw (ms_clFetch draws once)
   const seq = ++CLV.seq, id = S.route.client || null;
   CLV.loading = true;
   const q = CLV.month ? `?month=${CLV.month}` : '';
   try { const j = await api('GET', id ? `/api/clients/${id}${q}` : `/api/clients${q}`); if (seq === CLV.seq) { CLV.data = j; CLV.id = id; } }
   catch { if (seq === CLV.seq && !quiet) { CLV.data = {error: true}; CLV.id = id; } }
   CLV.loading = false;
-  if (S.route.mod === 'clients' && seq === CLV.seq && !quiet && !nd) ms_clDraw();  // 2.431.0 C (#3598): the same draw (+ the columns' scroll)
+  if (S.route.mod === 'clients' && seq === CLV.seq && !quiet && !nd) ms_clDraw();  // (#3598): the same draw (+ the columns' scroll)
 }
 const clReload = () => { CLV.data = null; ms_clDirty(); if (S.route.mod === 'clients') ms_clDraw(); };  // 2.47.3 (#1734): the page loads what it shows
 function budgetBar(c) {

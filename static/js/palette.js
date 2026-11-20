@@ -19,7 +19,7 @@ const SHORTCUTS_ALL = [
   [N_('Calendar'), [['1', N_('Month')], ['2', N_('Week')], ['3', N_('Day')], ['4', N_('Timeline')], ['←', N_('Previous period')], ['→', N_('Next period')], ['.', N_('Jump to today')]]],
   [N_('Timeline'), [['Tab', N_('Focus a bar')], ['c', N_('Connect to the task it blocks')], ['Shift+F10', N_('Bar menu')], ['d', N_('Select a date…')], ['Esc', N_('Cancel connecting')]]],
   [N_('Go to'), [['g t', N_('Today')], ['g m', N_('Tomorrow')], ['g w', N_('Next 7 days')], ['g d', N_('Now doable')], ['g i', N_('Basket')], ['g a', N_('All')], ['g c', N_('Calendar')], ['g h', N_('Habits')], ['g f', N_('Focus timer')], ['g n', N_('Team chat')], ['g s', N_('Settings')],
-    [IS_MAC ? 'Mod+[' : 'Alt+←', N_('Back to the view before')], [IS_MAC ? 'Mod+]' : 'Alt+→', N_('Forward to the next view')]]],  // #7395: backnav.js  /* 2.364.0 B (#3040): one name */  // 2.45.0 (#1509): g n = Messages
+    [IS_MAC ? 'Mod+[' : 'Alt+←', N_('Back to the view before')], [IS_MAC ? 'Mod+]' : 'Alt+→', N_('Forward to the next view')]]],  // #7395: backnav.js  /* (#3040): one name */  // (#1509): g n = Messages
 ];
 // only what the switched-on modules offer (the Timeline group needs the timeline with dependencies)
 const SC_MOD = {'g c': 'cal', 'g h': 'habits', 'g f': 'pomo'};

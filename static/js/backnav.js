@@ -1,6 +1,6 @@
 // @ts-check
 /* Back and Forward between the views of Kalmido: two arrows right before the bell (#7395), the keys and the mouse buttons.
-   2.488.0 (#3988): a plain Back arrow (since #7395 next to the bell, with Forward), plus Alt+Left, Cmd+[ and the mouse's
+   (#3988): a plain Back arrow (since #7395 next to the bell, with Forward), plus Alt+Left, Cmd+[ and the mouse's
    Back button. It is history.back() like the swipe on a phone, but only while there is an earlier view *inside* Kalmido
    (own list of the views visited, never a foreign page or the sign-in); otherwise the arrow is greyed out and the keys do
    nothing (the browser's own jump out of the app is swallowed too, so a browser and the desktop shell behave the same).
