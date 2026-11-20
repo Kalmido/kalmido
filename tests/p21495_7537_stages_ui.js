@@ -26,6 +26,7 @@ const txt = el => (el?.textContent || '').replace(/\s+/g, ' ').trim();
   const r = await fetch(B + 'api/auth/setup', {method: 'POST', headers: H, body: JSON.stringify({username: 'alice', display_name: 'Alice', password: 'password123'})});
   check(r.ok, 'setup');
   CK = await login('alice');
+  await call('POST', '/api/admin/setup', {lang: 'en', collab_all: true});  // the history of a task (its reopen lines)
   await call('PATCH', '/api/settings', {lang: 'en', tour: 'done', features: 'kanban,collab,comments,fields'});
   const P = (await call('POST', '/api/lists', {name: 'App', kind: 'project'})).id;
   const Q = (await call('POST', '/api/lists', {name: 'Plain', kind: 'project'})).id;
@@ -62,6 +63,7 @@ const txt = el => (el?.textContent || '').replace(/\s+/g, ' ').trim();
     check(!d.querySelector('#detail #d-stages'), `${tag}: no repository, no environment: no stage line`);
 
     await open(TB);
+    await until(() => d.querySelectorAll('#detail #d-stages .stl-s').length === 7);
     const names = [...d.querySelectorAll('#detail #d-stages .stl-s')].map(x => x.dataset.stage);
     check(JSON.stringify(names) === JSON.stringify(['created', 'progress', 'built', 'released', 'env', 'env', 'done']), `${tag}: the stages in order ${names}`);
     check(await until(() => cur()?.dataset.stage === 'progress'), `${tag}: on a branch = in progress ${txt(cur())}`);

@@ -71,7 +71,9 @@ const click = (w, el) => el.dispatchEvent(new w.MouseEvent('click', {bubbles: tr
 
   // (#7512): the "+" of an own section - a new task right there (assigned to me, the Inbox as the quick add of My tasks), after
   // a reload still there, Undo takes it away; "Recently assigned" has no "+"
-  check(head(/Soon/).querySelector('.gadd[data-sk="mine"]') && !head(/Recently assigned/).querySelector('.gadd'), '(#7512) "+" on an own section, none on "Recently assigned"');
+  await until(() => head(/Soon/));
+  check(head(/Soon/).querySelector('.gadd[data-sk="mine"]') && !head(/Recently assigned/)?.querySelector('.gadd')
+    && w.eval(`!mseSec.add(mseList().find(x => x.kind === 'recent'), {}, false)`), '(#7512) "+" on an own section, none on "Recently assigned"');
   click(w, head(/Soon/).querySelector('.gadd'));
   let sai = await until(() => head(/Soon/)?.closest('.group')?.querySelector('.secadd-in'));
   check(sai && d.activeElement === sai && /Soon/.test(sai.placeholder), '(#7512) the input right under Soon, focused ' + (sai && sai.placeholder));

@@ -991,6 +991,7 @@ async function loadTimeline(id) {
   S.tl = {...j, id, v, seen};
   if (S.cedit && !j.comments.some(c => c.id === S.cedit)) S.cedit = null;
   drawTimeline();
+  if (typeof stl_refresh === 'function') stl_refresh(id);  // (#7537): the stage line counts the reopen lines of the history
   const t = S.tasks.get(id), top = Math.max(0, ...j.comments.map(c => c.id));
   if (t && (t.unread || t.comment_count !== j.comments.length)) { t.unread = 0; t.comment_count = j.comments.length; viewSafeRender(); }
   if (top > (j.seen || 0)) rawFetch('POST', `/api/tasks/${id}/seen`).catch(() => {});
