@@ -48,6 +48,9 @@ const openRow = async (d, name) => { const a = rowOf(d, name)?.querySelector('[d
   let w = await boot({user: 'alice', hash: 'sheets'}), d = w.document;
   const roots = await until(() => { const r = [...d.querySelectorAll('#side .sbbt[data-sbbns="sh"][data-sbbid^="r:"]')]; return r.length === 2 && r; });
   check(roots && roots.map(r => r.dataset.sbbid).join() === `r:private,r:org:${ORG}`, 'one entry per workspace ' + (roots || []).map(r => r.dataset.sbbid).join());
+  // #7389: under "All" a workspace starts closed until something of it is open (the core's workspace node); its arrow opens it
+  check(roots && roots.every(r => !r.querySelector('[data-act="sbb-tree"][data-open="1"]')), '#7389: under "All" the workspaces start closed');
+  await openRow(d, 'Private'); await openRow(d, 'Example Studio');
   const B1 = await until(() => rowOf(d, 'Budgets'));
   check(B1 && B1.dataset.sbbid === 'f' + FB && B1.dataset.sbbpar === 'r:private' && B1.getAttribute('draggable') === 'true' && B1.dataset.sbbdrop === '1' && B1.dataset.sbbmenu === '1',
     'a folder: ns / id / par, draggable, takes drops, has a menu');
