@@ -342,7 +342,7 @@ async function pdfView(o) {
   }
   try {
     if (!navigator.onLine && !o.data) throw new TypeError('offline');
-    const r = o.data ? null : await (typeof netRaw === 'function' ? netRaw : fetch)(url, {credentials: 'same-origin'});  // 2.353.0 A (#2758): o.data = bytes decrypted in the browser
+    const r = o.data ? null : await (typeof netRaw === 'function' ? netRaw : fetch)(url, {credentials: 'same-origin'});  // (#2758): o.data = bytes decrypted in the browser
     if (r && !r.ok) throw new Error(r.status === 404 || r.status === 410 ? tr('File damaged or missing') : tr('Could not load the file'));
     const data = o.data || new Uint8Array(await r.arrayBuffer());
     // 2.549.0 (#4578, review): a library import that timed out is forgotten, the next opening tries again
