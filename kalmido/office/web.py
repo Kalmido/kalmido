@@ -16,7 +16,7 @@ from .packs import office_features, office_pack, office_pack_codes, office_pack_
 from .model import (
     LTX_KIND, MD_KINDS, OFFICE_ADMIN_ONLY, office_create, office_delete, office_export, office_gate, office_import, office_org, office_role, office_row,
     office_rows, office_seed_texts, office_settings, office_settings_clean, office_settings_lock, office_settings_save, office_update, office_number_format,
-    office_number_next, office_scheme_clean, office_scheme_period, sr_public, pb_info, onc_preview, OFFER_COUNTERS, num_kind, num_scheme,
+    office_number_next, office_scheme_clean, office_scheme_defaults, office_scheme_period, sr_public, pb_info, onc_preview, OFFER_COUNTERS, num_kind, num_scheme,
 )
 from .ledger import ofx_company, ofx_company_clean, ofx_company_save, ofx_diff, ofx_log
 from .doclang import doc_lg
@@ -155,7 +155,8 @@ def office_pack_info(pack, s):
             "offers": pack_features(pack), "retention": pack_retention(pack, s),
             "einvoice_formats": [f for f in ((pack.get("einvoice") or {}).get("formats") or []) if f in ("zugferd", "xrechnung")],
             "currency_editable": hc_pack_editable(pack), "currencies": list(HC_CODES),  # 2.189.0 (#2475)
-            "blocks": (pack.get("texts") or {}).get("blocks") or []}  # 2.1359.0 (#6482): the built-in text blocks (section 14b UStG)
+            "blocks": (pack.get("texts") or {}).get("blocks") or [],  # (#6482): the built-in text blocks (section 14b UStG)
+            "schemes": office_scheme_defaults(pack)}  # (#6843): the default number schemes, the settings' Reset
 
 
 def of_home_locked(c, oid, pack):

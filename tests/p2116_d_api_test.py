@@ -7,7 +7,7 @@ freelancer-matrix: time
    the last one to the first of the next day, skip does the same, undo takes the time back; more than 12 times, doubles,
    FREQ=WEEKLY with TIMES, hourly and BYHOUR stay refused
  - API v1: GET /focus, /focus/stats, POST /focus/start, /focus/{id}/pause|resume|stop with the token's scope (read / time), 403
-   without; another person sees nothing of it (404); every agent (team or personal) is refused with 403; a person without an
+   without; #6843: the writing routes only with the instance switch focus_api_write (default off: 403, reading works); another person sees nothing of it (404); every agent (team or personal) is refused with 403; a person without an
    organisation uses it; GET /habits/{id}/stats
 usage: p2116_d_api_test.py <datadir>      (P2116D_NOSTART=1: a running server on KALMIDO_TEST_PORT, no start.sh)"""
 import os
@@ -109,6 +109,13 @@ Pr = token(A, ["read", "time", "tasks:write"])
 Pro = token(A, ["read"])
 Pc = token(Ca, ["read", "time"])
 check(Pr.get(B + "/api/v1/focus").json()["data"] == [], "no sessions yet")
+# #6843 (decision #2067, read first): the writing routes wait behind the instance switch focus_api_write, default off
+r0 = Pr.post(B + "/api/v1/focus/start", json={"kind": "focus", "minutes": 25})
+check(r0.status_code == 403 and "Whole server" in r0.text, f"#6843: switch off: start 403 with its reason ({r0.status_code} {r0.text[:200]})")
+check(Pr.get(B + "/api/v1/focus").json()["data"] == [] and Pr.get(B + "/api/v1/focus/stats").ok, "#6843: switch off: reading works, nothing was started")
+check(A.get(B + "/api/about").json().get("focus_api_write") is False, "#6843: the admin sees the switch, off")
+check(A.patch(B + "/api/admin/settings", json={"focus_api_write": "yes"}).status_code == 400, "#6843: the switch takes a boolean only")
+check(A.patch(B + "/api/admin/settings", json={"focus_api_write": True}).ok and A.get(B + "/api/about").json().get("focus_api_write") is True, "#6843: an admin switches it on")
 r = Pr.post(B + "/api/v1/focus/start", json={"kind": "focus", "minutes": 25})
 check(r.status_code == 201 and r.json()["data"]["running"], f"start: {r.status_code} {r.text[:200]}")
 SID = r.json()["data"]["id"]
@@ -171,6 +178,9 @@ for act in ("pause", "resume", "stop"):
     check(Ft.post(B + f"/api/v1/focus/{fid}/{act}").ok, f"freelancer: {act}")
 fh = Fr.post(B + "/api/habits", json={"name": "Dehnen"}).json()
 check(Ft.get(B + f"/api/v1/habits/{fh['id']}/stats").ok, "freelancer: habit stats")
+# #6843: switched off again: starting is refused again, reading stays
+check(A.patch(B + "/api/admin/settings", json={"focus_api_write": False}).ok, "#6843: switched off again")
+check(Ft.post(B + "/api/v1/focus/start", json={}).status_code == 403 and Ft.get(B + "/api/v1/focus").ok, "#6843: off: start 403, the list still reads")
 
 print(f"{OKS[0]} ok, {len(FAILS)} failed", flush=True)
 sys.exit(1 if FAILS else 0)

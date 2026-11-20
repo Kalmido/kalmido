@@ -602,12 +602,22 @@ def office_settings(c, oid):
         out["currency"] = hc_code(out["currency"]) or out["home_currency"]
         if not (isinstance(d, dict) and d.get("lang")):  # 2.368.0 (#2979): an unset document language follows the pack (en for International)
             out["lang"] = pack.get("lang") if pack.get("lang") in LANGS else SETTINGS_DEFAULTS["lang"]
-        if not out.get("offer_scheme"):  # 2.368.0 (#2979): the default is empty, so QUO-… of the International pack applies
-            out["offer_scheme"] = (pack.get("numbering") or {}).get("offer") or "KVA-{yyyy}-{seq:03}"
-        for k, dflt in (("invoice", "RE-{yyyy}-{seq:03}"), ("credit", "RK-{yyyy}-{seq:03}"), ("reminder", "MA-{yyyy}-{seq:03}"), ("delivery", "LS-{yyyy}-{seq:03}")):  # 2.38.0; 2.120.0 D (#2089); 2.431.0 B (#3595): RK- (was GS-)
+        for k, dflt in office_scheme_defaults(pack).items():  # (#2979): an empty scheme = the pack's default (QUO-… of International)
             if not out.get(k + "_scheme"):
-                out[k + "_scheme"] = (pack.get("numbering") or {}).get(k) or dflt
+                out[k + "_scheme"] = dflt
     return out
+
+
+# the built-in number schemes; a country pack's "numbering" names its own ((#2089); (#3595): RK-, was GS-)
+SCHEME_BUILTIN = {"offer": "KVA-{yyyy}-{seq:03}", "invoice": "RE-{yyyy}-{seq:03}", "credit": "RK-{yyyy}-{seq:03}",
+                  "reminder": "MA-{yyyy}-{seq:03}", "delivery": "LS-{yyyy}-{seq:03}"}
+
+
+def office_scheme_defaults(pack):
+    """{kind: scheme} -- the default number scheme of each kind in this pack: what an empty setting means and what the
+    settings' Reset puts into the field (#6843, decision #2264: the default, not the last saved scheme)."""
+    num = (pack or {}).get("numbering") or {}
+    return {k: num.get(k) or d for k, d in SCHEME_BUILTIN.items()}
 
 
 OF_FEATURE_OFF = N_("This function is not switched on in this office")
