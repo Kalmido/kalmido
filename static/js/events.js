@@ -866,7 +866,7 @@ $('#scrim').addEventListener('click', () => { closeSide(); closePop(); });
 // reply), in a leafing area (swipenav.js), on a field, on a part that scrolls sideways (swn_skip), on a zoomed page.
 // Both ways the icon bar stays visible: the panel glides under it (clip-path at the panel's own left edge, which is the
 // bar's right edge); in the drawer the scrim follows the visible share. A drag of drag.js (a project / folder / area icon
-// held) never moves the panel.
+// held) or of a document page in its strip (docpages.js, #7473) never moves the panel.
 const SWP = {s: null, MIN: 8, EDGE: 16};
 function swp_target() {
   const sd = $('#side'); if (!sd) return null;
@@ -894,8 +894,10 @@ function swp_openFrom(tg, t) {
   if (typeof RSW_REG !== 'undefined') { const e = {target: tg, touches: [t]}; for (const o of RSW_REG) { try { if (o.at(e)) return false; } catch { /* a row helper that cannot answer: not ours */ } } }
   return true;
 }
-/** a drag of drag.js / dnd.js holds the finger (#6693) */
-const swp_busy = () => (typeof drg_cur !== 'undefined' && !!drg_cur && (!!drg_cur.lifted || !!drg_cur.on)) || document.body.classList.contains('tdrag');
+/** a drag of drag.js / dnd.js holds the finger (#6693); #7473: also a page of a document held and dragged in its strip
+ * (docpages.js DPG.drag.on) - a page dragged to the right no longer pulls the drawer out under the finger */
+const swp_busy = () => (typeof drg_cur !== 'undefined' && !!drg_cur && (!!drg_cur.lifted || !!drg_cur.on)) || document.body.classList.contains('tdrag')
+  || (typeof DPG !== 'undefined' && !!DPG.drag?.on);
 /** the panel at offset o px from where it stands open (0 = fully out), clipped at its own left edge; the scrim follows */
 function swp_put(s, o) {
   const el = s.el; o = Math.max(0, Math.min(s.w, o));
