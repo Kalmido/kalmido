@@ -90,7 +90,7 @@ function aw_read(k, el) {
 async function awOpen(agent) {
   const aid = agent.id, base = `/api/agents/${aid}`;
   let j;
-  try { j = await api('GET', base + '/work-style'); } catch (e) { toast(e instanceof Offline ? tr('Only available online.') : e.message); return; }
+  try { j = await api('GET', base + '/work-style'); } catch (e) { toast(errText(e, tr('The settings could not be loaded'))); return; }
   let ws = j.work_style;
   const md = /** @type {any} */ (modal(`<h3>${esc(tr('Work style and notifications'))}</h3>
     <div class="shint keep">${esc(tr('How {0} works and reports. Changes are saved at once; the agent reads them at its next contact.', agent.name))}</div>

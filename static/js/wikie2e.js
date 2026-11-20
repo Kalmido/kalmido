@@ -835,7 +835,7 @@ document.addEventListener('click', async e => {
       else await wkeReenc(sp, null, {ask: true});
       wkeAfter(sp);
     }
-  } catch (x) { if (x?.message) toast(x.message); b.disabled = false; }
+  } catch (x) { if (x?.message) toast(errText(x, tr('The change could not be saved'))); b.disabled = false; }
 }, true);
 // ask: from a button (2.539.0, #4376): a first-seen key is confirmed with its safety number first (le2u_tofu)
 async function wkeReleaseAll(sp, ask) {
@@ -862,7 +862,7 @@ async function wkeRun(sp, kind, password) {
     if (WKE.lost?.length) { toast(trn('{0} page skipped: {1} (not readable)', '{0} pages skipped: {1} (not readable)', WKE.lost.length, WKE.lost.slice(0, 5).join(', ') + (WKE.lost.length > 5 ? ' …' : ''))); WKE.lost = null; }  // 2.139.0 C (#2386)
     if (WKE.renamed) { toast(trn('{0} page got a new name (the name was taken)', '{0} pages got a new name (the names were taken)', WKE.renamed)); WKE.renamed = 0; }
     if (WKE.defused) { toast(trn('{0} name or text began like an encrypted value and got a character in front', '{0} names or texts began like an encrypted value and got a character in front', WKE.defused)); WKE.defused = 0; }  // 2.64.3 E (#1817)
-  } catch (x) { if (x?.message) toast(x.message); }
+  } catch (x) { if (x?.message) toast(errText(x, tr('The change could not be saved'))); }
   finally { delete WKE.prog[sp]; wkeAfter(sp); }
   return ok;
 }
@@ -922,7 +922,7 @@ function wkeDlgHtml(sp, j, chg) {
 async function wkeDlg(sp) {
   let j;
   if (!E2E.st && typeof e2eLoad === 'function') await e2eLoad().catch(() => {});  // 2.85.0 (#1904)
-  try { j = await wkeInfo(sp, true); } catch (x) { toast(x?.message || tr('Not possible right now')); return; }
+  try { j = await wkeInfo(sp, true); } catch (x) { toast(errText(x, tr('The encryption settings could not be loaded'))); return; }
   const chg = async () => new Set((j.members || []).filter(m => m.pub && m.user_id !== S.me?.id && le2eKeyChanged(m.user_id)).map(m => m.user_id));
   let changed = await chg();
   await askDialog({title: tr('Encryption of the knowledge pages · {0}', wk_spaceName(sp)), html: `<div class="wkedlg" data-sp="${esc(sp)}"></div>`, ok: tr('Close'), after: md => {
@@ -954,7 +954,7 @@ async function wkeDlg(sp) {
           box._wkeDraw();
         } else if (a === 'safety') { if (typeof le2u_safetyDlg === 'function') le2u_safetyDlg(uid, (j.members || []).find(m => m.user_id === uid)?.name || ''); }
         else if (a === 'accept') { le2eAcceptKey(uid); WKE.tried = {}; changed.delete(uid); draw(); }
-      } catch (x) { if (x?.message) toast(x.message); b.disabled = false; }
+      } catch (x) { if (x?.message) toast(errText(x, tr('The change could not be saved'))); b.disabled = false; }
     });
   }});
 }

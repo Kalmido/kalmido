@@ -1027,6 +1027,7 @@ function ct_scrollKeep(el) {
   return () => { const b = sc(); if (!a || !b || a[0] !== b[0]) return; if (b[1]) b[1].scrollTop = ls || 0; if (b[2]) b[2].scrollTop = a[3] === b[3] ? cs || 0 : 0; };
 }
 function setHtml(el, html) {
+  if (el.id === 'view' && ld_hold(el, html)) return;  // #6381: the old view stays until the module of the new one can draw (lazyload.js)
   const fg = typeof fgKeep === 'function' ? fgKeep(el) : null;  // 2.40.0 (#1371): unsaved form input survives the redraw
   if (morphRoot !== el) el.innerHTML = html;
   else {
@@ -2156,6 +2157,9 @@ document.addEventListener('keydown', e => {
   if (to != null) { e.preventDefault(); e.stopPropagation(); lcwSet(lid, k, Math.min(to, lcwRoom(g.closest('.lchead'), k))); }  // 2.742.0 (#4857)
   else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); lcwSet(lid, k, null); }
 }, true);
+// #6377: the fold arrow of a section head (.ghead, data-act="collapse") is a real button: Tab reaches it, Enter / Space fold,
+// aria-expanded says open or closed; a click on the rest of the head still folds (the same action)
+const ghTog = (key, closed, name) => `<button type="button" class="gtog" data-act="collapse" data-key="${esc(key)}" aria-expanded="${closed ? 'false' : 'true'}" aria-label="${esc(name)}">${ic('chev', 's')}</button>`;
 // ---- dependencies: "waiting on" (blocked by open tasks)
 function blockedTitle(t) {
   const names = (t.blockers || []).map(id => S.tasks.get(id)?.title).filter(Boolean), hidden = Math.max(0, (t.blocked || 0) - names.length);
@@ -2170,7 +2174,7 @@ const todayInboxTasks = () => openTasks().filter(t => isTodayInbox(t)).sort((a, 
 function todayInboxHtml(ts) {
   const k = 'today-inbox', closed = S.collapsed.has(k);
   const acts = t => `<span class="tinacts"><button type="button" class="iconbtn" data-act="tin-due" data-d="0" data-id="${t.id}" title="${esc(tr('Today'))}" aria-label="${esc(tr('{0}: today', t.title))}">${ic('sun', 's')}</button><button type="button" class="iconbtn" data-act="tin-due" data-d="1" data-id="${t.id}" title="${esc(tr('Tomorrow'))}" aria-label="${esc(tr('{0}: tomorrow', t.title))}">${ic('sunrise', 's')}</button><button type="button" class="iconbtn" data-act="tin-move" data-id="${t.id}" aria-haspopup="menu" title="${esc(tr('Move to project'))}" aria-label="${esc(tr('Move {0} to a project', t.title))}">${ic('list', 's')}</button></span>`;
-  return `<div class="group tinbox"><div class="ghead ${closed ? 'closed' : ''}" data-act="collapse" data-key="${k}">${ic('chev', 's')}${ic('inbox', 's')}${tr('Basket')} <span class="c">${ts.length}</span></div>
+  return `<div class="group tinbox"><div class="ghead ${closed ? 'closed' : ''}" data-act="collapse" data-key="${k}">${/*html-ok*/ /* ghTog escapes key and name */ ghTog(k, closed, tr('Basket'))}${ic('inbox', 's')}${tr('Basket')} <span class="c">${ts.length}</span></div>
     ${closed ? '' : ts.map(t => `<div class="tinrow">${taskRow(t, {drag: false, tree: false})}${acts(t)}</div>`).join('')}</div>`;
 }
 document.addEventListener('click', e => {
@@ -2333,7 +2337,8 @@ function viewListBody() {
   // 2.891.0 (#5440): a filter that hides every task says so and leads to it (saved filter, a project's view, a column filter)
   const flt = !total && !tin.length ? lst_emptyFilter(rl) : null;
   const secBtn0 = v.list && !ro && !rl?.is_inbox && (!rl || canEditList(rl.id)), secBtn = !total && !tin.length && !flt && secBtn0 ? `<button type="button" class="btn secnew" data-act="section-new">${ic('plus', 's')} ${tr('Section')}</button>` : '';
-  if (!total && !tin.length) {
+  if (!total && !tin.length && lzWait()) h += loadingHtml('big');  // #6381: a project of a large account still loading (liveparts.js)
+  else if (!total && !tin.length) {
     // 2.14.0: the heron; 2.83.0 C (#1427): the Kalmido K; 2.136.0 (#2193): the bot figure (o3c_empty, listhead.js), done = erledigt
     h += S.route.key === 'today' ? (v.done.length ? o3c_empty(tr('All done for today.'), tr('Enjoy the rest of the day.'), 'erledigt') : o3c_empty(tr('Nothing left for today.')))
       // CI of 2.223.0 (#2609 #2822): a list whose last open task was just ticked off is an all-done moment = the bot figure
@@ -2354,7 +2359,7 @@ function viewListBody() {
     if (rl?.family === 'shopping' && famOn() && g.section && !g.tasks.length) continue;  // 2.19.0 (#653): only areas with items
     const closed = g.folded ? !S.collapsed.has(g.id) : S.collapsed.has(g.id);  // 2.41.0 (#1365): folded = closed until opened
     const sadd = g.section !== undefined && !ro && v.list && canAddTo(v.list);
-    if (g.name) h += `<div class="group"${kbGroupAttr(g)}><div class="ghead ${g.cls || ''} ${closed ? 'closed' : ''}" data-act="collapse" data-key="${g.id}" ${g.section !== undefined ? `data-section="${g.section ?? ''}"` : ''}>${g.section && !ro ? secHandle(g.section) : ''}${kbGrip(g)}${ic('chev', 's')}${g.img ? `<img class="gicon" src="${esc(g.img)}" alt="">` : g.lic && licMark(g.lic) ? licMark(g.lic, 'glic') : g.color ? `<span class="gsw" style="background:${cssColor(g.color)}"></span>` : ''}${/*html-ok*/ g.lic && !v.list ? kbCrumbHtml(g) + wso_origin(g.lic, 'gorg', true) /* 2.1224.0 (#6188): its organisation's dot + name */ : esc(g.name)} ${dsxCount(g, v)}${g.section ? wip_ghead(g) : ''}${g.mosec ? mseHeadHtml(g) : ''}${sadd ? `<button class="iconbtn gact gadd" data-act="sec-add" data-sec="${g.section || 0}" title="${esc(tr('Add a task to {0}', g.name))}" aria-label="${esc(tr('Add a task to {0}', g.name))}">${ic('plus', 's')}</button>` : ''}${g.section && !ro ? `<button data-rowmenu="ghead" class="iconbtn gact" data-act="section-menu" data-id="${g.section}" title="${esc(tr('More') + ': ' + g.name)}" aria-label="${esc(tr('More') + ': ' + g.name)}">${ic('dots', 's')}</button>` : ''}${odHead && g.id === 'd:over' ? `<span class="odact"><button class="btn sm" data-act="od-move" data-d="0">${tr('All to today')}</button><button class="btn sm" data-act="od-other" aria-haspopup="menu">${tr('Another day…')}</button></span>` : ''}</div>`;
+    if (g.name) h += `<div class="group"${kbGroupAttr(g)}><div class="ghead ${g.cls || ''} ${closed ? 'closed' : ''}" data-act="collapse" data-key="${g.id}" ${g.section !== undefined ? `data-section="${g.section ?? ''}"` : ''}>${g.section && !ro ? secHandle(g.section) : ''}${kbGrip(g)}${/*html-ok*/ /* ghTog escapes key and name */ ghTog(g.id, closed, g.name)}${g.img ? `<img class="gicon" src="${esc(g.img)}" alt="">` : g.lic && licMark(g.lic) ? licMark(g.lic, 'glic') : g.color ? `<span class="gsw" style="background:${cssColor(g.color)}"></span>` : ''}${/*html-ok*/ g.lic && !v.list ? kbCrumbHtml(g) + wso_origin(g.lic, 'gorg', true) /* (#6188): its organisation's dot + name */ : esc(g.name)} ${dsxCount(g, v)}${g.section ? wip_ghead(g) : ''}${g.mosec ? mseHeadHtml(g) : ''}${sadd ? `<button class="iconbtn gact gadd" data-act="sec-add" data-sec="${g.section || 0}" title="${esc(tr('Add a task to {0}', g.name))}" aria-label="${esc(tr('Add a task to {0}', g.name))}">${ic('plus', 's')}</button>` : ''}${g.section && !ro ? `<button data-rowmenu="ghead" class="iconbtn gact" data-act="section-menu" data-id="${g.section}" title="${esc(tr('More') + ': ' + g.name)}" aria-label="${esc(tr('More') + ': ' + g.name)}">${ic('dots', 's')}</button>` : ''}${odHead && g.id === 'd:over' ? `<span class="odact"><button class="btn sm" data-act="od-move" data-d="0">${tr('All to today')}</button><button class="btn sm" data-act="od-other" aria-haspopup="menu">${tr('Another day…')}</button></span>` : ''}</div>`;
     if (g.name && !closed && sadd) h += secAddHtml(g);
     // 1.7.0 Flow: the first task of each group that waits on nothing is marked "Next" (2.0.4: "Ready to start", and only
     // when some open task shown here waits on something; without dependencies the badge would say nothing)
@@ -2374,14 +2379,14 @@ function viewListBody() {
   if (ck) {  // 2.7.2 (#414) "Show completed at the bottom" (was the checklist type): done items stay below in "Done" (open by
     // default), one tap puts them back on the list
     const k = 'ckdone:' + rl.id, closed = S.collapsed.has(k), done = v.done.slice().sort((a, b) => mdPlain(a.title).localeCompare(mdPlain(b.title), LOCALE()));
-    h += `<div class="group ckdone"><div class="ghead ${closed ? 'closed' : ''}" data-act="collapse" data-key="${k}" title="${esc(tr('Ticked-off items land here and can be put back on the list with one tap.'))}">${ic('chev', 's')}${tr('Done|checklist')} <span class="c">${done.length}</span>${done.length && !ro ? `<button class="btn sm gact" data-act="ck-uncheck" data-id="${rl.id}">${ic('undo', 's')} ${tr('Uncheck all')}</button><button class="btn sm gact" data-act="ck-clear" data-id="${rl.id}">${ic('trash', 's')} ${tr('Clear done')}</button>` : ''}</div>`;
+    h += `<div class="group ckdone"><div class="ghead ${closed ? 'closed' : ''}" data-act="collapse" data-key="${k}" title="${esc(tr('Ticked-off items land here and can be put back on the list with one tap.'))}">${/*html-ok*/ /* ghTog escapes key and name */ ghTog(k, closed, tr('Done|checklist'))}${tr('Done|checklist')} <span class="c">${done.length}</span>${done.length && !ro ? `<button class="btn sm gact" data-act="ck-uncheck" data-id="${rl.id}">${ic('undo', 's')} ${tr('Uncheck all')}</button><button class="btn sm gact" data-act="ck-clear" data-id="${rl.id}">${ic('trash', 's')} ${tr('Clear done')}</button>` : ''}</div>`;
     if (done.length) hintDone('ckdone');  // used once: the hint has done its job
     if (!closed) h += done.length ? done.map(t => taskRow(t, {drag: false, cols, lc, ckback: true})).join('') : hintOnce('ckdone', tr('Ticked-off items land here and can be put back on the list with one tap.'), 'ckempty');
     return h + '</div>';
   }
   if (v.done.length && showDone()) {
     const closed = !S.collapsed.has('done-open');
-    h += `<div class="group"><div class="ghead ${closed ? 'closed' : ''}" data-act="collapse" data-key="done-open">${ic('chev', 's')}${tr('Completed')} <span class="c">${v.done.length}</span></div>`;
+    h += `<div class="group"><div class="ghead ${closed ? 'closed' : ''}" data-act="collapse" data-key="done-open">${/*html-ok*/ /* ghTog escapes key and name */ ghTog('done-open', closed, tr('Completed'))}${tr('Completed')} <span class="c">${v.done.length}</span></div>`;
     if (!closed) { const dn = v.done.sort((a, b) => (b.completed_at || '').localeCompare(a.completed_at || '')), row = t => taskRow(t, {showList, drag: false, cols, lc, vc, tcols: {list: showList}}); h += vl ? vl_seg('done-open', dn, row) : dn.map(row).join(''); }
     h += '</div>';
   }
@@ -2414,6 +2419,7 @@ function hist_body() {
   const arr = S.extra || [];
   const otr = trash ? otr_html() + vtr_html() + ptr_html() : '';  // 2.102.0 A (#1988): "Deleted lists" above the tasks; 2.549.0 (#4536): + video sign-offs (trashui.js); 2.567.0 A (#4707): + the other parts
   // 2.891.0 (#5440): a failed load says so (was "Trash is empty." although nothing was known)
+  if (!arr.length && S.extraWait) return otr + loadingHtml('big');  // #6381: never "empty" before the answer (core.js route)
   if (!arr.length && S.extraErr) return otr + errorState({retry: () => loadExtra().then(() => { S.extraErr = 0; }, () => {}).finally(renderView)});
   if (!arr.length) return otr + (otr ? '' : emptyState({icon: trash ? 'trash' : 'done', title: trash ? tr('Trash is empty.') : tr('Nothing completed yet.')}));  // 2.891.0 (#5440)
   if (trash) {  // 2.0.5: what "Empty" leaves behind (shared lists of other owners) is said up front and marked per row

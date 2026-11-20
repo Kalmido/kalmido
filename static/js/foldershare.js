@@ -163,7 +163,7 @@ function folderShareModal(f, opt = {}) {
     }
     if (m === 'fsh-pubon' || m === 'fsh-puboff') {
       if (m === 'fsh-puboff' && !await askConfirm(tr('Turn the public links off?'), tr('They stop working at once.'), {ok: tr('Switch off'), danger: true})) return;
-      try { const j = await calReq('PUT', '/api/folders/public-links', {folder: f, on: m === 'fsh-pubon'}); drawPub(j); toast(m === 'fsh-pubon' ? trn('{0} public link created', '{0} public links created', j.created) : tr('Public links switched off')); } catch (x) { toast(x.message); }
+      try { const j = await calReq('PUT', '/api/folders/public-links', {folder: f, on: m === 'fsh-pubon'}); drawPub(j); toast(m === 'fsh-pubon' ? trn('{0} public link created', '{0} public links created', j.created) : tr('Public links switched off')); } catch (x) { toast(errText(x, tr('The link could not be changed'))); }
       return;
     }
     if (b.dataset.fshcopy) { try { await navigator.clipboard.writeText(b.dataset.fshcopy); toast(tr('Link copied')); } catch { toast(b.dataset.fshcopy); } return; }

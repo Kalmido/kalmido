@@ -47,7 +47,7 @@ function rs_listHtml(/** @type {any[]} */ items, /** @type {number} */ nLocal) {
 
 async function rsOpen() {
   /** @type {any} */ let j;
-  try { j = await rawFetch('POST', '/api/settings/reset', {dry_run: true}); } catch (/** @type {any} */ x) { toast(x?.message || tr('Only available online.')); return; }
+  try { j = await rawFetch('POST', '/api/settings/reset', {dry_run: true}); } catch (/** @type {any} */ x) { toast(errText(x, tr('The preview could not be loaded.'))); return; }
   const loc = rs_localNow(), nLocal = Object.keys(loc).length, any = j.items.length > 0 || nLocal > 0;
   const md = /** @type {any} */ (modal(`<h3>${esc(tr('Reset settings?'))}</h3>
     <div class="shint keep">${esc(tr('These settings differ from the standard and go back:'))}</div>
@@ -87,7 +87,7 @@ async function rs_undo() {
 // after the reload (main.js): the message, with "Undo" right after a reset
 function rs_after(/** @type {string} */ what) {
   if (what === 'undo') { toast(tr('Your previous settings are back')); return; }
-  toast(tr('Settings reset to the standard'), () => { rs_undo().catch((/** @type {any} */ x) => toast(x?.message || tr('Not possible'))); }, 15000, tr('Undo'));
+  toast(tr('Settings reset to the standard'), () => { rs_undo().catch((/** @type {any} */ x) => toast(errText(x, tr('The change could not be saved')))); }, 15000, tr('Undo'));
 }
 
 document.addEventListener('click', (/** @type {any} */ e) => {

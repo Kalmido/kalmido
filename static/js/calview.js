@@ -194,7 +194,7 @@ function calEditModal(x, colors, done) {
     try {
       // 2.564.0 D (#4701): against the version the dialog opened with; 409 = saved meantime elsewhere: the reason, the current state opens
       let r; try { r = await rawFetch('PATCH', `/api/calendars/${x.id}`, x.updated_at ? {...body, expect_updated_at: x.updated_at} : body); }
-      catch (e2) { if (e2.status === 409 && e2.data?.calendar) { md.remove(); toast(e2.message); done && done(); calEditModal(e2.data.calendar, colors, done); return; } throw new Error(errText(e2, tr('The calendar was not saved'))); }  // 2.1212.0 (#6159): what failed, the server's text in brackets
+      catch (e2) { if (e2.status === 409 && e2.data?.calendar) { md.remove(); toast(errText(e2, tr('The calendar was not saved'))); done && done(); calEditModal(e2.data.calendar, colors, done); return; } throw new Error(errText(e2, tr('The calendar was not saved'))); }  // (#6159): what failed, the server's text in brackets
       if (r.status === 'error' && (body.url || body.password || body.username)) { $('#ce-err', md).textContent = errText(r.error_text || '', tr('Saved, but the calendar could not be synced')); $('#ce-err', md).hidden = false; done && done(); return; }  // 2.1212.0 (#6159)
       md.remove(); toast(tr('Saved')); done && done();
     } catch (err) { $('#ce-err', md).textContent = err.message; $('#ce-err', md).hidden = false; } finally { b.disabled = false; }

@@ -55,7 +55,7 @@ document.addEventListener('click', async e => {
   const box = b.closest('[data-aiph]'); if (!box) return;
   e.preventDefault(); e.stopPropagation();
   const kind = box.dataset.aiph, id = box.dataset.aiphId;
-  if (b.hasAttribute('data-aiph-ins')) { const fn = AIPH_INS[kind]; b.disabled = true; try { if (fn && await fn(id) === false) { b.disabled = false; return; } } catch (x) { b.disabled = false; toast(x.message || tr('unknown')); return; } }
+  if (b.hasAttribute('data-aiph-ins')) { const fn = AIPH_INS[kind]; b.disabled = true; try { if (fn && await fn(id) === false) { b.disabled = false; return; } } catch (x) { b.disabled = false; toast(errText(x, tr('The change could not be saved'))); return; } }
   LS.set(aiphKey(kind, id), true); box.remove();
 });
 // agents of a list that can pick up this task (participant agents only their own tasks)
@@ -376,7 +376,7 @@ function ltagsBoxHtml(l) {
   const adm = l.org_id && (S.me?.workspaces || []).some(o => o.id === l.org_id && o.role === 'admin');  // 2.609.0 (#3373)
   return `${l.org_id && (adm || (S.org_labels || []).some(o => o.org_id === l.org_id)) ? `<div class="mrow olbhead"><span class="n muted">${esc(tr('Labels of the organisation: {0}', (S.org_labels || []).filter(o => o.org_id === l.org_id).map(o => '#' + o.name).join(', ') || tr('none yet')))}</span>${adm ? `<button type="button" class="btn sm" data-olb="manage">${esc(tr('Manage…'))}</button>` : ''}</div>` : ''}
     ${lt.length ? lt.map(x => `<div class="mrow" data-ltid="${x.id}"><span class="ltsw" style="${cssColor(x.color) ? 'background:' + cssColor(x.color) : ''}"></span><span class="n">#${esc(x.name)}${x.org_tag_id ? ` <span class="muted">· ${esc(tr('Organisation'))}</span>` : ''}</span>${may && !x.org_tag_id ? `<button class="iconbtn ms-phsr" data-lt="color" title="${tr('Colour')}">${ic('palette', 's')}</button><button class="iconbtn ms-phsr" data-lt="ren" title="${tr('Rename')}">${ic('edit', 's')}</button><button class="iconbtn danger ms-phsr" data-lt="del" title="${tr('Delete')}">${ic('trash', 's')}</button>${/*html-ok*/ ms_dots('.ms-phsr', '#' + x.name) /* 2.1151.0 C (#3835): one "…" on a phone */}` : may ? `<button class="iconbtn danger" data-lt="del" title="${tr('Remove from this project')}">${ic('trash', 's')}</button>` : ''}</div>`).join('')
-    : `<div class="muted mhint">${tr('No project tags yet.')}</div>`}${may ? `<div class="row"><input id="l-ltnew" placeholder="${tr('New project tag')}" maxlength="60"><button class="btn sm" data-lt="new">${ic('plus', 's')} ${tr('Add')}</button></div>` : ''}`;
+    : `<div class="muted mhint">${tr('No project tags yet.')}</div>`}${may ? `<div class="row"><input id="l-ltnew" placeholder="${tr('New project tag')}" aria-label="${esc(tr('New project tag'))}" maxlength="60"><button class="btn sm" data-lt="new">${ic('plus', 's')} ${tr('Add')}</button></div>` : ''}`;
 }
 // 2.41.2 (#1501): a list tag renamed (to = new name) or deleted (to = null) in the list and on its tasks, locally
 function ltagPut(lid, from, to) {
@@ -506,7 +506,7 @@ async function loadJobs() {
   const seq = S.jobs.seq = (S.jobs.seq || 0) + 1;
   let items, err = null, next = null;
   try { const j = await api('GET', '/api/agents/jobs' + (S.jobs.f === 'open' ? '?state=open' : '?limit=' + JOBS_FIRST)); items = j.jobs; next = j.next || null; }  // Open: all of them, no pages
-  catch (e) { err = e instanceof Offline ? tr('Only available online.') : e.message; }
+  catch (e) { err = errText(e, tr('The jobs could not be loaded')); }
   if (seq !== S.jobs.seq) return;
   if (items) {
     if (S.jobs.older.length) {  // ended jobs a newer one pushed off the first page stay with the older pages (no gap)
@@ -516,7 +516,7 @@ async function loadJobs() {
     } else S.jobs.more = next;
     items = jobsMerge(items); S.jobs.next = S.jobs.more;
   }
-  S.jobs.err = err; S.jobs.items = items || S.jobs.items || [];
+  S.jobs.err = err; S.jobs.items = items || S.jobs.items || []; S.jobs.wait = false;
   const fj = S.jobFocus;  // 2.36.2 (#1141): #job/<id> -- a finished or older job is fetched on its own; not mine = not found
   if (fj && !S.jobs.err && !S.jobs.items.some(j => j.id === fj)) {
     const one = !jobNoOk(fj) ? null : await rawFetch('GET', '/api/agents/jobs?id=' + fj).then(j => (j.jobs || []).find(x => x.id === fj)).catch(() => null);  // 2.284.2: one toast ("not found"), not two
@@ -640,7 +640,7 @@ const ag_cardHead = (a, inner) => ag_mayEdit(a)
   ? `<button type="button" class="agset" data-act="ag-set" data-aid="${esc(String(a.id))}" aria-label="${esc(tr('Settings of {0}', a.name))}" title="${esc(tr('Settings of {0}', a.name))}">${/*html-ok*/ av(a.id, a.name, 'avatar lg') + inner}</button>`
   : avBtn(a.id, a.name, 'avatar lg') + inner;
 function viewAgents() {
-  if (S.jobs.items === null) { S.jobs.items = []; S.jobs.older = []; S.jobs.next = S.jobs.more = null; loadJobs(); aiuLoad().then(() => { if (S.route.mod === 'agents') renderView(); }); }  // 2.1.1: the usage card
+  if (S.jobs.items === null) { S.jobs.items = []; S.jobs.older = []; S.jobs.next = S.jobs.more = null; S.jobs.wait = true; loadJobs(); aiuLoad().then(() => { if (S.route.mod === 'agents') renderView(); }); }  // 2.1.1: the usage card
   if (S.route.agent && chatFull()) return chatViewHtml(S.route.agent);
   const ags = (S.agents || []).filter(a => wsAgentIn(a));  // 2.28.0 (#935)
   // 2.55.0 (#1065): the agents block's settings (lyopts.js): only switched-on ones, the order (the other blocks see all)
@@ -657,10 +657,12 @@ function viewAgents() {
       <div class="agb"><button class="btn sm" data-act="chat-open" data-aid="${a.id}" ${a.enabled ? '' : 'disabled'}>${ic('comment', 's')} ${tr('Chat')}${a.chat_unread ? ` <span class="nbadge">${a.chat_unread}</span>` : ''}</button>${a.approvals_open ? `<button class="btn sm apvcard" data-act="chat-open" data-aid="${a.id}">${ic('lock', 's')} ${esc(apvCount(a.approvals_open))}</button>` : ''}
       ${a.shared === false ? '' : `<button class="btn sm" data-act="sched-open" data-aid="${a.id}" title="${esc(tr('Planned jobs'))}">${ic('clock', 's')} ${tr('Plans')}</button>`}${ag_mayEdit(a) ? `<button class="btn sm ib agsetb" data-act="ag-set" data-aid="${esc(String(a.id))}" title="${esc(tr('Settings of {0}', a.name))}" aria-label="${esc(tr('Settings of {0}', a.name))}">${ic('cog', 's')}</button>` : ''}</div>${av_listsHtml(a)}</div>`;  // 2.1044.0 (#5825): the gear  // 2.46.6 (#1708): its lists
   const items = S.jobs.items || [];
+  // #6381: before the first answer the list says "Loading…" (after 300 ms, start-laden-6381.css), never "No jobs"
+  const jobsEmpty = () => S.jobs.wait ? loadingHtml() : `<div class="muted mhint">${S.jobs.f === 'open' ? tr('No running or waiting jobs.') : tr('No jobs yet.')}</div>`;
   if (ags.length) {  // 2.32.0 (#1063): the overview is built from blocks (Customize)
     const P = {agents: `<div class="agcards">${agShow.map(card).join('')}</div>`, usage: aiuCardHtml(),
       jobs: `<div class="agjh"><h2>${tr('Jobs')}</h2><span class="spacer"></span><div class="seg" role="group"><button class="${S.jobs.f === 'open' ? 'on' : ''}" data-act="jobs-f" data-f="open">${tr('Open|jobs')}</button><button class="${S.jobs.f === 'all' ? 'on' : ''}" data-act="jobs-f" data-f="all">${tr('All')}</button></div></div>
-        ${S.jobs.err ? `<div class="muted mhint">${esc(S.jobs.err)}</div>` : ''}<div class="jobs">${items.length ? items.map(jobHtml).join('') : `<div class="muted mhint">${S.jobs.f === 'open' ? tr('No running or waiting jobs.') : tr('No jobs yet.')}</div>`}</div>${jobsMoreHtml()}`,
+        ${S.jobs.err ? `<div class="muted mhint">${esc(S.jobs.err)}</div>` : ''}<div class="jobs">${/*html-ok*/ items.length ? items.map(jobHtml).join('') : jobsEmpty()/* job cards / the loading or empty block, built escaped */}</div>${jobsMoreHtml()}`,
       hint: `<div class="shint">${tr('Approve, Reject and Stop go to the agent at once. 👍 / 👎 on an agent’s comment by the project owner, a project admin or the assignee counts as approval or rejection.')}</div>`};
     return `<div class="agview">${S.ly.view === 'agents' ? '' : `<div class="lybar"><span class="spacer"></span>${lyCustomBtn('agents')}</div>`}${lyHtml('agents', P)}</div>`;
   }
@@ -669,7 +671,7 @@ function viewAgents() {
     ${ags.length ? aiuCardHtml() : ''}
     <div class="agjh"><h2>${tr('Jobs')}</h2><span class="spacer"></span><div class="seg" role="group"><button class="${S.jobs.f === 'open' ? 'on' : ''}" data-act="jobs-f" data-f="open">${tr('Open|jobs')}</button><button class="${S.jobs.f === 'all' ? 'on' : ''}" data-act="jobs-f" data-f="all">${tr('All')}</button></div></div>
     ${S.jobs.err ? `<div class="muted mhint">${esc(S.jobs.err)}</div>` : ''}
-    <div class="jobs">${items.length ? items.map(jobHtml).join('') : `<div class="muted mhint">${S.jobs.f === 'open' ? tr('No running or waiting jobs.') : tr('No jobs yet.')}</div>`}</div>${jobsMoreHtml()}
+    <div class="jobs">${/*html-ok*/ items.length ? items.map(jobHtml).join('') : jobsEmpty()/* job cards / the loading or empty block, built escaped */}</div>${jobsMoreHtml()}
     <div class="shint">${tr('Approve, Reject and Stop go to the agent at once. 👍 / 👎 on an agent’s comment by the project owner, a project admin or the assignee counts as approval or rejection.')}</div></div>`;
 }
 async function jobDo(jid, a) {

@@ -356,7 +356,7 @@ async function srv_modelModal(a) {
     try {
       const r = await api('PUT', `/api/agents/${a.id}/server`, {model: v});
       j = r; savedTick(sel); toast(tr('Model changed to {0}; applies from the next message', nm(r.model || v)));
-    } catch (x) { sel.value = j.model || was; toast(x instanceof Offline ? tr('Only available online.') : x.message); }
+    } catch (x) { sel.value = j.model || was; if (!x.shown) toast(errText(x, tr('The change could not be saved'))); }
     finally { sel.disabled = false; }
   });
   return md;
@@ -381,7 +381,7 @@ async function srv_adminSwitch(el) {
   try {  // allowing them again opens the server: the account password like the other opening switches (core/instance.py)
     let j; try { j = await rawFetch('PATCH', '/api/admin/settings', {server_agents_off: !on}); } catch (x) {
       if (x.data?.reauth_needed) { if (!await reauthFresh(x.data)) throw x; j = await api('PATCH', '/api/admin/settings', {server_agents_off: !on}); } else {  // 2.611.0 (#4019)
-      if (!x.data?.password_needed) { toast(x instanceof Offline ? tr('Only available online.') : x.message); throw x; }
+      if (!x.data?.password_needed) { toast(errText(x, tr('The change could not be saved'))); throw x; }
       const p = await pwPrompt(tr('Confirm with your password')); if (!p) throw x;
       j = await api('PATCH', '/api/admin/settings', {server_agents_off: !on, password: p.password}); }
     }
@@ -412,6 +412,6 @@ async function srv_teamFill(md, a) {
     const b = /** @type {any} */ (ev.currentTarget), v = +$('#srv-mlim', md).value || 0;
     b.disabled = true;
     try { await calReq('PUT', `/api/agents/${a.id}/server/team`, {member_limit: v > 0 ? {period: $('#srv-mper', md).value, hard: Math.round(v)} : null}); toast(tr('Saved')); srv_teamFill(md, a); }
-    catch (x) { toast(x.message); } finally { b.disabled = false; }
+    catch (x) { toast(errText(x, tr('The change could not be saved'))); } finally { b.disabled = false; }
   });
 }

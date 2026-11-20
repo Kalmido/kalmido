@@ -94,7 +94,7 @@ document.addEventListener('click', async e => {
   const b = e.target.closest?.('[data-le2c="unlock"]'); if (!b) return;
   e.preventDefault(); e.stopPropagation();
   const room = S.tc.room; if (!room) return;
-  if (typeof le2eUnlock === 'function') { try { await le2eUnlock(room.list_id); } catch (x) { if (x?.message) toast(x.message); } }
+  if (typeof le2eUnlock === 'function') { try { await le2eUnlock(room.list_id); } catch (x) { if (x?.message) toast(errText(x, tr('The project key could not be opened.'))); } }
   (S.tc.msgs || []).forEach(m => { delete m._nokey; delete m._fail; });
   le2eChanDecrypt(room.id);
 }, true);

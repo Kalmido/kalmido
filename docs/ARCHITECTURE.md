@@ -340,7 +340,8 @@ registering the ones of its area.
 
 | File | What it holds |
 |---|---|
-| `icons.js` | Icons (the "Punkt" set) and the app name; the first file (`'use strict'`, shared helpers like `$`, `esc`). |
+| `boottheme.js` | #6365: the look of the first picture (theme, accent, theme pack, font size, `html.rebooting`), the only blocking script, at the top of `<head>`; `icons.js` uses its functions. |
+| `icons.js` | Icons (the "Punkt" set) and the app name; the first deferred file (`'use strict'`, shared helpers like `$`, `esc`). |
 | `core.js` | Dates, the client state, the API + offline outbox, edit conflicts, routing. |
 | `quickadd.js` | The quick-add parser (six languages) and small task helpers: ticket types, milestones, links, repeat rules, reminders, deadlines. |
 | `views.js` | Which tasks a view shows (smart lists, filters, sorting, grouping). |

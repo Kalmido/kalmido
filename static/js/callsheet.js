@@ -270,7 +270,7 @@ async function cs_open(job, org) {
         const file = new File([blob], fname(), {type: 'application/pdf'});
         if (k === 'share' && navigator.canShare?.({files: [file]})) { await navigator.share({files: [file], title: tr('Call sheet')}).catch(() => {}); }
         else { const u = URL.createObjectURL(blob), x = document.createElement('a'); x.href = u; x.download = fname(); document.body.append(x); x.click(); x.remove(); setTimeout(() => URL.revokeObjectURL(u), 30000); }
-      } catch (er) { toast(er.message || tr('The PDF could not be made.')); }
+      } catch (er) { toast(errText(er, tr('The PDF could not be made.'))); }
       b.disabled = false;
     }
   });

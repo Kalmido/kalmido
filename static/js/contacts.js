@@ -67,7 +67,7 @@ async function ctLoad(q) {  // 2.431.0 C (#3602): q = quietly for ct_live (no dr
   if (CT.book) qs.set('book_id', CT.book);
   if (CT.folder) qs.set('folder', CT.folder);  // 2.351.0 B (#2749): the books / contacts filed in one folder
   try {
-    const j = await api('GET', '/api/contacts?' + qs);
+    const j = await api('GET', '/api/contacts?' + qs, undefined, {quiet: true});  // (#6372): the list's error block says a failure
     if (seq !== CT.seq) return;
     fresh = CT.qk !== key;
     CT.items = j.items; CT.total = j.total; CT.groups = j.groups || []; CT.qk = key; CT.err = null;
@@ -192,7 +192,7 @@ document.addEventListener('click', e => { if (!e.target.closest?.('[data-ct18x]'
 // (asks with the number); after the trash period the server deletes them for good (trash_days)
 async function ctt_load() {
   // 2.1178.0 (#6121): a failed load is said (errorState with "Try again"), not swallowed into "The trash is empty"
-  let j, bj; try { [j, bj] = await Promise.all([api('GET', '/api/contacts?trash=1&limit=2000'), api('GET', '/api/books?trash=1')]); } catch (e) { if (CT.trash && e?.message !== 'auth') { CT.trash = {err: e || true}; ctDraw(); } return; }
+  let j, bj; try { [j, bj] = await Promise.all([api('GET', '/api/contacts?trash=1&limit=2000', undefined, {quiet: true}), api('GET', '/api/books?trash=1', undefined, {quiet: true})]  /* (#6372): the error block says a failure */); } catch (e) { if (CT.trash && e?.message !== 'auth') { CT.trash = {err: e || true}; ctDraw(); } return; }
   if (!CT.trash) return;
   CT.trash = {items: j?.items || [], books: bj?.items || [], days: j?.trash_days || bj?.trash_days || 0};
   ctDraw();
@@ -242,7 +242,7 @@ async function ctx_more() {
   if (CT.book) qs.set('book_id', CT.book);
   if (CT.folder) qs.set('folder', CT.folder);  // 2.351.0 B (#2749): the books / contacts filed in one folder
   try {
-    const j = await api('GET', '/api/contacts?' + qs);
+    const j = await api('GET', '/api/contacts?' + qs, undefined, {quiet: true});  // (#6372): the list's error block says a failure
     if (seq === CT.seq && key === ctx_key() && CT.items) {
       const have = new Set(CT.items.map(c => c.id));
       CT.items.push(...j.items.filter(c => !have.has(c.id)));
@@ -526,7 +526,7 @@ async function bk_matching() {
     const qs = new URLSearchParams({q: CT.q, limit: '2000', offset: String(off)});
     if (CT.group) qs.set('group', CT.group);
     if (CT.book) qs.set('book_id', CT.book);
-    const j = await api('GET', '/api/contacts?' + qs); out.push(...j.items);
+    const j = await api('GET', '/api/contacts?' + qs, undefined, {quiet: true});  // (#6372): the list's error block says a failure out.push(...j.items);
     if (j.items.length < 2000) break;
   }
   return out;

@@ -1,0 +1,4 @@
+/* #6381: a loading hint (render.js loadingHtml .eload, the stand-in of a lazy view lazyload.js .ldwait) shows only after
+   300 ms, like the bar at the top (lazyload.js ld_bar): a fast answer never flashes "Loading…"; its place stays reserved */
+.eload,.ldwait{animation:ld-late 0s linear .3s both}
+@keyframes ld-late{from{visibility:hidden}to{visibility:visible}}

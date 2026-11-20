@@ -164,7 +164,7 @@ async function shz_put(ph, raw) {
       }});
     if (SHV.sh?.id === sid) { SHV.cur = SHV.anc = {r: row, c: col}; shvRender(); requestAnimationFrame(() => $('#shv-scroll')?.focus({preventScroll: true})); }
   } catch (e) {
-    await drop(); if (e.message !== 'auth') toast(e.message);
+    await drop(); if (e.message !== 'auth') toast(errText(e, tr('The change could not be saved')));
     if (SHV.sh?.id === sid) await shvLoad(sid, true);
   }
 }

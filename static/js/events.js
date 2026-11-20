@@ -280,11 +280,15 @@ function openQuickSheet(prefill = '', preset = {}) {
     // 2.32.0 (#1059): the same placeholder as the desktop composer; the syntax help as chips that insert the shortcut; the
     // buttons in their own row with a short visible label (title + aria-label stay)
     q.innerHTML = `<div class="box">${ic('plus')}<input id="qsheet" name="kalmido-quick-add-sheet" type="text" data-form-type="other" data-lpignore="true" placeholder="${tr('Add task…')}" title="${esc(tr(QEX))}" autocomplete="off" enterkeyhint="send"><button class="iconbtn" data-act="qsheet-send" aria-label="${tr('Add')}" title="${tr('Add')}">${ic('arrow')}</button></div><div class="chips"></div><div class="qhint"></div><div class="qacts">${qExtraBtns('qsheet', true)}${tplBtn(true)}</div>`;  // 2.25.0 (UX-34); 2.30.0 (#1033)
+    // #6377: a modal dialog for screen readers, the page behind it inert (dialogs.js mdInert) until it starts to close
+    q.setAttribute('role', 'dialog'); q.setAttribute('aria-modal', 'true'); q.setAttribute('aria-label', tr('New task'));
     document.body.appendChild(q);
+    onRemove(q, () => q._inRel?.());
   }
+  q._inRel?.(); q._inRel = mdInert(q);
   $('#scrim').classList.remove('hidden');
   document.body.classList.add('qsheet-open');  // 2.13.0 (#453 P8): the + button does not peek out behind the sheet
-  popOnClose = () => { an_remove(q); S.quickPreset = {}; S.qMoved = false; document.body.classList.remove('qsheet-open'); };
+  popOnClose = () => { q._inRel?.(); an_remove(q); S.quickPreset = {}; S.qMoved = false; document.body.classList.remove('qsheet-open'); };
   const nf = preset.files?.length || 0;
   const hint = [preset.due ? dayLabel(preset.due) + (preset.due_time ? ' ' + fmtTimeLoc(preset.due_time) : '') : '', preset.content ? tr('Link as description') : '', preset.url ? tr('Link: {0}', urlHost(preset.url)) : '',
     nf ? (nf === 1 ? tr('Attachment: {0}', preset.files[0].name) : tr('{0} attachments', nf)) : ''].filter(Boolean).join(' · ');

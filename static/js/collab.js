@@ -472,7 +472,7 @@ async function newsMore(b) {
     const ids = new Set(S.nf.items.map(x => x.id));
     S.nf.items = [...S.nf.items, ...(j.items || []).filter(x => !ids.has(x.id))];
     S.nf.users = {...S.nf.users, ...(j.users || {})}; S.nf.n += NEWS_PAGE; S.nf.next = j.next || null;
-  } catch (e) { toast(e instanceof Offline ? tr('Only available online.') : e.message); if (b) b.disabled = false; return; }
+  } catch (e) { toast(errText(e, tr('Older news could not be loaded'))); if (b) b.disabled = false; return; }
   if (S.route.mod === 'news') renderView();
 }
 const newsMoreHtml = () => S.nf.next && !S.nf.unread ? `<div class="audmore"><button type="button" class="btn sm" data-act="news-more">${tr('Load more')}</button></div>` : '';
@@ -891,7 +891,7 @@ function commentHtml(c, U, ro = false) {
   const sn = !ro && !!cmSayNo(taskById(c.task_id || S.sel));  // 2.607.0 (#4549): only reads: no reply, no edit (delete own stays; reactions: reactHtml)
   const acts = ro ? (cpb ? `<span class="cacts">${cpb}</span>` : '') : `<span class="cacts">${editing || sn ? '' : replyBtn()}${cpb}${cs ? `<button class="iconbtn" data-act="cm-save" data-cid="${c.id}" title="${esc(tr('Save as task'))}" aria-label="${esc(tr('Save as task'))}">${ic('bookmark', 's')}</button>` : ''}${mine && !sn ? `<button class="iconbtn" data-act="c-edit" data-cid="${c.id}" title="${tr('Edit')}">${ic('edit', 's')}</button>` : ''}${mine || S.tl.moderator ? `<button class="iconbtn" data-act="c-del" data-cid="${c.id}" title="${tr('Delete')}">${ic('trash', 's')}</button>` : ''}</span>`;
   const files = c.attachments?.length ? `<div class="atts catts">${c.attachments.map(a => cattHtml(a, c.id, editing)).join('')}</div>` : '';
-  const main = editing ? `<div class="cedit"><textarea class="c-edit-input" data-cid="${c.id}" rows="2">${esc(decodeMentions(c.body, U))}</textarea><div class="mpick hidden"></div>${files}<div class="cbar"><span class="spacer"></span><button class="btn sm" data-act="c-edit-cancel">${tr('Cancel')}</button><button class="btn sm pri" data-act="c-edit-save" data-cid="${c.id}">${tr('Save')}</button></div></div>`
+  const main = editing ? `<div class="cedit"><textarea class="c-edit-input" data-cid="${c.id}" rows="2" aria-label="${tr('Comment')}">${esc(decodeMentions(c.body, U))}</textarea><div class="mpick hidden"></div>${files}<div class="cbar"><span class="spacer"></span><button class="btn sm" data-act="c-edit-cancel">${tr('Cancel')}</button><button class="btn sm pri" data-act="c-edit-save" data-cid="${c.id}">${tr('Save')}</button></div></div>`
     : `${ro ? '' : replyQuoteHtml(c, 'c')}${c.body ? `<div class="cbody">${commentBody(c.body, U, taskById(c.task_id || S.sel)?.list_id)}</div>` : ''}${files}${sugHtml(c, ro)}${ccCommentHtml(c, ro)}${reactHtml(c, ro)}`;
   // 2.5.1 (#395): the author's avatar opens the same card as an @mention (only in the comment list, not read-only copies)
   const cav = ro || c.ext_name ? av(c.user_id, cv_who(c, U)) : `<button type="button" class="cmav" data-mcard="${c.user_id}" data-mname="${esc(uname(c.user_id, U))}" aria-haspopup="dialog" title="${esc(tr('Show {0}', uname(c.user_id, U)))}">${av(c.user_id, uname(c.user_id, U))}</button>`;  // 2.50.0 (#329): a customer's comment: their name, no card
@@ -1017,7 +1017,7 @@ async function capi(method, url, body) {  // comments: never queued, clear messa
   try { return await rawFetch(method, url, body); }
   catch (e) {
     if (e instanceof Offline) toast(tr('You are offline: the comment was not sent and stays in the box'));
-    else if (e.message !== 'auth') toast(e.message);
+    else if (e.message !== 'auth') toast(errText(e, method === 'POST' && /\/comments$/.test(url) ? tr('The comment could not be sent') : tr('The change could not be saved')));
     throw e;
   }
 }
@@ -1034,7 +1034,7 @@ async function sendComment() {
   let payload = {body: text, ...(rto ? {reply_to: rto} : {}), ...(pub ? {portal: true} : {}), ...(mrep ? {mail_reporter: true} : {})};
   // 2.64.2 B (#1817): in a list with the lock the files go encrypted with the list key (names as list ciphers)
   let lf = null;
-  if (files.length && typeof le2eFileParts === 'function') { try { lf = await le2eFileParts(taskById(tid)?.list_id, files, tid); } catch (x) { toast(x.message); return; } }
+  if (files.length && typeof le2eFileParts === 'function') { try { lf = await le2eFileParts(taskById(tid)?.list_id, files, tid); } catch (x) { toast(errText(x, tr('The file could not be attached'))); return; } }
   if (files.length) { payload = new FormData(); payload.append('body', text); if (rto) payload.append('reply_to', rto); if (pub) payload.append('portal', '1'); if (mrep) payload.append('mail_reporter', '1'); if (lf) lf.forEach(p => { payload.append('file', p.blob, 'encrypted.kenc'); payload.append('le2e_name', p.name); }); else files.forEach((f, i) => payload.append('file', f, f.name || `bild-${Date.now()}-${i}.png`)); }
   // 2.370.2 (#3088): the same text sent again after a failed answer = the same comment
   const cr = CMT_REF[tid]?.text === raw ? CMT_REF[tid] : (CMT_REF[tid] = {text: raw, ref: Date.now().toString(36) + Math.random().toString(36).slice(2, 10)});

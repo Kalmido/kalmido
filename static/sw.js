@@ -27,6 +27,7 @@ const SHELL = ['/', '/manifest.json', '/static/app.css', '/static/i18n.js', '/st
   '/static/js/backclose.js',
   '/static/js/backnav.js',
   '/static/js/basket.js',
+  '/static/js/boottheme.js',
   '/static/js/calendar.js',
   '/static/js/calevents.js',
   '/static/js/cfnew.js',

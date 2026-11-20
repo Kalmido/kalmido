@@ -67,7 +67,7 @@ async function shk_peopleOf(sid) {
 }
 async function shk_personMenu(r, c) {
   const sh = SHV.sh, col = sh._col.get(c), cell = shvCell(r, c), addr = shvAddr(r, c);
-  let ps; try { ps = await shk_peopleOf(sh.id); } catch (e) { toast(e.message); return; }
+  let ps; try { ps = await shk_peopleOf(sh.id); } catch (e) { toast(errText(e, tr('The people could not be loaded'))); return; }
   const cur = String(cell?.raw || '').trim();
   const items = ps.map(p => ({label: p.name || '?', icon: 'user', on: cur === String(p.id), fn: () => shvPut([{row_id: r, col_id: c, raw: String(p.id)}], tr('Cell {0} changed', addr))}));
   if (!items.length) items.push({label: tr('Nobody can be selected here'), dis: true, fn: () => {}});
@@ -92,7 +92,7 @@ async function shk_upload(r, c, f) {
   const sh = SHV.sh; if (!sh?.can_write) return;
   const sid = sh.id, addr = shvAddr(r, c), fd = new FormData();
   fd.append('file', f); fd.append('row_id', String(r)); fd.append('col_id', String(c));
-  let j; try { j = await rawFetch('POST', `/api/sheets/${sid}/files`, fd); } catch (e) { toast(e.message); return; }
+  let j; try { j = await rawFetch('POST', `/api/sheets/${sid}/files`, fd); } catch (e) { toast(errText(e, tr('The file could not be attached'))); return; }
   shvMerge(sid, j, [{row_id: r, col_id: c, raw: 'file:' + j.file.id}]);
   const now = [{row_id: r, col_id: c, raw: 'file:' + j.file.id}], old = [{row_id: r, col_id: c, raw: j.old_raw || ''}];
   const e = histAdd({label: tr('File {0} added', f.name), ids: [], snaps: [], lids: [],
@@ -127,7 +127,7 @@ async function shk_fixSet(body, label) {
   const sh = SHV.sh; if (!sh?.can_write) return;
   const sid = sh.id, old = {rows: sh.freeze_rows || 0, cols: sh.freeze_cols || 0}, now = {...old, ...body};
   const set = async v => { const j = await rawFetch('POST', `/api/sheets/${sid}/fixed`, v); if (SHV.sh?.id === sid) { SHV.sh.freeze_rows = j.freeze_rows; SHV.sh.freeze_cols = j.freeze_cols; SHV.sh.rev = j.rev; shk_after(); } };
-  try { await set(now); } catch (e) { toast(e.message); return; }
+  try { await set(now); } catch (e) { toast(errText(e, tr('The change could not be saved'))); return; }
   const e = histAdd({label, ids: [], snaps: [], lids: [], srv: true, undo: async () => { await set(old); return {skipped: []}; }, redo: async () => { await set(now); return {skipped: []}; }});
   histToast(label, e);
 }
@@ -211,7 +211,7 @@ function shk_print() {
 async function shh_open(cell) {
   const sh = SHV.sh; if (!sh) return;
   const url = cell ? `/api/sheets/${sh.id}/cells/${cell.id}/history` : `/api/sheets/${sh.id}/history`;
-  let j; try { j = await rawFetch('GET', url); } catch (e) { toast(e.message); return; }
+  let j; try { j = await rawFetch('GET', url); } catch (e) { toast(errText(e, tr('The history could not be loaded'))); return; }
   const es = j.entries || [];
   const val = v => v === '' || v == null ? `<span class="muted">${tr('(empty)')}</span>` : `<span class="shhv">${esc(v)}</span>`;
   /** @type {any} */

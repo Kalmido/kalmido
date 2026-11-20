@@ -11,7 +11,7 @@ function ntTrashHtml() {
     if (!t.busy) {
       t.busy = true;
       rawFetch('GET', `/api/lists/${S.nt.lid}/notes?trash=1`).then(j => { if (S.nt.trash === t) { t.notes = j.notes || []; t.days = j.trash_days; renderView(); } })
-        .catch(e => toast(e.message));
+        .catch(e => toast(errText(e, tr('The trash could not be loaded'))));
     }
     return `<div class="muted mhint">${tr('Loading…')}</div>`;
   }
@@ -21,7 +21,7 @@ function ntTrashHtml() {
 }
 document.addEventListener('click', async e => {
   const b = /** @type {HTMLElement} */ (e.target).closest?.('[data-ntrest]'); if (!(b instanceof HTMLElement)) return;
-  let x; try { x = await rawFetch('POST', `/api/notes/${b.dataset.ntrest}/restore`); } catch (err) { toast(err.message); return; }
+  let x; try { x = await rawFetch('POST', `/api/notes/${b.dataset.ntrest}/restore`); } catch (err) { toast(errText(err, tr('The note could not be restored'))); return; }
   if (S.nt.lid === x.list_id) { S.nt.notes = [x, ...(S.nt.notes || []).filter(n => n.id !== x.id)]; if (S.nt.trash) S.nt.trash = {}; }
   await load(); toast(tr('Restored')); renderView();
 });

@@ -55,7 +55,7 @@ async function fq_ckCopy(url) {
 // a client's "…" menu (clientpage.js): the link of an open form of the client's workspace for this client (one form: copied
 // at once, several: a menu with the forms)
 async function fq_clientLink(c, anchor) {
-  let j; try { j = await rawFetch('GET', `/api/clients/${c.id}/forms`); } catch (x) { toast(x.message || tr('Only available online.')); return; }
+  let j; try { j = await rawFetch('GET', `/api/clients/${c.id}/forms`); } catch (x) { toast(errText(x, tr('The links could not be loaded'))); return; }
   if (!j.forms.length) { toast(tr('No open form in this workspace yet: create one in a project (… > Forms).')); return; }
   if (j.forms.length === 1) { fq_ckCopy(j.forms[0].url); return; }
   menu(anchor, j.forms.map(f => ({label: `${f.title} · ${f.list_name}`, icon: 'copy', fn: () => fq_ckCopy(f.url)})));
@@ -95,7 +95,7 @@ function fq_bind(ed, f) {
     else if (k === 'cklink') {  // 2.102.0 C (#2201)
       const cid = +$('#fq-ckc', ed).value;
       if (!cid) { $('#fq-ckc', ed).focus(); toast(tr('Select a client')); return; }
-      rawFetch('GET', `/api/forms/${f.id}/client-link?client=${cid}`).then(j => fq_ckCopy(j.url), x => toast(x.message || tr('Only available online.')));
+      rawFetch('GET', `/api/forms/${f.id}/client-link?client=${cid}`).then(j => fq_ckCopy(j.url), x => toast(errText(x, tr('The new link could not be created'))));
     }
   });
   // 2.456.0 (#3837): the shared row drag: hold the grip on a touch screen, drag it with a mouse
@@ -104,7 +104,7 @@ function fq_bind(ed, f) {
 
 // the submissions of a form: newest first, the answers folded, the task one tap away, a CSV of all
 async function fq_entriesOpen(f) {
-  let j; try { j = await rawFetch('GET', `/api/forms/${f.id}/entries`); } catch (x) { toast(x.message || tr('Only available online.')); return; }
+  let j; try { j = await rawFetch('GET', `/api/forms/${f.id}/entries`); } catch (x) { toast(errText(x, tr('The submissions could not be loaded'))); return; }
   const show = (q, v) => v == null || v === '' ? '—' : Array.isArray(v) ? v.join(', ') : q.kind === 'yesno' ? tr(v === 'yes' ? 'Yes' : 'No') : String(v);
   const row = en => `<details class="fqen"><summary><span class="n"><b>${esc(en.title)}</b> <span class="muted">${esc(fmtWhen(en.created_at))}${en.sender || en.email ? ' · ' + esc([en.sender, en.email].filter(Boolean).join(' ')) : ''}${en.client ? ' · ' + esc(en.client.name) + (en.client_typed ? ' (' + esc(tr('not confirmed')) + ')' : '') : ''}${en.done ? ' · ' + esc(tr('done')) : ''}</span></span></summary>
       <dl>${j.questions.map(q => `<dt>${esc(q.label)}</dt><dd>${esc(show(q, en.answers[q.id]))}</dd>`).join('')}</dl>

@@ -361,7 +361,7 @@ function e2ePassDlg() {
 async function e2eRemove() {
   if (!await askConfirm(tr('Remove your encryption keys?'), tr('Your encrypted notes are deleted, your encrypted files and messages can never be opened again, encrypted conversations are switched off. This cannot be undone.'), {ok: tr('Remove permanently'), danger: true})) return false;
   const password = await e2eAcctPw(); if (password === null) return false;
-  try { await rawFetch('DELETE', '/api/e2e/keys', {password}); } catch (x) { toast(x.message); return false; }
+  try { await rawFetch('DELETE', '/api/e2e/keys', {password}); } catch (x) { toast(errText(x, tr('The encryption keys could not be removed'))); return false; }
   await e2eForget(); E2E.st = {set: false}; toast(tr('Encryption keys removed')); e2eRefresh();
   return true;
 }
@@ -492,7 +492,7 @@ async function e2eUpload(tid, files) {
     const fd = new FormData();
     fd.append('file', new Blob([await e2eFileEncrypt(f, tid)], {type: 'application/octet-stream'}), 'encrypted.kenc');
     try { t = await rawFetch('POST', `/api/tasks/${tid}/enc-attachments`, fd); }
-    catch (x) { if (t) { putTask(t); render(); if (S.sel === tid) renderDetail(); } if (!x.shown) toast(x instanceof Offline ? tr('Only available online.') : x.message); return; }  // 2.363.3 (#3134): the files before a Cancel stay and show
+    catch (x) { if (t) { putTask(t); render(); if (S.sel === tid) renderDetail(); } if (!x.shown) toast(errText(x, tr('The file could not be attached'))); return; }  // (#3134): the files before a Cancel stay and show
   }
   putTask(t); render(); if (S.sel === tid) renderDetail();
   toast(files.length === 1 ? tr('Encrypted and attached') : tr('{0} files encrypted and attached', files.length));
@@ -647,7 +647,7 @@ async function e2eDmToggle() {
     if (!pub) { toast(tr('{0} has not set up encryption yet', uname(other, S.tc.users))); return; }
     if (!await askConfirm(tr('Encrypt this conversation?'), tr('New messages are encrypted in the browser: only you two can read them, the server and agents cannot. Messages are not searched and cannot be saved as tasks. Compare the safety number to be sure.'), {ok: tr('Encrypt')})) return;
   } else if (!await askConfirm(tr('Switch encryption off?'), tr('New messages are no longer encrypted. Earlier encrypted messages stay encrypted.'), {ok: tr('Switch off')})) return;
-  try { await rawFetch('POST', `/api/team/rooms/${room.id}/e2e`, {on}); } catch (x) { toast(x.message); return; }
+  try { await rawFetch('POST', `/api/team/rooms/${room.id}/e2e`, {on}); } catch (x) { toast(errText(x, tr('The change could not be saved'))); return; }
   room.e2e = on; const r = (S.tc.rooms || []).find(x => x.id === room.id); if (r) r.e2e = on;
   if (!on) e2eDownAccept(room.id);
   await loadRoom(room.id); renderView();
@@ -668,7 +668,7 @@ document.addEventListener('click', async e => {
   if (a === 'note-new') { if (!await e2eEnsure()) return; E2E.notes[S.sel] = {tid: S.sel, text: '', open: true}; renderDetail(); setTimeout(() => $('#d-enc-in')?.focus(), 30); return; }
   if (a === 'note-del') {
     const tid = S.sel; if (!await askConfirm(tr('Delete the encrypted note?'), '', {ok: tr('Delete'), danger: true})) return;
-    try { await rawFetch('DELETE', `/api/tasks/${tid}/enc-note`); } catch (x) { toast(x.message); return; }
+    try { await rawFetch('DELETE', `/api/tasks/${tid}/enc-note`); } catch (x) { toast(errText(x, tr('The note could not be deleted'))); return; }
     delete E2E.notes[tid]; e2eTaskFlag(tid, false); const t = taskById(tid); if (t && !t.encrypted_note_mine) delete t.encrypted_note; renderDetail(); return;
   }
   if (a === 'att-open') { e2eAttOpen(+b.dataset.att); return; }

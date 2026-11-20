@@ -563,7 +563,7 @@ function acset_html(a) {
 // never formulates for the agent: it hands the text over with each of my messages (reply_style in the event).
 const ACSET_STYLE_MAX = 500, ACSET_STYLE_QUICK = [N_('Short answers'), N_('No tables'), N_('Reply in English')];  // translated as the UI's own language
 function acset_style_html() {
-  return `<fieldset class="acset-f"><legend>${esc(tr('Wishes for the replies'))}</legend><textarea id="acset-style" rows="3" maxlength="${ACSET_STYLE_MAX}" aria-describedby="acset-style-h" placeholder="${esc(tr('e.g. short answers, no tables'))}">${esc(acset_get('style') || '')}</textarea><div class="acset-q">${ACSET_STYLE_QUICK.map(q => `<button type="button" class="chip" data-acstyle="${esc(tr(q))}">${esc(tr(q))}</button>`).join('')}</div><div class="shint" id="acset-style-h">${esc(tr('Kalmido passes these wishes on to the agent with each of your messages.'))}</div></fieldset>`;
+  return `<fieldset class="acset-f"><legend>${esc(tr('Wishes for the replies'))}</legend><textarea id="acset-style" rows="3" maxlength="${ACSET_STYLE_MAX}" aria-label="${esc(tr('Wishes for the replies'))}" aria-describedby="acset-style-h" placeholder="${esc(tr('e.g. short answers, no tables'))}">${esc(acset_get('style') || '')}</textarea><div class="acset-q">${ACSET_STYLE_QUICK.map(q => `<button type="button" class="chip" data-acstyle="${esc(tr(q))}">${esc(tr(q))}</button>`).join('')}</div><div class="shint" id="acset-style-h">${esc(tr('Kalmido passes these wishes on to the agent with each of your messages.'))}</div></fieldset>`;
 }
 async function acset_style_save(aid, ta) {
   clearTimeout(ta._t); const v = ta.value.trim(); if (v === (acset_get('style') || '')) return;

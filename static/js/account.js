@@ -461,8 +461,8 @@ function rcWire(el, codes) {
 function pwPrompt(title, {code = false, text = ''} = {}) {
   return new Promise(done => {
     const md = modal(`<h3>${esc(title)}</h3>${text ? `<p class="muted">${text}</p>` : ''}<form class="pwform">
-      <input type="password" id="pp-pw" placeholder="${tr('current password')}" autocomplete="current-password" required>
-      ${code ? `<input id="pp-code" placeholder="${tr('Code from the app or a recovery code')}" autocomplete="one-time-code" autocapitalize="off" required>` : ''}
+      <input type="password" id="pp-pw" placeholder="${tr('current password')}" aria-label="${esc(tr('current password'))}" autocomplete="current-password" required>
+      ${code ? `<input id="pp-code" placeholder="${tr('Code from the app or a recovery code')}" aria-label="${esc(tr('Code from the app or a recovery code'))}" autocomplete="one-time-code" autocapitalize="off" required>` : ''}
       <div class="foot"><span class="spacer"></span><button type="button" class="btn" data-m="close">${tr('Cancel')}</button><button class="btn pri" type="submit">${tr('Continue')}</button></div></form>`);
     md.classList.add('pwprompt');
     const close = v => { md.remove(); done(v); };
@@ -569,7 +569,7 @@ async function reauthFresh(d) {
     const j = await authPost('/api/auth/passkey', {credential: await pkGet(await authPost('/api/auth/passkey/options', {keep: true}))});
     if (S.me && j.user?.id !== S.me.id) { location.replace('/'); return false; }  // another account's passkey: that account now
     return true;
-  } catch (x) { toast(x instanceof Error && x.j ? x.message : pkErr(x)); return false; }
+  } catch (x) { toast(x instanceof Error && x.j ? errText(x, tr('Signing in again did not work. Try again.')) : pkErr(x)); return false; }
 }
 document.addEventListener('change', async e => {
   const id = e.target.id; if (id !== 's-signup' && id !== 's-sdom' && id !== 's-oinv' && id !== 's-spriv' && id !== 's-cinv') return;
@@ -578,7 +578,7 @@ document.addEventListener('change', async e => {
     const ask = id === 's-signup' || id === 's-spriv' || id === 's-cinv';  // 2.1191.0 (#4550): switching it on asks for the password
     let j; try { j = await (ask ? rawFetch : api)('PATCH', '/api/admin/settings', b); } catch (x) {  // 2.360.0 A (#2496): the mode asks for the password
       if (ask && x.data?.reauth_needed) { if (!await reauthFresh(x.data)) throw x; j = await api('PATCH', '/api/admin/settings', b); } else {  // 2.611.0 (#4019)
-      if (!x.data?.password_needed) { if (ask) toast(x instanceof Offline ? tr('Only available online.') : x.message); throw x; }
+      if (!x.data?.password_needed) { if (ask) toast(errText(x, tr('The change could not be saved'))); throw x; }
       const p = await pwPrompt(tr('Confirm with your password')); if (!p) throw x;
       j = await api('PATCH', '/api/admin/settings', {...b, password: p.password}); }
     }

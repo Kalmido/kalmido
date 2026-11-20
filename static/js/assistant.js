@@ -28,7 +28,7 @@ async function asst_run(body, btn) {
   const wait = tr('Asking the assistant…');
   toast(wait, null, 90000);
   try { return await calReq('POST', '/api/assistant/run', body); }
-  catch (x) { toast(x.message || tr('The assistant is not reachable right now')); return null; }
+  catch (x) { toast(errText(x, tr('The assistant is not reachable right now'))); return null; }
   finally {
     asst_run.busy = false;
     if (btn) { btn.disabled = false; btn.removeAttribute('aria-busy'); btn.classList.remove('asstbusy'); }
@@ -187,7 +187,7 @@ function asst_setWire(md) {
       if ($('#s-asst-log', md)) asst_logDraw(md);
       render(); return {skipped: []};
     };
-    try { await put(to); } catch (x) { toast(x.message); el.checked = !el.checked; return; }
+    try { await put(to); } catch (x) { toast(errText(x, tr('The change could not be saved'))); el.checked = !el.checked; return; }
     const lab = tr('Projects the assistant may read');
     setSaved(histAdd({label: tr('Changed setting: {0}', lab), sett: true, undo: () => put(from), redo: () => put(to)}));
   });

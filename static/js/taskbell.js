@@ -54,7 +54,7 @@ function tbl_paint(tid) {
 }
 async function tbl_req(method, url, body) {
   try { return await rawFetch(method, url, body); } catch (e) {
-    toast(e instanceof Offline ? tr('Only available online.') : e.message || tr('Error'));
+    toast(errText(e, tr('The change could not be saved')));
     throw e;
   }
 }

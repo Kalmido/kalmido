@@ -313,6 +313,8 @@ jobs:
       # 2.754.0 (#5297): every ${} in an HTML template is escaped / a safe helper / marked; the old findings are the baseline
       - name: Every ${} in an HTML template is escaped, new findings red (2.754.0, #5297)
         run: python tools/check_innerhtml.py
+      - name: No toast with the raw error text - errText(e, what did not work) (#6372)
+        run: python tools/check_errtext.py -v
       # 2.1408.0 (#6831): the coupling of the client's global scope only shrinks - a file that newly writes a key of the app state S
       # another file makes is red (a setter of that file instead); the count of top-level names is shown. Compared with the base
       # (the queue entry's / pull request's base, the commit before a push); no base (schedule, a new branch) = nothing compared

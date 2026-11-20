@@ -121,6 +121,6 @@ document.addEventListener('click', async e => {
   try {
     await api('POST', `/api/agents/${d.awrAgent}/rules/${d.awrRule}/decide`, {decision: dec});
     toast(dec === 'confirm' ? tr('Rule confirmed') : dec === 'reject' ? tr('Rule rejected') : tr('Rule removed'));
-  } catch (x) { toast(x instanceof Offline ? tr('Only available online.') : x.message); }
+  } catch (x) { toast(errText(x, tr('The change could not be saved'))); }
   if (typeof chatLoad === 'function') chatLoad();
 });

@@ -170,8 +170,21 @@ for (const ev of ['pointerdown', 'mousedown']) document.addEventListener(ev, e =
 // where it came from when it closes (Esc, backdrop, a button, code)
 const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),summary,[tabindex]:not([tabindex="-1"]),[contenteditable="true"]';
 const focusables = root => $$(FOCUSABLE, root).filter(x => x.offsetParent !== null || x === document.activeElement || !x.getClientRects);
+// #6377: the page behind an open dialog (or the quick add sheet) is inert: no Tab, click or screen reader reaches it, not only
+// the Tab trap below. The popover (#pop: menus a dialog opens), the toast (its Undo), the live region and the scrim stay
+// reachable; a dialog under a newer one is inert too. Returns the release (once): it runs when the dialog starts to close
+// (before its fold-away, so the opener can take the focus back) and when it left the page.
+const MD_INERT = '#app > :not(#pop):not(#toast):not(#srlive):not(#scrim), body > .modal, body > .qadd.sheet';
+function mdInert(m) {
+  const els = $$(MD_INERT).filter(x => x !== m && !x.contains(m) && !m.contains(x) && !x.hasAttribute('inert'));
+  els.forEach(x => x.setAttribute('inert', ''));
+  let done = false;
+  return () => { if (done) return; done = true; els.forEach(x => x.removeAttribute('inert')); };
+}
 function modalA11y(m) {
   const card = m.querySelector('.card');
+  const unInert = mdInert(m), rmOwn = m.remove;
+  m.remove = function () { unInert(); return rmOwn.apply(this, arguments); };
   if (!m.hasAttribute('role')) m.setAttribute('role', 'dialog');
   m.setAttribute('aria-modal', 'true');
   const h = card && card.querySelector('h1,h2,h3,h4');
@@ -198,6 +211,7 @@ function modalA11y(m) {
   }, 90);
   onRemove(m, () => {
     if (!document) return;  // the window is gone
+    unInert();  // #6377
     const a = document.activeElement;
     let t = prev;
     if (t && !t.isConnected && psig) try { const all = document.querySelectorAll(psig); t = all[Math.max(0, Math.min(pi, all.length - 1))] || null; } catch { t = null; }

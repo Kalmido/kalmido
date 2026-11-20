@@ -124,7 +124,7 @@ function mtg_cardsHtml(aid) {
 async function mtg_apply(aid, p, b) {
   const sel = [...mtg_sel(p)]; if (!sel.length) return;
   b.disabled = true;
-  let r; try { r = await calReq('POST', `/api/proposals/${p.id}/apply`, {select: sel}); } catch (x) { toast(x.message); b.disabled = false; return; }
+  let r; try { r = await calReq('POST', `/api/proposals/${p.id}/apply`, {select: sel}); } catch (x) { toast(errText(x, tr('The change could not be saved'))); b.disabled = false; return; }
   delete S.mtgSel[p.id]; S.mtg[aid] = (S.mtg[aid] || []).filter(x => x.id !== p.id); mtg_draw(aid);
   await load().catch(() => {}); render();
   const jid = p.id, name = agentById(aid)?.name || '';
@@ -135,7 +135,7 @@ async function mtg_apply(aid, p, b) {
 }
 async function mtg_discard(aid, p) {
   if (!await askConfirm(tr('Discard this proposal?'), tr('{0} is told at once. Nothing is created or changed.', agentById(aid)?.name || ''), {ok: tr('Discard'), danger: true})) return;
-  try { await calReq('POST', `/api/proposals/${p.id}/discard`); } catch (x) { toast(x.message); return; }
+  try { await calReq('POST', `/api/proposals/${p.id}/discard`); } catch (x) { toast(errText(x, tr('The change could not be saved'))); return; }
   delete S.mtgSel[p.id]; S.mtg[aid] = (S.mtg[aid] || []).filter(x => x.id !== p.id); mtg_draw(aid);
   toast(tr('Proposal discarded'));
 }

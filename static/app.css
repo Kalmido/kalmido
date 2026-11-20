@@ -22,7 +22,7 @@
   --acc-d:#4fb3c1;--acc-ink-d:#04201f;--acc-l:#187381;--acc-ink-l:#ffffff;--accent:var(--acc-d);--accent-ink:var(--acc-ink-d);
   --accent-soft:color-mix(in srgb,var(--accent) 9%,var(--bg));
   --p7:#ff4136;--p5:#e5776e;--p3:#d6a54a;--p1:#79a3dc;--ok:#51cf66;--danger:#ef7068;
-  --st-ready:#51cf66;--st-work:#4dabf7;--st-wait:#fcc419;--st-wait-t:#fcc419;--st-off:#8d9096;--st-err:#ef7068;--wait-soft:#2a2410;
+  --st-ready:#51cf66;--st-work:#4dabf7;--st-work-t:#4dabf7;--st-wait:#fcc419;--st-wait-t:#fcc419;--st-off:#8d9096;--st-off-t:#8d9096;--st-err:#ef7068;--wait-soft:#2a2410;
   --radius:.375rem;--r-s:.25rem;--r-l:.625rem;
   --sans:"Geist",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
   --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
@@ -771,8 +771,8 @@ fieldset[disabled] .rowgrip{cursor:auto}
 @keyframes pulse{50%{opacity:.4}}
 
 /* ---------- light theme (per device: auto follows the OS) ---------- */
-:root[data-theme="light"]{--bg:#ffffff;--bg2:#f8f8f9;--bg3:#efeff1;--bg4:#dcdce0;--line:#eeeef0;--line2:#e3e3e6;--text:#131418;--text2:#464951;--muted:#60636c;--faint:#686b72;--accent:var(--acc-l);--accent-ink:var(--acc-ink-l);--p7:#8f1209;--p5:#b3372f;--p3:#97600b;--p1:#3565a8;--ok:#2f9e44;--ok-t:#237a35;--danger:#b3372f;--st-ready:#2f9e44;--st-work:#1c7ed6;--st-wait:#d99a00;--st-wait-t:#8a6200;--st-off:#8d9096;--st-err:#c92a2a;--wait-soft:#fff8e1;--shadow:0 .75rem 2.25rem rgba(19,20,24,.12),0 0 0 1px var(--line2);--cs:light;color-scheme:light}
-@media (prefers-color-scheme: light){ :root[data-theme="auto"]{--bg:#ffffff;--bg2:#f8f8f9;--bg3:#efeff1;--bg4:#dcdce0;--line:#eeeef0;--line2:#e3e3e6;--text:#131418;--text2:#464951;--muted:#60636c;--faint:#686b72;--accent:var(--acc-l);--accent-ink:var(--acc-ink-l);--p7:#8f1209;--p5:#b3372f;--p3:#97600b;--p1:#3565a8;--ok:#2f9e44;--ok-t:#237a35;--danger:#b3372f;--st-ready:#2f9e44;--st-work:#1c7ed6;--st-wait:#d99a00;--st-wait-t:#8a6200;--st-off:#8d9096;--st-err:#c92a2a;--wait-soft:#fff8e1;--shadow:0 .75rem 2.25rem rgba(19,20,24,.12),0 0 0 1px var(--line2);--cs:light;color-scheme:light} }
+:root[data-theme="light"]{--bg:#ffffff;--bg2:#f8f8f9;--bg3:#efeff1;--bg4:#dcdce0;--line:#eeeef0;--line2:#e3e3e6;--text:#131418;--text2:#464951;--muted:#60636c;--faint:#686b72;--accent:var(--acc-l);--accent-ink:var(--acc-ink-l);--p7:#8f1209;--p5:#b3372f;--p3:#97600b;--p1:#3565a8;--ok:#2f9e44;--ok-t:#237a35;--danger:#b3372f;--st-ready:#2f9e44;--st-work:#1c7ed6;--st-work-t:#1864ab;--st-wait:#d99a00;--st-wait-t:#8a6200;--st-off:#8d9096;--st-off-t:#686b72;--st-err:#c92a2a;--wait-soft:#fff8e1;--shadow:0 .75rem 2.25rem rgba(19,20,24,.12),0 0 0 1px var(--line2);--cs:light;color-scheme:light}
+@media (prefers-color-scheme: light){ :root[data-theme="auto"]{--bg:#ffffff;--bg2:#f8f8f9;--bg3:#efeff1;--bg4:#dcdce0;--line:#eeeef0;--line2:#e3e3e6;--text:#131418;--text2:#464951;--muted:#60636c;--faint:#686b72;--accent:var(--acc-l);--accent-ink:var(--acc-ink-l);--p7:#8f1209;--p5:#b3372f;--p3:#97600b;--p1:#3565a8;--ok:#2f9e44;--ok-t:#237a35;--danger:#b3372f;--st-ready:#2f9e44;--st-work:#1c7ed6;--st-work-t:#1864ab;--st-wait:#d99a00;--st-wait-t:#8a6200;--st-off:#8d9096;--st-off-t:#686b72;--st-err:#c92a2a;--wait-soft:#fff8e1;--shadow:0 .75rem 2.25rem rgba(19,20,24,.12),0 0 0 1px var(--line2);--cs:light;color-scheme:light} }
 :root[data-theme="light"]{--prbg1:6%;--prbg2:13%}
 @media (prefers-color-scheme: light){ :root[data-theme="auto"]{--prbg1:6%;--prbg2:13%} }
 :root[data-theme="light"] .cal .cell.out{background:rgba(0,0,0,.025)}
@@ -1190,7 +1190,7 @@ svg.chart{display:block;max-width:100%;overflow:visible}
 .lexpage h1{break-after:avoid}
 
 /* ---------- package 3: dependencies, project status + progress, custom fields ---------- */
-:root{--st-on_track:var(--ok);--st-at_risk:var(--p3);--st-off_track:var(--p5);--st-on_hold:var(--p1);--st-complete:var(--accent);--st-none:var(--muted)}
+:root{--st-on_track:var(--ok-t);--st-at_risk:var(--p3);--st-off_track:var(--p5);--st-on_hold:var(--p1);--st-complete:var(--accent);--st-none:var(--muted)}
 .meta .blk,.dsec h5 .blk{color:var(--p3);font-weight:500}
 .dsec h5 .blk{display:inline-flex;align-items:center;gap:.1875rem;text-transform:none;letter-spacing:0;margin-left:.375rem}
 .meta .fchip{display:inline-flex;align-items:center;gap:.1875rem;max-width:11.875rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1551,7 +1551,7 @@ div.calerr{font-size:var(--fs-s);padding:.25rem 0}
 .rcodes code{background:var(--bg3);border-radius:var(--radius);padding:.25rem .5rem;text-align:center;user-select:all}
 .pwform{display:flex;flex-direction:column;gap:.625rem}
 .tfastate{font-size:var(--fs-m);color:var(--muted)}
-.tfastate.on{color:var(--ok)}
+.tfastate.on{color:var(--ok-t)}
 .pklist .avatar,.bklist .iconbtn{flex:none}
 .bkrow .n b{font-weight:600}
 /* package B: history lines written through the API, checklist mode, API tokens / webhooks / public link settings */
@@ -2148,7 +2148,7 @@ button.tvr-task:hover{color:var(--accent)}
 .jst{font:500 var(--fs-xs) var(--mono);padding:0 .375rem;border-radius:var(--r-s);background:var(--bg3);color:var(--text2);line-height:1.125rem}
 .job.st-running .jst{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent)}
 .job.st-waiting{border-color:color-mix(in srgb,var(--p3) 55%,transparent)}.job.st-waiting .jst{background:color-mix(in srgb,var(--p3) 18%,transparent);color:var(--p3)}
-.job.st-failed .jst{color:var(--danger)}.job.st-done .jst{color:var(--ok)}
+.job.st-failed .jst{color:var(--danger)}.job.st-done .jst{color:var(--ok-t)}
 .job .runtask{display:flex;align-items:center;gap:.375rem;color:var(--muted);font-size:var(--fs-m);align-self:flex-start;max-width:100%}
 .job .runtask span,.cmsg .runtask span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .joblog summary{cursor:pointer;color:var(--text2);font-size:var(--fs-m);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -2458,9 +2458,9 @@ body.fab-on #view .chcomp.tccomp{padding-right:calc(var(--fab-safe) + .75rem)}  
 }
 /* 2.2.0 (#271 / #339): Git integration: the "Code" section, the row chip, repositories in the list dialog, merge requests */
 .meta .gitc{display:inline-flex;align-items:center;gap:.1875rem;font-family:var(--mono);font-size:var(--fs-xs);font-variant-numeric:tabular-nums}
-.meta .gitc.pr-open{color:var(--ok)}.meta .gitc.pr-merged{color:var(--accent)}.meta .gitc.pr-closed{color:var(--muted)}
+.meta .gitc.pr-open{color:var(--ok-t)}.meta .gitc.pr-merged{color:var(--accent)}.meta .gitc.pr-closed{color:var(--muted)}
 .ci{display:inline-flex;align-items:center}.ci .i{width:.8125rem;height:.8125rem}
-.ci-success{color:var(--ok)}.ci-failure{color:var(--danger)}.ci-pending{color:var(--p3)}
+.ci-success{color:var(--ok-t)}.ci-failure{color:var(--danger)}.ci-pending{color:var(--p3)}
 .gitsec h5{display:flex;align-items:center;gap:.375rem}
 .gitsec h5 .gref{margin-left:auto}
 .gitl{display:flex;flex-direction:column;gap:.125rem;margin:.25rem 0}
@@ -2471,7 +2471,7 @@ a.gitrow:hover{background:var(--bg3)}
 .gitrow .gmeta{flex:none;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-xs)}
 .gitrow code{font-family:var(--mono);font-size:var(--fs-xs);color:var(--muted)}
 .gst{flex:none;padding:.0625rem .4375rem;border-radius:99rem;font-size:var(--fs-xs);background:var(--bg3)}
-.gst.pr-open{color:var(--ok)}.gst.pr-merged{color:var(--accent)}.gst.pr-closed{color:var(--muted)}
+.gst.pr-open{color:var(--ok-t)}.gst.pr-merged{color:var(--accent)}.gst.pr-closed{color:var(--muted)}
 .gitagent{display:flex;align-items:center;gap:.375rem;font-size:var(--fs-s);color:var(--accent);padding:.25rem .5rem}
 .ghint{font-size:var(--fs-s);padding:.25rem .5rem}
 /* 2.151.0 A (#2558): the build state of a task (Code section), commit marks, the row hint */
@@ -2585,7 +2585,7 @@ button.mention.mlink{font:inherit;font-weight:500;border:0;cursor:pointer;line-h
 .cmav{border:0;background:none;padding:0;margin:0;cursor:pointer;border-radius:50%;align-self:flex-start;flex:none;line-height:0}
 .cmav:hover .avatar{box-shadow:0 0 0 2px var(--accent)}
 .cmav:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-button.mention.mlink:hover,button.mention.mlink:focus-visible{text-decoration:underline;outline:none}
+button.mention.mlink:hover,button.mention.mlink:focus-visible{text-decoration:underline}
 .mcard{width:auto;padding:.375rem;display:grid;gap:.625rem;box-sizing:border-box}
 .mchead{display:flex;gap:.625rem;align-items:center;min-width:0}
 .mcn{display:flex;flex-direction:column;gap:.125rem;min-width:0}
@@ -2772,8 +2772,8 @@ button.mention.mlink:hover,button.mention.mlink:focus-visible{text-decoration:un
   .ppcl{width:2.75rem;height:2.75rem;margin:-.625rem -.5rem -.625rem -.75rem}
   .chkl{min-height:2.75rem;display:flex;align-items:center;gap:.5rem}
   .ghead[data-act="collapse"],.hname,.tvl{min-height:2.75rem}
-  .drun,.dep .dt,.runtask,.tvr-task,.stpill,.caret,.whob{position:relative}
-  .drun::before,.dep .dt::before,.runtask::before,.tvr-task::before,.stpill::before,.caret::before,.whob::before{content:"";position:absolute;left:min(0rem,calc(50% - 1.375rem));right:min(0rem,calc(50% - 1.375rem));top:calc(50% - 1.375rem);bottom:calc(50% - 1.375rem)}
+  .drun,.dep .dt,.runtask,.tvr-task,.stpill,.caret,.whob,.gtog{position:relative}
+  .drun::before,.dep .dt::before,.runtask::before,.tvr-task::before,.stpill::before,.caret::before,.whob::before,.gtog::before{content:"";position:absolute;left:min(0rem,calc(50% - 1.375rem));right:min(0rem,calc(50% - 1.375rem));top:calc(50% - 1.375rem);bottom:calc(50% - 1.375rem)}
 }
 /* K12: the Share dialog + the "Sharing" summary row in the list dialog */
 .shsum #l-shsum{flex:1 1 12rem;font-size:var(--fs-s)}
@@ -3183,7 +3183,7 @@ button.mention.mlink:hover,button.mention.mlink:focus-visible{text-decoration:un
   .ttabs button{min-height:2.75rem}
 }
 /* the Agents row while one works / waits for me (was the rail's ring) */
-#side .srow.aspin>svg{color:var(--st-work)}
+#side .srow.aspin>svg{color:var(--st-work-t)}
 #side .srow.await>svg{color:var(--st-wait-t)}
 @media (max-width:767px){ #top .hms{display:none} }
 /* the calendar title stays on one line; the controls wrap below it when the sidebar leaves too little room (Fold) */
@@ -4447,7 +4447,7 @@ body.kidmode #top{padding-left:1rem}
 .calbar .evnew .i{color:inherit}
 .evpop .evst{margin-left:auto;font-size:var(--fs-s);color:var(--muted);border:1px solid var(--line2);border-radius:var(--r-s);padding:0 .375rem}
 .evpop .evatt span{line-height:var(--lh)}
-.evap.ps-accepted{color:var(--ok)}.evap.ps-declined{text-decoration:line-through;color:var(--muted)}.evap.ps-tentative{font-style:italic}
+.evap.ps-accepted{color:var(--ok-t)}.evap.ps-declined{text-decoration:line-through;color:var(--muted)}.evap.ps-tentative{font-style:italic}
 .evrsvp{display:flex;gap:.375rem;flex-wrap:wrap}
 .evrsvp .btn.on{border-color:var(--accent);color:var(--accent)}
 .evpop .evtask{justify-content:flex-start;text-align:left}
@@ -7625,7 +7625,7 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 .msvrow .n{display:flex;flex-direction:column;min-width:0;gap:.125rem}
 .msvrow .n small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .msvrow.off .msvb{opacity:.6}
-.msvst.ok{color:var(--ok)}
+.msvst.ok{color:var(--ok-t)}
 .msvst.bad{color:var(--danger);white-space:normal}
 .msvmodal .msvshort{width:4.5rem;text-transform:uppercase}
 .msvmodal .msvhead{align-items:center;gap:.625rem}
@@ -8035,7 +8035,7 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 #side .sbbi.on{color:var(--accent)}
 #side .sbbi.on svg{color:var(--accent)}
 @media (max-width:767px){ #srail{display:none!important} }
-#srail .srb.aspin>svg{color:var(--st-work)}
+#srail .srb.aspin>svg{color:var(--st-work-t)}
 #srail .srb.await>svg{color:var(--st-wait-t)}
 
 /* 2.165.0 (#2612-#2614): more bot moments. #2612: the very first start greets once on the first tour card (palette.js

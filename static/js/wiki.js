@@ -1206,7 +1206,7 @@ function wk_docItems(p) {
   if (S.me?.kind === 'agent') return [];
   const get = fmt => async () => {
     if (WK.dirty) await wk_flush();
-    if (wk_e2e(p.space)) { loadModule('wkdoc').then(() => wdx_local(p, fmt)).catch(e => { if (e?.message) toast(e.message); }); return; }
+    if (wk_e2e(p.space)) { loadModule('wkdoc').then(() => wdx_local(p, fmt)).catch(e => { if (e?.message) toast(errText(e, tr('The export could not be made'))); }); return; }
     const st = typeof wkst_of === 'function' ? wkst_of(p.space) : '';
     const a = document.createElement('a'); a.href = `/api/wiki/pages/${p.id}/export?format=${fmt}&style=${encodeURIComponent(st)}`; a.download = ''; document.body.append(a); a.click(); a.remove();
   };

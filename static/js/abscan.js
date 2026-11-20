@@ -93,7 +93,7 @@ function abm_scanOpen(o = {}) {
       const j = await api('POST', '/api/files/scan', fd);
       md.remove(); o.done?.(j.items || []);
     } catch (x) {
-      if (o.docs && x?.message) toast(x.message);  // api() shows its own errors
+      if (o.docs && x?.message) toast(errText(x, tr('The file could not be stored')));  // api() shows its own errors
       sv.disabled = false; sv.classList.remove('busy');
     }
   });

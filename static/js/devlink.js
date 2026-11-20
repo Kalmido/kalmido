@@ -85,12 +85,12 @@ document.addEventListener('click', async e => {
   else if (b.dataset.dl === 'pull') {
     if (!await askConfirm(tr('Update from the office equipment?'), tr('Name, serial number, purchase date and price are copied from there.'), {ok: tr('Update')})) return;
     b.disabled = true;
-    try { await rawFetch('POST', `/api/life/device-links/${lid}/pull`, {into: 'device'}); toast(tr('Updated')); } catch (er) { toast(er.message || tr('unknown')); }
+    try { await rawFetch('POST', `/api/life/device-links/${lid}/pull`, {into: 'device'}); toast(tr('Updated')); } catch (er) { toast(errText(er, tr('The change could not be saved'))); }
     b.disabled = false; dlLoad(tid);
   } else if (b.dataset.dl === 'unlink') {
     if (!await askConfirm(tr('Remove the link?'), tr('The device and the office equipment both stay; only the link goes.'), {ok: tr('Remove link')})) return;
     b.disabled = true;
-    try { await rawFetch('DELETE', `/api/life/device-links/${lid}`); } catch (er) { toast(er.message || tr('unknown')); }
+    try { await rawFetch('DELETE', `/api/life/device-links/${lid}`); } catch (er) { toast(errText(er, tr('The change could not be saved'))); }
     delete DL.byTask[tid]; dlLoad(tid);
   }
 });

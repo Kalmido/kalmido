@@ -71,7 +71,7 @@ function newsBundledHtml(vis, pop, pre = '', noMe = false) {
     + newsHistHtml(hist.length, hist.map(g => newsGroupHtml(g, pop, true)).join(''));
 }
 async function newsGroupRead(ids) {
-  try { await rawFetch('POST', '/api/news/read', {ids}); } catch (e) { toast(e.message); return; }
+  try { await rawFetch('POST', '/api/news/read', {ids}); } catch (e) { toast(errText(e, tr('The change could not be saved'))); return; }
   for (const it of S.nf.items || []) if ((it.ids || [it.id]).some(x => ids.includes(x))) { it.read = true; it.keep = S.nf.unread; }
   announce(tr('Marked read')); render();
   await loadNews().catch(() => {}); render();  // the counts from the server (an item may stand for several)
@@ -85,7 +85,7 @@ function newsSummarize(anchor) {
     const U = S.nf.users;
     const lines = items.slice(0, 120).map(it => '- ' + newsText(it, U).replace(/<[^>]+>/g, '') + (it.task_title ? ` (${it.task_title})` : '') + (it.excerpt ? `: ${String(it.excerpt).replace(/<@(\d+)>/g, (_, id) => '@' + uname(+id, U)).slice(0, 160)}` : ''));
     const text = tr('Please summarise my {0} unread news items in at most 5 short lines: what needs me first, then the rest.', items.length) + '\n\n' + lines.join('\n');
-    try { await rawFetch('POST', `/api/agents/${a.id}/chat`, {body: text.slice(0, 7900)}); } catch (e) { toast(e.message); return; }
+    try { await rawFetch('POST', `/api/agents/${a.id}/chat`, {body: text.slice(0, 7900)}); } catch (e) { toast(errText(e, tr('The message could not be sent'))); return; }
     closePop(); chatOpen(a.id); toast(tr('Sent to {0}', a.name));
   };
   if (ags.length === 1) send(ags[0]);

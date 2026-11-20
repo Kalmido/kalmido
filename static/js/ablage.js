@@ -1028,13 +1028,13 @@ async function ab_selMoveTo(xs, target, skip = 0) {
   const done = [];
   // 2.953 (#3348, review N16): what crosses a locked folder's border goes re-encrypted in the browser, after one question
   let fx = null;
-  if (typeof fsl_moveMany === 'function') { try { fx = await fsl_moveMany(xs, target); } catch (e) { if (!e.shown) toast(e.message || tr('unknown')); return; } }
+  if (typeof fsl_moveMany === 'function') { try { fx = await fsl_moveMany(xs, target); } catch (e) { if (!e.shown) toast(errText(e, tr('The move was not saved'))); return; } }
   if (fx?.cancel) return;
   if (fx) { xs = fx.rest; skip += fx.skip; }
   for (const x of xs) {
     if ((x.parent_id ?? null) === (target || null)) continue;
     try { await rawFetch('PATCH', `/api/files/nodes/${x.id}`, {parent_id: target || null}); done.push({id: x.id, was: x.parent_id ?? null}); }
-    catch (e) { if (!e.status || e.status >= 500) { toast(e.message || tr('unknown')); break; } skip++; }  // refused: skipped, the rest goes on
+    catch (e) { if (!e.status || e.status >= 500) { toast(errText(e, tr('The move was not saved'))); break; } skip++; }  // refused: skipped, the rest goes on
   }
   ab_selEnd(); ab_relist(); ab_selDraw();
   if (!done.length) { if (fx?.moved || skip) toast([fx?.moved ? trn('{0} item moved', '{0} items moved', fx.moved) : '', ab_skipTxt(skip)].filter(Boolean).join(' · ')); return; }

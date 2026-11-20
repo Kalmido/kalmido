@@ -169,7 +169,8 @@ const an_sig = () => [S.route.mod, S.route.key, S.route.tab, S.route.agent].join
 function an_view(fn) {
   const el = document.getElementById('view');
   if (!el || !an_on()) { const r = fn(); AN.sig = an_sig(); return r; }
-  const hadEmpty = !!el.querySelector('.empty, .lempty'), r = fn(), sig = an_sig();
+  const hadEmpty = !!el.querySelector('.empty, .lempty:not(.ldwait)'), r = fn(), sig = an_sig();
+  if (el.querySelector('.ldwait') || (typeof LDH !== 'undefined' && LDH.at)) return r;  // #6381: held or "Loading…": no fade, the module's view fades in
   if (AN.sig !== undefined && sig !== AN.sig) { el.classList.remove('an-v' + AN.vn); AN.vn = AN.vn === 1 ? 2 : 1; el.classList.add('an-v' + AN.vn); }
   else if (!hadEmpty) el.querySelector('.empty, .lempty')?.classList.add('an-hintin');
   AN.sig = sig;

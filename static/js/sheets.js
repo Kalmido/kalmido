@@ -48,7 +48,7 @@ async function shvLoadIdx(key, force) {
   if (SHV.busy['i' + key] || (!force && d.items && d.v === S.v)) return;
   SHV.busy['i' + key] = true;
   try { const j = await rawFetch('GET', '/api/sheets?' + (key.startsWith('l:') ? 'list_id=' + +key.slice(2) : 'space=all')); d.items = j.sheets || []; d.err = ''; }
-  catch (e) { if (e.message === 'auth') return; d.err = e instanceof Offline ? tr('Tables are only available online.') : e.message; }
+  catch (e) { if (e.message === 'auth') return; d.err = e instanceof Offline ? tr('Tables are only available online.') : errText(e, tr('The tables could not be loaded')); }
   finally { d.v = S.v; SHV.busy['i' + key] = false; }
   if (S.route.mod === 'sheets') viewSafeRender();
   if (key === 'all' && typeof sbb_sync === 'function') sbb_sync('sheets');  // 2.152.3 B (#2619): the panel
@@ -104,7 +104,7 @@ async function shvLoad(id, force) {
   } catch (e) {
     if (e.message === 'auth') return;
     SHV.errFor = id + ':' + S.v; changed = true;
-    SHV.err = e.status === 404 || e.status === 403 ? tr('This table does not exist or you cannot see it.') : e instanceof Offline ? tr('Tables are only available online.') : e.message;
+    SHV.err = e.status === 404 || e.status === 403 ? tr('This table does not exist or you cannot see it.') : e instanceof Offline ? tr('Tables are only available online.') : errText(e, tr('The table could not be loaded'));
     if (SHV.sh?.id === id) SHV.sh = null;
   } finally { SHV.busy['s' + id] = false; }
   // 2.98.0 C (#2181): the load asked for meanwhile runs, and this load's change is still drawn (the second load found
@@ -477,7 +477,7 @@ function shv_unload() {
 addEventListener('pagehide', shv_unload);
 addEventListener('fdw-sent', e => {
   const m = String(e.detail?.url || '').match(/^\/api\/sheets\/(\d+)\/cells$/); if (!m) return;
-  if (e.detail.err) toast(e.detail.err.message || tr('unknown'));
+  if (e.detail.err) toast(errText(e.detail.err, tr('The change could not be saved')));
   else if (e.detail.res?.conflicts?.length) toast(tr('Changed elsewhere in the meantime'));
   const id = +m[1]; if (SHV.sh?.id !== id && S.route.sh !== id) return;
   if (SHV.ed) SHV.stale = true; else shvLoad(id, true);  // a load on its way runs once more (SHV.again)
@@ -522,7 +522,7 @@ async function shvPut(chg, label) {
   const sid = sh.id, old = chg.map(x => ({row_id: x.row_id, col_id: x.col_id, raw: shvRaw(x.row_id, x.col_id)}));
   let r;
   const undo0 = shvOptimistic(sh, chg);
-  try { r = await shvSend(sid, chg.map((x, i) => ({...x, prev: old[i].raw}))); } catch (e) { undo0(); toast(e.message); shvPatchAll(); return null; }
+  try { r = await shvSend(sid, chg.map((x, i) => ({...x, prev: old[i].raw}))); } catch (e) { undo0(); toast(errText(e, tr('The change could not be saved'))); shvPatchAll(); return null; }
   const cf = r?.conflicts || [];
   // 2.380.0 (#3423, review): a conflict cell the answer already set or emptied (shvMerge) shows the server's state; only the rest goes back
   const srv = new Set((r?.cells || []).map(c => c.row_id + ':' + c.col_id));
@@ -539,7 +539,7 @@ async function shvReload() { if (SHV.sh) await shvLoad(SHV.sh.id, true); }
 // structural steps: one request, a reload, Undo by the counterpart request
 async function shvStep(label, doFn, undoFn, msg, redoFn, srv) {  // redoFn(res): the way forward again (restore), else doFn once more; srv (2.778.0, #5253): the server lists the step
   const sid = SHV.sh?.id; if (!sid) return;
-  let res; try { res = await doFn(); } catch (e) { if (e.message !== 'auth') toast(e.message); if (e.status === 409) await shvLoad(sid, true); return; }  // 2.528.0 (#4305 A12): changed elsewhere: show the current state
+  let res; try { res = await doFn(); } catch (e) { if (e.message !== 'auth') toast(errText(e, tr('The change could not be saved'))); if (e.status === 409) await shvLoad(sid, true); return; }  // 2.528.0 (#4305 A12): changed elsewhere: show the current state
   await shvLoad(sid, true);
   const e = histAdd({label, ids: [], snaps: [], lids: [], ...(srv ? {srv: true} : {}),
     undo: async () => { await undoFn(res); if (SHV.sh?.id === sid) await shvLoad(sid, true); return {skipped: []}; },
@@ -555,7 +555,7 @@ async function shvNew(lid, fid) {  // 2.199.0 C (#2742): fid = into this folder 
   const t = await askDialog({title: tr('New table'), html: sel + hint, input: {value: '', placeholder: tr('e.g. Quotation shoot, Equipment, Budget'), max: 120}, ok: tr('Create')});
   if (t == null) return;
   const sp = SHV.newSp; LS.set('shvSpace', sp);
-  let r; try { r = await rawFetch('POST', '/api/sheets', {title: t.trim() || tr('Untitled table'), space: sp, ...(lid ? {list_id: lid} : {}), ...(f ? {folder_id: f.id} : {})}); } catch (e) { toast(e.message); return; }
+  let r; try { r = await rawFetch('POST', '/api/sheets', {title: t.trim() || tr('Untitled table'), space: sp, ...(lid ? {list_id: lid} : {}), ...(f ? {folder_id: f.id} : {})}); } catch (e) { toast(errText(e, tr('The table could not be created'))); return; }
   for (const d of Object.values(SHV.idx)) d.v = -1;
   go('sheets/' + r.id);
   const e = histAdd({label: tr('Created {0}', qn(r.title || '')), ids: [], snaps: [], lids: [],
@@ -575,12 +575,12 @@ async function shvRename(id, cur) {
   const t = await askPrompt(tr('Rename table'), cur || '', {input: {max: 120}, ok: tr('Rename')});
   if (t == null || !t.trim() || t.trim() === cur) return;
   const set = async v => { await rawFetch('PATCH', '/api/sheets/' + id, {title: v}); shvAfterIdx(id); };
-  try { await set(t.trim()); } catch (e) { toast(e.message); return; }
+  try { await set(t.trim()); } catch (e) { toast(errText(e, tr('The change could not be saved'))); return; }
   const e = histAdd({label: tr('Renamed {0}', qn(t.trim())), ids: [], snaps: [], lids: [], srv: true, undo: async () => { await set(cur); return {skipped: []}; }, redo: async () => { await set(t.trim()); return {skipped: []}; }});
   histToast(tr('Renamed'), e);
 }
 async function shvDelete(id, title, lid) {
-  try { await rawFetch('DELETE', '/api/sheets/' + id); } catch (e) { toast(e.message); return; }
+  try { await rawFetch('DELETE', '/api/sheets/' + id); } catch (e) { toast(errText(e, tr('The table could not be deleted'))); return; }
   SHV.backTo = lid ? 'sheets/l/' + lid : 'sheets';
   shvAfterIdx(id, true);
   // 2.660.0 (#3799); 2.905.0 (#5255): no editing session any more, the delete is its own step (the server's group when it records one)
@@ -601,7 +601,7 @@ async function shvAttach(sh) {  // attach to a project / list of the same space 
 async function shvSetList(sh, lid) {
   const old = sh.list_id || null, id = sh.id; if (old === lid) return;
   const set = async v => { await rawFetch('PATCH', '/api/sheets/' + id, {list_id: v}); shvAfterIdx(id); if (SHV.sh?.id === id) await shvLoad(id, true); };
-  try { await set(lid); } catch (e) { toast(e.message); return; }
+  try { await set(lid); } catch (e) { toast(errText(e, tr('The change could not be saved'))); return; }
   const e = histAdd({label: lid ? tr('Attached') : tr('Detached'), ids: [], snaps: [], lids: [], srv: true, undo: async () => { await set(old); return {skipped: []}; }, redo: async () => { await set(lid); return {skipped: []}; }});
   histToast(lid ? tr('Attached to {0}', lname(listById(lid)) || '') : tr('Detached'), e);
 }
@@ -721,7 +721,7 @@ function shvColModal(col, afterId, cf) {  // a new column (col = null) or its se
     const x = $('#shv-cx', md);
     if (SHV_NUM.includes(st.kind)) { x.innerHTML = shvNumFmtHtml(sh, st); return; }  // 2.769.0 (#5351)
     if (st.kind !== 'select') { x.innerHTML = st.kind === 'date' ? `<p class="muted mhint">${mdFirst() ? tr('Dates as MM/DD/YYYY or YYYY-MM-DD; a date plus a number gives a date that many days later.') : tr('Dates as DD.MM.YYYY or YYYY-MM-DD; a date plus a number gives a date that many days later.')}</p>` : ''; return; }
-    x.innerHTML = `<h4>${tr('Options')}</h4><div class="optlist" role="list">${st.opts.map((o, i) => `<div class="optrow" data-i="${i}" role="listitem"><button type="button" class="swc" data-ocol="${i}" style="background:${cssColor(o.color) || 'var(--bg4)'}" title="${esc(tr('Colour'))}" aria-label="${esc(tr('Colour'))}" aria-expanded="${st.pal === i}"></button><input data-oname="${i}" value="${esc(o.label)}" maxlength="60" placeholder="${esc(tr('Option'))}"><button type="button" class="iconbtn" data-orm="${i}" title="${esc(tr('Remove'))}" aria-label="${esc(tr('Remove'))}">${ic('x', 's')}</button></div>${/*html-ok*/ st.pal === i ? `<div class="colors lrpal" role="group" aria-label="${esc(tr('Colour'))}">${LCOLORS.map((c, k) => `<button type="button" data-opal="${esc(c)}" style="background:${c || 'var(--bg4)'}" class="${(o.color || '') === c ? 'on' : ''}" aria-pressed="${(o.color || '') === c}" aria-label="${esc(c ? tr('Colour {0}', k) : tr('No colour'))}"></button>`).join('')}</div>` : ''}`).join('')}</div>
+    x.innerHTML = `<h4>${tr('Options')}</h4><div class="optlist" role="list">${st.opts.map((o, i) => `<div class="optrow" data-i="${i}" role="listitem"><button type="button" class="swc" data-ocol="${i}" style="background:${cssColor(o.color) || 'var(--bg4)'}" title="${esc(tr('Colour'))}" aria-label="${esc(tr('Colour'))}" aria-expanded="${st.pal === i}"></button><input data-oname="${i}" value="${esc(o.label)}" maxlength="60" placeholder="${esc(tr('Option'))}" aria-label="${esc(tr('Option'))}"><button type="button" class="iconbtn" data-orm="${i}" title="${esc(tr('Remove'))}" aria-label="${esc(tr('Remove'))}">${ic('x', 's')}</button></div>${/*html-ok*/ st.pal === i ? `<div class="colors lrpal" role="group" aria-label="${esc(tr('Colour'))}">${LCOLORS.map((c, k) => `<button type="button" data-opal="${esc(c)}" style="background:${c || 'var(--bg4)'}" class="${(o.color || '') === c ? 'on' : ''}" aria-pressed="${(o.color || '') === c}" aria-label="${esc(c ? tr('Colour {0}', k) : tr('No colour'))}"></button>`).join('')}</div>` : ''}`).join('')}</div>
       <button type="button" class="btn sm" data-m="opt-add">${ic('plus', 's')}${tr('Add option')}</button>
       <fieldset class="shvmode"><legend>${tr('Colour of the option')}</legend><label class="chkl"><input type="radio" name="shv-cm" value="cell" ${st.mode !== 'row' ? 'checked' : ''}> ${tr('Colour for the cell')}</label><label class="chkl"><input type="radio" name="shv-cm" value="row" ${st.mode === 'row' ? 'checked' : ''}> ${tr('Colour for the whole row')}</label></fieldset>`;
   };
@@ -768,7 +768,7 @@ function shvColModal(col, afterId, cf) {  // a new column (col = null) or its se
 async function shvFreeze(c) {
   const sh = SHV.sh, sid = sh.id, cid = c.id, to = !c.frozen;
   const set = async v => { const r = await rawFetch('POST', `/api/sheets/${sid}/cells/${cid}/freeze`, {frozen: v}); if (r?.cells) shvMerge(sid, r); else if (SHV.sh?.id === sid) await shvLoad(sid, true); };
-  try { await set(to); } catch (e) { toast(e.message); return; }
+  try { await set(to); } catch (e) { toast(errText(e, tr('The change could not be saved'))); return; }
   { const sd = $('#shv-side'); if (sd && SHV.sh?.id === sid) { sd.innerHTML = shvSideHtml(SHV.sh); sd.querySelector('[data-shv="freeze"]')?.focus({preventScroll: true}); } }  // 2.144.5 D (#2011): the button just tapped kept the panel from redrawing
   const e = histAdd({label: to ? tr('Value frozen') : tr('Live again'), ids: [], snaps: [], lids: [], srv: true, undo: async () => { await set(!to); return {skipped: []}; }, redo: async () => { await set(to); return {skipped: []}; }});
   histToast(to ? tr('Value frozen: it stays as it is until you make it live again') : tr('Live again'), e);
@@ -777,7 +777,7 @@ async function shvName(c, name) {
   const sh = SHV.sh, sid = sh.id, cid = c.id, old = c.name || '';
   if (name === old) return;
   const set = async v => { const r = await rawFetch('POST', `/api/sheets/${sid}/cells/${cid}/name`, {name: v}); if (r?.cells) shvMerge(sid, r); else if (SHV.sh?.id === sid) await shvLoad(sid, true); };
-  try { await set(name); } catch (e) { toast(e.message); const i = $('#shv-name'); if (i) { i.value = old; i.focus(); } return; }
+  try { await set(name); } catch (e) { toast(errText(e, tr('The change could not be saved'))); const i = $('#shv-name'); if (i) { i.value = old; i.focus(); } return; }
   const e = histAdd({label: name ? tr('Name {0}', name) : tr('Name removed'), ids: [], snaps: [], lids: [], srv: true, undo: async () => { await set(old); return {skipped: []}; }, redo: async () => { await set(name); return {skipped: []}; }});
   histToast(name ? tr('Cell named {0}: usable in formulas', name) : tr('Name removed'), e);
 }
@@ -791,7 +791,7 @@ function shxUndoKeptText(k) {  // 2.528.0 (#4306 B24): what stayed at the agent 
 async function shvBatchUndo(batch) {
   const sh = SHV.sh; if (!sh) return;
   if (!await askConfirm(tr('Undo the changes of this agent call?'), tr('The cells get the values from before; rows and a table the agent created go to the trash, unless someone has typed values into them since.'), {ok: tr('Undo')})) return;
-  let res; try { res = await rawFetch('POST', `/api/sheets/${sh.id}/batches/${encodeURIComponent(batch)}/undo`); } catch (e) { toast(e.message); return; }
+  let res; try { res = await rawFetch('POST', `/api/sheets/${sh.id}/batches/${encodeURIComponent(batch)}/undo`); } catch (e) { toast(errText(e, tr('The changes could not be undone'))); return; }
   toast(shxUndoKeptText(res?.kept));
   for (const d of Object.values(SHV.idx)) d.v = -1;
   await shvLoad(sh.id, true);
@@ -888,7 +888,7 @@ async function shvPaste(e) {
     if (Object.keys(shvFilt()).length) { toast(tr('Paste fills only the rows shown; reset the filters for new rows')); }
     else {
       const before = new Set(sh.rows.map(r => r.id));
-      try { await rawFetch('POST', `/api/sheets/${sh.id}/rows`, {after_row_id: sh.rows[sh.rows.length - 1]?.id ?? null, count: missing}); await shvLoad(sh.id, true); } catch (er) { toast(er.message); return; }
+      try { await rawFetch('POST', `/api/sheets/${sh.id}/rows`, {after_row_id: sh.rows[sh.rows.length - 1]?.id ?? null, count: missing}); await shvLoad(sh.id, true); } catch (er) { toast(errText(er, tr('The change could not be saved'))); return; }
       rows = rows.concat(SHV.sh.rows.map(r => r.id).filter(x => !before.has(x)));
       SHV.pasteRows = SHV.sh.rows.map(r => r.id).filter(x => !before.has(x));
     }
@@ -1311,7 +1311,7 @@ async function sh_smvMove(x) {
   const id = x.id, from = sh_smvOrg(x.space);
   const req = (to, extra) => rawFetch('POST', `/api/sheets/${id}/move-space`, {to: smv_ws(to), ...extra});
   const r = await smv_open({what: qn(x.title || tr('Untitled table')), from, check: to => req(to, {dry: 1}),
-    run: async to => { try { return await req(to, {}); } catch (e) { toast(e.message); throw e; } }});
+    run: async to => { try { return await req(to, {}); } catch (e) { toast(errText(e, tr('The move was not saved'))); throw e; } }});
   if (!r || !r.ok) return;
   let mid = r.move_id;
   const after = () => { shvAfterIdx(id); if (SHV.sh?.id === id) shvLoad(id, true); };
@@ -1367,7 +1367,7 @@ async function shxTrashDlg(sp) {
         await rawFetch('POST', '/api/sheets/purge', {space: sp, all: true});
       }
       await draw();
-    } catch (er) { toast(er.message); } finally { b.disabled = false; }
+    } catch (er) { toast(errText(er, k === 'empty' ? tr('The trash could not be emptied') : k === 'purge' ? tr('The table could not be deleted') : tr('The change could not be saved'))); } finally { b.disabled = false; }
   });
   await draw();
 }
@@ -1399,7 +1399,7 @@ async function shxSheetTrashDlg(sh) {
       toast(tr('Restored'));
       shvAfterIdx(sid); if (SHV.sh?.id === sh.id) await shvLoad(sh.id, true);
       await draw();
-    } catch (er) { toast(er.message); } finally { b.disabled = false; }
+    } catch (er) { toast(errText(er, tr('The change could not be saved'))); } finally { b.disabled = false; }
   });
   await draw();
 }

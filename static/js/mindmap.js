@@ -360,7 +360,7 @@ async function mm_importFile(f) {
   const l = listById(MM.lid); if (!l || mm_ro(l) || !f) return;
   if (f.size > 500000) { toast(tr('The file is too large')); return; }
   const text = await f.text(), ext = (f.name.split('.').pop() || '').toLowerCase();
-  let tree; try { tree = await rawFetch('POST', '/api/outline/parse', {text, format: ext === 'opml' ? 'opml' : ext === 'mm' ? 'mm' : ext === 'md' || ext === 'txt' ? 'md' : ''}); } catch (e) { toast(e.message); return; }
+  let tree; try { tree = await rawFetch('POST', '/api/outline/parse', {text, format: ext === 'opml' ? 'opml' : ext === 'mm' ? 'mm' : ext === 'md' || ext === 'txt' ? 'md' : ''}); } catch (e) { toast(errText(e, tr('The file could not be read'))); return; }
   await mm_importTree(l, tree);
 }
 document.addEventListener('change', e => { const t = e.target; if (t.id === 'mm-import-file' && t.files?.length) { mm_importFile(t.files[0]); t.value = ''; } });  // 2.633.0 (#4920)
@@ -656,7 +656,7 @@ async function mm_ideasAsk(n) {
       body: tr('{0} gets the path of this branch and the name of the project, nothing else, and proposes sub-branches. Nothing is created until you apply them.', a.name),
       input: {max: 2000, placeholder: tr('What should the ideas be about? (optional)')}});
     if (v == null) return;
-    try { await api('POST', '/api/proposals', {kind: 'ideas', agent_id: a.id, list_id: l.id, branch: n.id, hint: v.trim() || null}); } catch (e) { toast(e.message); return; }
+    try { await api('POST', '/api/proposals', {kind: 'ideas', agent_id: a.id, list_id: l.id, branch: n.id, hint: v.trim() || null}); } catch (e) { toast(errText(e, tr('The request could not be sent'))); return; }
     MM.ideas.polls = 0; mm_ideasLoad();
   };
   if (ags.length === 1) { send(ags[0]); return; }
@@ -674,7 +674,7 @@ function mm_ideaClick(a, k) {
   const j = MM.ideas.jobs.find(x => x.id === +a.dataset.j); if (j) mm_ideasEnd(j, k.slice(6));
 }
 async function mm_ideaSend(j, take, drop) {
-  let r; try { r = await api('POST', `/api/proposals/${j.id}/ideas`, {take, drop}); } catch (e) { toast(e.message); mm_ideasLoad(); return null; }
+  let r; try { r = await api('POST', `/api/proposals/${j.id}/ideas`, {take, drop}); } catch (e) { toast(errText(e, tr('The change could not be saved'))); mm_ideasLoad(); return null; }
   const made = r.tasks || [];
   if (made.length) await histGroup(async () => { for (const t of made) { putTask(t); histCreate(tr('Created {0}', qn(String(t.title).slice(0, 40))), t); } }, trn('{0} idea applied', '{0} ideas applied', made.length));
   Object.assign(j, {taken: r.taken, dropped: r.dropped});
@@ -691,7 +691,7 @@ async function mm_ideaDo(n, act) {
 }
 async function mm_ideasEnd(j, act) {  // take all / drop all / cancel the request
   if (act === 'stop' || (act === 'drop' && j.state !== 'ready')) {
-    try { await api('POST', `/api/proposals/${j.id}/discard`); } catch (e) { toast(e.message); }
+    try { await api('POST', `/api/proposals/${j.id}/discard`); } catch (e) { toast(errText(e, tr('The change could not be saved'))); }
     MM.ideas.jobs = MM.ideas.jobs.filter(x => x !== j); MM.ideas.sig = '';
   } else {
     const keys = mm_ideaOpenKeys(j); if (!keys.length) return;

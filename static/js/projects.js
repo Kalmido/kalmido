@@ -80,7 +80,7 @@ async function statusModal(lid) {
   let sel = l.status || '';
   const md = modal(`<h3>${tr('Project status')} · ${esc(lname(l))}</h3>
     ${can ? `<div class="stchoice">${STATUSES.map(([k, n]) => `<button class="stopt st-${k} ${sel === k ? 'on' : ''}" data-st="${k}"><i></i>${tr(n)}</button>`).join('')}<button class="stopt st-none ${sel ? '' : 'on'}" data-st=""><i></i>${tr('No status')}</button></div>
-      ${typeof le2eOn === 'function' && le2eOn(lid) ? '' /* 2.538.0 (#4372): not encrypted: no note in a project with the lock */ : `<textarea id="st-note" rows="3" maxlength="500" placeholder="${tr('Short update: what is going on, what is needed?')}">${esc(l.status_note || '')}</textarea>`}
+      ${typeof le2eOn === 'function' && le2eOn(lid) ? '' /* (#4372) - not encrypted, so no note in a project with the lock */ : `<textarea id="st-note" rows="3" maxlength="500" placeholder="${tr('Short update: what is going on, what is needed?')}" aria-label="${esc(tr('Short update: what is going on, what is needed?'))}">${esc(l.status_note || '')}</textarea>`}
       <div class="shint">${collab() && l.shared ? tr('Everyone in this project gets it as news.') : tr('Shown in the project header, the sidebar and the project status.')}</div>`
     : `<div class="rohint">${ic('eye', 's')}${tr('Read-only')}</div>`}
     <h4>${tr('History')}</h4><div class="sthist" id="st-hist">${/*html-ok*/ loadingHtml()}</div>
@@ -309,7 +309,7 @@ function viewProjOv() {
   const j = d.j, can = !!j.can_edit && !l.archived, t0 = today();
   // description (2.538.0 #4372: none in a project with the lock -- not encrypted, the server refuses it)
   const ed = S.povEdit === l.id, povLong = !ed && mdIsLong(j.description);  // 2.331.0 A (#3310): a long description folds like a task's
-  const desc = ed ? `<textarea id="pov-desc-in" rows="8" maxlength="20000" placeholder="${esc(tr('Goal, scope, contacts, where things are…'))}">${esc(S.drafts['pov:' + l.id] ?? j.description)}</textarea>
+  const desc = ed ? `<textarea id="pov-desc-in" rows="8" maxlength="20000" placeholder="${esc(tr('Goal, scope, contacts, where things are…'))}" aria-label="${esc(tr('Goal, scope, contacts, where things are…'))}">${esc(S.drafts['pov:' + l.id] ?? j.description)}</textarea>
       <div class="povbar povedit"><button type="button" class="linkbtn" data-pov="md-help">${tr('Formatting')}</button><button class="btn sm" data-pov="desc-hist">${ic('clock', 's')}<span>${tr('Earlier versions')}</span></button><span class="spacer"></span><button class="btn" data-pov="desc-cancel">${tr('Cancel')}</button><button class="btn pri" data-pov="desc-save">${tr('Save')}</button></div>`
     : j.description ? `<div class="md povmd${povLong ? (povMdOpen(l.id) ? '' : ' clamp') : ''}">${renderMd(j.description, false, {lid: l.id}).replace(/<input type="checkbox"/g, '<input type="checkbox" disabled')}</div>${povLong ? `<button type="button" class="linkbtn mdmore" data-pov="md-more" aria-expanded="${povMdOpen(l.id)}">${povMdOpen(l.id) ? tr('Show less') : tr('Show more')}</button>` : ''}`
       : `<div class="muted povempty">${can ? tr('What is this project about, what is the goal?') : tr('No description yet.')}</div>`;
@@ -592,7 +592,7 @@ function depPicker(tid, dir) {
   const self = taskById(tid);
   const md = modal(`<h3>${dir === 'by' ? tr('Blocked by…') : tr('Blocking…')}</h3>
     <div class="shint">${dir === 'by' ? tr('“{0}” can only really start once the selected task is done.', esc(self?.title || '')) : tr('The selected task is then blocked by “{0}”.', esc(self?.title || ''))}</div>
-    <input id="dp-q" placeholder="${tr('Search open tasks')}" autocomplete="off" style="width:100%;margin-top:.5rem">
+    <input id="dp-q" placeholder="${tr('Search open tasks')}" aria-label="${esc(tr('Search open tasks'))}" autocomplete="off" style="width:100%;margin-top:.5rem">
     <div class="dplist tpk" id="dp-list" role="listbox" aria-label="${esc(tr('Open tasks'))}"></div>
     <div class="foot"><span class="spacer"></span><button class="btn" data-m="close">${tr('Close')}</button></div>`);  // 2.910.0 (#5442): a pure choice closes, nothing to cancel
   md.classList.add('dpmodal');

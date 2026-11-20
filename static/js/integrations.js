@@ -276,7 +276,7 @@ function whWire(md) {
       b.disabled = true;
       try { const r = await calReq('POST', `/api/orgs/${oid}/webhooks`, {name: w.name, url: w.url, events: w.events});
         secretModal(tr('Signing secret'), r.secret, tr('Copy it now into the receiver: it is shown only this once. It signs every delivery (header X-Kalmido-Signature).')); }
-      catch (x) { toast(x.message); } finally { b.disabled = false; }
+      catch (x) { toast(errText(x, tr('The webhook could not be created'))); } finally { b.disabled = false; }
       whDraw(md);
     }
     if (a === 'test') {

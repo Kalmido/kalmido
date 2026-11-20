@@ -392,13 +392,15 @@ async function evEditor(o = {}) {
   // hint); a new event where I may not add opens nothing (the entries are left out; this catches a stale one)
   const ro = !!ev && !o.dvw && !evWrite(evCal(ev.cal_id) || {role: ev.role});
   if (!ev && !o.dvw && !evCanNew()) { toast(tr('You can only read this calendar')); return; }
-  if (!cals.length && !o.dvw) { try { const c = await api('POST', '/api/evcals', {name: tr('Calendar'), org_id: wsNewOrg()}); await load(); cals.push(c); } catch { return; } }
+  // #6154: a calendar of its own is made only for a NEW event where the person may add (evCanNew above); an event opened to
+  // read (its calendar not among the loaded ones) never makes one behind the reader's back
+  if (!cals.length && !o.dvw && !ev) { try { const c = await api('POST', '/api/evcals', {name: tr('Calendar'), org_id: wsNewOrg()}); await load(); cals.push(c); } catch { return; } }
   const t0 = today();
   const st = ev ? {...ev} : {title: o.title || '', all_day: !!o.all_day, start: o.start || `${S.calSel || t0}T09:00`, end: o.end || '', location: o.location || '',
     description: o.description || '', rrule: '', reminders: o.all_day ? [-540] : [15], attendees: [], cal_id: o.cal_id || +LS.get('evCal', 0) || cals[0].id,
     task_id: o.task_id || null, status: 'confirmed', busy: true, url: null, tz: evTz()};
   if (!ev && o.attendees) st.attendees = o.attendees;
-  if (!cals.some(c => c.id === st.cal_id) && !dvw_cals(o).some(c => c.id === st.cal_id)) st.cal_id = cals[0].id;  // 2.52.0 (#1128): or a writable subscription
+  if (cals.length && !cals.some(c => c.id === st.cal_id) && !dvw_cals(o).some(c => c.id === st.cal_id)) st.cal_id = cals[0].id;  // (#1128): or a writable subscription
   if (!st.end) st.end = st.all_day ? addDays(st.start.slice(0, 10), 1) : evAddMin(st.start, 60);
   const single = evOccOwn(ev, o.occ);  // 2.484.0 (#3945): a changed date of a series: edited like a single event
   // 2.1178.0 (#6153): a date opened from a series changes only that date unless "All dates" is chosen on purpose (o.scope: the
@@ -510,7 +512,7 @@ async function evEditor(o = {}) {
   if (dlg) {  // lazy-ok-begin: dlg exists only once objsave.js is loaded (typeof saveDialog above, evEditor loads the module)
     const view = () => scope === 'one' ? (x => evOccView(x, o.occ)) : undefined, opened = () => scope === 'one' ? evOccView(srv, o.occ) : srv;
     dlg.save = (url, body) => saveDialog(url, opened(), body, {exp: 'expect', key: 'event', base: dlg.base, view: view(), get: `/api/events/${ev.id}`,
-      send: x => rawFetch('PATCH', url, x).catch(e => { if (e.status !== 409 && e.message !== 'auth' && !e.shown) toast(e instanceof Offline ? tr('Only available online.') : e.message); throw e; })});
+      send: x => rawFetch('PATCH', url, x)});  // (#6372) no toast: the editor opens again with the error block (evAgain why)
     dlgStale(md, `/api/events/${ev.id}`, () => srv.updated_at, raw => {
       const now = form(scope), cur = view() ? view()(raw) : raw, op = opened();
       md.remove(); evAgain(raw, objDiff(dlg.base, now), {raw, cur, mine: objDiff(dlg.base, now), theirs: Object.keys(now).filter(k => !objSame(op[k], cur[k])), both: []});
@@ -821,7 +823,9 @@ async function evCalsModal() {
     if (m) {
       const c = evCal(+m.dataset.evcmenu); if (!c) return;
       // 2.1238.0 (#6161, Stufe 1): renaming, colour, workspace, sharing, importing and deleting only where canWrite says yes
-      const own = c.role === 'owner', mng = own && evWrite(c);
+      // #6154: mine = I made it (owner_id); read-only in its organisation the server sends role view for it too (events/model.py
+      // ev_role: the organisation caps the owner), so it reads like a shared one - but it is no share I could leave
+      const own = c.role === 'owner', mng = own && evWrite(c), mine = c.owner_id === S.me?.id;
       menu(m, [...cvxNarrowItems(`e:${c.id}`, !c.hidden), mng && {label: tr('Rename…'), icon: 'edit', fn: async () => { const n = await askPrompt(tr('Rename the calendar'), c.name, {input: {max: 100}}); if (n && n.trim()) evCalRename(c.id, n.trim(), redraw); }},  // 2.46.2 (#1659): at once
         mng && {label: tr('Colour…'), icon: 'palette', next: 1, fn: () => calColorPop(m, c.color, async col => { try { await evcPatch(c.id, {color: col}); } catch { return; } refresh(); })},
         mng && wsOn() && {label: tr('Workspace…'), icon: 'brief', next: 1, fn: () => wsMoveMenu(m, c.org_id, async org => { try { await evcPatch(c.id, {org_id: org}); } catch { return; } refresh(); })},
@@ -831,7 +835,7 @@ async function evCalsModal() {
         {label: tr('Subscription link…'), icon: 'link', fn: () => evf_modal(c)},  // 2.111.0 B (#2056): evinvite.js
         {label: tr('Only this calendar'), icon: 'eye', fn: async () => { await cvxOnly(`e:${c.id}`); draw(); }},  // 2.36.1 (#1127)
         {label: tr('Show all calendars'), icon: 'all', fn: async () => { await cvxAll(); draw(); }},
-        !own && {label: tr('Leave this calendar'), icon: 'logout', fn: async () => { if (!await askConfirm(tr('Leave the calendar “{0}”?', c.name), '', {ok: tr('Leave'), danger: true})) return; try { await api('DELETE', `/api/evcals/${c.id}/members/${S.me.id}`); } catch { return; } refresh(); }},
+        !own && !mine && {label: tr('Leave this calendar'), icon: 'logout', fn: async () => { if (!await askConfirm(tr('Leave the calendar “{0}”?', c.name), '', {ok: tr('Leave'), danger: true})) return; try { await api('DELETE', `/api/evcals/${c.id}/members/${S.me.id}`); } catch { return; } refresh(); }},
         mng && {label: tr('Delete…'), icon: 'trash', cls: 'danger', fn: async () => { if (!await askConfirm(tr('Delete the calendar “{0}” with all its events?', c.name), tr('They can be restored from the trash.'), {ok: tr('Delete'), danger: true})) return; let j; try { j = await api('DELETE', `/api/evcals/${c.id}`); } catch { return; } st.trash = null; calInvalidate(); await refresh(); renderView();
           // 2.800.0 (#5466): the toast takes it back (the trash's restore, with its events); 2.1212.0 (#6159): Ctrl+Z too (history)
           const re = async () => { st.trash = null; calInvalidate(); if (md.isConnected) await refresh(); else await cvxCals(true).catch(() => {}); renderView(); };
@@ -869,7 +873,8 @@ async function evCalsModal() {
 function evcSub(c) {
   // 2.1241.0 (#6181): an organisation's calendar: its dot + name, for every member (was: text, owners only)
   const p = [wsOn() && (c.role === 'owner' || c.org_id) ? `<span class="wslbl">${/*html-ok*/ c.org_id ? wso_head(wso_ws(c)) : esc(wsLabel(c.org_id))}</span>` : '',
-    c.role !== 'owner' ? esc(`${c.owner_name || ''} · ${roleLabel(c.role === 'edit' ? 'edit' : 'view')}`)  // 2.1212.0 (#6156): the role words of the Share dialog
+    // (#6156): the role words of the Share dialog; #6154: my own one capped by a read-only organisation role without "Me ·"
+    c.role !== 'owner' ? esc((c.owner_id === S.me?.id ? '' : `${c.owner_name || ''} · `) + roleLabel(c.role === 'edit' ? 'edit' : 'view'))
       : c.members?.length ? esc(trn('shared with {0} person', 'shared with {0} people', c.members.length)) : ''].filter(Boolean);
   return p.length ? `<small class="muted evcsub">${/*html-ok*/ p.join(' · ') /* parts built with esc() above */}</small>` : '';
 }

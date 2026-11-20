@@ -35,7 +35,7 @@ async function msvvFetch(method, url, body) {
 }
 // a failed foreign write: one quiet toast that names the server
 // (a 424 carries the other server's reason as translated plain text, part A)
-const msvvFail = (sid, e) => toast(tr('{0}: {1}', msvvName(sid), e?.message || msvvErrText(e?.code)), null, 5000);
+const msvvFail = (sid, e) => toast(tr('{0}: {1}', msvvName(sid), errText(e?.message ? e : msvvErrText(e?.code), tr('The change could not be saved'))), null, 5000);
 
 // ---- state
 async function msvvLoad() {

@@ -46,7 +46,7 @@ async function spv_dialog(sh, pv) {  // pv = the setting of the open pivot sheet
   if (pv) Object.assign(st, {rows: [...(pv.rows || [])], cols: pv.cols ?? null, values: (pv.values || []).map(v => ({...v})), filter: (pv.filter || [])[0] || null});
   /** @type {any} */ let src = null;
   const load = async first => {
-    try { src = await rawFetch('GET', '/api/sheets/' + st.source); } catch (e) { toast(e.message); return false; }
+    try { src = await rawFetch('GET', '/api/sheets/' + st.source); } catch (e) { toast(errText(e, tr('The table could not be loaded'))); return false; }
     if (first && !pv) Object.assign(st, spvDefault(src));
     return true;
   };
