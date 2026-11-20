@@ -105,8 +105,8 @@ dbx("UPDATE user_invites SET sent_at=now() WHERE user_id=?", (BOB,))  # as if it
 Bn = at("192.0.2.77")  # a new device
 r = Bn.post(B + "/api/auth/invite/accept", json={"token": tok, "password": "third-password-789"})
 check(r.ok and r.json().get("twofa") is True, f"reset from a new address: the second step follows {r.status_code} {r.text[:160]}")
-r = Bn.post(B + "/api/auth/2fa", json={"recovery": CODES.pop()})
-check(r.ok, f"reset link: its second step works despite the ceiling {r.status_code} {r.text[:160]}")
 r = password_step(at("192.0.2.77"), "third-password-789")
 check(r.status_code == 429 and r.json().get("twofa_locked") is True, f"reset link: the address did not become known - the password alone from there is still refused {r.status_code} {r.text[:120]}")
+r = Bn.post(B + "/api/auth/2fa", json={"recovery": CODES.pop()})
+check(r.ok, f"reset link: its second step works despite the ceiling (a full sign-in: from now on the address is known) {r.status_code} {r.text[:160]}")
 sys.exit(done("p6498_twofa_day"))
