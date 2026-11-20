@@ -1,7 +1,8 @@
 // (#7617) the phone's drawer, area Start: under the tiles "Favourites" and "Recently opened" (Firefox, touch, 412 px)
 // kalmido-suite: fresh
 // - a favourite (Today) and a project opened before: both groups with their rows; a tap on the favourite opens it and
-//   closes the drawer, a tap on the recent project opens the project and closes the drawer; a group folds like the others
+//   closes the drawer, a tap on the recent project opens the project and closes the drawer; a group folds like the others;
+//   a row carries the workspace's colour mark like every row
 // - no favourites and no history: no empty headings (and no area head over nothing)
 // - a computer's sidebar stays as it was (no such groups)
 const {execFileSync} = require('child_process');
@@ -23,7 +24,8 @@ if (!process.env.KMT_NOSTART) execFileSync('bash', [path.join(__dirname, 'start.
   const call = async (method, url, body) => { const x = await fetch(B + url.replace(/^\//, ''), {method, headers: {...H, Cookie: CK}, body: body ? JSON.stringify(body) : undefined}); return {...(await x.json().catch(() => ({}))), http: x.status}; };
   await call('POST', '/api/admin/setup', {lang: 'en', collab_all: true, modules: ['cal', 'comments']});
   await call('PATCH', '/api/settings', {lang: 'en', tour: 'done'});
-  const L = await call('POST', '/api/lists', {name: 'Shoot Berlin'});
+  const ORG = (await call('GET', '/api/state')).me?.workspaces?.[0]?.id;
+  const L = await call('POST', '/api/lists', {name: 'Shoot Berlin', ...(ORG ? {org_id: ORG} : {})});
   check(L.id > 0, 'setup: a project ' + L.http);
 
   const G = (g, sel = '') => `#side.open .sgroup[data-sbmh="${g}"]${sel}`;
@@ -61,6 +63,9 @@ if (!process.env.KMT_NOSTART) execFileSync('bash', [path.join(__dirname, 'start.
     check(m && m.favs.includes('Today'), 'the favourite row ' + JSON.stringify(m));
     check(m && m.rec.includes('Shoot Berlin'), 'the recent project row ' + JSON.stringify(m));
     check(m && m.below, 'the groups stand under the tiles');
+    // the rows carry the workspace's colour mark like every row (product rule: organisation colour everywhere)
+    const mk = await ev(`(() => { const r = [...document.querySelectorAll('${G('home:recent', ' .srow')}')].find(x => x.textContent.includes('Shoot Berlin')); const l = listById(${L.id}); return {want: !!wso_row(wsOf(l)), has: !!r?.hasAttribute('data-wso')}; })()`);
+    check(mk.want === mk.has, 'the recent project row has the workspace mark exactly when the workspace has a colour ' + JSON.stringify(mk));
     await shot('p21493b-start-412.png');
     // a group folds like the others and opens again
     await ev(`(() => { document.querySelector('${G('home:recent', ' .sgt')}').click(); return 1; })()`);
