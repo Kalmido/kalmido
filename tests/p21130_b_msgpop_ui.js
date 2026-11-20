@@ -115,6 +115,14 @@ const call = async (method, url, body, ck, hdr = {}) => { const r = await fetch(
   check(await until(card), 'another card');
   ptr('pointerdown', 200, 40); ptr('pointermove', 180, 40); ptr('pointermove', 160, 40); ptr('pointerup', 160, 40);
   check(await until(() => !card()), 'a quick flick shorter than the threshold closes it too');
+  // a fast start, then held still before letting go: no flick (#7615, reader N2)
+  await bobSays('Hold me');
+  await ask();
+  check(await until(card), 'a card to hold');
+  ptr('pointerdown', 200, 40); ptr('pointermove', 215, 40); ptr('pointermove', 235, 40); await sleep(300); ptr('pointerup', 235, 40);
+  await sleep(200);
+  check(!!card() && card().style.transform === '', 'held still before letting go: it springs back, no flick');
+  card().querySelector('.mpx').click(); await until(() => !card());
   await bobSays('Not down');
   await ask();
   check(await until(card), 'one more card');
@@ -218,6 +226,8 @@ const call = async (method, url, body, ck, hdr = {}) => { const r = await fetch(
     check(back === 'none', 'firefox 412: short of the threshold back at transform none: ' + back);
     const h0 = await ev('location.hash');
     await ev(`(${P('pointerdown', 200, 60)}, 1)`); await ev(`(${P('pointermove', 199, 40)}, 1)`); await sleep(150); await ev(`(${P('pointermove', 198, -30)}, 1)`); await sleep(150); await ev(`(${P('pointerup', 198, -30)}, 1)`);
+    const fly = await ev(`(() => { const m = document.querySelector('#msgpop'); if (!m) return {gone: true}; const now = new DOMMatrix(getComputedStyle(m).transform).m42, t = parseFloat((m.style.transform.match(/translateY\\((-?[0-9.]+)px\\)/) || [])[1]), b0 = m.getBoundingClientRect().bottom - now; return {t, b0: Math.round(b0), end: Math.round(b0 + t)}; })()`);
+    check(fly.gone || fly.end <= 0, 'firefox 412: the flight up ends above the screen (not back on it) ' + JSON.stringify(fly));
     let gone = false;
     for (let i = 0; i < 30 && !gone; i++) { await sleep(50); gone = await ev("!document.querySelector('#msgpop:not(.mpgone)')"); }
     check(gone, 'firefox 412: a swipe up past the threshold closes it');
