@@ -227,6 +227,10 @@ class Kalmido:
             msg = f"HTTP {code}: " + ((er.get("message") if isinstance(er, dict) else er) or msg)
             if isinstance(er, dict) and er.get("reason"):
                 msg += f" [reason: {er['reason']}" + (f"; fields: {', '.join(map(str, er['fields']))}" if er.get("fields") else "") + "]"
+            if isinstance(er, dict) and er.get("code") == "space_needed":  # (#7385): the choice, so the agent can ask the person
+                sp = [x for x in er.get("spaces") or [] if isinstance(x, dict)]
+                msg += (" [space_needed: ask the person which workspace, then send space: " + "; ".join(f"{x.get('ws')} = {x.get('name')}" for x in sp) + "]"
+                        if sp else " [space_needed: the module is off in every workspace the person may add to]")
             if isinstance(er, dict) and er.get("code") == "approval_required" and isinstance(er.get("approval"), dict):
                 msg += " " + self._keep_refused(er["approval"], er.get("run") == "header")
         except (ValueError, AttributeError, TypeError):
@@ -293,6 +297,8 @@ def _cd_name(cd):
 # ---------------------------------------------------------------- tools
 
 S_ID = {"type": "integer", "minimum": 1}
+_SPACE = {"type": "string", "description": "#7385: the workspace of the new entry: private | org:<id> (instead of org_id); without it and with "
+                                            "several workspaces the answer is space_needed with the choice"}
 _DW_H = {"type": ["integer", "null"], "minimum": 0, "maximum": 8760}  # 2.553.0 C (#3538): a column time limit in hours (null / 0 = none)
 PRIO = {"type": "string", "enum": ["none", "low", "medium", "high", "urgent"]}  # 2.574.0 (#3376): urgent
 STRS = {"type": "array", "items": {"type": "string"}}
@@ -1648,8 +1654,8 @@ _XV = {"expect_updated_at": {"type": "string", "description": "2.564.0: the upda
 TOOLS += [
     ("list_event_calendars", "2.21.0 (module Events): the event calendars you see (own + shared) with your role.", _obj({}),
      lambda api, a: api.call("GET", "/event-calendars")),
-    ("create_event_calendar", "2.21.0: a new own calendar (2.30.0: org_id = its workspace; #7385: without it the workspace on top / the only one where the module is on, else 400 space_needed with spaces - ask the person and send org_id).", _obj({"name": {"type": "string"}, "color": {"type": "string"}, "description": {"type": "string"}, "org_id": {"type": ["integer", "null"], "description": "2.30.0: its workspace (an organisation id of yours; null = private)"}}, ["name"]),
-     lambda api, a: api.call("POST", "/event-calendars", body=_pick(a, ("name", "color", "description", "org_id")))),
+    ("create_event_calendar", "2.21.0: a new own calendar (2.30.0: org_id = its workspace; #7385: without it the workspace on top / the only one where the module is on, else 400 space_needed with spaces - ask the person and send space / org_id).", _obj({"name": {"type": "string"}, "color": {"type": "string"}, "description": {"type": "string"}, "org_id": {"type": ["integer", "null"], "description": "2.30.0: its workspace (an organisation id of yours; null = private)"}, "space": _SPACE}, ["name"]),
+     lambda api, a: api.call("POST", "/event-calendars", body=_pick(a, ("name", "color", "description", "org_id", "space")))),
     ("update_event_calendar", "2.21.0: rename / recolour a calendar (owner) or hide it from your own views (hidden). "
                               "2.657.0: expect_updated_at = the calendar's updated_at of list_event_calendars, required with name / "
                               "color / description / org_id (hidden alone needs none).",
@@ -1702,8 +1708,8 @@ TOOLS += [
      lambda api, a: api.call("GET", f"/tasks/{int(a['task_id'])}/events")),
     ("list_address_books", "2.21.0 (module Contacts, scope contacts): the address books you see.", _obj({}),
      lambda api, a: api.call("GET", "/address-books")),
-    ("create_address_book", "2.21.0: a new own address book (2.30.0: org_id = its workspace; #7385: without it the workspace on top / the only one where the module is on, else 400 space_needed with spaces - ask the person and send org_id).", _obj({"name": {"type": "string"}, "color": {"type": "string"}, "org_id": {"type": ["integer", "null"], "description": "2.30.0: its workspace (an organisation id of yours; null = private)"}}, ["name"]),
-     lambda api, a: api.call("POST", "/address-books", body=_pick(a, ("name", "color", "org_id")))),
+    ("create_address_book", "2.21.0: a new own address book (2.30.0: org_id = its workspace; #7385: without it the workspace on top / the only one where the module is on, else 400 space_needed with spaces - ask the person and send space / org_id).", _obj({"name": {"type": "string"}, "color": {"type": "string"}, "org_id": {"type": ["integer", "null"], "description": "2.30.0: its workspace (an organisation id of yours; null = private)"}, "space": _SPACE}, ["name"]),
+     lambda api, a: api.call("POST", "/address-books", body=_pick(a, ("name", "color", "org_id", "space")))),
     ("update_address_book", "2.21.0: rename / recolour an address book, or choose the project for its birthdays (owner). "
                             "2.657.0: expect_updated_at = the address book's updated_at of list_address_books (required).",
      _obj({"book_id": S_ID, "name": {"type": "string"}, "color": {"type": "string"}, "birthdays_list_id": {"type": ["integer", "null"]}, "org_id": {"type": ["integer", "null"], "description": "2.30.0: its workspace (an organisation id of yours; null = private)"}, **_XV}, ["book_id", "expect_updated_at"]),
@@ -2617,8 +2623,8 @@ TOOLS += [
      lambda api, a: api.call("GET", f"/clients/{int(a['client_id'])}", _pick(a, ("month",)))),
     ("create_client", "2.23.0: add a client (contact, hourly rate for projects without one, budget in hours and / or money). "
                      "#7385: org_id = its workspace; without it the workspace on top / the only one where Clients is on, else 400 space_needed "
-                     "with spaces - ask the person and send org_id.",
-     _obj(_CLIENT, ["name"]), lambda api, a: api.call("POST", "/clients", body=_pick(a, tuple(_CLIENT)))),
+                     "with spaces - ask the person and send space / org_id.",
+     _obj({**_CLIENT, "space": _SPACE}, ["name"]), lambda api, a: api.call("POST", "/clients", body=_pick(a, (*_CLIENT, "space")))),
     ("update_client", "2.23.0: change a client.", _obj({"client_id": S_ID, **_CLIENT_UP}, ["client_id"]),
      lambda api, a: api.call("PATCH", f"/clients/{int(a['client_id'])}", body=_pick(a, tuple(_CLIENT_UP)))),
     ("copy_client", "#7295: a copy of a client (name + \" (copy)\") or with as_location a new location of it (same name, name_extra empty; "
