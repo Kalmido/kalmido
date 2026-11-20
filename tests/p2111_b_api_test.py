@@ -293,6 +293,15 @@ r = requests.post(B + "/api/v1/events", headers=AH, json={"cal_id": CAL, "title"
 check(r.status_code == 201, f"an agent without the flag: 201 ({r.status_code} {r.text[:150]})")
 time.sleep(1)
 check(not mails("agent-ext@example.com"), "no mail from an agent")
+# #7414: an event made by a booking on the public booking page carries the booker's text: the API marks it as from outside
+EB = r.json()["id"]
+dbx("INSERT INTO appt_bookings(user_id, start, \"end\", name, email, status, event_id, created_at) VALUES(?,?,?,?,?,'confirmed',?,?)",
+    (ALICE, f"{D}T07:00:00+00:00", f"{D}T07:30:00+00:00", "Mallory", "mallory@example.com", EB, f"{D}T06:00:00+00:00"))
+g1 = requests.get(B + f"/api/v1/events/{EB}", headers=AH).json()
+check(g1.get("untrusted") is True and g1.get("origin") == "booking page", f"#7414: a booked event says it is from outside {g1}")
+lst = requests.get(B + "/api/v1/events", headers=AH, params={"from": D, "to": D}).json().get("data") or []
+check(any(x["eid"] == EB and x.get("untrusted") is True for x in lst) and all(not x.get("untrusted") for x in lst if x["eid"] != EB),
+      f"#7414: in the list only the booked event is marked {[(x['eid'], x.get('untrusted')) for x in lst]}")
 # deleting the calendar: invited attendees get the cancellation, the link ends
 n3 = len(mails("ext3@example.com"))
 check(A.delete(B + f"/api/evcals/{CAL}").ok, "delete the calendar")

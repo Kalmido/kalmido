@@ -25,6 +25,21 @@ def _page(items):
     return jsonify(data=items, next_cursor=None)
 
 
+def ev_outside(c, items, key="id"):
+    """#7414: an event made by a booking on the public booking page (appt_bookings.event_id) carries the booker's name and
+    message in its title / description: it says so (untrusted + origin, like the mail news), the MCP fence then marks its
+    texts as data. items: event dicts (key 'id') or occurrences (key 'eid'); changed in place, returned."""
+    ids = sorted({d[key] for d in items if isinstance(d, dict) and isinstance(d.get(key), int)})
+    hit = set()
+    for i in range(0, len(ids), 900):
+        part = ids[i:i + 900]
+        hit.update(r[0] for r in c.execute(f"SELECT event_id FROM appt_bookings WHERE event_id IN ({','.join('?' * len(part))})", part))
+    for d in items:
+        if isinstance(d, dict) and d.get(key) in hit:
+            d.update(origin="booking page", untrusted=True)
+    return items
+
+
 @app.get("/api/v1/event-calendars")
 @v1_view
 def v1_evcals():
@@ -111,13 +126,13 @@ def v1_evcal_export(cid):
 @v1_view
 def v1_events():
     a = v1_args(("from", "to", "calendar_id"))
-    return _page(op_range(db(), me(), a))
+    return _page(ev_outside(db(), op_range(db(), me(), a), "eid"))  # #7414
 
 
 def v1_ev_group(c, uid, q, n):
     """2.1026.0 (#5280): the first n events matching q as GET /api/v1/events/{id} answers them, + snippet / marks."""
     need_feat("events")
-    return [{**ev_dict(c, r, uid, role), **ev_snip(r, q)} for r, role in ev_find(c, uid, q, n)]
+    return ev_outside(c, [{**ev_dict(c, r, uid, role), **ev_snip(r, q)} for r, role in ev_find(c, uid, q, n)])  # #7414
 
 
 def v1_ev_find():
@@ -144,7 +159,7 @@ def v1_event_new():
 @v1_view
 def v1_event(eid):
     v1_args(())
-    return jsonify(op_event(db(), me(), eid))
+    return jsonify(ev_outside(db(), [op_event(db(), me(), eid)])[0])  # #7414
 
 
 @app.patch("/api/v1/events/<int:eid>")
