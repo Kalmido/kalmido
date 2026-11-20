@@ -35,7 +35,7 @@ const tall = (w, md, h) => { const c = md.querySelector(':scope > .card'); c.get
   await call('PATCH', '/api/settings', {lang: 'en', tour: 'done', features: 'cal,comments,collab,contacts,office,clients,time,family'});
   await call('POST', '/api/evcals', {name: 'Work'});  // a calendar of her own: the new-event dialog opens on it
   const w = await boot({hash: 'calendar'}); const d = w.document;
-  await until(() => typeof w.modal === 'function' && typeof w.dlgCross === 'function' && w.S?.me);
+  await until(() => typeof w.modal === 'function' && typeof w.dlgCross === 'function' && w.eval('!!S.me'));
   await w.eval(`Promise.all(['clientdlg', 'contacts', 'family'].map(m => loadModule(m)))`);
 
   // ---- create = "Create", edit = "Save"
@@ -50,10 +50,10 @@ const tall = (w, md, h) => { const c = md.querySelector(':scope > .card'); c.get
   md = await until(() => d.querySelector('.modal [data-ctm2="save"]') && last(d));
   check(text(md?.querySelector('[data-ctm2="save"]')) === 'Create', 'new contact: "Create" (was "Save"): ' + text(md?.querySelector('[data-ctm2="save"]')));
   md?.remove();
-  await until(() => (w.S.evcals || []).length);
+  await until(() => w.eval('(S.evcals || []).length'));
   w.eval('evEditor({})');
   md = await until(() => d.querySelector('.modal [data-evm="save"]') && last(d));
-  check(text(md?.querySelector('[data-evm="save"]')) === 'Create', 'new event: "Create" (was "Save"): ' + text(md?.querySelector('[data-evm="save"]')) + ' ' + text(d.querySelector('#toast')) + ' ' + (w.S.evcals || []).length);
+  check(text(md?.querySelector('[data-evm="save"]')) === 'Create', 'new event: "Create" (was "Save"): ' + text(md?.querySelector('[data-evm="save"]')) + ' ' + text(d.querySelector('#toast')) + ' ' + w.eval('(S.evcals || []).length'));
   // the event editor draws its own cross: a large one keeps exactly one
   if (md) tall(w, md, 700); w.eval('dlgCross([...document.querySelectorAll(".modal")].pop(), true)');
   check(md && [...md.querySelectorAll('button')].filter(b => b.getAttribute('aria-label') === 'Close' && !b.closest('.foot')).length === 1 && !md.querySelector('.dlgx'),
