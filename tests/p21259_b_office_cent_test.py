@@ -300,6 +300,9 @@ def flow(s, who):
 def tiny_rest(s, cl, who):
     """(e) #6637: an open invoice below 1.00 past its due date stays open, but is not overdue and gets no reminder suggestion."""
     from datetime import timedelta
+    # #7461: the server's dunning watchdog (dun_tick) must not draft a reminder for the backdated 11.90 before the direct
+    # dun_due call below (a waiting draft drops it from the suggestion: red in the merge queue); dun_due ignores this switch
+    check(s.put(B + OF + "/settings", json={"dunning_suggest": 0}).ok, f"{who} (e): the watchdog's suggestions off")
     T = invoice(s, cl, "0.42")
     check(T["totals"]["gross"] == "0.50", f"{who} (e): an invoice of 0.50 {T['totals'].get('gross')}")
     big = invoice(s, cl, "10.00")
