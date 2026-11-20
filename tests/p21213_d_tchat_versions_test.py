@@ -205,7 +205,9 @@ check(hist(M5) == [] and versions(Bo, M5) == (200, []), "no plain version of a l
 
 # ================================================================== #6232: the versions follow a project that changes its organisation
 L2 = A.post(B + "/api/lists", json={"name": "Umzug", "kind": "project", "org_id": ORG}).json()["id"]
-R2 = next(x for x in A.get(B + "/api/team").json()["rooms"] if x["kind"] == "list" and x["list_id"] == L2)["id"]
+check(A.put(B + f"/api/lists/{L2}/members", json={"user_id": BOB, "role": "edit"}).ok, "setup: a second member (the channel)")
+R2 = next((x for x in A.get(B + "/api/team").json()["rooms"] if x["kind"] == "list" and x["list_id"] == L2), {}).get("id")
+check(R2, "setup: the project's channel")
 M6 = A.post(B + f"/api/team/rooms/{R2}/messages", json={"body": "Erste Fassung"}).json()["id"]
 check(A.patch(B + f"/api/team/messages/{M6}", json={"body": "Zweite Fassung"}).ok and [o for _, o, _ in hist(M6)] == [ORG],
       "setup: a version of the organisation")
