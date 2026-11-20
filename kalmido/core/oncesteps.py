@@ -11,10 +11,15 @@ STEPS  (phase, key, once, f(c)) in the order init_db ran them. init_db calls run
 run_steps(c, steps, clk, label=None)  the one runner: also of the areas' start hooks (core/objhooks.START, same shape
        (key, once, f)); every step that ran ends its step of the start log (StartClock, clk(key)), a flag write ends it too.
 
-The bodies are the blocks of init_db word for word (moved, not rewritten). A NEW one-shot of the start goes here: one function,
-one entry at its place in STEPS (tools/check_migrations.py: gsetting(c, "migr_...") outside this module only in the
-places named there, the keys unique, the phases in init_db's order). One-shots of an area that run inside its own start
+The bodies are the blocks of init_db word for word (moved, not rewritten). One-shots of an area that run inside its own start
 function stay there (tools/check_migrations.py ONCE_ELSEWHERE says why).
+
+#7445: A NEW one-shot of the start goes into a fragment of its own, kalmido/core/oncesteps.d/<task>.py: its function(s) and a
+list STEPS of (phase, key, once, f) like the one below -- never a line at the end of this STEPS (two packages appending at the
+same place collided in the merge queue, case F114). The fragments load in name order (once_frag_load, like core/db.py frag_load
+for migrations.d) and run_phase runs a phase's fragment steps right behind its fixed STEPS. A fragment imports relatively like
+this module (from .db import gset). tools/check_migrations.py holds them to data: the keys unique over STEPS and every fragment,
+the phase one of STEPS', a migr_ flag only in the fragment whose STEPS has that key, no key of RETIRED.
 
 2.1380.0 (#6826): a database is only updated from core/db.py MIN_FROM (2.1000.0) on, and every database of that version has
 run every one-shot that stood here (all of them were in 2.1001.0's init_db, the first release from the floor on). They are
@@ -23,6 +28,7 @@ steps never ran, on empty tables) carries them too and the one step back to a ve
 of them on data made since. A one-shot that is retired later moves its key into RETIRED the same way.
 """
 import json
+import os
 
 from .db import ALLOW_PURPOSES, gset, gsetting
 from .pg import qi, system_ctx as pg_system_ctx
@@ -148,6 +154,26 @@ STEPS = [  # (phase, key, once, f): the order of init_db (2.1356.0, #6824); 2.13
 ]
 
 
+ONCE_D = os.path.join(os.path.dirname(os.path.abspath(__file__)), "oncesteps.d")  # #7445: the fragments of new one-shots
+
+
+def once_frag_load(d=ONCE_D):
+    """#7445: the STEPS entries (phase, key, once, f) of all fragments in d, in file name order (like core/db.py frag_load). A
+    fragment runs as a module of this package (relative imports work); a folder without fragments (only its README) = []."""
+    out = []
+    for n in sorted(os.listdir(d)) if os.path.isdir(d) else ():
+        if n.endswith(".py"):
+            path = os.path.join(d, n)
+            ns = {"__name__": f"{__package__}.oncesteps_d.{n[:-3]}", "__package__": __package__, "__file__": path}
+            with open(path, encoding="utf-8") as f:
+                exec(compile(f.read(), path, "exec"), ns)  # nosec: a file of this package
+            out += [tuple(x) for x in ns.get("STEPS", [])]
+    return out
+
+
+FRAG_STEPS = once_frag_load()
+
+
 def run_steps(c, steps, clk, label=None):
     """Runs (key, once, f) in order: once = only while gsetting key is not "1", then the flag (if f did not write it);
     clk(key) after each step that ran. label: an area hook's result (a count, a dict or a list of counts) goes into the
@@ -164,5 +190,5 @@ def run_steps(c, steps, clk, label=None):
 
 
 def run_phase(c, clk, phase):
-    """The one-shots of STEPS that stand at this place of init_db."""
-    run_steps(c, [(k, once, f) for p, k, once, f in STEPS if p == phase], clk)
+    """The one-shots of STEPS that stand at this place of init_db, then (#7445) those of the fragments for this phase."""
+    run_steps(c, [(k, once, f) for p, k, once, f in STEPS + FRAG_STEPS if p == phase], clk)
