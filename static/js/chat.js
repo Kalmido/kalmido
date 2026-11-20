@@ -506,7 +506,7 @@ async function tcVersionText(room, m, v) {
 async function tcEditsShow(mid) {
   const m = tth_msg(mid), room = S.tc.room; if (!m || !room) return;
   let j; try { j = await rawFetch('GET', `/api/team/messages/${mid}/versions`); }
-  catch (e) { toast(e instanceof Offline ? tr('Only available online.') : e.message); return; }
+  catch (e) { toast(errText(e, tr('The history could not be loaded'))); return; }
   const U = S.tc.users, lock = t => `<span class="muted">${ic('lock', 's')} ${esc(t === false ? tr('Cannot be decrypted') : tr('Encrypted message'))}</span>`;
   const texts = await Promise.all((j.items || []).map(v => tcVersionText(room, m, v)));
   const cur = m.enc && !m._dec ? lock(m._fail ? false : null) : commentBody(m.body || '', U);
@@ -1231,7 +1231,7 @@ async function noteFlush() {
     const s = $('#nt-saved'); if (s) { s.textContent = tr('Saved'); setTimeout(() => { if (s.isConnected) s.textContent = ''; }, 1500); }
   } catch (e) {
     if (e.status === 409 && e.data?.note) { noteConflict(n, e.data.note, patch); return; }
-    S.nt.dirty = true; toast(e instanceof Offline ? tr('Only available online.') : e.message);  // 2.143.0 C (#2153): only a locked list's note
+    S.nt.dirty = true; toast(errText(e, tr('The note could not be saved')));  // (#2153): only a locked list's note
   }
 }
 async function noteConflict(mine, theirs, patch) {
@@ -1239,7 +1239,7 @@ async function noteConflict(mine, theirs, patch) {
   let kept = false;  // 2.1397.0 (#6329 E6)
   if (keep && !ntLocked(mine.list_id)) { mine.updated_at = theirs.updated_at; ntEnqueue('PATCH', `/api/notes/${mine.id}`, {...patch, expect_updated_at: theirs.updated_at}); kept = true; }  // 2.536.0 (#4567): the outbox
   else if (keep) {
-    try { const r = await rawFetch('PATCH', `/api/notes/${mine.id}`, {...patch, expect_updated_at: theirs.updated_at}); Object.assign(mine, r); kept = true; } catch (e) { toast(e.message); }
+    try { const r = await rawFetch('PATCH', `/api/notes/${mine.id}`, {...patch, expect_updated_at: theirs.updated_at}); Object.assign(mine, r); kept = true; } catch (e) { toast(errText(e, tr('The note could not be saved'))); }
   } else Object.assign(mine, theirs);
   // 2.1397.0 (#6329 E6): closed without a choice, "Take theirs" or a failed "Keep mine": the own text is not dropped unseen, it
   // waits in the conflicts dialog (core.js outReject, as a refused offline change: Copy / Dismiss; counted at logout). A locked
@@ -1254,7 +1254,7 @@ async function noteNew() {
   if (qn_isList(lid)) { qn_new(lid); return; }  // 2.477.0 (#3881): the list "Notes" makes quick notes
   const url = `/api/lists/${lid}/notes`, b = {title: tr('New note'), client_ref: outKey()};  // 2.143.0 C (#2153): offline into the outbox (ntLocal draws it)
   let r = null;  // 2.536.0 (#4567): online too into the outbox (a temporary id, ntSent swaps it), a locked list straight
-  if (ntLocked(lid)) try { r = await rawFetch('POST', url, b); } catch (e) { toast(e instanceof Offline ? tr('Only available online.') : e.message); return; }
+  if (ntLocked(lid)) try { r = await rawFetch('POST', url, b); } catch (e) { toast(errText(e, tr('The note could not be created'))); return; }
   if (!r) { r = enqueue('POST', url, b); S.nt.newId = r.id; go('note/' + r.id); setTimeout(() => { const t = $('#nt-title'); if (t) { t.focus(); t.select(); } }, 120); return; }
   S.nt.notes = [r, ...(S.nt.notes || [])]; S.notes = [{id: r.id, list_id: lid, title: r.title, tags: [], pinned: false, updated_at: r.updated_at}, ...(S.notes || [])];
   S.nt.newId = r.id; go('note/' + r.id);
@@ -1269,25 +1269,25 @@ function noteMenu(anchor, id) {
   menu(anchor, [...(card ? [{label: tr('Open'), icon: 'eye', act: 'm-open', fn: () => go('note/' + n.id)},
       ...(rw ? [{label: n.pinned ? tr('Unpin') : tr('Pin'), icon: 'pin', act: 'm-pin', fn: () => ntWrite(n, {pinned: !n.pinned}).then(r => {
         if (!r.queued) for (const x of [(S.nt.notes || []).find(y => y.id === n.id), (S.notes || []).find(y => y.id === n.id)]) if (x) x.pinned = r.pinned;
-        renderView(); }).catch(err => toast(err instanceof Offline ? tr('Only available online.') : err.message))}] : [])] : []),
+        renderView(); }).catch(err => toast(errText(err, tr('The note could not be saved'))))}] : [])] : []),
     {label: tr('Copy link'), icon: 'link', act: 'm-copy-link', fn: () => { navigator.clipboard?.writeText(`${location.origin}${location.pathname}#note/${n.id}`).then(() => toast(tr('Link copied'))); }},
     ...(card ? [] : pgw_items('notes', n.id)),  // 2.599.0 (#4808): the open note's width
     ...(others.length ? [{label: tr('Move to project…'), icon: 'folder', act: 'm-move', next: 1, fn: () => tch_listPicker(anchor, {filter: l => others.includes(l), pick: async l => {  // 2.38.0 (#1177)
       let r; try { r = await rawFetch('PATCH', `/api/notes/${n.id}`, {list_id: l.id}); } catch (e) {
         // 2.477.0 (#3881): out of the private list "Notes" to other people only after the warning that names them
-        if (!(e.status === 409 && e.data?.code === 'quicknote_share')) { toast(e.message); return; }
+        if (!(e.status === 409 && e.data?.code === 'quicknote_share')) { toast(errText(e, tr('The note could not be moved'))); return; }
         if (!await qn_shareAsk(e.data.people || [], l)) return;
-        try { r = await rawFetch('PATCH', `/api/notes/${n.id}`, {list_id: l.id, share_ok: true}); } catch (e2) { toast(e2.message); return; }
+        try { r = await rawFetch('PATCH', `/api/notes/${n.id}`, {list_id: l.id, share_ok: true}); } catch (e2) { toast(errText(e2, tr('The note could not be moved'))); return; }
       }
       const from = n.list_id; Object.assign(n, r);
       if (card && S.nt.lid === from && S.nt.notes) S.nt.notes = S.nt.notes.filter(x => x.id !== n.id);  // a card: it leaves the list shown
       await load(); toast(tr('Moved to {0}', lname(l))); if (card) renderView(); else go('note/' + n.id); }})}] : []),
     ...(rw ? ['-', {label: tr('Delete'), icon: 'trash', cls: 'flag-5', act: 'm-delete', fn: async () => {
-      let r; try { r = await rawFetch('DELETE', `/api/notes/${n.id}`); } catch (e) { toast(e.message); return; }
+      let r; try { r = await rawFetch('DELETE', `/api/notes/${n.id}`); } catch (e) { toast(errText(e, tr('The note could not be deleted'))); return; }
       S.nt.notes = (S.nt.notes || []).filter(x => x.id !== n.id); S.notes = (S.notes || []).filter(x => x.id !== n.id);
       back(); setTimeout(() => { if (document) $('#nt-q')?.focus(); }, 80);  // 2.17.2: the focus stays in the notes
       toast(tr('Note deleted'), async () => {  // 2.272.0 E1 (#3038): undo = out of the trash (the same note, its id and links stay)
-        try { const x = await rawFetch('POST', `/api/notes/${r.note.id}/restore`); if (S.nt.lid === x.list_id) S.nt.notes = [x, ...(S.nt.notes || [])]; await load(); if (card) { renderView(); return; } go('note/' + x.id); setTimeout(() => { if (document) $('#nt-title')?.focus(); }, 120); } catch (e) { toast(e.message); }
+        try { const x = await rawFetch('POST', `/api/notes/${r.note.id}/restore`); if (S.nt.lid === x.list_id) S.nt.notes = [x, ...(S.nt.notes || [])]; await load(); if (card) { renderView(); return; } go('note/' + x.id); setTimeout(() => { if (document) $('#nt-title')?.focus(); }, 120); } catch (e) { toast(errText(e, tr('The note could not be restored'))); }
       });
     }}] : [])], null, null, n.title);
 }
@@ -1313,7 +1313,7 @@ document.addEventListener('click', e => {
   if (act === 'nt-new') noteNew();
   else if (act === 'nt-close') { noteFlush(); navUp('notes/' + S.nt.lid); }  // 2.743.0 (#5235)
   else if (act === 'nt-mode') { noteFlush(); S.nt.edit = a.dataset.m === 'edit'; renderView(); if (S.nt.edit) setTimeout(() => { const b = $('#nt-body'); if (b) { autosize(b); b.focus(); } }, 0); }
-  else if (act === 'nt-pin' && n) { ntWrite(n, {pinned: !n.pinned}).then(r => { if (!r.queued) Object.assign(n, r); renderView(); }).catch(err => toast(err instanceof Offline ? tr('Only available online.') : err.message)); }  // 2.143.0 C (#2153): offline too
+  else if (act === 'nt-pin' && n) { ntWrite(n, {pinned: !n.pinned}).then(r => { if (!r.queued) Object.assign(n, r); renderView(); }).catch(err => toast(errText(err, tr('The note could not be saved')))); }  // (#2153): offline too
   else if (act === 'nt-menu') noteMenu(a);
   else if (act === 'nt-trash') { if (!S.nt.trash) { S.nt.trash = {}; f8d_viewStep('ntt', ntt_close); renderView(); } else if (!f8d_viewBack('ntt')) ntt_close(); }  // 2.272.0 E1 (#3038): notetrash.js draws it; 2.963.0 (#5233): a step of the page, off again = Back
   else return;
@@ -1426,7 +1426,7 @@ async function msRun(q) {
   m.busy = true; msBarSync();
   let r;
   try { r = await msgSearch(q, {art, [art === 't' ? 'room' : 'agent']: key, limit: 50}); }
-  catch (e) { if (m.q === q) { m.busy = false; msBarSync(); toast(e instanceof Offline ? tr('Only available online.') : e.message); } return; }
+  catch (e) { if (m.q === q) { m.busy = false; msBarSync(); toast(errText(e, tr('The search did not work'))); } return; }
   if (m.q !== q || m.art !== art || m.key !== key || !m.open) return;
   Object.assign(m, {hits: r.hits, i: r.hits.length ? 0 : -1, busy: false}); msBarSync();
   if (r.hits.length) msGo(0);
