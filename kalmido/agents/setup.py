@@ -24,6 +24,7 @@ from ..api.runfor import REQ_NOT_SQL  # #6978 F7
 from ..agents.reqtoken import req_drop  # 2.1386.0 (#6668); req_drop: review F2; #6978 F7: columns, not the name
 from ..core.ipallow import ips_clean
 from ..accounts.session import _rate_blocked, _rate_fail, _token_hash, client_ip, rate_ip
+from ..accounts.oidc import creator_reauth  # #6499
 from ..api.v1 import API_ON, need_api
 from ..agents.core import AGENT_OFFLINE_S, agent_row, agent_shares
 from ..agents.admin import need_own_agent, need_agent_admin, AGENT_TOKEN_CREATED, agent_token_new  # 2.369.5 (#2517): pulled up from functions
@@ -166,7 +167,6 @@ def _my(aid):
 def ains_my_code(aid):
     g.idem_no_body = True  # (#6558): the setup code is shown once, never kept with an idempotency key
     c = _my(aid)
-    from ..accounts.oidc import creator_reauth  # #6499: a new way into the account confirms the sign-in once more
     e = creator_reauth(c, body())
     if e:
         return e
@@ -192,7 +192,6 @@ def ains_admin_code(aid):
     c = db()
     with system_ctx(c):  # the instance admin manages agent accounts (any organisation; structure, no content), like the token route
         need_agent_admin(c, aid, cred=True)  # 2.485.0 (#3939): no setup code through support access
-        from ..accounts.oidc import creator_reauth  # #6499: a new way into the account confirms the sign-in once more
         e = creator_reauth(c, body())
         if e:
             return e
