@@ -3299,7 +3299,7 @@ body.in-chat #top{display:none}
 @media (pointer:coarse){ .wcb .btn,.waitcard .linkbtn,.mwa{min-height:2.75rem} }
 .menu-list .mwait .ml{white-space:normal}
 /* (#7538): working through "Waiting for me" - a computer: list left, entry right; a phone: the entry fills the view */
-.mwsplit{display:grid;grid-template-columns:minmax(16rem,22rem) minmax(0,1fr);gap:1rem;align-items:start}
+.mwsplit{display:grid;grid-template-columns:var(--g-mw-list,minmax(var(--w-leiste-min),var(--w-leiste))) minmax(0,1fr);gap:1rem;align-items:start;position:relative}  /* the list's width: the one grip (render.js gcol_html) */
 .mwsplit .mwl{display:flex;flex-direction:column;gap:.75rem;min-width:0}
 .mwsplit .mwr{position:sticky;top:.5rem;min-width:0}
 .mwg .wcrow.on{background:var(--bg3,var(--bg));border-radius:.5rem}
