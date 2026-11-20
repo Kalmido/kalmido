@@ -85,6 +85,9 @@ BUDGET_ANY = {"local_upward": {"accounts.b -> agents.e": 9}, "local_needless": {
 UP1 = {"local_upward": {"accounts.b -> agents.e": 1}, "local_needless": {}, "clock": {}}
 
 
+LINTMSG = os.path.join(ROOT, "tools", "lintmsg.py")
+
+
 def fake(extra=None, known=None, init=INIT, budget=BUDGET_ANY):
     """A small invented package with tools/check_layers.py beside it; -> (exit code, output)."""
     d = tempfile.mkdtemp(prefix="p2102e-")
@@ -96,6 +99,7 @@ def fake(extra=None, known=None, init=INIT, budget=BUDGET_ANY):
             b = src.index("\n}\n", a) + 3
             src = src[:a] + "KNOWN = " + repr(set(known)) + "\n" + src[b:]
         open(os.path.join(d, "tools", "check_layers.py"), "w", encoding="utf-8").write(src)
+        shutil.copy(LINTMSG, os.path.join(d, "tools"))  # #7229: since #7143 every check imports tools/lintmsg.py from its folder
         if budget is not None:
             open(os.path.join(d, "tools", "layers_baseline.json"), "w", encoding="utf-8").write(json.dumps(budget))
         files = dict(FILES, **(extra or {}))
@@ -155,6 +159,7 @@ if os.path.exists(TSG):
         shutil.copytree(os.path.join(ROOT, "static", "js"), os.path.join(d, "static", "js"))
         os.makedirs(os.path.join(d, "tools"))
         shutil.copy(TSG, os.path.join(d, "tools"))
+        shutil.copy(LINTMSG, os.path.join(d, "tools"))  # #7229
         if os.path.exists(os.path.join(ROOT, "jsconfig.json")):
             shutil.copy(os.path.join(ROOT, "jsconfig.json"), d)
         open(os.path.join(d, "static", "js", "zzneu.js"), "w").write("'use strict';\nfunction zz_x() { return 1; }\n")
