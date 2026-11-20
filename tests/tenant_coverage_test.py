@@ -973,6 +973,7 @@ ROUTES = {
     # 2.99.1 C (#1959): video sign-offs for agents (videos/v1.py; p2991_c_api_test.py)
     "GET /api/v1/videos": "video", "GET /api/v1/videos/{}": "video", "POST /api/v1/videos/{}/comments": "video",
     "PATCH /api/v1/videos/{}/comments/{}": "video",
+    "POST /api/v1/videos": "video",  # (#7532): p7532_a_area_test.py (a stranger's task 404, nothing created)
     "GET /api/lists/{}/signoffs": "signoff", "POST /api/lists/{}/signoffs": "signoff", "POST /api/lists/{}/signoffs/{}/revoke": "signoff",
     "GET /api/office/docs/{}/signoffs": "signoff", "POST /api/office/docs/{}/signoff": "signoff", "POST /api/office/signoffs/{}/revoke": "signoff",
     # ---- stats (2)

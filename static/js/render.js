@@ -215,10 +215,11 @@ function tabsMore(anchor) {
   const grp = t => rest.includes(t) ? 0 : t.id === 'search' ? 3 : t.id === 'settings' ? 4 : 1;
   // 2.489.0 (#2664, decision #2636): no heading "Conversations" any more (the team chat is the area Chat, #2814): News after a line
   const head = [{head: tr('Views')}, {head: tr('Areas|nav')}, '-', '-', null];
-  const ord = [0, 1, 2, 3, 4].flatMap(g => { const ts = more.filter(t => grp(t) === g); return ts.length || g === 3 ? [...(head[g] ? [head[g]] : []), ...ts, ...(g === 3 ? [{label: tr('Customise tab bar'), icon: 'edit', fn: () => settingsModal('tabbar')}] : [])] : []; });
+  const ord = [0, 1, 2, 3, 4].flatMap(g => { const ts = more.filter(t => grp(t) === g); return ts.length || g === 3 ? [...(head[g] ? [head[g]] : []), ...ts, ...(g === 3 ? [{label: tr('Customise tab bar'), icon: 'edit', fn: () => settingsModal('tabbar')}, ...(hostedOn() ? [{label: tr('Contact support'), icon: 'send', fn: () => supContact(false)}] : [])] : [])] : []; });
   while (ord[0] === '-') ord.shift();  // 2.1401.0 (#6127): nothing overflows: no line on top
   menu(anchor, [...wk.map(a => ({label: tr('{0} is working', a.name) + (a.status_text ? ' · ' + a.status_text : ''), dot: 'working', fn: () => go('agents')})), ...(wk.length ? ['-'] : []), ...ord.map(t => t === '-' || t.head || t.fn ? t : ({label: t.id === 'news' && bellCount() ? `${t.label} (${bellCount()})` : t.label, icon: t.ico || 'list', lic: t.lic,  // 2.883.0 (#5560): the item's own icon (was a guess by module, 'dots' for Knowledge, Tables, Office)
     fn: () => t.act === 'side' ? sideOpenDrawer() : t.act === 'palette' ? openPalette() : t.act ? settingsModal() : go(t.area && t.area === sbb_area() ? sbb_home(t.area) : t.go)}))]).querySelector('.tch-sh')?.classList.add('tch-sh0');  // 2.417.0 A (#3559)
+  // (#6534): hosted, "Contact support" next to "Customise tab bar" (a way to a person from the phone)
   // 2.883.0 (#5560): "More" has no title: no empty head line, its X sits in the grip's line
 }
 // 2.579.0 (#4199): once per draw (td_rc: the sidebar, the top bar, the tiles and the tabs read the same), the open tasks once per call

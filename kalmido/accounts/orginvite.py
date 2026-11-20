@@ -47,6 +47,7 @@ from ..accounts.invite import invite_state, invite_new  # 2.369.5 (#2517): pulle
 from ..accounts.mailfail import mail_disturbed  # (#6385)
 from ..accounts.users import user_purge  # 2.369.5 (#2517): pulled up from functions
 from ..core.objhooks import person_revoked  # 2.649.0 (#5051)
+from ..core.support import support_ask  # (#6534): hosted = the support instead of "the server admin"
 
 OINV_DAY = 20  # new invitations per inviting person and day
 OINV_RESEND_DAY = 3  # 2.148.1 A (#2486): resends per invitation and day
@@ -297,7 +298,8 @@ def _no_link_if_sent(inv, uid=None):
         print("organisation invitation: link shown to the instance admin", login_log_who(g.user), "for account", uid, flush=True)
     else:
         inv.pop("link", None)
-        inv["error"] = tr("The invitation e-mail could not be sent. Try Resend later or ask the server's admin.")
+        inv["error"] = support_ask(db(), N_("The invitation e-mail could not be sent. Try Resend later or ask the server's admin."),
+                                   N_("The invitation e-mail could not be sent. Try Resend later or write to support: {0}"))  # (#6534)
     return inv
 
 

@@ -283,7 +283,7 @@ const SF_IC = {lang: 'globe', startpg: 'home', fmt: 'clock', today: 'sun', dates
   lookin: 'palette', split: 'columns', wacc: 'drop', lemo: 'smile', sdd: 'done', tips: 'bulb', tabbar: 'menu', prbg: 'list', side: 'panel', sv: 'eye', fav: 'star',
   dlv: 'send', thisdev: 'phone', inapp: 'bell', ntfy: 'bellring', rem: 'alarm', quiet: 'moon',
   imp: 'upload', exp: 'download', pmeta: 'camera', vext: 'film', tpl: 'note', sample: 'sparkle', umz: 'arrow', 'xlstd-sec': 'link', ofdata: 'receipt',
-  account: 'user', mview: 'eye', sig: 'edit', purpose: 'target', nav: 'menu',
+  account: 'user', suphelp: 'help', mview: 'eye', sig: 'edit', purpose: 'target', nav: 'menu',
   company: 'building', tax: 'wallet', docs: 'file', packs: 'box', functions: 'sliders', data: 'archive', access: 'shield', rights: 'shield', bizmail: 'mail',
   // (#7555): each section its own icon (in Account almost every row showed the person of the tab)
   dsc: 'search', ws: 'grid', orgadd: 'building', '2fa': 'key', ses: 'laptop', e2e: 'lock', storage: 'cloud', sync: 'sync', msv: 'monitor',
@@ -1097,7 +1097,7 @@ function settingsModal(focus) {
       server: serverPaneHtml(chk, hint),  // 2.555.0 C (#4664): one builder for the first draw and the redraw after "Publish"
       log: aaHtml(),
       backup: bkHtml() + stoHtml()}, ad_admFocus(focus)) : '',  // 2.582.0 (#4827): the server admins' backups (also without an organisation)
-    help: `<h4 id="s-hstart-h">${tr('Getting started')}</h4>
+    help: `${/*html-ok*/ supHelpHtml()/* (#6534): hosted, "Help from a person" on top (setcore.js, escapes its values) */}<h4 id="s-hstart-h">${tr('Getting started')}</h4>
       <div class="row"><button type="button" class="btn sm" data-hlp="">${ic('help', 's')} ${tr('Help: how things work')}</button></div><!-- 2.1086.0 (#5820): the page Help (helpview.js) -->
       <div class="row"><button class="btn sm" data-m="tour">${ic('arrow', 's')} ${tr('Restart the welcome tour')}</button>${isTouch() ? '' : `<button class="btn sm" data-m="keys">${ic('help', 's')} ${tr('Keyboard shortcuts')} ${kb('?')}</button>`}<button class="btn sm" data-m="cele-try">${ic('check', 's')} ${tr('Show the celebration')}</button></div>
       <div class="row"><button class="btn sm" data-m="practice-add">${ic('plus', 's')} ${tr('Create the practice project')}</button>${S.sample ? '' : `<button class="btn sm" data-m="sample-add">${ic('plus', 's')} ${tr('Create sample project')}</button>`}</div>
@@ -1135,6 +1135,7 @@ function settingsModal(focus) {
   const secs = SET_SECS.filter(([k]) => pane[k]);
   let cur = {tabbar: S.me?.kid ? 'look' : 'nav', sidebar: 'look', layout: 'modules', collab: 'modules', focus: 'modules', time: 'modules', templates: 'data', sample: 'data', newskinds: 'notify', agents: 'ai', agentdots: 'ai', usage: 'ai', activity: S.me?.is_admin ? 'org' : 'ai', agentpolicy: 'org', server: 'users', signin: 'users', agentsafe: 'ai', agentsetup: 'ai', assistant: 'ai', share: 'integr', ical: 'integr', calendars: 'integr', webhooks: 'integr', access: 'integr', caldav: 'integr', paperless: 'integr', scans: 'integr', tokens: 'integr', apppw: 'integr', about: 'help', groups: 'org', users: 'org', odata: S.me?.is_admin ? 'users' : 'org', backup: 'users', dayplan: 'general'}[focus] || (INTB_FOCUS[focus] ? 'integr' : focus);  // (#3041): people, groups, agent rules under Organisation; (#4827): backup / old odata of a server admin = Server > Backup
   if (focus === 'codecheck') cur = 'help';  // 2.766.0 (#5220): the hint of the service worker (upbar.js)
+  if (focus === 'supportaccess') { cur = 'account'; SGV.jump = true; }  // (#6534): "Allow support access" (supportview.js shows it once drawn)
   if (/^biz-/.test(focus || '')) { S.bizJump = focus.slice(4); cur = 'biz'; }  // 2.365.2 D (#2789): a part of Company & office (office.js biz_jump scrolls there)
   if (!secs.some(([k]) => k === cur)) cur = LS.get('settingsSec', 'general') === 'access' ? 'integr' : LS.get('settingsSec', 'general');  // (#6368): the old tab Access
   if (!secs.some(([k]) => k === cur)) cur = 'general';
@@ -1370,7 +1371,7 @@ function settingsModal(focus) {
   });
   if (S.me?.is_admin) hostWire(md);
   aiuWire(md, only => { const box = $('#s-aiu', md); if (only && box && S.aiu.data) box.innerHTML = aiuHtml(S.aiu.data, Math.max(240, Math.min(720, (box.clientWidth || 560) - 8))); else aiuDraw(md); });  // 2.1.1 (#326)
-  if (cur === 'account' && S.me) { tfaDraw(md); epvDraw(md); e2eDraw(md); if (typeof msvDraw === 'function') msvDraw(md); if (typeof sesDraw === 'function') sesDraw(md); }  // (#661); (#2062): + sessions
+  if (cur === 'account' && S.me) { tfaDraw(md); epvDraw(md); e2eDraw(md); if (typeof msvDraw === 'function') msvDraw(md); if (typeof sesDraw === 'function') sesDraw(md); if (typeof sgvDraw === 'function') sgvDraw(md); }  // (#661); (#2062): + sessions; (#6534): + Support access (opened straight on the account)
   if (S.me) { tfaWire(md); tokWire(md); apwWire(md); e2eWire(md); }  // 2.42.0 (#828): + end-to-end encryption
   if (S.me?.is_admin) oidcWire(md);
   if (S.me?.is_admin) { aaWire(md); bkWire(md); orphWire(md); }
@@ -1812,12 +1813,17 @@ function aboutDevTxt() {
 }
 window.addEventListener('resize', () => { const el = document.getElementById('s-aboutdev'); if (el) el.textContent = aboutDevTxt(); });
 function aboutHtml(chk, hint) {
-  const a = S.about || {};
+  const a = S.about || {}, hz = hostedOn();
+  const link = ([u, n, i]) => `<a class="btn sm" href="${u}" target="_blank" rel="noopener noreferrer">${ic(i, 's')} ${tr(n)}</a>`;
+  const dev = `<div class="row aboutdev"><label>${tr('This device')}</label><span class="muted" id="s-aboutdev">${esc(aboutDevTxt())}</span></div>
+    <div class="row aboutcopy"><label>©</label><span class="muted">2026 Gegenschuss Doberenz Enders Grund eGbR · AGPL-3.0</span></div>`;
+  // (#6534): hosted, "Report a problem" writes to the support; the GitHub links and the operating details sit folded under
+  // "Technical details" (a person of a hosted service needs a person, not the issue tracker). Self-hosted: as before.
   let h = `<h4 id="s-about-h">${tr('About')}</h4><div class="row"><label>${tr('Version')}</label><span class="aboutver">Kalmido v${esc(a.version || '?')}</span></div>${aboutVerRows(a)}
-    <div class="row aboutdev"><label>${tr('This device')}</label><span class="muted" id="s-aboutdev">${esc(aboutDevTxt())}</span></div>
-    <div class="row aboutcopy"><label>©</label><span class="muted">2026 Gegenschuss Doberenz Enders Grund eGbR · AGPL-3.0</span></div>
+    ${/*html-ok*/ hz ? '' : dev/* built escaped above */}
     <div class="row aboutmarks"><label></label><span class="muted">${tr('Product and company names mentioned in Kalmido are trademarks of their respective owners. Kalmido is an independent project, not affiliated with or endorsed by them.')}</span></div>
-    <div class="row aboutlinks"><label></label>${ABOUT_LINKS.map(([u, n, i]) => `<a class="btn sm" href="${u}" target="_blank" rel="noopener noreferrer">${ic(i, 's')} ${tr(n)}</a>`).join('')}${legalLinks(a.legal, 'btn sm')}</div>`;
+    <div class="row aboutlinks"><label></label>${/*html-ok*/ hz ? link(ABOUT_LINKS[0]) + `<button type="button" class="btn sm" data-supreport>${ic('alert', 's')} ${tr('Report a problem')}</button>` : ABOUT_LINKS.map(link).join('')/* fixed links */}${legalLinks(a.legal, 'btn sm')}</div>
+    ${hz ? `<details class="abouttech"><summary class="muted">${tr('Technical details')}</summary>${/*html-ok*/ dev/* built escaped above */}<div class="row aboutlinks"><label></label>${/*html-ok*/ link(ABOUT_LINKS[1])/* a fixed link */}</div></details>` : ''}`;
   // 2.766.0 (#5220): Check code - the hash of the code this browser holds (codecheck.js, loaded by the button; setCodeCheck)
   h += `<h4 id="s-cc-h">${tr('Check code')}</h4>${hint(esc(tr('Shows the version and one hash of the code this browser was given, to compare with the release on GitHub. This display comes from the same server as the code: it catches mistakes and slips, not an operator who means to deceive. That needs a check from outside (guide).')))}<div id="s-cc"><button type="button" class="btn sm" data-ccv="run">${ic('shield', 's')} ${tr('Check code')}</button><div id="s-cc-res" aria-live="polite"></div></div>`;
   h += sup_aboutHtml();  // 2.74.0 (#338): "Support Kalmido" (self-hosted only)

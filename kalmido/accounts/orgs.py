@@ -28,6 +28,7 @@ from ..core.i18n import trn  # 2.369.5 (#2517): pulled up from functions
 from ..core.serializers import unlink_files  # 2.369.5 (#2517): pulled up from functions
 from ..core.retention import ret_need_unheld  # 2.545.0 (#4595)
 from ..core.movelock import mv_allow, mv_info  # 2.1337.0 (#6600)
+from ..core.support import support_ask  # (#6534): hosted = the support instead of "the server admin"
 from ..api.common import hit_limit  # (#6363): the brake of the Kalmido AI switch
 
 
@@ -1156,7 +1157,7 @@ def org_self_create():
     c, b, uid = db(), body(), me()
     with system_ctx(c):  # creating an organisation (instance structure) with the caller as its only member
         if instance_mode(c) != "workspaces":
-            raise Denied(403, tr("Only an admin of this server can create an organisation"))
+            raise Denied(403, support_ask(c, N_("Only an admin of this server can create an organisation"), N_("Only the support can create an organisation here: {0}")))  # (#6534)
         name = _clean_name(b.get("name"))
         if org_self_name_taken(c, uid, name):
             return err(tr("You already have a company with this name"), 409)
@@ -1258,7 +1259,7 @@ def _org_patch(c, oid, b, own_only=None):
         if g.user["is_admin"]:
             c.execute("UPDATE orgs SET domains=? WHERE id=?", (v, oid))
         elif v != _clean_domains((c.execute("SELECT domains FROM orgs WHERE id=?", (oid,)).fetchone() or [""])[0] or ""):
-            raise Denied(403, tr("Only an admin of this server sets the e-mail domains of an organisation"))
+            raise Denied(403, support_ask(c, N_("Only an admin of this server sets the e-mail domains of an organisation"), N_("Only the support sets the e-mail domains of an organisation: {0}")))  # (#6534)
 
 
 @app.delete("/api/admin/orgs/<int:oid>")

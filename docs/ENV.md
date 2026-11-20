@@ -371,7 +371,7 @@ an empty value counts as unset. See [SELF-HOSTING.md](SELF-HOSTING.md) for the c
 | `KALMIDO_RETENTION_PURGE` | `0` | Switch: really delete what is past its retention time (off = only count and report; the trash then says nothing is deleted). The installer writes 1 into a new .env. |
 | `KALMIDO_SAFETY_BACKUP_DAYS` | `30` | Days the safety backups taken before a restore or an update are kept. |
 | `KALMIDO_STORAGE_QUOTA_MB` | `(empty)` | Storage per person in MB (empty / 0 = unlimited; admins can set it in the app). |
-| `KALMIDO_SUPPORT_EMAIL` | `(empty)` | Support address shown when the storage is full. |
+| `KALMIDO_SUPPORT_EMAIL` | `(empty)` | Support address. Hosted (KALMIDO_HOSTED): shown to everyone under Help from a person, Report a problem goes there, and a start without it warns the admins; everywhere: shown when the storage is full. |
 | `KALMIDO_SUPPORT_URL` | `(empty)` | Support page shown in Settings > Help. |
 | `KALMIDO_TRASH_DAYS` | `30` | Days items stay in the trash. |
 | `KALMIDO_UPLOAD_HOURLY_MB` | `1024` | Uploads per person and hour in MB (0 = no limit); over it uploads get 429. |

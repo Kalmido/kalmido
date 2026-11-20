@@ -105,3 +105,27 @@
 .vdrpick .wemit:hover,.vdrpick .wemit:focus-visible{background:var(--accent-soft)}
 .vdrpick .wemit .wemn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .vdrfile .ctsearch{margin-bottom:.5rem}
+/* (#7532): an area instead of a point (its number on the top left corner), two versions to compare, the overview of many images */
+.vdrbox{position:absolute;border:2px solid var(--accent);border-radius:var(--r-s);background:color-mix(in srgb,var(--accent) 12%,transparent);box-shadow:0 0 0 1px #fff;pointer-events:none}
+.vdrbox.done{border-color:var(--muted);background:transparent}
+.vdrbox.new{border-style:dashed}
+.vdrstage.vdrareaon{touch-action:none}
+.vdrvs{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;width:100%;align-items:start}
+.vdrvs figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:.25rem;min-width:0}
+.vdrvs figcaption{font-size:var(--fs-s);color:var(--text2)}
+.vdrvs .vdrstage img{max-height:60vh}
+.vdrstage-ro{cursor:default}
+.vdrcmpb.on{border-color:var(--accent);color:var(--accent)}
+@media (max-width:767px){.vdrvs{grid-template-columns:1fr}.vdrvs .vdrstage img{max-height:45vh}}
+.vdrgridb{margin-bottom:.375rem}
+.vdrgf{display:flex;flex-wrap:wrap;gap:.375rem;margin:.5rem 0 .75rem}
+.vdrgrid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(10rem,1fr));gap:.625rem}
+.vdrtile{display:flex;flex-direction:column;width:100%;padding:0;border:1px solid var(--line2);border-radius:var(--r-l);background:var(--bg);overflow:hidden;text-align:left;cursor:pointer;color:inherit}
+.vdrtile:hover{border-color:var(--accent)}
+.vdrtile:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.vdrth{display:flex;align-items:center;justify-content:center;aspect-ratio:4/3;background:var(--bg3);overflow:hidden}
+.vdrth img{width:100%;height:100%;object-fit:cover}
+.vdrtt{display:flex;flex-direction:column;gap:.125rem;padding:.375rem .5rem;min-width:0}
+.vdrtt b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vdrtc2{font-size:var(--fs-s);color:var(--text2)}
+.vdrtc2.has{color:var(--accent);font-weight:600}

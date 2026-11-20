@@ -71,7 +71,13 @@ OCM_MENTION_RE = re.compile(r"<@(\d+)>")  # THE mention token (was MENTION_RE in
 OCM_MAX = 10000  # characters of a comment (a ciphertext may be longer: the kind's hook text_max)
 OCM_TS = 'YYYY-MM-DD"T"HH24:MI:SS.MS"+00:00"'  # the old ISO form with milliseconds (core/db.py iso_ms)
 OCM_TS_S = 'YYYY-MM-DD"T"HH24:MI:SS"+00:00"'  # 2.1003.0 (#5721): the old ISO form in seconds (core/db.py iso) -- doc_notes had it
-OCM_EXTRA = ("suggestion", "choices", "choice", "portal", "rule_name", "source")  # the keys of a task's extra (+ #5273: a note's source)
+OCM_EXTRA = ("suggestion", "choices", "choice", "portal", "rule_name", "source",  # the keys of a task's extra (+ #5273: a note's source)
+             "intent", "intent_to")  # (#7534): the kind of a person's answer to an agent + the agents it waits for (ocm_intent_in)
+# (#7534): the kind of a person's text to an agent -- question = answer only, instruction = do it, proposal = judge it and
+# answer first (never build), note = no reaction (wakes nothing). Empty = as before. It never changes rights: whose text is
+# an order still decides the server (owner / confirmation); an "instruction" of somebody who gives no orders stays data.
+OCM_INTENTS = ("question", "instruction", "proposal", "note")
+OCM_INTENT_OPEN = ("question", "instruction", "proposal")  # open until an agent answered exactly this text (reply_to / parent)
 OCM_DEL_TXT = N_("Only the author or the project owner can delete this comment")
 OCM_EDIT_TXT = N_("Only the author can edit this comment")
 OCM_HOOKS = {}  # kind -> {people, sealed, sealed_in, text_max, nfiles, trash, restore, live} (registered by the kind's area)
@@ -121,7 +127,43 @@ def ocm_old_cols(a=""):
             f"{p}extra->>'rule_name' AS rule_name, {p}client_ref, {p}extra->>'source' AS source")  # 2.981.0 (#5274): source
 
 
-OCM_COLS = ocm_old_cols() + ", kind, ref_id, org_id, deleted_by"
+OCM_COLS = ocm_old_cols() + ", kind, ref_id, org_id, deleted_by, extra->>'intent' AS intent, extra->'intent_to' AS intent_to"  # (#7534)
+
+
+def ocm_intent_in(v, agent=False):
+    """(#7534): the kind of an answer from a request (None / "" = none) -> None | one of OCM_INTENTS; anything else 400.
+    Only a person chooses it (an agent's own text has no kind: 400)."""
+    if v in (None, ""):
+        return None
+    if not isinstance(v, str) or v not in OCM_INTENTS:
+        raise BadInput(tr("Invalid value: {0}", "intent") + " (" + ", ".join(OCM_INTENTS) + ")")
+    if agent:
+        raise BadInput(tr("Only a person chooses the kind of an answer (intent)"))
+    return v
+
+
+def ocm_intent_out(r, answered):
+    """(#7534): {intent, awaiting: [agent ids]} of a comment row with OCM_COLS: awaiting = the agents its open kind waits for
+    (extra.intent_to) as long as none of them answered it, answer = the id of that answer once one did (answered:
+    ocm_intent_answers). A note is never open."""
+    k = r.keys()
+    it = r["intent"] if "intent" in k else None
+    if not it:
+        return {}
+    to = r["intent_to"] if "intent_to" in k else None
+    to = json.loads(to) if isinstance(to, str) else to
+    to = [x for x in to if isinstance(x, int) and not isinstance(x, bool)] if isinstance(to, list) else []
+    ans = next((a for u, a in answered.get(r["id"]) or [] if u in to), None)
+    return {"intent": it, "awaiting": to if it in OCM_INTENT_OPEN and ans is None else [], "answer": ans}
+
+
+def ocm_intent_answers(rows):
+    """(#7534): {comment id: [(author id, answer id)]} of the answers among rows (OCM_COLS / old shape: reply_to), oldest first."""
+    out = {}
+    for x in rows:
+        if x["reply_to"]:
+            out.setdefault(x["reply_to"], []).append((x["user_id"], x["id"]))
+    return out
 
 
 def ocm_video_cols(a="k"):
@@ -135,7 +177,8 @@ def ocm_video_cols(a="k"):
     return (f"{p}id, {p}ref_id AS review_id, CAST({p}anchor->>'version_id' AS BIGINT) AS version_id, {p}org_id, {p}parent_id, "
             f"CAST({p}anchor->>'t' AS REAL) AS at_sec, {p}body, {p}user_id AS author_id, {p}ext_name, "
             f"CASE WHEN {p}state = 'done' THEN 1 ELSE 0 END AS done, {ts('created_at')}, {ts('edited_at')}, {ts('deleted_at')}, "
-            f"CAST({p}anchor->>'page' AS BIGINT) AS page, CAST({p}anchor->>'x' AS REAL) AS pos_x, CAST({p}anchor->>'y' AS REAL) AS pos_y")
+            f"CAST({p}anchor->>'page' AS BIGINT) AS page, CAST({p}anchor->>'x' AS REAL) AS pos_x, CAST({p}anchor->>'y' AS REAL) AS pos_y, "
+            f"CAST({p}anchor->>'w' AS REAL) AS pos_w, CAST({p}anchor->>'h' AS REAL) AS pos_h")  # (#7532): an area (w / h)
 
 
 def ocm_note_cols(a="obj_comments"):
@@ -180,7 +223,8 @@ def ocm_row_out(r):
             "reply_to": r["reply_to"] if "reply_to" in k else None, "ext_name": r["ext_name"] if "ext_name" in k else None,
             "portal": bool(r["portal"]) if "portal" in k else False, "rule_name": r["rule_name"] if "rule_name" in k else None,
             # 2.981.0 (#5274): 'git' = imported from a repository (ext_name: its author); only when set
-            **({"source": r["source"]} if "source" in k and r["source"] else {})}
+            **({"source": r["source"]} if "source" in k and r["source"] else {}),
+            **({"intent": r["intent"]} if "intent" in k and r["intent"] else {})}  # (#7534): only when chosen
 
 
 def ocm_extra(c, cid, key, value):

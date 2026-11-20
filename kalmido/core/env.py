@@ -337,7 +337,7 @@ VARS = (
     _v("KALMIDO_ISSUER_KEYS", "0", "Switch: 1 = office admins may set up invoice issuer keys (an outside system prepares invoice drafts, /api/v1/issuer); off by default (opt-in while the kind of key is new). On a hosted server the operator also unlocks each organisation (2.1381, #6699).", "hosting"),
     _v("KALMIDO_ISSUER_ENV", "test", "Which invoice issuer keys this server gives out and accepts: test (kis_test_...) or live (kis_live_...); a staging server stays test (2.1381, #6699).", "hosting"),
     _v("KALMIDO_STORAGE_QUOTA_MB", "", "Storage per person in MB (empty / 0 = unlimited; admins can set it in the app).", "hosting"),
-    _v("KALMIDO_SUPPORT_EMAIL", "", "Support address shown when the storage is full.", "hosting"),
+    _v("KALMIDO_SUPPORT_EMAIL", "", "Support address. Hosted (KALMIDO_HOSTED): shown to everyone under Help from a person, Report a problem goes there, and a start without it warns the admins; everywhere: shown when the storage is full.", "hosting"),
     _v("KALMIDO_UPLOAD_HOURLY_MB", "1024", "Uploads per person and hour in MB (0 = no limit); over it uploads get 429.", "hosting"),  # 2.281.0 E (#3117)
     _v("KALMIDO_SUPPORT_URL", "", "Support page shown in Settings > Help.", "hosting"),
     _v("KALMIDO_PRIVACY_EMAIL", "", "Address of the operator's privacy contact, shown on public pages (forms, portal, approvals, bookings) next to the privacy link. Settings > Server > Server overrides it.", "hosting"),  # 2.360.2 D (#2561)

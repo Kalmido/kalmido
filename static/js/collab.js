@@ -724,7 +724,7 @@ function actText0(a, U) {
     case 'content': return trh('{0} edited the description', who) + (d.prev && canEdit(taskById(S.sel)) ? ` <button type="button" class="linkbtn" data-act="md-restore" data-aid="${+a.id}">${esc(tr('Restore the previous description'))}</button>` : '');  // (#3028): the text before the edit (mdtitle.js md-restore)
     case 'note_lock': return trh('{0} locked the note', who);  // (#1642)
     case 'note_unlock': return trh('{0} removed the lock from the note', who);
-    case 'choice': return d.approval ? (d.approval === 'approved' ? trh('{0} approved “{1}”', who, d.title || '') : trh('{0} rejected “{1}”', who, d.title || '')) : trh('{0} answered: {1}', who, (d.labels || []).join(', '));  // (#1383)
+    case 'choice': return d.approval ? (d.approval === 'approved' ? trh('{0} approved “{1}”', who, d.title || '') : trh('{0} rejected “{1}”', who, d.title || '')) : trh('{0} answered: {1}', who, (d.labels || []).join(', ')) + (d.step ? ' · ' + esc(cstDone(d.step)) : '');  // (#1383); (#7530): + the bound step that ran (or why not)
     case 'md_subtasks': return trh('{0} turned checklist items into subtasks', who) + (d.prev && canEdit(taskById(S.sel)) ? ` <button type="button" class="linkbtn" data-act="md-restore" data-aid="${+a.id}">${esc(tr('Restore the description'))}</button>` : '');  // (#1409)
     case 'due': return d.due ? trh('{0} set the due date to {1}', who, due()) : trh('{0} removed the due date', who);
     case 'snooze': return trh('{0} snoozed the task to {1}', who, due());
@@ -896,7 +896,7 @@ function commentHtml(c, U, ro = false) {
   const acts = ro ? (cpb ? `<span class="cacts">${cpb}</span>` : '') : `<span class="cacts">${editing || sn ? '' : replyBtn()}${cpb}${cs ? `<button class="iconbtn" data-act="cm-save" data-cid="${c.id}" title="${esc(tr('Save as task'))}" aria-label="${esc(tr('Save as task'))}">${ic('bookmark', 's')}</button>` : ''}${mine && !sn ? `<button class="iconbtn" data-act="c-edit" data-cid="${c.id}" title="${tr('Edit')}">${ic('edit', 's')}</button>` : ''}${mine || S.tl.moderator ? `<button class="iconbtn" data-act="c-del" data-cid="${c.id}" title="${tr('Delete')}">${ic('trash', 's')}</button>` : ''}</span>`;
   const files = c.attachments?.length ? `<div class="atts catts">${c.attachments.map(a => cattHtml(a, c.id, editing)).join('')}</div>` : '';
   const main = editing ? `<div class="cedit"><textarea class="c-edit-input" data-cid="${c.id}" rows="2" aria-label="${tr('Comment')}">${esc(decodeMentions(c.body, U))}</textarea><div class="mpick hidden"></div>${files}<div class="cbar"><span class="spacer"></span><button class="btn sm" data-act="c-edit-cancel">${tr('Cancel')}</button><button class="btn sm pri" data-act="c-edit-save" data-cid="${c.id}">${tr('Save')}</button></div></div>`
-    : `${ro ? '' : replyQuoteHtml(c, 'c')}${c.body ? `<div class="cbody">${commentBody(c.body, U, taskById(c.task_id || S.sel)?.list_id)}</div>` : ''}${files}${sugHtml(c, ro)}${ccCommentHtml(c, ro)}${reactHtml(c, ro)}`;
+    : `${ro ? '' : replyQuoteHtml(c, 'c')}${c.body ? `<div class="cbody">${commentBody(c.body, U, taskById(c.task_id || S.sel)?.list_id)}</div>` : ''}${ro ? '' : intMarkHtml(c, 'c', (c.awaiting || []).map(i => uname(i, U)))}${files}${sugHtml(c, ro)}${ccCommentHtml(c, ro)}${reactHtml(c, ro)}`;
   // 2.5.1 (#395): the author's avatar opens the same card as an @mention (only in the comment list, not read-only copies)
   const cav = ro || c.ext_name ? av(c.user_id, cv_who(c, U)) : `<button type="button" class="cmav" data-mcard="${c.user_id}" data-mname="${esc(uname(c.user_id, U))}" aria-haspopup="dialog" title="${esc(tr('Show {0}', uname(c.user_id, U)))}">${av(c.user_id, uname(c.user_id, U))}</button>`;  // 2.50.0 (#329): a customer's comment: their name, no card
   return `<div class="cm ${isNew ? 'new' : ''}${isAgentUser(c.user_id) ? ' agc' : ''}${rxShow('k' + c.id)}" data-cid="${c.id}" data-mid="c:${c.id}">${cav}<div class="cmain"><div class="chead"><b>${esc(cv_who(c, U))}</b>${isAgentUser(c.user_id) ? agentBadge(c.user_id) : ''}${c.portal && typeof ptl_mark === 'function' ? ptl_mark(c) : '' /* 2.63.0 B (#1513) */}${rul_cmtTag(c) /* 2.71.0 A (#1457) */}<span class="muted cwhen" title="${esc(fmtWhen(c.created_at))}">${fmtWhenHead(c.created_at)}${c.edited_at ? ' · ' + tr('edited') : ''}</span>${csv}${acts}</div>${main}</div></div>`;
@@ -949,7 +949,7 @@ function cmComposer(t, top = false) {  // top: 2.4.2 (#386) newest first, the bo
   // 2.1238.0 (#6161, Stufe 2): who only reads the task has the ONE read hint above (detail.js roDet / the list head): no second one here
   if (sn) return canEdit(t) ? `<div class="dcomp ${top ? 'dctop' : ''}">${sayNoHtml(sn)}</div>` : '';
   const soc = cmSocial(t), used = !!cmtDraft(t.id) || !!(S.cfiles[t.id] || []).length;
-  return `<div class="dcomp ${top ? 'dctop' : ''}">${replyBarHtml('c:' + t.id)}<div class="ccomp ${used ? 'used' : ''}"><textarea id="c-input" rows="1" name="kalmido-comment" autocomplete="off" data-form-type="other" data-lpignore="true" placeholder="${soc ? tr('Write a comment… (@ mentions someone)') : tr('Write a comment…')}" aria-label="${tr('Comment')}">${esc(cmtDraft(t.id))}</textarea>
+  return `<div class="dcomp ${top ? 'dctop' : ''}">${replyBarHtml('c:' + t.id)}<div class="ccomp ${used ? 'used' : ''}"><div id="c-int">${/*html-ok*/ S.tl.id === t.id && S.tl.hears?.length ? intBarHtml('c:' + t.id) : '' /* the switches, labels escaped in intBarHtml */}</div><textarea id="c-input" rows="1" name="kalmido-comment" autocomplete="off" data-form-type="other" data-lpignore="true" placeholder="${soc ? tr('Write a comment… (@ mentions someone)') : tr('Write a comment…')}" aria-label="${tr('Comment')}">${esc(cmtDraft(t.id))}</textarea>
       <div class="mpick hidden"></div>
       <div class="cfiles" id="c-files">${composerFiles(t.id)}</div>
       <div class="cbar"><label class="iconbtn" title="${tr('Attach files')}">${ic('clip', 's')}<input type="file" id="c-file" multiple hidden></label>${typeof rf_btnHtml === 'function' ? rf_btnHtml('c') : '' /* 2.53.0 (#1449) */}<span class="muted chint">${esc(chatKeyHintVis())}</span><span class="spacer"></span><span id="c-ptl">${typeof ptl_switchHtml === 'function' ? ptl_switchHtml(t) : '' /* 2.63.0 B (#1513) */}</span><span id="c-mrep">${typeof mrep_switchHtml === 'function' ? mrep_switchHtml(t) : '' /* 2.393.2 B (#3375) */}</span><button class="btn sm pri" data-act="c-send">${ic('send', 's')} ${tr('Send')}</button></div></div></div>`;
@@ -961,6 +961,7 @@ function drawTimeline() {
   const box = $('#d-tl-items'), seen = !box?.lastElementChild || cf_visible(box.lastElementChild);
   if (box) { patchKids(box, timelineItems()); cf_comments(box, seen); }  // 2.46.2 (#1660)  // 2.12.2 (#451): only changed / new comments
   if (typeof ptl_draw === 'function') ptl_draw();  // 2.63.0 B (#1513): the customer report's box + the switch
+  const ib = $('#c-int'); if (ib) { const k = 'c:' + S.tl.id, h = S.tl.hears?.length ? intBarHtml(k) : ''; if (!!ib.firstElementChild !== !!h) ib.innerHTML = h; }  // (#7534): only when an agent hears it
   ow_draw();  // 2.392.0 C (#3370): the decisions and the yes arrive with the comments
   const hb = $('#d-hist-items'); if (hb) hb.innerHTML = histItems();
   cfst_since();  // 2.410.0 A (#3514): "since …" under a stage bar
@@ -1035,11 +1036,12 @@ async function sendComment() {
   const rto = replyTo('c:' + tid);  // 2.33.0 (#1076)
   const pub = typeof ptl_take === 'function' && ptl_take(tid);  // 2.63.0 B (#1513): "To the customer"
   const mrep = typeof mrep_take === 'function' && mrep_take(tid);  // 2.393.2 B (#3375): "Also by e-mail to the reporter"
-  let payload = {body: text, ...(rto ? {reply_to: rto} : {}), ...(pub ? {portal: true} : {}), ...(mrep ? {mail_reporter: true} : {})};
+  const itn = S.tl.hears?.length ? intTake('c:' + tid) : null;  // (#7534): the kind of the comment (only while an agent hears the task)
+  let payload = {body: text, ...(rto ? {reply_to: rto} : {}), ...(pub ? {portal: true} : {}), ...(mrep ? {mail_reporter: true} : {}), ...(itn ? {intent: itn} : {})};
   // 2.64.2 B (#1817): in a list with the lock the files go encrypted with the list key (names as list ciphers)
   let lf = null;
   if (files.length && typeof le2eFileParts === 'function') { try { lf = await le2eFileParts(taskById(tid)?.list_id, files, tid); } catch (x) { toast(errText(x, tr('The file could not be attached'))); return; } }
-  if (files.length) { payload = new FormData(); payload.append('body', text); if (rto) payload.append('reply_to', rto); if (pub) payload.append('portal', '1'); if (mrep) payload.append('mail_reporter', '1'); if (lf) lf.forEach(p => { payload.append('file', p.blob, 'encrypted.kenc'); payload.append('le2e_name', p.name); }); else files.forEach((f, i) => payload.append('file', f, f.name || `bild-${Date.now()}-${i}.png`)); }
+  if (files.length) { payload = new FormData(); payload.append('body', text); if (rto) payload.append('reply_to', rto); if (pub) payload.append('portal', '1'); if (mrep) payload.append('mail_reporter', '1'); if (itn) payload.append('intent', itn); if (lf) lf.forEach(p => { payload.append('file', p.blob, 'encrypted.kenc'); payload.append('le2e_name', p.name); }); else files.forEach((f, i) => payload.append('file', f, f.name || `bild-${Date.now()}-${i}.png`)); }
   // 2.370.2 (#3088): the same text sent again after a failed answer = the same comment
   // (#6332 F9): and the same files - a changed selection is a new comment (the old ref would hand back the first one)
   const fsig = files.map(f => `${f.name}/${f.size}/${f.lastModified || 0}`).join('|');
@@ -1257,6 +1259,34 @@ function replyQuoteHtml(m, art) {
   const name = q.user_id && q.user_id === S.me?.id ? tr('You') : q.name || tr('Someone');
   return `<button type="button" class="mquote" data-act="msg-jump" data-art="${art}" data-id="${q.id}" title="${esc(tr('Show the message'))}" aria-label="${esc(tr('Reply to {0}: {1}', name, q.text) + ' – ' + tr('Show the message'))}"><b>${esc(name)}</b><span>${esc(q.text)}</span></button>`;
 }
+// (#7534): the kind of a person's text to an agent (comment on a task an agent hears, agent chat): four small switches above the
+// box (one line on a phone), none chosen = as before. The choice holds for the next text only (INT.on, per box). At the text:
+// its kind and "waiting for an answer from <agent>" until the agent answered exactly it (reply_to), then a jump to the answer.
+const INT_KINDS = ['question', 'instruction', 'proposal', 'note'];
+const INT_LABEL = {question: () => tr('Question'), instruction: () => tr('Instruction'), proposal: () => tr('Proposal'), note: () => tr('Note')};
+const INT_HINT = {question: () => tr('Answer only, change nothing'), instruction: () => tr('Do it'), proposal: () => tr('Judge it and answer first, do not build it yet'), note: () => tr('For the record: no reaction')};
+const INT = {on: {}};
+function intBarHtml(key) {
+  const cur = INT.on[key] || '';
+  return `<div class="intbar" role="group" aria-label="${esc(tr('Kind of message'))}" data-intbar="${esc(key)}">${INT_KINDS.map(k => `<button type="button" class="intsw${cur === k ? ' on' : ''}" data-intent="${esc(k)}" aria-pressed="${esc(String(cur === k))}" title="${esc(INT_HINT[k]())}">${esc(INT_LABEL[k]())}</button>`).join('')}</div>`;
+}
+function intTake(key) {  // the kind of the text being sent; the switches go back to none
+  const v = INT.on[key] || null; delete INT.on[key];
+  document.querySelectorAll(`[data-intbar="${CSS.escape(key)}"] .intsw`).forEach(b => { b.classList.remove('on'); b.setAttribute('aria-pressed', 'false'); });
+  return v;
+}
+function intMarkHtml(m, art, names) {  // names: the agents it waits for (comments: from awaiting ids, chat: the agent)
+  if (!m?.intent || !INT_LABEL[m.intent]) return '';
+  const wait = names.length ? `<span class="intwait" role="status">${ic('clock', 's')}<span>${esc(tr('waiting for an answer from {0}', names.join(', ')))}</span></span>` : '';
+  const ans = m.answer ? `<button type="button" class="intans" data-act="msg-jump" data-art="${esc(art)}" data-id="${esc(String(m.answer))}">${ic('reply', 's')}<span>${esc(tr('Answered'))}</span></button>` : '';
+  return `<div class="intmark"><span class="inttag" title="${esc(INT_HINT[m.intent]())}">${esc(INT_LABEL[m.intent]())}</span>${/*html-ok*/ wait /* built above, its text escaped */}${/*html-ok*/ ans /* built above, values escaped */}</div>`;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest?.('[data-intent]'), bar = b?.closest('[data-intbar]'); if (!bar) return;
+  const k = bar.dataset.intbar, v = INT.on[k] === b.dataset.intent ? '' : b.dataset.intent;
+  INT.on[k] = v;
+  bar.querySelectorAll('.intsw').forEach(x => { const on = x.dataset.intent === v; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)); });
+});
 const replyBtn = (cls = 'iconbtn') => `<button type="button" class="${cls} mreply" data-act="msg-reply" title="${esc(tr('Reply'))}" aria-label="${esc(tr('Reply'))}">${ic('reply', 's')}</button>`;
 function replyBarHtml(ctx) {
   const r = ctx && S.reply[ctx];

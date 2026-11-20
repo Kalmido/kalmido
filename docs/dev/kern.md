@@ -1005,7 +1005,11 @@ body, mentions, enc)` keeps the text of a comment in the trash (kind `comment`; 
 the helpers with Q4c. `kalmido/core/objcomments.py`:
 - `ocm_add(c, kind, ref_id, uid, body, *, mentions, extra, ext_name, parent_id, client_ref, created_at, notify)` writes one
   (the caller checked and cleaned; `notify=True` = `ocm_after`). `extra` holds what a kind adds -- a task: `suggestion` (its
-  JSON text), `choices`, `choice`, `portal` (true), `rule_name`; a key only with a value. `ocm_extra(c, cid, key, value)` sets
+  JSON text), `choices`, `choice`, `portal` (true), `rule_name`; (#7534) `intent` (a person's kind of text to an agent:
+  `question` / `instruction` / `proposal` / `note`, `OCM_INTENTS`, read with `ocm_intent_in`, 400 otherwise) and `intent_to`
+  (the agents that got its event; `ocm_intent_out` gives `awaiting` until one of them answers with `reply_to`); (#7530) an
+  option of `choices` may carry `do`, a bound step of the fixed list of `collab/cstep.py` (`cst_choices` checks it against the
+  comment's object, `cst_run` runs it once after the click with the person's rights; the chat's buttons use the same); a key only with a value. `ocm_extra(c, cid, key, value)` sets
   / removes one.
 - Reading: `ocm_row(c, cid)`, `ocm_list(c, kind, ref_id)` give the row in its old shape (`ocm_old_cols(alias)`: `task_id`,
   `reply_to`, `mentions` "1,2", `suggestion`, `choices`, `choice`, `portal` 0/1, `rule_name`, the times as ISO text with

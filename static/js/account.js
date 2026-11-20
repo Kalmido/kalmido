@@ -634,7 +634,8 @@ function lg_forgotScreen(el, logo, pre = '') {
       const r = await netRaw('/api/auth/forgot', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify({login: $('#fg-login', el).value.trim()})});
       const res = await r.json().catch(() => ({}));
       if (!r.ok) { errEl.textContent = res.error || httpErrText(r.status); btn.disabled = false; return; }
-      $('.card', el).innerHTML = `${logo}<h2 class="invh">${tr('Check your e-mail')}</h2><p role="status" class="lgsent">${tr('If an account with a stored e-mail address matches, a link to set a new password is on its way.')}</p><p class="muted">${tr('No e-mail after a few minutes? Look in the spam folder or ask an admin.')}</p><button class="btn" type="button" data-au="back">${tr('Back to sign-in')}</button>`;
+      // (#6534): hosted, the answer of the server names the support (res.support)
+      $('.card', el).innerHTML = `${logo}<h2 class="invh">${tr('Check your e-mail')}</h2><p role="status" class="lgsent">${tr('If an account with a stored e-mail address matches, a link to set a new password is on its way.')}</p><p class="muted">${esc(res.support ? tr('No e-mail after a few minutes? Look in the spam folder or write to support: {0}', res.support) : tr('No e-mail after a few minutes? Look in the spam folder or ask an admin.'))}</p><button class="btn" type="button" data-au="back">${tr('Back to sign-in')}</button>`;
     } catch { errEl.textContent = tr('Server not reachable.'); btn.disabled = false; }
   });
   setTimeout(() => $('#fg-login', el)?.focus(), 50);

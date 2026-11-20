@@ -97,6 +97,7 @@ from ..accounts.invite import invite_new  # 2.369.5 (#2517): pulled up from func
 from .orgexport import OX_MAGIC, OX_FK_AAD  # 2.369.5 (#2517): pulled up from functions
 from ..hub.mailbox import mbx_take_values  # 2.369.5 (#2517): pulled up from functions
 from ..core.env import env_int  # (#6615): a wrong value = one warning with its name
+from ..core.support import SUP_IMPORT_SPACE, support_ask  # (#6534): hosted = the support instead of "the server admin"
 
 UMZ_IN_DIR = os.path.join(EXPORT_DIR, "account-import")
 UMZ_SOURCE = "Kalmido"  # imports.source of an account import (the list of recent imports shows it as it is)
@@ -3553,7 +3554,7 @@ def umz_new():
     import_upload_rate(uid)  # 2.1282.0 (#6426)
     c = db()
     if not umz_space_ok(UMZ_IN_DIR, size * 2):
-        return err(tr("There is not enough space on the server for the import. Please ask the server admin."), 507)
+        return err(support_ask(db(), *SUP_IMPORT_SPACE), 507)
     if _busy(uid):
         return err(tr("An import is already running"), 409)
     if os.path.isdir(_base(uid)):  # one upload per person: an older one goes

@@ -215,6 +215,7 @@ News, comments, the team chat and the browser encryption ("e2e") of lists and ch
 
 - `kalmido/collab/attskip.py` (`att_skip`) - A file of a mail or a public form that is not filed (storage full, virus, too large) becomes a note on the task and a News item, never silently gone
 - `kalmido/collab/cchoice.py` (`lv`) - Answer buttons, approval cards and suggestions in task comments, like in the agent chat
+- `kalmido/collab/cstep.py` (`cst`) - (#7530) The bound step of an answer button (comments and agent chat): the fixed list (section, state, wont, park, wait, tag), checked against the question's task, run once after the click with the person's rights
 - `kalmido/collab/chatpins.py` (`cpin`) - Pinned chat messages (team chat and agent chat)
 - `kalmido/collab/chatsave.py` (`chat`) - Save a chat message as a task to look at later
 - `kalmido/collab/cmttrash.py` (`tcx`) - The trash of comments and team chat messages
@@ -337,6 +338,7 @@ The foundation: database, schema, access layer, request context, conflicts (409)
 - `kalmido/core/state.py` (`st`) - GET /api/state: everything the web client loads at start and after a change
 - `kalmido/core/stmtfiles.py` (`stmt`) - The uploaded statements of one request
 - `kalmido/core/strip.py` (`strip`) - The client's JavaScript and CSS go out without comments (the files in the repo keep them: they are the documentation)
+- `kalmido/core/support.py` - The hosting switch and the operator's support address, low in the core so every layer can send a stuck person to the support of a hosted ...
 - `kalmido/core/tokenhash.py` (`tkh`) - The personal upload token (POST /drop)
 - `kalmido/core/tplmove.py` (`tpm`) - Templates onto the shared core at the start: owner_id, real types, section templates moved into templates (#5288)
 - `kalmido/core/undoareas.py` - Undo across devices, stage 6 -- what the areas outside the office share to record and take back their steps

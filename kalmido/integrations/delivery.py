@@ -25,6 +25,7 @@ WAIT_MAX = 100  # 2.392.0 D (#3369): agents/waiting.py, its OpenAPI text stands 
 WAIT_KINDS = ("job", "approval", "gate", "review", "blocked", "irreversible")
 WAIT_KINDS += ("parked",)  # 2.392.2 (#3365): my own parked tasks (why = the reason)
 WAIT_KINDS += ("watch",)  # 2.392.2 (#3366): the watchdog's open findings told to me (job_stalled / branch_stranded)
+WAIT_KINDS += ("question",)  # (#7530): an agent's question whose buttons carry a bound step, until I click or answer in words
 GATE_ALL = ("merge_request", "integrate", "deploy")
 DELIVERY_MAX = 100  # rows per section (the counts are complete)
 DL_SECTIONS = ("released", "in_main", "in_progress", "stuck", "completed")

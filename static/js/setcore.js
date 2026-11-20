@@ -154,6 +154,30 @@ const aiPaneOn = () => !!S.me && (feat('agents') || (!!S.me.is_admin && (S.agent
 const aiOn = () => aiPaneOn() || (typeof asst_avail === 'function' && asst_avail());  // 2.489.0 (#2664): the section Agents is there (agents or the built-in assistant)
 const ABOUT_LINKS = [['https://kalmido.com', N_('Website'), 'link'], ['https://github.com/Kalmido/kalmido', N_('Source code on GitHub'), 'file'], ['https://github.com/Kalmido/kalmido/issues', N_('Report a problem'), 'alert']];
 const openExt = u => { const w = window.open(u, '_blank', 'noopener,noreferrer'); if (w) w.opener = null; };
+// (#6534): a hosted server names its support (/api/about: hosted + support for every signed-in person): "Help from a person" on
+// top of Settings > Help and the page Help, "Contact support" in the command palette and the phone's More menu, "Report a
+// problem" goes to the support instead of GitHub. A self-hosted server keeps everything as before (no block, GitHub issues).
+const hostedOn = () => !!S.about?.hosted;
+const supAddr = () => S.about?.support || S.storage?.support || '';
+function supMail(problem) {
+  const sub = problem ? tr('{0}: a problem', APP_NAME) : tr('{0}: a question', APP_NAME);
+  const body = [tr('Hello,'), '', '', '', tr('Account: {0}', `${S.me?.display_name || ''} (${S.me?.username || ''})`), tr('Server: {0}', location.host), tr('Version: {0}', S.about?.version || '')].join('\n');
+  return `mailto:${encodeURIComponent(supAddr())}?subject=${encodeURIComponent(sub)}&body=${encodeURIComponent(body)}`;
+}
+// a sentence that sends a person to someone: hosted with a support address the support (its address as the last value), else as before
+const supAsk = (self, hosted, ...a) => hostedOn() && supAddr() ? tr(hosted, ...a, supAddr()) : tr(self, ...a);
+function supContact(problem) { if (supAddr()) location.href = supMail(problem); else toast(tr('No support address is set on this server.')); }
+// the block itself (Settings > Help and the page Help): the mail to the support, under it the way to "Support access"
+function supHelpHtml() {
+  if (!hostedOn()) return '';
+  const a = supAddr();
+  return `<h4 id="s-suphelp-h">${tr('Help from a person')}</h4><div class="suphelp">
+    <div class="shint keep">${esc(tr('Stuck? Write to the support of this service: a person answers.'))}</div>
+    <div class="row">${a ? `<a class="btn sm pri" href="${esc(supMail(false))}" data-supmail>${ic('send', 's')} ${tr('Write to support')}</a><code class="topic supaddr">${esc(a)}</code>` : `<span class="muted">${esc(tr('No support address is set on this server.'))}</span>`}</div>
+    <div class="row"><button type="button" class="btn sm" data-supgrant>${ic('key', 's')} ${tr('Allow support access')}</button></div>
+    <div class="shelp">${esc(tr('Support cannot look into your account. If they need to, open it for a limited time under Settings > Account > Support access.'))}</div></div>`;
+}
+document.addEventListener('click', e => { if (e.target.closest?.('[data-supreport]')) { e.preventDefault(); supContact(true); return; } if (!e.target.closest?.('[data-supgrant]')) return; e.preventDefault(); settingsModal('supportaccess'); });  // like data-setlink: a new settings dialog on the account
 // 2.143.0 C (#2153): a quiet hint to install the app. Android / desktop: the browser's own install question
 // (beforeinstallprompt, kept until the hint's button is pressed); iPhone / iPad (Safari has no such question): how to add it
 // (Share, then "Add to Home Screen"). At most once per start, not in the first half minute, never in the installed app, the
