@@ -221,7 +221,7 @@ function placeGrips() {
   if (typeof gripWatch === 'function') gripWatch();
   const want = {det: !isMobile() && $('#app')?.classList.contains('detail-open') && !$('#detail').classList.contains('hidden'),
     chat: !isMobile() && innerWidth >= 1000 && document.body.classList.contains('chat-open') && !document.body.classList.contains('chat-yield') && !!$('#achat:not(.hidden)'),
-    side: !isMobile() && !!$('#app') && (!$('#app').classList.contains('side-rail') || !!$('#side.open')) && !$('#app').classList.contains('sbb-nopan') && !document.body.classList.contains('kidmode') && !!$('#side')};  // 2.26.0 (#932); 2.224.0 A (#2817): sbb-nopan; #7307: + the open drawer
+    side: !isMobile() && !!$('#app') && (!$('#app').classList.contains('side-rail') || !!$('#side.open')) && !$('#app').classList.contains('sbb-nopan') && !document.body.classList.contains('kidmode') && !!$('#side')};  // (#932); (#2817): sbb-nopan; #7307: + the open drawer
   const GRIP_LAB = {det: N_('Width of the task panel'), chat: N_('Width of the chat'), side: N_('Width of the sidebar')};
   for (const k of ['det', 'chat', 'side']) {
     let g = $('#pgrip-' + k);
