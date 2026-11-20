@@ -31,6 +31,7 @@ from ..core.access import Denied, list_state_sql, live_sql, need_list, vis_sql  
 from ..core.errors import BadInput
 from .owrite import ow_crypt, ow_history_answer, ow_kind, ow_write  # 2.567.0 (#4711): the office's write layer
 from .model import office_gate, office_org, office_settings, pb_cl_live, pb_cl_sql, pb_owner, trial_flag
+from .model import small_at  # #6533
 from .doctpl_samples import DMA_SAMPLES, SAMPLE_MT, sample_langs, sample_text  # 2.117.0 B (#2283); 2.449.0 (#3768)
 from .doclang import DOC_LANGS, doc_lg  # 2.185.0 C (#2520)
 from .oftref import GD_KIND, oft_renamed  # 2.351.0 A (#2823)
@@ -769,7 +770,7 @@ DT_SMALL = (("{{offer.net}} zzgl. USt", "{{offer.gross}}"), ("{{offer.net}} plus
 
 
 def dt_sample_body(c, oid, text):
-    if not office_settings(c, oid).get("small_business"):
+    if not small_at(office_settings(c, oid)):  # #6533: as it applies today
         return text
     for a, b in DT_SMALL:
         text = text.replace(a, b)

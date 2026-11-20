@@ -255,6 +255,26 @@ function viewOffice() {
   if (ofcDocTab(tab) && OFC.info && typeof ofdOffersTab === 'function') setTimeout(() => { const el = $('.office .ofcbody .pboffers') || $('.office .ofcbody'); if (el && ofcTab() === tab) ofdOffersTab(el); }, 0);  // 2.47.3 (#1360): below the hint
   return html;
 }
+// ---- #6533: tax in the settings (Invoices) -- small business (section 19 UStG) and the VAT basis have no default: a new office
+// chooses both once (the card "Set up your office" keeps its row Tax open until then); small business applies from a day
+// (empty = always, as before; evaluations of earlier periods count as before, the lock at finalising asks the invoice date)
+function ost_smallHtml(s, p, dis) {
+  const de = p.code === 'DE', sm = s.small_business == null ? '' : String(+s.small_business);
+  return `${ofcRowF('os-small', de ? tr('Small business (section 19 UStG)') : tr('Small business'), ofcSel('os-small', sm, [['0', tr('No: invoices with VAT')], ['1', tr('Yes: invoices without VAT')]], sm === '' ? tr('select…') : null))}${typeof ux_info === 'function' ? ux_info('small_business') : ''}
+    ${sm === '1' ? ofcRowF('os-small-from', tr('Applies from'), `<input type="date" id="os-small-from" value="${esc(s.small_business_from || '')}" ${/*html-ok*/ dis}>`) + `<p class="muted ofchint">${esc(tr('Empty: for all periods. Evaluations before this day count with VAT as before.'))}</p>` : ''}
+    ${de ? ofcRowF('os-vat-basis', tr('VAT is due'), ofcSel('os-vat-basis', s.vat_basis || '', [['soll', tr('on invoicing (accrual basis, the rule)')], ['ist', tr('on payment (cash basis, only with the tax office’s permission)')]], s.vat_basis ? null : tr('select…'))) : ''}`;
+}
+// the question before switching: what it means, and how many open drafts keep their VAT as it is (they are not changed)
+async function ost_smallOk(part) {
+  const cur = OFC.info.settings || {}, on = 'small_business' in part ? !!part.small_business : !!cur.small_business;
+  if ('small_business' in part && cur.small_business == null && !on) return true;  // the first choice "no": nothing changes
+  let n = 0; try { n = (await api('GET', '/api/office/settings')).open_drafts || 0; } catch { /* the question without the number */ }
+  const day = 'small_business_from' in part ? part.small_business_from : cur.small_business_from;
+  const body = [on ? (day ? tr('From {0}, new quotations and invoices have no VAT and carry the small business note; evaluations of earlier periods count as before.', fmtDate(day)) : tr('New quotations and invoices have no VAT and carry the small business note; this applies to every period of the evaluations.')) : tr('New quotations and invoices show VAT again.'),
+    n ? trn('{0} open draft keeps its VAT setting; change it in the draft if needed.', '{0} open drafts keep their VAT setting; change them in each draft if needed.', n) : '',
+    tr('Finalised documents stay as they are. Ask your tax advisor if in doubt.')].filter(Boolean).join(' ');
+  return askConfirm(on ? tr('Small business from now on?') : tr('Switch off small business?'), body, {ok: tr('Change')});
+}
 // ---- (#6530): the card "Set up your office" on top of the office (start, quotations & invoices) while the company's
 // name, address, tax number / VAT ID or IBAN is missing: five rows with a tick, each leads into Settings > Company & office
 // (every field saves itself there, no wizard). Who changes the settings sees it; hidden for good per person and office with
@@ -266,7 +286,8 @@ const ofsu_hidden = () => ofsu_seen().includes(ofsu_key());
 function ofsu_rows() {
   const cf = OFC.info.company_fields || {}, s = OFC.info.settings || {}, co = s.company || {};
   return [['co-name', 'building', tr('Company'), tr('Name and address of the sender'), !!((cf.name || co.name) && cf.street && cf.zip && cf.city)],
-    ['co-tax', 'receipt', tr('Tax and small business'), tr('Tax number or VAT ID'), !!(cf.tax_number || cf.vat_id), ['small', tr('Small business')]],
+    // #6533: done once the tax number / VAT ID is there and small business and the VAT basis are chosen (no default)
+    ['co-tax', 'receipt', tr('Tax and small business'), tr('Tax number or VAT ID, small business, when VAT is due'), !!(cf.tax_number || cf.vat_id) && s.small_business != null && (!!s.vat_basis || (s.pack || 'DE') !== 'DE'), ['small', tr('Small business')]],
     ['co-iban', 'wallet', tr('Bank'), tr('The IBAN printed on your invoices'), !!cf.iban],
     ['numbers', 'list', tr('Numbers'), tr('Coming from another program? Then enter the next number here'), !!OFC.info.used?.invoice],
     ['logo', 'file', tr('Logo / letterhead'), tr('Your logo on every document (optional)'), !!s.logo]];
@@ -615,7 +636,7 @@ function ofcSettingsHtml() {
     <div class="row"><button type="button" class="btn sm" data-ltm="sig">${ic('edit', 's')} ${tr('E-mail signature…')}</button></div>
     ${ofcChk('os-sign-offers', tr('Signature under quotations and payment reminders'), s.sign_offers)}<p class="muted ofchint">${esc(tr('The signature picture of the person who finalises the document (Correspondence > Signature); drafts stay without.'))}</p>
     <h3>${tr('Invoices')}</h3>
-    ${ofcChk('os-small', p.code === 'DE' ? tr('Small business: no VAT (section 19 UStG)') : tr('Small business: no VAT'), s.small_business)}${typeof ux_info === 'function' ? ux_info('small_business') : ''}
+    ${/*html-ok*/ ost_smallHtml(s, p, dis) /* #6533: small business with its day, the VAT basis -- chosen once, no default */}
     ${ofcSchemeHtml('os-inv-scheme', 'invoice', tr('Invoice numbers'), s.invoice_scheme, dis)}
     ${ofcSchemeHtml('os-cr-scheme', 'credit', tr('Credit note numbers'), s.credit_scheme, dis)}
     ${ofcChk('os-cr-shared', tr('Invoice corrections count in the invoice series'), s.credit_shared)}${ofcII('credit_shared')/* 2.433.0 (#3597) */}
@@ -987,7 +1008,11 @@ function ofcSettingsBody(form) {
     invoice_scheme: v('#os-inv-scheme'), credit_scheme: v('#os-cr-scheme'), reminder_scheme: v('#os-rm-scheme'), payment_days: ofcNum(v('#os-paydays')), reminder_fee: ofcNum(v('#os-rmfee')),
     ...($('#os-skonto', form) ? {skonto_pct: ofcNum(v('#os-skonto')) || 0, skonto_days: ofcNum(v('#os-skonto-days')) || 0} : {}),  // 2.120.0 A (#2087)
     ...($('#os-exempt', form) ? {exempt_reason: v('#os-exempt').trim()} : {}),  // 2.296.0 B (#3169)
-    reminder_deadline_days: ofcNum(v('#os-rmdays')), small_business: $('#os-small', form)?.checked ? 1 : 0,
+    reminder_deadline_days: ofcNum(v('#os-rmdays')),
+    // #6533: no default -- only what was chosen goes (an empty choice never saves "no")
+    ...($('#os-small', form) && v('#os-small') !== '' ? {small_business: +v('#os-small')} : {}),
+    ...($('#os-small-from', form) ? {small_business_from: v('#os-small-from')} : {}),
+    ...($('#os-vat-basis', form) && v('#os-vat-basis') !== '' ? {vat_basis: v('#os-vat-basis')} : {}),
     // 2.147.0 (#2460): a function that is off has no fields on the page -- its saved values are never sent (never emptied)
     ...($('#os-einv', form) ? {einvoice_format: v('#os-einv')} : {}),
     ...($('#os-datev', form) ? {datev_email: v('#os-datev').trim(), datev_auto: $('#os-datev-auto', form)?.checked ? 1 : 0} : {}),
@@ -1109,7 +1134,7 @@ function biz_jump(box) {
 // a group the server keeps together goes as one (the DATEV booking export)
 const ost_closeBody = (k, v) => { const key = OST_CLOSE.find(x => x[0] === k)[1], o = {}; for (const [lg] of ofcLangList()) { const id = '#' + ost_closeId(k, lg); if ($(id)) o[`${key}_${lg}`] = v(id); } return o; };
 const OST_FLAT = {'os-color': 'color', 'os-lang': 'lang', 'os-currency': 'currency', 'os-home': 'home_currency', 'os-scheme': 'offer_scheme', 'os-numat': 'offer_number_at',
-  'os-valid': 'offer_valid_days', 'os-small': 'small_business', 'os-inv-scheme': 'invoice_scheme', 'os-cr-scheme': 'credit_scheme', 'os-cr-shared': 'credit_shared', 'os-rm-scheme': 'reminder_scheme',
+  'os-valid': 'offer_valid_days', 'os-small': 'small_business', 'os-small-from': 'small_business_from', 'os-vat-basis': 'vat_basis', 'os-inv-scheme': 'invoice_scheme', 'os-cr-scheme': 'credit_scheme', 'os-cr-shared': 'credit_shared', 'os-rm-scheme': 'reminder_scheme',
   'os-paydays': 'payment_days', 'os-rmfee': 'reminder_fee', 'os-rmdays': 'reminder_deadline_days', 'os-einv': 'einvoice_format', 'os-datev': 'datev_email',
   'os-datev-auto': 'datev_auto', ...Object.fromEntries(OST_CLOSE.flatMap(([k, key]) => ['de', 'en', 'nl', 'fr', 'es', 'it'].map(lg => [ost_closeId(k, lg), `${key}_${lg}`]))),
   'os-prod-on': 'producing_on', 'os-pq': 'prod_quotient', 'os-ps': 'producing_service_id', 'os-pr': 'producing_rate',
@@ -1176,7 +1201,7 @@ async function ost_put(b) {
   return j.settings?.pack !== pk;
 }
 // what changes more than the field itself is drawn again (pack: its tax rates; currency: the symbols; industry packs: the cards)
-const ost_redraw = (part, pk) => pk ? ofcInfo(true) : ['currency', 'home_currency', 'industry_packs', 'features_off', 'menu_off', 'tax_rates', 'retention_years', 'credit_shared'].some(k => k in part) ? ofcDraw() : null;  // 2.147.0 (#2460, #2461)
+const ost_redraw = (part, pk) => pk ? ofcInfo(true) : ['currency', 'home_currency', 'industry_packs', 'features_off', 'menu_off', 'tax_rates', 'retention_years', 'credit_shared', 'small_business'].some(k => k in part) ? ofcDraw() : null;  // #6533: small_business shows / hides its day  // 2.147.0 (#2460, #2461)
 const OST = {q: Promise.resolve()};
 function ost_save(el) {
   const form = el.closest?.('#ofc-set');
@@ -1188,6 +1213,8 @@ function ost_save(el) {
   const old = ost_old(part), fk = form.dataset.fg, k = fgKey(el);
   OST.q = OST.q.then(async () => {
     try {
+      // #6533: switching "Small business" (or its day) is confirmed first, naming the open drafts; no = the old choice again
+      if (('small_business' in part || 'small_business_from' in part) && !await ost_smallOk(part)) { const cs = OFC.info.settings || {}; el.value = el.id === 'os-small' ? (cs.small_business == null ? '' : String(+cs.small_business)) : cs.small_business_from || ''; el._ostV = undefined; return; }
       // 2.147.0 (#2462): a new country pack is confirmed first (what is hidden, open documents); no = the old choice again
       if ('pack' in part && part.pack !== OFC.info.settings?.pack && typeof ocf_confirmSwitch === 'function' && !await ocf_confirmSwitch(part.pack)) {
         el.value = OFC.info.settings?.pack || ''; el._ostV = undefined; return;

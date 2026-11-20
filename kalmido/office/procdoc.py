@@ -35,7 +35,7 @@ from ..core import objhooks  # 2.977.0 (#5282): the start hook pd_retire
 from ..notify.alerts import aa_now  # 2.977.0 (#5282): the admins' alert of pd_retire
 from ..core.kernretire import KERN_RETIRE_LOCK, kern_retire_floor, kern_retire_rows  # 2.977.0 (#5282)
 from ..personal.timetrack import BadInput
-from .model import office_gate, office_org, office_role, office_settings, ofx_name1, pb_owner
+from .model import office_gate, office_org, office_role, office_settings, ofx_name1, pb_owner, vat_basis_of  # #6533: vat_basis_of
 from .pdf import pdf_paper_ns  # 2.357.0 A (#3156): the office's paper size
 from ..core.pg import system_ctx  # 2.369.5 (#2517): pulled up from functions; 2.977.0 (#5282): + pd_retire
 from .ledger import ofx_company, ofx_log  # 2.369.5 (#2517): pulled up from functions
@@ -202,8 +202,10 @@ def pd_auto(c, oid, L):
         lines.append(t("Geschäftsführung / Inhaber: ", "Management / owner: ") + co["managing_directors"].replace("\n", ", "))
     lines.append(t("Steuernummer hinterlegt: ", "Tax number on file: ") + _yn(L, co.get("tax_number")) + "; "
                  + t("USt-IdNr. hinterlegt: ", "VAT id on file: ") + _yn(L, co.get("vat_id")))
-    lines.append(t("Kleinunternehmerregelung: ", "Small business scheme: ") + _yn(L, s.get("small_business")) + "; "
-                 + t("Umsatzsteuer nach ", "VAT on ") + (t("vereinnahmten Entgelten (Ist)", "payment received (cash basis)") if s.get("vat_basis") != "soll"
+    # #6533: the day the small business rule applies from; the basis follows vat_basis_of (not chosen = accrual, the rule)
+    since = (t(" ab ", " from ") + s["small_business_from"]) if s.get("small_business") and s.get("small_business_from") else ""
+    lines.append(t("Kleinunternehmerregelung: ", "Small business scheme: ") + _yn(L, s.get("small_business")) + since + "; "
+                 + t("Umsatzsteuer nach ", "VAT on ") + (t("vereinnahmten Entgelten (Ist)", "payment received (cash basis)") if vat_basis_of(s) == "ist"
                                                        else t("vereinbarten Entgelten (Soll)", "invoicing (accrual basis)")))
     out["company"] = "\n".join(lines)
     mem = _members(c, oid)

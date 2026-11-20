@@ -22,7 +22,7 @@ from .bookarch import ba_euer_year
 from .books import BK_NOTE, _ctx, _year, bk_euer, bk_ustva
 from .datev import dx_settings
 from .calc import dec, dstr, money
-from .model import office_feature, office_settings
+from .model import office_feature, office_settings, small_at  # #6533: small_at
 
 EC_SRC_ARCHIVE = N_("Source: DATEV archive")
 EC_NOTE = N_("Comparison for display only: nothing is booked, imported or counted into this year.")
@@ -36,7 +36,7 @@ def _ec_own(e):
 
 def _ec_vat(c, oid, year, s):
     """The VAT liability of a Kalmido year (field 83 of the whole year), or None (small business / VAT return figures off)."""
-    if s.get("small_business") or not office_feature(c, oid, "books.vat_return", s):
+    if small_at(s, f"{year}-01-01") or not office_feature(c, oid, "books.vat_return", s):  # #6533: as it applied that year
         return None
     return dec(bk_ustva(c, oid, year, "y").get("kz", {}).get("83") or 0)
 
