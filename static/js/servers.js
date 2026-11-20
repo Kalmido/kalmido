@@ -141,7 +141,7 @@ function msvCodeModal() {
     if (b.dataset.m === 'copy') { copyText($('#msv-cv', md).value); return; }
     const er = $('#msv-err', md); b.disabled = true; er.hidden = true;
     try {
-      const j = await msvReq('POST', '/api/servers/code', {name: $('#msv-cn', md).value.trim()});
+      const j = await reauthReq('POST', '/api/servers/code', {name: $('#msv-cn', md).value.trim()});  // #6499 (integrations.js)
       $('#msv-cv', md).value = j.code; $('.msvout', md).hidden = false; b.hidden = true; $('[data-m="copy"]', md).hidden = false;
       $('#msv-cn', md).disabled = true; $('#msv-cv', md).select();
     } catch (x) { er.textContent = x.message; er.hidden = false; b.disabled = false; }

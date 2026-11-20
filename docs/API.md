@@ -68,8 +68,8 @@ Create a token under **Settings > Connections** (API tokens, webhooks and the to
 - **Confirmation**: creating a token, giving one more rights (a scope, more projects, other addresses), an app password,
   an agent or its new token, a setup code and connecting an app through the hosted MCP access need a fresh sign-in (at most
   10 minutes old) or the current password in the body (`password`): else `403` with `password_needed` (an account without
-  a password: `reauth_needed`, sign in again). Switching on the first second factor ends your other sessions, API tokens and
-  app passwords.
+  a password: `reauth_needed`, sign in again). Switching on the first second factor ends your other sessions, API tokens,
+  app passwords and calendar feed links.
 
 The token looks like `abk_` followed by 43 random characters (256 bits). It is **shown once**; Kalmido only keeps its
 SHA-256 hash, so a lost token cannot be shown again: revoke it and create a new one. The list shows the first
