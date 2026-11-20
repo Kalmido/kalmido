@@ -779,7 +779,8 @@ document.addEventListener('click', async e => {
       const n = c >= h.goal ? 0 : c + 1;
       if (n) h.logs[d] = n; else delete h.logs[d];
       renderView();
-      await api('POST', `/api/habits/${id}/log`, {day: d, count: n});
+      const j = await api('POST', `/api/habits/${id}/log`, {day: d, count: n, prev: c});  // #6343: prev = the count seen (another device's tick stays)
+      if (Number.isInteger(j?.count) && j.count !== n) { if (j.count) h.logs[d] = j.count; else delete h.logs[d]; renderView(); }
       break;
     }
     case 'pomo-kind': pomoKind = a.dataset.k; LS.set('pomoKind', pomoKind); renderView(); break;

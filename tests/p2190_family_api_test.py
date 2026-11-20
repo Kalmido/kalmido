@@ -314,6 +314,23 @@ check(r.ok and next(x for x in r.json()["rewards"] if x["id"] == ZOO)["state"] =
 r = A.post(B + f"/api/family/rewards/{ZOO}/decide", json={"approve": True})
 check(r.ok and next(x for x in r.json()["rewards"] if x["id"] == ZOO)["state"] == "redeemed" and r.json()["stars"] == 13, "redeemed right away (once): gone for good")
 check(A.post(B + f"/api/family/rewards/{ZOO}/decide", json={"approve": True}).status_code == 409, "redeemed twice: 409")
+# #6343: both parents tap "Approve" on the same request (the seen requested_at): the stars are taken once, the second gets 409
+r = Li.post(B + f"/api/family/rewards/{ICE}/request")
+RQ = next(x for x in r.json()["rewards"] if x["id"] == ICE)["requested_at"]
+check(r.ok and RQ, "Lina asks for ice cream again")
+r = Bo.post(B + f"/api/family/rewards/{ICE}/decide", json={"approve": True, "requested_at": RQ})
+check(r.ok and r.json()["stars"] == 8, "the first parent redeems: -5 " + r.text[:200])
+r = A.post(B + f"/api/family/rewards/{ICE}/decide", json={"approve": True, "requested_at": RQ})
+check(r.status_code == 409 and r.json().get("kid", {}).get("stars") == 8 and "redeemed" in r.json().get("error", "").lower(),
+      "the second on the same request: 409 'already redeemed' with the kid's state " + r.text[:200])
+check(next(k for k in A.get(B + "/api/family/kids").json()["kids"] if k["id"] == LINA)["stars"] == 8, "the stars were taken once")
+Li.post(B + f"/api/family/rewards/{ICE}/request")
+check(Bo.post(B + f"/api/family/rewards/{ICE}/decide", json={"approve": False}).ok, "Bob declines the next request")
+r = A.post(B + f"/api/family/rewards/{ICE}/decide", json={"approve": True, "requested_at": RQ})
+check(r.status_code == 409 and r.json().get("kid", {}).get("stars") == 8, "approving a request that was declined meanwhile: 409, nothing taken " + r.text[:200])
+r = A.post(B + f"/api/family/rewards/{ICE}/decide", json={"approve": True, "requested_at": None})
+check(r.ok and r.json()["stars"] == 3, "redeem right away on what is open now (requested_at null) " + r.text[:200])
+Bo.post(B + f"/api/family/kids/{LINA}/stars", json={"delta": 10})
 check(A.patch(B + f"/api/family/rewards/{ICE}", json={"cost": 7}).json()["cost"] == 7, "a parent changes a reward")
 check(Ev.patch(B + f"/api/family/rewards/{ICE}", json={"cost": 1}).status_code == 404, "a stranger: 404")
 check(Li.delete(B + f"/api/family/rewards/{ICE}").status_code in (403, 404), "the kid cannot delete")

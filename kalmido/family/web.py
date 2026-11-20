@@ -4,7 +4,8 @@ from datetime import date, timedelta
 from flask import jsonify, request
 
 from ..core.config import app
-from ..core.pg import insert_id
+from ..core.pg import insert_id, ts_canon, write_lock
+from ..core.conflict import Conflict  # #6343
 from ..core.i18n import lang, tr, trn
 from ..core.db import body, bump, db, err, iso, now_utc, uset, usettings
 from ..accounts.session import me
@@ -293,14 +294,23 @@ def family_reward_request(rid):
 @app.post("/api/family/rewards/<int:rid>/decide")
 def family_reward_decide(rid):
     """{approve: true | false} -- a parent redeems the reward (its stars are taken; a one-off reward is done, the others can
-    be asked for again) or declines the request. Works on an open reward too (redeem right away)."""
+    be asked for again) or declines the request. Works on an open reward too (redeem right away).
+    #6343: under the reward's write_lock; `requested_at` in the body = the request the parent saw (null = an open reward):
+    another one now -> 409 "already redeemed" with the kid's current state under `kid` (two parents tap on the same push:
+    the stars are taken once). Without the key: as before (old clients, the API)."""
     c = db()
-    r = need_reward(c, rid)
+    need_reward(c, rid)
     b = body()
     if not isinstance(b.get("approve"), bool):
         return err(tr("Invalid value: {0}", "approve"))
-    if r["state"] == "redeemed":
-        return err(tr("Already redeemed"), 409)
+    write_lock(c, f"kid_rewards-{rid}")
+    r = need_reward(c, rid)  # read again under the lock
+    if r["state"] == "redeemed" or ("requested_at" in b and ts_canon(b["requested_at"] or "") != ts_canon(r["requested_at"])):
+        last = c.execute("SELECT at FROM kid_stars WHERE reward_id=? ORDER BY id DESC LIMIT 1", (rid,)).fetchone()
+        took = bool(r["decided_at"] and last and ts_canon(last[0]) == ts_canon(r["decided_at"]))
+        who = user_names(c, [r["decided_by"]]).get(r["decided_by"]) if r["decided_by"] else None
+        raise Conflict("kid", kid_dict(c, r["kid_id"]), who=who,
+                       msg=tr("Already redeemed") if r["state"] == "redeemed" or took else None)  # declined meanwhile: "changed by"
     ts = iso(now_utc())
     if b["approve"]:
         if kid_balance(c, r["kid_id"]) < r["cost"]:

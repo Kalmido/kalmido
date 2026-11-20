@@ -67,11 +67,12 @@ function habitModal(id) {
       return;
     }
     if (b.dataset.hcnt && selDay) {
-      const c = x.logs[selDay] || 0;
+      const c = x.logs[selDay] || 0, day0 = selDay;
       const n = b.dataset.hcnt === 'toggle' ? (c >= 1 ? 0 : x.goal) : Math.max(0, Math.min(x.goal, c + +b.dataset.hcnt));
       if (n) x.logs[selDay] = n; else delete x.logs[selDay];
       $('#heatwrap', md).innerHTML = heat(); render();
-      await api('POST', `/api/habits/${x.id}/log`, {day: selDay, count: n});
+      const j = await api('POST', `/api/habits/${x.id}/log`, {day: day0, count: n, prev: c});  // #6343: prev = the count seen
+      if (Number.isInteger(j?.count) && j.count !== n) { if (j.count) x.logs[day0] = j.count; else delete x.logs[day0]; $('#heatwrap', md).innerHTML = heat(); render(); }
       return;
     }
     const act = b.dataset.m;
