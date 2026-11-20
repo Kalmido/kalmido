@@ -9,8 +9,8 @@
 // - the main window: a state load that ends while the switch is still being saved keeps the new workspace (core.js OPT)
 // - PATCH /api/settings fails: the switch is taken back to the workspace before with a note, never a silent half state
 // - a workspace really gone (removed from Bravo): switched to "All workspaces" with a note, never silently
-// - Settings > Company & office under "All": "Which workspace? ..." (no "at the top") with a button per
-//   workspace with an office right under it; a click chooses it and its office settings show
+// - Settings > Company & office under "All" (#7556): office tabs instead of "Which workspace?" with workspace buttons; a
+//   tab shows its office's settings, the app's workspace stays
 // - freelancer-matrix: office (a person without an organisation: her own office, the request names Private)
 const {execFileSync} = require('child_process');
 const path = require('path');
@@ -75,17 +75,17 @@ const isWsPatch = (u, o) => (o.method || 'GET') === 'PATCH' && /\/api\/settings\
   check(w.eval('ofm_ws()') === `${me.id}:${WA}`, '"All > Alpha" uses the cache of Alpha ' + w.eval('ofm_ws()'));
   w.close();
 
-  // ================= "Which workspace?" (no "at the top") with a button per workspace with an office
+  // ================= (#7556, newer than the buttons of #7297 here): Settings > Company & office under "All" never asks
+  // "Which workspace?": its own office tabs, one preselected; a tab shows that office's settings, the app stays on "All"
+  // (the full check of the tabs: tests/p7556_bizsp_ui.js)
   w = await boot({hash: 'tasks', allWs: true}); d = w.document;
   w.eval("settingsModal('biz')");
-  const nb = () => [...d.querySelectorAll('#s-biz [data-ofc="noarea"]')].map(b => b.dataset.ws).sort().join();
-  check(await until(() => /Which workspace\?/.test(d.querySelector('#s-biz')?.textContent || '')), 'Settings > Company & office under "All" (two organisations): "Which workspace?" ' + (d.querySelector('#s-biz')?.textContent || '').slice(0, 160));
-  check(!/at the top/i.test(d.querySelector('#s-biz')?.textContent || ''), 'the text names no "at the top"');
-  check(await until(() => nb() === ['private', WA, WB].sort().join()), 'right under it a button per workspace with an office ' + nb());
-  d.querySelector(`#s-biz [data-ofc="noarea"][data-ws="${WA}"]`).click();
-  check(await until(() => w.eval('wsCur()') === WA && w.eval('OFC.info && OFC.info.org_id') === A && !!d.querySelector('#s-biz #ofc-set')), 'a click chooses Alpha and shows its office settings');
-  check(await until(async () => await srvWs() === WA), 'and saves the workspace');
-  check(!/Which workspace\?/.test(d.querySelector('#s-biz')?.textContent || ''), 'with a workspace chosen the question is gone');
+  const tabs = () => [...d.querySelectorAll('#s-biz .bizsp [data-ofc="bizsp"]')].map(b => b.dataset.ws).sort().join();
+  check(await until(() => tabs() === ['private', WA, WB].sort().join()), 'Settings > Company & office under "All": a tab per office ' + tabs());
+  check(await until(() => !!d.querySelector('#s-biz #ofc-set')) && !/Which workspace\?/.test(d.querySelector('#s-biz')?.textContent || '') && !d.querySelector('#s-biz [data-ofc="noarea"]'), 'no "Which workspace?", no workspace buttons: an office is preselected');
+  d.querySelector(`#s-biz [data-ofc="bizsp"][data-ws="${WA}"]`).click();
+  check(await until(() => w.eval('OFC.info && OFC.info.org_id') === A && !!d.querySelector('#s-biz #ofc-set')), 'the tab Alpha shows its office settings');
+  check(w.eval('wsCur()') === 'all' && await srvWs() === 'all', 'the app stays on "All" (here and on the server)');
   w.close();
   await call('PATCH', '/api/settings', {workspace: 'all'});
 

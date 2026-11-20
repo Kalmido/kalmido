@@ -68,7 +68,9 @@ async function openBiz(who) {
     }
     // the head: the area as text, no workspace menu
     check(!box.querySelector('[data-act="ws-menu"]'), `${who}: no workspace menu in Company & office`);
-    check(txt(box.querySelector('.sbizws')) === `Workspace: ${area}` && box.querySelector('.sbizws')?.tagName === 'P', `${who}: the head names the area once as text: ` + txt(box.querySelector('.sbizws')));
+    // (#7556): with several offices the head is a row of office tabs, the chosen one names the area; with one the line as text
+    const tabOn = box.querySelector('.bizsp .bizspt.on');
+    check(tabOn ? txt(tabOn) === area && !box.querySelector('.sbizws') : txt(box.querySelector('.sbizws')) === `Workspace: ${area}` && box.querySelector('.sbizws')?.tagName === 'P', `${who}: the head names the area once: ` + (txt(tabOn) || txt(box.querySelector('.sbizws'))));
     // #3506 (CI red of 2.614.0): the label of the workspace menu; the hint of the income statement's basis (2.603.0, #4927)
     // says "Applies to the whole year" about the year, not the workspace
     check(!/Applies to(?! the whole year)/.test(box.textContent), `${who}: no "Applies to"`);
@@ -124,7 +126,7 @@ async function openBiz(who) {
     check(!!form && !!d.querySelector('.ofclockhint'), 'bob: the settings with the lock hint');
     const n = (d.querySelector('#s-biz')?.textContent || '').split('Only admins and the bookkeeping change this.').length - 1;
     check(n === 1, 'bob: "Only admins and the bookkeeping change this." once: ' + n);
-    check(!d.querySelector('#s-biz [data-act="ws-menu"]') && txt(d.querySelector('#s-biz .sbizws')) === 'Workspace: Alpha Studio', 'bob: the area as text');
+    check(!d.querySelector('#s-biz [data-act="ws-menu"]') && (txt(d.querySelector('#s-biz .sbizws')) === 'Workspace: Alpha Studio' || txt(d.querySelector('#s-biz .bizsp .bizspt.on')) === 'Alpha Studio'), 'bob: the area named (as text, or the chosen office tab, #7556)');
     w.close();
   }
 

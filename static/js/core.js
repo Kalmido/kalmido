@@ -811,7 +811,7 @@ const ofc_spObj = () => { if (typeof wso_cur !== 'function' || typeof ofc_spaces
 // (#7297): under a chosen workspace its area goes along too, with EVERY office request (whatever page asks, e.g. the
 // office menu's role from #clients): the office never depends on the saved setting the server got (a failed or late PATCH,
 // the split view's right half that sends none, miniwin.js MW_GUARD); the server checks the membership (office_space)
-const ofc_spCur = () => typeof wsCur !== 'function' ? '' : S.route?.mod === 'office' && S.route.wsp ? ofc_spOpen() : wsCur() !== 'all' ? wsCur() : S.route?.mod === 'office' ? ofc_spOpen() : ofc_spObj() || ofc_spOne();  // (#7328): the address's area first
+const ofc_spCur = () => typeof wsCur !== 'function' ? '' : typeof biz_sp === 'function' && biz_sp() ? biz_sp() /* (#7556): the settings' office tab */ : S.route?.mod === 'office' && S.route.wsp ? ofc_spOpen() : wsCur() !== 'all' ? wsCur() : S.route?.mod === 'office' ? ofc_spOpen() : ofc_spObj() || ofc_spOne();  // (#7328): the address's area first
 // (#7313 F13): a link into the office names its area under "All workspaces" (#office/s/<area>/<tail>, like ablage.js ab_rcGo);
 // ws = 'org:<id>' | 'private' | an object's org_id (null / 0 = Private). (#7328): under a chosen workspace too when the area
 // is another one (devlink.js, life.js, favtiles.js: was wsSet, the switch on top jumped); its own workspace = the plain address
