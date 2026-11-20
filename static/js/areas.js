@@ -1309,7 +1309,7 @@ function wsp_take(r) {
 // the required choice of a 400 space_needed (err = the thrown error or its JSON): the workspace or null (cancelled)
 async function wsp_ask(err) {
   const d = err?.data || err || {}, sps = (Array.isArray(d.spaces) ? d.spaces : []).filter(x => x && typeof x.ws === 'string');
-  if (!sps.length) { toast(err?.message || d.error || tr('unknown')); return null; }
+  if (!sps.length) { toast(errText(err?.message ? err : String(d.error || ''), tr('The change could not be saved'))); return null; }  // #6372: what failed + the server's reason (module off everywhere)
   if (sps.length === 1) return sps[0].ws;
   let pick = '';
   const ok = await askDialog({title: tr('Workspace'), ok: tr('Create'),
