@@ -11,7 +11,13 @@ const ptl_ticket = t => t && S.tl.id === t.id ? S.tl.ticket || null : null;
 function ptl_boxHtml(t) {
   const k = ptl_ticket(t); if (!k) return '';
   const cl = k.client_name ? ` · <a href="#client/${k.client_id}">${esc(k.client_name)}</a>` : '';
-  const acts = k.can_write ? `<div class="ptlacts"><button type="button" class="btn sm" data-ptl="copy">${ic('link', 's')} ${tr('Copy the status link')}</button>
+  // (#6626): the status link works while the team did not end it and until {link_days} days after the task was done
+  const live = k.link === 'live';
+  const acts = k.can_write ? `${k.link === 'ended' ? `<p class="ptllink muted">${ic('alert', 's')} ${tr('Status link ended: the client sees “not found”.')}</p>`
+      : k.link === 'expired' ? `<p class="ptllink muted">${ic('alert', 's')} ${trh('Status link expired: the task was done more than {0} days ago.', k.link_days)}</p>`
+      : k.link_until ? `<p class="ptllink muted">${trh('Status link valid until {0}', fmtDayAbs(k.link_until.slice(0, 10)))}</p>` : ''}<div class="ptlacts">${live ? `<button type="button" class="btn sm" data-ptl="copy">${ic('link', 's')} ${tr('Copy the status link')}</button>
+    <button type="button" class="btn sm" data-ptl="end">${tr('End the status link')}</button>` : ''}
+    ${k.link !== 'expired' ? `<button type="button" class="btn sm" data-ptl="new">${k.email ? tr('Send a new status link') : tr('New status link')}</button>` : ''}
     ${k.email ? `<label class="chkl ptlmail"><input type="checkbox" data-ptl="notify" ${k.notify ? 'checked' : ''}> ${tr('E-mails to the client')}</label>` : ''}</div>` : '';
   // 2.553.0 B (#3460): a request by e-mail says so (with its reference), a sender the mail server did not confirm is marked
   const via = k.via === 'mail' ? `<span class="rotag ptltag">${ic('mail', 's')}<span class="ptlt">${tr('by e-mail')}${k.ref ? ' · ' + esc(k.ref) : ''}</span></span>` : '';
@@ -42,6 +48,13 @@ document.addEventListener('click', async e => {
   const t = taskById(S.sel), k = ptl_ticket(t); if (!k) return;
   if (b.dataset.ptl === 'switch') { PTL.on[t.id] = !PTL.on[t.id]; ptl_draw(); $('#c-input')?.focus(); return; }
   if (b.dataset.ptl === 'copy') { try { await navigator.clipboard.writeText(k.url); toast(tr('Copied')); } catch { toast(tr('Copy failed')); } }
+  // (#6626): end the link (undo = the same link again) / a new link (the old one is dead at once, mailed to the client's address)
+  const tid = t.id, link = v => async () => { const j = await api('PATCH', `/api/tasks/${tid}/ticket`, {link: v}); if (S.tl.id === tid) { S.tl.ticket = j; ptl_draw(); } return j; };
+  if (b.dataset.ptl === 'end') { try { await link('end')(); offerUndo(tr('Status link ended'), histAdd({label: tr('Status link ended'), undo: link('on'), redo: link('end')})); } catch { /* api() showed it */ } }
+  if (b.dataset.ptl === 'new') {
+    if (!await askConfirm(tr('Send the client a new status link?'), k.email ? tr('The previous link stops working at once. The new one goes to {0}.', k.email) : tr('The previous link stops working at once. Copy the new one and give it to the client.'), {ok: k.email ? tr('Send a new link') : tr('New link'), danger: true})) return;
+    try { const j = await link('new')(); toast(j.mailed ? tr('New status link sent to {0}', k.email) : tr('New status link ready: copy it for the client')); } catch { /* api() showed it */ }
+  }
 });
 document.addEventListener('change', async e => {
   const b = e.target.closest('[data-ptl="notify"]'); if (!b) return;
