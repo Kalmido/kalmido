@@ -8,6 +8,7 @@
 // - j / k next and back; an entry decided on another device stays marked until Next (reader F1); a held y and y while typing do
 //   nothing, y on the page approves the review (exactly two answers); the last one: "Nothing waits for you any more"
 // - a phone: the list first, a row opens its entry over the whole view, "List" goes back
+// - the task panel's confirmation goes to the text the panel drew (reader F9)
 // - freelancer-matrix: tasks (frida and gert are people without an organisation)
 const {execFileSync} = require('child_process');
 const path = require('path');
@@ -115,6 +116,21 @@ const key = (w, el, k) => el.dispatchEvent(new w.KeyboardEvent('keydown', {key: 
   check(!!md.querySelector('.mwone .mwp') && !md.querySelector('.mwg'), 'a phone: the entry fills the view');
   md.querySelector('.mwp [data-mw="list"]')?.click(); await idle(m);
   check(!!md.querySelector('.mwg') && !md.querySelector('.mwp'), 'a phone: "List" goes back');
+
+  m.close();
+
+  // reader F9 (job/6017, #7528): the panel of a stranger's task - its bar is no conflict bar (the panel follows changes), and
+  // the yes goes to the text the panel drew, never to a newer copy in the store
+  const K4 = (await call(null, 'POST', '/api/v1/tasks', {list_id: L, title: 'Text A', notes: 'Read this'}, GH)).id;
+  const p = await boot({user: 'frida', hash: `t/${K4}`}), pd = p.document;
+  check(!!(await until(() => p.eval(`S.tl && S.tl.id === ${K4}`) && pd.querySelector('#d-cf .ordbar.ordopen'))), 'the panel shows "Not confirmed as an order"');
+  check(!pd.querySelector('#detail .cfbar'), 'the bar is no conflict bar (cfbar holds the panel\'s redraw)');
+  check((await call(null, 'PATCH', `/api/v1/tasks/${K4}`, {title: 'Text B'}, GH)).http === 200, 'the agent rewrites the title meanwhile');
+  p.eval(`taskById(${K4}).title = 'Text B'`);  // the store has the newer copy, the panel still shows Text A
+  await p.eval(`cf_yes(${K4}).catch(() => 0)`); await idle(p);
+  const k4 = await call(CF, 'GET', `/api/tasks/${K4}`);
+  check(!k4.confirmed, 'no yes to the text the person did not read ' + JSON.stringify(k4.confirmed));
+  p.close();
 
   console.log(`p7538_mwalk_ui: ${ok} ok, ${F.length} failed`);
   process.exit(F.length ? 1 : 0);
