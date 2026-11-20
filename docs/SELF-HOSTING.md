@@ -1350,6 +1350,8 @@ server you run yourself; this is for one company. Plan a quiet day: from step 4 
 4. **Start the move.** On the old server: *Settings > Organisation > Data > Move the organisation > Start the move…*
    (2.1337.0). From then on the organisation is read-only for everybody: invoice series, payment reminders, mail fetching
    and bank fetching rest, no new numbers are given, the export shows a fixed state.
+   A person without an organisation does the same for their own office: *Settings > Company & office > Data > Move the
+   office > Start the move* (#6937); their private area outside the office stays writable.
 5. **Export.** Per company one organisation export: *Settings > Organisation > Data > Export the organisation > Create
    export*, then *Download* (kept 24 hours). Per person two files: the account export (*Settings > Data > Export
    everything*: their private projects, files, calendars, contacts and settings) and, for a person with an own office, the

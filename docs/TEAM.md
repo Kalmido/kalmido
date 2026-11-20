@@ -1418,6 +1418,10 @@ What happens then: invoice numbers are given only on the new server from now on.
 delete the old organisation; **End the move** only if you stay there after all. Renaming the company needs no move -
 change its name. Two companies cannot be merged into one, nor one split, without losses.
 
+Without an organisation, with your own office only: open Settings > Company & office > Data, select **Move the office** and
+**Start the move**; then **Export the office** and **Export everything**, and import both on the new server. Your private
+area outside the office stays writable.
+
 ## How to: Share a folder with people
 <!-- user-help: sharing -->
 

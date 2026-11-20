@@ -310,7 +310,7 @@ Cosa succede dopo: tutti i progetti della cartella sono condivisi con lei, anche
 Cosa succede dopo: chiunque abbia il link può leggere il progetto, senza accesso, in sola lettura, senza commenti,
 assegnatari o file. **Disattiva** termina il link subito.
 
-<!-- help: team#how-to-move-the-company-to-another-server src=7feca89b2e -->
+<!-- help: team#how-to-move-the-company-to-another-server src=12d13760a6 -->
 ## Trasferire l'azienda su un altro server
 
 1. Sul nuovo server (il tuo o app.kalmido.com) crea un'organizzazione vuota e invita i suoi membri in Impostazioni >
@@ -330,3 +330,7 @@ Cosa succede poi: da ora in poi i numeri delle fatture li assegna solo il nuovo 
 server di eliminare la vecchia organizzazione; **Termina il trasloco** solo se alla fine resti lì. Cambiare il nome
 dell'azienda non richiede un trasloco - cambia il nome. Due aziende non si possono unire in una, né una dividere, senza
 perdite.
+
+Senza organizzazione, solo con il tuo ufficio: apri Impostazioni > Azienda e ufficio > Dati, scegli **Trasferire l’ufficio**
+e **Avvia il trasloco**; poi **Esporta l’ufficio** e **Esporta tutto**, e importa entrambi sul nuovo server. La tua area
+privata fuori dall'ufficio resta modificabile.

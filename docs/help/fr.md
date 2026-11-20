@@ -313,7 +313,7 @@ Ce qui se passe ensuite : tous les projets du dossier sont partagés avec elle, 
 Ce qui se passe ensuite : quiconque a le lien peut lire le projet, sans connexion, en lecture seule, sans commentaires,
 responsables ni fichiers. **Désactiver** met fin au lien aussitôt.
 
-<!-- help: team#how-to-move-the-company-to-another-server src=7feca89b2e -->
+<!-- help: team#how-to-move-the-company-to-another-server src=12d13760a6 -->
 ## Déménager l'entreprise sur un autre serveur
 
 1. Sur le nouveau serveur (le tien ou app.kalmido.com) crée une organisation vide et invite ses membres sous Paramètres >
@@ -333,3 +333,7 @@ Ce qui se passe ensuite : seuls les numéros de facture du nouveau serveur compt
 l'ancien serveur de supprimer l'ancienne organisation ; **Terminer le déménagement** seulement si tu y restes finalement.
 Changer le nom de l'entreprise ne demande pas de déménagement - change son nom. Deux entreprises ne peuvent pas être
 réunies en une, ni une être divisée, sans pertes.
+
+Sans organisation, avec seulement ton propre bureau : ouvre Paramètres > Entreprise et bureau > Données, choisis
+**Déménager le bureau** et **Lancer le déménagement** ; puis **Exporter le bureau** et **Tout exporter**, et importe les
+deux sur le nouveau serveur. Ton espace privé hors du bureau reste modifiable.

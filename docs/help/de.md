@@ -332,7 +332,7 @@ sofort wieder. Ein einzelnes Projekt teilst du genauso über sein eigenes Menü.
 Was dann passiert: Wer den Link hat, kann das Projekt lesen - ohne Anmeldung, nur lesend, ohne Kommentare, Zuständige oder
 Dateien. **Ausschalten** beendet den Link sofort.
 
-<!-- help: team#how-to-move-the-company-to-another-server src=7feca89b2e -->
+<!-- help: team#how-to-move-the-company-to-another-server src=12d13760a6 -->
 ## Mit der Firma auf einen anderen Server umziehen
 
 1. Leg auf dem neuen Server (deinem eigenen oder app.kalmido.com) eine leere Organisation an und lade ihre Mitglieder
@@ -352,3 +352,7 @@ Dateien. **Ausschalten** beendet den Link sofort.
 Was dann passiert: Rechnungsnummern vergibt ab jetzt nur noch der neue Server. Bitte den Admin des alten Servers, die alte
 Organisation zu löschen; **Umzug beenden** nur, wenn du doch dort bleibst. Für eine Umfirmierung brauchst du keinen Umzug -
 ändere den Namen. Zwei Firmen lassen sich nicht ohne Verluste zu einer zusammenlegen, und eine nicht teilen.
+
+Ohne Organisation, nur mit deinem eigenen Büro: Öffne Einstellungen > Firma & Büro > Daten, wähle **Büro umziehen** und
+**Umzug starten**; dann **Büro exportieren** und **Alles exportieren**, und übernimm beides auf dem neuen Server. Dein
+privater Bereich außerhalb des Büros bleibt beschreibbar.

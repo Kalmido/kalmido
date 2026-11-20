@@ -309,7 +309,7 @@ Qué pasa entonces: todos los proyectos de la carpeta quedan compartidos con ell
 Qué pasa entonces: quien tenga el enlace puede leer el proyecto, sin iniciar sesión, solo lectura, sin comentarios,
 responsables ni archivos. **Desactivar** termina el enlace al instante.
 
-<!-- help: team#how-to-move-the-company-to-another-server src=7feca89b2e -->
+<!-- help: team#how-to-move-the-company-to-another-server src=12d13760a6 -->
 ## Mudar la empresa a otro servidor
 
 1. En el servidor nuevo (el tuyo propio o app.kalmido.com) crea una organización vacía e invita a sus miembros en
@@ -329,3 +329,7 @@ responsables ni archivos. **Desactivar** termina el enlace al instante.
 Qué pasa después: a partir de ahora solo el servidor nuevo asigna números de factura. Pide al admin del servidor antiguo
 que borre la organización antigua; **Terminar la mudanza** solo si al final te quedas allí. Cambiar el nombre de la
 empresa no necesita mudanza: cambia el nombre. Dos empresas no se pueden unir en una, ni una dividirse, sin pérdidas.
+
+Sin organización, solo con tu propia oficina: abre Ajustes > Empresa y oficina > Datos, elige **Mudar la oficina** y
+**Empezar la mudanza**; después **Exportar la oficina** y **Exportar todo**, e importa ambos en el servidor nuevo. Tu
+área privada fuera de la oficina se puede seguir editando.
