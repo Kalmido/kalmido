@@ -32,7 +32,7 @@ import re
 from flask import g, jsonify
 
 from ..core.config import app
-from ..core.db import body, bump, db, err
+from ..core.db import body, bump, db, err, usettings
 from ..core.i18n import tr
 from ..core.access import Denied
 from ..core.pg import system_ctx
@@ -91,10 +91,11 @@ def ar_office(c, uid, to):
 def ar_here(c, uid):
     """(#7325): the office uid's request works in (office/model.py office_pick_req: the area the request names, else the
     setting, else the only office on) as ar_office, None = none (several, none named; off). Requests only."""
+    orgs = user_orgs(c, uid)
     try:
-        oid = office_pick_req(c, uid, user_orgs(c, uid))
-    except BadInput:  # a foreign area named (400 on the office routes): none here
-        return None
+        oid = office_pick_req(c, uid, orgs)
+    except BadInput:  # (#4823) a foreign area named (400 on the office routes): counts as none named, never that area
+        oid = office_pick(c, uid, orgs, (usettings(c, uid).get("workspace") or "").strip(), "")
     return ar_office(c, uid, ar_ws(oid))
 
 
