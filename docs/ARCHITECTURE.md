@@ -805,9 +805,11 @@ Since 2.37.0 Kalmido runs on PostgreSQL 17 only (`DATABASE_URL`); SQLite is gone
   in the table `kalmido_migrations` (applied / present / again, with the time). The one-shot data migrations keep their
   settings flag (`migr_*`, read by older versions after a rollback) and are recorded there as `flag:migr_*`. 2.1356 (#6824):
   they stand in one ordered list, `core/oncesteps.py` `STEPS` (phase, key, once, function); `init_db` calls `run_phase` at the
-  places the blocks stood, the same runner (`run_steps`) also runs the areas' start hooks (`core/objhooks.START`). A new
-  one-shot is one function + one entry there (`tools/check_migrations.py` rejects a `migr_*` flag elsewhere, except the
-  area functions it names).
+  places the blocks stood, the same runner (`run_steps`) also runs the areas' start hooks (`core/objhooks.START`). #7445: a
+  new one-shot is a fragment `core/oncesteps.d/<task id>.py` (its function + a list `STEPS` of the same shape), never a line
+  at the end of `STEPS`: the fragments load in name order (`once_frag_load`) and `run_phase` runs them right behind the
+  fixed steps of their phase (`tools/check_migrations.py`: keys unique over both, a known phase, not in `RETIRED`, a `migr_*`
+  flag only in the fragment owning that key and nowhere else, except the area functions it names).
   `SCHEMA_VERSION` only gates restores of newer backups.
 - **Migration fragments (2.475).** New tables, columns and indexes no longer go into `core/schema.py`: each task adds one
   file `core/migrations.d/<task id>.py` with up to three plain values: `SCHEMA` (idempotent `CREATE TABLE` / `CREATE INDEX`

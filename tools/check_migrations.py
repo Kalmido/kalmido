@@ -39,6 +39,10 @@ it did. core/db.py col_present skips it once the column has that type (no ACCESS
 there, not copied) is a finding: pg_dump prints it into every dump, and the restore refuses a dump with such a call (2.763: DEFAULT now()
 in a fragment made every backup unrestorable). CURRENT_TIMESTAMP instead of now() (pg_dump prints it without brackets).
 
+#7445: a NEW one-shot is a fragment kalmido/core/oncesteps.d/<task>.py (its function + a list STEPS, loaded behind the fixed STEPS
+of its phase); once_frag_findings holds it to the same rules: the keys unique over STEPS and every fragment, the phase one of
+STEPS', no key of RETIRED, a migr_ flag only in the fragment whose STEPS has that key.
+
 2.1356.0 (#6824): the one-shot data steps of the start (settings flag migr_*) stand in ONE ordered list, kalmido/core/oncesteps.py
 STEPS. A flag read or written as gsetting(c, "migr_...") / gset(c, "migr_...") anywhere else is a finding, except the area
 functions of ONCE_ELSEWHERE (each with why it stays there); the keys of STEPS are unique, each phase stands in one piece, and
@@ -359,7 +363,9 @@ def frag_findings(path):
 
 
 ONCE_FLAG = re.compile(r"""\bgset(?:ting)?\(\s*\w+\s*,\s*["']migr_""")
+ONCE_FLAG_KEY = re.compile(r"""\bgset(?:ting)?\(\s*\w+\s*,\s*["'](migr_\w+)["']""")
 ONCE_HOME = "kalmido/core/oncesteps.py"
+ONCE_D = "kalmido/core/oncesteps.d"  # #7445: a new one-shot is a fragment there (oncesteps.once_frag_load)
 ONCE_ELSEWHERE = {  # 2.1356.0 (#6824): one-shots that stay inside their area's own start function (not a plain block of init_db)
     "kalmido/accounts/orgs.py": "instance_sync / ws_migrate (init_db steps of their own): the flag is written before the work, "
                                 "instance_sync prints at every start",
@@ -376,7 +382,7 @@ def once_findings(root=ROOT):
     bad = []
     for p in sorted(glob.glob(os.path.join(root, "kalmido", "**", "*.py"), recursive=True)):
         rel = os.path.relpath(p, root).replace(os.sep, "/")
-        if rel == ONCE_HOME or rel in ONCE_ELSEWHERE:
+        if rel == ONCE_HOME or rel in ONCE_ELSEWHERE or rel.startswith(ONCE_D + "/"):  # #7445: fragments: once_frag_findings
             continue
         with open(p, encoding="utf-8") as f:
             for k, ln in enumerate(f, 1):
@@ -401,6 +407,58 @@ def once_findings(root=ROOT):
         calls = re.findall(r"""^\s*run_phase\(c, clk, ["'](\w+)["']\)""", f.read(), re.M)
     if calls != phases:
         bad.append(f"core/db.py init_db: run_phase calls {calls} differ from the phases of STEPS {phases}")
+    return bad + once_frag_findings(root, keys, set(phases), set(retired))
+
+
+def once_fragments(root=ROOT):
+    """#7445: the fragment files of new one-shots (kalmido/core/oncesteps.d/*.py)."""
+    return sorted(glob.glob(os.path.join(root, *ONCE_D.split("/"), "*.py")))
+
+
+def once_frag_findings(root, keys, phases, retired):
+    """#7445: each fragment of oncesteps.d: its name like migrations.d, a list STEPS of (phase, key, once, a function of the file),
+    the phase one of STEPS', the key unique over STEPS and all fragments and not retired, a migr_ flag only for its own keys."""
+    bad, seen = [], {k: ONCE_HOME for k in keys}
+    for p in once_fragments(root):
+        n = f"{ONCE_D}/{os.path.basename(p)}"
+        if not FRAG_NAME.match(os.path.basename(p)):
+            bad.append(f"{n}: name must be <task id>[_a-z0-9].py like migrations.d (sorted load)")
+        with open(p, encoding="utf-8") as f:
+            src = f.read()
+        try:
+            tree = ast.parse(src)
+        except SyntaxError as e:
+            bad.append(f"{n}: not readable ({e})")
+            continue
+        funcs = {x.name for x in tree.body if isinstance(x, ast.FunctionDef)}
+        lists = [x.value for x in tree.body if isinstance(x, ast.Assign) and getattr(x.targets[0], "id", "") == "STEPS"]
+        if len(lists) != 1 or not isinstance(lists[0], ast.List) or not lists[0].elts:
+            bad.append(f"{n}: needs one list STEPS = [(phase, key, once, function), ...]")
+            continue
+        own = set()
+        for e in lists[0].elts:
+            ok = (isinstance(e, ast.Tuple) and len(e.elts) == 4 and all(isinstance(x, ast.Constant) and isinstance(x.value, str) for x in e.elts[:2])
+                  and isinstance(e.elts[2], ast.Constant) and isinstance(e.elts[2].value, bool) and isinstance(e.elts[3], ast.Name))
+            if not ok:
+                bad.append(f"{n}:{e.lineno}: a STEPS entry is (phase text, key text, True / False, a function of this file)")
+                continue
+            ph, k, f = e.elts[0].value, e.elts[1].value, e.elts[3].id
+            if f not in funcs:
+                bad.append(f"{n}:{e.lineno}: {f} is no function of this file")
+            if ph not in phases:
+                bad.append(f"{n}:{e.lineno}: phase {ph} is none of {ONCE_HOME} STEPS ({', '.join(sorted(phases))}) -- init_db never runs it")
+            if k in retired:
+                bad.append(f"{n}:{e.lineno}: {k} is in RETIRED (a retired one-shot does not run again)")
+            if k in seen:
+                bad.append(f"{n}:{e.lineno}: key {k} already in {seen[k]} (keys are unique over STEPS and all fragments)")
+            seen.setdefault(k, n)
+            own.add(k)
+        for i, ln in enumerate(src.splitlines(), 1):
+            for k in ONCE_FLAG_KEY.findall(ln.split("#", 1)[0]):
+                if k not in own:
+                    bad.append(f"{n}:{i}: the flag {k} is not a key of this fragment's STEPS (a one-shot writes only its own flag)")
+            if ONCE_FLAG.search(ln.split("#", 1)[0]) and not ONCE_FLAG_KEY.search(ln.split("#", 1)[0]):
+                bad.append(f"{n}:{i}: a migr_ flag with a computed name (write the key as plain text)")
     return bad
 
 
@@ -439,5 +497,5 @@ if __name__ == "__main__":
         for x in out:
             print(x)
         if "-v" in sys.argv or out:
-            print(f"check_migrations: {len(fragments())} fragment(s), {len(out)} finding(s)")
+            print(f"check_migrations: {len(fragments())} fragment(s), {len(once_fragments())} one-shot fragment(s), {len(out)} finding(s)")
         sys.exit(1 if out else 0)
