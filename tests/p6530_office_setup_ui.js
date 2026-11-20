@@ -6,7 +6,8 @@
 // - each row leads into Settings > Company & office at its place (company name, tax number, number scheme)
 // - name and address filled in: the company row is ticked, the card stays (tax number and IBAN still missing)
 // - "Hide": the card goes and stays away after a reload (the setting of dismissed office hints, per office)
-// - a second office with everything filled in: no card at all
+// - a second office with everything filled in: the tax row stays open until small business and the VAT basis are chosen
+//   (#6533, no default); then no card at all
 const path = require('path');
 const {execFileSync} = require('child_process');
 const {boot, sleep, B, login, errs} = require('./boot');
@@ -73,10 +74,16 @@ async function flow(user) {
   const org2 = await call('POST', '/api/admin/orgs', {name: 'Beta', admin_id: me.id});
   await call('PATCH', '/api/settings', {workspace: `org:${org2.id}`});
   await call('PUT', '/api/office/settings', {company_fields: FULL});
-  const w = await boot({user: 'alice', hash: 'office/offers'}), d = w.document;
+  // #6533: small business and the VAT basis have no default -- the tax row stays open until both are chosen
+  let w = await boot({user: 'alice', hash: 'office/offers'}), d = w.document;
+  check(await until(() => d.querySelector('#view .ofsu [data-ofsu-row="co-tax"]') && !d.querySelector('#view .ofsu [data-ofsu-row="co-tax"].ofsuok')),
+    'tax number given, small business and the VAT basis not chosen yet: the card keeps the tax row open');
+  w.close();
+  await call('PUT', '/api/office/settings', {small_business: 0, vat_basis: 'soll'});
+  w = await boot({user: 'alice', hash: 'office/offers'}); d = w.document;
   await until(() => d.querySelector('#view .office .ofcbody'));
   await sleep(800);
-  check(!d.querySelector('#view .ofsu'), 'an office with name, address, tax number and IBAN shows no card');
+  check(!d.querySelector('#view .ofsu'), 'an office with name, address, tax number, IBAN, small business and VAT basis chosen shows no card');
   w.close();
 
   // ================= freelancer-matrix: office - the same card for a person without an organisation
