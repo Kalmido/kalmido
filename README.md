@@ -19,12 +19,12 @@
 
 ## What's new
 
-**2.1447.0** (2026-11-19):
-- **Office**: quotations have a "Created by" field, printed on the PDF as "Your contact"; the country in an English document's address is in English; returned e-mails mark an invoice or letter "not delivered" with the reason.
-- **Clients**: duplicate a client or add it as a new location from the client page menu.
-- **Import and export**: the export says whether another Kalmido server can import it; an import keeps a report with every warning, skips a single oversized file instead of failing, and resumes after an interruption.
-- **Tasks**: dragging a selection into your own sections in My tasks always moves all of it and can be undone; several tasks can be assigned together in every kind of project.
-- **Agents**: model and effort are chosen from a list (Fable, Opus, Sonnet, Haiku).
+**2.1452.0** (2026-11-20):
+- **Notes, knowledge, team chat and files**: without the sidebar (own window) the list beside the open item can be made wider by dragging its edge.
+- **Sidebar**: under "All workspaces" Private and each organisation look the same in every area: own symbol, colour stripe, arrow only with content.
+- **Calendar on the phone**: the two-finger zoom is smooth again and follows your fingers until you let go.
+- **Clients**: a client with drafts, letters, contracts or invoice series in its office no longer moves to another workspace; the message names what is left.
+- **Self-hosting**: going back after an update is one command, `update.sh --restore <copy>`.
 
 Full history: [CHANGELOG.md](CHANGELOG.md).
 
@@ -254,7 +254,7 @@ How to update depends on how you installed:
 
 A version number alone does not tell you whether an update needs a step from you: read [docs/UPGRADING.md](docs/UPGRADING.md) first.
 
-Back up first (*Back up now*, see *Backups and restore*). The database migrates itself on start; going back is limited: see docs/UPGRADING.md (what each version needs, format limits, never below 2.149).
+Back up first (*Back up now*, see *Backups and restore*). The database migrates itself on start; going back is limited: see docs/UPGRADING.md (what each version needs, format limits, never below 2.149). Going back after an update: `~/kalmido/update.sh --restore data/backups/kalmido-<when>.dump` (see *Back to the previous version* in [docs/SELF-HOSTING.md](docs/SELF-HOSTING.md)).
 
 **Installing a specific version** (vX.Y.Z = a tag from the releases page): with the installer
 `curl -fsSL https://kalmido.com/install.sh | KALMIDO_VERSION=vX.Y.Z sh` (the same variable pins updates:
