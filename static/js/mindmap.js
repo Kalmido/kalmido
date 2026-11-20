@@ -261,7 +261,7 @@ function mm_startNew(mode) {
   mm_draw();
 }
 async function mm_ask() {  // the outline has no editor in place: a small dialog
-  const e = MM.edit, v = await askPrompt(e.mode === 'rename' ? tr('Rename') : e.mode === 'kid' ? tr('New sub-branch') : tr('New branch'), e.value || '', {input: {max: 500}});
+  const e = MM.edit, v = await askPrompt(e.mode === 'rename' ? tr('Rename') : e.mode === 'kid' ? tr('New sub-branch') : tr('New branch'), e.value || '', {input: {max: 500}, ok: e.mode === 'rename' ? tr('Rename') : tr('Create')});
   if (v == null) { MM.edit = null; return; }
   mm_commit(v);
 }

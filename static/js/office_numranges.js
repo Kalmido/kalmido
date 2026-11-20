@@ -224,7 +224,7 @@ function nrDialog(r) {
     + `<label class="chk"><input type="checkbox" id="nr-dunning" ${r?.dunning ? 'checked' : ''}> ${esc(tr('Payment reminders and overdue notices for this range'))}</label>`
     + (r ? `<label class="chk"><input type="checkbox" id="nr-closed" ${r.closed ? 'checked' : ''}> ${esc(tr('Closed: no new invoices in this range'))}</label>` : '')
     + `<p class="muted ofchint">${esc(tr('Kalmido sets the date of a document of this range when it is finalised; numbers by hand are not possible there.'))}</p>`;
-  askDialog({title: r ? tr('Edit number range {0}', r.code) : tr('Add number range'), html, ok: r ? tr('Save') : tr('Add'), cancel: tr('Cancel'), after: md => { md0 = md; },
+  askDialog({title: r ? tr('Edit number range {0}', r.code) : tr('Add number range'), html, ok: r ? tr('Save') : tr('Create'), cancel: tr('Cancel'), after: md => { md0 = md; },
     submit: async () => {
       const v = id => (/** @type {HTMLInputElement|null} */ ($('#' + id, md0))?.value || '').trim(), on = id => !!(/** @type {HTMLInputElement|null} */ ($('#' + id, md0))?.checked);
       const b = {name: v('nr-name'), scheme: v('nr-scheme'), credit_suffix: v('nr-suffix'), dunning: on('nr-dunning')};

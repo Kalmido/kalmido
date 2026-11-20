@@ -1,6 +1,6 @@
 // 2.218.0 C (#2804) UI test: "New client" on the phone. jsdom, invented data only:
 // - the empty clients page: one "New client", no filters / selection / e-mail filing, the import way
-// - the new sheet is short (name, e-mail, city), the rest under "More details" (values stay while it folds), "Add" in a sticky foot
+// - the new sheet is short (name, e-mail, city), the rest under "More details" (values stay while it folds), "Create" in a sticky foot (#6373: was "Add")
 // - the symbol is picked from app icons ("ic:" value), a saved emoji still shows; phone and desktop width, private (no organisation) too
 const path = require('path');
 const {execFileSync} = require('child_process');
@@ -38,7 +38,7 @@ const typeIn = (w, el, v) => { el.value = v; el.dispatchEvent(new w.Event('input
     const vis = [...md.querySelectorAll('input:not([type=hidden]),textarea,select')].filter(x => !more.contains(x)).map(x => x.id).filter(x => x !== 'clb-email_invoice');  // 2.433.0 (#3599): with the office the invoice e-mail sits next to E-mail
     check(JSON.stringify(vis) === JSON.stringify(['cl-name', 'cl-email', 'clb-city']), tag + ': short form = name, e-mail, city: ' + vis);
     check(more.querySelector('#cl-phone') && more.querySelector('#cl-note') && more.querySelector('#clb-street') && more.querySelector('#cl-nx') && !more.querySelector('#clb-city'), tag + ': the rest sits under More details');
-    check(md.querySelector('.foot.clfoot [data-m="save"]'), tag + ': "Add" in the sticky foot');
+    check(md.querySelector('.foot.clfoot [data-m="save"]'), tag + ': "Create" in the sticky foot');
     check(md.querySelectorAll('[data-clico]').length > 10 && md.querySelector('[data-clico] svg') && !/🏢/.test(md.innerHTML), tag + ': app icons, no emoji');
     md.querySelector('[data-clico="ic:home"]').click();
     check(md.querySelector('#cl-icon').value === 'ic:home' && md.querySelector('[data-clico="ic:home"]').getAttribute('aria-pressed') === 'true', tag + ': icon picked');

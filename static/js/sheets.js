@@ -729,7 +729,7 @@ function shvColModal(col, afterId, cf) {  // a new column (col = null) or its se
     <div class="row"><label for="shv-ck">${tr('Kind')}</label><select id="shv-ck">${SHV_KINDS.map(([k, n]) => `<option value="${k}" ${st.kind === k ? 'selected' : ''}>${tr(n)}</option>`).join('')}</select></div>
     <div id="shv-cx"></div>
     <div class="row"><label for="shv-cw">${tr('Width')}</label><select id="shv-cw">${SHV_WIDTHS.map(([w, n]) => `<option value="${w}" ${Math.abs(st.width - w) < 20 ? 'selected' : ''}>${tr(n)}</option>`).join('')}${SHV_WIDTHS.some(([w]) => Math.abs(st.width - w) < 20) ? '' : `<option value="${st.width}" selected>${st.width}</option>`}</select></div>
-    <div class="foot"><span class="spacer"></span><button type="button" class="btn" data-m="close">${tr('Cancel')}</button><button type="button" class="btn pri" data-m="save">${col ? tr('Save') : tr('Add')}</button></div>`);
+    <div class="foot"><span class="spacer"></span><button type="button" class="btn" data-m="close">${tr('Cancel')}</button><button type="button" class="btn pri" data-m="save">${col ? tr('Save') : tr('Create')}</button></div>`);
   md.classList.add('shvcmd');
   const extra = () => {
     const x = $('#shv-cx', md);

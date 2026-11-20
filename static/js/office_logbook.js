@@ -110,7 +110,7 @@ function lbVehModal(v) {
     ${ofcRowF('lgb-vkind', tr('Kind'), ofcSel('lgb-vkind', v?.kind || 'private', [['private', tr('Private car used for business (mileage allowance)')], ['company', tr('Company car (costs through receipts)')]]))}
     ${ofcRowF('lgb-vodo', tr('Odometer at the start'), ofcIn('lgb-vodo', v?.odo_start != null ? lbKm(v.odo_start) : '', {num: true, ph: tr('optional')}))}
     <div class="aerr" role="alert"></div>
-    <div class="foot">${v ? `<button class="btn" data-m="arch">${v.archived ? tr('Restore') : tr('Archive')}</button>` : ''}${v && typeof ofm_can === 'function' && ofm_can(ofm_officeFrom()) ? `<button class="btn" data-m="move">${ic('brief', 's')} ${esc(tr('Move to another workspace…'))}</button>` : ''}<span class="spacer"></span><button class="btn" data-m="close">${tr('Cancel')}</button><button class="btn pri" data-m="save">${v ? tr('Save') : tr('Add')}</button></div>`);
+    <div class="foot">${v ? `<button class="btn" data-m="arch">${v.archived ? tr('Restore') : tr('Archive')}</button>` : ''}${v && typeof ofm_can === 'function' && ofm_can(ofm_officeFrom()) ? `<button class="btn" data-m="move">${ic('brief', 's')} ${esc(tr('Move to another workspace…'))}</button>` : ''}<span class="spacer"></span><button class="btn" data-m="close">${tr('Cancel')}</button><button class="btn pri" data-m="save">${v ? tr('Save') : tr('Create')}</button></div>`);
   md.classList.add('ofcdlg');
   const close = fgModal(md);
   md.addEventListener('click', async e => {
@@ -169,7 +169,7 @@ function lbDriveModal(d, fix) {
     <div class="foot lgb-foot">${d ? `${ro ? '' : `<button class="btn danger" data-m="del">${tr('Delete')}</button>`}<button class="btn" data-m="log">${ic('clock', 's')}<span>${tr('History')}</span></button>` : ''}
     ${d && d.kind === 'business' ? `<button class="btn" data-m="trip">${ic('plane', 's')}<span>${d.trip_id ? tr('Open trip') : tr('Add to travel expenses')}</span></button>` : ''}
     <span class="spacer"></span><button class="btn" data-m="close">${ro ? tr('Close') : tr('Cancel')}</button>${ro ? (d.corrected_by ? '' : `<button class="btn pri" data-m="fix">${tr('Correct|verb')}</button>`)
-      : `<button class="btn pri" data-m="save">${d && !fix ? tr('Save') : tr('Add')}</button>`}</div>`);
+      : `<button class="btn pri" data-m="save">${d && !fix ? tr('Save') : tr('Create')}</button>`}</div>`);
   md.classList.add('ofcdlg');
   const close = fgModal(md);
   if (ro) md.querySelectorAll('input, select, textarea').forEach(x => { if (!x.closest('.lgb-hist')) x.disabled = true; });

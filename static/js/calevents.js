@@ -448,7 +448,7 @@ async function evEditor(o = {}) {
       <div class="row"><label for="ev-url">${tr('Link')}</label><input id="ev-url" type="url" inputmode="url" value="${esc(st.url || '')}" placeholder="https://…" autocomplete="off"></div>
     </details>
     ${o.err ? `<div class="calerr evsaveerr" role="alert">${ic('alert', 's')} ${esc(o.err)}</div>` : ''/* 2.1077.0 (#5461): why the editor is open again */}
-    <div class="foot">${ev && !ro ? `<button class="btn danger" data-evm="del">${ic('trash', 's')} ${tr('Delete')}</button>` : ''}<span class="spacer"></span>${ro ? `<button class="btn" data-evm="close">${tr('Close')}</button>` : `<button class="btn" data-evm="close">${tr('Cancel')}</button><button class="btn pri" data-evm="save">${tr('Save')}</button>`}</div>`);
+    <div class="foot">${ev && !ro ? `<button class="btn danger" data-evm="del">${ic('trash', 's')} ${tr('Delete')}</button>` : ''}<span class="spacer"></span>${ro ? `<button class="btn" data-evm="close">${tr('Close')}</button>` : `<button class="btn" data-evm="close">${tr('Cancel')}</button><button class="btn pri" data-evm="save">${ev ? tr('Save') : tr('Create')}</button>`}</div>`);
   md.classList.add('evmodal');
   evDlgWs(md, st.cal_id);  // 2.1241.0 (#6181)
   // 2.484.0 (#3945): a changed date of a series shows the rows of "Only this date" (after dvw_rows, which shows them again)
@@ -827,7 +827,7 @@ async function evCalsModal() {
       // #6154: mine = I made it (owner_id); read-only in its organisation the server sends role view for it too (events/model.py
       // ev_role: the organisation caps the owner), so it reads like a shared one - but it is no share I could leave
       const own = c.role === 'owner', mng = own && evWrite(c), mine = c.owner_id === S.me?.id;
-      menu(m, [...cvxNarrowItems(`e:${c.id}`, !c.hidden), mng && {label: tr('Rename…'), icon: 'edit', fn: async () => { const n = await askPrompt(tr('Rename the calendar'), c.name, {input: {max: 100}}); if (n && n.trim()) evCalRename(c.id, n.trim(), redraw); }},  // 2.46.2 (#1659): at once
+      menu(m, [...cvxNarrowItems(`e:${c.id}`, !c.hidden), mng && {label: tr('Rename…'), icon: 'edit', fn: async () => { const n = await askPrompt(tr('Rename the calendar'), c.name, {input: {max: 100}, ok: tr('Rename')}); if (n && n.trim()) evCalRename(c.id, n.trim(), redraw); }},  // 2.46.2 (#1659): at once
         mng && {label: tr('Colour…'), icon: 'palette', next: 1, fn: () => calColorPop(m, c.color, async col => { try { await evcPatch(c.id, {color: col}); } catch { return; } refresh(); })},
         mng && wsOn() && {label: tr('Workspace…'), icon: 'brief', next: 1, fn: () => wsMoveMenu(m, c.org_id, async org => { try { await evcPatch(c.id, {org_id: org}); } catch { return; } refresh(); })},
         mng && collab() && {label: tr('Share…'), icon: 'users', fn: async () => evShareModal(c, await usersP, refresh)},

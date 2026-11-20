@@ -29,7 +29,10 @@ Bedeutungen bekommt einen Kontext (`Event|calendar`, `People|event`).
 | Teil „Projekt bearbeiten“ mit Formularen, Software, Webhooks, Regeln | Formulare, Regeln & Anbindungen | Formulare & Software |
 | Eigenschaften ohne eigene Abweichung | Wie vom Projekttyp vorgegeben | Wie der Projekttyp |
 | Entfernen mit Rückgängig | Löschen (Papierkorb: „In den Papierkorb“) | Entfernen, Gelöscht/Archiviert für dasselbe |
-| Neues Element | Hinzufügen (in Listen mit Feld: „hinzufügen“, mit Knopf: „anlegen“ nur für Konten/Projekte) | übernehmen |
+| Neues Element in einer Liste (Eingabefeld in der Liste) | hinzufügen | übernehmen |
+| Hauptknopf eines Dialogs, der etwas Neues anlegt (#6373) | Anlegen (en: Create) | Erstellen, Speichern, Hinzufügen |
+| Hauptknopf beim Bearbeiten von Bestehendem | Speichern | |
+| Etwas Bestehendes kommt dazu (Person zu Projekt, Kalender aus CalDAV) | Hinzufügen | Anlegen |
 | Bereich mit den Seiten (Seitenleiste, Titel, Pfad) | Wissen | Wissensseiten, Wiki |
 | Eine Seite darin | Seite (quer über Bereiche: Seite unter Wissen) | Wissensseite |
 | Privat / Organisation unter Wissen | Arbeitsbereich | Bereich, Wissensbereich |
@@ -49,3 +52,14 @@ Einstellungen für Fortgeschrittene.
 
 Rollen (#5481, 2.831): die Leserolle in Projekten und Organisationen heißt „Nur ansehen“, im Kalender in Sätzen
 „kann ansehen“; „Nur lesen“ gibt es in der deutschen Oberfläche der Listen nicht mehr.
+
+Dialoge (#6373, entschieden 16.11.2026):
+1. Ein Dialog, der etwas Neues anlegt, hat den Hauptknopf „Anlegen“ (englisch „Create“); „Speichern“ nur beim Bearbeiten,
+   „Hinzufügen“ nur, wenn etwas Bestehendes dazukommt.
+2. Ein Dialog, der selbst speichert, schließt mit dem Hauptknopf „Fertig“; ein reiner Lese-Dialog mit dem schlichten Knopf
+   „Schließen“.
+3. Das Schließen-Kreuz oben rechts haben alle großen Dialoge (Blatt über mehr als die halbe Fensterhöhe) immer, kleine
+   Frage-Dialoge (askConfirm / askPrompt) nie. Das Kreuz setzt `static/js/dialogs.js` (dlgCross) selbst; ein Dialog mit
+   eigenem Kreuz behält seins. Ein Frage-Dialog nennt im Knopf das Verb (`ok:`), nicht „OK“.
+Geprüft in `tools/check_rules.py` (Regel dialog-verb): Bearbeiten-oder-neu ohne „Create“, Frage-Dialoge ohne eigenen
+Knopftext, die deutsche Übersetzung von „Create“.

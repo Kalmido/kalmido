@@ -808,7 +808,7 @@ function wka_report(r) {
 // 2.1168.0 (#6092): a window that only tells (the import's report, a file too large, no room on the device): the shared
 // askDialog (dialogs.js) with its OK alone - no Cancel, there is nothing to cancel (hidden, not removed: Esc and the backdrop
 // close it the same way)
-const wk_info = (title, html) => askDialog({title, html, after: md => { const b = md.querySelector('[data-cd="no"]'); if (b) b.hidden = true; }});
+const wk_info = (title, html) => askDialog({title, html, ok: tr('Close'), after: md => { const b = md.querySelector('[data-cd="no"]'); if (b) b.hidden = true; }});
 document.addEventListener('click', e => {
   const a = e.target.closest?.('[data-wka]'); if (!a || !$('#view')?.contains(a)) return;
   const p = WK.pg, f = p?.files?.find(x => x.id === +a.dataset.id); if (!p) return;

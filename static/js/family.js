@@ -162,7 +162,7 @@ function occModal(o = {}) {
     <div class="row"><label for="oc-gifts">${tr('Gift ideas')}</label><input id="oc-gifts" placeholder="${esc(tr('optional, separated by commas'))}"></div>
     ${lists.length > 1 || !bl ? `<div class="row"><label for="oc-list">${tr('Project')}</label><select id="oc-list">${bl ? '' : `<option value="">${tr('New project: Family')}</option>`}${lists.map(l => `<option value="${l.id}" ${l === bl ? 'selected' : ''}>${esc(lname(l))}</option>`).join('')}</select></div>` : ''}
     <div class="aerr" role="alert" id="oc-err"></div>
-    <div class="foot"><span class="spacer"></span><button class="btn" data-m="close">${tr('Cancel')}</button><button class="btn pri" data-m="save">${tr('Add')}</button></div>`);
+    <div class="foot"><span class="spacer"></span><button class="btn" data-m="close">${tr('Cancel')}</button><button class="btn pri" data-m="save">${tr('Create')}</button></div>`);
   md.classList.add('famdlg');
   let kind = 'birthday';
   md.addEventListener('click', async e => {
@@ -193,7 +193,7 @@ function dlModal() {
     <div class="shint lhint" id="dl-hint"></div>
     ${lists.length > 1 || !hl ? `<div class="row"><label for="dl-list">${tr('Project')}</label><select id="dl-list">${hl ? '' : `<option value="">${tr('New project: Family')}</option>`}${lists.map(l => `<option value="${l.id}" ${l === hl ? 'selected' : ''}>${esc(lname(l))}</option>`).join('')}</select></div>` : ''}
     <div class="aerr" role="alert" id="dl-err"></div>
-    <div class="foot"><span class="spacer"></span><button class="btn" data-m="close">${tr('Cancel')}</button><button class="btn pri" data-m="save">${tr('Add')}</button></div>`);
+    <div class="foot"><span class="spacer"></span><button class="btn" data-m="close">${tr('Cancel')}</button><button class="btn pri" data-m="save">${tr('Create')}</button></div>`);
   md.classList.add('famdlg');
   let type = 'passport';
   const NOTICE = {insurance: 3, contract: 1};
