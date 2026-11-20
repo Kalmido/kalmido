@@ -150,7 +150,10 @@ it) passes the stored memberships through `accounts/orgroles.py` `org_roles_cap`
 a personal agent has in each organisation at most the current role of its person (its person no longer there: no role).
 So a read-only person's agent is read-only too -- the role checks ask the agent's own role (`cap_list_role`, `org_readonly`,
 the file store's share role) and need no agent exception. A role change to guest / accounting takes the person's agents
-out of the organisation as leaving does (`accounts/orgs.py` `org_agents_out`). In a support session (#6977 F1) the same cap keeps only the
+out of the organisation as leaving does (`accounts/orgs.py` `org_agents_out`). A role change down to guest / accounting / read-only hands what
+the person owns there (projects, calendars, address books, the objects of the default rules) to the admin changing the role,
+the way leaving does (`org_role_down`, #6610); the person stays in them with edit (read-only: view), guests and accounting
+have at most the project role edit (`cap_list_role`) and leave the office's rights groups. In a support session (#6977 F1) the same cap keeps only the
 organisations of the narrowed context (`sga_orgs_readable`), so a route that checks the role and then reads in the system
 context answers no organisation without its own grant (`tests/p6977_support_roles_src_test.py` holds that reading routes
 do not work out memberships themselves).

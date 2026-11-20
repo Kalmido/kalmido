@@ -35,6 +35,7 @@ USER_LOCKED = []  # #6978 F6: f(c, uid) when account uid is locked (accounts/use
 # 2.1076.0 (#5271, review): the area relations of the links' core (core/objlinks.py olnk_rel registers only these; the boundary
 # check accounts/tenancy.py leaves them to their area's own checks) -- one list, read without importing the links' core
 OLNK_AREA_RELS = ("made", "device", "contact", "answers", "reply")
+PERSON_KEEP = []  # #6610: core/objects.obj_person_keep for accounts/orgs.py org_role_down without an upward import
 UNSHARE = []  # 2.1168.0 (#4782, Fable review F2): core/objects.obj_node_unshare for accounts/orgs.py without an upward import
 GONE = {}  # review 2.578 F2: kind -> table of an area's kind outside OBJ whose rows in obj_revoked / obj_history / obj_undo go
 #            with its objects when an account goes (contacts: contacts/ctfolder.py, cascade over their book)
@@ -47,6 +48,13 @@ def person_revoked(c, uid, org, reason, heir=None, role=None):
     for f in REVOKE:
         out.update(f(c, uid, org, reason, heir=heir, role=role) or {})
     return out
+
+
+def obj_person_keep(c, by, kind, rid, target, role):
+    """#6610: person target keeps role (view | edit) on the core object (kind, rid) of a kind with node_shares (a calendar, an
+    address book) that was just handed over from them (accounts/orgs.py org_role_down). The caller commits."""
+    for f in PERSON_KEEP:
+        f(c, by, kind, rid, target, role)
 
 
 def person_locked(c, uid):
