@@ -83,9 +83,10 @@ check(r6.status_code == 201 and r6.json()["user_id"] == BOB, "#1530 team: anothe
 check(A.post(B + f"/api/team/rooms/{RID}/messages", json={"body": "x", "client_id": 5}).status_code == 201, "#1530 team: a client_id that is no text is ignored")
 check(requests.post(V + f"/team/rooms/{RID}/messages", headers=CLH, json={"body": "x", "client_id": "a"}).status_code == 400, "#1530 v1: client_id stays unknown for the REST API")
 # (#6332): no time window any more (Send pressed again minutes after an answer that got lost), and with files too
-kt.dbx("UPDATE tchat_msgs SET created_at=? WHERE id=?", ("2020-01-01T00:00:00.000+00:00", r1.json()["id"]), data=DATA)
-r7 = A.post(B + f"/api/team/rooms/{RID}/messages", json={"body": "Mac back online", "client_id": "c-1"})
-check(r7.status_code == 200 and r7.json()["id"] == r1.json()["id"], f"#6332 team: the same client_id long after = the stored message {r7.status_code}")
+r0 = A.post(B + f"/api/team/rooms/{RID}/messages", json={"body": "Back from the dead spot", "client_id": "c-6332"})
+kt.dbx("UPDATE tchat_msgs SET created_at=? WHERE id=?", ("2020-01-01T00:00:00.000+00:00", r0.json()["id"]), data=DATA)
+r7 = A.post(B + f"/api/team/rooms/{RID}/messages", json={"body": "Back from the dead spot", "client_id": "c-6332"})
+check(r0.status_code == 201 and r7.status_code == 200 and r7.json()["id"] == r0.json()["id"], f"#6332 team: the same client_id long after = the stored message {r7.status_code}")
 n1 = len(room_msgs(A, RID))
 f1 = A.post(B + f"/api/team/rooms/{RID}/messages", data={"body": "Plan", "client_id": "tf-1"}, files={"file": ("plan.txt", b"x", "text/plain")})
 f2 = A.post(B + f"/api/team/rooms/{RID}/messages", data={"body": "Plan", "client_id": "tf-1"}, files={"file": ("plan.txt", b"x", "text/plain")})
