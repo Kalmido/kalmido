@@ -90,7 +90,10 @@ BEGIN
   UPDATE public_links SET cv_show = jsonb_set(kalmido_otg_j(cv_show), '{tag}', to_jsonb(n))::text
     WHERE list_id = lid AND cv_show ILIKE '%"tag"%' AND jsonb_typeof(kalmido_otg_j(cv_show)) = 'object' AND kalmido_otg_j(cv_show)->'tag' = to_jsonb(o);
   -- #6289: the person's own rules of My tasks (user_mine_rules, 2.823) name the tag too: trigger ltag and condition tag_id, and
-  -- the once-markers ltag:<id> follow (else a moved task would be moved again). A tag id is unique, the list is not needed.
+  -- the once-markers ltag:<id> follow (else a moved task would be moved again). A tag id is unique, the list is not needed:
+  -- only a rule whose owner saw tag o when making it names o (minerules.py _see_tag), and the rewrite only keeps naming the
+  -- same tag under its new id - it shows nobody anything; what the person sees of it decides the read (minerules.py
+  -- _tag_names: project role / membership of the label's organisation, else "Tag missing") (reader F1).
   UPDATE user_mine_rules SET trig_val = n::text WHERE trig = 'ltag' AND trig_val = o::text;
   UPDATE user_mine_rules SET conds = jsonb_set(kalmido_otg_j(conds), '{tag_id}', to_jsonb(n))::text
     WHERE conds ILIKE '%tag_id%' AND jsonb_typeof(kalmido_otg_j(conds)) = 'object' AND kalmido_otg_j(conds)->'tag_id' = to_jsonb(o);

@@ -80,12 +80,19 @@ def _tag_list(c, tag):
     return r[0] if r else None
 
 
-def _tag_names(c, ids):
-    """{tag id: name} of the tags of the core that still exist (#6289)."""
+def _tag_names(c, uid, ids):
+    """{tag id: name} of the tags of the core that still exist AND that person uid sees (#6289, reader F2): a project's tag
+    while the person may open the project, an organisation's label while the person is its member. Any other = missing."""
     ids = [int(x) for x in ids if isinstance(x, int) or str(x).isdigit()]
     if not ids:
         return {}
-    return {r[0]: r[1] for r in c.execute(f"SELECT id, name FROM obj_tags WHERE id IN ({','.join('?' * len(ids))})", ids)}
+    out = {}
+    for r in c.execute(f"""SELECT ot.id, ot.name, ot.scope_kind, ot.scope_id, EXISTS (SELECT 1 FROM org_members m WHERE ot.scope_kind='org'
+                              AND CAST(m.org_id AS TEXT)=ot.scope_id AND m.user_id=?) AS member
+                           FROM obj_tags ot WHERE ot.id IN ({','.join('?' * len(ids))})""", (uid, *ids)):
+        if (r["scope_kind"] == "list" and str(r["scope_id"]).isdigit() and list_role(c, int(r["scope_id"]), uid)) or r["member"]:
+            out[r["id"]] = r["name"]
+    return out
 
 
 def mr_row(c, r, secs=None):
@@ -108,7 +115,7 @@ def mr_row(c, r, secs=None):
         cond["tag_list_id"] = _tag_list(c, cond["tag_id"])
     # #6289: a tag the rule names that is gone (a move before the rewrite of kalmido_otg_rekey) - the settings say "Tag missing"
     # instead of the rule doing nothing in silence; the name of a tag that became an organisation's label (no project) comes along
-    names = _tag_names(c, [x for x in (t.get("tag_id"), cond.get("tag_id")) if x])
+    names = _tag_names(c, r["user_id"], [x for x in (t.get("tag_id"), cond.get("tag_id")) if x])
     if t.get("tag_id") in names:
         t["tag_name"] = names[t["tag_id"]]
     if cond.get("tag_id") in names:
