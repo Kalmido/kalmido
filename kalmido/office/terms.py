@@ -495,15 +495,21 @@ def agb_sig_html(c, r, lg, token, prefix):
             f'{e(tr("Download the terms and conditions (PDF, as of {0})", agb_fmt_date(t["date"], lg), lg=lg))}</a></p>')
 
 
-def agb_sig_offer_note(c, r, lg, pages=None):
+def agb_sig_offer_note(c, r, lg, pages=None, joined=True, link=""):
     """#7338: a quotation's approval page has no terms button of its own (its PDF carries the terms pages behind the
     quotation, agb_offer_pdf since #3619): the sentence at the acceptance names their state and, when the quotation's own
-    pages are known (pages), the page they start on. '' without terms or when their file has gone (then the PDF has none)."""
+    pages are known (pages), the page they start on. '' without terms or when their file has gone (then the PDF has none).
+    #7416: "included in the PDF" only when joining them worked (joined); else the sentence names their state and links
+    their own file (link = the link's /terms address) -- the way out when the PDF has gone out without them."""
     import html
     t = agb_sig_terms(c, r)
     if not t or not agb_path(r["org_id"], t.get("file")):
         return ""
     d = agb_fmt_date(t["date"], lg)
+    if not joined:
+        a = (f' <a class="pdf" href="{html.escape(link)}" download rel="nofollow">'
+             f'{html.escape(tr("Download the terms and conditions (PDF, as of {0})", d, lg=lg))}</a>') if link else ""
+        return f'<p class="sigagb">{html.escape(tr("Our terms and conditions as of {0} apply.", d, lg=lg))}{a}</p>'
     s = (tr("Our terms and conditions as of {0} apply; they are included in the PDF (from page {1}).", d, int(pages) + 1, lg=lg) if pages
          else tr("Our terms and conditions as of {0} apply; they are included in the PDF.", d, lg=lg))
     return f'<p class="sigagb">{html.escape(s)}</p>'

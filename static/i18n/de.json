@@ -19742,5 +19742,6 @@
   "The e-mail left from the server's address: the mailbox of the workspace is switched off. Switch it on again in Settings > Company & office > E-mail.": "Die E-Mail ging von der Adresse des Servers hinaus: Das Postfach des Arbeitsbereichs ist ausgeschaltet. Schalte es unter Einstellungen > Firma & Büro > E-Mail wieder ein.",
   "Sending: {0}": "Senden: {0}",
   "The sender address must belong to this SMTP account (its own address or one the provider allows for it): servers check it against the domain's SPF and DKIM, other addresses are refused or land in spam.": "Die Absender-Adresse muss zu diesem SMTP-Konto gehören (seine eigene Adresse oder eine, die der Anbieter dafür erlaubt): Server prüfen sie gegen SPF und DKIM der Domain, andere Adressen werden abgelehnt oder landen im Spam.",
-  "The display name cannot contain @ or a web address.": "Der Anzeigename darf kein @ und keine Webadresse enthalten."
+  "The display name cannot contain @ or a web address.": "Der Anzeigename darf kein @ und keine Webadresse enthalten.",
+  "Our terms and conditions as of {0} apply.": "Es gelten unsere AGB, Stand {0}."
 }

@@ -19,6 +19,7 @@ files ("shared": [path, size, sha256]) and the store ("store": "plain" or the ki
 take them out of the store again (the download is a complete format-2 file, see assemble()).
 Off-site target / Pi copy: the same files flat as kalmido-blob-<kid>-<name> (only encrypted ones leave the server)."""
 import base64
+import contextlib
 import fcntl
 import hashlib
 import hmac
@@ -544,6 +545,11 @@ def decrypt_cmd(src, out, pwfile):
         os.unlink(out)
         print(f"decrypt failed: {getattr(e, 'code', type(e).__name__)} (wrong passphrase or a damaged file); nothing written",
               file=sys.stderr)
+        return 1
+    except OSError as e:  # #7416: the disk full, a read error: no half plain backup left behind (a retry would say "exists")
+        with contextlib.suppress(OSError):
+            os.unlink(out)
+        print(f"decrypt failed: {e.strerror or type(e).__name__} (disk full or a read error); nothing written", file=sys.stderr)
         return 1
     if man.get("format_version") == 3 and man.get("shared"):
         print(f"written: {out} - but it holds only the small files: {len(man['shared'])} shared files are in the store. Run "

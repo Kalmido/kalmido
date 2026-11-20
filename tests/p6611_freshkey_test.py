@@ -190,6 +190,16 @@ again = bkstore("decrypt", "/data/c6611.zip.enc", "/data/p6611.zip", "--passphra
 check(again.returncode == 2 and "exists" in again.stderr, f"3: an existing output is never overwritten {again.returncode} {again.stderr[-200:]}")
 pl = bkstore("decrypt", "/data/p6611.zip", "/data/r6611.zip", "--passphrase-file", "-", stdin=PASSPHRASE + "\n")
 check(pl.returncode == 1 and "not an encrypted" in pl.stderr, f"3: a plain zip is refused {pl.returncode} {pl.stderr[-200:]}")
+# #7416: the disk full while writing: the half plain zip goes, exit 1, and the next try is not refused with "exists already"
+h = py("import errno, importlib.util, json, os\n"
+       "s = importlib.util.spec_from_file_location('bk7416', '/app/kalmido/admin/bkstore.py')\nbk = importlib.util.module_from_spec(s)\ns.loader.exec_module(bk)\n"
+       "def full(src, out, pw):\n    open(out, 'wb').write(b'PK\\x03\\x04 half of the plain data')\n    raise OSError(errno.ENOSPC, 'No space left on device')\n"
+       "bk.decrypt_file = full\nopen('/tmp/pw7416', 'w').write('x\\n')\n"
+       "rc = bk.decrypt_cmd('/data/c6611.zip.enc', '/data/h6611.zip', '/tmp/pw7416')\n"
+       "print(json.dumps({'rc': rc, 'left': os.path.exists('/data/h6611.zip')}))")
+check(h.get("rc") == 1 and h.get("left") is False, f"3: the disk full: exit 1, no half plain zip left {h}")
+h2 = bkstore("decrypt", "/data/c6611.zip.enc", "/data/h6611.zip", "--passphrase-file", "-", stdin=PASSPHRASE + "\n")
+check(h2.returncode == 0 and "written: /data/h6611.zip" in h2.stdout, f"3: ... the next try writes it {h2.returncode} {h2.stderr[-200:]}")
 np = bkstore("decrypt", "/data/c6611.zip.enc", "/data/s6611.zip")
 check(np.returncode == 2 and "--passphrase-file" in np.stderr, f"3: without a passphrase file: says what is needed {np.returncode} {np.stderr[-200:]}")
 check(len(DOWN3) > len(BIG), "3: (the download of the same backup is complete as well)")
