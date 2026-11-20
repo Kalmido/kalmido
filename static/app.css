@@ -3078,6 +3078,8 @@ button.mention.mlink:hover,button.mention.mlink:focus-visible{text-decoration:un
 #app.detail-open.side-rail{grid-template-columns:minmax(0,1fr) var(--detW,25.5rem)}
 #app.side-rail #side{left:0;width:min(17rem,80vw);transform:translateX(-102%)}
 #app.side-rail #side.open{transform:none}
+/* #7307: the drawer next to the content (not on the phone) takes the remembered sidebar width and has its grip (detail.js) */
+@media (min-width:768px){ #app.side-rail #side{width:min(var(--sideW,17rem),80vw)} #app.sb-b.side-rail #side{width:min(var(--sideW,17rem),calc(80vw - 4.5rem))} }
 #app.side-rail #top .menu{display:inline-flex}
 /* sidebar */
 #side{padding:1.25rem .75rem 1.5rem;background:var(--bg2)}
