@@ -114,19 +114,19 @@ function mp_wire(el) {
   });
   const up = e => {
     if (!g) return;
-    const {ax, d, v} = g; g = null;
+    const {ax, d} = g, v = e.timeStamp - g.t > 100 ? 0 : g.v; g = null;  // held still before letting go: no flick
     el.classList.remove('mpdrag');
     if (ax) { el.dataset.swiped = '1'; setTimeout(() => delete el.dataset.swiped, 400); }  // the end of a swipe is no tap
-    if ((ax === 'x' || ax === 'y') && (Math.abs(d) >= MP_SWIPE || (Math.abs(d) > 12 && Math.abs(v) >= MP_FLING && Math.sign(v) === Math.sign(d)))) { mp_fly(el, ax, Math.sign(d)); return; }
+    if ((ax === 'x' || ax === 'y') && (Math.abs(d) >= MP_SWIPE || (Math.abs(d) > 12 && Math.abs(v) >= MP_FLING && Math.sign(v) === Math.sign(d)))) { mp_fly(el, ax, d); return; }
     el.style.transform = '';
     if (!(e.pointerType === 'mouse' && el.matches(':hover'))) go();
   };
   el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
 }
 // out of the screen in the swipe's direction, then gone (with reduced motion at once, no flight)
-function mp_fly(el, ax, s) {
-  const r = el.getBoundingClientRect();
-  el.style.transform = ax === 'x' ? `translateX(${s > 0 ? innerWidth - r.left : -r.right}px)` : `translateY(${-r.bottom - 8}px)`;
+function mp_fly(el, ax, d) {
+  const r = el.getBoundingClientRect(), x0 = ax === 'x' ? d : 0, y0 = ax === 'y' ? d : 0;  // the rectangle without the drag's offset
+  el.style.transform = ax === 'x' ? `translateX(${d > 0 ? innerWidth - (r.left - x0) : -(r.right - x0)}px)` : `translateY(${-(r.bottom - y0) - 8}px)`;
   mp_hide();
   if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) el.remove();
 }
