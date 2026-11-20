@@ -175,12 +175,16 @@ def cb_default(c, oid, uid):
 
 
 def cb_books(c, oid):
+    # (#7506): count and sum of every box in one statement (was: every entry of every box read and added up in Python)
+    sums = {r[0]: (r[1], r[2]) for r in c.execute(
+        "SELECT book_id, COUNT(*), COALESCE(SUM(CASE WHEN dir='in' THEN amount ELSE -amount END), 0) FROM office_cash_entries "
+        "WHERE org_id=? GROUP BY book_id", (oid,))}
     out = []
     for r in c.execute("SELECT * FROM office_cashbooks WHERE org_id=? ORDER BY archived, is_default DESC, lower(name), id", (oid,)):
-        rows = _rows(c, oid, r["id"])
+        n, total = sums.get(r["id"], (0, 0))
         out.append({"id": r["id"], "name": r["name"], "opening": dstr(r["opening"]), "opening_day": r["opening_day"], "is_default": bool(r["is_default"]),
-                    "archived": r["archived"], "balance": dstr(cb_balance(r["opening"], rows)), "last_closed": cb_last_closed(c, r["id"]),
-                    "entries": len(rows)})
+                    "archived": r["archived"], "balance": dstr(money(dec(r["opening"]) + dec(total))), "last_closed": cb_last_closed(c, r["id"]),
+                    "entries": n})
     return out
 
 
@@ -378,10 +382,22 @@ def _day_rules(c, book, day):
         raise BadInput(tr("The day lies before the opening balance of the cash box ({0}).", book["opening_day"]))
 
 
-def cb_public(c, oid, uid, rows, d, last, bal=None, names=None):
-    """One entry for the client: + balance after it, cancelled_by / storno_of with their numbers, locked, receipt / invoice."""
-    by_id = {r["id"]: r for r in rows}
-    canc = next((r for r in rows if r.get("storno_of") == d["id"]), None)
+def cb_links(rows):
+    """(#7506): ({id: row}, {cancelled id: its cancellation row}) of a box's rows -- built once per list (cb_public looked
+    both up over all rows for every entry it showed: quadratic in the entries of all years)."""
+    by_id, canc = {}, {}
+    for r in rows:
+        by_id[r["id"]] = r
+        if r.get("storno_of") and r["storno_of"] not in canc:  # the first one in booking order, as before
+            canc[r["storno_of"]] = r
+    return by_id, canc
+
+
+def cb_public(c, oid, uid, rows, d, last, bal=None, names=None, links=None):
+    """One entry for the client: + balance after it, cancelled_by / storno_of with their numbers, locked, receipt / invoice.
+    links = cb_links(rows) when the caller shows several entries."""
+    by_id, cmap = links or cb_links(rows)
+    canc = cmap.get(d["id"])
     node = None
     if d.get("node_id"):
         ch = fs_chain(c, d["node_id"])
@@ -409,15 +425,22 @@ def _names(c, ids):
 
 def cb_list(c, oid, uid, book, frm=None, to=None):
     """The entries of a box in [frm, to] in booking order, each with the running balance after it."""
-    rows = _rows(c, oid, book["id"], full=True)
+    rows = _rows(c, oid, book["id"])  # (#7506): the plain columns of all years for the balance and the links
+    shown = [r for r in rows if not ((frm and r["day"] < frm) or (to and r["day"] > to))]
+    full = {}
+    if shown:  # every column only of the entries shown ([frm, to]; was: of every entry of every year)
+        f, t = frm or shown[0]["day"], to or shown[-1]["day"]
+        full = {r["id"]: r for r in (mc_fields("office_cash_entries", dict(x)) for x in c.execute(
+            "SELECT * FROM office_cash_entries WHERE org_id=? AND book_id=? AND day>=? AND day<=?", (oid, book["id"], f, t)))}
     last = cb_last_closed(c, book["id"])
-    names = _names(c, [r.get("created_by") for r in rows])
+    names = _names(c, [r.get("created_by") for r in shown])
+    links = cb_links(rows)
     bal, out = dec(book["opening"]), []
     for r in rows:
         bal += _signed(r)
         if (frm and r["day"] < frm) or (to and r["day"] > to):
             continue
-        out.append(cb_public(c, oid, uid, rows, oc_dec_fields(c, oid, "office_cash_entries", r), last, bal, names))
+        out.append(cb_public(c, oid, uid, rows, oc_dec_fields(c, oid, "office_cash_entries", full.get(r["id"], r)), last, bal, names, links))
     return out, rows, last
 
 
@@ -754,7 +777,8 @@ def cb_export_data(c, oid, uid, book, frm, to, y=None):
     ents, rows, last = cb_list(c, oid, uid, book, frm, to)
     closings = cb_closings(c, oid, bid, frm, to)
     # 2.355.0 B (#2847): a change counts on its local day (the stored time is UTC: 00:30 on 1 Jan was 31 Dec before)
-    log = [r for r in cb_log_rows(c, oid, bid) if frm <= _log_day(r["at"]) <= to or (r["entry_id"] and any(e["id"] == r["entry_id"] for e in ents))]
+    shown = {e["id"] for e in ents}  # (#7506): was a search over the entries for every log row
+    log = [r for r in cb_log_rows(c, oid, bid) if frm <= _log_day(r["at"]) <= to or (r["entry_id"] and r["entry_id"] in shown)]
     start = cb_balance(book["opening"], [r for r in rows if r["day"] < frm]) if frm > book["opening_day"] else money(dec(book["opening"]))
     end = dec(ents[-1]["balance"]) if ents else start
     return book, frm, to, y, ents, closings, log, start, money(end)

@@ -508,7 +508,7 @@ def rk_cashflow(c, oid, first_month, months, today=None, basis="gross", cfs=True
         put(p["date"], "out", "actual" if p["date"] <= today else "plan", "purchase", dec(p["amount"]),
             p["label"] or "", number=p["number"], doc_id=p["doc_id"])
     # out: travel receipts
-    for t in rk_trips(c, oid):
+    for t in rk_trips(c, oid, items_in=(first, last)):  # (#7506): the trips with a receipt in the period
         for it in t["items"]:
             day = it["date"] or t["date_from"]
             if first <= day < last:
@@ -518,11 +518,6 @@ def rk_cashflow(c, oid, first_month, months, today=None, basis="gross", cfs=True
     # set by the bank match -- else the document date); one matched to a bank booking with the booking's amount. Travel
     # receipts are no documents (never twice); a purchase or fixed cost entered as well for the same thing does count twice
     from .books import bk_receipts
-    bfb_paid = {}
-    for t in c.execute(f"SELECT match_id, amount, currency FROM office_bank_tx WHERE org_id=? AND {live_sql()} AND match_kind='receipt'", (oid,)):
-        t = oc_dec_fields(c, oid, "office_bank_tx", t)
-        if (t["currency"] or home).upper() == home:
-            bfb_paid[t["match_id"]] = abs(dec(t["amount"], "0"))
     rcs = bk_receipts(c, oid, first, _add_months(last_month, 1) + "-00") if not strict_any else []
     for a, b, strict in (segs if strict_any else []):  # 2.603.0 (#4927): per year, the strict ones through their lines
         if not strict:
@@ -532,6 +527,15 @@ def rk_cashflow(c, oid, first_month, months, today=None, basis="gross", cfs=True
         rcs += bk_receipts(c, oid, a, b, paid=fl["paid"])
         for x in fl["norc"]:  # bookings without a receipt are money out all the same
             put(x["day"], "out", "actual" if x["day"] <= today else "plan", "norc", x["amount"], x.get("text") or "", src=x["src"], ref=x["ref"])
+    # (#7506): the bank bookings matched to these receipts only (was: every matched booking of every year, decrypted)
+    bfb_paid, nids = {}, sorted({rc["node_id"] for rc in rcs if rc.get("node_id")})
+    for i in range(0, len(nids), 5000):
+        part = nids[i:i + 5000]
+        for t in c.execute(f"SELECT match_id, amount, currency FROM office_bank_tx WHERE org_id=? AND {live_sql()} AND match_kind='receipt' "
+                           f"AND match_id IN ({','.join('?' * len(part))}) ORDER BY id", (oid, *part)):
+            t = oc_dec_fields(c, oid, "office_bank_tx", t)
+            if (t["currency"] or home).upper() == home:
+                bfb_paid[t["match_id"]] = abs(dec(t["amount"], "0"))
     for rc in rcs:
         g_ = bfb_paid.get(rc["node_id"]) or rc["amount"]
         put(rc["date"], "out", "actual" if rc["date"] <= today else "plan", "receipt", g_ * rc["net"] / rc["amount"] if net and rc["amount"] else g_,
