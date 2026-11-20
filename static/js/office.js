@@ -1097,12 +1097,13 @@ function biz_paint() {
   // 2.555.0 (#4664): no "Applies to" with the workspace menu (it offered "All workspaces"): the settings hold for the area
   // ofcWs() picks, named once as plain text; the switch is the workspace at the top of the app
   t.innerHTML = `<p class="sbizws muted">${esc(tr('Workspace: {0}', biz_areaName()))}</p>${pb_hintHtml()}${typeof ocf_chooseHtml === 'function' ? ocf_chooseHtml(true) : '' /* 2.470.0 (#3596): were on the old page */}${ofcSettingsHtml()}
-    ${/*html-ok*/ rights ? sf_html('biz/rights', 'shield', `<h3 id="s-biz-rights" class="sbizg">${esc(tr('Rights|office'))}</h3>`, `<p class="shint">${esc(tr('Who may see and change which part of the office.'))}</p><div class="row"><a class="btn sm" href="#office/rights" data-bizgo>${ic('shield', 's')} ${esc(tr('Rights in the office'))}</a></div>`) : ''}`;
+    ${/*html-ok*/ rights ? sf_html('biz/rights', 'key', `<h3 id="s-biz-rights" class="sbizg">${esc(tr('Rights|office'))}</h3>`, `<p class="shint">${esc(tr('Who may see and change which part of the office.'))}</p><div class="row"><a class="btn sm" href="#office/rights" data-bizgo>${ic('shield', 's')} ${esc(tr('Rights in the office'))}</a></div>`) : ''}`;
   const form = $('#ofc-set', t.content);
   for (const [k, i, n] of OST_SUBS) {
     const fs = form ? $$(`[data-ostp="${k}"]`, form).filter(f => f.children.length) : []; if (!fs.length) continue;
     // 2.555.0 (#4664): the groups h3, their parts h4 (biz_lvl); 2.1353.0 (#6827): each group a folded head row with its state
-    form.insertAdjacentHTML('beforeend', sf_html('biz/' + k, SF_IC[k] || i, `<h3 id="s-biz-${esc(k)}" class="sbizg">${esc(tr(n))}</h3>`, '', biz_st(k)));
+    // (#7555): the first group open, the others closed (settings.js SF_SHUT 'biz/*')
+    form.insertAdjacentHTML('beforeend', sf_html('biz/' + k, SF_IC[k] || i, `<h3 id="s-biz-${esc(k)}" class="sbizg">${esc(tr(n))}</h3>`, '', biz_st(k), sf_dflt('biz/' + k, !form.querySelector(':scope > details.sfold'))));
     form.lastElementChild.querySelector('.sfb').append(...fs);
     fs.forEach(f => f.setAttribute('aria-labelledby', 's-biz-' + k));
   }
