@@ -177,6 +177,8 @@ button.kptile:hover,button.kptile:focus-visible{border-color:var(--accent)}
 .ofdhead .ofdstat{min-height:var(--fld-h)}
 .ofdhead .ofdsave{font-size:var(--fs-s)}
 .ofdhead .oil_tail{display:inline-flex;align-items:center;gap:.5rem;flex-wrap:nowrap}  /* 2.356.0 C (#3004): Preview, Download and "…" stay in one line */
+.ofdfoot{display:flex;align-items:center;justify-content:flex-end;gap:.5rem;flex-wrap:wrap;margin:.75rem 0 0}  /* #7605: the head's buttons once more under the sums of a draft */
+.ofdfoot .oil_tail{display:inline-flex;align-items:center;gap:.5rem;flex-wrap:nowrap}
 .oil_link{display:flex;align-items:center;gap:.375rem;flex-wrap:wrap;margin:0;font-size:var(--fs-s)}  /* 2.356.0 C (#3003) */
 .oil_refs{display:flex;flex-direction:column;gap:.25rem;margin:.75rem 0}  /* the reference lines in the head, the same space above and below */
 .ofdsec.sgsec{margin:0 0 .75rem}  /* the approval box keeps its distance to what follows */
