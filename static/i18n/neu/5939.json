@@ -1,0 +1,27 @@
+{
+  "de": {
+    "This upload is meant for another office than the one open. Reload the page and try again.": "Dieser Upload ist für ein anderes Büro als das geöffnete. Lade die Seite neu und versuche es noch einmal.",
+    "The office is switched off for you in this workspace.": "Das Büro ist für dich in diesem Arbeitsbereich ausgeschaltet.",
+    "The office is switched off for this person in this workspace (Settings > Modules, for the own office “Also private”). Nothing was written: the draft would not show there. Ask the person to switch it on.": "Das Büro ist für diese Person in diesem Arbeitsbereich ausgeschaltet (Einstellungen > Module, für das eigene Büro „Auch privat“). Nichts wurde geschrieben: Der Entwurf wäre dort nicht zu sehen. Bitte die Person, es einzuschalten."
+  },
+  "es": {
+    "This upload is meant for another office than the one open. Reload the page and try again.": "Esta subida es para otra oficina distinta de la abierta. Vuelve a cargar la página e inténtalo de nuevo.",
+    "The office is switched off for you in this workspace.": "La oficina está desactivada para ti en este espacio de trabajo.",
+    "The office is switched off for this person in this workspace (Settings > Modules, for the own office “Also private”). Nothing was written: the draft would not show there. Ask the person to switch it on.": "La oficina está desactivada para esta persona en este espacio de trabajo (Ajustes > Módulos, para la oficina propia «También privado»). No se ha escrito nada: el borrador no se vería allí. Pide a la persona que la active."
+  },
+  "fr": {
+    "This upload is meant for another office than the one open. Reload the page and try again.": "Ce téléversement est destiné à un autre bureau que celui qui est ouvert. Recharge la page et réessaie.",
+    "The office is switched off for you in this workspace.": "Le bureau est désactivé pour toi dans cet espace de travail.",
+    "The office is switched off for this person in this workspace (Settings > Modules, for the own office “Also private”). Nothing was written: the draft would not show there. Ask the person to switch it on.": "Le bureau est désactivé pour cette personne dans cet espace de travail (Paramètres > Modules, pour le bureau personnel « Aussi en privé »). Rien n’a été écrit : le brouillon n’y serait pas visible. Demande à la personne de l’activer."
+  },
+  "it": {
+    "This upload is meant for another office than the one open. Reload the page and try again.": "Questo caricamento è per un ufficio diverso da quello aperto. Ricarica la pagina e riprova.",
+    "The office is switched off for you in this workspace.": "L'ufficio è disattivato per te in questo spazio di lavoro.",
+    "The office is switched off for this person in this workspace (Settings > Modules, for the own office “Also private”). Nothing was written: the draft would not show there. Ask the person to switch it on.": "L’ufficio è disattivato per questa persona in questo spazio di lavoro (Impostazioni > Moduli, per l’ufficio personale «Anche privato»). Non è stato scritto nulla: la bozza non sarebbe visibile lì. Chiedi alla persona di attivarlo."
+  },
+  "nl": {
+    "This upload is meant for another office than the one open. Reload the page and try again.": "Deze upload is voor een ander kantoor dan het geopende. Laad de pagina opnieuw en probeer het nog eens.",
+    "The office is switched off for you in this workspace.": "Het kantoor staat voor jou uit in deze werkruimte.",
+    "The office is switched off for this person in this workspace (Settings > Modules, for the own office “Also private”). Nothing was written: the draft would not show there. Ask the person to switch it on.": "Het kantoor is voor deze persoon in deze werkruimte uitgeschakeld (Instellingen > Modules, voor het eigen kantoor ‘Ook privé’). Er is niets geschreven: het concept zou daar niet zichtbaar zijn. Vraag de persoon het in te schakelen."
+  }
+}
