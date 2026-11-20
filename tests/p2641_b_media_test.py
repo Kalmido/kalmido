@@ -293,7 +293,8 @@ r = ag.get(B + f"/api/v1/videos/{RP}")
 check(r.ok and r.json().get("kind") == "pdf" and r.json()["versions"][0].get("file_id") == FPDF, f"the agent reads the PDF review {r.status_code} {r.text[:300]}")
 ac = (r.json().get("comments") or []) if r.ok else []
 check(any(x.get("pos") == {"page": 2, "x": 0.1, "y": 0.2} and x.get("mark") == 1 for x in ac), f"the agent sees pos and mark {ac[:2]}")
-r = ag.post(B + f"/api/v1/videos/{RP}/comments", json={"body": "Rand zu schmal", "pos": {"page": 2, "x": 0.8, "y": 0.9}})
+r = kt.circle_yes(ag.post(B + f"/api/v1/videos/{RP}/comments", json={"body": "Rand zu schmal", "pos": {"page": 2, "x": 0.8, "y": 0.9}}),  # (#6453, #7142):
+                 dict(ag.headers), AG, A, B + "/api/v1", ALICE, base=B)  # the PDF (alice only) -> the project's review = wider circle: card, Yes, run
 check(r.status_code == 201 and r.json()["comment"]["pos"] == {"page": 2, "x": 0.8, "y": 0.9} and r.json()["comment"]["mark"] == 2,
       f"the agent comments at page 2 + point {r.status_code} {r.text[:300]}")
 r = ag.get(B + f"/api/v1/videos/{RP}/versions/{pv['id']}/file")
