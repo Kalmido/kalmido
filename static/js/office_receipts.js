@@ -79,7 +79,7 @@ function rclHtml(own, pre) {  // 2.276.0 A (#3039): own = the page Office > Rece
     // (#6842): the empty block carries the upload itself (bkPhotoHtml: a computer "Upload files", a phone camera + files as everywhere)
     const up = own && typeof bkPhotoHtml === 'function' ? bkPhotoHtml(false) : '';
     return top + (pre || '') + emptyState({icon: 'receipt', title: tr('No receipts yet.'), cls: 'rcl-empty rcl-none',
-      action: up ? `<div class="eacts">${/*html-ok*/ up /* office_books.js, escaped there */}</div>` : ''});
+      action: up ? `<div class="eacts">${/*html-ok*/ up /* office_books.js, escaped there */}</div>` : `<div class="eacts"><a class="btn pri" href="#office/receipts">${ic('upload', 's')}<span>${tr('Upload files')}</span></a></div>`});  // the bookkeeping's list: the way to Office > Receipts
   }
   return back + rclFiltersHtml() + rclListHtml();
 }
