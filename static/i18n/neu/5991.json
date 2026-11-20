@@ -1,0 +1,62 @@
+{
+  "de": {
+    "Please transfer the outstanding amount within {days} days to the bank account below.|pack": "Wir bitten Sie darum, den offenen Betrag innerhalb von {days} Tagen auf unser unten genanntes Bankkonto zu überweisen.",
+    "Please transfer the total amount outstanding within {days} days to the bank account below. If you have already arranged payment, please disregard this letter.|pack": "Wir bitten Sie, den offenen Gesamtbetrag innerhalb von {days} Tagen auf unser unten genanntes Bankkonto zu überweisen. Sollten Sie die Zahlung inzwischen veranlasst haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.",
+    "This is our final request to transfer the total amount outstanding within {days} days to the bank account below. If payment is not received by then, we will take legal action without further notice; any costs arising from this will be charged to you.|pack": "Wir fordern Sie hiermit letztmalig auf, den offenen Gesamtbetrag innerhalb von {days} Tagen auf unser unten genanntes Bankkonto zu überweisen. Geht die Zahlung bis dahin nicht ein, werden wir ohne weitere Ankündigung rechtliche Schritte einleiten; die dadurch entstehenden Kosten gehen zu Ihren Lasten.",
+    "Record payment…": "Zahlung erfassen…",
+    "Nothing open on this invoice": "Auf dieser Rechnung ist nichts mehr offen",
+    "Layout & numbers…": "Layout & Nummern einstellen…",
+    "Recurring invoice (series)…": "Wiederkehrende Rechnung (Serie)…",
+    "No invoice series yet: an invoice that repeats every month, quarter or year.": "Noch keine Rechnungsserie: eine Rechnung, die sich jeden Monat, jedes Quartal oder jedes Jahr wiederholt.",
+    "Or from an invoice you have: \"Repeat as series\" in its editor.": "Oder aus einer vorhandenen Rechnung: „Als Serie wiederholen“ in ihrem Editor.",
+    "Signature…": "Unterschrift…"
+  },
+  "es": {
+    "Please transfer the outstanding amount within {days} days to the bank account below.|pack": "Le rogamos transfiera el importe pendiente en un plazo de {days} días a la cuenta bancaria indicada abajo.",
+    "Please transfer the total amount outstanding within {days} days to the bank account below. If you have already arranged payment, please disregard this letter.|pack": "Le rogamos transfiera el importe total pendiente en un plazo de {days} días a la cuenta bancaria indicada abajo. Si ya ha realizado el pago, le rogamos que ignore esta carta.",
+    "This is our final request to transfer the total amount outstanding within {days} days to the bank account below. If payment is not received by then, we will take legal action without further notice; any costs arising from this will be charged to you.|pack": "Le requerimos por última vez que transfiera el importe total pendiente en un plazo de {days} días a la cuenta bancaria indicada abajo. Si para entonces no hemos recibido el pago, emprenderemos acciones legales sin previo aviso; los costes derivados correrán a su cargo.",
+    "Record payment…": "Registrar pago…",
+    "Nothing open on this invoice": "No queda nada pendiente en esta factura",
+    "Layout & numbers…": "Diseño y numeración…",
+    "Recurring invoice (series)…": "Factura recurrente (serie)…",
+    "No invoice series yet: an invoice that repeats every month, quarter or year.": "Aún no hay series de facturas: una factura que se repite cada mes, trimestre o año.",
+    "Or from an invoice you have: \"Repeat as series\" in its editor.": "O a partir de una factura existente: «Repetir como serie» en su editor.",
+    "Signature…": "Firma…"
+  },
+  "fr": {
+    "Please transfer the outstanding amount within {days} days to the bank account below.|pack": "Veuillez virer le montant restant dû sous {days} jours sur le compte bancaire indiqué ci-dessous.",
+    "Please transfer the total amount outstanding within {days} days to the bank account below. If you have already arranged payment, please disregard this letter.|pack": "Veuillez virer le montant total restant dû sous {days} jours sur le compte bancaire indiqué ci-dessous. Si vous avez déjà effectué le paiement, veuillez ne pas tenir compte de ce courrier.",
+    "This is our final request to transfer the total amount outstanding within {days} days to the bank account below. If payment is not received by then, we will take legal action without further notice; any costs arising from this will be charged to you.|pack": "Nous vous demandons une dernière fois de virer le montant total restant dû sous {days} jours sur le compte bancaire indiqué ci-dessous. À défaut de paiement dans ce délai, nous engagerons des poursuites sans autre avis ; les frais qui en découleront seront à votre charge.",
+    "Record payment…": "Enregistrer un paiement…",
+    "Nothing open on this invoice": "Plus rien n’est dû sur cette facture",
+    "Layout & numbers…": "Mise en page et numéros…",
+    "Recurring invoice (series)…": "Facture récurrente (série)…",
+    "No invoice series yet: an invoice that repeats every month, quarter or year.": "Pas encore de série de factures : une facture qui se répète chaque mois, trimestre ou année.",
+    "Or from an invoice you have: \"Repeat as series\" in its editor.": "Ou à partir d’une facture existante : « Répéter en série » dans son éditeur.",
+    "Signature…": "Signature…"
+  },
+  "it": {
+    "Please transfer the outstanding amount within {days} days to the bank account below.|pack": "Vi preghiamo di bonificare l'importo dovuto entro {days} giorni sul conto bancario sotto indicato.",
+    "Please transfer the total amount outstanding within {days} days to the bank account below. If you have already arranged payment, please disregard this letter.|pack": "Vi preghiamo di bonificare l'importo totale dovuto entro {days} giorni sul conto bancario sotto indicato. Se avete già provveduto al pagamento, vi preghiamo di non tenere conto della presente.",
+    "This is our final request to transfer the total amount outstanding within {days} days to the bank account below. If payment is not received by then, we will take legal action without further notice; any costs arising from this will be charged to you.|pack": "Vi invitiamo per l'ultima volta a bonificare l'importo totale dovuto entro {days} giorni sul conto bancario sotto indicato. In mancanza di pagamento entro tale termine, procederemo per vie legali senza ulteriore preavviso; le spese che ne deriveranno saranno a vostro carico.",
+    "Record payment…": "Registra pagamento…",
+    "Nothing open on this invoice": "Su questa fattura non resta nulla da pagare",
+    "Layout & numbers…": "Layout e numerazione…",
+    "Recurring invoice (series)…": "Fattura ricorrente (serie)…",
+    "No invoice series yet: an invoice that repeats every month, quarter or year.": "Ancora nessuna serie di fatture: una fattura che si ripete ogni mese, trimestre o anno.",
+    "Or from an invoice you have: \"Repeat as series\" in its editor.": "Oppure da una fattura esistente: «Ripeti come serie» nel suo editor.",
+    "Signature…": "Firma…"
+  },
+  "nl": {
+    "Please transfer the outstanding amount within {days} days to the bank account below.|pack": "Gelieve het openstaande bedrag binnen {days} dagen over te maken op de ondervermelde bankrekening.",
+    "Please transfer the total amount outstanding within {days} days to the bank account below. If you have already arranged payment, please disregard this letter.|pack": "Gelieve het openstaande totaalbedrag binnen {days} dagen over te maken op de ondervermelde bankrekening. Indien u de betaling inmiddels heeft verricht, kunt u deze brief als niet verzonden beschouwen.",
+    "This is our final request to transfer the total amount outstanding within {days} days to the bank account below. If payment is not received by then, we will take legal action without further notice; any costs arising from this will be charged to you.|pack": "Wij verzoeken u hierbij voor de laatste keer het openstaande totaalbedrag binnen {days} dagen over te maken op de ondervermelde bankrekening. Indien de betaling dan niet is ontvangen, nemen wij zonder verdere aankondiging juridische stappen; de daaruit voortvloeiende kosten komen voor uw rekening.",
+    "Record payment…": "Betaling registreren…",
+    "Nothing open on this invoice": "Op deze factuur staat niets meer open",
+    "Layout & numbers…": "Opmaak en nummers…",
+    "Recurring invoice (series)…": "Terugkerende factuur (reeks)…",
+    "No invoice series yet: an invoice that repeats every month, quarter or year.": "Nog geen factuurreeks: een factuur die elke maand, elk kwartaal of elk jaar terugkomt.",
+    "Or from an invoice you have: \"Repeat as series\" in its editor.": "Of vanuit een bestaande factuur: „Herhalen als reeks” in de editor ervan.",
+    "Signature…": "Handtekening…"
+  }
+}
