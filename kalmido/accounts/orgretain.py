@@ -495,6 +495,8 @@ def odl_dismantle(c, oid):
         # 2.627.0 (#4504, review F2): the organisation's standard arrangements of the views (global settings) go with it
         for k in WG_STD_KEYS:
             c.execute("DELETE FROM settings WHERE key IN (?,?)", (wg_org_k(oid, k), wg_org_k(oid, k, True)))
+        from .purgerest import pgr_org
+        files += pgr_org(c, oid)  # (#6356): its bookmarks' pictures (the rows cascade)
         c.execute("DELETE FROM orgs WHERE id=?", (oid,))
 
     def after():

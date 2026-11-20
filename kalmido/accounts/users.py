@@ -455,7 +455,9 @@ def user_update(uid):
             return err(tr("Password: at least {0} characters", MIN_PASSWORD))
         c.execute("UPDATE users SET password_hash=? WHERE id=?", (generate_password_hash(pw) if pw else None, uid))
         ses_end(c, uid)  # 2.190.0 A (#1991)
-        from .sessions import ses_access_end  # (#6354): app passwords, own API tokens, scan keys, feed links, upload token
+        from ..docs.scankeys import sk_revoke_all  # 2.237.0 C (#2865): and the scan inbox keys
+        sk_revoke_all(c, uid)
+        from .sessions import ses_access_end  # (#6354): app passwords, own API tokens, feed links, upload token
         ses_access_end(c, uid)
     if "ntfy_topic" in b:
         topic = str(b["ntfy_topic"] or "").strip()
@@ -730,6 +732,8 @@ def _user_purge(c, uid, made):
     # 2.981.0 (#5274): the team chat's kept texts are kind 'tchat' of the core's trash (collab/cmttrash.py tcx_purge_user, USER_GONE)
     from ..accounts.orginvite import ojn_neutral
     ojn_neutral(c, uid)  # 2.985.0 (#4922): its silent invitations stay in their organisation's list as neutral rows
+    from .purgerest import pgr_user
+    files += pgr_user(c, uid)  # (#6356): bookmark pictures, agent chat files, an import upload, quotes in agent rules
     c.execute("DELETE FROM users WHERE id=?", (uid,))  # cascades: settings, memberships, sessions
     obj_gone_drop(c, gone)  # 2.578.0 (#4796): the objects went with the account (cascade): their history / undo rows too
     return files
@@ -816,6 +820,8 @@ def me_update():
         ses_end(c, u["id"], keep=_token_hash(tok) if tok else None)  # 2.190.0 A (#1991): with their push subscriptions
         # 2.539.0 B (#4375): the dialog's tick "end all app passwords and API tokens" (set by default); without the field
         # (API) they end too - the safe default. (#6354): the tick ends the feed links and the upload token too
+        from ..docs.scankeys import sk_revoke_all  # 2.237.0 C (#2865): the scan inbox keys go (a new setup code is made)
+        sk_revoke_all(c, u["id"])
         from .sessions import ses_access_end
         ses_access_end(c, u["id"], tokens=b.get("revoke_tokens", True) is not False)
     bump(c)
