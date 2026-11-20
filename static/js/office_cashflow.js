@@ -10,15 +10,21 @@ OFC_TABS.splice(OFC_TABS.findIndex(t => t[0] === 'settings'), 0, ['cashflow', 't
 
 const rk_ym = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 const rk_ymAdd = (ym, n) => { const [y, m] = ym.split('-').map(Number); return rk_ym(new Date(y, m - 1 + n, 1)); };
-async function rk_cfLoad() {
+// #7495: the plan, the fixed costs and the check in one go (were three requests one after the other); put = all at once
+async function rk_cfGet() {
   const q = rk_cfQ(); RKF.q = q;
-  try { const j = await api('GET', '/api/office/cashflow?' + q); if (RKF.q === q) { RKF.data = j; RKF.err = null; } }
-  catch (x) { RKF.err = ofcErrHere(x); }
-  try { const fj = await api('GET', '/api/office/fixed-costs'); RKF.fixed = fj.items || []; RKF.agr = fj.agreements || []; RKF.fixErr = null; } catch (x) { RKF.fixed = []; RKF.agr = []; RKF.fixErr = ofcErrHere(x); }  // 2.92.0 A (#1925): agr; 2.1076.0 (#5450): + fixErr
-  try { RKF.check = await api('GET', '/api/office/cashflow/check'); } catch (x) { RKF.check = null; }  // 2.67.0 (#1838)
-  ofcDraw();
+  const [j, fj, ck] = await Promise.allSettled([api('GET', '/api/office/cashflow?' + q), api('GET', '/api/office/fixed-costs'), api('GET', '/api/office/cashflow/check')]);
+  if (j.status === 'rejected') throw j.reason;
+  const fixErr = fj.status === 'rejected' ? ofcErrHere(fj.reason) : null;  // 2.1076.0 (#5450): the fixed costs' own failure stays in their part
+  return () => {
+    if (RKF.q !== q) return;
+    RKF.data = j.value; RKF.err = null; RKF.fixed = fj.value?.items || []; RKF.agr = fj.value?.agreements || []; RKF.fixErr = fixErr;  // 2.92.0 A (#1925): agr
+    RKF.check = ck.status === 'fulfilled' ? ck.value : null;  // 2.67.0 (#1838)
+  };
 }
-const rk_cfReload = () => { RKF.data = null; ofcDraw(); };
+async function rk_cfLoad() { try { (await rk_cfGet())(); } catch (x) { RKF.err = ofcErrHere(x); } ofcDraw(); }
+// #7495: a write, an undo or a switch of the months / basis keeps the plan on screen (dimmed) until the fresh one is there
+const rk_cfReload = () => ofcRefetch('cashflow', S.route.mod === 'office' && ofcTab() === 'cashflow' && !!RKF.data, rk_cfGet, () => { RKF.data = null; });
 // 2.979.0 (#5667): an undo / redo the server did: the cash flow plan and the starting balance section come again
 histReloader('cashflow', () => { if (RKF.data) rk_cfReload(); if (CFS.st !== undefined) { if ($('.cfsset')) return cfs_load(); CFS.oid = -1; } });
 const rk_cfQ = () => `from=${RKF.from}&months=${RKF.months}&basis=${RKF.basis}`;  // 2.67.0 (#1838): net | gross
@@ -28,7 +34,8 @@ function rk_cashflowHtml() {
   if (!ofcAdmin()) return ofcLockedHtml();  // 2.356.0 D (#3006): why, and the way to hand in receipts
   if (!RKF.from) RKF.from = rk_ym();
   if (RKF.err) return ofcFail(RKF.err, () => { RKF.err = null; RKF.data = null; });  // 2.1076.0 (#5450)
-  if (!RKF.data || RKF.q !== rk_cfQ()) { setTimeout(() => { if (RKF.q !== rk_cfQ() || !RKF.data) rk_cfLoad(); }, 0); if (!RKF.data) return loadingHtml('big'); }
+  if (!RKF.data) { setTimeout(() => { if (!RKF.data) rk_cfLoad(); }, 0); return loadingHtml('big'); }
+  if (RKF.q !== rk_cfQ()) setTimeout(() => { if (RKF.q !== rk_cfQ()) rk_cfReload(); }, 0);  // #7495: another period / basis: the old plan dimmed until the new one is there
   const d = RKF.data;
   const bar = `<div class="ofcbar rkcfbar"><button class="iconbtn" data-rkf="prev" aria-label="${esc(tr('Earlier'))}" title="${esc(tr('Earlier'))}">${ic('left', 's')}</button><b class="rkcfrange">${esc(rk_month(d.rows[0]?.month))} – ${esc(rk_month(d.rows[d.rows.length - 1]?.month))}</b><button class="iconbtn" data-rkf="next" aria-label="${esc(tr('Later'))}" title="${esc(tr('Later'))}">${ic('right', 's')}</button>
     ${RKF.from !== rk_ym() ? `<button class="btn sm ghost" data-rkf="now">${tr('Today')}</button>` : ''}<span class="spacer"></span>

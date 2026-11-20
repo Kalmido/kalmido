@@ -6,7 +6,8 @@
 const DT = {data: null, undo: null, loading: false, err: null, view: 'docs', fClient: '', fList: '', fStatus: '', pv: null, pvSeq: 0, sg: null, oid: undefined, preset: null};
 OFC_TABS.splice(OFC_TABS.findIndex(t => t[0] === 'settings'), 0, ['gendocs', 'file', N_('Letters & contracts'), 1, () => dtTabHtml(), 'sell']);  // admins only; 'sell' = the group of 2.92.1's tab menu (#1917)
 const DT_ST = {draft: N_('Draft'), final: N_('Finished'), signed: N_('Signed'), declined: N_('Rejected')};
-const dtReload = () => { DT.data = null; DT.pv = null; DT.sg = null; ofcDraw(); };
+// #7495: the documents on screen stay (dimmed) until the fresh list is there; a dialog built from DT.data keeps its kinds (#7064)
+const dtReload = () => { DT.pv = null; DT.sg = null; ofcRefetch('gendocs', ofcTab() === 'gendocs' && !!DT.data, async () => { const j = await api('GET', '/api/office/gen-docs'); return () => { DT.data = j; DT.err = null; }; }, () => { DT.data = null; }); };
 // 2.979.0 (#5667): an undo / redo the server did: the generated documents come again
 histReloader('gendocs', () => { if (DT.data) dtReload(); });
 const dtDoc = id => (DT.data?.docs || []).find(d => d.id === id);

@@ -40,7 +40,9 @@ async function agrLoad() {
   catch (x) { if (seq === AGR.seq) AGR.err = ofcErrHere(x); }
   ofcDraw();
 }
-const agrReload = () => { AGR.data = null; if (typeof RKF === 'object') RKF.data = null; if (S.route.mod === 'office' && ofcTab() === 'agreements') agrLoad(); };
+// #7495: the contracts on screen stay (dimmed) until the fresh list is there; a dialog built from AGR.data keeps its choices (#7064)
+const agrGet = async () => { const j = await api('GET', '/api/office/agreements' + (AGR.arch ? '?archived=1' : '')); return () => { AGR.data = j; AGR.err = null; }; };
+const agrReload = () => { if (typeof RKF === 'object') RKF.data = null; ofcRefetch('agreements', S.route.mod === 'office' && ofcTab() === 'agreements' && !!AGR.data, agrGet, () => { AGR.data = null; }); };
 // 2.979.0 (#5667): an undo / redo the server did: the shown contracts come again, a list not shown is read again when it opens
 histReloader('agreements', () => { if (AGR.data) agrReload(); });
 const agrPer = p => tr(AGR_PERS.find(x => x[0] === p)?.[1] || p);

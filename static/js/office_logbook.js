@@ -5,7 +5,16 @@
 // report with the rate per km and the CSV / PDF export. Every action one undo step (toast). Server: kalmido/office/logbook.py.
 const LB = {base: null, drives: null, rep: null, loading: false, err: null, vid: null, view: 'drives', q: ''};
 const lbYear = () => RK.year || String(new Date().getFullYear());
-const lbReload = (all) => { if (all) LB.base = null; LB.drives = null; LB.rep = null; ofcDraw(); };
+// #7495: a write, an undo or a switch of vehicle / year keeps the drives on screen (dimmed) until the fresh ones are there
+const lbReload = (all) => ofcRefetch('logbook', ofcTab() === 'travel' && RK.view === 'logbook' && !!LB.base, () => lbGet(all), () => { if (all) LB.base = null; LB.drives = null; LB.rep = null; });
+async function lbGet(all) {
+  const base = all || !LB.base ? await api('GET', '/api/office/vehicles') : LB.base, act = base.vehicles.filter(v => !v.archived);
+  const vid = base.vehicles.some(v => v.id === LB.vid) ? LB.vid : (act[0] || base.vehicles[0])?.id || null, y = lbYear();
+  const q = `year=${y}` + (vid ? `&vehicle_id=${vid}` : '');
+  const j = vid ? await api('GET', '/api/office/drives?' + q) : null;  // 2.152.0 C (#2169): + closed
+  const rep = LB.view === 'report' ? await api('GET', `/api/office/logbook/report?year=${y}`) : null;
+  return () => { LB.base = base; LB.vid = vid; LB.rep = rep; LB.err = null; if (j) { LB.drives = j.drives; LB.closed = j.closed || []; LB.q = q; } };
+}
 const lbVeh = id => (LB.base?.vehicles || []).find(v => v.id === id);
 const lbKind = k => (LB.base?.kinds || []).find(x => x.key === k)?.label || k;
 const lbClient = id => cdn_label((LB.base?.clients || []).find(c => c.id === id));  // 2.97.0 B (#1951)
@@ -62,7 +71,9 @@ function lbHtml() {
   if (LB.err) return ofcFail(LB.err, () => { LB.err = null; });  // 2.1076.0 (#5450)
   const q = `year=${lbYear()}` + (LB.vid ? `&vehicle_id=${LB.vid}` : '');
   const ready = LB.base && (LB.view === 'report' ? LB.rep && LB.rep.year === +lbYear() : !LB.vid || (LB.drives && LB.q === q));
-  if (!ready) { if (!LB.loading) setTimeout(lbLoad, 0); return loadingHtml('big'); }
+  const shown = LB.base && (LB.view === 'report' ? LB.rep : !LB.vid || LB.drives);  // #7495: another vehicle / year / view: the old one dimmed (lbReload)
+  if (!shown) { if (!LB.loading) setTimeout(lbLoad, 0); return loadingHtml('big'); }
+  if (!ready && !ofcHeldBusy('logbook')) setTimeout(() => { if (!ofcHeldBusy('logbook')) lbReload(); }, 0);
   const vs = LB.base.vehicles, act = vs.filter(v => !v.archived || v.id === LB.vid);
   const years = ofcYearOpts(LB.base.years, lbYear());  // 2.593.0 (#4891): the years of the drives (was this year +1 .. -3)
   const note = `<details class="lgb-note"><summary>${ic('alert', 's')}<span>${tr('Note on the logbook')}</span></summary><p class="muted">${esc(LB.base.note)}</p></details>`;
@@ -312,7 +323,7 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('change', e => {
   const x = e.target;
-  if (x.id === 'lgb-year') { RK.year = x.value; RK.data = null; lbReload(); }
+  if (x.id === 'lgb-year') { RK.year = x.value; rk_reload(); lbReload(); }  // #7495: the trips of the year come again behind the drives (was RK.data = null: the loading block)
   else if (x.id === 'lgb-veh') { LB.vid = +x.value; lbReload(); }
 });
 // 2.365.2 D (#2789): the mileage allowance per year lives in Settings > Company & office > Bank & taxes (was the row under the
