@@ -4,6 +4,9 @@ main by a version commit of the live train.
 
     python3 tools/stamp_release.py X.Y.Z [--root DIR] [--date YYYY-MM-DD]     stamp the tree DIR (default: this checkout)
     python3 tools/stamp_release.py X.Y.Z --changelog-only [--root DIR]        only the CHANGELOG sections (weekly-release.yml)
+    python3 tools/stamp_release.py X.Y.Z --nur-version [--root DIR]          #7180: only VERSION and the cache line, no git and no
+                                                                             tags needed (install.sh: a local build of a release
+                                                                             tag from a shallow clone or the source tarball)
 
 Stamping writes into the tree (never commits):
   - VERSION = X.Y.Z;
@@ -244,12 +247,23 @@ def sw_stamp(s, v):
     return s[:m.start()] + "const CACHE = 'tasks-shell-v%d';%s%s" % (n, m.group(2), v) + s[m.end():]
 
 
-def stamp(root, v, datum=None, changelog_only=False, log=print):
-    """Stamp the tree ROOT with version V (see the head comment). -> the list of what was written ([] = nothing)."""
+def stamp(root, v, datum=None, changelog_only=False, log=print, version_only=False):
+    """Stamp the tree ROOT with version V (see the head comment). -> the list of what was written ([] = nothing).
+    version_only (#7180, --nur-version): VERSION and the cache line only - a tree without git or tags (a shallow clone, the
+    source tarball) can do that; the CHANGELOG and whatsnew.json stay as they are."""
     vt(v)
     if not changelog_only and (read(root, "VERSION") or "").strip() == v:
         log("stamp_release: VERSION is already %s - nothing stamped (the version commit of the train wrote it)" % v)
         return []
+    if version_only:
+        sw = read(root, SW)
+        if sw is None:
+            raise Refused("no %s in %s" % (SW, root))
+        sw = sw_stamp(sw, v)  # refused before the first write (a lower cache number)
+        write(root, SW, sw)
+        write(root, "VERSION", v + "\n")
+        log("stamp_release %s: %s (tasks-shell-v%d); VERSION (version only)" % (v, SW, cache_number(v)))
+        return [SW + " (tasks-shell-v%d)" % cache_number(v), "VERSION"]
     tg = tags(root, v)
     if changelog_only and v not in tg:
         raise Refused("--changelog-only needs a tag v%s" % v)
@@ -297,10 +311,14 @@ def main(argv=None):
     ap.add_argument("--root", default=ROOT, help="the tree to stamp (a git checkout with the tags; default: this checkout)")
     ap.add_argument("--date", help="date of an untagged version's section (default: today, UTC)")
     ap.add_argument("--changelog-only", action="store_true", help="only the missing CHANGELOG sections up to the tag vX.Y.Z")
+    ap.add_argument("--nur-version", action="store_true", help="#7180: only VERSION and the cache line (no git, no tags: install.sh)")
     a = ap.parse_args(argv)
+    if a.nur_version and a.changelog_only:
+        print("stamp_release: --nur-version and --changelog-only exclude each other", file=sys.stderr)
+        return 2
     v = a.version[1:] if a.version.startswith("v") else a.version
     try:
-        stamp(os.path.abspath(a.root), v, a.date, a.changelog_only)
+        stamp(os.path.abspath(a.root), v, a.date, a.changelog_only, version_only=a.nur_version)
     except (Refused, OSError, UnicodeDecodeError) as e:
         print("stamp_release: refused - %s" % e, file=sys.stderr)
         return 2

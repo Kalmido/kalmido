@@ -269,6 +269,22 @@ choose_image() {
   fi
 }
 
+# #7180: a local build of a release tag (KALMIDO_BUILD=1) gets the version of its tag. Since #6894 the tree of a tag keeps
+# VERSION and the shell cache number of the last version the live train wrote; only release.yml stamps the prebuilt image.
+# Without it the app showed an older version (the update hint stayed) and browsers kept the old app. --nur-version needs no
+# git tags (a shallow clone, the tarball); without python3 a note, the build goes on.
+stamp_local() {
+  [ -z "$IMAGE" ] || return 0
+  printf '%s' "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' || return 0
+  if ! command -v python3 >/dev/null 2>&1; then
+    warn "python3 is missing: the local build of $VERSION keeps the version number of its source files (the app may show an older version and ask for an update)."
+    return 0
+  fi
+  [ -f "$DIR/tools/stamp_release.py" ] || { warn "No tools/stamp_release.py in $DIR: the local build keeps the version number of its source files."; return 0; }
+  python3 "$DIR/tools/stamp_release.py" "${VERSION#v}" --root "$DIR" --nur-version >/dev/null \
+    || warn "Could not write the version $VERSION into the local build (tools/stamp_release.py); it keeps the version number of its source files."
+}
+
 # before an update: consistent copy of the database (pg_dump in the db service, custom format); the last 10 copies are
 # kept in data/backups/. 2.1034.0 (#5304): the copy of a SQLite tasks.db (installs before 2.37) is gone.
 backup_db() {  # $1 = keep: no old copy is removed (2.1431.0, #6609: the copy a restore loads may be the oldest one)
@@ -927,6 +943,7 @@ main() {
   if [ -n "$RESTORE" ]; then restore_load; fi
   write_env
   choose_image
+  stamp_local
   write_override
   # 2.1431.0 (#6609): an update writes update.sh before the start, so a failed start already has the one with --restore
   if [ -n "$UPDATE" ]; then write_update_script; fi

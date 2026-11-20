@@ -12,7 +12,10 @@ repository in a temp folder):
 - release.yml stamps before the image build (tags fetched) and checks tag = stamped VERSION; weekly-release.yml stamps the
   CHANGELOG before its notes and the tagged tree before the web manifest;
 - only tags that are ancestors of the version count: a later hotfix tag on an older line changes nothing (reader F2);
-- a stamped tree keeps the CACHE / VERSION rule of tools/check_layout.py (// app V on the cache line)."""
+- a stamped tree keeps the CACHE / VERSION rule of tools/check_layout.py (// app V on the cache line);
+- #7180: --nur-version stamps only VERSION and the cache line in a tree without git or tags (install.sh's local build of a
+  release tag from a shallow clone or the tarball); CHANGELOG and whatsnew stay, a second run changes nothing, a lower cache
+  number is refused before anything is written."""
 import importlib.util
 import json
 import os
@@ -203,6 +206,30 @@ g("checkout", "-q", "--", ".")
 
 shutil.rmtree(T, ignore_errors=True)
 shutil.rmtree(T2, ignore_errors=True)
+
+# #7180: --nur-version - a plain folder (no git, no tags), like the source tarball or a shallow clone
+T3 = tempfile.mkdtemp(prefix="p7180-")
+os.makedirs(os.path.join(T3, "static"))
+def put3(rel, text):
+    with open(os.path.join(T3, rel), "w", encoding="utf-8") as f:
+        f.write(text)
+def get3(rel):
+    with open(os.path.join(T3, rel), encoding="utf-8") as f:
+        return f.read()
+put3("VERSION", "2.1453.0\n")
+put3("static/sw.js", "// shell\nconst CACHE = 'tasks-shell-v%d';  // app 2.1453.0\nself.x = 1;\n" % st.cache_number("2.1453.0"))
+put3("CHANGELOG.md", "# Changelog\n\n## [2.1453.0] - 2026-11-19\n- old\n")
+put3("static/whatsnew.json", WN)
+check(st.main(["v2.1454.0", "--root", T3, "--nur-version"]) == 0, "#7180: --nur-version works without git and tags")
+check(get3("VERSION") == "2.1454.0\n" and "tasks-shell-v%d';  // app 2.1454.0" % st.cache_number("2.1454.0") in get3("static/sw.js") and "self.x = 1;" in get3("static/sw.js"),
+      "#7180: VERSION and the cache line name the tag's version, the rest of sw.js stays")
+check(get3("CHANGELOG.md").count("## [") == 1 and get3("static/whatsnew.json") == WN, "#7180: CHANGELOG and whatsnew.json stay as they are")
+sw1 = get3("static/sw.js")
+check(st.main(["2.1454.0", "--root", T3, "--nur-version"]) == 0 and get3("static/sw.js") == sw1, "#7180: a second run (an update to the same tag) changes nothing")
+check(st.main(["2.1452.0", "--root", T3, "--nur-version"]) == 2 and get3("VERSION") == "2.1454.0\n" and get3("static/sw.js") == sw1,
+      "#7180: an older version (a lower cache number) is refused, nothing written")
+check(st.main(["2.1455.0", "--root", T3, "--nur-version", "--changelog-only"]) == 2 and get3("VERSION") == "2.1454.0\n", "#7180: --nur-version and --changelog-only exclude each other")
+shutil.rmtree(T3, ignore_errors=True)
 
 # the workflows: release.yml stamps the tagged tree before the image and checks tag = stamped VERSION
 with open(os.path.join(R, ".github", "workflows", "release.yml"), encoding="utf-8") as f:
