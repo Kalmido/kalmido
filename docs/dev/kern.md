@@ -1602,6 +1602,16 @@ calm jump. A new area does not keep scroll positions itself:
   box back unchanged; the new sheet replaces it once. Bars above a part that comes or goes with the tab carry a `data-k`, so
   the morph keeps them (time.js `tv-period`). A box that an area fills after the render keeps its content through a
   redraw only with `data-fl-fill` (render.js `morphKids`).
+- An office area that fetches again what it shows (after a write, an undo, a conflict, another filter / period / year;
+  #7495): `ofcRefetch(key, has, get, drop)` (static/js/office.js) instead of setting its data to null. The data stay on
+  screen and usable (a dialog built from them keeps its choices, #7064), `.ofcbody` is dimmed and `aria-busy` until the
+  answer is there, an older answer never overwrites a newer one, a failure keeps the rows and puts the reason with "Try
+  again" above them (`ofcHeldErr`); `has` false (another tab, nothing loaded yet) = `drop()` and the area loads as on its
+  first view with the loading block. `get` resolves to a function that puts the answer in place. The 4 s hold of the old
+  page and the replay of a tap on it (OFCP.stale / OFCP.replay) are gone. Users: subscriptions, contracts, cash flow,
+  letters & contracts, entertainment, travel, logbook, cash book, cards, bank, without receipt, pipeline, ledger, books
+  and the shared lists (`ofcReload(kind)`); the quotations / invoices list holds its rows with `tabh_arm('ofd')` on a
+  filter change too.
 - `tools/check_scrolljump.py` (CI lint) is red for a NEW `scrollIntoView` / `scrollTo` / `scrollBy` / `scrollTop =` /
   `focus()` without `preventScroll` outside a dialog; a jump the person asked for carries `// sprung-ok: <reason>`. The
   places from before are the baseline `tools/scrolljump_baseline.json` (only shrinks, `--update`).
