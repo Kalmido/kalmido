@@ -134,6 +134,7 @@ function mrHtml(c, s, ro) {
   const may = s.state === 'open' && !ro && (c.may_decide ?? S.tl.approver);  // 2.190.0 C (#2561)
   return `<div class="sug mr ${esc(s.state || 'open')}"><div class="sugh">${ic('pr', 's')}<b>${tr('Ready to merge')}</b>${st ? `<span class="muted">· ${s.state === 'approved' ? thumbIc(true) : thumbIc(false)} ${st}</span>` : ''}</div>
     <div class="gitl">${prRow(p)}</div>${s.summary ? `<div class="mrsum">${esc(s.summary).replace(/\n/g, '<br>')}</div>` : ''}
+    ${s.details ? `<details class="mrdet"><summary>${tr('Details')} <span class="muted">${esc(trn('{0} line', '{0} lines', s.details.split('\n').length))}</span></summary><pre tabindex="0">${esc(s.details)}</pre></details>` : '' /* #7561: SQL, a log ... folded, fixed width, its lines kept */}
     ${may ? `<div class="sugb"><button class="btn sm pri" data-act="mr-ok" data-cid="${c.id}">${thumbIc(true)} ${tr('Approve')}</button><button class="btn sm" data-act="mr-no" data-cid="${c.id}">${thumbIc(false)} ${tr('Reject')}</button><span class="muted">${tr('The agent merges only after your approval')}</span></div>` : ''}</div>`;
 }
 // 2.26.0 (#949): an agent's "ready to integrate" / "ready to deploy" request without a pull request: what goes where, the

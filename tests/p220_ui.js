@@ -4,7 +4,7 @@
 //      rows with status + token set, the add form; connect a Gitea repository from the form; a member: no form); the history
 //      line "Completed by the commit … in …" with Undo; German texts; phone
 // #339 an agent's merge request: "Ready to merge" with the pull request, Approve / Reject for approvers only, Approve
-//      approves; SW v63
+//      approves; SW v63; #7561: its details (200 lines of SQL) folded, as plain text with every line kept
 const {execFileSync} = require('child_process');
 const fs = require('fs'), path = require('path');
 const {boot, errs, B, login, idle} = require('./boot');
@@ -99,7 +99,9 @@ const taskOf = async (id, ck = CK) => (await call('GET', '/api/state', null, ck)
 
   // ================= #339: merge request + agent working on it
   const url = `${GH}/acme/app/pull/11`;
-  const mr = await v1(ag.token, 'POST', `/tasks/${T9}/comments`, {body: 'Ready to merge', suggestion: {kind: 'merge_request', pr_url: url, summary: 'Adds the CSV export'}});
+  // #7561: details = 200 lines of SQL, shown folded in a fixed-width font with their line breaks
+  const SQL = Array.from({length: 200}, (_, i) => `  ALTER TABLE t${i} ADD c${i} INT; -- <b>x</b>`).join('\n');  // under the 10000 characters of a comment
+  const mr = await v1(ag.token, 'POST', `/tasks/${T9}/comments`, {body: 'Ready to merge', suggestion: {kind: 'merge_request', pr_url: url, summary: 'Adds the CSV export', details: SQL}});
   check(mr.status === 201 || mr.status === 200, 'merge request posted: ' + mr.status);
   await v1(ag.token, 'PUT', '/agent/status', {status: 'working', text: 'Writing tests', task_id: T9});
   w = await boot({user: 'bob', hash: 't/' + T9}); d = w.document; await idle(w);
@@ -107,6 +109,10 @@ const taskOf = async (id, ck = CK) => (await call('GET', '/api/state', null, ck)
   check(box && /Ready to merge/.test(box.textContent) && /CSV export/.test(box.textContent) && /Adds the CSV export/.test(box.textContent) && box.querySelector('.ci-success'),
     'bob sees the merge request with the PR and CI');
   check(box && !box.querySelector('[data-act="mr-ok"]'), 'bob (member) gets no Approve button');
+  const det = box && box.querySelector('details.mrdet'), pre = det && det.querySelector('pre');
+  check(det && !det.open && /Details/.test(det.querySelector('summary').textContent) && /200 lines/.test(det.querySelector('summary').textContent), '#7561: the details are folded, named with their 200 lines');
+  check(pre && pre.textContent === SQL && !pre.querySelector('b'), '#7561: the SQL as plain text, every line and its indent kept');
+  check(!/ALTER TABLE/.test(box.querySelector('.mrsum')?.textContent || ''), '#7561: the summary stays short, the SQL is only in the details');
   check(await until(() => /Claude is working on it/.test(d.querySelector('#d-code')?.textContent || '')), '"Claude is working on it" in the Code section');
   w.close();
   w = await boot({user: 'alice', hash: 't/' + T9}); d = w.document; await idle(w);

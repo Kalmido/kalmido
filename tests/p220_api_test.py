@@ -406,8 +406,22 @@ r = ag.post(f"/tasks/{T9}/comments", json={"body": "x", "suggestion": {"kind": "
 check(r.status_code == 400, "unknown field refused")
 r = A.post(B + f"/api/tasks/{T9}/comments", json={"body": "me too", "suggestion": {"kind": "merge_request", "pr_url": url}})
 check(r.status_code == 403, "people cannot post merge requests")
+# #7561: a summary over 2000 characters is refused with a clear message (it was cut silently); details carries long plain text
+r = ag.post(f"/tasks/{T9}/comments", json={"body": "x", "suggestion": {"kind": "merge_request", "pr_url": url, "summary": "s" * 2001}})
+check(r.status_code == 400 and "too long" in r.text and "2000" in r.text, f"#7561: summary of 2001 characters: 400 ({r.status_code} {r.text[:160]})")
+check(ag.post(f"/tasks/{T9}/comments", json={"body": "x", "suggestion": {"kind": "merge_request", "pr_url": url, "details": "d" * 10001}}).status_code == 400,
+      "#7561: details over the comment limit: 400")
+check(ag.post(f"/tasks/{T9}/comments", json={"body": "x", "suggestion": {"kind": "merge_request", "pr_url": url, "details": ["SELECT 1"]}}).status_code == 400,
+      "#7561: details must be text")
+check(ag.post(f"/tasks/{T9}/comments", json={"body": "x", "suggestion": {"kind": "merge_request", "pr_url": url, "details": "x", "sql": "y"}}).status_code == 400,
+      "#7561: an unknown field next to details stays an error")
+SQL = "\n".join(f"  ALTER TABLE t{i} ADD c{i} BIGINT;" for i in range(200))  # 200 lines, under the 10000 characters of a comment
+r = ag.post(f"/tasks/{T9}/comments", json={"body": f"Ready to merge: {url}", "suggestion": {"kind": "merge_request", "pr_url": url, "summary": "s" * 2000, "details": SQL}})
+sg = (r.json().get("suggestion") or {}) if r.ok else {}
+check(r.ok and sg.get("details") == SQL and len(sg.get("summary", "")) == 2000, f"#7561: 2000 characters of summary and 200 lines of SQL kept as they are ({r.status_code} {r.text[:160]})")
 r = ag.post(f"/tasks/{T9}/comments", json={"body": f"Ready to merge: {url}", "suggestion": {"kind": "merge_request", "pr_url": url, "summary": "Adds CSV export"}})
 check(r.status_code == 201 or r.ok, f"agent posts a merge request: {r.status_code} {r.text[:200]}")
+check("details" not in (r.json().get("suggestion") or {}), "#7561: without details no empty field")
 CM = r.json().get("id")
 sug = r.json().get("suggestion") or {}
 check(sug.get("kind") == "merge_request" and sug.get("state") == "open" and sug.get("number") == 11 and sug.get("repo") == "acme/app", f"stored: {sug}")
