@@ -28,7 +28,8 @@ def by_drop(c, tid, kind, log=None):
     if not c.execute(f"SELECT 1 FROM tasks WHERE id=? AND {qi(at, BY_COLS)} IS NOT NULL", (tid,)).fetchone():
         return False
     cols = (by, at, sig) if sig else (by, at)
-    c.execute(f"UPDATE tasks SET {', '.join(qi(x, BY_COLS) + '=?' for x in cols)} WHERE id=?", (*([None] * len(cols)), tid))
+    # reader F8 (job/6017): as giving it, taking it off moves updated_at, so an API client syncing with updated_since sees it
+    c.execute(f"UPDATE tasks SET {', '.join(qi(x, BY_COLS) + '=?' for x in cols)}, updated_at=? WHERE id=?", (*([None] * len(cols)), iso(now_utc()), tid))
     if log:
         log_act(c, tid, log, {})
     return True

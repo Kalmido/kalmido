@@ -14,7 +14,7 @@ const MW_GROUPS = [['job', N_('Jobs')], ['approval', N_('Approvals')], ['questio
   ['blocked', N_('Blocked')], ['irreversible', N_('One-way steps without a yes')], ['parked', N_('Parked')],
   ['watch', N_('Stalled jobs and stranded branches')]];  // (#3365): parked; (#3366): the watchdog's findings; (#7538): confirm (#7528)
 S.mw = {items: null, counts: {}, total: 0, at: 0, sel: null, done: false, /** @type {Record<string, any>} */ tk: {}, /** @type {Record<string, any>} */ ch: {},
-  busy: false, mine: 0, /** @type {any} */ gone: null};  // reader F1 (job/6017): a decision running, my own decision's time, an entry decided elsewhere
+  busy: false, /** @type {any} */ mine: null, /** @type {any} */ gone: null};  // reader F1 / F7 (job/6017): a decision running, the entry of my own decision {k, at}, an entry decided elsewhere
 const mwKey = x => x.kind + ':' + x.id;
 // the entries in the order the view shows them (by group, within a group as the server sends them: confirm by sender)
 const mwFlat = (items = S.mw.items) => MW_GROUPS.flatMap(([k]) => (items || []).filter(x => x.kind === k));
@@ -29,19 +29,25 @@ function mwFollow(old, items) {
   if (keys.has(S.mw.sel)) return;
   const i = old.findIndex(x => mwKey(x) === S.mw.sel), after = old.slice(i + 1).find(x => keys.has(mwKey(x)));
   const nx = after || mwFlat(items)[0];
-  if (i >= 0 && !(Date.now() - S.mw.mine < 60000)) { S.mw.gone = {x: old[i], next: nx ? mwKey(nx) : null}; return; }
-  S.mw.mine = 0;
+  const own = S.mw.mine && S.mw.mine.k === S.mw.sel && Date.now() - S.mw.mine.at < 60000;  // reader F7: only the entry I decided
+  if (i >= 0 && !own) { S.mw.gone = {x: old[i], next: nx ? mwKey(nx) : null}; return; }
+  S.mw.mine = null;
   S.mw.sel = nx ? mwKey(nx) : null;
   S.mw.done = !nx;
 }
 // the open entry: one of the list, or the one decided elsewhere that is still shown
 const mwCur = () => mwSelItem() || (S.mw.gone && S.mw.sel === mwKey(S.mw.gone.x) ? S.mw.gone.x : null);
-// one decision at a time (a held or doubled key, a second click): the next starts only after the answer
-async function mwDecide(/** @type {() => any} */ fn) {
+// one decision at a time (a held or doubled key, a second click): the next starts only after the answer. The entry is noted
+// as mine while it runs (the reload of the decision follows it to the next one); a failed or cancelled one (fn gives no true)
+// takes the note back at once (reader F7, job/6017): an entry decided elsewhere afterwards stays marked
+async function mwDecide(/** @type {any} */ x, /** @type {() => any} */ fn) {
   if (S.mw.busy) return;
-  S.mw.busy = true; S.mw.mine = Date.now();
-  try { await fn(); } finally { S.mw.busy = false; }
+  S.mw.busy = true; S.mw.mine = {k: mwKey(x), at: Date.now()};
+  let ok = false;
+  try { ok = !!(await fn()); } finally { S.mw.busy = false; if (!ok) { S.mw.mine = null; mwRedraw(); } }  // not done: the entry's buttons again
 }
+// a job's Approve / Reject (agents.js jobDo: it reloads this list itself); done = the job left the list
+async function mwJob(x, a) { await jobDo(x.id, a); return !(S.mw.items || []).some(y => mwKey(y) === mwKey(x)); }
 async function mwLoad(force = false) {
   if (!force && Date.now() - S.mw.at < 60000) return;
   S.mw.at = Date.now();
@@ -117,14 +123,15 @@ const mwLocked = t => !t || le2eIs(t.title) || le2eIs(t.content);
 // the two answers a key may give: {yes, no} or null (never a one-way yes, never one that needs a text)
 function mwKeys(x) {
   if (!mwSelItem() || mwKey(x) !== S.mw.sel) return null;  // decided elsewhere: no answer any more
-  if (x.kind === 'job' && !x.proposal) return {yes: () => jobDo(x.id, 'approve'), no: () => jobDo(x.id, 'reject')};
+  if (x.kind === 'job' && !x.proposal) return {yes: () => mwJob(x, 'approve'), no: () => mwJob(x, 'reject')};
   if (x.kind === 'approval' && x.source === 'comment' && mwYesNo(S.mw.ch[x.id])) return {yes: () => mwAnswer(x.id, 'yes'), no: () => mwAnswer(x.id, 'no')};
   if (x.kind === 'review' && taskById(x.task_id)) return {yes: () => mwReview(x.task_id, 'approve'), no: () => mwReview(x.task_id, 'changes')};
   return null;
 }
 function mwActs(x) {
   const b = (a, h, pri = false) => `<button type="button" class="btn${pri ? ' pri' : ''}" data-mw="${/*html-ok*/ a /* a fixed action name of this file */}" data-k="${esc(mwKey(x))}">${/*html-ok*/ h /* the callers pass esc() / icons */}</button>`;
-  if (x.kind === 'job') return waitJobBtns({id: x.id, kind: x.proposal});
+  if (x.kind === 'job') return x.proposal ? waitJobBtns({id: x.id, kind: x.proposal})  // a proposal opens its own dialog
+    : b('jb-yes', `${thumbIc(true)} ${esc(tr('Approve'))}`, true) + b('jb-no', `${thumbIc(false)} ${esc(tr('Reject'))}`);  // jobDo through mwDecide (F7)
   if (x.kind === 'approval' && x.source === 'comment') {
     const ch = S.mw.ch[x.id];
     if (ch === undefined) mwChoice(x.id);
@@ -159,7 +166,7 @@ function mwPanel(x) {
   return `<section class="mwp" aria-label="${esc(mwTitle(x))}" data-k="${esc(mwKey(x))}">
     <div class="mwph muted">${esc(tr(grp ? grp[1] : ''))}${gone ? '' : ` · ${esc(tr('{0} of {1}', i + 1, all.length))}`}</div>
     <h2 class="mwpt">${esc(mwTitle(x))}</h2><div class="muted mwps">${esc(mwSub(x))}</div>${/*html-ok*/ why /* esc() above */}${/*html-ok*/ text /* esc() above */}
-    <div class="mwpb">${/*html-ok*/ gone ? `<p class="muted mwdone" role="status">${esc(tr('Already decided elsewhere'))}</p>` : mwActs(x) /* escaped inside */}</div>${keys ? `<div class="mwpk muted">${esc(tr('Keys: y yes, n no, j next, k back'))}</div>` : ''}
+    <div class="mwpb">${/*html-ok*/ gone ? `<p class="muted mwdone" role="status">${esc(tr('Already decided elsewhere'))}</p>` : mwActs(x) /* escaped inside */}</div>${keys && !isTouch() ? `<div class="mwpk muted">${esc(tr('Keys: y yes, n no, j next, k back'))}</div>` : ''}
     <div class="mwpg">${/*html-ok*/ go /* esc() above */}</div>${/*html-ok*/ nav /* esc() above */}</section>`;
 }
 function mwGo(d) {
@@ -175,30 +182,35 @@ function mwGo(d) {
 }
 // after a decision: the list again from the server; the entry left it, so mwFollow opens the next one
 async function mwSettled() { S.mw.at = 0; await mwLoad(true); mwRedraw(); }
+// each decision gives true once the server took it (mwDecide)
 async function mwAnswer(cid, id) {
-  try { await api('POST', `/api/comments/${cid}/choice`, {choice_ids: [id]}); } catch { delete S.mw.ch[cid]; mwRedraw(); return; }
-  delete S.mw.ch[cid]; await mwSettled();
+  try { await api('POST', `/api/comments/${cid}/choice`, {choice_ids: [id]}); } catch { delete S.mw.ch[cid]; mwRedraw(); return false; }
+  delete S.mw.ch[cid]; await mwSettled(); return true;
 }
-async function mwReview(tid, act) { await rvw_do(tid, act); await mwSettled(); }
+async function mwReview(tid, act) {
+  const st = taskById(tid)?.review; await rvw_do(tid, act);
+  const done = taskById(tid)?.review !== st; await mwSettled(); return done;  // rvw_do says nothing back: done = the state moved
+}
 async function mwOneway(tid) {
-  try { await api('POST', `/api/tasks/${tid}/irreversible-yes`); } catch { return; }
-  await mwSettled();
+  try { await api('POST', `/api/tasks/${tid}/irreversible-yes`); } catch { return false; }
+  await mwSettled(); return true;
 }
 // (#7528): the yes goes to the title and description shown in the entry (in the server's form); changed since: 409, the
 // entry fetches the task again and shows the new text
 async function mwConfirm(tid) {
   const t = S.mw.tk[tid]; if (!t || mwLocked(t)) return;
   try { await api('POST', `/api/tasks/${tid}/confirm`, {title: t.title ?? '', content: t.content ?? null}); }
-  catch { delete S.mw.tk[tid]; mwRedraw(); return; }
-  delete S.mw.tk[tid]; toast(tr('Confirmed as an order')); await mwSettled();
+  catch { delete S.mw.tk[tid]; mwRedraw(); return false; }
+  delete S.mw.tk[tid]; toast(tr('Confirmed as an order')); await mwSettled(); return true;
 }
 async function mwReject(tid) {
-  const v = await cf_reason(S.mw.tk[tid] || taskById(tid)); if (v === null) return;  // oneway.js: a reason, none in a list with the lock
-  try { await api('POST', `/api/tasks/${tid}/reject`, v ? {reason: v} : {}); } catch { return; }
-  delete S.mw.tk[tid]; toast(tr('Rejected: closed as won’t do')); await mwSettled();
+  const v = await cf_reason(S.mw.tk[tid] || taskById(tid)); if (v === null) return false;  // oneway.js: a reason, none in a list with the lock
+  try { await api('POST', `/api/tasks/${tid}/reject`, v ? {reason: v} : {}); } catch { return false; }
+  delete S.mw.tk[tid]; toast(tr('Rejected: closed as won’t do')); await mwSettled(); return true;
 }
 document.addEventListener('click', e => {
-  if (/** @type {any} */ (e.target).closest?.('.mwp [data-act="job-do"], .mwp [data-act="prop-open"]')) S.mw.mine = Date.now();  // my decision on a job: the next entry follows
+  const po = /** @type {any} */ (e.target).closest?.('.mwp [data-act="prop-open"]');  // a proposal is decided in its own dialog: that entry is mine
+  if (po) S.mw.mine = {k: po.closest('.mwp')?.dataset.k || '', at: Date.now()};
   const b = /** @type {any} */ (e.target).closest?.('[data-mw]'); if (!b || !b.closest('.mwv')) return;
   const a = b.dataset.mw, x = b.dataset.k ? mwFlat().find(y => mwKey(y) === b.dataset.k) : mwSelItem();
   if (a === 'open') { S.mw.sel = b.dataset.k; S.mw.done = false; S.mw.gone = null; mwRedraw(); return; }
@@ -206,7 +218,7 @@ document.addEventListener('click', e => {
   if (a === 'next' || a === 'prev') { mwGo(a === 'next' ? 1 : -1); return; }
   if (!x || b.disabled || S.mw.busy) return;
   b.disabled = true;
-  mwDecide({'ap-yes': () => mwAnswer(x.id, 'yes'), 'ap-no': () => mwAnswer(x.id, 'no'), 'rv-yes': () => mwReview(x.task_id, 'approve'),
+  mwDecide(x, {'jb-yes': () => mwJob(x, 'approve'), 'jb-no': () => mwJob(x, 'reject'), 'ap-yes': () => mwAnswer(x.id, 'yes'), 'ap-no': () => mwAnswer(x.id, 'no'), 'rv-yes': () => mwReview(x.task_id, 'approve'),
     'rv-no': () => mwReview(x.task_id, 'changes'), 'ow-yes': () => mwOneway(x.task_id), 'cf-yes': () => mwConfirm(x.task_id),
     'cf-no': () => mwReject(x.task_id)}[a] || (() => {}));
 });
@@ -220,7 +232,7 @@ domReady(() => {
     if (!here()) return false;
     if (e.repeat || S.mw.busy) return true;
     const k = mwKeys(/** @type {any} */ (mwCur())); if (!k) return !mwSelItem();  // decided elsewhere: the key is taken, nothing happens
-    mwDecide(k[w]); return true;
+    mwDecide(mwCur(), k[w]); return true;
   };
   kb_on('view:tasks', 'y', ans('yes'), {help: N_('Waiting for me: yes (only where an entry has exactly yes and no)'), group: 'Waiting for me'});
   kb_on('view:tasks', 'n', ans('no'), {help: N_('Waiting for me: no (only where an entry has exactly yes and no)'), group: 'Waiting for me'});
