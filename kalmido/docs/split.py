@@ -585,7 +585,8 @@ def _sp_do(c, uid, nid, m, n, v, parts, data, auto=False):
     ids, have_code = [], False
     # review 2.580 C (finding 3): the parts keep the stack's area (office / private); a stack of the general input (own
     # space, docs/area.py) -> its parts are sorted again after their own recognition (ar_sort_queued)
-    area, sort = m["area"] or "", "pending" if m["area_sort"] in ("pending", "sorting", "auto") and not n["org_id"] else ""
+    area, sort = m["area"] or "", "pending" if m["area_sort"] in ("pending", "sorting", "auto", "ask") and not n["org_id"] else ""
+    to = m["area_to"] or ""  # (#7325): the parts inherit the stack's target office
     with c.savepoint():
         c.execute("UPDATE doc_meta SET asn=NULL WHERE node_id=?", (nid,))  # the stack's number goes to its part (2.154.0 E: undone on a failure)
         for i, (ps, pdf) in enumerate(zip(parts, pdfs), 1):
@@ -598,7 +599,7 @@ def _sp_do(c, uid, nid, m, n, v, parts, data, auto=False):
                     obj_node_share(c, uid, {"id": pid}, key, sh[key], sh["role"], sh["expires_at"], org=n["org_id"] or None,
                                    event=False, checked=True,
                                    extra={"created_by": sh["created_by"], "created_at": sh["created_at"], "by_role": sh["by_role"]})
-            c.execute("UPDATE doc_meta SET area=?, area_sort=? WHERE node_id=?", (area, sort, pid))
+            c.execute("UPDATE doc_meta SET area=?, area_sort=?, area_to=? WHERE node_id=?", (area, sort, to, pid))
             ids.append(pid)
         S.asn_lock(c, m["ws"], nid)  # 2.363.3 (#3133): only around the numbers, after the parts are stored: a save with "next" waits
         for ps, pid in zip(parts, ids):

@@ -275,7 +275,9 @@ function rcp_tabHtml() {
 
 // ---- 2.522.0 (#4433): "New in the office" -- the documents the general input sorted into the office (or a person moved there)
 // that nobody recorded as a receipt yet (GET /api/docs?area=office&unbooked=1, docs/area.py); a row opens the document sheet
-// (record as receipt, "Wrong area"). Nothing becomes a receipt by itself.
+// (record as receipt, "Wrong area"). Nothing becomes a receipt by itself. (#7325): + the person's own recognised invoices no
+// office was clear for at the upload (area_ask, only theirs, in every office on for them): "Move to office" takes it into THIS
+// office (POST /api/docs/<id>/area in this office's request, core.js ofc_spHdr), one undo step like the document sheet.
 const RCN = {key: '', rows: null, loading: false};
 async function rcn_load(key) {
   RCN.loading = true;
@@ -290,8 +292,16 @@ function rcn_html() {
   if (RCN.err) return `<section class="rcn"><h3 class="ofcgrp">${tr('New in the office')}</h3>${/*html-ok*/ ofcFail(RCN.err, () => { RCN.err = null; RCN.rows = null; }, 'row')}</section>`;
   if (!RCN.rows.length) return '';
   return `<section class="rcn" aria-labelledby="rcn-h"><h3 class="ofcgrp" id="rcn-h">${tr('New in the office')}</h3>
-    <ul class="ofclist rcn-list" role="list">${RCN.rows.map(d => `<li class="ofcrow rcn-row"><a href="#docs/${d.id}" class="ofcn"><b>${esc(d.sender?.name || d.name)}</b><small class="muted">${esc([d.date ? fmtDateLoc(d.date) : '', d.amount ? curMoney(d.amount, d.currency) : ''].filter(Boolean).join(' · '))}</small></a></li>`).join('')}</ul></section>`;
+    <ul class="ofclist rcn-list" role="list">${RCN.rows.map(d => `<li class="ofcrow rcn-row"><a href="#docs/${d.id}" class="ofcn"><b>${esc(d.sender?.name || d.name)}</b><small class="muted">${esc([d.date ? fmtDateLoc(d.date) : '', d.amount ? curMoney(d.amount, d.currency) : ''].filter(Boolean).join(' · '))}</small></a>${d.area_ask ? `<button type="button" class="btn sm" data-rcn-take="${+d.id}">${ic('receipt', 's')} ${tr('Move to office')}</button>` : ''}</li>`).join('')}</ul></section>`;
 }
+document.addEventListener('click', async e => {
+  const b = /** @type {any} */ (e.target).closest?.('[data-rcn-take]'); if (!b) return;
+  b.disabled = true;
+  const id = +b.dataset.rcnTake, go = (to, undo) => async () => { await api('POST', `/api/docs/${id}/area`, undo ? {to, undo: true} : {to}); RCN.rows = null; ofcDraw(); return {}; };
+  try { await go('office', false)(); } catch { b.disabled = false; return; }
+  const label = tr('Moved to office');
+  histToast(label, histAdd({label, undo: go('private', true), redo: go('office', false)}));
+});
 
 // ---- 2.547.0 (#4434): the old receipts of the own documents into the office, once (docs/areamove.py): a hint with the number,
 // the preview (each row "Move" / "Stays", preset by the server: the tag Tax and every doubt stay), one click moves, one undo of

@@ -1746,6 +1746,30 @@ only, what I may add to read from `wsp_spaces`), `modcards.mc_private_office_off
 folder. Test: `tests/p21465_a_wsplace_test.py` (the matrix: organisations 0 / 1 / 1 read-only / 2 x module on / off in
 Private and in the organisation x named / not named), `tests/p21441_clientws_test.py`.
 
+### The office of an input, with and without a request (#7325)
+
+Which OFFICE a request works in is `office/model.py office_pick` (#7313): the object's own office, else the area the request
+names (header `X-Kalmido-Office-Space` / `?_osp=`, `office_named`), else the setting `workspace`, else the only office on for
+the person (`office_cands`); several = none (`0`, the office routes answer 400 `office_no_area`). `office_pick_req` is that for
+the request as it stands. Whether an office is ON and writable for the person is ONE question, `wsp_on(c, uid, "office", oid,
+write=True)` above -- no second list ("Also private", the organisation's areas, the role) next to it.
+
+An input that is sorted later (the general input of the file store: upload with sorting, share target, the person's own
+document mail address, a mailbox rule; `docs/area.py`) keeps its target ON THE DOCUMENT and decides it exactly once, when it
+comes in (`docs/ingest.py docs_ingest` writes `doc_meta.area_to` = `'private'` | `'org:<id>'` | `''`):
+- with a request (the upload, `docs/web.py`): `area.ar_to_req` = `office_pick_req`, checked with `ar_office`;
+- without a request (a mail, a mailbox rule): `area.ar_only` = only the one office that is on, NEVER the setting (what the
+  person had open then is unknown; the setting of the moment is no answer);
+- the parts of a split stack inherit it (`docs/split.py`).
+
+The queue (`ar_sort_queued`, no request) only reads `area_to` and checks it is still on and writable; it never works an office
+out. No clear office (several, none named, off by now) = the document stays visible in the person's own documents with
+`area_sort = 'ask'`, and "New in the office" of every office on for that person offers it to them alone (never to another
+member); taking it over is `POST /api/docs/<id>/area` in that office's request. Functions of `docs/area.py` get the office they
+mean as a parameter (`ar_office(c, uid, to)`, `ar_here` for a request); none asks whether it runs in a request. The one
+recogniser of an invoice is `area.ar_kind` (also the move of old receipts, `docs/areamove.py`). Test:
+`tests/p7325_a_area_to_test.py`.
+
 ## Resizing: the one grip (#7293)
 
 Everything a person can make wider, taller or bigger uses **one grip**, no drag handling of its own: a grip between two

@@ -48,7 +48,7 @@ from ..files.store import fs_chain, fs_deleted, fs_log_add, fs_new_version, fs_r
 from ..office.periodlock import pl_receipt_need_open
 from . import store as S
 from . import pdfopt as P
-from .area import ar_guess, ar_is_receipt
+from .area import ar_invoice, ar_is_receipt
 from .ingest import doc_on_done, docs_kick
 from .ocr import ocr_langs
 from .web import _doc
@@ -121,8 +121,8 @@ def po_put(c, nid, v, old=None):
 
 def po_office(c, m, guess=False):
     """An office document or a receipt (GoBD: never changed without a person, docs/area.py). guess (review F1, the automatic
-    run): also a document the recognition takes for an invoice / receipt (ar_guess) that is not sorted into the office yet."""
-    return m["area"] == "office" or ar_is_receipt(c, m["node_id"]) or (guess and ar_guess(c, m["node_id"]) == "office")
+    run): also a document the recognition takes for an invoice / receipt (ar_invoice) that is not sorted into the office yet."""
+    return m["area"] == "office" or ar_is_receipt(c, m["node_id"]) or (guess and ar_invoice(c, m["node_id"], sure=False))
 
 
 def po_orig(v, n):
