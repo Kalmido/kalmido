@@ -1262,14 +1262,14 @@ async function chatSend() {
   const btn = ta.closest('.chcomp')?.querySelector('[data-act="chat-send"]') || $('[data-act="chat-send"]'); if (btn) btn.disabled = true;  // 2.47.1 (#1720): this window's button
   const st = S.chat; let sent = false; st.sending = true;  // 2.47.1 (#1720): another window may become live during the POST
   // 2.62.0 (#1530): a text without files shows at once as "Sending…" and the box empties; client_id makes a repeat harmless
-  const ck = 'a:' + aid, quick = !files.length, raw = ta.value, p = quick ? csdAdd(ck, body, st.msgs) : {cid: csdCid()};
+  const ck = 'a:' + aid, quick = !files.length, raw = ta.value, p = quick ? csdAdd(ck, body, st.msgs) : csdId(ck, body, files);  // (#6332): the id of a failed try again
   // 2.521.0 (#4393): a reply to an older message while scrolled up keeps the view where it is ("Sent" + "New message ↓")
   const up = chatReplyUp(rto, $('#chat-msgs'), chatNear);
   if (files.length) payload.append('client_id', p.cid); else payload.client_id = p.cid;
   if (quick) { ta.value = ''; delete S.drafts['chat:' + aid]; autosize(ta); if (up) S.chat.pin = false; chatDraw(up ? {} : {bottom: true}); }
   if (files.length) toast(files.length === 1 ? tr('Uploading…') : tr('Uploading {0} files…', files.length));
   try { const m = await rawFetch('POST', `/api/agents/${aid}/chat`, payload); if (!st.msgs.some(x => x.id === m.id)) st.msgs.push(m); if (!quick) { ta.value = ''; delete S.drafts['chat:' + aid]; } delete S.chatFiles[aid]; replySent('a:' + aid); const fb = $('#chat-files'); if (fb) fb.innerHTML = ''; sent = true; }
-  catch (e) { if (quick) csdBack($('#chat-in'), raw.trim(), 'chat:' + aid); toast(e instanceof Offline ? tr('You are offline: the message was not sent and stays in the box') : errText(e, tr('The message could not be sent'))); }  // 2.1211.0 (#6098)
+  catch (e) { csdKeep(ck, p); if (quick) csdBack($('#chat-in'), raw.trim(), 'chat:' + aid); toast(e instanceof Offline ? tr('You are offline: the message was not sent and stays in the box') : errText(e, tr('The message could not be sent'))); }  // 2.1211.0 (#6098)
   finally { csdDone(ck, p); st.sending = false; if (btn) btn.disabled = false; }
   if (up) S.chat.pin = false;
   chatDraw({bottom: sent && !up});

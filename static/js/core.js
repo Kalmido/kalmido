@@ -763,7 +763,7 @@ async function rawFetch0(method, url, body, key, osp, oq) {
   if (r.type !== 'opaqueredirect' && ctype.includes('text/html') && r.status >= 400 && r.status !== 401 && r.status !== 403) { const e = new Error(httpErrText(r.status)); e.status = r.status; e.data = {}; throw e; }
   // 2.359.0 A (#3024): the session ended in the middle of a write: the write and typed text not saved yet go into the queue
   // first (sent after the next sign-in of the same account; another account is asked first), then the page reloads
-  const keepW = () => { if (key === undefined && method !== 'GET' && queueable(method, url) && !(body instanceof FormData)) outStash([{method, url, body: outPrev(method, url, body), uid: S.me?.id, k: outKey()}]); if (typeof savesStash === 'function') savesStash(false); };
+  const keepW = () => { if (!oq && method !== 'GET' && queueable(method, url) && !(body instanceof FormData)) outStash([{method, url, body: outPrev(method, url, body), uid: S.me?.id, k: key || outKey()}]);  // (#6332): not an outbox entry (oq), with the key the write was sent with if (typeof savesStash === 'function') savesStash(false); };
   if (r.type === 'opaqueredirect' || ctype.includes('text/html')) {
     if (r.type === 'opaqueredirect' || r.status === 401 || r.status === 403) { keepW(); await authGone(); }  // 2.306.0 B (#2889); N25: not for any other page (captive portal, proxy error): only reload
     location.reload();  // login session expired -> login page
@@ -842,8 +842,9 @@ function apiWhat(method, url, body) {
   if (method === 'DELETE' && /^\/api\/addr-shares\/\d+$/.test(u)) return tr('The invitation was not removed');
   return '';
 }
-/** @param {string} method @param {string} url @param {any} [body] @param {{quiet?: boolean}} [o] @returns {Promise<any>} */  // (#1995)
+/** @param {string} method @param {string} url @param {any} [body] @param {{quiet?: boolean, key?: string}} [o] @returns {Promise<any>} */  // (#1995)
 // (#6372) o.quiet: a view that shows its own error block (errorState) for this load - no second message as a toast
+// (#6332) o.key: the caller's own idempotency key for a write it may send again (an upload: attachments.js)
 async function api(method, url, body, o) {
   const lk = tlkGuard(method, url, body); if (lk) throw lk;  // 2.36.0 (#1118)
   // 2.64.1 (#1817): encrypted before the outbox (it holds ciphers only); a Promise only when there is something to encrypt, so
@@ -873,11 +874,15 @@ async function api(method, url, body, o) {
     if (OUT.online && S.sel && url === '/api/tasks/' + S.sel) savedPing(); return r;
   }
   const ox = oxbPrev(method, url, body); body = ox.body;  // 2.528.0 B (#4305)
-  try { let j = await rawFetch(method, url, body, oxaKey(body)); if (ox.on && j?.conflicts?.length && typeof le2eRekeyConflicts === 'function') j = await le2eRekeyConflicts(url, body, j, b2 => rawFetch(method, url, b2));  // 2.543.0 (#4632): a key change is no conflict
+  // (#6332): every write has its idempotency key before the first send and keeps it: an answer lost after the server did the
+  // work (a dead spot, a proxy 502) is queued under the SAME key, so its repeat gets the first answer instead of running twice
+  // (duplicate a task = one copy); o.key = the caller's own key for a write it may send again (an upload: attachments.js)
+  const ik = method !== 'GET' ? o?.key || oxaKey(body) || outKey() : undefined;
+  try { let j = await rawFetch(method, url, body, ik); if (ox.on && j?.conflicts?.length && typeof le2eRekeyConflicts === 'function') j = await le2eRekeyConflicts(url, body, j, b2 => rawFetch(method, url, b2));  // 2.543.0 (#4632): a key change is no conflict
     if (ox.on && j?.conflicts?.length) addConflicts(j.id || +url.split('/').pop(), j.conflicts, j.title); if (method !== 'GET' && S.sel && new RegExp(`^/api/tasks/${S.sel}(/|$)`).test(url)) savedPing(); return method === 'GET' ? mvResp(url, j) : j; }  // 2.436.0 (#3620)
   catch (e) {
     if (e instanceof Offline) {
-      if (queueable(method, url) && !(body instanceof FormData)) return enqueue(method, url, body);
+      if (queueable(method, url) && !(body instanceof FormData)) return enqueue(method, url, body, ik);  // (#6332): the same key
       if (method !== 'GET') { toast(tr('Only available online.')); e.shown = true; }  // (#5451)
     } else if (o?.quiet) e.shown = true;  // (#6372): the caller's error block says it
     else if (e.message !== 'auth' && !e.shown) {
@@ -1132,7 +1137,7 @@ function outAnswer(e, j) {
   if (!OUT.q.some(x => x.url === e.url)) putTask(j);
   return true;
 }
-function enqueue(method, url, body) {
+function enqueue(method, url, body, k) {  // k (#6332): the key an online try of this write was already sent with
   body = outPrev(method, url, body);
   const pm = method === 'PATCH' && url.match(/^\/api\/tasks\/(-?\d+)$/);
   // 2.13.0 (#453): typed text waiting in the outbox is coalesced: a newer title / description of the same task replaces
@@ -1145,7 +1150,7 @@ function enqueue(method, url, body) {
   // 2.363.3 (#3133): a whole new order of "My tasks" replaces the one still waiting, whose _prev stays the base the server confirmed
   const mo = method === 'PUT' && url === '/api/tasks/mine-order' && outSync().find((x, i) => (i > 0 || !OUT.flushing) && !x.sending && !x.done && x.url === url);
   if (mo) { outSave(() => { mo.body = {...mo.body, ids: body.ids}; }); return {ok: true}; }
-  const e = {method, url, body, uid: S.me?.id, k: oxaKey(body) || outKey()};  // 2.528.0 (#4305 B1): the key the press chose
+  const e = {method, url, body, uid: S.me?.id, k: k || oxaKey(body) || outKey()};  // 2.528.0 (#4305 B1): the key the press chose
   const osp = ofc_spHdr(url); if (osp) e.osp = osp;  // 2.577.0 (#4638): a change sent later lands in the office it was made in
   if (HIST.own > 0) e.own = 1; if (HIST.gtok) e.gtok = HIST.gtok;  // 2.1358.0 (#6328 C5, C8): its undo headers go with it (rawFetch0 oq)
   if (method === 'POST' && (url === '/api/tasks' || /^\/api\/lists\/\d+\/notes$/.test(url))) e.tmp = -Date.now() - Math.floor(Math.random() * 1000);  // 2.143.0 C (#2153): + a note

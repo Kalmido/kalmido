@@ -266,7 +266,7 @@ async function tcSend() {
   const lim = upLimit(files); if (lim) { toast(lim); return; }  // 2.363.3 (#3134): the text stays in the box
   chatSentOnce();
   const hadF = document.activeElement === ta, ck = 't:' + rid; if (csdBusy(ck)) return;  // 2.62.0 (#1530): one send at a time
-  const p = csdAdd(ck, text, S.tc.msgs), sb = () => $('[data-act="tc-send"]');  // shown as "Sending…", the box empties at once
+  const p = csdAdd(ck, text, S.tc.msgs, files), sb = () => $('[data-act="tc-send"]');  // shown as "Sending…", the box empties at once
   const rto = replyTo('t:' + rid), up = chatReplyUp(rto, $('#tc-msgs'), tcNear);  // 2.33.0 (#1076); 2.521.0 (#4393): a reply while scrolled up stays there
   ta.value = ''; delete S.drafts['team:' + rid]; autosize(ta); if (sb()) sb().disabled = true; tcPatch(!up);
   if (!S.tc.room) { try { await loadRoom(rid); } catch { /* sent without the mention lookup */ } }  // 2.24.0: @names need the members
@@ -281,7 +281,7 @@ async function tcSend() {
     if (enc) { m.body = lk ? ltext : text; m._dec = true; E2E.dec[m.id + ':'] = m.body; }
   }
   catch (e) {  // 2.62.0 (#1530): the text goes back into the box
-    csdDone(ck, p); csdBack($('#tc-in'), text, 'team:' + rid); if (sb()) sb().disabled = false; tcPatch();
+    csdDone(ck, p); csdKeep(ck, p); csdBack($('#tc-in'), text, 'team:' + rid); if (sb()) sb().disabled = false; tcPatch();  // (#6332): the id stays
     if (e) toast(e instanceof Offline ? tr('You are offline: the message was not sent and stays in the box') : errText(e, tr('The message could not be sent'))); return;  // 2.1211.0 (#6098): errText
   }
   csdDone(ck, p); if (sb()) sb().disabled = false; replySent('t:' + rid);
@@ -618,7 +618,7 @@ async function tth_send() {
     m = await (lk ? le2eChanPost(S.tc.room, ltext) : rawFetch)('POST', `/api/team/rooms/${rid}/messages`, {...(enc ? {enc} : {body: tcMentions(text)}), ...(lk ? {mentions: le2eChanMentions(ltext)} : {}), ...(rto ? {reply_to: rto} : {}), thread_of: th.id, client_id: p.cid});
     if (enc) { m.body = lk ? ltext : text; m._dec = true; E2E.dec[m.id + ':'] = m.body; }
   } catch (e) {
-    csdDone(ck, p); csdBack($('#tth-in'), text, 'tth:' + th.id); tth_patch();
+    csdDone(ck, p); csdKeep(ck, p); csdBack($('#tth-in'), text, 'tth:' + th.id); tth_patch();  // (#6332): the id stays
     if (e) toast(e instanceof Offline ? tr('You are offline: the message was not sent and stays in the box') : errText(e, tr('The message could not be sent'))); return;  // 2.1211.0 (#6098): errText
   }
   csdDone(ck, p); replySent(ck);

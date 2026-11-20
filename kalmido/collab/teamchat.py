@@ -735,7 +735,7 @@ def tchat_post(rid):
     except BadInput as e:
         return err(str(e))
     cid = csd_client_id(b)  # 2.62.0 (#1530): the same message sent again (several Enter presses) -> the stored one
-    if cid and not files:
+    if cid:  # (#6332): with files too (a lost answer of an upload: the files are not stored a second time)
         dup = csd_dup(c, "tchat_msgs", "room_id=? AND user_id=?", (rid, me()), cid, text)
         if dup:
             return jsonify(tchat_msg_dict(c, dup, tchat_rx(c, [dup["id"]]))), 200
@@ -770,25 +770,21 @@ def tchat_post(rid):
 
 
 # ---- 2.62.0 (#1530): a message the app sends carries client_id (one per message, the same on a retry). The same text of
-# the same person in the same conversation with the same client_id within CSD_WINDOW seconds is answered with the stored
-# message instead of a new one (a second Enter while the first send still ran, e.g. right after waking a laptop). Without
+# the same person in the same conversation with the same client_id is answered with the stored message instead of a new one
+# (a second Enter while the first send still ran, e.g. right after waking a laptop; #6332: also Send pressed again minutes
+# later after an answer that got lost - no time window any more, index ix6332_* of migrations.d/6332.py). Without
 # client_id (agents, older apps) nothing changes. The check runs under a lock per conversation and person, so two
 # requests arriving at the same moment cannot both pass it.
-CSD_WINDOW = 10
-
-
 def csd_client_id(b):
     v = b.get("client_id") if isinstance(b, dict) else None
     return v.strip()[:64] if isinstance(v, str) and v.strip() else None
 
 
 def csd_dup(c, table, where, args, cid, text):
-    """The row of table (where + args = the conversation and the sender) sent with client_id cid and the same text within
-    CSD_WINDOW seconds, else None. Takes the lock that the caller's insert then holds until its commit."""
-    from datetime import timedelta
+    """The row of table (where + args = the conversation and the sender) sent with client_id cid and the same text, else
+    None (#6332: at any time, was within 10 seconds). Takes the lock that the caller's insert then holds until its commit."""
     write_lock(c, f"csd:{table}:{':'.join(str(a) for a in args)}")
-    r = c.execute(f"SELECT * FROM {table} WHERE {where} AND client_id=? AND created_at>=? ORDER BY id DESC LIMIT 1",
-                  (*args, cid, iso_ms(now_utc() - timedelta(seconds=CSD_WINDOW)))).fetchone()
+    r = c.execute(f"SELECT * FROM {table} WHERE {where} AND client_id=? ORDER BY id DESC LIMIT 1", (*args, cid)).fetchone()
     return r if r and (r["body"] or "") == (text or "") else None
 
 
