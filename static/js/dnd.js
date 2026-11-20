@@ -140,34 +140,27 @@ function kph_drop() {
 }
 // one drop = one history step (a subtask made standalone and moved counts once)
 function dropTask(id, el, clientY) { return histGroup(async () => { if (await swlDrop(id, el)) return dropTask0(id, el, clientY); }); }  // 2.138.0 D (#2060): a swimlane's value first (same step)
+// (#7351): a row, a section's head, a column of a board and "New section" belong to the drop core (dragmulti.js: My tasks'
+// adapters, the project list's plWhere / plPut - one task = a selection of one); here only the places with a meaning of their
+// own: a project / Today / Tomorrow / Trash / Done in the sidebar, a calendar's day or time, a quadrant, the sprint's head
 async function dropTask0(id, el, clientY) {
   const t = S.tasks.get(id); if (!t || !el) return;
   // 2.579.0 (#4798): as this device saw it before the drop - a patchTask below changes t at once (outbox, #4568): undo, _prev, lock move
-  let before = snapTask(t), dt = null;  // dt: a subtask dragged out of its parent and what it adopted (2.1271.0, #6436)
+  const before = snapTask(t);
   const side = el.closest('.srow[data-drop]');
-  const row = el.closest('.trow');
-  const kcol = el.closest('.kcol');
   const quad = el.closest('.quad');
   const cell = el.closest('.cal .cell');
   const wcol = el.closest('.wcol'), wad = el.closest('.wad, .wh');
-  const sec = !row && el.closest('#view .ghead[data-section], #view .sdrop');
   $$('.dragging,.dropbefore,.dropafter,.drop').forEach(x => x.classList.remove('dragging', 'dropbefore', 'dropafter', 'drop'));
   document.body.classList.remove('tdrag');
   if (el.closest('#detail')) return;
-  // (#7344): the drop core (dragmulti.js dropRun; one task = a selection of one): My tasks' own order and own sections, its board (#7354),
-  // read-only tasks too (the own order is the person's); the structure it changes is checked there. Awaited: the same step.
+  // (#7344, #7351): the drop core (dragmulti.js dropRun). Awaited: the same step.
   const core = dropRun([id], el, clientY);
   if (core) { await core; return; }
-  if (!canEdit(t) && !ml_in(t, ml_viewList())) { roToast(); return; }  // (#1459): a further list's writer moves the link
-  // 2.559.0 (#4659): dropped into a section still on its way (a kanban column, a row under its header): its real id first,
-  // into the element the drop reads it from (taskToSection waits by itself)
-  { const gh = !kcol && row?.closest('.group')?.querySelector('.ghead[data-section]'), at = kcol ? [kcol, 'kcol'] : gh ? [gh, 'section'] : null;
-    if (at && +at[0].dataset[at[1]] < 0) { const r = await secReal(+at[0].dataset[at[1]]); if (!r) return; at[0].dataset[at[1]] = r; } }
-  if (await ml_drop(t, {sec, kcol, row, side, cell, wcol, wad, quad, y: clientY})) return;  // 2.71.0 B (#1459): in a further list only the link moves
-  if (sec && sec.dataset.newsec) { taskToNewSection(id); return; }  // (sec is false over a row)
-  if (sec) { taskToSection(id, sec.dataset.section ? +sec.dataset.section : null); return; }
   const sprh = el.closest('#view .sprh[data-sprdrop]');  // 2.60.0 (#343): dropped on the sprint header
   if (sprh) { spr_dropTask(id, +sprh.dataset.sprdrop); return; }
+  if (!(side || cell || wcol || wad || quad)) return;
+  if (!canEdit(t)) { roToast(); return; }
   const item = {id};
   if (side) {
     const k = side.dataset.drop;
@@ -193,37 +186,8 @@ async function dropTask0(id, el, clientY) {
   } else if (wad) {
     item.due = wad.dataset.day; item.due_time = null;
   } else if (quad) {
-    if (mxQuad(t) !== +quad.dataset.quad) item.priority = +quad.dataset.quad;  // 2.574.0 (#3376): Urgent stays Urgent in its quadrant
-  } else {
-    if (kcol) item.section_id = kcol.dataset.kcol ? +kcol.dataset.kcol : null;
-    if (kcol && t.parent_id && !row) {
-      const ad = detachPatch(t), pid = t.parent_id;  // 2.1271.0 (#6436)
-      try { await patchTask(id, {parent_id: null, section_id: item.section_id, ...ad}); } catch { return; }
-      if (!dtToast(tr('Subtask is now standalone'), [[id, ad, pid]])) toast(tr('Subtask is now standalone'));
-      return;
-    }
-    if (row && +row.dataset.id !== id) {
-      const target = S.tasks.get(+row.dataset.id);
-      if (!target) return;
-      // insert before target: sort between the target and its predecessor in the rendered order
-      const mode = sortMode();
-      let rows = dndNeighbours(vl_ids().map(i => S.tasks.get(i)), target, id);  // 2.65.0 (#1825): neighbours from the data (vl_ids)
-      if (mode === 'prio' && !kcol) {  // dropping into another priority block takes over that priority
-        if (target.priority !== t.priority) { item.priority = target.priority; toast(tr('Priority: {0}', tr([N_('None'), N_('Low'), '', N_('Medium'), '', N_('High'), '', N_('Urgent')][target.priority]))); }
-        rows = rows.filter(x => x.priority === target.priority);
-      }
-      item.sort = dndSortAt(rows, target, dropAfter(row, clientY));
-      // 2.1365.0 (#6960): Tomorrow: from "Still open from today" onto a task of tomorrow = due tomorrow (its time stays)
-      if (S.route.key === 'tomorrow' && target.due === addDays(today(), 1) && t.due !== target.due) item.due = target.due;
-      if (target.list_id !== t.list_id) item.list_id = target.list_id;
-      if (target.parent_id !== t.parent_id) {
-        if (!target.parent_id) { const ad = detachPatch(t); if ('priority' in item) delete ad.priority; dt = [[id, ad, t.parent_id]]; }  // 2.1271.0 (#6436): out of the parent (not under another one); a priority block's own priority wins
-        try { await patchTask(id, {parent_id: target.parent_id, ...(target.list_id !== t.list_id ? {list_id: target.list_id} : {}), ...(dt ? dt[0][1] : {})}); } catch { return; }
-        if (!target.parent_id) toast(tr('Subtask is now standalone'));
-      }
-      if (!kcol) { const g = row.closest('.group')?.querySelector('.ghead[data-section]'); if (g) item.section_id = g.dataset.section ? +g.dataset.section : null; }
-      if (((mode === 'date' || mode === 'title' || mode === 'creator' || mode.startsWith('created') || sortByCol(mode)) && !kcol) || mode === 'flow') LS.set('sort2.' + S.route.key, 'prio');  // a manual drop switches to prio + manual
-    } else if (!kcol) return;
+    if (mxQuad(t) === +quad.dataset.quad) return;
+    item.priority = +quad.dataset.quad;  // 2.574.0 (#3376): Urgent stays Urgent in its quadrant
   }
   if (item.list_id && !canEditList(item.list_id)) { roToast(); return; }
   if (tlkHits(t, item)) { tlkToast(t); render(); return; }  // 2.36.0 (#1118): a locked task keeps its list / day / priority
@@ -235,16 +199,11 @@ async function dropTask0(id, el, clientY) {
   if (!xe2e && res?.conflicts?.length) addConflicts(id, res.conflicts, t.title);  // 2.270.0 D (#3028): changed elsewhere meanwhile: kept; 2.528.0 B (#4305): the PATCH one api() adds itself
   await load(); render();
   if (sk_moved(res, id)) return;  // 2.577.0 (#3354)
-  // 2.1271.0 (#6436): the adopted date / priority are the detach's own step (patchTask above), not the drop's; its toast offers "Don't adopt"
-  if (dt && dtHas(dt[0][1])) before = {...before, ...dt[0][1]};
-  const dtSay = (m, e) => { if (!(dt && dtToast(m, dt))) { if (e) offerUndo(m, e); else toast(m); } };
-  // a move to another list or day can be undone (plain reordering not)
-  const after = snapTask(S.tasks.get(id)), rev = after && (before.list_id !== after.list_id || before.due !== after.due || (before.due_time || null) !== (after.due_time || null) || (before.section_id || null) !== (after.section_id || null) || before.priority !== after.priority) && reverseOf(before, after);
+  // a move to another list or day can be undone
+  const after = snapTask(S.tasks.get(id)), rev = after && (before.list_id !== after.list_id || before.due !== after.due || (before.due_time || null) !== (after.due_time || null) || before.priority !== after.priority) && reverseOf(before, after);
   if (res?.shifted?.length) { shiftUndo(before, {...after, shifted: res.shifted}, after?.due ? tr('Date: {0}', dayLabel(after.due)) : ''); return; }
   { const wn = rev && before.list_id !== after.list_id && wsc_moveMsg(before.list_id, after.list_id, ''); if (wn) { offerUndo(wn, histFields(histLabel(before, after), [[before, after, UNDO_FIELDS]], {res})); return; } }  // 2.53.0 (#1474): Private -> organisation
-  if (rev && dnd_kindStayed(before, after)) { toast(wip_msg(tr('Moved to section {0}', secName(after.section_id)), after.section_id)); return; }  // 2.958.0 (#3911)
-  if (dt && !rev) { dtSay(tr('Subtask is now standalone')); return; }
-  if (rev) dtSay(before.list_id !== after.list_id ? tr('Moved to {0}', lname(listById(after.list_id))) : (before.section_id || null) !== (after.section_id || null) && before.due === after.due ? wip_msg(tr('Moved to section {0}', secName(after.section_id)), after.section_id) : before.priority !== after.priority && before.due === after.due ? tr('Priority: {0}', tr([N_('None'), N_('Low'), '', N_('Medium'), '', N_('High'), '', N_('Urgent')][after.priority] || N_('None'))) : after.due ? tr('Date: {0}', dayLabel(after.due)) : tr('Date removed'),
+  if (rev) offerUndo(before.list_id !== after.list_id ? tr('Moved to {0}', lname(listById(after.list_id))) : before.priority !== after.priority && before.due === after.due ? tr('Priority: {0}', tr([N_('None'), N_('Low'), '', N_('Medium'), '', N_('High'), '', N_('Urgent')][after.priority] || N_('None'))) : after.due ? tr('Date: {0}', dayLabel(after.due)) : tr('Date removed'),
     histFields(histLabel(before, after), [[before, after, UNDO_FIELDS]], {res}));
 }
 
@@ -334,32 +293,9 @@ function dnd_kindStayed(before, after) {
   const k = S.sections.find(x => x.id === after.section_id)?.kind;
   return before.status === 2 ? k === 'done' : before.status === -1 && k === 'rejected';
 }
-// a task into a section, at its top; a subtask becomes a standalone task there (as in kanban); one undo
-function taskToSection(id, sid) { return histGroup(() => taskToSection0(id, sid)); }
-async function taskToSection0(id, sid) {
-  if (sid < 0) { sid = await secReal(sid); if (!sid) return; }  // 2.559.0 (#4659): a section still on its way
-  const t = S.tasks.get(id); if (!t) return;
-  if (!canEdit(t)) { roToast(); return; }
-  if (sid && !S.sections.some(x => x.id === sid && x.list_id === t.list_id)) return;
-  const before = snapTask(t);
-  const inSec = [...S.tasks.values()].filter(x => x.list_id === t.list_id && !x.parent_id && x.status === 0 && x.id !== id && (sid ? x.section_id === sid : !S.sections.some(z => z.id === x.section_id)));
-  const item = {id, section_id: sid, sort: inSec.length ? Math.min(...inSec.map(x => x.sort)) - 1 : 0};
-  if (['date', 'title', 'creator', 'flow', 'created', 'created_asc'].includes(sortMode()) || sortByCol(sortMode())) LS.set('sort2.' + S.route.key, 'prio');  // a manual drop switches to prio + manual
-  const dt = t.parent_id ? [[id, detachPatch(t), t.parent_id]] : null;  // 2.1271.0 (#6436)
-  if (t.parent_id) { try { await patchTask(id, {parent_id: null, ...dt[0][1]}); } catch { return; } }
-  Object.assign(t, item); render();
-  let res;
-  try { res = await api('POST', '/api/tasks/reorder', {items: [{...item, _prev: dndPrev(before, item)}]}); } catch { await load().catch(() => {}); render(); return; }
-  if (res?.conflicts?.length) addConflicts(id, res.conflicts, t.title);  // 2.270.0 D (#3028)
-  await load().catch(() => {}); render();  // CI of 2.307.4: a failed reload after the move no longer swallows the message + undo
-  if (sk_moved(res, id)) return;  // 2.577.0 (#3354)
-  const after = snapTask(S.tasks.get(id)), rev = after && reverseOf(before, after, ['section_id', 'parent_id']);
-  const msg = wip_msg(before.parent_id ? tr('Subtask is now standalone') + ' · ' + tr('Moved to section {0}', secName(sid)) : tr('Moved to section {0}', secName(sid)), sid);  // 2.60.0 (#1510): + over the WIP limit
-  if (rev && dnd_kindStayed(before, after)) { if (!dtToast(msg, dt)) toast(msg); return; }  // 2.958.0 (#3911): a done task into the done column: the status did not change, nothing to undo
-  const e = rev && histFields(tr('Moved {0} to section {1}', qn(t.title.slice(0, 40)), secName(sid)), [[before, after, ['section_id']]], {res});
-  if (dtToast(msg, dt)) return;  // 2.1271.0 (#6436): "Don't adopt"; the Undo of the step stays in the history
-  if (e) offerUndo(msg, e); else toast(msg);
-}
+// a task into a section, at its top; a subtask becomes a standalone task there (as in kanban); one undo. (#7351): the menu's
+// "Move to section…" - the same way as a drop on the section (dragmulti.js dgToSection; taskToSection0 went)
+function taskToSection(id, sid) { const t = S.tasks.get(id); return t ? dgToSection([id], t.list_id, sid) : null; }
 // 2.41.2 (#1501): the sections of list lid in the order ids, locally (S.sections keeps its slots; the server's sort follows)
 const secPut = (lid, ids) => () => {
   const mine = S.sections.filter(s => s.list_id === lid), at = [], old = mine.map(s => s.id);
@@ -473,32 +409,7 @@ function sectionPicker(anchor, id) {
   const cur = secs.some(x => x.id === t.section_id) ? t.section_id : null;
   menu(anchor, [...(secs.length ? [{label: tr('Unassigned'), icon: 'list', on: !cur && !t.parent_id, fn: () => taskToSection(id, null)},
     ...secs.map(x => ({label: x.name, icon: 'folder', on: cur === x.id && !t.parent_id, fn: () => taskToSection(id, x.id)}))] : []),
-    ...(add ? [...(secs.length ? ['-'] : []), {label: tr('New section…'), icon: 'plus', fn: () => taskToNewSection(id)}] : [])]);
-}
-// 2.19.0 (#667): a task into a section that does not exist yet (the "+ New section" drop zone, "Move to section…"):
-// name it (prefilled), the section is created, the task lands in it; Undo puts the task back and removes the section
-async function taskToNewSection(id) {
-  const t = S.tasks.get(id); if (!t) return;
-  if (!canEdit(t) || !canEditList(t.list_id)) { roToast(); return; }
-  const name = (await askPrompt(tr('New section'), tr('New section'), {ok: tr('Create'), input: {max: 100}}))?.trim();
-  if (!name) return;
-  const before = {section_id: t.section_id ?? null, sort: t.sort, parent_id: t.parent_id ?? null}, ad = detachPatch(t);
-  let s; try { s = await api('POST', '/api/sections', {list_id: t.list_id, name}); } catch { return; }
-  try {
-    if (t.parent_id) await patchTask(id, {parent_id: null, ...ad});  // 2.1271.0 (#6436): + the parent's date / priority into empty fields
-    await api('POST', '/api/tasks/reorder', {items: [{id, section_id: s.id, sort: 0, _prev: {section_id: before.section_id}}]});  // 2.270.0 D (#3028)
-  } catch { await load().catch(() => {}); render(); return; }
-  if (['date', 'title', 'creator', 'flow', 'created', 'created_asc'].includes(sortMode()) || sortByCol(sortMode())) LS.set('sort2.' + S.route.key, 'prio');
-  await load(); render();
-  if (dtToast(tr('New section {0}', qn(name)), [[id, ad, before.parent_id]])) return;  // 2.1271.0 (#6436): "Don't adopt" first; the new section stays (it can be deleted)
-  toast(tr('New section {0}', qn(name)), async () => {
-    try {
-      if (before.parent_id) await patchTask(id, {parent_id: before.parent_id});
-      else await api('POST', '/api/tasks/reorder', {items: [{id, section_id: before.section_id, sort: before.sort, _prev: {section_id: s.id}}]});
-      await api('DELETE', `/api/sections/${s.id}`);
-    } catch { /* api() said it */ }
-    await load(); render();
-  }, 8000, tr('Undo'));
+    ...(add ? [...(secs.length ? ['-'] : []), {label: tr('New section…'), icon: 'plus', fn: () => dgToNewSection([id], t.list_id)}  /* 2.19.0 (#667), (#7351): name it, the task lands in it; one step */] : [])]);
 }
 function secHeadMenu(anchor, sid) {
   const s = S.sections.find(x => x.id === sid); if (!s) return;

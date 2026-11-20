@@ -182,17 +182,26 @@ function dgAfter(put, j) {
 // 2.1271.0 (#6436): a subtask an item makes standalone (parent_id: null) takes its parent's date / priority into its empty fields
 // (dnd.js detachPatch), in the same item; one toast for all of them with "Don't adopt"
 // (#7344): o.quiet = no toast (the caller's gesture says it once, with what it did besides); -> {j, dt} (dt: dtToast's got)
+// (#7351): every item carries what this device saw before (_prev, as the single drag's reorder did, #3028): a field changed
+// elsewhere meanwhile stays and is named; a task the server completed as a recurring one in a done column (#3354,
+// section_moved) and a done task dropped into a done column (#3911, dnd_kindStayed) get no Undo of the move
 async function dgApply(items, lab, notes = [], o = {}) {
   const ids = Object.keys(items).map(Number);
   if (!ids.length) { if (!o.quiet) toast(notes.filter(Boolean).join(' · ') || tr('Nothing to move')); return null; }
+  for (const id of ids) { const t = S.tasks.get(id), it = items[id]; if (t && it && !it._prev) { const {fields, ...rest} = it, p = dndPrev(t, rest); if (Object.keys(p).length) it._prev = p; } }
   const dt = dtMerge(items);
   const snaps = ids.flatMap(withKids), put = dgItemsPut(items);
   let j;
   try { j = await optWrite(put, () => api('POST', '/api/tasks/batch', {ids, action: 'patch_each', data: {items}})); } catch { return null; }
   dgAfter(put, j);
-  const pairs = snaps.filter(b => ids.includes(b.id)).map(b => [b, snapTask(S.tasks.get(b.id))]);
+  const skm = Object.keys(j?.section_moved || {}).map(Number);
+  const pairs = snaps.filter(b => ids.includes(b.id) && !skm.includes(b.id)).map(b => [b, snapTask(S.tasks.get(b.id))]).filter(([b, a]) => !dnd_kindStayed(b, a));
+  const skx = sid => ['done', 'rejected'].includes(wip_sec(sid)?.kind);  // into / out of a column with that meaning: the server set the status
+  if (skm.length || snaps.some(b => items[b.id] && 'section_id' in items[b.id] && (skx(items[b.id].section_id) || skx(b.section_id)))) load().then(render, () => {});
+  for (const id of skm) sk_moved(j, id);
   const e = histFields(lab, pairs, {res: j, fields: [...UNDO_FIELDS, 'sort']});
   if (o.quiet) return {j, dt: dtDone(dt, j)};
+  if (skm.length && !e) return j;  // sk_moved said it, with its own Undo
   const fail = ids.length - (j?.count ?? ids.length);
   const msg = [lab, fail ? trn('{0} task not changed', '{0} tasks not changed', fail) + (j?.errors?.[0] ? ': ' + j.errors[0] : '') : '', ...notes].filter(Boolean).join(' · ');
   if (dtToast(msg, dtDone(dt, j))) return j;  // 2.1271.0 (#6436): the Undo of the step stays in the history
@@ -247,6 +256,10 @@ function dgSubPick(ids) {
 }
 // a block before / after a row: the same parent, list and section as the row, sorted between it and its neighbour
 // (#7344): plain = only the place (My tasks: beside a subtask under its parent; no priority block, no sort switch)
+// (#7351): one task and a selection alike (the project list's single drag went here): a section still on its way waits for its
+// id (#4659), a locked task keeps its project / priority (#1118: named with "Unlock"), a task under a parent of another project
+// carries that project (the browser re-encrypts its texts on the way when one of them has the lock, #1817 le2e_move), on
+// Tomorrow a task dropped onto one of tomorrow's takes that day (#6960; as its own write, so dependent tasks move along, #1865)
 async function dgBlock(ids, row, after, plain = false) {
   const target = S.tasks.get(+row.dataset.id); if (!target) return;
   const set = new Set(ids), kcol = row.closest('.kcol');
@@ -254,48 +267,80 @@ async function dgBlock(ids, row, after, plain = false) {
   let list = dgRoots(dgOrder(ids));
   const ro = list.filter(i => !canEdit(S.tasks.get(i)));
   list = list.filter(i => !ro.includes(i));
+  if (!list.length && ro.length) { roToast(); return; }
   const deep = target.parent_id ? list.filter(i => !dgFits(target.parent_id, i)) : [];
   list = list.filter(i => !deep.includes(i));
   if (target.list_id && list.some(i => S.tasks.get(i).list_id !== target.list_id) && !canEditList(target.list_id)) { roToast(); return; }
   const mode = plain ? 'custom' : sortMode();
+  const g = !kcol && row.closest('.group')?.querySelector('.ghead[data-section]');
+  let sec = target.parent_id ? undefined : kcol ? (kcol.dataset.kcol ? +kcol.dataset.kcol : null) : g ? (g.dataset.section ? +g.dataset.section : null) : target.section_id ?? null;
+  if (sec < 0) { sec = await secReal(sec); if (!sec) return; }  // 2.559.0 (#4659): a section still on its way
+  const prio = mode === 'prio' && !kcol;
+  const lk = list.filter(i => { const t = S.tasks.get(i); return tlkHits(t, {...(!target.parent_id ? {list_id: target.list_id} : {}), ...(prio ? {priority: target.priority} : {})}); });
+  if (lk.length && lk.length === list.length && list.length === 1) { tlkToast(S.tasks.get(lk[0])); render(); return; }
+  list = list.filter(i => !lk.includes(i));
   let rows = vl_ids().map(i => S.tasks.get(i)).filter(x => x && x.parent_id === target.parent_id && !set.has(x.id) && (x.status === 0 || x.id === target.id));
-  if (mode === 'prio' && !kcol) rows = rows.filter(x => x.priority === target.priority);
+  if (prio) rows = rows.filter(x => x.priority === target.priority);
   const i = rows.findIndex(x => x.id === target.id), n = list.length;
   let lo, hi;
   if (after) { const nx = rows[i + 1]; lo = target.sort; hi = nx && nx.list_id === target.list_id ? nx.sort : target.sort + n + 1; }
   else { const pv = rows[i - 1]; hi = target.sort; lo = pv && pv.list_id === target.list_id ? pv.sort : target.sort - n - 1; }
-  const g = !kcol && row.closest('.group')?.querySelector('.ghead[data-section]');
-  const sec = target.parent_id ? undefined : kcol ? (kcol.dataset.kcol ? +kcol.dataset.kcol : null) : g ? (g.dataset.section ? +g.dataset.section : null) : target.section_id ?? null;
-  const items = {};
+  const tmr = S.route.key === 'tomorrow' && target.due && target.due === addDays(today(), 1) ? target.due : null;  // 2.1365.0 (#6960)
+  const items = {}, days = [];
   list.forEach((id, k) => {
     const t = S.tasks.get(id), it = {sort: lo + (hi - lo) * (k + 1) / (n + 1)};
     if ((t.parent_id || null) !== (target.parent_id || null)) it.parent_id = target.parent_id || null;
-    if (!target.parent_id && t.list_id !== target.list_id) it.list_id = target.list_id;
+    if (t.list_id !== target.list_id) it.list_id = target.list_id;
     if (sec !== undefined && (t.section_id || null) !== sec) it.section_id = sec;
-    if (mode === 'prio' && !kcol && t.priority !== target.priority) it.priority = target.priority;
+    if (prio && t.priority !== target.priority) it.priority = target.priority;
+    if (tmr && t.due !== tmr && !tlkIs(t)) days.push(id);
     items[id] = it;
   });
   if (((mode === 'date' || mode === 'title' || mode === 'creator' || mode.startsWith('created') || sortByCol(mode)) && !kcol) || mode === 'flow') LS.set('sort2.' + S.route.key, 'prio');  // a manual drop: prio + manual (as one task)
-  return dgApply(items, trn('{0} task moved', '{0} tasks moved', n), [deep.length ? trn('{0} task stays: its own subtasks would go deeper than {1} levels', '{0} tasks stay: their own subtasks would go deeper than {1} levels', deep.length, maxDepth()) : '',
-    ro.length ? trn('{0} task skipped (read-only)', '{0} tasks skipped (read-only)', ro.length) : '']);
+  const one = n === 1 && S.tasks.get(list[0]), tl = listById(target.list_id);
+  const away = n && list.every(i => items[i].list_id), insec = n && sec !== undefined && list.every(i => 'section_id' in items[i]);
+  const under = n && target.parent_id && list.every(i => items[i].parent_id);
+  let lab = away ? (one ? tr('Moved to {0}', lname(tl)) : trn('Moved {0} task to {1}', 'Moved {0} tasks to {1}', n, lname(tl)))
+    : under ? trn('{0} task is now a subtask of “{1}”', '{0} tasks are now subtasks of “{1}”', n, dgShort(S.tasks.get(target.parent_id)?.title))
+    : insec ? wip_msg(one ? tr('Moved to section {0}', secName(sec)) : trn('{0} task moved to section {1}', '{0} tasks moved to section {1}', n, secName(sec)), sec)
+    : trn('{0} task moved', '{0} tasks moved', n);
+  if (one && away) lab = wsc_moveMsg(one.list_id, target.list_id, lab);  // 2.53.0 (#1474): Private -> organisation: who sees it now
+  const notes = [list.some(i => 'priority' in items[i]) ? tr('Priority: {0}', tr([N_('None'), N_('Low'), '', N_('Medium'), '', N_('High'), '', N_('Urgent')][target.priority] || N_('None'))) : '',
+    deep.length ? trn('{0} task stays: its own subtasks would go deeper than {1} levels', '{0} tasks stay: their own subtasks would go deeper than {1} levels', deep.length, maxDepth()) : '',
+    ro.length ? trn('{0} task skipped (read-only)', '{0} tasks skipped (read-only)', ro.length) : '',
+    lk.length ? trn('{0} task is locked', '{0} tasks are locked', lk.length) : ''];
+  if (!days.length) return dgApply(items, lab, notes);
+  return histGroup(async () => {  // the day first, as the task's own write: its dependent tasks move along (#1865) in the same step
+    for (const id of days) { try { await patchTask(id, {due: tmr}); } catch { /* api() said why */ } }
+    return dgApply(items, lab, notes);
+  });
 }
 // into a section / kanban column of a list as standalone tasks, at its top, order kept
+// (#7351): also the single task's way (dropped on a section's head or a column, "Move to section…"): only a move into another
+// project needs the right on that project, the section alone the right on the task
 async function dgToSection(ids, lid, sid) {
-  if (!canEditList(lid)) { roToast(); return; }
   if (sid < 0) { sid = await secReal(sid); if (!sid) return; }  // 2.559.0 (#4659): a section still on its way (dnd.js)
+  if (sid && !S.sections.some(x => x.id === sid && x.list_id === lid)) return;
   let list = dgRoots(dgOrder(ids));
   const ro = list.filter(i => !canEdit(S.tasks.get(i)));
   list = list.filter(i => !ro.includes(i));
+  if (!list.length && ro.length) { roToast(); return; }
+  if (list.some(i => S.tasks.get(i).list_id !== lid) && !canEditList(lid)) { roToast(); return; }
+  const lk = list.filter(i => S.tasks.get(i).list_id !== lid && tlkIs(S.tasks.get(i)));  // (#1118): a locked task keeps its project
+  if (lk.length && list.length === 1) { tlkToast(S.tasks.get(lk[0])); render(); return; }
+  list = list.filter(i => !lk.includes(i));
   const inSec = [...S.tasks.values()].filter(x => x.list_id === lid && !x.parent_id && x.status === 0 && !list.includes(x.id) && (sid ? x.section_id === sid : !S.sections.some(z => z.id === x.section_id)));
   const top = inSec.length ? Math.min(...inSec.map(x => x.sort || 0)) : 0;
   const items = {};
-  list.forEach((id, k) => { const t = S.tasks.get(id); items[id] = {parent_id: null, section_id: sid, sort: top - list.length + k, ...(t.list_id !== lid ? {list_id: lid} : {})}; });
+  list.forEach((id, k) => { const t = S.tasks.get(id); items[id] = {section_id: sid, sort: top - list.length + k, ...(t.parent_id ? {parent_id: null} : {}), ...(t.list_id !== lid ? {list_id: lid} : {})}; });
   if (['date', 'title', 'creator', 'flow', 'created', 'created_asc'].includes(sortMode()) || sortByCol(sortMode())) LS.set('sort2.' + S.route.key, 'prio');
-  return dgApply(items, trn('{0} task moved to section {1}', '{0} tasks moved to section {1}', list.length, secName(sid)),
-    [ro.length ? trn('{0} task skipped (read-only)', '{0} tasks skipped (read-only)', ro.length) : '']);
+  const n = list.length, subs = list.filter(i => S.tasks.get(i).parent_id).length;
+  return dgApply(items, wip_msg(n === 1 ? tr('Moved to section {0}', secName(sid)) : trn('{0} task moved to section {1}', '{0} tasks moved to section {1}', n, secName(sid)), sid),
+    [subs ? trn('{0} subtask is now standalone', '{0} subtasks are now standalone', subs) : '',
+      ro.length ? trn('{0} task skipped (read-only)', '{0} tasks skipped (read-only)', ro.length) : '', lk.length ? trn('{0} task is locked', '{0} tasks are locked', lk.length) : '']);
 }
-async function dgToNewSection(ids) {
-  const lid = S.tasks.get(ids[0])?.list_id; if (!lid) return;
+async function dgToNewSection(ids, lid) {
+  lid = lid ?? S.tasks.get(ids[0])?.list_id; if (!lid) return;
   if (!canEditList(lid)) { roToast(); return; }
   const name = (await askPrompt(tr('New section'), tr('New section'), {ok: tr('Create'), input: {max: 100}}))?.trim();
   if (!name) return;
@@ -324,7 +369,7 @@ async function dgToList(ids, lid) {
 // sections, mineorder.js). An adapter answers where(tgt) -> null (not mine: the old ways of dnd.js / dgDrop go on), {no: text}
 // (it takes nothing there: the text instead of a silent nothing, no highlight) or a place, and put(ids, place) does the whole
 // gesture as one step of the history. The middle of a row (= make subtasks, dgMakeSubs) stays the same everywhere and comes
-// before the core. The project list follows in step 3 (#7351).
+// before the core. Step 3 (#7351): the project list and every other task list (plWhere / plPut below).
 const DROP_ADAPTERS = [];
 // (#7354): + kind 'col' = a column of a board (data-dropcol; the cards are rows: before / after a card = its column)
 const dropRowTgt = (row, after) => ({kind: 'row', row, tid: +row.dataset.id, after, gkey: row.closest('.group')?.querySelector(':scope > .ghead')?.dataset.key || ''});
@@ -332,12 +377,12 @@ function dropAt(el, y, after) {
   if (!el?.closest || el.closest('#detail')) return null;
   const row = el.closest('#view .trow');
   if (row) return dropRowTgt(row, after ?? dropAfter(row, y));
-  const nw = el.closest('#view [data-dropnew]');
+  const nw = el.closest('#view [data-dropnew], #view .sdrop[data-newsec]');  // (#7351): + a project's "New section"
   if (nw) return {kind: 'new', el: nw};
   const head = el.closest('#view .ghead[data-key]');
   if (head) return {kind: 'head', el: head, key: head.dataset.key};
-  const col = el.closest('#view [data-dropcol]');
-  return col ? {kind: 'col', el: col, key: col.dataset.dropcol} : null;
+  const col = el.closest('#view [data-dropcol], #view .kcol[data-kcol]');  // (#7351): + a column of a project's board
+  return col ? {kind: 'col', el: col, key: col.dataset.dropcol ?? 'k:' + col.dataset.kcol} : null;
 }
 // -> {a: adapter, tgt, w: its place} or null (no adapter takes this target)
 function dropForTgt(tgt, ids) {
@@ -360,6 +405,35 @@ const dropRun = (ids, el, y, after) => dropDo(dropFor(el, y, ids, after), ids);
 const dropTo = (ids, tgt) => dropDo(dropForTgt(tgt, ids), ids);
 // dragover: a target the core refuses gets no highlight (the drop still comes, to say why)
 const dropNo = (el, y, ids) => !!dropFor(el, y, ids)?.w.no;
+
+// ---- (#7351, step 3 of the drop core): the adapter of a project's list and board - and of every other task list that is not
+// My tasks (Today, Tomorrow, All, a filter): before / after a row (dgBlock), a section's head or a column of the board
+// (dgToSection), "New section" (dgToNewSection), for one task and a selection alike, one step of the history each. Gone: the
+// row / section / column part of dnd.js dropTask0, taskToSection0 and taskToNewSection, and dgDrop's own branches for them.
+// A task shown in a further project of its own (#1459, multilist.js): one dragged there moves only its link (ml_drop).
+// The middle of a row (subtasks) comes before the core; a swimlane's value (swlDrop) before it in the same step (dnd.js dropTask).
+const plLink = (ids, v = ml_viewList()) => { const t = ids.length === 1 && S.tasks.get(ids[0]); return !!t && !!v && t.list_id !== v && ml_in(t, v); };
+function plWhere(tgt, ids) {
+  const el = tgt.kind === 'row' ? tgt.row : tgt.el;
+  if (tgt.kind === 'head' && el.dataset.section === undefined) return null;  // a day's / a priority's head: not a place
+  if (tgt.kind === 'new' && !el.matches('[data-newsec]')) return null;
+  if (tgt.kind === 'col' && !el.matches('.kcol[data-kcol]')) return null;
+  if (tgt.kind === 'row' && ids.includes(tgt.tid)) return {no: true};  // onto itself / its own selection
+  if (plLink(ids)) return {link: true, tgt};
+  return tgt.kind === 'row' ? {row: tgt.row, after: tgt.after} : tgt.kind === 'new' ? {fresh: true}
+    : {sid: (tgt.kind === 'col' ? el.dataset.kcol : el.dataset.section) ? +(tgt.kind === 'col' ? el.dataset.kcol : el.dataset.section) : null};
+}
+function plPut(ids, w) {
+  if (w.link) {
+    const t = S.tasks.get(ids[0]), x = w.tgt, row = x.kind === 'row' ? x.row : null;
+    return ml_drop(t, {row, after: x.after, kcol: x.kind === 'col' ? x.el : row?.closest('.kcol'), sec: x.kind === 'head' ? x.el : null});
+  }
+  const lid = routeList()?.id ?? S.tasks.get(ids[0])?.list_id;
+  if (w.fresh) return dgToNewSection(ids, lid);
+  if (w.row) return dgBlock(ids, w.row, w.after);
+  return dgToSection(ids, w.sid ? S.sections.find(s => s.id === w.sid)?.list_id ?? lid : lid, w.sid);
+}
+DROP_ADAPTERS.push({name: 'list', on: () => !(typeof moActive === 'function' && moActive()), where: plWhere, put: plPut});
 
 // ---- dragging (desktop); dnd.js asks dgOver on every dragover and dgDrop on the drop
 const dgZone = (row, y) => { const r = row.getBoundingClientRect(), f = r.height > 0 ? (y - r.top) / r.height : .5; return f < .28 ? 'before' : f > .72 ? 'after' : 'onto'; };
@@ -424,10 +498,12 @@ function dgDrop(e, id) {
   if (!ids) return false;
   end();
   if (el.closest?.('#detail')) return true;
-  const side = el.closest?.('.srow[data-drop]'), kcol = el.closest?.('.kcol'), quad = el.closest?.('.quad'), cell = el.closest?.('.cal .cell');
-  const wcol = el.closest?.('.wcol'), wad = el.closest?.('.wad, .wh'), sec = !row && el.closest?.('#view .ghead[data-section], #view .sdrop');
-  // (#7344): the drop core first (My tasks: own order, own sections, "New section"); the middle of a row stays "subtasks"
+  const side = el.closest?.('.srow[data-drop]'), quad = el.closest?.('.quad'), cell = el.closest?.('.cal .cell');
+  const wcol = el.closest?.('.wcol'), wad = el.closest?.('.wad, .wh');
+  // (#7344, #7351): the drop core first (My tasks, a project's list and board: rows, sections, columns, "New section"); the middle
+  // of a row stays "subtasks"
   { const zn = row && dgZone(row, y); if (zn !== 'onto' || ids.includes(+row.dataset.id)) { if (dropRun(ids, el, y, row ? (zn === 'onto' ? dropAfter(row, y) : zn === 'after') : undefined)) return true; } }
+  if (row) { if (dgZone(row, y) === 'onto' && !ids.includes(+row.dataset.id)) dgMakeSubs(ids, +row.dataset.id); return true; }
   const may = ids.filter(i => canEdit(S.tasks.get(i)));
   if (!may.length) { roToast(); return true; }
   if (side) {
@@ -439,23 +515,6 @@ function dgDrop(e, id) {
     else if (k === 'done') batch('complete', {}, false, may);
     return true;
   }
-  if (sec) {
-    if (sec.dataset.newsec) { dgToNewSection(ids); return true; }
-    const sid = sec.dataset.section ? +sec.dataset.section : null;
-    const lid = sid ? S.sections.find(s => s.id === sid)?.list_id : S.tasks.get(ids[0])?.list_id;
-    if (lid) dgToSection(ids, lid, sid);
-    return true;
-  }
-  if (row) {
-    const tid = +row.dataset.id;
-    if (ids.includes(tid)) return true;
-    const zn = dgZone(row, y);
-    if (zn === 'onto') dgMakeSubs(ids, tid);
-    else dgBlock(ids, row, zn === 'after');
-    return true;
-  }
-  // (#7354): the board of My tasks is an adapter of the drop core above (mineorder.js, its columns and its cards)
-  if (kcol) { const sid = kcol.dataset.kcol ? +kcol.dataset.kcol : null, lid = S.tasks.get(ids[0])?.list_id; if (lid) dgToSection(ids, lid, sid); return true; }
   if (cell) { batch('patch', {due: cell.dataset.day}, false, may); return true; }
   if (wad) { batch('patch', {due: wad.dataset.day, due_time: null}, false, may); return true; }
   if (wcol) {

@@ -1530,8 +1530,18 @@ in your projects" is assigned to me, the own order is this device's own part of 
 mean what the column means, for one task and a selection, `mineboard.js` `mb_drop` / `mb_dropMany`). Without a pointer the
 keyboard and the menu use the same adapters: `dropTo(ids, dropRowTgt(row, after))` (Alt+arrow and Move up / down,
 `palette.js` `nudgeCore`: the own order of My tasks, not the project's order for everybody); "Move to section…" of the menu
-and the multi panel is `moPut` too (`mseMoveTo`). Next steps: the project list's single drag (#7351), a check against new
-special ways (#7352). Tests: `tests/p21389_a_mine_multidrag_ui.js`, `tests/p21453_7354_mine_core_ui.js`.
+and the multi panel is `moPut` too (`mseMoveTo`). The project list and board (and every other task list that is not My tasks:
+Today, Tomorrow, All, a filter; #7351, step 3): `dragmulti.js` `plWhere` / `plPut` - before / after a row = `dgBlock`, a
+section's head or a column of a board (`dropAt` kind `col` also for `.kcol[data-kcol]`) = `dgToSection`, "New section" =
+`dgToNewSection`, for one task and a selection alike, one `patch_each` batch with `_prev` (`dgApply`) and one step each; the
+menu's "Move to section…" (`taskToSection`) is `dgToSection` too. The special cases live there, not beside it: a section still
+on its way (`secReal`), a locked task (`tlkToast`), a task under a parent of another project carries that project (the
+browser's `le2e_move` for a project with the lock), Tomorrow's date (#6960) as the task's own PATCH so dependent tasks move
+along, a done task into a done column without Undo (`dnd_kindStayed`), a recurring task completed by its column (the batch
+answers `section_moved` like the reorder, #3354), a task linked into the shown project moves only its link (`ml_drop`). Left in
+`dnd.js` `dropTask0`: the places with a meaning of their own (the sidebar, a calendar's day / time, a quadrant, the sprint's
+head); a swimlane's value (`swlDrop`) comes before the core in the same step. Next step: a check against new special ways
+(#7352). Tests: `tests/p21389_a_mine_multidrag_ui.js`, `tests/p21453_7354_mine_core_ui.js`, `tests/p21462_7351_list_core_ui.js`.
 
 ## Calm view: a redraw keeps the reading place (2.924.0, #5224)
 

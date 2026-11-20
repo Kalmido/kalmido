@@ -63,7 +63,7 @@ const noState = w => !w.__log.some(k => /^GET \/api\/state\b/.test(k) && !/[?&]a
   // a task moved into it meanwhile waits for the real id
   w.eval(`window.__m = taskToSection(${T1}, ${tmp})`);
   await sleep(0);
-  check(!w.__log.some(k => /\/api\/tasks\/reorder/.test(k)), 'the move waits: no request while the section has no real id');
+  check(!w.__log.some(k => /\/api\/tasks\/(reorder|batch)/.test(k)), 'the move waits: no request while the section has no real id');
   w.__held[0].go();
   await w.eval('window.__p'); await w.eval('window.__m');
   const real = (await secs()).find(s => s.name === 'Soon')?.id;
@@ -111,7 +111,7 @@ const noState = w => !w.__log.some(k => /^GET \/api\/state\b/.test(k) && !/[?&]a
   check(await until(() => wk.__held.length === 1 && +(col('Column X')?.dataset.kcol || 0) < 0), 'kanban: the new column shows before the answer');
   wk.eval(`window.__m = dropTask0(${T2}, [...document.querySelectorAll('#view .kcol[data-kcol]')].find(c => c.textContent.includes('Column X')), 0)`);
   await sleep(0);
-  check(!wk.__log.some(k => /\/api\/tasks\/(reorder|\d+)$/.test(k) && !/^GET/.test(k)), 'kanban: the drop waits for the real id');
+  check(!wk.__log.some(k => /\/api\/tasks\/(reorder|batch|\d+)$/.test(k) && !/^GET/.test(k)), 'kanban: the drop waits for the real id');
   wk.__held[0].go(); await wk.eval('window.__p'); await wk.eval('window.__m');
   const colX = (await secs()).find(s => s.name === 'Column X')?.id;
   check(colX > 0 && await until(async () => (await call(CA, 'GET', `/api/tasks/${T2}`)).section_id === colX), 'kanban: the task is in the real column on the server');
