@@ -440,7 +440,7 @@ def dsp_edit(bid):
     every = bool(b.get("all")) or request.args.get("all") == "1"
     _clean(b, dict(r))  # bad input says so before any lock
     _may_change(c, uid, [r])
-    job = [x[0] for x in c.execute("SELECT id FROM hub_bookings WHERE org_id=? AND job=? AND deleted_at IS NULL", (r["org_id"], r["job"]))] if every else []
+    job = [x[0] for x in c.execute(f"SELECT id FROM hub_bookings WHERE org_id=? AND job=? AND {live_sql()}", (r["org_id"], r["job"]))] if every else []
     for i in sorted({bid, *job}):  # 2.809.0 (#5476): the bookings' locks in one order; #6342: before the version check
         write_lock(c, f"hub_bookings-{i}")
     r = _row(c, bid)  # read again under the lock
