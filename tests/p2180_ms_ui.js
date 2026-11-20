@@ -222,7 +222,14 @@ const task = async id => (await state()).tasks.find(t => t.id === id);
     const pw = await ev(`(() => { const d = document.querySelector('#detail'); const s = document.querySelector('#d-ms .msburn').getBoundingClientRect(); return {o: d.scrollWidth - d.clientWidth, w: Math.round(s.width)}; })()`);
     check(pw.o <= 0 && pw.w > 200, `${tag} panel: nothing sideways, the burndown uses the width ` + JSON.stringify(pw));
     await shot(`p2180ms-${th}-390-panel.png`);
+    // #7465: axe on the whole panel at phone width, nothing cut by its scroller - a field that the scroll position cut at the
+    // panel's lower edge (9 of 44 px seen) read as "partially obscured" target-size; at a tall window every field shows whole
+    await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: 390, height: 2400}});
+    await ev(`new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(1))))`);
+    const cut = await ev(`(() => { const d = document.querySelector('#detail'); return d ? d.scrollHeight - d.clientHeight : -1; })()`);
     await axe(ev, tag);
+    await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: 390, height: 844}});
+    if (cut > 0) console.log(`note: ${tag} the panel still scrolls by ${cut} px at 2400 px height`);
     await o.nav(B + '#cal'); await ready(ev);
     const cx = await ev(OVER);
     check(cx.o <= 0, `${tag} calendar: nothing sideways ` + JSON.stringify(cx));
