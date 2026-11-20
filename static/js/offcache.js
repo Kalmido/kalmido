@@ -25,7 +25,7 @@ function oc_req(r) { return new Promise((ok, no) => { r.onsuccess = () => ok(r.r
 function oc_held() {
   if (!globalThis.indexedDB) return null;
   return OC.h ||= idbHeld(() => new Promise((ok, no) => {
-    const r = indexedDB.open(OC_DB, 1);
+    const r = indexedDB.open('kalmido-start', 1);  // = OC_DB; the literal for tools/check_layout.py (sw.js swStartFold opens it too, #6334)
     r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains('s')) r.result.createObjectStore('s'); };
     r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); r.onblocked = () => no(new Error('blocked'));
   }));

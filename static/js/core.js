@@ -478,8 +478,9 @@ function outSync() {
     if (!x.sending) delete o.sending;
     return Object.assign(o, x);
   });
-  for (const o of mine.values()) o.done = true;
+  for (const o of mine.values()) { o.done = true; outGoneElse(o); }  // 2.1467 (#6334 B2)
   if (fix) LS.set('outbox', OUT.q);
+  if (OUT.tmpGone && !OUT.q.length) setTimeout(outTmpSettle, 0);
   return OUT.q;
 }
 function outSave(fn) {
@@ -502,7 +503,10 @@ window.addEventListener('storage', ev => { if (ev.key === 'tasks.outbox') { outS
 // A queue of an earlier version in localStorage is taken over once at the start (and later, should an old tab still write
 // one). Without IndexedDB (old browser, private mode, jsdom) everything stays in localStorage as before.
 const OBX = {on: false, st: null, ch: null, c: 0, ready: null, fails: 0, redo: false};
-const obxSeq = () => Date.now() * 1000 + (OBX.c = (OBX.c + 1) % 1000);
+// 2.1467 (#6334 A5): the order of the queue is a counter that only rises (above every entry it holds), never the clock: a device
+// clock set back turned entries round (a change before its create = a conflict). Entries of before keep their large numbers,
+// the next one goes after them
+const obxSeq = () => (OBX.c = Math.max(OBX.c, ...OUT.q.map(x => +x.n || 0)) + 1);
 const obxRec = x => { const {done, res, ...r} = x; return JSON.parse(JSON.stringify(r, typeof le2eRepl === 'function' ? le2eRepl() : undefined)); };  // like LS.set: ciphers only
 const obxReq = r => new Promise((ok, no) => { r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); });
 // 2.1120.0 (#6036): an IndexedDB connection held by a module that heals. The browser closes it under the page (a reload, the page
@@ -616,18 +620,31 @@ function obxWrite(put, del, full) {
 function obxRecv(d) {
   if (d.clear) { for (const o of OUT.q) o.done = true; OUT.q = []; }
   const by = new Map(OUT.q.map(x => [x.k, x]));
-  for (const k of d.del || []) { const o = by.get(k); if (o) { o.done = true; by.delete(k); } }
+  for (const k of d.del || []) { const o = by.get(k); if (o) { o.done = true; by.delete(k); outGoneElse(o); } }
   for (const r of d.put || []) { const o = by.get(r.k); if (o) { if (!r.sending) delete o.sending; Object.assign(o, r); } else by.set(r.k, r); }
   OUT.q = [...by.values()].sort((a, b) => a.n - b.n);
-  if (d.sw) obxDrain();
+  if (d.sw) obxDrain().then(outTmpSettle, outTmpSettle); else outTmpSettle();
   if (S.booted) renderTop();
+}
+// 2.1467 (#6334 B2): a new task / note of this window (temporary id, shown here) went out from another tab or the service worker:
+// the real one comes with that sender's id map, the provisional one would stay beside it (twice in the list; deleting the
+// "copy" deleted the real task). Once the queue is empty elsewhere this window loads the state once: the provisional ones go,
+// an open one / undo steps follow the id map
+function outGoneElse(o) { if (o?.tmp && !OUT.flushing) OUT.tmpGone = true; }
+function outTmpSettle() {
+  if (!OUT.tmpGone || OUT.q.length || OUT.flushing || !S.booted) return;
+  OUT.tmpGone = false;
+  const idm = LS.get('idmap', {});
+  Object.assign(HIST.ids, idm);
+  if (S.sel < 0 && idm[S.sel]) S.sel = idm[S.sel];
+  load().then(() => render(), () => {});
 }
 // what the service worker sent while no tab was open: its new task ids, conflicts and skipped repeats (shown here)
 async function obxDrain() {
   if (!OBX.on) return;
   let map, res;
   try { [map, res] = [await OBX.st.meta('swmap'), await OBX.st.meta('swres')]; } catch { return; }
-  if (map && Object.keys(map).length) { const idm = LS.get('idmap', {}); Object.assign(idm, map); Object.assign(HIST.ids, map); LS.set('idmap', idm); OBX.st.setMeta('swmap', undefined).catch(() => {}); }
+  if (map && Object.keys(map).length) { const idm = LS.get('idmap', {}); Object.assign(idm, map); Object.assign(HIST.ids, map); LS.set('idmap', idm); idmapSent(Object.keys(map)); OBX.st.setMeta('swmap', undefined).catch(() => {}); }
   if (res?.length) {
     OBX.st.setMeta('swres', undefined).catch(() => {});
     setTimeout(() => { for (const j of res) if (j.conflicts?.length) addConflicts(j.id, j.conflicts, j.title); if (res.some(j => j.skipped)) toast(tr('Recurring task was already checked off, not advanced twice')); if (res.some(j => j.nouid)) toast(tr('Offline changes made before the sign-in were kept and are sent from here')); }, 0);  // 2.533.0 A2 (#4318 A15)
@@ -1209,6 +1226,39 @@ function applyLocal(e) {
   }
   return {ok: true};  // habit log: caller already updated S.habits
 }
+// 2.1467 (#6334 A6): the temporary ids of new tasks in a queued body, mapped to the real ones (fix): the task fields (parent,
+// milestone, task), the ids / items of a batch or reorder, the per task maps of history steps and of a multi edit (data.items,
+// expect, guard, prev: keyed by id) and the base values (_prev) - before, only some fixed places were mapped and a milestone,
+// a parent inside data.items or a _prev stayed negative. static/sw.js swFixIds does the same for the service worker's send
+const OUT_IDF = ['parent_id', 'task_id', 'milestone_id'];
+function outFixIds(body, fix) {
+  if (!body || typeof body !== 'object' || Array.isArray(body) || (globalThis.FormData && body instanceof FormData)) return body;
+  const one = o => {
+    if (!o || typeof o !== 'object' || Array.isArray(o)) return o;
+    const r = {...o};
+    for (const k of OUT_IDF) if (k in r) r[k] = fix(r[k]);
+    if (r._prev && typeof r._prev === 'object') r._prev = one(r._prev);
+    return r;
+  };
+  const keyed = m => Object.fromEntries(Object.entries(m).map(([id, v]) => [/^-\d+$/.test(id) ? fix(+id) : id, one(v)]));
+  const b = one(body);
+  if (Array.isArray(b.items)) b.items = b.items.map(it => it && typeof it === 'object' ? {...one(it), id: fix(it.id)} : it);
+  if (Array.isArray(b.ids)) b.ids = b.ids.map(fix);
+  if (b.data && typeof b.data === 'object' && !Array.isArray(b.data)) {
+    const d = one(b.data);
+    for (const k of ['items', 'expect', 'guard', 'prev']) if (d[k] && typeof d[k] === 'object' && !Array.isArray(d[k])) d[k] = keyed(d[k]);
+    b.data = d;
+  }
+  return b;
+}
+// 2.1467 (#6334 D10): the id map is trimmed by the time its entry was SENT (LS "idmapAt"), not by the temporary id (= the time
+// the task was made): a task made offline three days ago lost its mapping in the same flush that sent it
+function idmapSent(tmps) { const at = LS.get('idmapAt', {}), now = Date.now(); for (const t of tmps) at[t] = now; LS.set('idmapAt', at); }
+function idmapTrim(idmap) {
+  const at = LS.get('idmapAt', {}), old = Date.now() - 86400000, keep = k => (+at[k] || -k) > old;
+  LS.set('idmapAt', Object.fromEntries(Object.entries(at).filter(([k]) => k in idmap && keep(k))));
+  return Object.fromEntries(Object.entries(idmap).filter(([k]) => keep(k)));
+}
 async function flush() {
   if (OUT.flushing || !outSync().length) return;
   if (OUT.retryAt && Date.now() < OUT.retryAt) return;  // 2.359.0 A (#3023): after a server error the next try waits (outRetry)
@@ -1233,19 +1283,10 @@ async function outFlush() {
       if (e.uid && S.me && e.uid !== S.me.id) { outSave(() => { OUT.q = OUT.q.filter(x => x !== e); }); continue; }  // another user's op
       outSave(() => { e.sending = 1; });
       const url = e.url.replace(/\/(-\d+)(?=\/|$)/, (_, n) => '/' + (idmap[n] || n));
-      let body = e.body;
-      if (body && body.parent_id) body = {...body, parent_id: fix(body.parent_id)};
-      if (body && body.task_id) body = {...body, task_id: fix(body.task_id)};
-      if (body && body.items) body = {...body, items: body.items.map(it => ({...it, id: fix(it.id)}))};
-      if (body && body.ids) body = {...body, ids: body.ids.map(fix)};
-      if (body && body.data && typeof body.data === 'object') {  // history steps: per task maps keyed by id
-        const d = {...body.data};
-        for (const k of ['items', 'expect', 'guard']) if (d[k] && !Array.isArray(d[k])) d[k] = Object.fromEntries(Object.entries(d[k]).map(([id, v]) => [fix(+id), v]));
-        body = {...body, data: d};
-      }
+      let body = outFixIds(e.body, fix);  // 2.1467 (#6334 A6): every place a task id sits in (sw.js swFixIds the same)
       // 2.359.0 A (#3023): a temporary id still in the entry: its create failed (a create always waits ahead of its changes) ->
       // not sent (no PATCH /api/tasks/-123), the change waits in the conflicts dialog
-      const tmpLeft = /\/-\d+(?=[/?]|$)/.test(url) || [body?.parent_id, body?.task_id, ...(body?.ids || []), ...(body?.items || []).map(it => it?.id)].some(v => typeof v === 'number' && v < 0);
+      const tmpLeft = /\/-\d+(?=[/?]|$)/.test(url) || [body?.parent_id, body?.task_id, body?.milestone_id, ...(body?.ids || []), ...(body?.items || []).map(it => it?.id)].some(v => typeof v === 'number' && v < 0);
       if (tmpLeft) { console.warn('outbox: its new task was not created', e); dropped++; outReject(e, new Error(tr('The new task could not be created'))); outSave(() => { OUT.q = OUT.q.filter(x => x !== e); }); e.res = null; e.done = true; outAnswer(e, null); continue; }
       const wiki = /^\/api\/wiki\/pages\/\d+$/.test(e.url);  // 2.169.0 (#2671): a knowledge page's text (wiki.js, loaded for it)
       if (wiki && typeof wkoSent !== 'function' && typeof loadModule === 'function') await loadModule('wiki').catch(() => {});
@@ -1256,7 +1297,7 @@ async function outFlush() {
         if (ntU(e.url)) sentNt++;  // 2.536.0 (#4567): a note's change (they go out online too now)
         if (wiki && typeof wkoSent === 'function') await wkoSent(e, j).catch(() => {});
         if (typeof ntSent === 'function' && NT_URL.test(e.url)) ntSent(e, j);  // 2.143.0 C (#2153): notes (chat.js)
-        if (e.tmp) { idmap[e.tmp] = j.id; HIST.ids[e.tmp] = j.id; LS.set('idmap', idmap); obxMeta('idmap', idmap); if (S.sel === e.tmp) S.sel = j.id; }  // 2.143.0 C (#2153): the service worker maps with it too
+        if (e.tmp && j?.id) { idmap[e.tmp] = j.id; HIST.ids[e.tmp] = j.id; LS.set('idmap', idmap); idmapSent([e.tmp]); obxMeta('idmap', idmap); if (S.sel === e.tmp) S.sel = j.id; }  // 2.1467 (#6334 D7): an answer without id maps nothing (was: the temporary id to undefined)  // 2.143.0 C (#2153): the service worker maps with it too
         if (j && j.conflicts?.length && e.url === '/api/tasks/batch' && body?.action === 'complete') { skipped++; j.conflicts = []; }  // 2.270.0 C (#3022): already ticked = not advanced twice
         if (j && j.conflicts?.length && typeof le2eRekeyConflicts === 'function') j = await le2eRekeyConflicts(url, body, j, b2 => rawFetch(e.method, url, b2, undefined, undefined, e));  // 2.543.0 (#4632): a key change is no conflict
         if (j && j.conflicts?.length) {
@@ -1305,7 +1346,7 @@ async function outFlush() {
       }
       e.done = true;
     }
-    LS.set('idmap', Object.fromEntries(Object.entries(idmap).filter(([k]) => -k > Date.now() - 86400000)));  // 2.126.0 D (#1989): another tab may still hold a new task's temporary id for a while; 2.380 H (#3387): 24 h, not 10 min
+    LS.set('idmap', idmapTrim(idmap));  // 2.126.0 D (#1989): another tab may still hold a new task's temporary id for a while; 2.380 H (#3387): 24 h, not 10 min
     obxMeta('idmap', LS.get('idmap', {}));  // 2.143.0 C (#2153)
   } finally {
     OUT.flushing = false;
