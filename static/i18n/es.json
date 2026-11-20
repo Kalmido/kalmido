@@ -19732,11 +19732,5 @@
   "documents from templates": "documentos de plantillas",
   "invoice series": "series de facturas",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "El cliente de este documento ya no está en esta oficina (movido a otro espacio de trabajo). Elige primero otro cliente.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "El cliente de la factura plantilla ya no está en esta oficina (movido a otro espacio de trabajo). Elige otra factura plantilla y vuelve a activar la serie.",
-  "Width of the name column": "Ancho de la columna de nombres",
-  "Switching it on signs you out everywhere else and ends your API tokens, app passwords and calendar feed links.": "Al activarlo se cierra tu sesión en todos los demás sitios y se revocan tus tokens de API, contraseñas de aplicación y enlaces de calendario.",
-  "A new way into your account: please confirm it is you.": "Un nuevo acceso a tu cuenta: confirma que eres tú.",
-  "Someone knows your password": "Alguien conoce tu contraseña",
-  "Your account {0} was signed in to with the right password but a wrong second factor: {1} wrong tries in 24 hours, the last from address {2}.": "Se intentó iniciar sesión en tu cuenta {0} con la contraseña correcta pero un segundo factor incorrecto: {1} intentos fallidos en 24 horas, el último desde la dirección {2}.",
-  "Too many wrong codes for this account today. Sign in from a device you used before, or reset the password with the link from the e-mail.": "Hoy hay demasiados códigos incorrectos para esta cuenta. Inicia sesión desde un dispositivo que ya hayas usado o restablece la contraseña con el enlace del correo."
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "El cliente de la factura plantilla ya no está en esta oficina (movido a otro espacio de trabajo). Elige otra factura plantilla y vuelve a activar la serie."
 }
