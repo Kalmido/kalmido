@@ -19731,13 +19731,5 @@
   "documents from templates": "documenten uit sjablonen",
   "invoice series": "factuurreeksen",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "De klant van dit document staat niet meer in dit kantoor (naar een andere werkruimte verplaatst). Kies eerst een andere klant.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "De klant van de sjabloonfactuur staat niet meer in dit kantoor (naar een andere werkruimte verplaatst). Kies een andere sjabloonfactuur en zet de reeks weer aan.",
-  "No answer from the server": "Geen antwoord van de server",
-  "no answer from the server": "geen antwoord van de server",
-  "Not saved: no answer from the server": "Niet opgeslagen: geen antwoord van de server",
-  "Test mode: test routes are open": "Testmodus: testroutes staan open",
-  "KALMIDO_TEST=1 is set. Never on a real server: remove KALMIDO_TEST from .env (or the compose file) and restart.": "KALMIDO_TEST=1 is ingesteld. Nooit op een echte server: verwijder KALMIDO_TEST uit .env (of het compose-bestand) en start opnieuw.",
-  "Your own key of the provider; its usage is billed to you by the provider. Kalmido stores it encrypted and never shows it again, not even in part.": "Je eigen sleutel bij de aanbieder; het gebruik rekent de aanbieder met jou af. Kalmido bewaart hem versleuteld en toont hem nooit meer, ook niet gedeeltelijk.",
-  "The entertainment receipt is saved, but the bill was not attached: {0}": "Het representatiebewijs is opgeslagen, maar de rekening is niet bijgevoegd: {0}",
-  "Archiving {0} of {1}…": "Archiveren {0} van {1}…"
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "De klant van de sjabloonfactuur staat niet meer in dit kantoor (naar een andere werkruimte verplaatst). Kies een andere sjabloonfactuur en zet de reeks weer aan."
 }

@@ -19732,13 +19732,5 @@
   "documents from templates": "documenti da modelli",
   "invoice series": "serie di fatture",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "Il cliente di questo documento non è più in questo ufficio (spostato in un altro spazio di lavoro). Scegli prima un altro cliente.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Il cliente della fattura modello non è più in questo ufficio (spostato in un altro spazio di lavoro). Scegli un'altra fattura modello e riattiva la serie.",
-  "No answer from the server": "Nessuna risposta dal server",
-  "no answer from the server": "nessuna risposta dal server",
-  "Not saved: no answer from the server": "Non salvato: nessuna risposta dal server",
-  "Test mode: test routes are open": "Modalità test: le route di test sono aperte",
-  "KALMIDO_TEST=1 is set. Never on a real server: remove KALMIDO_TEST from .env (or the compose file) and restart.": "KALMIDO_TEST=1 è impostato. Mai su un server reale: rimuovi KALMIDO_TEST dal .env (o dal file compose) e riavvia.",
-  "Your own key of the provider; its usage is billed to you by the provider. Kalmido stores it encrypted and never shows it again, not even in part.": "La tua chiave del fornitore; l'uso ti viene addebitato dal fornitore. Kalmido la conserva cifrata e non la mostra mai più, nemmeno in parte.",
-  "The entertainment receipt is saved, but the bill was not attached: {0}": "La ricevuta di rappresentanza è salvata, ma la fattura non è stata allegata: {0}",
-  "Archiving {0} of {1}…": "Archiviazione {0} di {1}…"
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Il cliente della fattura modello non è più in questo ufficio (spostato in un altro spazio di lavoro). Scegli un'altra fattura modello e riattiva la serie."
 }

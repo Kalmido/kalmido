@@ -1,0 +1,52 @@
+{
+  "de": {
+    "No answer from the server": "Keine Antwort vom Server",
+    "no answer from the server": "keine Antwort vom Server",
+    "Not saved: no answer from the server": "Nicht gespeichert: keine Antwort vom Server",
+    "Test mode: test routes are open": "Testmodus: Test-Routen sind offen",
+    "KALMIDO_TEST=1 is set. Never on a real server: remove KALMIDO_TEST from .env (or the compose file) and restart.": "KALMIDO_TEST=1 ist gesetzt. Nie auf einem echten Server: entferne KALMIDO_TEST aus der .env (oder der compose-Datei) und starte neu.",
+    "Your own key of the provider; its usage is billed to you by the provider. Kalmido stores it encrypted and never shows it again, not even in part.": "Dein eigener Schlüssel beim Anbieter; der Verbrauch wird dir vom Anbieter berechnet. Kalmido speichert ihn verschlüsselt und zeigt ihn nie wieder, auch nicht teilweise.",
+    "The entertainment receipt is saved, but the bill was not attached: {0}": "Der Bewirtungsbeleg ist gespeichert, aber die Rechnung wurde nicht angehängt: {0}",
+    "Archiving {0} of {1}…": "Wird archiviert: {0} von {1} …"
+  },
+  "es": {
+    "No answer from the server": "Sin respuesta del servidor",
+    "no answer from the server": "sin respuesta del servidor",
+    "Not saved: no answer from the server": "No guardado: sin respuesta del servidor",
+    "Test mode: test routes are open": "Modo de prueba: las rutas de prueba están abiertas",
+    "KALMIDO_TEST=1 is set. Never on a real server: remove KALMIDO_TEST from .env (or the compose file) and restart.": "KALMIDO_TEST=1 está activado. Nunca en un servidor real: quita KALMIDO_TEST del .env (o del archivo compose) y reinicia.",
+    "Your own key of the provider; its usage is billed to you by the provider. Kalmido stores it encrypted and never shows it again, not even in part.": "Tu propia clave del proveedor; el proveedor te factura el consumo. Kalmido la guarda cifrada y nunca vuelve a mostrarla, ni siquiera en parte.",
+    "The entertainment receipt is saved, but the bill was not attached: {0}": "El comprobante de atenciones está guardado, pero la factura no se adjuntó: {0}",
+    "Archiving {0} of {1}…": "Archivando {0} de {1}…"
+  },
+  "fr": {
+    "No answer from the server": "Pas de réponse du serveur",
+    "no answer from the server": "pas de réponse du serveur",
+    "Not saved: no answer from the server": "Non enregistré : pas de réponse du serveur",
+    "Test mode: test routes are open": "Mode test : les routes de test sont ouvertes",
+    "KALMIDO_TEST=1 is set. Never on a real server: remove KALMIDO_TEST from .env (or the compose file) and restart.": "KALMIDO_TEST=1 est défini. Jamais sur un vrai serveur : retire KALMIDO_TEST du .env (ou du fichier compose) et redémarre.",
+    "Your own key of the provider; its usage is billed to you by the provider. Kalmido stores it encrypted and never shows it again, not even in part.": "Ta propre clé chez le fournisseur ; l'utilisation t'est facturée par le fournisseur. Kalmido la stocke chiffrée et ne la montre plus jamais, même pas en partie.",
+    "The entertainment receipt is saved, but the bill was not attached: {0}": "Le justificatif de repas d'affaires est enregistré, mais la facture n'a pas été jointe : {0}",
+    "Archiving {0} of {1}…": "Archivage {0} sur {1}…"
+  },
+  "it": {
+    "No answer from the server": "Nessuna risposta dal server",
+    "no answer from the server": "nessuna risposta dal server",
+    "Not saved: no answer from the server": "Non salvato: nessuna risposta dal server",
+    "Test mode: test routes are open": "Modalità test: le route di test sono aperte",
+    "KALMIDO_TEST=1 is set. Never on a real server: remove KALMIDO_TEST from .env (or the compose file) and restart.": "KALMIDO_TEST=1 è impostato. Mai su un server reale: rimuovi KALMIDO_TEST dal .env (o dal file compose) e riavvia.",
+    "Your own key of the provider; its usage is billed to you by the provider. Kalmido stores it encrypted and never shows it again, not even in part.": "La tua chiave del fornitore; l'uso ti viene addebitato dal fornitore. Kalmido la conserva cifrata e non la mostra mai più, nemmeno in parte.",
+    "The entertainment receipt is saved, but the bill was not attached: {0}": "La ricevuta di rappresentanza è salvata, ma la fattura non è stata allegata: {0}",
+    "Archiving {0} of {1}…": "Archiviazione {0} di {1}…"
+  },
+  "nl": {
+    "No answer from the server": "Geen antwoord van de server",
+    "no answer from the server": "geen antwoord van de server",
+    "Not saved: no answer from the server": "Niet opgeslagen: geen antwoord van de server",
+    "Test mode: test routes are open": "Testmodus: testroutes staan open",
+    "KALMIDO_TEST=1 is set. Never on a real server: remove KALMIDO_TEST from .env (or the compose file) and restart.": "KALMIDO_TEST=1 is ingesteld. Nooit op een echte server: verwijder KALMIDO_TEST uit .env (of het compose-bestand) en start opnieuw.",
+    "Your own key of the provider; its usage is billed to you by the provider. Kalmido stores it encrypted and never shows it again, not even in part.": "Je eigen sleutel bij de aanbieder; het gebruik rekent de aanbieder met jou af. Kalmido bewaart hem versleuteld en toont hem nooit meer, ook niet gedeeltelijk.",
+    "The entertainment receipt is saved, but the bill was not attached: {0}": "Het representatiebewijs is opgeslagen, maar de rekening is niet bijgevoegd: {0}",
+    "Archiving {0} of {1}…": "Archiveren {0} van {1}…"
+  }
+}
