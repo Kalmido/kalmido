@@ -1155,6 +1155,8 @@ hosts and connections to LAN addresses time out; only DNS, Kalmido and public HT
 computer: add a connector with the address shown under *Settings > Agents > Connected apps* (your server followed by
 `/mcp`), sign in when the client opens Kalmido, choose the agent (or create one) and confirm. Disconnect it there again.
 An access ends after 90 days (2.674.0); the client then asks you to connect once more.
+A new agent, its new token, a setup code and this confirmation ask for your password once more when your sign-in is
+older than 10 minutes (#6499; an account without a password signs in again).
 Details: [AGENTS.md, Hosted MCP](AGENTS.md#hosted-mcp).
 
 ## Other tools: Codex CLI, Cursor, Windsurf, Gemini CLI
