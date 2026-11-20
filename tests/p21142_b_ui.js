@@ -1,5 +1,6 @@
 // 2.114.2 B (#2264): a number scheme with an error keeps its width, the message sits UNDER the field, and a button
-// "Reset" puts the last saved valid scheme back (saved by the autosave, the message gone).
+// "Reset" puts the default scheme of the office's pack back (#6843, decision #2264: the default, not the last saved scheme;
+// saved by the autosave, the message gone).
 // freelancer-matrix: office -- once as a person without an organisation (own private office), once as the org admin.
 // Firefox: 1000 px and 375 px.
 const {execFileSync} = require('child_process');
@@ -50,11 +51,13 @@ const call = async (method, url, body, ck) => { const r = await fetch(B + url.re
     check(!g.over, tag + 'no horizontal overflow');
     // the field in view; without the reset button (an export without #2264) the shots are the old layout
     if (o.shot) { await ev(`document.querySelector('#os-inv-scheme').scrollIntoView({block: 'center'})`); await sleep(300); await o.shot(`2264-${(await ev(`!!document.querySelector('#os-inv-scheme-rs')`)) ? 'nachher' : 'vorher'}-${user}-${width}.png`); }
+    const dflt = (await call('GET', '/api/office/settings', null, ck)).pack?.schemes?.invoice;
+    check(!!dflt && dflt !== good && /\{seq/.test(dflt), tag + '#6843: the pack names its default scheme ' + dflt);
     await ev(`document.querySelector('#os-inv-scheme-rs').click()`);
-    for (let i = 0; i < 30; i++) { g = await geo(); if (!g.err && g.val === good) break; await sleep(200); }
-    check(g.val === good && !g.err && !g.rs, tag + 'reset: last saved scheme back, message gone ' + JSON.stringify(g));
-    await sleep(1500);
-    check((await call('GET', '/api/office/settings', null, ck)).settings?.invoice_scheme === good, tag + 'server still holds the valid scheme');
+    for (let i = 0; i < 30; i++) { g = await geo(); if (!g.err && g.val === dflt) break; await sleep(200); }
+    check(g.val === dflt && !g.err && !g.rs, tag + '#6843: reset puts the default scheme in, not the last saved one, message gone ' + JSON.stringify(g) + ' ' + dflt);
+    let srv = ''; for (let i = 0; i < 30; i++) { srv = (await call('GET', '/api/office/settings', null, ck)).settings?.invoice_scheme; if (srv === dflt) break; await sleep(300); }
+    check(srv === dflt, tag + '#6843: the autosave stores the default ' + srv);
   }, width < 500);
 
   await run('fiona', FCK, 1000);

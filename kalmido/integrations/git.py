@@ -28,6 +28,7 @@ from ..tasks.validation import log_act
 from ..tasks.tasks import one_task
 from ..tasks.lifecycle import do_complete, signed, undo_status
 from ..core.errors import BadInput, UnknownFields
+from ..core.objcomments import OCM_MAX  # (#7561): details of a merge request up to the length of a comment
 from ..notify.push import _b64u, _b64u_dec
 from ..notify.alerts import _env_int, aa_count
 from ..collab.integfail import INTEG_FAILS, integ_tell
@@ -1059,19 +1060,31 @@ def git_parse_pr_url(c, lid, url):
     return None
 
 
+MR_SUMMARY_MAX = 2000  # characters of a merge request's summary
+MR_TOO_LONG = N_("The {0} is too long (max. {1} characters): put long text such as SQL or a log into details")
+
+
 def git_merge_request(c, t, s):
-    unknown = sorted(k for k in s if k not in ("kind", "pr_url", "summary"))
+    """#7561: {kind, pr_url, summary?, details?}: details = plain text (SQL, a log ...) the app shows folded in a fixed-width
+    font, up to the length of a comment; a summary or details over its limit is refused (400), never cut silently."""
+    unknown = sorted(k for k in s if k not in ("kind", "pr_url", "summary", "details"))
     if unknown:
         raise UnknownFields(unknown)
     hit = git_parse_pr_url(c, t["list_id"], s.get("pr_url"))
     if not hit:
         raise BadInput(tr("The pull request is not in a repository connected to this project"))
-    summary = s.get("summary")
-    if summary is not None and not isinstance(summary, str):
-        raise BadInput(tr("Invalid value: {0}", "summary"))
+    out = {}
+    for k, mx in (("summary", MR_SUMMARY_MAX), ("details", OCM_MAX)):
+        v = s.get(k)
+        if v is not None and not isinstance(v, str):
+            raise BadInput(tr("Invalid value: {0}", k))
+        v = (v or "").strip() if k == "summary" else (v or "").strip("\n").rstrip()
+        if len(v) > mx:
+            raise BadInput(tr(MR_TOO_LONG, k, mx))
+        out[k] = v
     r, n = hit
     return {"kind": "merge_request", "pr_url": s["pr_url"].strip(), "repo": f"{r['owner']}/{r['repo']}", "conn": r["id"], "number": n,
-            "summary": (summary or "").strip()[:2000], "state": "open"}
+            "summary": out["summary"], **({"details": out["details"]} if out["details"] else {}), "state": "open"}
 
 
 def git_merge_link(c, t, sug):

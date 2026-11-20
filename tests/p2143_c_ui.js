@@ -149,7 +149,7 @@ const spy = w => { const calls = []; const of = w.fetch; w.fetch = (u, o = {}) =
   w1.eval('PWA.shown = false'); w1.dispatchEvent(fake(w1)); w1.eval('pwa_hint()');
   w1.document.querySelector('#pwahint [data-pwa="never"]')?.click();
   check(JSON.parse(br.shared.store['tasks.pwaHint'] || '{}').never === true, '"Don\'t show again" is kept');
-  w1.eval('clearLocal()');
+  w1.eval("devEnd('logout')");
   check(JSON.parse(br.shared.store['tasks.pwaHint'] || '{}').never === true, '… also through a logout (a device preference)');
   delete br.shared.store['tasks.pwaHint'];
   // an iPhone: no install question, the steps instead
@@ -184,8 +184,8 @@ const spy = w => { const calls = []; const of = w.fetch; w.fetch = (u, o = {}) =
   const br4 = browser();
   const w4 = await boot({user: 'alice', hash: 'l/' + P, shared: br4.shared, setup: br4.setup});
   br4.db.ops.set('left', {k: 'left', n: 1, method: 'PATCH', url: `/api/tasks/${T0}`, body: {title: 'x'}, uid: me});
-  const cl = w4.eval('clearLocal()');
-  check(cl && typeof cl.then === 'function', 'clearLocal gives a Promise');
+  const cl = w4.eval("devEnd('logout')");
+  check(cl && typeof cl.then === 'function', 'devEnd gives a Promise');
   await cl;
   check(br4.db.ops.size === 0, `after it the store is empty (${br4.db.ops.size})`);
   w4.close();

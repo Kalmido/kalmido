@@ -14,7 +14,7 @@ from ..core.config import app, COOKIE, EMAIL_RE, MIN_PASSWORD, PUBLIC_URL, USERN
 from ..core.i18n import lang, LANGS, N_, tr, trn
 from ..core.db import body, bump, create_user, db, ensure_inbox, err, gsetting, now_utc, uset, usettings, iso
 from ..core.pg import system_ctx
-from ..accounts.session import _rate_fail, _rate_keys, _token_hash, dname_clean, login_wait, me, session_gen, user_public
+from ..accounts.session import _rate_fail, _rate_keys, _token_hash, dname_clean, login_wait, me, session_gen, session_remember, user_public
 from ..accounts.pictures import (
     AVATAR_DIR, avatar_drop_file, AVATAR_MAX_MB, avatar_path, AVATAR_PRESETS, avatar_process, avatar_url, LIST_ICON_DIR,
     list_icon_cols, list_icon_drop_file, list_icon_path, LIST_ICON_PRESETS, list_icon_process, list_icon_url, list_pic_guard,
@@ -753,6 +753,7 @@ def me_get():
                     **drop_agent_of(u),
                     "ntfy_topic": usettings(c, u["id"])["ntfy_topic"],
                     "support_session": sga_is_support(c),  # 2.538.0 (#4365): as in /api/state
+                    "remember": session_remember(c),  # (#6500): "Stay signed in" - without it the client keeps no offline copies
                     "sgen": session_gen(u, workspaces_for(c, u["id"]))})  # 2.238.0 B (#2872): the sign-in mark (as in /api/state)
 
 

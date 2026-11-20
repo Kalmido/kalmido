@@ -128,7 +128,7 @@ const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => m - n);
   const after = (await (await w.fetch('/api/state')).json()).settings;
   check(JSON.stringify(before) === JSON.stringify(after), 'nothing stored on the server');
   // logout keeps the device preferences
-  w.eval('clearLocal()');
+  w.eval("devEnd('logout')");
   check(['theme', 'density', 'fsize', 'font', 'accent'].every(k => ('tasks.' + k) in w.__store), 'logout / user switch keeps the appearance');
   const store = {...w.__store};
   w.close();

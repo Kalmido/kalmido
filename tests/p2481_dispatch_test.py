@@ -1016,5 +1016,14 @@ dd = ad.Dispatcher(h, proj)
 dd.reg["lead"] = [[int(time.time()), 2.0], [int(time.time()), 4.0]]
 check(dd.metrics(time.time())[0] == (3.0, 2), "#4061: the median of an even count is the middle of the two")
 
+# #7561: the card's summary stays within the server's 2000 characters (it refuses more now): a long one keeps its first lines,
+# the whole text goes into details; a short one is unchanged
+sm, dt = ad.card_text("- #1 short")
+check((sm, dt) == ("- #1 short", ""), "#7561: a short summary is unchanged, no details")
+big = "\n".join(f"- #{i} a task with a long enough title number {i}" for i in range(80))
+sm, dt = ad.card_text(big)
+check(len(sm) <= 2000 and sm.startswith("- #0 ") and "in the details" in sm and dt == big, f"#7561: a long summary: its first lines + the whole text in details ({len(sm)}, {len(dt)})")
+check(len(ad.card_text("x", "y" * 12000)[1]) <= 10000, "#7561: details within the comment limit")
+
 print(f"p2481_dispatch: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)

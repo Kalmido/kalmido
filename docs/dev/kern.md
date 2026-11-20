@@ -1847,8 +1847,8 @@ The rules are the same for all three:
   (`opts.label`, default "Drag to resize · double-click: default size"), the new size is announced.
 - **Out of the way:** while a menu, a popover or a dialog is open the grips step aside (as `.pgrip`, #976) - a grip inside
   that menu or dialog stays; the phone layout (< 768 px) has no grips (`opts.off()` switches one off elsewhere).
-- **Storage:** per device in localStorage under `grip:<key>` (LS, i.e. `tasks.grip:<key>`; wiped on sign-out like every
-  `tasks.*` key unless it goes into `LS_KEEP`). A size that belongs to the account or to an object passes
+- **Storage:** per device in localStorage under `grip:<key>` (LS, i.e. `tasks.grip:<key>`; class view of the
+  register "Data of the account on this device": gone at sign-out unless it goes into `LS_KEEP`). A size that belongs to the account or to an object passes
   `load()` (-> the value, `null` = default, `undefined` = nothing stored) and `save(v)` (`v` null = back to the default)
   instead. The default itself is never stored.
 - **The check (#7294):** `tools/pr_lint.py griff` (rules in `tools/griff_lint.py`) is red when a change ADDS a fixed size
@@ -1920,3 +1920,51 @@ a big state is no hang).
 
 Tests shorten the limits (`w.eval('NET_T.w = 400')`) and hold answers back: `tests/p7494_zeitgrenze_ui.js`,
 `tests/p7509_editor_kette_ui.js`.
+
+## Data of the account on this device (#6500)
+
+What the browser keeps of an account has ONE owner: the register `DEV_STORES` in `static/js/icons.js` (loaded first). Every
+store - a localStorage / sessionStorage key or prefix, an IndexedDB database, a Cache Storage cache, the push subscription -
+is one line with its class:
+
+| class | what | stores |
+|---|---|---|
+| own | not sent yet | `tasks.outbox` + `kalmido-outbox`, the quick add's offline files `kalmido-qfiles`, files shared into the app `tasks-share`, the conflict copies `tasks.conflicts`, kept input (`FD_KINDS`, `tasks.<kind>.`), the account mark `tasks.uid`, `tasks.idmap*` |
+| copy | offline copies of the account's data | the start state `kalmido-start` (old form `tasks.cache`), the knowledge pages' copy `kalmido-wiki`, their one stamp `tasks.wko` |
+| view | the rest of the account in this browser | every other `tasks.*` / `kalmido.*` key, the session's sessionStorage keys, the app's Cache Storage `tasks-shell-*` |
+| secret | keys and the push channel | `kalmido-e2e` with the keys in memory (`e2eForget`), this browser's push subscription |
+| device | this device's own | `LS_KEEP` (look, density, ...), `kalmido.logoutPending`, the reload guards |
+
+ONE table says which event ends which classes (`DEV_END`), run by **`devEnd(why)`** - the only way an account's time on the
+device ends:
+
+| event | caller | goes |
+|---|---|---|
+| `logout` | `account.js logout` (waiting changes: asked first, a copy downloaded) | own, view, copy, secret |
+| `switch` | `core.js userSwitch` (another account in this browser, asked first the same way) | own, view, copy, secret |
+| `restore` | `acctset.js` after a backup restore | own, view, copy, secret |
+| `gone` | `core.js authGone`: the session ended (401 on any route, the proxy's sign-in page) | view, copy, secret - own waits for the next sign-in of the same account |
+| `mark` | `core.js sessGuard` (online) and the offline start: another sign-in mark, 14 days without an online sync, no "Stay signed in" | copy |
+
+Keys go at once (the caller may write the next account's mark right after); a store that is no key goes through its drop:
+the module that owns it brings one with `devDrop(name, fn)` (`offcache.js oc_drop`, `wiki.js wko_reset` / `wko_wipe`,
+`e2e.js e2eForget`, `setcore.js` the subscription ends in the browser only, `core.js obxClear`); without one (the module not
+loaded) the database / the cache goes as a whole. `devEnd` waits for the drops at most 3 s.
+
+**The write gate of the copies:** `devCopyOk(me)` (core.js) - only for a sign-in with "Stay signed in" (`me.remember` in
+`/api/me` and `/api/state`, read by the server from the session's length: `accounts/session.py session_remember`) whose last
+online sync is younger than 14 days. One stamp for both copies, LS `wko` = `{g, at, off}` (the sign-in mark `me.sgen`, the
+last online sync, a sign-in without "Stay signed in"), written by `sessGuard` at an online load and moved on by a delta /
+the knowledge pages' sync (`devSynced`). `startSave`, `wiki.js wko_st` and the offline start ask only it. `sw.js
+swStartFold` writes only into a start state that is there (it goes with class copy).
+
+**The server side:** a session ends in one place, `accounts/sessions.py ses_end` - with the push subscriptions made in it
+(logout, "end the others", a new password, a disabled account, `start_session` for the ones that ran out, the daily clean-up
+`admin/dataretention.py` with `expired`, a backup restore). `notify/push.py webpush_user` sends only to subscriptions of a
+living session (`session_hash` '' = bound to none: a proxy login, from before 2.115).
+
+A new store is one line in `DEV_STORES` (and a `devDrop` if it is no key); a new "this must stay" is its class, never a
+list at an event. `tools/check_devstore.py` (CI lint) is red for an `indexedDB.open` / `caches.open` / storage key that no
+entry covers; the places from before are the baseline `tools/devstore_baseline.json` (only shrinks). Tests:
+`tests/p2306_b_storage_ui.js` (the matrix event x class against the decision, the 401, "Stay signed in", 14 days),
+`tests/p2190_a_sessions_test.py` (remember, push only to living sessions, ses_end), `tests/check_devstore_test.py`.

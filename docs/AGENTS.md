@@ -4597,7 +4597,7 @@ The comments from `GET /api/v1/tasks/{id}/comments` include:
 
 - `reactions`: `[{emoji, count, users: [{id, name}]}]`
 - `suggestion`: `{…, state: "open" | "applied" | "rejected", by, at}` or `null`; a merge request (2.2.0):
-  `{kind: "merge_request", pr_url, repo, number, summary, state: "open" | "approved" | "rejected", by, at}`
+  `{kind: "merge_request", pr_url, repo, number, summary, details?, state: "open" | "approved" | "rejected", by, at}`
 - `author.agent`: `true` for comments that an agent wrote
 
 ## Coding agents in a team
@@ -4642,8 +4642,12 @@ Kalmido's part:
   empty = the agent's own); `GET /api/lists/{id}/repos` and the lists' `repos` carry `author_name` / `author_email`. A branch named like that, or `#<id>` in a commit or pull request,
   links them to the task; the panel shows them under *Code*.
 - When the pull request is ready, the agent posts a comment with the structured field
-  `{"kind": "merge_request", "pr_url": "…/pull/12", "summary": "…"}` (MCP `request_merge_approval`; only agents, only
-  pull requests of a repository connected to the task's project). The app shows it as *Ready to merge* with the pull
+  `{"kind": "merge_request", "pr_url": "…/pull/12", "summary": "…", "details": "…"}` (MCP `request_merge_approval`; only
+  agents, only pull requests of a repository connected to the task's project). `summary` has at most 2000 characters: a
+  longer one is refused with `400` and a clear message, nothing is cut (#7561). Long plain text the person should read before
+  approving - the SQL of a schema change, a log, a diff excerpt - goes into the optional `details` (up to the length of a
+  comment, 10000 characters): the app shows it folded under *Details* in a fixed-width font with its line breaks, scrolling
+  sideways on a phone. The reference starter's dispatcher keeps its card's summary short and puts a longer list there. The app shows it as *Ready to merge* with the pull
   request, its CI and *Approve* / *Reject* for approvers (project owner, project admins, the assignee, instance admins).
 - 👍 / 👎 by an approver sets it `approved` / `rejected` (once) and sends the agent a `reaction` event with
   `approval: "approved" | "rejected"` and `merge_request: {pr_url, number, repo, state}`. Reactions of others arrive

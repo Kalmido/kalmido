@@ -2,7 +2,7 @@
 // kalmido-suite: fresh
 // - #5460: an event in the lower half of the month opens its window after the details are loaded inside the browser window
 //   (1280x800 and 820x800): its lower edge stays in the window, Edit (owner) and Accept (invited person) are in sight and take
-//   the click; the actions run Edit - Preparation task - Delete (Delete last); "Hide on Today" is no longer in the window
+//   the click; the actions run Edit - Preparation task - Delete (Delete last); the switch "Hide on Today" (#3740, back with #6841) stays in the calendar's line
 // - #5468: dated tasks in the calendar follow the workspace like the events: in Private only the private list's task, in the
 //   organisation only its list's task, under "All" both; an event of a subscribed calendar shows in each, with its mark;
 //   a person without an organisation (bob) sees all of their own dated tasks
@@ -196,7 +196,7 @@ c.close()`);
   const geo = sel => `(() => { const p = document.querySelector('#pop'), b = p.querySelector(${JSON.stringify(sel)}); if (!b) return null;
     const pr = p.getBoundingClientRect(), br = b.getBoundingClientRect(), cx = br.left + br.width / 2, cy = br.top + br.height / 2, at = document.elementFromPoint(cx, cy);
     return {pb: Math.round(pr.bottom), pt: Math.round(pr.top), H: innerHeight, bt: Math.round(br.top), bb: Math.round(br.bottom), hit: !!(at && at.closest(${JSON.stringify(sel)}) === b), cx: Math.round(cx), cy: Math.round(cy),
-      acts: [...p.querySelectorAll('.cevact:not(.apdraftact) [data-evp]')].map(x => x.dataset.evp), flip: !!p.querySelector('[data-act="cvx-today-flip"]')}; })()`;
+      acts: [...p.querySelectorAll('.cevact:not(.apdraftact) [data-evp]')].map(x => x.dataset.evp)}; })()`;
   const openChip = async (ev, until) => {
     await ev(`(() => { closePop(); S.calMode = 'month'; S.calSel = '${LAST}'; renderView(); return 1; })()`);
     const at = await until(`(() => { const c = [...document.querySelectorAll('#view .cev')].find(x => /Review late/.test(x.textContent + (x.title || ''))); if (!c) return null; const r = c.getBoundingClientRect(); return {top: Math.round(r.top), H: innerHeight}; })()`);
@@ -220,7 +220,6 @@ c.close()`);
       const g = await ev(geo(sel));
       check(g && g.pb <= g.H && g.pt >= 0, `#5460 ${user} ${width}: the window ends inside the browser window ` + JSON.stringify(g));
       check(g && g.bt >= 0 && g.bb <= g.H && g.hit, `#5460 ${user} ${width}: ${sel} is in sight and takes the click ` + JSON.stringify(g));
-      check(g && !g.flip, `#5460 ${user} ${width}: no "Hide on Today" in the event window`);
       if (user === 'alice') check(g && g.acts.join() === 'edit,prep,del', `#5460 ${width}: Edit - Preparation task - Delete (Delete last) ` + JSON.stringify(g && g.acts));
       await shot(`p2800-a-pop-${user}-${width}.png`);
       if (g && g.hit) {  // a real click on the spot: Edit opens the editor, Accept is sent

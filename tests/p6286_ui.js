@@ -74,7 +74,7 @@ const lsj = (br, k) => { const v = br.shared.store['tasks.' + k]; return v == nu
   const took = await w.eval(`loadModule('wiki').then(() => wkoReject({url: '/api/wiki/pages/${P1}', method: 'PATCH', body: {body: 'My offline beds'}},
     {status: 409, data: {page: {id: ${P1}, space: 'private', title: 'Beds', body: 'Beds of the server', updated_at: '2030-01-01T00:00:00Z'}}}))`);
   check(took === true && lsj(br, `fdx.${me}.${P1}`)?.b?.mine === 'My offline beds', 'C1: the refused text is kept as input of the account ' + br.shared.store[XK]);
-  check(w.eval('fdAny()') === true, 'C1: it counts as kept input (authGone keeps the local state)');
+  check(w.eval(`devCls('ls', '${XK}')`) === 'own', 'C1: it counts as kept input (class own: an ended session keeps it, #6500)');
   w.close();
 
   // a new sign-in (another sign-in mark): the copy is emptied, the waiting text stays and shows at its page
