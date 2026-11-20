@@ -436,8 +436,13 @@ ORIGIN_TT_GIT = ("github:", "gitlab:")  # 2.1269.0 (#6431): the issue import's o
 def tt_origin(tt_id):
     """2.1269.0 (#6431): the outside origin a task keeps in its source key (tasks.tt_id): 'mail:<message id>' (an e-mail,
     2.126.0), 'github:' / 'gitlab:' (an imported issue, integrations/git_issues.py) or 'origin:<origin>:<task id>' (agents/core.py
-    task_mark_origin; a synced new issue: 'origin:git:...'); None = written in Kalmido."""
+    task_mark_origin; a synced new issue: 'origin:git:...'); None = written in Kalmido. (#6643): a task moved with the account
+    move keeps it at the end of its new key ('kalmido:<export>:<target>:<old id>:origin:<origin>', admin/acctimport.py umz_tt_id).
+    """
     s = str(tt_id or "")
+    if s.startswith("kalmido:") and ":origin:" in s:
+        o = s.rsplit(":origin:", 1)[1]
+        return o if o in ORIGIN_EXT else None
     if s.startswith("mail:"):
         return "mail"
     if s.startswith(ORIGIN_TT_GIT):  # an issue imported from GitHub / GitLab (the key stays: the import finds it again by it)
@@ -451,14 +456,18 @@ def tt_origin(tt_id):
 def comment_origin(k):
     """2.1269.0 (#6431): a comment without a Kalmido account (author_id null) is text from outside: 'git' (synced from the git
     host), 'mail' (a reply by e-mail to a ticket), 'portal' (the reporter on the status page) or 'public_link' (a customer
-    through the public link). None = a person's or an agent's comment."""
+    through the public link). None = a person's or an agent's comment.
+    (#6643): 'former_account' = a comment whose account was deleted since (no author, no name it came with: the database
+    set the author to NULL); still untrusted -- nobody vouches for the text any more."""
     ks = k.keys()
     if k["user_id"] is not None:
         return None
     src = k["source"] if "source" in ks else None
     if src in ("git", "mail"):
         return src
-    return "portal" if "portal" in ks and k["portal"] else "public_link"
+    if "portal" in ks and k["portal"]:
+        return "portal"
+    return "former_account" if "ext_name" in ks and not (k["ext_name"] or "").strip() else "public_link"
 
 
 def task_for(c, row, uid):
