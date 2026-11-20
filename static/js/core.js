@@ -587,7 +587,7 @@ function idbHeld(open) {
     let late = false, won = false;  // won: open() answered first, the limit then ends without a word
     const o = open();
     o.then(d => { if (late) d.close(); else won = true; }, () => { won = true; });
-    const lim = new Promise((_, no) => { setTimeout(() => { if (won) return; late = true; no(new DOMException(`IndexedDB did not open within ${IDB_T.open} ms`, 'TimeoutError')); }, IDB_T.open); });
+    const lim = new Promise((_, no) => { setTimeout(() => { if (won) return; late = true; no(Object.assign(new Error(`IndexedDB did not open within ${IDB_T.open} ms`), {name: 'TimeoutError'})); }, IDB_T.open); });
     lim.catch(() => { /* raced */ });
     const p = dbp = Promise.race([o, lim]).then(d => {
       const drop = () => { if (dbp === p) dbp = null; };
