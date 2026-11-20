@@ -743,7 +743,7 @@ function sbiGrid() {  // the grid's emojis: in line mode one per line icon (the 
   }
   return out;
 }
-// 2.411.0 (#3516): a new project in a folder with a project type (folderPtype) starts as that type (#6842: sections not ticked),
+// (#3516): a new project in a folder with a project type (folderPtype) starts as that type (#6842: sections not ticked),
 // chosen in the dialog (the person can pick another one; once picked by hand a folder change keeps it)
 function lmFolderPtype(md, folder) {
   if (!md || $('.lhdr', md) || md._ptUser || !$('.ptcards', md)) return;

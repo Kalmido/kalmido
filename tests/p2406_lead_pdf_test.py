@@ -148,7 +148,7 @@ nr = pdf.office_pdf(offer(rights=False))
 qn = pdfcheck.layout(nr)
 tot, gr, th, co = find(qn, "Summe netto"), find(qn, "Mit freundlichen"), find(qn, "Wir freuen uns"), find(qn, "Beispielstudio GmbH", True)
 foot = qn[0]["foot"]
-# 2.1179.0 (#6174): the order confirmation sits right above the footer; (#7523): it is glued to the footer, so totals +
+# (#6174): the order confirmation sits right above the footer; (#7523): it is glued to the footer, so totals +
 # closing go all the way down to it (one hole above the totals, none between closing and order confirmation; the 25 mm limit
 # of #6174 holds only without such a block)
 lp, acc, co = find(qn, "Leistung 4"), find(qn, "AUFTRAGSERTEILUNG"), find(qn, "Beispielstudio GmbH", True)
