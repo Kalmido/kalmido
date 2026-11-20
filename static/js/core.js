@@ -478,7 +478,7 @@ function outSync() {
     if (!x.sending) delete o.sending;
     return Object.assign(o, x);
   });
-  for (const o of mine.values()) { o.done = true; outGoneElse(o); }  // 2.1467 (#6334 B2)
+  for (const o of mine.values()) { o.done = true; outGoneElse(o); }  // (#6334 B2)
   if (fix) LS.set('outbox', OUT.q);
   if (OUT.tmpGone && !OUT.q.length) setTimeout(outTmpSettle, 0);
   return OUT.q;
@@ -503,7 +503,7 @@ window.addEventListener('storage', ev => { if (ev.key === 'tasks.outbox') { outS
 // A queue of an earlier version in localStorage is taken over once at the start (and later, should an old tab still write
 // one). Without IndexedDB (old browser, private mode, jsdom) everything stays in localStorage as before.
 const OBX = {on: false, st: null, ch: null, c: 0, ready: null, fails: 0, redo: false};
-// 2.1467 (#6334 A5): the order of the queue is a counter that only rises (above every entry it holds), never the clock: a device
+// (#6334 A5): the order of the queue is a counter that only rises (above every entry it holds), never the clock: a device
 // clock set back turned entries round (a change before its create = a conflict). Entries of before keep their large numbers,
 // the next one goes after them
 const obxSeq = () => (OBX.c = Math.max(OBX.c, ...OUT.q.map(x => +x.n || 0)) + 1);
@@ -626,7 +626,7 @@ function obxRecv(d) {
   if (d.sw) obxDrain().then(outTmpSettle, outTmpSettle); else outTmpSettle();
   if (S.booted) renderTop();
 }
-// 2.1467 (#6334 B2): a new task / note of this window (temporary id, shown here) went out from another tab or the service worker:
+// (#6334 B2): a new task / note of this window (temporary id, shown here) went out from another tab or the service worker:
 // the real one comes with that sender's id map, the provisional one would stay beside it (twice in the list; deleting the
 // "copy" deleted the real task). Once the queue is empty elsewhere this window loads the state once: the provisional ones go,
 // an open one / undo steps follow the id map
@@ -671,7 +671,7 @@ function wkoDrop() {
 function startDrop() { LS.del('cache'); S.lpCache = null; if (typeof oc_drop === 'function') oc_drop(); else if (globalThis.indexedDB) { try { indexedDB.deleteDatabase('kalmido-start'); } catch { /* none */ } } }  // 2.663.0 (#4200): + its IndexedDB record
 // 2.663.0 (#4200): the offline start state (S.lpCache) goes to IndexedDB when the browser is idle (offcache.js, loaded on demand);
 // an own window (miniwin.js) writes none; without IndexedDB or the module localStorage as before
-// 2.1467 (#6340): now = the page is being hidden (liveparts.js lpCacheNow): written at once, not when idle
+// (#6340): now = the page is being hidden (liveparts.js lpCacheNow): written at once, not when idle
 function startSave(now) {
   if (!S.lpCache || (typeof MW_GUARD !== 'undefined' && MW_GUARD)) return;  // 2.891.0 (#5358): nor the split view's right half
   if (typeof loadModule !== 'function' || !globalThis.indexedDB) { LS.set('cache', S.lpCache); return; }
@@ -680,9 +680,9 @@ function startSave(now) {
   // the start fetches no module (p265_b): the first write waits for the idle preload (lazyload.js, 5 s), it takes the newest state then
   const wait = 6000 - performance.now();
   if (wait > 0) { if (!startSave.t) startSave.t = setTimeout(() => { startSave.t = 0; startSave(); }, wait); return; }
-  loadModule('offcache').then(() => oc_soon(), e => { if (e?.stale) return; /* 2.1467 (#6338): an outdated window, the reload comes */ console.warn('Kalmido: offline start state: module not loaded, localStorage', e); if (S.lpCache) LS.set('cache', S.lpCache); });
+  loadModule('offcache').then(() => oc_soon(), e => { if (e?.stale) return; /* (#6338): an outdated window, the reload comes */ console.warn('Kalmido: offline start state: module not loaded, localStorage', e); if (S.lpCache) LS.set('cache', S.lpCache); });
 }
-// 2.1467 (#6340): the real age of a start state: when the server last confirmed it (ms; set by load() / the delta / the hidden
+// (#6340): the real age of a start state: when the server last confirmed it (ms; set by load() / the delta / the hidden
 // page, offcache.js fills it for a record of before from its write time); null = unknown (a localStorage copy of before).
 // The offline start shows it (S.syncOk), #6366 needs it at every start
 const startAt = c => (c && +c._at > 0 ? +c._at : null);
@@ -770,7 +770,7 @@ async function rawFetch0(method, url, body, key, osp, oq) {
   // 2.363.3 (#3134): a form with files of some size goes with a progress bar and Cancel (upbar.js); Cancel is no lost connection
   // 2.655.0 (#5045): an answer that arrives after the page is gone (its window closed: no document) goes nowhere: it never settles,
   // so no caller draws into a page that is not there (outFlush -> renderTop, chatReact, rel_load, ld_go -> applyState, ...)
-  // 2.1467 (#6338): every form with files counts as a transfer that runs while it goes (upbar.js upRun)
+  // (#6338): every form with files counts as a transfer that runs while it goes (upbar.js upRun)
   try { const fp = body instanceof FormData && typeof upSend === 'function' && upWanted(body) ? upSend(url, opt, body) : fetch(url, opt); r = await (body instanceof FormData && typeof upRun === 'function' ? upRun(fp) : fp); } catch (e) { if (!globalThis.document) return new Promise(() => {}); if (e.cancelled) throw e; const ch = OUT.down; OUT.down = false; setOnline(false); if (ch && S.booted) renderTop(); throw new Offline('offline'); }
   // 2.21.0 (#673): the device is online but the server is not (a proxy answers 502 / 503 / 504 without Kalmido's JSON): the
   // same as offline (cached data, changes wait), the hint says "server not reachable"; never a reload loop on a proxy page
@@ -1227,7 +1227,7 @@ function applyLocal(e) {
   }
   return {ok: true};  // habit log: caller already updated S.habits
 }
-// 2.1467 (#6334 A6): the temporary ids of new tasks in a queued body, mapped to the real ones (fix): the task fields (parent,
+// (#6334 A6): the temporary ids of new tasks in a queued body, mapped to the real ones (fix): the task fields (parent,
 // milestone, task), the ids / items of a batch or reorder, the per task maps of history steps and of a multi edit (data.items,
 // expect, guard, prev: keyed by id) and the base values (_prev) - before, only some fixed places were mapped and a milestone,
 // a parent inside data.items or a _prev stayed negative. static/sw.js swFixIds does the same for the service worker's send
@@ -1252,7 +1252,7 @@ function outFixIds(body, fix) {
   }
   return b;
 }
-// 2.1467 (#6334 D10): the id map is trimmed by the time its entry was SENT (LS "idmapAt"), not by the temporary id (= the time
+// (#6334 D10): the id map is trimmed by the time its entry was SENT (LS "idmapAt"), not by the temporary id (= the time
 // the task was made): a task made offline three days ago lost its mapping in the same flush that sent it
 function idmapSent(tmps) { const at = LS.get('idmapAt', {}), now = Date.now(); for (const t of tmps) at[t] = now; LS.set('idmapAt', at); }
 function idmapTrim(idmap) {
@@ -1284,7 +1284,7 @@ async function outFlush() {
       if (e.uid && S.me && e.uid !== S.me.id) { outSave(() => { OUT.q = OUT.q.filter(x => x !== e); }); continue; }  // another user's op
       outSave(() => { e.sending = 1; });
       const url = e.url.replace(/\/(-\d+)(?=\/|$)/, (_, n) => '/' + (idmap[n] || n));
-      let body = outFixIds(e.body, fix);  // 2.1467 (#6334 A6): every place a task id sits in (sw.js swFixIds the same)
+      let body = outFixIds(e.body, fix);  // (#6334 A6): every place a task id sits in (sw.js swFixIds the same)
       // 2.359.0 A (#3023): a temporary id still in the entry: its create failed (a create always waits ahead of its changes) ->
       // not sent (no PATCH /api/tasks/-123), the change waits in the conflicts dialog
       const tmpLeft = /\/-\d+(?=[/?]|$)/.test(url) || [body?.parent_id, body?.task_id, body?.milestone_id, ...(body?.ids || []), ...(body?.items || []).map(it => it?.id)].some(v => typeof v === 'number' && v < 0);
@@ -1298,7 +1298,7 @@ async function outFlush() {
         if (ntU(e.url)) sentNt++;  // 2.536.0 (#4567): a note's change (they go out online too now)
         if (wiki && typeof wkoSent === 'function') await wkoSent(e, j).catch(() => {});
         if (typeof ntSent === 'function' && NT_URL.test(e.url)) ntSent(e, j);  // 2.143.0 C (#2153): notes (chat.js)
-        if (e.tmp && j?.id) { idmap[e.tmp] = j.id; HIST.ids[e.tmp] = j.id; LS.set('idmap', idmap); idmapSent([e.tmp]); obxMeta('idmap', idmap); if (S.sel === e.tmp) S.sel = j.id; }  // 2.1467 (#6334 D7): an answer without id maps nothing (was: the temporary id to undefined)  // 2.143.0 C (#2153): the service worker maps with it too
+        if (e.tmp && j?.id) { idmap[e.tmp] = j.id; HIST.ids[e.tmp] = j.id; LS.set('idmap', idmap); idmapSent([e.tmp]); obxMeta('idmap', idmap); if (S.sel === e.tmp) S.sel = j.id; }  // (#6334 D7): an answer without id maps nothing (was: the temporary id to undefined)  // (#2153): the service worker maps with it too
         if (j && j.conflicts?.length && e.url === '/api/tasks/batch' && body?.action === 'complete') { skipped++; j.conflicts = []; }  // 2.270.0 C (#3022): already ticked = not advanced twice
         if (j && j.conflicts?.length && typeof le2eRekeyConflicts === 'function') j = await le2eRekeyConflicts(url, body, j, b2 => rawFetch(e.method, url, b2, undefined, undefined, e));  // 2.543.0 (#4632): a key change is no conflict
         if (j && j.conflicts?.length) {
@@ -1347,7 +1347,7 @@ async function outFlush() {
       }
       e.done = true;
     }
-    LS.set('idmap', idmapTrim(idmap));  // 2.126.0 D (#1989): another tab may still hold a new task's temporary id for a while; 2.380 H (#3387): 24 h, not 10 min
+    LS.set('idmap', idmapTrim(idmap));  // (#1989): another tab may still hold a new task's temporary id for a while; (#3387): 24 h, not 10 min
     obxMeta('idmap', LS.get('idmap', {}));  // 2.143.0 C (#2153)
   } finally {
     OUT.flushing = false;
@@ -1715,7 +1715,7 @@ async function ld_go(auto) {
       if (S.tasks.size) return;  // another load came first meanwhile
       if (wkoOld(LS.get('wko', null))) wkoDrop();  // 2.238.0 B (#2872): 14 days without an online sync
       applyState(c); OUT.q.forEach(applyLocal);
-      const at = startAt(c); if (at) S.syncOk = at;  // 2.1467 (#6340): the age of this state, not the time since the page started
+      const at = startAt(c); if (at) S.syncOk = at;  // (#6340): the age of this state, not the time since the page started
     }
     return;
   }
@@ -1726,7 +1726,7 @@ async function ld_go(auto) {
   applyState(j, ld_w0);
   if (j?.lva && !S.lpA) S.lpA = j.lva;  // 2.619.0 (#3890): the areas of this state (read before its v): the first poll takes a delta, not the whole state again
   if (S.qfWait && typeof qfSend === 'function') qfSend();  // 2.376.1 CI fix: files of a quick add whose new task was not loaded yet
-  j._at = Date.now(); S.lpCache = j; startSave();  // 2.1467 (#6340): _at = startAt  // 2.663.0 (#4200): written when idle (IndexedDB); 2.42.0 (#1376): the delta keeps the cache current (liveparts.js)
+  j._at = Date.now(); S.lpCache = j; startSave();  // (#6340): _at = startAt  // (#4200): written when idle (IndexedDB); (#1376): the delta keeps the cache current (liveparts.js)
   if (S.extra) await loadExtra().catch(() => {});
   if (S.sel && (cmtOn() || collab()) && S.tl.id === S.sel && S.tl.v !== S.v) loadTimeline(S.sel);
   if (S.sel && timeOn() && S.te.tid === S.sel && S.te.v !== S.v) loadTaskTime(S.sel);
@@ -1844,7 +1844,7 @@ function barsPos(b = document.getElementById('bars')) {
 if (globalThis.addEventListener) addEventListener('resize', () => barsPos());
 // 2.1170.0 (#6132): "Tap" on a touch screen, "Click" with a mouse
 const tapTry = () => matchMedia?.('(pointer:fine)')?.matches ? tr('Click to try again') : tr('Tap to try again');
-// 2.1467 (#6340): the state shown, by its real age (S.syncOk: the last confirmation by the server, an offline start the age of its
+// (#6340): the state shown, by its real age (S.syncOk: the last confirmation by the server, an offline start the age of its
 // start state): "State from Tuesday, 14:05" - today the time alone, within the week the weekday, older the date
 function stateFrom(at = S.syncOk) {
   const d = new Date(at || Date.now()), t = fmtTimeAt(d);
@@ -1899,7 +1899,7 @@ const verDraft = () => ['#c-input', '#tc-in', '#chat-in', '#qinput', '#qsheet', 
   || [...document.querySelectorAll(VER_DRAFT_SEL)].some(e => !e.readOnly && !e.disabled && e.value !== e.defaultValue && e.value.trim() !== '');
 // 2.1257.0 (#6286 C2): + unsaved input the form guard knows (formguard.js fgAny: the import preview, a project dialog's save
 // waiting, a typing timer of a locked project)
-// 2.1467 (#6338): + a transfer that runs (upbar.js upAny: an upload, its portions)
+// (#6338): + a transfer that runs (upbar.js upAny: an upload, its portions)
 const verQuiet = () => !editing() && !editFocused() && !$('.modal') && !$('#pop:not(.hidden)') && !$('.qadd.sheet') && !OUT.q.length && !S.multiMode && !verDraft() && !(typeof fgAny === 'function' && fgAny()) && !(typeof upAny === 'function' && upAny());
 const verCalm = () => verQuiet() && (document.hidden || Date.now() - verIdle > 20000);
 let verBusy = false, verWant = false;

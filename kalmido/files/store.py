@@ -775,7 +775,7 @@ def _store_version(c, nid, org_id, data, mime, uid):
         aa_count("storage", "files", aa_oserr(e))
         raise
     if has_request_context() and isinstance(w := g.get("fs_wrote"), list):
-        w.append(os.path.join(ATT_DIR, rel))  # 2.1467 (#6338 F8): fs_written - a request that rolls back removes it at once
+        w.append(os.path.join(ATT_DIR, rel))  # (#6338 F8): fs_written - a request that rolls back removes it at once
     write_lock(c, f"fs_version:{int(nid)}")  # two uploads at once: the numbers stay unique
     no = (c.execute("SELECT COALESCE(MAX(no), 0) FROM fs_versions WHERE node_id=?", (nid,)).fetchone()[0] or 0) + 1
     ts = _now()
@@ -789,7 +789,7 @@ def _store_version(c, nid, org_id, data, mime, uid):
 
 
 class fs_written:
-    """2.1467 (#6338 F8): the files a request stores (_store_version) while it runs; rolled back (a refused file of a request with
+    """(#6338 F8): the files a request stores (_store_version) while it runs; rolled back (a refused file of a request with
     several, a full quota, no right), they are removed at once - before, the rows went and the files stayed on the disk until
     the orphan clean-up (fsmove.py fsm_orphans_gc: a day later, and only with the files retention switched on).
     with fs_written() as w: ...; after c.rollback(): w.drop()"""

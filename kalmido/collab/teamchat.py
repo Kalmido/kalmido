@@ -376,7 +376,7 @@ def tchat_unread_both(c, uid):
     """2.149.0 C (#2507): (tchat_unread, tchat_dm_unread) from one tchat_rooms (/api/state read it twice)."""
     if not tchat_on(c, uid):
         return 0, 0
-    return tchat_unread_of(tchat_rooms(c, uid, full=False))  # 2.281.0 B (#3110): no writes, no previews
+    return tchat_unread_of(tchat_rooms(c, uid, full=False))  # (#3110): no writes, no previews
 
 
 def tchat_unread_of(rooms):

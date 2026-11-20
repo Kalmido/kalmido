@@ -6,7 +6,7 @@
 'use strict';
 
 const UP_MIN = 1024 * 1024, UP_WAIT = 300;  // no bar for what is done before it could be read
-// 2.1467 (#6338): the transfers that run - every form with files (core.js rawFetch0: upRun) and an upload in portions as a whole
+// (#6338): the transfers that run - every form with files (core.js rawFetch0: upRun) and an upload in portions as a whole
 // (upHold: ablage.js, nothing between two portions counts as done). While one runs the app does not reload by itself for a new
 // version (core.js verQuiet) and closing / reloading the tab asks first (formguard.js beforeunload); before, the reload after
 // 20 s without input broke a large upload off, and the portions after it were missing without a word

@@ -21,7 +21,7 @@ from ..core.orgcrypt import oc_send_file
 from .upsafe import h6d_one_file_request, h6d_read
 from .scan import sc_guard  # 2.477.0 (#3936): pulled up from functions
 from .store import download_name  # 2.750.0 (#4876)
-from .store import fs_written  # 2.1467 (#6338 F8)
+from .store import fs_written  # (#6338 F8)
 from .store import fs_children_visible  # #6953: every listing of a folder's children
 from .store import FS_NOT_ADDR  # 2.1138.0 (#6025)
 from .store import fs_roles_many  # #6405
@@ -358,7 +358,7 @@ def files_upload():
             (sm := _same_name_file(c, pid, owner, org, safe_fs_name(f.filename))) and ROLE_RANK[fs_role(c, sm, uid)] >= ROLE_RANK["edit"]
             for f in files):
         raise BadInput(tr("To replace existing files, upload them one at a time with expect_version"))
-    # 2.1467 (#6338 F8): what this request stored is removed again when it is refused (fs_written)
+    # (#6338 F8): what this request stored is removed again when it is refused (fs_written)
     with fs_written() as wrote:
         try:
             for f in files:
@@ -366,7 +366,7 @@ def files_upload():
                 name = safe_fs_name(f.filename)
                 same = _same_name_file(c, pid, owner, org, name) if replace else None
                 if same and ROLE_RANK[fs_role(c, same, uid)] >= ROLE_RANK["edit"]:
-                    if len(files) == 1:  # 2.577.0 (#4708 3): one file; several = no version possible (refused above for agents)
+                    if len(files) == 1:  # (#4708 3): one file; several = no version possible (refused above for agents)
                         fs_web_expect(c, same, request.form.get("expect_version"))
                     no = fs_new_version(c, same, data, f.mimetype)
                     fs_log_add(c, same, "version", str(no))
@@ -376,7 +376,7 @@ def files_upload():
                     fs_log_add(c, nid, "upload")
                     out.append(nid)
                     from ..docs.recog import rc_after_add
-                    added += rc_after_add(c, nid, uid)  # 2.353.0 D (#2759): into a recognising folder = a document
+                    added += rc_after_add(c, nid, uid)  # (#2759): into a recognising folder = a document
         except ValueError as e:
             c.rollback()
             wrote.drop()

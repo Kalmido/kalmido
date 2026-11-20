@@ -607,7 +607,7 @@ NEWS_SIG_COLS = 4  # the columns of news_sig_q (/api/version reads them inside i
 
 
 def news_sig_q(uid):
-    """2.149.0 C (#2507): the query of news_sig (one row, NEWS_SIG_COLS columns; /api/version runs it inside one statement).
+    """(#2507): the query of news_sig (one row, NEWS_SIG_COLS columns; /api/version runs it inside one statement).
     #6337 (F6, decision of 12.11.2026: the bell's number is the same on every device): besides my unread items (count, newest
     id) it moves with every item of mine that goes (dismissed on another device: the count of all my items, index-only on
     notifications_user) and with "seen for today" of the deadline lines (the sum of my marks obj_seen kind 'due', at most two

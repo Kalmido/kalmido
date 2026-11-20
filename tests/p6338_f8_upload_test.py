@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # kalmido-suite: fresh
-# 2.1467 (#6338 F8): an upload of several files to the file store that is refused (one file empty) rolls back its rows AND removes
+# (#6338 F8): an upload of several files to the file store that is refused (one file empty) rolls back its rows AND removes
 # the files it already wrote to the disk - before, they stayed until the orphan clean-up (a day later, only with the files
 # retention switched on). Checked for a new file and a new version of an existing one, in the private space and in an
 # organisation; a good upload afterwards still lands. Invented names only.

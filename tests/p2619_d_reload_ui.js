@@ -5,7 +5,7 @@
 //   during writes elsewhere)
 // - an update of the server: the reload by itself waits a random part of VER_SPREAD_MS (the windows do not all reload in the
 //   same poll); the bar shows meanwhile; once the wait is over it reloads
-// - 2.1467 (#6338): a running upload holds the reload by itself back and closing the tab asks; an outdated window loads no
+// - (#6338): a running upload holds the reload by itself back and closing the tab asks; an outdated window loads no
 //   module of the new version (a click reloads first, a background load does nothing)
 // Every wait is on a real state (the app's own change poll, held where a step needs it).
 const {execFileSync} = require('child_process');
@@ -95,7 +95,7 @@ const until = fn => until0(fn, {timeout: 20000, step: 100});
   check(!nv().disabled && nv().textContent === word, '#6892: the button is free again after a failed wait');
   w.eval(`document.querySelector('#nv-draft')?.remove(); rl_waitServer = window.__realWait; S.serverVer = '${appVer}'; verCheck('${appVer}'); td_polling = false`);
 
-  // ================= 2.1467 (#6338): a running upload holds the reload by itself back and closing the tab asks; once it is done
+  // ================= (#6338): a running upload holds the reload by itself back and closing the tab asks; once it is done
   // the reload comes. An outdated window loads no module of the new version: a click reloads first, the background nothing
   check(await until(() => w.eval('td_polling ? false : (td_polling = true)')), '#6338: the poll held');
   w.eval(`window.__rl = 0; window.__rla = []; window.__realVR2 = verReload; verReload = a => { window.__rl++; window.__rla.push(a); }; VER_SPREAD_MS = 0;
