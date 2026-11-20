@@ -108,13 +108,16 @@ const OFF = `() => { try { if (localStorage.getItem('t2663off') !== '1') return;
     // start state back - the next person at this browser finds nothing (#2889, #4200)
     const T3 = await ev(`api('POST', '/api/tasks', {title: 'Repot the fern', list_id: ${L}}).then(t => t.id)`);
     check(T3 > 0 && await pu(`S.tasks.has(${T3}) && !OUT.q.length`), 'signed out elsewhere: a newer state to write');
-    const so = await ev(`(() => {
-      const uid0 = LS.get('uid', null), w0 = oc_write; let n = 0;
-      oc_write = function () { n++; return w0.apply(this, arguments); };
+    const so = await ev(`(async () => {
+      const uid0 = LS.get('uid', null), w0 = oc_write, ps = [];
+      oc_write = function () { const p = w0.apply(this, arguments); ps.push(p); return p; };
+      let off, on;
       try {
-        LS.del('uid'); dispatchEvent(new Event('pagehide')); const off = n;
-        LS.set('uid', uid0); dispatchEvent(new Event('pagehide')); return {uid0, off, on: n - off};
+        LS.del('uid'); dispatchEvent(new Event('pagehide')); off = ps.length;
+        LS.set('uid', uid0); dispatchEvent(new Event('pagehide')); on = ps.length - off;
       } finally { oc_write = w0; }
+      await Promise.all(ps);  // the write has landed before the next block reads the store
+      return {uid0, off, on};
     })()`);
     check(so.uid0 != null && so.off === 0, 'signed out in another tab (#6340): the hidden page writes no start state ' + JSON.stringify(so));
     check(so.on === 1, 'signed in again: the hidden page writes as before ' + JSON.stringify(so));
