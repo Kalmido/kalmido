@@ -73,6 +73,9 @@ def office_settings_get():
                    number_preview=onc_preview(c, oid, s, s["offer_scheme"]),  # 2.118.0 A (#2265): onc_preview
                    industry=_industry(s), home_locked=of_home_locked(c, oid, pack),  # 2.189.0 (#2475)
                    used=of_used(c, oid),  # 2.276.0 A (#3039): what the office already holds (start page, folded group, menu points)
+                   # #6533: the open drafts (quotations, invoices, credit notes) the question before switching "Small business" names
+                   open_drafts=c.execute(f"SELECT COUNT(*) FROM office_docs WHERE org_id=? AND locked_at IS NULL AND kind IN ('offer','invoice','credit') "
+                                         f"AND {live_sql()}", (oid,)).fetchone()[0] if role == "admin" else 0,
                    submit=rsb_flag(c, uid, oid),  # 2.356.0 D (#3129): "Submit receipt" (may hand in, does not see the bookkeeping)
                    cards=cc_flag(c, uid, oid),  # 2.444.0 (#3447): the person holds a card here
                    num_ranges=[{"id": r["id"], "code": r["code"], "name": r["name"] or "", "closed": r["closed_at"] is not None} for r in c.execute(

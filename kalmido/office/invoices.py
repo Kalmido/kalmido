@@ -32,6 +32,7 @@ from .doclang import doc_lg, doc_pack  # 2.185.0 C (#2520)
 from .model import doc_range_id, num_view, num_kind, num_scheme, office_feature, office_first_invoice, office_need_feature, office_role, office_scheme_period, office_settings, pb_cl_sql, pb_cl_live, trial_flag
 from .contacts_cl import fk_send_rcpts  # 2.433.0 (#3599)
 from .model import SCHEME_RE, scheme_variants  # 2.355.0 A (#2839)
+from .model import small_at  # #6533
 from .ledger import ofx_company, ofx_locked, ofx_log, ofx_need_editable
 from .rights import ofr_admin_or, NO_SPECIAL, ofr_allows, ofr_need_area
 from .countries import fk_reverse_case, fk_third_country  # 2.296.0 F (#3168); 2.502.0 (#4081)
@@ -394,10 +395,12 @@ def inv_missing_keyed(c, oid, r, s, pack, items):
     # 2.1289.0 (#6475): the switch "Small business" binds the tax at finalising, not only as the default of a new draft
     # (section 14c UStG: VAT shown is owed; section 19 note only for a small business); a correction (cancels_id) keeps the
     # tax of its invoice, also of one from before the switch
+    # #6533: at the invoice date -- the rule applies from its day on (an invoice before it shows its VAT as before)
+    small = small_at(s, _col(r, "date") or None)
     if not _col(r, "cancels_id"):
-        if s.get("small_business") and r["vat_mode"] != "novat":
+        if small and r["vat_mode"] != "novat":
             miss.append(("small_vat", [N_("as a small business no VAT may be shown")]))
-        elif not s.get("small_business") and r["vat_mode"] == "novat" and _col(r, "vat_note") == "small":
+        elif not small and r["vat_mode"] == "novat" and _col(r, "vat_note") == "small":
             miss.append(("small_note", [N_("the VAT note small business only with the switch Small business in the office settings")]))
     if r["vat_mode"] == "novat" and (_col(r, "vat_note") or "") not in INV_VAT_NOTES:
         miss.append(("vat_note", [N_("VAT note (reverse charge / not taxable / small business)")]))
@@ -758,7 +761,7 @@ def inv_new_row(c, oid, s, kind, lang, src=None):
                     row["einvoice_format"] = "xrechnung"
     # 2.47.3 (#1360): section 19 UStG -- no VAT, the exemption note (E); a credit note keeps the tax of the invoice it
     # corrects (review S3: a credit for a 19 % invoice from before the switch must balance it)
-    if s.get("small_business") and kind != "reminder" and not (kind == "credit" and src is not None):
+    if small_at(s, row.get("date") or None) and kind != "reminder" and not (kind == "credit" and src is not None):  # #6533: at its date
         row["vat_mode"], row["vat_note"] = "novat", "small"
     from .abschlag import abs_new_row
     abs_new_row(s, row, kind)  # 2.120.0 A (#2087): the default cash discount
@@ -1014,7 +1017,7 @@ def inv_einvoice_warn(c, oid, r, s=None):
         return ""
     s = s if s is not None else office_settings(c, oid)
     pack = office_pack_for(s) or {}
-    if pack.get("code") != "DE" or office_feature(c, oid, "docs.einvoice", s) or s.get("small_business"):
+    if pack.get("code") != "DE" or office_feature(c, oid, "docs.einvoice", s) or small_at(s, r["date"] or None):  # #6533: at its date
         return ""
     if not r["client_id"] or not inv_reminder_business(c, oid, r, s):
         return ""

@@ -27,6 +27,7 @@ from .undo import oun_post, oun_pre
 from .okern import ofk_register, ofk_trash  # 2.1005.0 (#5415): a draft in the core's trash
 from .okern import ofk_fk_refs  # 2.1005.0 (#5415): was otrash.otb_refs
 from .homecur import HC_CODES, hc_code, hc_home, hc_office_rate  # 2.189.0 (#2475)
+from .model import small_at  # #6533
 from .model import (NAME_MAX, PT_MAX, TEXT_MAX, UNITS, client_short_code, pb_cl_sql, pb_cl_live, office_gate, office_need_feature, office_org, onc_next, onc_ready, onc_version, office_role, office_settings,
                     office_seed_texts, office_trial_number, trial_flag, office_first_invoice, doc_range_id, num_range_schemes, num_view)  # 2.1365.0 (#6698): + the ranges
 from .pdf import pdf_paper  # 2.357.0 A (#3156)
@@ -1213,7 +1214,7 @@ def doc_create(c, oid, uid, b, admin, number=True):
         rights["note"] = doc_own(notes[0], lang, "text")[0] or notes[0]["text_de"]
     ts = iso(now_utc())
     row = {"org_id": oid, "kind": kind, "number": "", "status": "draft", "lang": lang, "currency": (s.get("currency") or "EUR").upper(),
-           "fx_rate": s.get("fx_usd") or 1.09, "vat_mode": "novat" if s.get("small_business") else "vat", "client_id": None, "recipient": json.dumps({"name": "", "lines": []}),
+           "fx_rate": s.get("fx_usd") or 1.09, "vat_mode": "novat" if small_at(s, today.isoformat()) else "vat", "client_id": None, "recipient": json.dumps({"name": "", "lines": []}),
            "project_title": "", "project_ref": "", "date": today.isoformat(),
            "valid_until": (today + timedelta(days=int(s.get("offer_valid_days") or 30))).isoformat(), "contract_id": None,
            "producing_on": 1 if s.get("producing_on") else 0,  # 2.47.0 (#1645): the office setting is the default of a new quotation
@@ -1225,7 +1226,7 @@ def doc_create(c, oid, uid, b, admin, number=True):
            "rights": json.dumps(rights, ensure_ascii=False), "fields": "[]", "totals": "{}", "created_by": uid, "created_at": ts,
            "updated_at": iso_ms(now_utc()), "sent_at": None, "trial": trial_flag(b.get("trial")),  # (#2576)
            "author_id": oda_default(c, oid, uid, kind)}  # (#7300): "Created by" = the person making it
-    if s.get("small_business"):  # 2.47.3 (#1360): section 19 UStG
+    if small_at(s, today.isoformat()):  # (#1360): section 19 UStG; #6533: from the day it applies
         row["vat_note"] = "small"
     row["currency"] = hc_code(row["currency"]) or hc_home(s)  # 2.189.0 (#2475): the office's currency of new documents
     if row["currency"] not in (hc_home(s), "EUR", "USD") or hc_home(s) != "EUR":  # EUR offices keep fx_usd / 1.09 as before

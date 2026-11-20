@@ -8,7 +8,8 @@
  - #4698 a: leaving and joining again the same day (as a member, as a guest): no old closed channel, no old folder share of
    the knowledge base (also not for the person's agent)
  - #4698 b: made a guest: out of the open channels joined, a closed one stays
- - #4698 c: a public knowledge link and a public project link of a maker made guest end (and work again once member)
+ - #4698 c: a public knowledge link and a public project link of a maker made guest end; the knowledge link works again once
+   member, the project went to the admin (#6610) with a new link token, its old link stays ended
  - a person without an organisation: their own public links of a private page / project keep working
 usage: p2560_a_orgrights_test.py <datadir>"""
 import os
@@ -253,7 +254,11 @@ member(K, RITA, "guest")
 check(anon.get(B + WL).status_code in (404, 410), "c: the knowledge link of a maker made guest ends")
 check(anon.get(B + PL).status_code in (404, 410), "c: the project link of a maker made guest ends")
 member(K, RITA, "member")
-check(anon.get(B + WL).status_code == 200 and anon.get(B + PL).status_code == 200, "c: member again: both links open again")
+check(anon.get(B + WL).status_code == 200, "c: member again: the knowledge link opens again")
+# #6610: made a guest, rita handed her project to alice (as on leaving); a new owner gets a new public link token (#2478), so the
+# old project link stays ended
+check(sql("SELECT owner_id FROM lists WHERE id=?", (RL,)) not in ([], [(RITA,)]), "c: rita's project went to the organisation's admin")
+check(anon.get(B + PL).status_code in (404, 410), "c: member again: the old project link stays ended (new owner, new token)")
 
 # ================================================================== a person without an organisation
 FID, Fr = freelancer(B, A)

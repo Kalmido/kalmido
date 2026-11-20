@@ -120,9 +120,10 @@ def owner_reset_secrets(c, lid, new):
     return out
 
 
-def owner_transfer(c, lr, new, force=False):
+def owner_transfer(c, lr, new, force=False, old_role=None):
     """Moves list lr to user id new (checked by the caller); returns (old owner id, new owner name). force (2.64.1, #1817): a
-    transfer that must happen (leaving an organisation) also to someone without the key of a list with the lock."""
+    transfer that must happen (leaving an organisation) also to someone without the key of a list with the lock. old_role
+    (#6610): the old owner's project role afterwards (default: admin, an agent edit) -- a role change down hands over with edit."""
     from ..collab.comments import user_names
     from ..collab.news import list_push, news_add
     from ..agents.core import agent_ids
@@ -141,7 +142,7 @@ def owner_transfer(c, lr, new, force=False):
     c.execute("DELETE FROM list_members WHERE list_id=? AND user_id IN (?, ?)", (lid, new, old))
     if old and c.execute("SELECT 1 FROM users WHERE id=?", (old,)).fetchone():
         c.execute("INSERT INTO list_members(list_id,user_id,role,own_role,folder,sort,view,added_at) VALUES(?,?,?,?,?,?,?,?)",
-                  (lid, old, "edit" if old in ag else "admin", "edit" if old in ag else "admin", lr["folder"] or "", lr["sort"], lr["view"], ts))
+                  (lid, old, *[old_role or ("edit" if old in ag else "admin")] * 2, lr["folder"] or "", lr["sort"], lr["view"], ts))
     c.execute("UPDATE lists SET owner_id=?, folder=?, sort=?, view=? WHERE id=?", (new, folder, sort, view, lid))
     if not lr["org_id"]:  # 2.64.0 (#1864): a private list's files get the new owner's account key (after the commit)
         from ..admin.orgcrypt_cli import oc_settle_kick

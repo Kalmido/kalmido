@@ -119,7 +119,8 @@ for bad in ({"tax_reserve_pct": 61}, {"tax_reserve_pct": -1}, {"tax_reserve_pct"
     check(A.put(B + O + "/settings", json=bad).status_code == 400, f"settings validated: {bad}")
 check(Bo.put(B + O + "/settings", json={"tax_reserve_pct": 10}).status_code == 403, "member cannot set the tax reserve (403)")
 st = A.get(B + O + "/settings").json()["settings"]
-check(st.get("tax_reserve_pct") == 0 and st.get("vat_basis") == "ist", f"defaults: no reserve, cash basis {st.get('tax_reserve_pct')} {st.get('vat_basis')}")
+# 2.1458.0 (#6533): a new office has no VAT basis yet (it chooses once; the figures follow the rule "soll" until then)
+check(st.get("tax_reserve_pct") == 0 and st.get("vat_basis") == "", f"defaults: no reserve, no VAT basis chosen {st.get('tax_reserve_pct')} {st.get('vat_basis')}")
 
 # ---------------------------------------------------------------- documents of Alpha (dates fixed in the database after finalising)
 C1 = A.post(B + "/api/clients", json={"name": "Beispielkunde AG", "street": "Marktstraße 5", "zip": "50000", "city": "Köln", "country": "DE"}).json()["id"]
@@ -207,6 +208,8 @@ check(info["upload_ws"] == WSO and {x["node_id"] for x in info["receipts"]} == {
       and "Software" in info["categories"], f"info: upload space, receipts of the month, without rate {info}")
 
 # ---------------------------------------------------------------- VAT return figures
+# 2.1458.0 (#6533): no default basis any more (not chosen = "soll", the rule) -- the cash basis is chosen here
+check(A.put(B + "/api/office/settings", json={"vat_basis": "ist"}).ok, "the cash basis chosen")
 u = A.get(B + BK + "/ustva?year=2026&period=q1").json()
 k = u.get("kz", {})
 check(u["basis"] == "ist" and k.get("81") == "1000" and k.get("86") == "100" and k.get("21") == "2000" and k.get("45") == "500", f"UStVA ist Q1: bases {k}")
