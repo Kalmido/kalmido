@@ -488,12 +488,18 @@ class Offline extends Error {}
 const ML_WAITS = N_('The task was moved meanwhile: it is shown in that project again if it moves back within 24 hours.');  // 2.363.3 (#3133): POST .../links answers link_waits
 const MO_KEPT = N_('Your order of My tasks was changed on another device: that order stays, this change was not applied.');  // 2.363.3 (#3133): PUT /api/tasks/mine-order answers order_kept
 // 2.306.0 B (#2889): the session ended (401 / the login proxy's page): the stored state of the account (cache, tabs, chat
-// windows, session keys) goes like at logout, so the next person on this browser does not find it. Changes still waiting
-// to be sent (outbox, conflicts) keep everything as before: they go out after the next login of the same account.
+// windows, session keys) goes like at logout, so the next person on this browser does not find it.
+// (#6500): always - changes still waiting to be sent (the outbox with its offline files, conflict copies, kept input FD_KINDS)
+// stay for the next login of the same account, everything else goes (was: one waiting change kept all); the remembered
+// keys (e2e.js e2eForget) and this device's push subscription (the browser's subscription ends; the server's row is no longer
+// sent to and goes with the session, notify/push.py webpush_user) go too
 async function authGone() {
   try { outSync(); } catch { /* storage gone */ }
-  if (OUT.q.length || (S.conflicts || []).length || fdAny()) return;  // 2.527.0 (#4304 A5): + input kept for after the sign-in
-  await Promise.race([clearLocal(), new Promise(ok => setTimeout(ok, 1500))]);
+  const keep = !!(OUT.q.length || (S.conflicts || []).length || fdAny());  // 2.527.0 (#4304 A5): + input kept for after the sign-in
+  // the push subscription only here (wpDisable asks the server, which answers 401 again)
+  const pushOff = async () => { const sub = typeof wpSub === 'function' ? await wpSub() : null; await sub?.unsubscribe(); };
+  const all = Promise.allSettled([clearLocal(keep), pushOff(), typeof e2eForget === 'function' && e2eForget()]);
+  await Promise.race([all, new Promise(ok => setTimeout(ok, 1500))]);
 }
 const OUT = {q: LS.get('outbox', []), online: true, flushing: false};
 // 2.126.0 D (#1989): every tab and list window of the browser shares the queue, localStorage is the truth: outSync takes over
@@ -709,9 +715,13 @@ function startDrop() { LS.del('cache'); S.lpCache = null; if (typeof oc_drop ===
 // (#6340): now = the page is being hidden (liveparts.js lpCacheNow): written at once, not when idle
 // (#6340): another tab signed out / switched account (tasks.uid gone or another): nothing of this one goes back
 const startMine = () => S.me?.id != null && LS.get('uid', null) === S.me.id;
+// (#6500): a sign-in without "Stay signed in" (me.remember false, accounts/session.py session_remember) keeps no offline copy on
+// this device - neither this start state nor the knowledge pages' copy (wiki.js wko_st): a shared computer shows nothing of
+// the person after the browser was closed, also not offline. The outbox, conflict copies and kept input stay (own changes).
+const keepOff = () => S.me?.remember === false;
 function startSave(now) {
   if (!S.lpCache || (typeof MW_GUARD !== 'undefined' && MW_GUARD)) return;  // 2.891.0 (#5358): nor the split view's right half
-  if (!startMine()) return;
+  if (!startMine() || keepOff()) return;
   if (typeof loadModule !== 'function' || !globalThis.indexedDB) { LS.set('cache', S.lpCache); return; }
   if (typeof oc_soon === 'function') { if (now) oc_now(); else oc_soon(); return; }
   if (now) return;  // the module is not here yet (the first seconds): the planned write below follows
@@ -724,6 +734,9 @@ function startSave(now) {
 // page, offcache.js fills it for a record of before from its write time); null = unknown (a localStorage copy of before).
 // The offline start shows it (S.syncOk), #6366 needs it at every start
 const startAt = c => (c && +c._at > 0 ? +c._at : null);
+// (#6500): older than the knowledge pages' copy may be (WKO_MAX_AGE, 14 days): the offline start drops it (unknown age = a
+// localStorage copy of before #6340, kept as before: the next online load writes it with its age)
+const startOld = c => { const at = startAt(c); return at != null && !(Date.now() - at < WKO_MAX_AGE); };
 async function startRead() {
   if (typeof loadModule === 'function' && globalThis.indexedDB) { try { await loadModule('offcache'); return await oc_get(); } catch (e) { console.warn('Kalmido: offline start state: module not loaded, localStorage', e); } }
   return LS.get('cache', null);
@@ -731,6 +744,7 @@ async function startRead() {
 const wkoOld = m => !m || !(Date.now() - Date.parse(m.at) < WKO_MAX_AGE);
 function sessGuard(me) {
   if (!me) return;
+  if (me.remember === false) { if (!sessGuard.off) { sessGuard.off = true; wkoDrop(); startDrop(); } return; }  // (#6500): what an earlier sign-in kept goes once
   const m = LS.get('wko', null);
   if (wkoOld(m) || m.g !== (me.sgen || '')) { wkoDrop(); startDrop(); LS.set('wko', {g: me.sgen || '', at: new Date().toISOString()}); }
 }
@@ -1790,6 +1804,8 @@ async function ld_go(auto) {
       const c = await startRead(); if (!c) throw e;  // 2.663.0 (#4200): IndexedDB (offcache.js), the old localStorage copy taken over once
       if (S.tasks.size) return;  // another load came first meanwhile
       if (wkoOld(LS.get('wko', null))) wkoDrop();  // 2.238.0 B (#2872): 14 days without an online sync
+      // (#6500): the start state goes the same way: 14 days without an online sync (its age, #6340) = not shown
+      if (startOld(c)) { startDrop(); throw e; }
       applyState(c); OUT.q.forEach(applyLocal);
       const at = startAt(c); if (at) S.syncOk = at;  // (#6340): the age of this state, not the time since the page started
     }

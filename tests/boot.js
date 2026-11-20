@@ -179,7 +179,8 @@ const rowIconsSet = async (hd, o = {}) => {
   try { await fetch(B + 'api/settings', {method: 'PATCH', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido', ...hd}, body: JSON.stringify(body)}); } catch { /* best effort */ }
 };
 exports.login = async (user, pw = 'password123', o = {}) => {
-  const r = await fetch(B + 'api/auth/login', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify({username: user, password: pw})});
+  // (#6500): o.remember false = a sign-in without "Stay signed in"
+  const r = await fetch(B + 'api/auth/login', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify({username: user, password: pw, ...(o.remember === false ? {remember: false} : {})})});
   if (!r.ok) throw new Error('login ' + user + ' ' + r.status);
   const ck = r.headers.get('set-cookie').split(';')[0];
   await rowIconsSet({Cookie: ck}, o);
@@ -219,8 +220,8 @@ function navWatch(w) {
   } }).observe(w.document.body, {childList: true}));
 }
 exports.navTrace = w => { try { return JSON.stringify({hash: w.location.hash, state: w.history.state, dialogs: [...w.document.querySelectorAll('.modal')].map(m => m.className), log: w.__nav?.log || []}); } catch (e) { return 'navTrace: ' + e.message; } };
-exports.boot = async function boot({user = 'alice', mobile = false, hash = '', ls = {}, wait = null, proxy = null, path = '', media = {}, setup = null, lazy = false, rowIcons, startPage, shared = null, allWs = false} = {}) {
-  const cookie = proxy || user === null ? '' : await exports.login(user, undefined, {rowIcons, startPage});  // 2.1191.0 (#4550): user null = a visitor without a session
+exports.boot = async function boot({user = 'alice', mobile = false, hash = '', ls = {}, wait = null, proxy = null, path = '', media = {}, setup = null, lazy = false, rowIcons, startPage, shared = null, allWs = false, remember} = {}) {
+  const cookie = proxy || user === null ? '' : await exports.login(user, undefined, {rowIcons, startPage, remember});  // 2.1191.0 (#4550): user null = a visitor without a session
   if (proxy) await rowIconsSet({'Remote-User': proxy}, {rowIcons, startPage});  // 2.56.1 (#1799)
   if (!allWs && /^office(\/|$)/.test(hash)) await exports.officeWs(proxy ? {'Remote-User': proxy} : {Cookie: cookie});  // 2.543.0 (#4606)
   // 1.8.1: the start view is the Inbox; the suites written before start on Today as a device that was there last

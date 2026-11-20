@@ -440,10 +440,13 @@ const LS_KEEP = new Set(['tasks.theme', 'tasks.i18n', 'tasks.density', 'tasks.de
 const LS_KEEP_DEVICE = new Set(['kalmido.logoutPending']);  // 2.743.0 (#4284): the sign-out the server did not hear yet (account.js lgo_pending)
 const LS_WIPE_KEYS = new Set(['vdr-name']);
 const lsWiped = k => !!k && (LS_WIPE_KEYS.has(k) || (k.startsWith('tasks.') && !LS_KEEP.has(k)) || (k.startsWith('kalmido.') && !LS_KEEP_DEVICE.has(k)));
-function clearLocal() {
+// (#6500) waiting = an ended session (core.js authGone) with own changes still to send: the outbox (localStorage and IndexedDB,
+// the quick add's offline files), the conflict copies, the kept input (core.js FD_KINDS) and the account mark stay
+const LS_WAITING = k => ['tasks.outbox', 'tasks.conflicts', 'tasks.uid'].includes(k) || (typeof FD_KINDS !== 'undefined' && FD_KINDS.some(f => k.startsWith(`tasks.${f}.`)));
+function clearLocal(waiting = false) {
   try {
     const ks = [];
-    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (lsWiped(k)) ks.push(k); }
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (lsWiped(k) && !(waiting && LS_WAITING(k))) ks.push(k); }
     ks.forEach(k => localStorage.removeItem(k));
   } catch { /* private mode */ }
   // 2.306.0 B (#2889): the session's own keys too (step-up, tour, receipts filter); the reload guards stay (no reload loop)
@@ -453,10 +456,10 @@ function clearLocal() {
     ss.forEach(k => sessionStorage.removeItem(k));
   } catch { /* no storage */ }
   // 2.169.0 (#2671): the offline copy of the knowledge pages (wiki.js) goes too
-  const wk = (typeof wko_wipe === 'function' ? wko_wipe() : Promise.resolve()).then(() => { try { indexedDB.deleteDatabase('kalmido-wiki'); indexedDB.deleteDatabase('kalmido-qfiles'); } catch { /* no IndexedDB */ } });
+  const wk = (typeof wko_wipe === 'function' ? wko_wipe() : Promise.resolve()).then(() => { try { indexedDB.deleteDatabase('kalmido-wiki'); if (!waiting) indexedDB.deleteDatabase('kalmido-qfiles'); } catch { /* no IndexedDB */ } });
   if (typeof S !== 'undefined') S.lpCache = null;  // 2.663.0 (#4200): no later write of the offline start state (core.js startSave) after this
   const st = typeof oc_drop === 'function' ? oc_drop() : new Promise(ok => { try { const r = indexedDB.deleteDatabase('kalmido-start'); r.onsuccess = r.onerror = r.onblocked = () => ok(); } catch { ok(); } });  // 2.663.0 (#4200): the offline start state  // 2.359.0 A (#3023): + the quick add's offline files
-  return Promise.all([wk, st, typeof obxClear === 'function' ? obxClear() : Promise.resolve()]);  // 2.143.0 C (#2153): the offline queue in IndexedDB (C2: awaitable)
+  return Promise.all([wk, st, typeof obxClear === 'function' && !waiting ? obxClear() : Promise.resolve()]);  // 2.143.0 C (#2153): the offline queue in IndexedDB (C2: awaitable)
 }
 // design per device: auto (follows the OS) | dark | light; boottheme.js sets it (and html.rebooting) before the first picture (#6365)
 function applyTheme() { bt_theme(); }
