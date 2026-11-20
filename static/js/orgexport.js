@@ -52,7 +52,7 @@ function ox_pbBoxHtml(oid) {
   setTimeout(() => { const r = document.querySelector('.oxpb'); if (r) { oxDraw(r); ocDraw(r); mvDraw(r); } }, 0);  // (#6937): + the move
   return `<section class="oxpb" data-fg-skip aria-labelledby="oxpb-h"><h3 id="oxpb-h">${tr('Export the office')}</h3>
     <p class="muted">${tr('An encrypted archive with this office, your private clients and the receipts and filed documents of the office, to take them to another Kalmido server: there under Settings > Data into an organisation or into your own office. It opens with the recovery key.')}</p>
-    <div class="oxbox" data-oxorg="${+oid}"><div class="oxst" aria-live="polite"><div class="muted mhint">${tr('Loading…')}</div></div></div>${ocBoxHtml({id: +oid}, {title: ''})}${+oid === 0 ? mvBoxHtml({id: 0, own: true}) : ''}</section>`;
+    <div class="oxbox" data-oxorg="${+oid}"><div class="oxst" aria-live="polite"><div class="muted mhint">${tr('Loading…')}</div></div></div>${ocBoxHtml({id: +oid}, {title: ''})}${/*html-ok*/ +oid === 0 ? mvBoxHtml({id: 0, own: true}) : '' /* (#6937): the move box, built with esc / tr */}</section>`;
 }
 // ---- 2.146.0 D (#2468): the retention export (kalmido/admin/retexport.py): a readable ZIP of the records the law asks to
 // keep (invoices with e-invoice XML, receipts with files, cash books, bank statements, office log) -- in the settings for the
