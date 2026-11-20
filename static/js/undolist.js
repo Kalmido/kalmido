@@ -144,12 +144,23 @@ function ul_head() {
 // the window (right-click / long-press on ←)
 function ul_open(anchor) {
   UL.note = '';
-  const p = openPop(anchor, `<div class="ulpop" role="dialog" aria-label="${esc(tr('Recent steps'))}">${ul_head()}<div class="ulbody">${ul_inner()}</div></div>`);
+  const p = openPop(anchor, `<div class="ulpop" role="dialog" aria-label="${esc(tr('Recent steps'))}">${ul_head()}<div class="ulbody">${ul_inner()}</div></div>`,
+    () => $('.ulpop', p)?._grip?.destroy());  // #7311: the grip goes with the window
   p.classList.add('ulwin');
-  if (!isMobile()) {  // as wide as it needs, inside the window
+  const place = () => {  // as wide as it needs, inside the window
+    if (isMobile() || p.classList.contains('hidden') || !p.classList.contains('ulwin')) return;
     const r = anchor.getBoundingClientRect(), w = p.offsetWidth, h = p.offsetHeight;
     p.style.left = Math.max(12, Math.min(r.left, innerWidth - w - 12)) + 'px';
     p.style.top = (r.bottom + 6 + h > innerHeight - 12 ? Math.max(12, r.top - h - 6) : r.bottom + 6) + 'px';
+  };
+  place();
+  // #7311: the corner grip like the bell's (the one grip, grip.js): width and height per device under grip:undo-win, at most
+  // the rest of the window right of / below the window's corner; off on the phone (the sheet)
+  const win = $('.ulpop', p), rem = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+  if (win && !isMobile()) {
+    Promise.resolve(grip_corner(win, {key: 'undo-win', minW: 20, minH: 16,
+      maxW: () => (innerWidth - p.getBoundingClientRect().left - 12) / rem(), maxH: () => (innerHeight - p.getBoundingClientRect().top - 12) / rem()}))
+      .then(place).catch(() => {});
   }
   ul_fetch().then(ul_draw);
   ul_live();

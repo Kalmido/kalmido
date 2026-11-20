@@ -5,6 +5,12 @@
 .ulhead h2{margin:0;font-size:var(--fs-b)}
 .ulhead p{margin:.125rem 0 0;font-size:var(--fs-s)}
 .ulpop .ulbody{max-height:min(65vh,34rem);overflow-y:auto;overscroll-behavior:contain;padding:0 .375rem .5rem}
+/* #7311: the corner grip (grip.js, key undo-win) sizes the window in the wide layout; the list fills the dragged height */
+@media (min-width:768px){
+  #pop.ulwin{width:auto;max-height:none;overflow:visible}
+  .ulpop{position:relative;display:flex;flex-direction:column;width:var(--g-undo-win-w,min(30rem,calc(100vw - 1.5rem)));height:var(--g-undo-win-h,auto);max-width:calc(100vw - 1.5rem);max-height:calc(100dvh - 1.5rem)}
+  .ulpop .ulbody{flex:1 1 auto;min-height:0;max-height:var(--g-undo-win-h,min(65vh,34rem))}
+}
 .ulpage{max-width:44rem;padding:.5rem 1rem 2rem}
 .ulpage .ulhead{padding:.25rem 0 .5rem}
 .ullist{list-style:none;margin:0;padding:0}
