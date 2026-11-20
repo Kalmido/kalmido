@@ -2286,7 +2286,8 @@ def office_pdf(model, logo_bytes=None, xml=None, meta=None):
                 free = bot - y - need(i, je, False)
                 # (#7523): a block glued to the footer follows (bank line + GiroCode, payment block, signature lines) on a
                 # one-page document: totals + closing go all the way down, the white stays ONE hole above the totals (no second
-                # hole between closing and bank line); without such a block the #6174 limit stays
+                # hole between closing and bank line); without such a block the #6174 limit stays. Only a document of ONE page:
+                # #7523 leaves documents of several pages unchanged on purpose ("Nicht im Umfang"), the closing fits there only just
                 to_foot = n_pages == 1 and any(blocks[k]["foot"] for k in range(i, je + 1))
                 if free > 0:
                     y += free * PDF_SUM_FILL if to_foot else min(free * PDF_SUM_FILL, PDF_SUM_FILL_MAX)
