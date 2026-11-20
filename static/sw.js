@@ -840,11 +840,11 @@ async function swOutbox() {
   return locks ? locks.request('kalmido-outbox', {ifAvailable: true}, l => l ? swOutboxSend() : null) : swOutboxSend();
 }
 const SW_OBX_URL = /^\/api\/(?!v1\/)[\w/-]+(\?[\w=&%.,-]*)?$/, SW_OBX_METHODS = ['POST', 'PATCH', 'PUT', 'DELETE'];
-// 2.1467 (#6334 A9/D7): a note's or a knowledge page's change needs the app (its sent text is the base of the next change,
+// (#6334 A9/D7): a note's or a knowledge page's change needs the app (its sent text is the base of the next change,
 // ntSent / wkoSent, a page is sealed with the current key, wkoReseal): sent here, the second offline change of the same text
 // ran into a conflict with itself. The worker stops there; that entry and the rest wait for the app
 const SW_OBX_APP = /^\/api\/(notes\/-?\d+|lists\/\d+\/notes|wiki\/pages\/\d+)$/;
-// 2.1467 (#6334 A6): every place a temporary task id sits in a queued body, as core.js outFixIds (the same rules)
+// (#6334 A6): every place a temporary task id sits in a queued body, as core.js outFixIds (the same rules)
 const SW_IDF = ['parent_id', 'task_id', 'milestone_id'];
 function swFixIds(body, fix) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return body;
@@ -866,7 +866,7 @@ function swFixIds(body, fix) {
   }
   return b;
 }
-// 2.1467 (#6334 D2a): what the worker sent is in the offline start state too (static/js/offcache.js, database "kalmido-start"):
+// (#6334 D2a): what the worker sent is in the offline start state too (static/js/offcache.js, database "kalmido-start"):
 // a task the answer brings is put in (a new one, a change), a deleted one goes. Before, the next offline start lacked the tasks
 // made offline (the queue had sent them, the state did not know them; made again = twice). ch: [[id, task | null], ...]
 async function swStartFold(ch) {
@@ -910,9 +910,9 @@ async function swOutboxSend() {
       if (e.uid !== uid) continue;  // another user's entry: the app drops it
       // 2.143.0 C2 (#2153): only the app's own write routes are sent again (no API v1, no other origin, no GET)
       if (typeof e.url !== 'string' || !SW_OBX_URL.test(e.url) || !SW_OBX_METHODS.includes(e.method)) break;
-      if (SW_OBX_APP.test(e.url)) break;  // 2.1467 (#6334 A9/D7): for the app
+      if (SW_OBX_APP.test(e.url)) break;  // (#6334 A9/D7): for the app
       const url = e.url.replace(/\/(-\d+)(?=\/|$)/, (_, n) => '/' + (idm[n] || n));
-      const body = swFixIds(e.body, fix);  // 2.1467 (#6334 A6)
+      const body = swFixIds(e.body, fix);  // (#6334 A6)
       // 2.359.0 A (#3023): a temporary id without its real one (its create failed or waits for the app): never sent as such
       if (/\/-\d+(?=[/?]|$)/.test(url) || (body && [body.parent_id, body.task_id, body.milestone_id, ...(body.ids || []), ...(body.items || []).map(it => it && it.id)].some(v => typeof v === 'number' && v < 0))) break;
       const opt = {method: e.method, credentials: 'same-origin', redirect: 'manual', headers: {'X-Requested-With': 'kalmido'}};
@@ -927,10 +927,10 @@ async function swOutboxSend() {
       if (!r.ok || !/json/.test(r.headers.get('content-type') || '')) break;  // for the app (its own handling of errors)
       const j = await r.json().catch(() => ({}));
       if (j.conflicts && j.conflicts.length && url === '/api/tasks/batch' && body && body.action === 'complete') { j.conflicts = []; j.skipped = true; }  // 2.270.0 C (#3022): already ticked
-      if (e.tmp && !j.id) break;  // 2.1467 (#6334 D7): a create answered without its id (a repeat's short answer): for the app, the mapping must not get lost
+      if (e.tmp && !j.id) break;  // (#6334 D7): a create answered without its id (a repeat's short answer): for the app, the mapping must not get lost
       if (e.tmp && j.id) { idm[e.tmp] = j.id; swmap[e.tmp] = j.id; await swPut(db, 'meta', {k: 'swmap', v: swmap}); }
       const tm = url.match(/^\/api\/tasks\/(\d+)(?:\/(complete|reopen))?$/);
-      if (swTask(j) && (url === '/api/tasks' || tm)) { const {conflicts, shifted, skipped, ...tk} = j; fold.push([j.id, tk]); } else if (tm && e.method === 'DELETE' && !tm[2]) fold.push([+tm[1], null]);  // 2.1467 (#6334 D2a)
+      if (swTask(j) && (url === '/api/tasks' || tm)) { const {conflicts, shifted, skipped, ...tk} = j; fold.push([j.id, tk]); } else if (tm && e.method === 'DELETE' && !tm[2]) fold.push([+tm[1], null]);  // (#6334 D2a)
       if ((j.conflicts && j.conflicts.length) || j.skipped) { res.push({id: j.id, title: j.title || '', conflicts: j.conflicts || [], skipped: !!j.skipped}); await swPut(db, 'meta', {k: 'swres', v: res}); }
       await swReq(db.transaction('ops', 'readwrite').objectStore('ops').delete(e.k));
       if (ch) ch.postMessage({del: [e.k], sw: true});

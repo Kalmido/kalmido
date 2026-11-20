@@ -1,7 +1,7 @@
 // 2.126.0 UI tests, part D (jsdom), fresh DB:
 // - #1989 two windows of one browser (one localStorage, Web Locks): both offline, one change each -> each window knows both
 //   waiting changes; back online in both at the same moment -> each change reaches the server exactly once, both queues empty
-// - 2.1467 (#6334 B2): a task made offline in one window and sent by the other shows once in the window that made it
+// - (#6334 B2): a task made offline in one window and sent by the other shows once in the window that made it
 // - #1990 a new task whose answer gets lost on the way back (the request reached the server) and that is sent again from
 //   the queue = one task
 // - #1992 O8 an offline change the server refuses (the task went to the trash meanwhile) waits in the conflicts dialog
@@ -56,7 +56,7 @@ const spy = w => { const calls = []; const of = w.fetch; w.fetch = (u, o = {}) =
   check(posts === 1 && patches === 1, `each change was sent once (POST ${posts}, PATCH ${patches})`);
   check(await until(() => [...w2.eval('S.tasks').values()].some(t => t.title === 'Made in window one' && t.id > 0)), 'the other window gets the real task too');
 
-  // ================= 2.1467 (#6334 B2) window one makes a task offline, window two sends it: window one shows it exactly once
+  // ================= (#6334 B2) window one makes a task offline, window two sends it: window one shows it exactly once
   // (was: its provisional row stayed, the delta brought the real one beside it - deleting the "copy" deleted the real task)
   w1.__offline = w2.__offline = true;
   await w1.eval(`api('POST', '/api/tasks', {title: 'Made in one, sent by two', list_id: ${P}})`);

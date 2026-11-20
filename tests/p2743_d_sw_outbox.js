@@ -8,7 +8,7 @@
 // - a temporary id: the create's real id replaces it in the next URL and in parent_id, and is kept for the app (meta swmap)
 // - every write carries the app's request header and the Idempotency-Key (the entry's own key, ik before k), same origin
 // - an entry without an owner (made before the sign-in was known) stops the queue (kept, noted for the app)
-// - 2.1467 (#6334): a note's / knowledge page's change stops the queue (for the app: A9/D7); a create answered without its id
+// - (#6334): a note's / knowledge page's change stops the queue (for the app: A9/D7); a create answered without its id
 //   stops it too (the mapping is kept for the app); a milestone / a parent in data.items / a _prev are mapped too (A6); what
 //   was sent is in the offline start state (D2a: a new or changed task put in, a deleted one out)
 const fs = require('fs');
@@ -118,7 +118,7 @@ function sandbox({meUid = ME, uidMeta = ME, answer = () => jres(200, {ok: true})
     check((s.idb.meta.get('swres')?.v || []).some(x => x.nouid), 'the app is told (swres nouid)');
   }
 
-  // ================= 2.1467 (#6334 A9/D7) notes and knowledge pages are left to the app
+  // ================= (#6334 A9/D7) notes and knowledge pages are left to the app
   for (const u of ['/api/notes/5', '/api/lists/3/notes', '/api/wiki/pages/9']) {
     const s = sandbox();
     s.add({k: 'n0', n: 1, method: 'PATCH', url: '/api/tasks/1', body: {title: 'before'}, uid: ME},
@@ -127,7 +127,7 @@ function sandbox({meUid = ME, uidMeta = ME, answer = () => jres(200, {ok: true})
     await s.run();
     check(s.sent.map(x => x.url).join() === '/api/tasks/1' && s.idb.ops.has('n1') && s.idb.ops.has('n2'), `A9/D7: ${u} stops the queue, it and the rest wait for the app ` + JSON.stringify(s.sent.map(x => x.url)));
   }
-  // ================= 2.1467 (#6334 D7) a create answered without its id
+  // ================= (#6334 D7) a create answered without its id
   {
     const s = sandbox({answer: () => jres(200, {ok: true})});
     s.add({k: 'i1', n: 1, method: 'POST', url: '/api/tasks', body: {title: 'made offline'}, uid: ME, tmp: -5},
@@ -135,7 +135,7 @@ function sandbox({meUid = ME, uidMeta = ME, answer = () => jres(200, {ok: true})
     await s.run();
     check(s.sent.length === 1 && s.idb.ops.has('i1') && s.idb.ops.has('i2') && !s.idb.meta.get('swmap')?.v?.[-5], 'D7: a create without id in its answer stays for the app, nothing behind it goes ' + JSON.stringify(s.sent.map(x => x.url)));
   }
-  // ================= 2.1467 (#6334 A6) every temporary id of a body
+  // ================= (#6334 A6) every temporary id of a body
   {
     const s = sandbox({answer: (u, o) => u === '/api/tasks' && o.method === 'POST' ? jres(200, {id: 42}) : jres(200, {ok: true})});
     s.add({k: 'm1', n: 1, method: 'POST', url: '/api/tasks', body: {title: 'a milestone', ms: 1}, uid: ME, tmp: -5},
@@ -145,7 +145,7 @@ function sandbox({meUid = ME, uidMeta = ME, answer = () => jres(200, {ok: true})
     const sent = JSON.stringify(s.sent.slice(1).map(x => x.body));
     check(s.sent.length === 3 && !/-5/.test(sent) && /"milestone_id":42/.test(sent) && /"parent_id":42/.test(sent), 'A6: milestone, a parent in data.items and the base values are mapped ' + sent);
   }
-  // ================= 2.1467 (#6334 D2a) the offline start state follows what was sent
+  // ================= (#6334 D2a) the offline start state follows what was sent
   {
     const s = sandbox({answer: (u, o) => u === '/api/tasks' && o.method === 'POST' ? jres(200, {id: 42, list_id: 3, title: 'made offline', status: 0, conflicts: []})
       : u === '/api/tasks/1' ? jres(200, {id: 1, list_id: 3, title: 'renamed offline', status: 0, conflicts: []}) : jres(200, {ok: true})});

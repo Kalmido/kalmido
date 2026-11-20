@@ -11,7 +11,7 @@
      here that did not work (no IndexedDB, private mode, quota) the state goes to localStorage as before and the reason is
      logged (console.warn, the client error report), never swallowed. Rule: a localStorage copy that exists is the newest
      (every good write here removes it, every write there comes after a failed one here), so startRead takes it first.
-   - 2.1467 (#6340): the state carries _at = when the server last confirmed it (ms, core.js startAt); an offline start shows
+   - (#6340): the state carries _at = when the server last confirmed it (ms, core.js startAt); an offline start shows
      its real age from it, never the time since the page started
    Classic script sharing the global scope with the others. */
 'use strict';
@@ -83,7 +83,7 @@ function oc_soon() {
   if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(() => { if (g === OC.gen) oc_write(g); }, {timeout: 10000});
   else setTimeout(() => { if (g === OC.gen) oc_write(g); }, 300);
 }
-// 2.1467 (#6340): core.js startSave(true) when the page is hidden: written now, not when idle (a hidden page may never be idle
+// (#6340): core.js startSave(true) when the page is hidden: written now, not when idle (a hidden page may never be idle
 // again, and the next start would miss the last changes)
 function oc_now() { if (OC.t) OC.t = 0; return oc_write(OC.gen); }
 // core.js startRead: the old / fallback localStorage copy first (it is the newest, see above; then moved here), else the record
@@ -105,7 +105,7 @@ async function oc_get() {
   if (!rec) return null;
   let c = rec.o || null;
   if (!c) { try { c = JSON.parse(rec.s); } catch { return null; } }
-  if (c && typeof c === 'object' && !c._at && rec.at) c._at = rec.at;  // 2.1467 (#6340): a record of before carries only its write time
+  if (c && typeof c === 'object' && !c._at && rec.at) c._at = rec.at;  // (#6340): a record of before carries only its write time
   return c;
 }
 // core.js startDrop / icons.js clearLocal: the record goes (the connection stays open: a clear, not a deleteDatabase)

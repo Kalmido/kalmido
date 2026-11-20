@@ -147,5 +147,5 @@ function fdDialog(md, key, base = '', x) {
   onRemove(md, () => { done = true; clearTimeout(t); removeEventListener('pagehide', hide); removeEventListener('pageshow', back); if (!gone) fdDrop('fdf', key); });
 }
 
-window.addEventListener('beforeunload', e => { if (fgAny() || (typeof upAny === 'function' && upAny())) { e.preventDefault(); e.returnValue = ''; } });  // 2.1467 (#6338): + an upload that runs (upbar.js)
+window.addEventListener('beforeunload', e => { if (fgAny() || (typeof upAny === 'function' && upAny())) { e.preventDefault(); e.returnValue = ''; } });  // (#6338): + an upload that runs (upbar.js)
 addEventListener('pagehide', () => { for (const p of FG.pend) { try { p.send(); } catch { /* the next one still goes */ } } });

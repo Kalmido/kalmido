@@ -386,7 +386,7 @@ async function tcEditSave(mid) {
 }
 async function tcMute() {
   const rid = S.tc.rid, on = !S.tc.room?.muted;
-  let k; try { k = await rawFetch('POST', `/api/team/rooms/${rid}/read`, {muted: on}); } catch (e) { toast(errText(e, tr('The change could not be saved'))); return; }  // 2.1211.0 (#6098)
+  let k; try { k = await rawFetch('POST', `/api/team/rooms/${rid}/read`, {muted: on}); } catch (e) { toast(errText(e, tr('The change could not be saved'))); return; }  // (#6098)
   const dm0 = S.team?.dm_unread; tcUnreadTake(k); if (S.team && S.team.dm_unread !== dm0) { renderTop(); renderSide(); badgeSync(); }  // #6337 (F1): a muted DM leaves the bell's number
   S.tc.room.muted = on; const r = (S.tc.rooms || []).find(x => x.id === rid); if (r) r.muted = on;
   toast(on ? tr('Muted: only mentions notify you') : tr('Notifications on'));
