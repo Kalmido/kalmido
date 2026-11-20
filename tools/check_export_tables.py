@@ -354,6 +354,22 @@ def check_kinds(root, tables, reg, hand):
     return bad, seen
 
 
+def acct_tables(root):
+    """(#6593): the tables of the account export -- the FROM of its queries (umz_export_queries, umz_extra_queries,
+    umz_mine_queries, the register's acct / acct_more) and the built parts; tools/check_umz_v.py reads them (check() counts the
+    same way)."""
+    reg, _bad = register(root)
+    parts = dict(queries_in(ast.parse(read(root, "kalmido", "accounts", "settings.py")), "umz_export_queries"))
+    acct = ast.parse(read(root, "kalmido", "admin", "acctexport.py"))
+    for fn in ("umz_extra_queries", "umz_mine_queries"):
+        parts.update(queries_in(acct, fn))
+    for r in reg.values():
+        for e in (*(r.get("acct") or ()), *(r.get("acct_more") or ())):
+            parts[e[0]] = top_from(e[1])
+    built = set(ast.literal_eval(assigned(ast.parse(read(root, "kalmido", "admin", "exportleft.py")), "UMZ_BUILD_TABLES")))
+    return {t for v in parts.values() for t in v} | {t for t in BUILD_PARTS.values() if t} | built
+
+
 def check(root):
     tables = schema_tables(root)
     reg, bad = register(root)  # 2.1093.0 (#5289)

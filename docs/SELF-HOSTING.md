@@ -1205,6 +1205,16 @@ in the trash since count as gone and come back; a project that went to another p
 another target is a separate copy. An organisation export counts by its file. The import keeps this record with its last
 20 imports.
 
+**Versions and sources (2.1458.0):** an export of a newer Kalmido version than the server's is refused with the version to update
+to ("Update this server to version X or newer first"); an older export comes in as always. The hosted server is always on the
+newest release; should a file still be newer, its preview names the parts and fields that version does not know, and they are
+left out. Rows whose required field has no valid value are counted per area and named in the result. The "same account"
+of an import follows the fixed random key of the old server (made once per server, in the export's manifest), not its address:
+two own servers that both run on `http://localhost:3040` are two sources. An import into an organisation counts for every admin
+of that organisation (a second admin importing the same file there is asked first); the private space counts only for its
+owner. The format number of the export (`UMZ_V`) rises when a table of it loses or renames a column; `tools/check_umz_v.py`
+holds that in CI.
+
 **What moves:** your projects (sections, fields, tags, status updates, links, milestones, project files, project notes),
 their tasks with subtasks, dependencies, field values and your tags, comments, attachments, your encrypted task notes
 (2.362), time entries, habits, filters, templates (2.463: with their files and what they keep on the server: sprints, key
