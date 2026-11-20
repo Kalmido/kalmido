@@ -617,7 +617,9 @@ def task_update(tid):
     from ..collab.notelock import ln_guard
     if ln_guard(c, tid, b):  # 2.48.0 (#1642): app, API and agents: a locked note is not overwritten (409, a clear message)
         return err(ln_guard(c, tid, b), 409)
-    e = apply_update(c, tid, b, conflicts, lock=True, carry_yes=True)  # (#7528): the person's direct edit keeps their confirmation
+    # (#7528): the person's direct edit keeps their confirmation; reader F2 (job/6017): restoring an earlier text from the history
+    # (_act restore, static/js/mdtitle.js) is no own text -- it may be another hand's: the confirmation ends, as undo does
+    e = apply_update(c, tid, b, conflicts, lock=True, carry_yes=b.get("_act") != "restore")
     if e:
         return err(e)
     new_due = c.execute("SELECT due FROM tasks WHERE id=?", (tid,)).fetchone()[0]

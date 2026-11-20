@@ -24,6 +24,7 @@ from ..core.errors import BadInput
 from ..tasks.oneway import dec_add, dec_list, irr_apply, irr_view, irr_yes
 from ..core.boundyes import by_decider, by_sig, by_view
 from ..tasks.boundyes import by_drop, by_give
+from ..collab.liste2eguard import le2b_locked_lists  # reader F3 (job/6017)
 from ..tasks.deliver import dv_apply, dv_view
 from .core import agent_emit, agent_task_data, list_agents
 
@@ -167,7 +168,10 @@ def cf_reject(tid):
         return e
     b = body()
     reason = b.get("reason") if isinstance(b, dict) else None
-    if not isinstance(reason, str) or not reason.strip() or len(reason.strip()) > CF_REASON_MAX:
+    # reader F3 (job/6017): a locked list keeps no plain text in its history (le2b_act_data_force) -- there the no goes without
+    # a reason (none is asked, one sent is not kept), as parking does; elsewhere it is required
+    sealed = bool(le2b_locked_lists(c, [t["list_id"]]))
+    if not sealed and (not isinstance(reason, str) or not reason.strip() or len(reason.strip()) > CF_REASON_MAX):
         return err(tr("Rejecting needs a reason"), 400)
     if t["status"] != 0:
         return err(tr("Only an open task can be rejected"), 409)
@@ -175,7 +179,7 @@ def cf_reject(tid):
     if t["locked"]:  # a task an agent wrote starts locked (#4609: closed only unlocked): the decider's no takes the lock off, logged
         c.execute("UPDATE tasks SET locked=FALSE WHERE id=?", (tid,))
         log_act(c, tid, "lock", {"on": False})
-    log_act(c, tid, "rejected", {"reason": reason.strip()})
+    log_act(c, tid, "rejected", {} if sealed else {"reason": reason.strip()})
     tsk_finish(c, tid, -1)
     bump(c)
     c.commit()

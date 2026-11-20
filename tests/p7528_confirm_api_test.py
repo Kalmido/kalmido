@@ -170,6 +170,25 @@ if not r.ok:  # the server's side of it
     print(subprocess.run(["docker", "logs", "--tail", "60", kt.CT], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True).stdout[-6000:], flush=True)
 check(r.ok and r.json()["status"] == -1 and not r.json().get("locked"), "an agent's locked task: the no unlocks and closes it " + r.text[:120])
 
+# reader F3 (job/6017): a list with the lock keeps no plain text in its history -- there the no goes without a reason
+L3 = F.post(B + "/api/lists", json={"name": "Sealed", "kind": "project"}).json()["id"]
+T5 = F.post(B + "/api/tasks", json={"list_id": L3, "title": "Sealed order"}).json()["id"]
+T7 = F.post(B + "/api/tasks", json={"list_id": L3, "title": "Sealed order two"}).json()["id"]
+dbx("UPDATE lists SET e2e='on' WHERE id=?", (L3,))
+r = F.post(B + f"/api/tasks/{T5}/reject", json={})
+check(r.ok and r.json()["status"] == -1, "a list with the lock: the no without a reason closes the task " + r.text[:160])
+r = F.post(B + f"/api/tasks/{T7}/reject", json={"reason": "Plain words"})
+check(r.ok and not [a for a in acts(F, T7, "rejected") if (a.get("data") or {}).get("reason")], "a reason sent there is not kept " + str(acts(F, T7, "rejected")))
+dbx("UPDATE lists SET e2e=NULL WHERE id=?", (L3,))
+
+# reader F2 (job/6017): "Restore description" from the history brings back an earlier text -- no own edit: the yes ends
+T6 = requests.post(V + "/tasks", headers=AH, json={"list_id": L, "title": "Paint the shop", "notes": "Blue walls"}).json()["id"]
+check(F.patch(B + f"/api/tasks/{T6}", json={"locked": False}).ok, "setup: unlocked")
+check(F.patch(B + f"/api/tasks/{T6}", json={"content": "Blue walls, white door"}).ok, "setup: frida writes the description")
+check(yes(F, T6).ok and conf(T6, AH), "setup: frida confirms her text")
+check(F.patch(B + f"/api/tasks/{T6}", json={"content": "Blue walls", "_act": "restore"}).ok, "frida restores the earlier description")
+check(conf(T6, AH) is None and acts(F, T6, "confirmed_lapsed"), "restoring an earlier text ends the confirmation (history line)")
+
 # ================================================================== the template hint
 check(F.patch(B + f"/api/lists/{L}", json={"tickets": True}).ok, "setup: ticket types on")
 r = requests.post(V + "/tasks", headers=AH, json={"list_id": L, "title": "Crash on save", "type": "bug"})

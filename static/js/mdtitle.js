@@ -37,6 +37,6 @@ document.addEventListener('click', async e => {
   flushSaves();
   let prev = a.data.prev;  // 2.64.1 (#1817): a locked list keeps the text before as a cipher: opened here, sent encrypted again
   if (typeof le2eIs === 'function' && le2eIs(prev)) { try { prev = await le2eDec(t.list_id, 'content', prev); } catch (x) { toast(errText(x, tr('The version could not be restored'))); return; } }
-  await patchUndoable(t.id, {content: prev}, tr('Description restored'));
+  await patchUndoable(t.id, {content: prev, _act: 'restore'}, tr('Description restored'));  // reader F2 (job/6017): an earlier text is no own edit: a confirmation as an order ends (tasks.py task_update)
   S.editContent = false; renderDetail();
 });
