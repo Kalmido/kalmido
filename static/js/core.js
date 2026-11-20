@@ -1858,7 +1858,11 @@ function rwRows(o) {
     let done = false;
     const put1 = () => { if (done) return null; done = true; return put(); };  // applyState puts what is on its way again: once is enough here
     W.mark(keys);  // the first draw shows the rows' marks and "Calculating…" already
-    return optWrite(put1, () => W.save(), o.draw, {mod: true, keep: !wo?.back});
+    return optWrite(put1, () => W.save(), o.draw, {mod: true, keep: !wo?.back}).catch(x => {
+      // a change taken back after no answer / no connection (x.rwQuiet: the area said nothing): said once, "Try again" does it anew
+      if (wo?.back && x?.rwQuiet) toast(errText(x instanceof NoAnswer ? tr('no answer from the server') : x, tr('The change was not saved, it is back as before')), () => W.write(put, keys, wo).catch(() => null), 15000, tr('Try again'));
+      throw x;
+    });
   };
   // "Try again": a request without an answer goes once more as it was (its key and version: applied once, o.again), then
   // the newest state; any other error: the newest state once more

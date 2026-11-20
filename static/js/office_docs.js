@@ -164,7 +164,7 @@ async function ofdLoadDoc(id, force) {
   OFD.docLoading = true; OFD.docId = id;
   OFD.docErr = 0;
   const wk = ofc_wsKey();
-  try { const d = await api('GET', `/api/office/docs/${id}`); if (wk !== ofc_wsKey()) { OFD.docLoading = false; return; } if (OFD.doc?.id !== d.id) OFD_W.reset(); /* #7493: the marks of another document */ else if (!OFD_W.last()) Object.assign(d, {items: OFD.doc.items, updated_at: OFD.doc.updated_at}); /* #7493: unsaved / waiting rows stay with the version they build on (changed elsewhere: Try again = the conflict bar) */ OFD.doc = d; /* (#7313 F15): another office meanwhile: dropped */ OFD.viaFolder.delete(id); OFD.err = ''; OFD.conflict = null; if (OFD.doc?.kind && OFD.doc.kind !== OFD.kind) { OFD.kind = OFD.doc.kind; OFD.list = null; } }
+  try { const d = await api('GET', `/api/office/docs/${id}`); if (wk !== ofc_wsKey()) { OFD.docLoading = false; return; } if (ofd_wMine(d) && OFD.doc?.id === d.id && !OFD_W.last()) Object.assign(d, {items: OFD.doc.items, updated_at: OFD.doc.updated_at}); /* #7493: unsaved / waiting rows stay with the version they build on (changed elsewhere: Try again = the conflict bar) */ OFD.doc = d; /* (#7313 F15): another office meanwhile: dropped */ OFD.viaFolder.delete(id); OFD.err = ''; OFD.conflict = null; if (OFD.doc?.kind && OFD.doc.kind !== OFD.kind) { OFD.kind = OFD.doc.kind; OFD.list = null; } }
   catch (x) {  // 2.199.0 B (#2742): no office right for it, but a shared folder holds it -> read through the folder (its PDF too)
     OFD.doc = null; OFD.err = ofcErrHere(x); OFD.docErr = id;
     // 2.351.0 A (#2823): a draft with edit through the folder is edited (saved over the folder way, ofd_viaUrl)
@@ -551,7 +551,7 @@ function ofdEditorHtml() {
   const fieldsSec = ofdSec('fields', tr('Own fields'), `<div id="ofd-fields">${fields.map((f, i) => `<div class="row ofdfld"><input data-fld="${i}" data-k="name" value="${esc(f.name)}" maxlength="80" placeholder="${esc(tr('Name'))}" aria-label="${esc(tr('Name'))}"><input data-fld="${i}" data-k="value" value="${esc(f.value)}" maxlength="500" placeholder="${esc(tr('Value'))}" aria-label="${esc(tr('Value'))}">${rd ? '' : `<button type="button" class="ib" data-ofd="fld-del" data-i="${i}" aria-label="${esc(tr('Remove'))}">${ic('x', 's')}</button>`}</div>`).join('')}</div>${rd ? '' /* 2.1238.0 (#6161) */ : `<button type="button" class="btn sm" data-ofd="fld-add">${ic('plus', 's')} ${tr('Add field')}</button>`}`,
     fields.length ? `<span class="c muted">${fields.length}</span>` : '');
   const totals = kind === 'delivery' ? '' : ofdTotalsHtml(d, t, adm);  // 2.120.0 D (#2089): no sums
-  const calc = OFD_W.calc && kind !== 'reminder';  // #7493: a save of the positions waits for the server's sums
+  const calc = OFD_W.calc && ofd_wMine(d) && kind !== 'reminder';  // #7493: a save of the positions waits for the server's sums
   const banner = rd && !ofd_frozen(d) ? roHintHtml(tr('You can only read this document')) /* 2.1238.0 (#6161, Stufe 3): the one read hint */
     : rd ? `<p class="ofdlocked" role="status">${ic('lock', 's')}<span>${esc(lk ? tr('Finalised on {0} by {1}. It can no longer be changed; duplicate it for a new version.', d.locked_at ? ofdWhen(d.locked_at) : '', d.locked_by_name || '?') : tr('Sent documents cannot be changed; duplicate it for a new version.'))}</span></p>`  // a reader: the state without its steps
     : lk ? `<p class="ofdlocked" role="status">${ic('lock', 's')}<span>${esc(tr('Finalised on {0} by {1}. It can no longer be changed; duplicate it for a new version.', d.locked_at ? ofdWhen(d.locked_at) : '', d.locked_by_name || '?'))}</span>${kind === 'invoice' && d.status !== 'cancelled' ? `<button type="button" class="btn sm" data-ofd="credit">${ic('receipt', 's')}<span>${tr('Credit note / cancel')}</span></button>` : ''}${kind === 'credit' ? '' /* 2.354.0 D (#2838): a credit note comes from its invoice */ : `<button type="button" class="btn sm" data-ofd="dup">${ic('copy', 's')}<span>${tr('Duplicate')}</span></button>`}</p>`
@@ -563,7 +563,7 @@ function ofdEditorHtml() {
   const langNote = ln.length ? `<div class="ofdlnote" role="status">${ic('info', 's')}<span>${tr('Language changed. Default texts were translated; these stayed as they were:')}<br>${ln.map(esc).join('<br>')}</span><button type="button" class="ib" data-ofd="ln-x" aria-label="${esc(tr('Close'))}">${ic('x', 's')}</button></div>` : '';
   const gaps = !ln.length && !lk ? d.lang_gaps || [] : [];  // 2.460.0 (#3767)
   const gapNote = gaps.length ? `<div class="ofdlnote" role="status">${ic('info', 's')}<span>${tr('Some of your own texts are missing in this language:')}<br>${gaps.map(esc).join('<br>')}</span></div>` : '';
-  return `${head}${banner}${/*html-ok*/ vf ? '' : oil_refsHtml(d) /* the reference lines sit in the head under the finalised note, not between two boxes; a folder view (vf) has no links into the master data */}${/*html-ok*/ ofe_note(d) /* (#5818) */}${/*html-ok*/ oms_note(d) /* (#6820) */}${kind === 'invoice' && typeof rinBox === 'function' ? rinBox(d) : '' /* (#1923) */}${typeof oa_docBanner === 'function' ? oa_docBanner(d) : ''}${ofd_cfBar(d) /* (#3012) */}${/*html-ok*/ ofd_missBox(d, ro || rd || vf) /* (#6529): escaped inside */}${langNote}${gapNote}${/*html-ok*/ typeof sg_box === 'function' && !rd /* (#6161): the approval links are steps */ ? sg_box(d) : ''}${typeof pep_box === 'function' ? pep_box(d) : '' /* (#1960) */}${typeof pol_box === 'function' ? pol_box(d) : '' /* (#3459) */}<div class="ofdeditor${kind === 'delivery' ? ' ofdls' : ''}" data-fg="ofd:${d.id}" data-fg-live><fieldset class="ofdfs" ${ro ? 'disabled' : ''}>${headSec}</fieldset>${!vf && typeof dpj_rowHtml === 'function' ? dpj_rowHtml(d) : '' /* (#2665): outside the locked fieldset; (#3005): below the head (client first) */}<fieldset class="ofdfs" ${ro ? 'disabled' : ''}>${`<section class="ofdsec open${calc ? ' rwcalc' : ''}" id="ofd-pos"${calc ? ' aria-busy="true"' : ''}><h3>${kind === 'reminder' ? tr('Reminded invoices') : tr('Positions')}</h3>${items}${auto}${calc && totals ? `<p class="rwcalcl muted" role="status">${esc(tr('Calculating…'))}</p>` : ''}${totals}</section>${!vf && typeof tpPartsHtml === 'function' ? tpPartsHtml(d, adm) : ''}` /* (#2248): parts open in place in "Parts" */}${kind === 'reminder' || kind === 'delivery' ? '' : kind === 'offer' || oil_hasRights(d) ? rightsSec : ro ? '' : `<button type="button" class="btn sm oil_rtadd" data-ofd="rights-add">${ic('plus', 's')}<span>${tr('Transfer of rights')}</span></button>` /* (#3005): an invoice shows it once it has rights */}${textsSec}${/*html-ok*/ kind === 'reminder' || (rd && !fields.length) ? '' : fieldsSec}</fieldset>${kind === 'offer' && typeof cf8_box === 'function' ? cf8_box(d) : '' /* (#1915) */}${/*html-ok*/ ofdFeeHtml(d, adm && !rd)}${paySec}${logSec}</div>`;  // (#1200): sg_box = the approval link of a sent quotation
+  return `${head}${banner}${/*html-ok*/ vf ? '' : oil_refsHtml(d) /* the reference lines sit in the head under the finalised note, not between two boxes; a folder view (vf) has no links into the master data */}${/*html-ok*/ ofe_note(d) /* (#5818) */}${/*html-ok*/ oms_note(d) /* (#6820) */}${kind === 'invoice' && typeof rinBox === 'function' ? rinBox(d) : '' /* (#1923) */}${typeof oa_docBanner === 'function' ? oa_docBanner(d) : ''}${ofd_cfBar(d) /* (#3012) */}${/*html-ok*/ ofd_missBox(d, ro || rd || vf) /* (#6529): escaped inside */}${langNote}${gapNote}${/*html-ok*/ typeof sg_box === 'function' && !rd /* (#6161): the approval links are steps */ ? sg_box(d) : ''}${typeof pep_box === 'function' ? pep_box(d) : '' /* (#1960) */}${typeof pol_box === 'function' ? pol_box(d) : '' /* (#3459) */}<div class="ofdeditor${kind === 'delivery' ? ' ofdls' : ''}" data-fg="ofd:${d.id}" data-fg-live><fieldset class="ofdfs" ${ro ? 'disabled' : ''}>${headSec}</fieldset>${!vf && typeof dpj_rowHtml === 'function' ? dpj_rowHtml(d) : '' /* (#2665): outside the locked fieldset; (#3005): below the head (client first) */}<fieldset class="ofdfs" ${ro ? 'disabled' : ''}>${`<section class="ofdsec open${calc ? ' rwcalc' : ''}" id="ofd-pos"${calc ? ' aria-busy="true"' : ''}><h3>${kind === 'reminder' ? tr('Reminded invoices') : tr('Positions')}${calc && totals ? ` <span class="rwcalcl muted" role="status">${esc(tr('Calculating…'))}</span>` : ''}</h3>${items}${auto}${totals}</section>${!vf && typeof tpPartsHtml === 'function' ? tpPartsHtml(d, adm) : ''}` /* (#2248): parts open in place in "Parts" */}${kind === 'reminder' || kind === 'delivery' ? '' : kind === 'offer' || oil_hasRights(d) ? rightsSec : ro ? '' : `<button type="button" class="btn sm oil_rtadd" data-ofd="rights-add">${ic('plus', 's')}<span>${tr('Transfer of rights')}</span></button>` /* (#3005): an invoice shows it once it has rights */}${textsSec}${/*html-ok*/ kind === 'reminder' || (rd && !fields.length) ? '' : fieldsSec}</fieldset>${kind === 'offer' && typeof cf8_box === 'function' ? cf8_box(d) : '' /* (#1915) */}${/*html-ok*/ ofdFeeHtml(d, adm && !rd)}${paySec}${logSec}</div>`;  // (#1200): sg_box = the approval link of a sent quotation
 }
 // 2.38.0 (#1021, F1): the invoices a reminder lists (read-only rows), the payments of an invoice
 function ofdRefsHtml(d, t) {
@@ -965,11 +965,15 @@ const ofd_inChain = fn => OFD_W.run(fn);
 // positions' section (ofd_lite: sums, ids, the computed lines), never the whole editor. 409 = the conflict bar (no row mark).
 const OFD_W = rwRows({name: 'ofd', whole: true, send: () => ofd_itemsSend(), draw: () => ofd_lite(),
   fail: x => !!x?.rwShown || x?.status === 409, again: x => x.rwAgain ? x.rwAgain() : Promise.reject(x)});
+// the writer's state (waiting saves, unsaved rows, "Calculating…") is the one of the document d (id)
+const ofd_wMine = d => !!d && OFD_W.dobj?.id === d.id;
+// the save goes to the document the change was made in (OFD_W.dobj: its local positions and version), also when another
+// one is open by now or the editor was left meanwhile
 async function ofd_itemsSend() {
-  const d = OFD.doc; if (!d) throw Object.assign(new Error(''), {rwShown: true});
+  const d = OFD_W.dobj; if (!d) throw Object.assign(new Error(''), {rwShown: true});
   const src = (d.items || []).filter(bfaFilled);
   OFD_SAVEX = null;
-  const j = await ofd_save1('PUT', ofd_viaUrl(`/api/office/docs/${d.id}/items`), {items: ofdItemsBody(), ...(d.kind === 'offer' ? {parts_known: (d.parts || []).map(p => p.id)} : {})}, src, undefined, true);
+  const j = await ofd_save1('PUT', ofd_viaUrl(`/api/office/docs/${d.id}/items`), {items: ofdItemsBody(d), ...(d.kind === 'offer' ? {parts_known: (d.parts || []).map(p => p.id)} : {})}, src, undefined, d);
   if (!j) throw OFD_SAVEX || Object.assign(new Error(''), {rwShown: true});  // a conflict (the bar), another document open now
   return j;
 }
@@ -978,6 +982,7 @@ async function ofd_itemsSend() {
 // it: the row it touches; wo.back: an error takes the change back (a removed / moved row comes back)
 async function ofd_rows(d, put, it, wo, after) {
   if (!d || d !== OFD.doc) { put(); await ofdPutItems(); after?.(); return; }
+  OFD_W.dobj = d;  // the document whose saves wait (ofd_itemsSend; OFD_W.mine)
   const p = OFD_W.write(put, it ? [rwKey(it)] : [], wo).catch(() => null);
   after?.(); return p;
 }
@@ -992,7 +997,7 @@ function ofd_lite() {
   ofdSaveHint();
   if (S.route.mod !== 'office' || !OFD.doc || S.route.id !== OFD.doc.id || !$('#ofd-pos')) return;
   if (OFD.conflict?.id === OFD.doc.id && !$('.ofdcf')) { ofdDraw(); return; }  // the conflict bar sits above the positions
-  if (!rwPatch($('#view'), ofdEditorHtml(), ['#ofd-pos', '#ofd-miss'])) ofdDraw();
+  if (!rwPatch($('#view'), ofdEditorHtml(), ['#ofd-pos', '#ofd-miss', '.ofdeditor .tplist'])) ofdDraw();  // + the parts' list (used on the title page or not)
 }
 // the mark of a row of the document (data-rwk = its key for lookups, the state class, the mark at its end)
 function ofd_rwRow(h, it) {
@@ -1011,7 +1016,7 @@ function ofd_local(method, url, body) {
 // new lines come through src, rwIds) and the local positions and fields stay - the waiting save sends them. #7493: "waits" =
 // the writer's row (OFD_W.last(): a save queued or a change of rows not sent yet).
 function ofd_take(j) {
-  if (OFD_W.last()) { OFD.doc = ofd_keepVia(j.items ? j : {...OFD.doc, ...j}); return; }  /* the status answer has no positions */
+  if (!ofd_wMine(OFD.doc) || OFD_W.last()) { OFD.doc = ofd_keepVia(j.items ? j : {...OFD.doc, ...j}); return; }  /* the status answer has no positions */
   const d = OFD.doc, ps = d.parts || [], sp = new Map((j.parts || []).map(p => [p.id, p]));
   if (j.updated_at) d.updated_at = j.updated_at;
   if (j.totals) d.totals = j.totals;
@@ -1027,8 +1032,8 @@ let OFD_SAVEX = /** @type {any} */ (null);
 // answer (the rows say "Not saved - Try again"; the error carries rwAgain = the same request once more)
 async function ofd_save1(method, url, body, src, again, lite) {
   OFD.saving++; ofdSaveHint();
-  const body0 = body;
-  const ver = again ? again.ver : ofd_verUrl(url) && body && typeof body === 'object' && !Array.isArray(body) ? OFD.doc.updated_at : null;
+  const body0 = body, D = lite && typeof lite === 'object' ? lite : null;  // #7493: the writer's document (maybe not open any more)
+  const ver = again ? again.ver : D ? D.updated_at : ofd_verUrl(url) && body && typeof body === 'object' && !Array.isArray(body) ? OFD.doc.updated_at : null;
   if (ver) {
     if (src && Array.isArray(body.items)) body.items.forEach((x, i) => { if (!x.id && src[i]?.id) x.id = src[i].id; });
     body = {...body, expect_updated_at: ver};
@@ -1043,7 +1048,7 @@ async function ofd_save1(method, url, body, src, again, lite) {
     const j = await rawFetch(method, url, body, again ? again.key : fk ? fdGet('fdw', fk)?.b?.k : undefined);
     if (fk) fdDrop('fdw', fk);
     if (src && j) rwIds(src, (j.part ? j.part.items : j.items) || []);  // #7493: the core's one place of the id swap
-    if (OFD.doc && j && j.id === OFD.doc.id) ofd_take(j); OFD.err = ''; if (j && j.lang_notes && !ofd_lnShut(j)) OFD.langNotes = {id: j.id, notes: j.lang_notes};  // (#3940): a late answer does not reopen a closed note
+    if (OFD.doc && j && j.id === OFD.doc.id) ofd_take(j); else if (D && j?.updated_at && j.id === D.id) D.updated_at = j.updated_at;  // #7493: the document left meanwhile keeps its version OFD.err = ''; if (j && j.lang_notes && !ofd_lnShut(j)) OFD.langNotes = {id: j.id, notes: j.lang_notes};  // (#3940): a late answer does not reopen a closed note
     if (method !== 'GET' && OFD.doc && j && ((!ver && !j.updated_at && url.startsWith(`/api/office/docs/${OFD.doc.id}/`)) || (j._replayed && ofd_verUrl(url)))) {  // a status / number / payment answer without the version: the current state; #7494: + the short answer of a write sent again
       try { const f = await rawFetch('GET', `/api/office/docs/${OFD.doc.id}`); if (OFD.doc && f && f.id === OFD.doc.id) ofd_take(f); } catch { /* the next save reports it */ }
     }
@@ -1053,10 +1058,10 @@ async function ofd_save1(method, url, body, src, again, lite) {
     if (fk && x.message !== 'auth') fdDrop('fdw', fk);  // 2.552.0 (#4547): refused / offline: the field keeps the input (ofdChange), not sent later
     if (x.status === 409 && x.data?.doc && OFD.doc && x.data.doc.id === OFD.doc.id) { OFD.conflict = {id: OFD.doc.id, doc: x.data.doc}; OFD.err = ''; return null; }
     if (x.status === 409 && x.data?.code === 'terms_missing') { OFD.err = ''; return {terms_missing: x.data, message: x.message}; }  // 2.534.0 (#4339): the send dialog asks (ofcSendTerms)
-    if (x instanceof NoAnswer && OFD.doc && lite) {  // #7493: the writer's rows say it; "Try again" there sends this request once more
-      const a = {key: x.key, ver}, did = OFD.doc.id;
-      x.rwAgain = () => OFD.doc?.id === did ? (OFD_SAVEX = null, ofd_save1(method, url, body0, src, a, true)).then(j => j || Promise.reject(OFD_SAVEX || Object.assign(new Error(''), {rwShown: true}))) : Promise.reject(Object.assign(new Error(''), {rwShown: true}));
-      x.shown = true; OFD_SAVEX = x; return null;
+    if ((x instanceof NoAnswer || x instanceof Offline) && lite) {  // #7493: the writer's rows say it; "Try again" there sends this request once more
+      const a = {key: x.key, ver};
+      if (x instanceof NoAnswer) x.rwAgain = () => D ? (OFD_SAVEX = null, ofd_save1(method, url, body0, src, a, D)).then(j => j || Promise.reject(OFD_SAVEX || Object.assign(new Error(''), {rwShown: true}))) : Promise.reject(Object.assign(new Error(''), {rwShown: true}));
+      x.shown = true; x.rwQuiet = true; OFD_SAVEX = x; return null;  // rwQuiet: a change taken back says it itself (core.js W.write)
     }
     if (x instanceof NoAnswer && OFD.doc) {  // #7494: no answer: not saved (the field keeps the input); "Try again" sends the same request in the row
       const a = {key: x.key, ver}, did = OFD.doc.id;
@@ -1116,10 +1121,10 @@ const ofdPatch = body => typeof tpView === 'function' && tpView() ? tpPatch(body
 // 2.114.1 A (#2254): a new heading / text line stays local until something is typed; the server would reject it empty (a saved
 // one keeps its id and is sent as before, emptying it never drops it silently)
 const bfaFilled = it => it.id || !((it.kind === 'heading' || it.kind === 'text') && !(it.title || '').trim() && !(it.detail || '').trim());
-function ofdItemsBody() {
-  return (OFD.doc.items || []).filter(bfaFilled).map(it => ({id: it.id, kind: it.kind, service_id: it.service_id, title: it.title, detail: it.detail, qty: it.qty, unit: it.unit, rate: it.rate, tax: it.tax,
+function ofdItemsBody(doc = OFD.doc) {
+  return (doc.items || []).filter(bfaFilled).map(it => ({id: it.id, kind: it.kind, service_id: it.service_id, title: it.title, detail: it.detail, qty: it.qty, unit: it.unit, rate: it.rate, tax: it.tax,
     raw_fee: it.raw_fee, producing: it.producing, in_handling: it.in_handling, in_markup: it.in_markup, intext: it.intext, cost: it.cost, discountable: it.discountable, discount_pct: it.discount_pct || 0, ref_part_id: it.ref_part_id, confirm: it.confirm || undefined,
-    ...(OFD.doc.kind === 'offer' && it.kind !== 'heading' && it.kind !== 'text' ? {opt: it.opt || ''} : {})}));  // 2.1042.0 (#5815): + discount_pct; 2.1041.0 (#5814): optional / alternative  // 2.47.0 (#1215): + ref_part_id; 2.51.0 A (#1348): + confirm (an agent's mark)
+    ...(doc.kind === 'offer' && it.kind !== 'heading' && it.kind !== 'text' ? {opt: it.opt || ''} : {})}));  // 2.1042.0 (#5815): + discount_pct; 2.1041.0 (#5814): optional / alternative  // 2.47.0 (#1215): + ref_part_id; 2.51.0 A (#1348): + confirm (an agent's mark)
 }
 // 2.47.0 (#1215): with a part open, positions and calculation values go to the part (office_parts.js)
 const ofdPutItems = () => typeof tpView === 'function' && tpView() ? tpPutItems() : ofdSave('PUT', `/api/office/docs/${OFD.doc.id}/items`, {items: ofdItemsBody(), ...(OFD.doc.kind === 'offer' ? {parts_known: (OFD.doc.parts || []).map(p => p.id)} : {})}, (OFD.doc.items || []).filter(bfaFilled));  // 2.138.0 A (#2239): + parts_known; 2.269.0 A (#3012): + the lines sent

@@ -131,6 +131,28 @@ async function run(user) {
   w.__fail(500);
   check(await until(() => titles(d).length === 8 && titles(d)[2] === 'Licht'), 'F: refused: the line is back in its place: ' + titles(d).join() + tag);
   check(await idle(), 'F: nothing waits' + tag);
+
+  // ================= G. a line removed without a connection: back, said once with "Try again" (no silent return)
+  click(w, rows(d)[2].querySelector('[data-ofd="it-del"]'));
+  check(await until(() => w.__q.length === 1), 'G: the removal\'s save is on its way' + tag);
+  w.__drop();
+  check(await until(() => titles(d).length === 8 && titles(d)[2] === 'Licht'), 'G: no connection: the line is back' + tag);
+  const tb = await until(() => { const t = d.querySelector('#toast:not(.hidden)'); return t && /not saved|online/i.test(t.textContent) && t.querySelector('button:not(.tx)'); });
+  check(!!tb, 'G: a message says it, with "Try again": ' + d.querySelector('#toast')?.textContent + tag);
+  click(w, tb);
+  check(await until(() => titles(d).length === 7 && w.__q.length === 1), 'G: Try again removes it again and sends it' + tag);
+  w.__go(); check(await idle(), 'G: saved' + tag);
+  s = await call('GET', `/api/office/docs/${doc.id}`);
+  check(s.items?.length === 7 && s.items[2].title !== 'Licht', 'G: removed on the server: ' + s.items?.map(x => x.title).join() + tag);
+
+  // ================= H. the editor left while a save waits: the change goes to its own document
+  change(w, rows(d)[0].querySelector('[data-k="qty"]'), '6');
+  check(await until(() => w.__q.length === 1), 'H: the quantity\'s save is on its way' + tag);
+  w.location.hash = '#office/offers';
+  check(await until(() => !d.querySelector('#ofd-pos')), 'H: the list is open' + tag);
+  w.__go(); check(await idle(), 'H: saved' + tag);
+  s = await call('GET', `/api/office/docs/${doc.id}`);
+  check(+s.items?.[0]?.qty === 6, `H: the change is on the server (${s.items?.[0]?.qty})` + tag);
   w.__off();
   check(!errs.length, 'no script errors ' + errs.join(' | ') + tag); errs.splice(0);
   w.close();

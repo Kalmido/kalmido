@@ -19727,5 +19727,6 @@
   "invoice series": "serie di fatture",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "Il cliente di questo documento non è più in questo ufficio (spostato in un altro spazio di lavoro). Scegli prima un altro cliente.",
   "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Il cliente della fattura modello non è più in questo ufficio (spostato in un altro spazio di lavoro). Scegli un'altra fattura modello e riattiva la serie.",
-  "Calculating…": "Calcolo in corso…"
+  "Calculating…": "Calcolo in corso…",
+  "The change was not saved, it is back as before": "La modifica non è stata salvata, è tornato tutto come prima"
 }
