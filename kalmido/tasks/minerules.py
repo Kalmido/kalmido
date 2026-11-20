@@ -80,6 +80,14 @@ def _tag_list(c, tag):
     return r[0] if r else None
 
 
+def _tag_names(c, ids):
+    """{tag id: name} of the tags of the core that still exist (#6289)."""
+    ids = [int(x) for x in ids if isinstance(x, int) or str(x).isdigit()]
+    if not ids:
+        return {}
+    return {r[0]: r[1] for r in c.execute(f"SELECT id, name FROM obj_tags WHERE id IN ({','.join('?' * len(ids))})", ids)}
+
+
 def mr_row(c, r, secs=None):
     """A rule for the app: {id, name, trigger {kind, when?, days?, list_id?, tag_id?}, section_id, place, conditions, active,
     default, updated_at, waiting (its section is gone: it moves nothing until the Undo brings the section back)}."""
@@ -98,9 +106,17 @@ def mr_row(c, r, secs=None):
     cond = _jload(r["conds"])
     if cond.get("tag_id"):
         cond["tag_list_id"] = _tag_list(c, cond["tag_id"])
+    # #6289: a tag the rule names that is gone (a move before the rewrite of kalmido_otg_rekey) - the settings say "Tag missing"
+    # instead of the rule doing nothing in silence; the name of a tag that became an organisation's label (no project) comes along
+    names = _tag_names(c, [x for x in (t.get("tag_id"), cond.get("tag_id")) if x])
+    if t.get("tag_id") in names:
+        t["tag_name"] = names[t["tag_id"]]
+    if cond.get("tag_id") in names:
+        cond["tag_name"] = names[cond["tag_id"]]
+    missing = r["trig"] == "ltag" and t.get("tag_id") not in names or bool(cond.get("tag_id")) and cond["tag_id"] not in names
     return {"id": r["id"], "name": r["name"] or "", "trigger": t, "section_id": r["section_id"], "place": r["place"],
             "conditions": cond, "active": bool(r["active"]), "default": bool(r["dflt"]), "updated_at": r["updated_at"],
-            "waiting": r["section_id"] not in secs}
+            "waiting": r["section_id"] not in secs, "tag_missing": missing}
 
 
 def mr_list(c, uid):
