@@ -1939,12 +1939,15 @@ then draw" or its own id swap beside it.
   part's sheet). A save of the rows is built when it goes (`o.send()`: the newest local state and the version of the last
   answer), so a change made while an answer is on its way is in the next save and never lost. Changes that come while a save
   waits join it (one request).
-- **State of a row:** `rwMarkHtml(W, row)` / `rwCls(W, row)` in the row: "Saving…" while its save is on its way, "Not saved" with
+- **State of a row:** `rwMarkHtml(W, row)` / `rwCls(W, row)` in the row: "Saving…" while its save is on its way (heard by screen
+  readers; seen as the row's dimmed amount, so the row never changes its width), "Not saved" with
   "Try again" after an error or without a connection - the row stays, nothing vanishes. `{back: true}` takes the change back
   instead (a removed or moved row comes back where it was). `o.fail(x)` = true when the area shows the error itself (a 409: the
   conflict bar), then the rows carry no mark. "Try again" (`data-rwagain="<name>"`, one listener in core.js) sends a request
   that got no answer once more as it was (its idempotency key and version: applied once, `o.again`, #7494), then the newest state.
   `o.whole`: each save sends all rows, so a save that went through saved the failed rows too.
+- **One writer per object** (a document, a sheet): a change in another object never takes over the saves that wait for the
+  first one; its saves go to the object they were made in, also when the person left it meanwhile (then an error is a toast).
 - **The answer** gives only what the server assigns and computes (version, sums, ids, computed lines): the area's `send` / `take`.
   New rows get their ids in one place, `rwIds(sent, got)` (by order). `W.last()` says whether no further save waits: only then
   may an answer stand for the local state.
@@ -1957,8 +1960,8 @@ then draw" or its own id swap beside it.
 - **Text editors without rows** use `W.run` / `W.save()` without keys: the same order (one save at a time, the newest text,
   the version of the last answer).
 
-First user: the quotation and invoice editor (`office_docs.js`: `OFD_W`, `ofd_rows`, `ofd_add`, `ofd_itemsSend`, `ofd_lite`;
-`#ofd-pos` is the positions' section, `ofd_inChain` = `OFD_W.run`). The parts and the calculation sheet (#7496), bank, cards,
+First user: the quotation and invoice editor (`office_docs.js`: `ofd_W` (one writer per document), `ofd_rows`, `ofd_add`, `ofd_itemsSend`, `ofd_lite`;
+`#ofd-pos` is the positions' section, `ofd_inChain` = `ofd_W(OFD.doc).run`). The parts and the calculation sheet (#7496), bank, cards,
 cash book, times, receipts, travel (#7497 - #7503) and the letters' autosave (#7504) follow on it. The `fdWrite` input guard
 (#4547) stays under it. Tests hold the answers with `hold(w, re)` of `tests/boot.js` (`w.__go()`, `w.__fail(status)`,
 `w.__drop()`; `slow(w, re)` holds them all at once): `tests/p7493_schreiben_sofort_ui.js`, `tests/p7509_editor_kette_ui.js`.

@@ -1883,10 +1883,10 @@ function rwRows(o) {
   if (o.name) RW_ALL.set(o.name, W);
   return W;
 }
-// the state of a row as a mark (in the row): "Saving…" quietly, "Not saved" with "Try again" (the row stays)
+// the state of a row as a mark (in the row): "Saving…" for screen readers (the row's amount dims), "Not saved" with "Try again" (the row stays)
 function rwMarkHtml(W, it) {
   const s = W?.state(it);
-  if (s === 'saving') return `<span class="rwmark rwsaving" role="status">${esc(tr('Saving…'))}</span>`;
+  if (s === 'saving') return `<span class="rwmark rwsaving sr" role="status">${esc(tr('Saving…'))}</span>`;  // heard, not seen: the row dims its amount (rw-saving), its width never changes
   if (s === 'failed') return `<span class="rwmark rwfail" role="alert">${ic('info', 's')}<span>${esc(tr('Not saved'))}</span><button type="button" class="linkbtn" data-rwagain="${esc(W.o.name || '')}">${esc(tr('Try again'))}</button></span>`;
   return '';
 }

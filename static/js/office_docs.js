@@ -164,7 +164,7 @@ async function ofdLoadDoc(id, force) {
   OFD.docLoading = true; OFD.docId = id;
   OFD.docErr = 0;
   const wk = ofc_wsKey();
-  try { const d = await api('GET', `/api/office/docs/${id}`); if (wk !== ofc_wsKey()) { OFD.docLoading = false; return; } if (ofd_wMine(d) && OFD.doc?.id === d.id && !OFD_W.last()) Object.assign(d, {items: OFD.doc.items, updated_at: OFD.doc.updated_at}); /* #7493: unsaved / waiting rows stay with the version they build on (changed elsewhere: Try again = the conflict bar) */ OFD.doc = d; /* (#7313 F15): another office meanwhile: dropped */ OFD.viaFolder.delete(id); OFD.err = ''; OFD.conflict = null; if (OFD.doc?.kind && OFD.doc.kind !== OFD.kind) { OFD.kind = OFD.doc.kind; OFD.list = null; } }
+  try { const d = await api('GET', `/api/office/docs/${id}`); if (wk !== ofc_wsKey()) { OFD.docLoading = false; return; } if (OFD.doc?.id === d.id && OFD_WS.has(d.id) && !ofd_W(d).last()) Object.assign(d, {items: OFD.doc.items, updated_at: OFD.doc.updated_at}); /* #7493: unsaved / waiting rows stay with the version they build on (changed elsewhere: Try again = the conflict bar) */ OFD.doc = d; /* (#7313 F15): another office meanwhile: dropped */ OFD.viaFolder.delete(id); OFD.err = ''; OFD.conflict = null; if (OFD.doc?.kind && OFD.doc.kind !== OFD.kind) { OFD.kind = OFD.doc.kind; OFD.list = null; } }
   catch (x) {  // 2.199.0 B (#2742): no office right for it, but a shared folder holds it -> read through the folder (its PDF too)
     OFD.doc = null; OFD.err = ofcErrHere(x); OFD.docErr = id;
     // 2.351.0 A (#2823): a draft with edit through the folder is edited (saved over the folder way, ofd_viaUrl)
@@ -551,7 +551,7 @@ function ofdEditorHtml() {
   const fieldsSec = ofdSec('fields', tr('Own fields'), `<div id="ofd-fields">${fields.map((f, i) => `<div class="row ofdfld"><input data-fld="${i}" data-k="name" value="${esc(f.name)}" maxlength="80" placeholder="${esc(tr('Name'))}" aria-label="${esc(tr('Name'))}"><input data-fld="${i}" data-k="value" value="${esc(f.value)}" maxlength="500" placeholder="${esc(tr('Value'))}" aria-label="${esc(tr('Value'))}">${rd ? '' : `<button type="button" class="ib" data-ofd="fld-del" data-i="${i}" aria-label="${esc(tr('Remove'))}">${ic('x', 's')}</button>`}</div>`).join('')}</div>${rd ? '' /* 2.1238.0 (#6161) */ : `<button type="button" class="btn sm" data-ofd="fld-add">${ic('plus', 's')} ${tr('Add field')}</button>`}`,
     fields.length ? `<span class="c muted">${fields.length}</span>` : '');
   const totals = kind === 'delivery' ? '' : ofdTotalsHtml(d, t, adm);  // 2.120.0 D (#2089): no sums
-  const calc = OFD_W.calc && ofd_wMine(d) && kind !== 'reminder';  // #7493: a save of the positions waits for the server's sums
+  const calc = ofd_W(d).calc && kind !== 'reminder';  // #7493: a save of the positions waits for the server's sums
   const banner = rd && !ofd_frozen(d) ? roHintHtml(tr('You can only read this document')) /* 2.1238.0 (#6161, Stufe 3): the one read hint */
     : rd ? `<p class="ofdlocked" role="status">${ic('lock', 's')}<span>${esc(lk ? tr('Finalised on {0} by {1}. It can no longer be changed; duplicate it for a new version.', d.locked_at ? ofdWhen(d.locked_at) : '', d.locked_by_name || '?') : tr('Sent documents cannot be changed; duplicate it for a new version.'))}</span></p>`  // a reader: the state without its steps
     : lk ? `<p class="ofdlocked" role="status">${ic('lock', 's')}<span>${esc(tr('Finalised on {0} by {1}. It can no longer be changed; duplicate it for a new version.', d.locked_at ? ofdWhen(d.locked_at) : '', d.locked_by_name || '?'))}</span>${kind === 'invoice' && d.status !== 'cancelled' ? `<button type="button" class="btn sm" data-ofd="credit">${ic('receipt', 's')}<span>${tr('Credit note / cancel')}</span></button>` : ''}${kind === 'credit' ? '' /* 2.354.0 D (#2838): a credit note comes from its invoice */ : `<button type="button" class="btn sm" data-ofd="dup">${ic('copy', 's')}<span>${tr('Duplicate')}</span></button>`}</p>`
@@ -957,20 +957,28 @@ const ofd_keepVia = j => OFD.doc?.via_folder && j && j.id === OFD.doc.id ? ofd_v
 const ofd_viaUrl = url => { const m = String(url).match(/^\/api\/office\/docs\/(\d+)(\/items)?$/); return m && OFD.viaFolder.has(+m[1]) ? `/api/fsref/office_doc/${m[1]}${m[2] || ''}` : url; };
 const ofdSave = (method, url, body, src) => { ofd_local(method, url, body); return ofd_inChain(() => ofd_save1(method, ofd_viaUrl(url), body, src)); };
 // a save outside ofdSave (the calculation sheet, the number) in the same row; ofd_ver = its version field
-// #7493: the row is the core's (core.js rwRows: W.run); the positions of the document go through its writer OFD_W (ofd_rows)
-const ofd_inChain = fn => OFD_W.run(fn);
+// #7493: the row is the core's (core.js rwRows: W.run), one per document; its positions go through that writer (ofd_rows)
+const ofd_inChain = fn => ofd_W(OFD.doc).run(fn);
 // #7493 (decision): "write shows at once" for the positions of the document. A position added, removed, moved or changed
 // stands at once (the writer's put), each row says "Saving…" / "Not saved - Try again", the sums "Calculating…"; the save is
 // built when it goes (ofd_itemsSend: the newest positions, the version of the last answer) and its answer draws only the
 // positions' section (ofd_lite: sums, ids, the computed lines), never the whole editor. 409 = the conflict bar (no row mark).
-const OFD_W = rwRows({name: 'ofd', whole: true, send: () => ofd_itemsSend(), draw: () => ofd_lite(),
-  fail: x => !!x?.rwShown || x?.status === 409, again: x => x.rwAgain ? x.rwAgain() : Promise.reject(x)});
-// the writer's state (waiting saves, unsaved rows, "Calculating…") is the one of the document d (id)
-const ofd_wMine = d => !!d && OFD_W.dobj?.id === d.id;
-// the save goes to the document the change was made in (OFD_W.dobj: its local positions and version), also when another
-// one is open by now or the editor was left meanwhile
-async function ofd_itemsSend() {
-  const d = OFD_W.dobj; if (!d) throw Object.assign(new Error(''), {rwShown: true});
+// One writer per document (its row of saves, its unsaved rows, its "Calculating…"): a change in another document never
+// takes over the saves that wait for the first one. W.dobj = the document's object the last change was made in.
+const OFD_WS = new Map();
+function ofd_W(d) {
+  const id = d?.id || 0; let W = OFD_WS.get(id);
+  if (!W) {
+    W = rwRows({name: 'ofd' + id, whole: true, send: () => ofd_itemsSend(W), draw: () => ofd_lite(),
+      fail: x => !!x?.rwShown || x?.status === 409, again: x => x.rwAgain ? x.rwAgain() : Promise.reject(x)});
+    W.dobj = d || null; OFD_WS.set(id, W);
+  }
+  return W;
+}
+// the save goes to the document the change was made in (W.dobj: its local positions and version), also when another one is
+// open by now or the editor was left meanwhile
+async function ofd_itemsSend(W) {
+  const d = W.dobj; if (!d) throw Object.assign(new Error(''), {rwShown: true});
   const src = (d.items || []).filter(bfaFilled);
   OFD_SAVEX = null;
   const j = await ofd_save1('PUT', ofd_viaUrl(`/api/office/docs/${d.id}/items`), {items: ofdItemsBody(d), ...(d.kind === 'offer' ? {parts_known: (d.parts || []).map(p => p.id)} : {})}, src, undefined, d);
@@ -982,8 +990,8 @@ async function ofd_itemsSend() {
 // it: the row it touches; wo.back: an error takes the change back (a removed / moved row comes back)
 async function ofd_rows(d, put, it, wo, after) {
   if (!d || d !== OFD.doc) { put(); await ofdPutItems(); after?.(); return; }
-  OFD_W.dobj = d;  // the document whose saves wait (ofd_itemsSend; OFD_W.mine)
-  const p = OFD_W.write(put, it ? [rwKey(it)] : [], wo).catch(() => null);
+  const W = ofd_W(d); W.dobj = d;  // the object the change is made in (sent by ofd_itemsSend)
+  const p = W.write(put, it ? [rwKey(it)] : [], wo).catch(() => null);
   after?.(); return p;
 }
 // #7493: a new line stands at once (no wait for the answer of an earlier save), then its field k has the focus; an error keeps
@@ -1001,8 +1009,8 @@ function ofd_lite() {
 }
 // the mark of a row of the document (data-rwk = its key for lookups, the state class, the mark at its end)
 function ofd_rwRow(h, it) {
-  const m = rwMarkHtml(OFD_W, it), i = h.lastIndexOf('</li>');
-  h = h.replace('<li class="ofdit', `<li data-rwk="${esc(rwKey(it))}" class="ofdit${esc(rwCls(OFD_W, it))}`);
+  const W = ofd_W(OFD.doc), m = rwMarkHtml(W, it), i = h.lastIndexOf('</li>');
+  h = h.replace('<li class="ofdit', `<li data-rwk="${esc(rwKey(it))}" class="ofdit${esc(rwCls(W, it))}`);
   return m && i > 0 ? h.slice(0, h.lastIndexOf('</li>')) + m + '</li>' : h;
 }
 // #7509: a plain field of the document changed (PATCH of its head) is the local state at once: a redraw before its answer
@@ -1014,9 +1022,9 @@ function ofd_local(method, url, body) {
 // #7509 (decision): the server's answer replaces the open document only when no further save of it waits in the row; while
 // one waits, the answer gives only what the server assigns and computes (the version, the sums, parts it added; the ids of
 // new lines come through src, rwIds) and the local positions and fields stay - the waiting save sends them. #7493: "waits" =
-// the writer's row (OFD_W.last(): a save queued or a change of rows not sent yet).
+// the document's writer (ofd_W(doc).last(): a save queued, a change of rows not sent yet, an unsaved row).
 function ofd_take(j) {
-  if (!ofd_wMine(OFD.doc) || OFD_W.last()) { OFD.doc = ofd_keepVia(j.items ? j : {...OFD.doc, ...j}); return; }  /* the status answer has no positions */
+  if (ofd_W(OFD.doc).last()) { OFD.doc = ofd_keepVia(j.items ? j : {...OFD.doc, ...j}); return; }  /* the status answer has no positions */
   const d = OFD.doc, ps = d.parts || [], sp = new Map((j.parts || []).map(p => [p.id, p]));
   if (j.updated_at) d.updated_at = j.updated_at;
   if (j.totals) d.totals = j.totals;
@@ -1028,7 +1036,7 @@ const ofd_lnShut = j => !!OFD.langNotesShut && OFD.langNotesShut.id === j.id && 
 // 2.855.0 (#5451): the error of the last failed save (a field's change says it at the field)
 let OFD_SAVEX = /** @type {any} */ (null);
 // again: #7494 "Try again" after no answer: {key, ver} of the first try (the very same request: applied once, never over a later save)
-// lite: #7493 a save of the writer OFD_W: no draw of the editor afterwards (the writer draws light), no toast for a missing
+// lite: #7493 a save of the document's writer (ofd_W), its document object: no draw of the editor afterwards (the writer draws light), no toast for a missing
 // answer (the rows say "Not saved - Try again"; the error carries rwAgain = the same request once more)
 async function ofd_save1(method, url, body, src, again, lite) {
   OFD.saving++; ofdSaveHint();
@@ -1048,7 +1056,7 @@ async function ofd_save1(method, url, body, src, again, lite) {
     const j = await rawFetch(method, url, body, again ? again.key : fk ? fdGet('fdw', fk)?.b?.k : undefined);
     if (fk) fdDrop('fdw', fk);
     if (src && j) rwIds(src, (j.part ? j.part.items : j.items) || []);  // #7493: the core's one place of the id swap
-    if (OFD.doc && j && j.id === OFD.doc.id) ofd_take(j); else if (D && j?.updated_at && j.id === D.id) D.updated_at = j.updated_at;  // #7493: the document left meanwhile keeps its version OFD.err = ''; if (j && j.lang_notes && !ofd_lnShut(j)) OFD.langNotes = {id: j.id, notes: j.lang_notes};  // (#3940): a late answer does not reopen a closed note
+    if (OFD.doc && j && j.id === OFD.doc.id) ofd_take(j); else if (D && j?.updated_at && j.id === D.id) D.updated_at = j.updated_at; /* #7493: the document left meanwhile keeps its version */ OFD.err = ''; if (j && j.lang_notes && !ofd_lnShut(j)) OFD.langNotes = {id: j.id, notes: j.lang_notes};  // (#3940): a late answer does not reopen a closed note
     if (method !== 'GET' && OFD.doc && j && ((!ver && !j.updated_at && url.startsWith(`/api/office/docs/${OFD.doc.id}/`)) || (j._replayed && ofd_verUrl(url)))) {  // a status / number / payment answer without the version: the current state; #7494: + the short answer of a write sent again
       try { const f = await rawFetch('GET', `/api/office/docs/${OFD.doc.id}`); if (OFD.doc && f && f.id === OFD.doc.id) ofd_take(f); } catch { /* the next save reports it */ }
     }
@@ -1058,18 +1066,18 @@ async function ofd_save1(method, url, body, src, again, lite) {
     if (fk && x.message !== 'auth') fdDrop('fdw', fk);  // 2.552.0 (#4547): refused / offline: the field keeps the input (ofdChange), not sent later
     if (x.status === 409 && x.data?.doc && OFD.doc && x.data.doc.id === OFD.doc.id) { OFD.conflict = {id: OFD.doc.id, doc: x.data.doc}; OFD.err = ''; return null; }
     if (x.status === 409 && x.data?.code === 'terms_missing') { OFD.err = ''; return {terms_missing: x.data, message: x.message}; }  // 2.534.0 (#4339): the send dialog asks (ofcSendTerms)
-    if ((x instanceof NoAnswer || x instanceof Offline) && lite) {  // #7493: the writer's rows say it; "Try again" there sends this request once more
+    if ((x instanceof NoAnswer || x instanceof Offline) && D && D === OFD.doc && S.route.id === D.id) {  // #7493: the writer's rows say it; "Try again" there sends this request once more (a document left meanwhile: the toast below)
       const a = {key: x.key, ver};
       if (x instanceof NoAnswer) x.rwAgain = () => D ? (OFD_SAVEX = null, ofd_save1(method, url, body0, src, a, D)).then(j => j || Promise.reject(OFD_SAVEX || Object.assign(new Error(''), {rwShown: true}))) : Promise.reject(Object.assign(new Error(''), {rwShown: true}));
       x.shown = true; x.rwQuiet = true; OFD_SAVEX = x; return null;  // rwQuiet: a change taken back says it itself (core.js W.write)
     }
-    if (x instanceof NoAnswer && OFD.doc) {  // #7494: no answer: not saved (the field keeps the input); "Try again" sends the same request in the row
+    if (x instanceof NoAnswer && OFD.doc && !lite) {  // #7494: no answer: not saved (the field keeps the input); "Try again" sends the same request in the row
       const a = {key: x.key, ver}, did = OFD.doc.id;
       netAgain(x, '', undefined, () => OFD.doc?.id === did ? ofd_inChain(() => ofd_save1(method, url, body0, src, a)).then(j => { if (!j) throw Object.assign(new Error(''), {shown: true}); return j; }) : Promise.resolve(null));
     }
     OFD_SAVEX = x; ofcErr(x); return null;  // 2.855.0 (#5451): said once (a field's save: at the field, ofdChange), never raw in the head
   }
-  finally { OFD.saving--; OFD.log = null; if (!lite) ofdDraw(); OFD.list = null; }  // #7493: a save of the writer draws light (OFD_W, ofd_lite)
+  finally { OFD.saving--; OFD.log = null; if (!lite) ofdDraw(); OFD.list = null; }  // #7493: a save of the writer draws light (ofd_W, ofd_lite)
 }
 // 2.269.0 A (#3012): the conflict bar (no merging, decision 23.10.2026): "Reload" shows the stored state, the own unsaved change is named
 // (#6529): what finalising still misses (GET of the document: missing [{key, text, level}], blocks from the server's
@@ -1111,7 +1119,7 @@ async function ofd_missGate(d) {
 const ofd_cfBar = d => OFD.conflict && OFD.conflict.id === d.id ? `<div class="ofdlnote ofdcf" role="alert">${ic('info', 's')}<span><b>${esc(tr('Changed in the meantime'))}</b><br>${esc(tr('Someone else saved this document in the meantime. Your last change was not saved; reload to see the current version.'))}</span><button type="button" class="btn sm" data-ofd="cf-reload">${esc(tr('Reload'))}</button></div>` : '';
 function ofd_cfReload() {
   const cf = OFD.conflict; OFD.conflict = null;
-  OFD_W.reset();  // #7493: the stored state is shown, no row of mine waits any more
+  ofd_W(OFD.doc).reset();  // #7493: the stored state is shown, no row of mine waits any more
   if (cf && OFD.doc && cf.id === OFD.doc.id) OFD.doc = ofd_keepVia(cf.doc);
   OFD.log = null; ofdDraw();
   if (OFD.doc) ofdLoadDoc(OFD.doc.id, true);  // and once more from the server (another save may have come since)

@@ -45,7 +45,8 @@ async function run(user) {
     click(w, b);
     return !!b;
   };
-  const idle = () => until(() => w.eval('OFD.saving') === 0 && !w.eval('OFD_W.pend'));
+  const busy = () => w.eval('[...OFD_WS.values()].some(W => W.pend)');
+  const idle = () => until(() => w.eval('OFD.saving') === 0 && !busy());
 
   // ================= A. a line stands at once
   check(await pick('Licht'), 'A: the picker shows the service' + tag);
@@ -83,7 +84,7 @@ async function run(user) {
   for (const n of ['Ton', 'Maske', 'Grading']) await pick(n);
   check(titles(d).slice(3).join() === 'Ton,Maske,Grading', 'C: three lines at once, in order: ' + titles(d).join() + tag);
   check(rows(d).slice(3).every(r => r.classList.contains('rw-saving')), 'C: all three say "Saving…"' + tag);
-  for (let t = 0; t < 200 && w.eval('OFD_W.pend'); t++) { if (w.__q.length) w.__go(); await sleep(50); }  // each held save through, none let through ahead
+  for (let t = 0; t < 200 && busy(); t++) { if (w.__q.length) w.__go(); await sleep(50); }  // each held save through, none let through ahead
   check(await idle(), 'C: saved' + tag);
   check(w.__n - n0 === 2, `C: the first add went at once, the two that waited joined one save (${w.__n - n0} saves)` + tag);
   s = await call('GET', `/api/office/docs/${doc.id}`);
@@ -96,7 +97,7 @@ async function run(user) {
   check(await until(() => w.__q.length === 1), 'D: its save is on its way' + tag);
   w.__fail(500);
   check(await until(() => rows(d)[6]?.classList.contains('rw-failed')), 'D: the line says "Not saved"' + tag);
-  check(titles(d)[6] === 'Licht' && !!rows(d)[6].querySelector('[data-rwagain="ofd"]'), 'D: the line stays, with "Try again"' + tag);
+  check(titles(d)[6] === 'Licht' && !!rows(d)[6].querySelector('[data-rwagain]'), 'D: the line stays, with "Try again"' + tag);
   check(!d.querySelector('#ofd-pos.rwcalc'), 'D: no "Calculating…" while nothing waits' + tag);
   w.eval("ofdPatch({project_title: 'Spot 2'})");  // a save of the head: its answer brings the stored positions
   check(await until(() => w.__q.length === 1), 'D: the head\'s save is on its way' + tag);
@@ -104,7 +105,7 @@ async function run(user) {
   check(await until(() => w.eval('OFD.saving') === 0), 'D: the head is saved' + tag);
   await w.eval(`ofdLoadDoc(${doc.id}, true)`);  // "Check again" / a reload of the document
   check(titles(d)[6] === 'Licht' && rows(d)[6]?.classList.contains('rw-failed'), 'D: the unsaved line stays through another answer and a reload: ' + titles(d).join() + tag);
-  click(w, rows(d)[6].querySelector('[data-rwagain="ofd"]'));
+  click(w, rows(d)[6].querySelector('[data-rwagain]'));
   check(await until(() => w.__q.length === 1), 'D: Try again sends it' + tag);
   check(rows(d)[6]?.classList.contains('rw-saving'), 'D: the line says "Saving…" again' + tag);
   w.__go(); check(await idle(), 'D: saved' + tag);
@@ -118,7 +119,7 @@ async function run(user) {
   w.__drop();
   check(await until(() => rows(d)[7]?.classList.contains('rw-failed')), 'E: no connection: the line says "Not saved"' + tag);
   check(titles(d)[7] === 'Ton', 'E: the line stays' + tag);
-  click(w, rows(d)[7].querySelector('[data-rwagain="ofd"]'));
+  click(w, rows(d)[7].querySelector('[data-rwagain]'));
   check(await until(() => w.__q.length === 1), 'E: Try again sends it' + tag);
   w.__go(); check(await idle(), 'E: saved' + tag);
   s = await call('GET', `/api/office/docs/${doc.id}`);
@@ -153,6 +154,24 @@ async function run(user) {
   w.__go(); check(await idle(), 'H: saved' + tag);
   s = await call('GET', `/api/office/docs/${doc.id}`);
   check(+s.items?.[0]?.qty === 6, `H: the change is on the server (${s.items?.[0]?.qty})` + tag);
+
+  // ================= I. a second document changed while the first one's save waits: each change in its own document
+  const doc2 = await call('POST', '/api/office/docs', {kind: 'offer', lang: 'en', project_title: 'Spot B', items: [svc('Other', 1, 100)]});
+  w.location.hash = `#office/offers/${doc.id}`;
+  check(await until(() => rows(d).length === 7 && w.eval('OFD.doc?.id') === doc.id), 'I: the first document is open again' + tag);
+  change(w, rows(d)[0].querySelector('[data-k="qty"]'), '7');
+  check(await until(() => w.__q.length === 1), 'I: its save is on its way' + tag);
+  change(w, rows(d)[1].querySelector('[data-k="qty"]'), '8');  // waits behind it
+  w.location.hash = `#office/offers/${doc2.id}`;
+  check(await until(() => rows(d).length === 1 && w.eval('OFD.doc?.id') === doc2.id), 'I: the second document is open' + tag);
+  change(w, rows(d)[0].querySelector('[data-k="qty"]'), '9');  // the second document's save is not held: it goes at once
+  check(await until(async () => +(await call('GET', `/api/office/docs/${doc2.id}`)).items?.[0]?.qty === 9), 'I: the second document saved its own change at once' + tag);
+  for (let t = 0; t < 200 && (busy() || w.__q.length); t++) { if (w.__q.length) w.__go(); await sleep(50); }
+  check(await idle(), 'I: all saved' + tag);
+  s = await call('GET', `/api/office/docs/${doc.id}`);
+  check(+s.items?.[0]?.qty === 7 && +s.items?.[1]?.qty === 8 && s.items?.length === 7, `I: the first document got both its changes (${s.items?.map(x => x.qty).join()})` + tag);
+  const s2 = await call('GET', `/api/office/docs/${doc2.id}`);
+  check(s2.items?.length === 1 && +s2.items[0].qty === 9 && s2.items[0].title === 'Other', `I: the second document only its own (${s2.items?.map(x => x.title + ':' + x.qty).join()})` + tag);
   w.__off();
   check(!errs.length, 'no script errors ' + errs.join(' | ') + tag); errs.splice(0);
   w.close();
