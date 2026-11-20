@@ -172,7 +172,31 @@ def _no_url():
     print("FATAL: DATABASE_URL is not set. From 2.37 on Kalmido stores its data in Postgres: add the database service to "
           "docker-compose.yml (see the template in the repository), set POSTGRES_PASSWORD in .env and "
           "DATABASE_URL=postgresql://kalmido:<password>@db/kalmido, then start again.", flush=True)
+    way = sqlite_way()
+    if way:  # (#6616): an install from before 2.37 has no DATABASE_URL either, the line above alone sends it the wrong way
+        print("If this install still runs on SQLite: " + way, flush=True)
     return 3
+
+
+SQLITE_STOP = "2.37.0"  # (#6616): the last version that moves a SQLite database (data/tasks.db) into Postgres by itself
+
+
+def sqlite_way(path=None):
+    """(#6616, audit #4817): the way through for an install from before 2.37 -- its SQLite database (TASKS_DB, data/tasks.db, a
+    file with content) lies in the data dir and this version cannot read it (the move tool went with 2.1034.0, #5304) -> the
+    text with the commands, '' without such a file. The steps: 2.37.0 (moves the data into Postgres at its first start), then
+    FIRST_STOP (the update floor MIN_FROM, #6826), then this version (docs/SELF-HOSTING.md "Installs from before 2.37")."""
+    p = os.path.abspath(path or DB)
+    try:
+        if not (os.path.isfile(p) and os.path.getsize(p) > 0):
+            return ""
+    except OSError:
+        return ""
+    return (f"the data dir holds {p}, the SQLite database of a Kalmido install from before 2.37, and this image ({APP_VERSION}) "
+            f"cannot read it. Go through Kalmido {SQLITE_STOP} first: KALMIDO_VERSION=v{SQLITE_STOP} ~/kalmido/update.sh (an install "
+            f"from the repository: git checkout v{SQLITE_STOP}, then docker compose up -d --build) and follow its upgrade notes; its first "
+            f"start moves the data into Postgres. Then update the same way to Kalmido {FIRST_STOP}, start it once, then to this version. "
+            "Make a copy of the data dir before. See docs/SELF-HOSTING.md, 'Installs from before 2.37'.")
 
 
 def db_log_err(e):
@@ -514,6 +538,11 @@ def startup_guard():
         secret_new_guard()
     if has_tables:
         return False
+    way = sqlite_way()
+    if way:  # (#6616): an empty Postgres next to the SQLite file of an install from before 2.37: the way through, not "point DATABASE_URL"
+        print(f"FATAL: the Postgres database is empty and {way} Refusing to start so that no new, empty database replaces "
+              "the data.", flush=True)
+        raise DataDirError(3)
     data = [p for p, ok in ((DATA_MARKER, os.path.exists(DATA_MARKER)), (ATT_DIR, _has_files(ATT_DIR)),
                             (BK_DIR, _has_files(BK_DIR))) if ok]
     if data:

@@ -533,6 +533,9 @@ Kalmido runs on PostgreSQL since 2.37. The tool that moved the data of an older 
 an empty PostgreSQL database next to old data refuses to start. If you still run 2.36 or older, update to 2.37.0 first and
 follow the upgrade notes of that version (it moves the data by itself), then update to 2.1001.0 (or a newer version older than 2.1380) and start it
 once, then to the current version ([oldest version to update from](UPGRADING.md#oldest-version-to-update-from-21000)).
+Since 2.1458 (#6616) the start says so itself: an empty PostgreSQL database next to a SQLite `data/tasks.db` ends the start with
+these steps and their commands (`KALMIDO_VERSION=v2.37.0 ~/kalmido/update.sh`, then 2.1001.0, then the current version), and a
+missing `DATABASE_URL` next to such a file adds them to its line.
 
 ## Backup and encryption
 

@@ -1798,6 +1798,7 @@ function ad_updHtml(hint) {
   if (a.available) {
     h += `<div class="shint updline"><b>${tr('v{0} installed — v{1} available', esc(a.version), esc(a.latest))}</b>${a.url ? ` · <a href="${esc(a.url)}" target="_blank" rel="noopener">${tr('Release notes')}</a>` : ''}</div>
       <div class="shelp updbackup">${tr('Back up first: Server > Backup > Back up now.')}${a.update_action ? '' : ' ' + tr('Read the release notes of every version in between: a step by hand can be in any of them.')}</div>${''/* 2.1179.0 C (#2898) */}
+      ${a.update_jump ? `<div class="shint updjump" id="s-updjump">${tr('Several versions lie between: read <a href="{0}" target="_blank" rel="noopener">UPGRADING.md</a> first (the oldest version to update from, the steps by hand, the way back).', esc(a.upgrading_url || ''))}</div>` : ''}${''/* (#6616) */}
       ${a.update_action ? `<div class="shint updaction" id="s-updaction"><b>${tr('To do before the update')}</b><pre class="updactiontxt">${esc(a.update_action)}</pre><small class="muted">${tr('Read the changelog of all versions in between.')}</small></div>` : ''}
       <div class="shelp">${tr('To update, run <code>~/kalmido/update.sh</code> (installed with the installer; it backs up the database first), or in the folder with docker-compose.yml: <code>docker compose pull && docker compose up -d</code> (prebuilt image) or <code>git pull && docker compose up -d --build</code> (built from source).')}</div>`;
   } else if (a.update_env && a.update_check && a.checked_at) {
