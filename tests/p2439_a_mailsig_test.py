@@ -190,6 +190,22 @@ for who, s, name in (("org", A, "Alice Admin"), ("freelancer", Fr, "Frida")):
     r, m = send(s, CL)
     check(m is not None and m["Bcc"] is None and "\n" not in str(m["From"]), f"{who}: a line break in the sender name never reaches a header {m and m['From']}")
     s.put(B + O + "/mail-profile", json={"from_name": ""})
+    # #6549: no address or web address as the sender's name (it stands in front of the server's address at the recipient)
+    for bad in ("service@paypal.com", "paypal.com Support", "www.paypal Kundendienst", "Bank <info>"):
+        check(s.put(B + O + "/mail-profile", json={"from_name": bad}).status_code == 400, f"{who}: sender name {bad!r} 400")
+        check(s.patch(B + "/api/me", json={"display_name": bad}).status_code == 400, f"{who}: display name {bad!r} 400")
+    check(s.put(B + O + "/mail-profile", json={"from_name": "Nordlicht GmbH & Co. KG"}).ok, f"{who}: a company name with a dot is fine")
+    s.put(B + O + "/mail-profile", json={"from_name": ""})
+    uid = s.get(B + "/api/state").json()["me"]["id"]
+    c = dbxm.connect(os.path.join(DATA, "tasks.db"), timeout=10)
+    old = c.execute("SELECT display_name FROM users WHERE id=?", (uid,)).fetchone()[0]
+    c.execute("UPDATE users SET display_name=? WHERE id=?", ("service@paypal.com", uid))  # a name from before the check
+    c.commit()
+    r, m = send(s, CL)
+    check(r.ok and m is not None and "paypal" not in str(m["From"]), f"{who}: an old name with @ never goes out in From ({m and m['From']})")
+    c.execute("UPDATE users SET display_name=? WHERE id=?", (old, uid))
+    c.commit()
+    c.close()
     for body, why in (({"signature": "x" * 1001}, "too long"), ({"signature": "\n".join("abcdefghijklmn")}, "too many lines"), ({"via": "nowhere"}, "unknown way"),
                       ({"logo": "yes"}, "logo not a switch"), ({"signature": 5}, "no text"), ({}, "nothing")):
         check(s.put(B + O + "/mail-profile", json=body).status_code == 400, f"{who}: {why}: 400")

@@ -23,6 +23,7 @@ from ..core.db import body
 from ..core.i18n import N_, tr
 from ..core.access import Denied
 from ..core.orgcrypt import oc_plain_safe
+from ..accounts.session import name_mail_bad
 from ..hub.hubmail import _ws
 from ..hub.mailbox import mbx_row, mbx_smtp
 from ..personal.timetrack import BadInput
@@ -205,7 +206,10 @@ def ofm_put():
             raise BadInput(tr("Invalid value: {0}", "logo"))
         upd["mail_sig_logo"] = int(b["logo"])
     if "from_name" in b:
-        upd["mail_from_name"] = oc_plain_safe(lt_line(b["from_name"], "from_name", OFM_NAME_MAX))
+        v = lt_line(b["from_name"], "from_name", OFM_NAME_MAX)
+        if name_mail_bad(v):  # #6549: no address or web address as the sender's name
+            raise BadInput(tr("The display name cannot contain @ or a web address."))
+        upd["mail_from_name"] = oc_plain_safe(v)
     if "reply_to" in b:
         v = lt_line(b["reply_to"], "reply_to", 254)
         if v and (not re.fullmatch(OFM_MAIL_RE, v) or oc_plain_safe(v) != v):

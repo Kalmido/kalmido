@@ -19741,5 +19741,6 @@
   "Invoice of series {0} sent from the server's address": "Factuur van serie {0} verzonden vanaf het adres van de server",
   "The e-mail left from the server's address: the mailbox of the workspace is switched off. Switch it on again in Settings > Company & office > E-mail.": "De e-mail ging weg vanaf het adres van de server: de mailbox van de werkruimte staat uit. Zet hem weer aan in Instellingen > Bedrijf & kantoor > E-mail.",
   "Sending: {0}": "Verzenden: {0}",
-  "The sender address must belong to this SMTP account (its own address or one the provider allows for it): servers check it against the domain's SPF and DKIM, other addresses are refused or land in spam.": "Het afzenderadres moet bij dit SMTP-account horen (het eigen adres of een adres dat de provider ervoor toestaat): servers controleren het met SPF en DKIM van het domein, andere adressen worden geweigerd of komen in de spam."
+  "The sender address must belong to this SMTP account (its own address or one the provider allows for it): servers check it against the domain's SPF and DKIM, other addresses are refused or land in spam.": "Het afzenderadres moet bij dit SMTP-account horen (het eigen adres of een adres dat de provider ervoor toestaat): servers controleren het met SPF en DKIM van het domein, andere adressen worden geweigerd of komen in de spam.",
+  "The display name cannot contain @ or a web address.": "De weergavenaam mag geen @ of webadres bevatten."
 }
