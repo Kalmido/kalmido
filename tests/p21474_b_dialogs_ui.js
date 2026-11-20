@@ -33,7 +33,8 @@ const tall = (w, md, h) => { const c = md.querySelector(':scope > .card'); c.get
   CK = await login('alice');
   await call('POST', '/api/admin/setup', {lang: 'en', collab_all: true, modules: ['cal', 'comments', 'contacts']});
   await call('PATCH', '/api/settings', {lang: 'en', tour: 'done', features: 'cal,comments,collab,contacts,office,clients,time,family'});
-  const w = await boot({hash: 'today'}); const d = w.document;
+  await call('POST', '/api/evcals', {name: 'Work'});  // a calendar of her own: the new-event dialog opens on it
+  const w = await boot({hash: 'calendar'}); const d = w.document;
   await until(() => typeof w.modal === 'function' && typeof w.dlgCross === 'function' && w.S?.me);
   await w.eval(`Promise.all(['clientdlg', 'contacts', 'family'].map(m => loadModule(m)))`);
 
