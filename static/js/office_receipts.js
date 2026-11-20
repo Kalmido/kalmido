@@ -292,7 +292,7 @@ function rcn_html() {
   if (RCN.err) return `<section class="rcn"><h3 class="ofcgrp">${tr('New in the office')}</h3>${/*html-ok*/ ofcFail(RCN.err, () => { RCN.err = null; RCN.rows = null; }, 'row')}</section>`;
   if (!RCN.rows.length) return '';
   return `<section class="rcn" aria-labelledby="rcn-h"><h3 class="ofcgrp" id="rcn-h">${tr('New in the office')}</h3>
-    <ul class="ofclist rcn-list" role="list">${RCN.rows.map(d => `<li class="ofcrow rcn-row"><a href="#docs/${d.id}" class="ofcn"><b>${esc(d.sender?.name || d.name)}</b><small class="muted">${esc([d.date ? fmtDateLoc(d.date) : '', d.amount ? curMoney(d.amount, d.currency) : ''].filter(Boolean).join(' · '))}</small></a>${d.area_ask ? `<button type="button" class="btn sm" data-rcn-take="${+d.id}">${ic('receipt', 's')} ${tr('Move to office')}</button>` : ''}</li>`).join('')}</ul></section>`;
+    <ul class="ofclist rcn-list" role="list">${RCN.rows.map(d => `<li class="ofcrow rcn-row"><a href="#docs/${d.id}" class="ofcn"><b>${esc(d.sender?.name || d.name)}</b><small class="muted">${esc([d.date ? fmtDateLoc(d.date) : '', d.amount ? curMoney(d.amount, d.currency) : ''].filter(Boolean).join(' · '))}</small></a>${d.area_ask ? `<button type="button" class="btn sm" data-rcn-take="${esc(String(d.id))}">${ic('receipt', 's')} ${tr('Move to office')}</button>` : ''}</li>`).join('')}</ul></section>`;
 }
 document.addEventListener('click', async e => {
   const b = /** @type {any} */ (e.target).closest?.('[data-rcn-take]'); if (!b) return;
