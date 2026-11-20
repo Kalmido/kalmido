@@ -953,7 +953,7 @@ async function api(method, url, body, o) {
   // (duplicate a task = one copy); o.key = the caller's own key for a write it may send again (an upload: attachments.js).
   // The server's cost of a key per write was planned for (reader F5): the watchdog tidies keys hourly (#6409), only the routes
   // the queue sends again and reads back keep their whole answer, every other one its short answer and a secret none (#6558);
-  // a key the queue still needs after 5000 newer ones of the same person is older than its days anyway (core/idem.py)
+  // past 5000 keys of one person in the 14 days the oldest go first (core/idem.py IDEM_MAX_KEYS): a queue entry that old is the rare case
   const ik = method !== 'GET' ? o?.key || oxaKey(body) || outKey() : undefined;
   try { let j = await rawFetch(method, url, body, ik); if (ox.on && j?.conflicts?.length && typeof le2eRekeyConflicts === 'function') j = await le2eRekeyConflicts(url, body, j, b2 => rawFetch(method, url, b2));  // (#4632): a key change is no conflict
     if (ox.on && j?.conflicts?.length) addConflicts(j.id || +url.split('/').pop(), j.conflicts, j.title); if (method !== 'GET' && S.sel && new RegExp(`^/api/tasks/${S.sel}(/|$)`).test(url)) savedPing(); return method === 'GET' ? mvResp(url, j) : j; }  // 2.436.0 (#3620)
