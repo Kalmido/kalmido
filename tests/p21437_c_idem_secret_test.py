@@ -24,7 +24,7 @@ IDEM = os.path.join(ROOT, "kalmido", "core", "idem.py")
 SRC = open(IDEM, encoding="utf-8").read()
 NS = {"re": re, "json": json}
 for n in ast.parse(SRC).body:  # the pure parts of idem.py, without the app (its import needs the server's config)
-    if (isinstance(n, ast.Assign) and any(getattr(t, "id", "") in ("IDEM_FULL", "IDEM_MAX_BODY", "_IDEM_ID", "_IDEM_KEEP", "_IDEM_SECRET") for t in n.targets)) \
+    if (isinstance(n, ast.Assign) and any(getattr(t, "id", "") in ("IDEM_FULL", "IDEM_NET", "IDEM_MAX_BODY", "_IDEM_ID", "_IDEM_KEEP", "_IDEM_SECRET") for t in n.targets)) \
             or (isinstance(n, ast.FunctionDef) and n.name in ("idem_secretish", "idem_short", "idem_body")):
         exec(compile(ast.Module([n], []), IDEM, "exec"), NS)  # noqa: S102 (our own source)
 SEC = NS["_IDEM_SECRET"]
@@ -117,7 +117,8 @@ for p in ("/api/tasks", "/api/tasks/5", "/api/tasks/batch", "/api/habits/3/log",
           "/api/notes/4", "/api/lists/2/notes", "/api/team/messages", "/api/v1/tasks/7/complete", "/api/v1/agent/chats/3/messages"):
     check(FULL.match(p), f"#6558: {p} keeps its whole answer")
 for p in ("/api/lists", "/api/office/offers/3", "/api/v1/office/offers/3", "/api/me/tokens", "/api/wiki/pages/3", "/api/taskscopes",
-          "/api/contacts", "/api/v1/docs/5", "/api/my/agents/3/token", "/api/me/drop-token", "/api/life/journal/2026-11-19"):
+          "/api/contacts", "/api/v1/docs/5", "/api/my/agents/3/token", "/api/me/drop-token", "/api/life/journal/2026-11-19",
+          "/api/time/sheets", "/api/time/sheets/decide", "/api/v1/time/sheets"):
     check(not FULL.match(p), f"#6558: {p} keeps only the short answer")
 
 # ---- 3. the text kept
@@ -144,5 +145,16 @@ t = body("/api/tasks/batch", J(big))
 check(t is not None and len(t) < NS["IDEM_MAX_BODY"] and json.loads(t)["items"][5] == {"id": 5}, "over IDEM_MAX_BODY: the short answer (ids kept)")
 check(body("/api/tasks/batch", J({"ok": True, "conflicts": [], "code": None})) is not None
       and "conflicts" in body("/api/tasks/batch", J({"ok": True, "conflicts": [], "code": None})), "a null code is no secret")
+# #7494 review F1: the app's own key on every write ("n." + ..., rawFetch0) keeps only the short answer, also on IDEM_FULL:
+# a timesheet decision's note (sealed in time_sheets.note) never lies in idem_keys as plain text
+sheet = {"ok": True, "review": [{"id": 4, "user_id": 2, "name": "Anna", "hours": 7.5, "note": "sealed text"}]}
+t = body("/api/time/sheets/decide", J(sheet), False, NS["IDEM_NET"] + "k1")
+check(t is not None and "sealed text" not in t and "Anna" not in t and json.loads(t)["review"][0]["id"] == 4, f"#7494: an n. key keeps only the short answer {t}")
+t = body("/api/time/sheets/decide", J(sheet), False, "k-of-api")
+check(t is not None and "sealed text" not in t, f"#7494 review F1: a timesheet decision keeps only its short answer with any key {t}")
+check("x1" in body("/api/time/entries/9", J({"id": 9, "note": "x1"}), False, "outbox-k1"), "#7494: an outbox key on IDEM_FULL keeps the whole answer as before")
+src = open(os.path.join(ROOT, "static", "js", "core.js"), encoding="utf-8").read()
+check("'n.' + outKey()" in src and NS["IDEM_NET"] == "n.", "#7494: rawFetch0's own key carries the prefix idem.py knows (IDEM_NET)")
+check("left(k, ?)=?" in SRC and "IDEM_NET_S" in SRC, "#7494 review F3: idem_prune drops the n. keys after IDEM_NET_S")
 check(short({"ok": False}) == {"ok": False} and short("x") is None, "short: ok kept, a bare text is nothing")
 sys.exit(done("p21437_c_idem_secret"))

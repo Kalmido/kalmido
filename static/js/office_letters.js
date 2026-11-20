@@ -36,10 +36,11 @@ async function ltOpen(id) {
   if (LT.loading) return;
   LT.loading = true;
   if (LT.pend && LT.pend.d.id !== id) await ltSave(LT.pend.d, true);  // 2.269.0 C (#3017): the letter left before its save
-  try { LT.cur = await api('GET', `/api/office/letters/${id}`); } catch { LT.cur = {id, missing: true}; }
+  // (#7507): only 404 / 403 say the letter is not there; any other failure (connection, server) is a load error with Try again
+  try { LT.cur = await api('GET', `/api/office/letters/${id}`, undefined, {quiet: true}); } catch (x) { LT.cur = [403, 404].includes(x?.status) ? {id, missing: true} : {id, err: ofcErrHere(x)}; }
   LT.loading = false;
   ofcDraw();
-  if (!LT.cur.missing) lt_keepRestore(LT.cur);
+  if (!LT.cur.missing && !LT.cur.err) lt_keepRestore(LT.cur);
 }
 // #office/letters/new[?answers=<document id>]: a new draft at once, then its editor (the address stays clean)
 async function ltMakeFromHash(h) {
@@ -65,6 +66,7 @@ function ltTabHtml() {
   const id = S.route.tab === 'letters' ? S.route.id : null;
   if (id) {
     if (!LT.cur || LT.cur.id !== id) { if (!LT.loading) setTimeout(() => ltOpen(id), 0); return loadingHtml('big'); }
+    if (LT.cur.err) return ofcFail(LT.cur.err, () => { LT.cur = null; });  // (#7507)
     if (LT.cur.missing) return noAccessState({title: tr('This letter does not exist or you cannot see it.'), sub: ''});  // 2.1076.0 (#5450)
     return LT.cur.status === 'draft' ? ltEditHtml(LT.cur) : ltViewHtml(LT.cur);
   }
@@ -141,11 +143,13 @@ function ltRcSoon(q) { clearTimeout(ltRcTimer); ltRcTimer = setTimeout(() => ltR
 async function ltRcLoad(q) {
   const seq = ++LT.rcSeq;
   let rows = [];
-  try { rows = (await api('GET', '/api/office/letters/recipients?q=' + encodeURIComponent(q))).recipients || []; } catch { rows = []; }
+  let fail = '';
+  try { rows = (await api('GET', '/api/office/letters/recipients?q=' + encodeURIComponent(q), undefined, {quiet: true})).recipients || []; } catch (x) { rows = []; fail = ofcErrHere(x); }  // (#7507): a failed search is no "Nothing matches."
   if (seq !== LT.rcSeq) return;
   LT.rc = rows.slice(0, 12);
   const box = $('#lt-sug'); if (!box) return;
   box.innerHTML = LT.rc.length ? LT.rc.map((x, i) => `<li role="option"><button type="button" class="lt-sugb" data-lt="rc" data-i="${i}">${ic(x.kind === 'client' ? 'brief' : 'user', 's')}<span><b>${esc(x.label)}</b><small class="muted">${esc(x.sub || '')}</small></span></button></li>`).join('')
+    : fail ? `<li class="lt-sugn lt-sugerr" role="alert">${esc(tr('Could not be loaded'))} <button type="button" class="btn sm" data-lt="rcretry">${esc(tr('Try again'))}</button></li>`
     : `<li class="muted lt-sugn">${esc(tr('Nothing matches.'))}</li>`;  // 2.1076.0 (#5450): the one wording
   box.hidden = false;
 }
@@ -245,16 +249,16 @@ function ltNewModal() {
     <div class="foot"><span class="spacer"></span><button class="btn" data-m="close">${tr('Cancel')}</button><button class="btn pri" data-m="save">${tr('Create')}</button></div>`);
   md.classList.add('ofcdlg');
   const close = fgModal(md);
-  md.addEventListener('click', async e => {
+  md.addEventListener('click', busyClick(async e => {
     const b = /** @type {any} */ (e.target).closest('[data-m]'); if (!b) return;
     if (b.dataset.m === 'close') { close(); return; }
-    const err = await ltCreate({template_id: +$('#lt-ntpl', md).value || null, client_id: +$('#lt-ncl', md).value || null});
+    const err = await ltCreate({template_id: +$('#lt-ntpl', md).value || null, client_id: +$('#lt-ncl', md).value || null}, md);
     if (err) { const el = $('.aerr', md); if (el) el.textContent = err; } else md.remove();
-  });
+  }));
 }
-async function ltCreate(b) {
+async function ltCreate(b, md) {
   try {
-    const j = await api('POST', '/api/office/letters', b);
+    const j = await (md ? dlgCreate(md, '/api/office/letters', b) : api('POST', '/api/office/letters', b));  // (#7507): from the dialog with its id (nothing twice)
     if (j.unfilled_labels?.length) LT.miss[j.id] = j.unfilled_labels;
     LT.data = null; LT.cur = j; LT.undo = null; go(`office/letters/${j.id}`);
     toast(tr('Created'), async () => { await api('DELETE', `/api/office/letters/${j.id}`); ltReload(); go('office/letters'); });
@@ -443,6 +447,7 @@ document.addEventListener('click', async e => {
   else if (a === 'open') { LT.cur = null; LT.undo = null; go(`office/letters/${b.dataset.id}`); }
   else if (a === 'back') { if (d && d.status === 'draft') { clearTimeout(ltSaveTimer); await ltSave(d, true); } LT.data = null; navUp('office/letters'); }  // 2.743.0 (#5235)
   else if (a === 'rc') { const x = LT.rc[+b.dataset.i]; if (x) ltRcPick(x); }
+  else if (a === 'rcretry') ltRcLoad(/** @type {any} */ ($('#lt-rsearch'))?.value.trim() || '');  // (#7507): the failed search again
   else if (a === 'save' && d) ltSave(d);
   else if (a === 'sent' && d) {
     clearTimeout(ltSaveTimer);

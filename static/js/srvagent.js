@@ -77,7 +77,7 @@ function srv_fieldsHtml(j, isNew) {
     : `<div class="shint keep srvnolim" role="note">${ic('alert', 's')} ${esc(tr('No usage limit: every run, also those other people start through chat, mentions or assignments, is billed to this key without a cap. Set one under “Usage limit” in the agent’s settings.'))}</div>`;
   return `<div class="row"><label for="srv-prov">${tr('Provider')}</label><select id="srv-prov"><option value="anthropic" selected>Anthropic (Claude)</option></select></div>
     ${keyRow}
-    <div class="shint keep">${esc(tr('Your own key of the provider; its usage is billed to you by the provider. Kalmido stores it encrypted and never shows it again, only its last four characters.'))}</div>
+    <div class="shint keep">${esc(tr('Your own key of the provider; its usage is billed to you by the provider. Kalmido stores it encrypted and never shows it again, not even in part.'))}</div>${''/* (#6872): no part of the key is named (#6560 7) */}
     ${limRow}
     <div class="row"><label for="srv-model">${tr('Model')}</label><select id="srv-model"><option value="${esc(model)}" selected>${esc(model)}</option></select></div>
     <div class="shint keep" id="srv-modelhint">${esc(isNew ? tr('The list of models comes from the provider once the key is saved; you can change the model later in the agent’s settings.') : tr('Loading…'))}</div>

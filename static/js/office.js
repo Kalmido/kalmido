@@ -462,7 +462,7 @@ const ofcClosingTabs = (s, dis) => ofcLangTabs(OST_CLOSE.filter(([k]) => k !== '
 function ofcModal(kind, r) {
   // 2.451.0 (#3809): the service dialog waits for the roles: built before them its choice read "none" and Save wiped the role
   if (kind === 'services' && !OFC.data.roles) {
-    if (!OFC.modalWait) { OFC.modalWait = true; (async () => { for (let i = 0; i < 60 && !OFC.data.roles; i++) { if (!OFC.loading.roles) ofcLoad('roles'); await sleep(150); } OFC.modalWait = false; if (!OFC.data.roles) OFC.data.roles = {error: tr('unknown')}; ofcModal(kind, r); })(); }
+    if (!OFC.modalWait) { OFC.modalWait = true; (async () => { if (typeof ld_bar === 'function') ld_bar(1); /* (#7507): the loading bar while it waits */ for (let i = 0; i < 60 && !OFC.data.roles; i++) { if (!OFC.loading.roles) ofcLoad('roles'); await sleep(150); } if (typeof ld_bar === 'function') ld_bar(-1); OFC.modalWait = false; if (!OFC.data.roles) OFC.data.roles = {error: tr('unknown')}; ofcModal(kind, r); })(); }
     return;
   }
   const adm = ofcAdmin(['roles', 'crew', 'sets'].includes(kind) ? 'equipment' : undefined), rate = v => v != null ? fmtNum(v, 2) : '';  // 2.187.1 A (#2735): roles / crew / sets = equipment area
@@ -545,6 +545,7 @@ function ofcModal(kind, r) {
     if (m === 'add-item') { const eq = ofcRows('equipment').filter(x => !x.archived).map(x => [x.id, x.name]); $('#of-items', md).insertAdjacentHTML('beforeend', ofcSetItemHtml(eq, {equipment_id: eq[0]?.[0], qty: 1})); return; }
     if (m === 'rm-item') { b.closest('.ofcitem').remove(); return; }
     if (m === 'move') { md.remove(); ofm_move({what: kind, ids: [r.id], from: ofm_officeFrom(), label: qn(r.name || r.name_de || r.key || r.text_de || ''), after: async () => { if (kind === 'sets') delete OFC.data.equipment; ofcReload(kind); }}); return; }  // 2.119.1 C (#2298); 2.356.0 A (#2926): + services, equipment, text blocks; 2.356.1 (#3345): + sets (with their devices)
+    await busyRun(m === 'save' ? b : null, async () => {  // (#7507): Save disabled + busy while it runs, a second press does nothing
     try {
       if (m === 'del') {
         if (!await askConfirm(tr('Delete “{0}”?', r.name || r.name_de || r.key || ''), tr('Entries that documents, contracts or sets still use are archived instead.'), {ok: tr('Delete'), danger: true})) return;
@@ -580,7 +581,7 @@ function ofcModal(kind, r) {
         if (j?.conflict) { $('.aerr', md).textContent = ''; objMerge(md, j.conflict, cur => { md._objBase = cur; }, {field: k => $('#of-' + k, md)}); return; }
         if (j === base) { objClose(ourl); md.remove(); return; }  // nothing changed
         sv = j;
-      } else sv = await api(r ? 'PATCH' : 'POST', r ? `/api/office/${kind}/${r.id}` : `/api/office/${kind}`, body);
+      } else sv = r ? await api('PATCH', `/api/office/${kind}/${r.id}`, body) : await dlgCreate(md, `/api/office/${kind}`, body);  // (#7507): a new row with the dialog's id (nothing twice)
       md.remove(); ofcReload(kind);
       if (kind === 'contracts' && !r && sv?.id && typeof dmaAfterSave === 'function') dmaAfterSave(sv.id);  // 2.117.0 B (#2285): the chosen PDFs
       if (kind === 'equipment' && r && ofcAdmin()) astUndo(r, body, sv); else if (!(r && typeof objSaved === 'function' && objSaved(ourl, body.name_de || body.name || body.key || r.name_de || r.name || r.key, () => ofcReload(kind)))) toast(r ? tr('Saved') : tr('Added'));  // 2.92.0 B (#1931): one undo step; 2.111.0 A (#2233): "… saved · Undo"; 2.747.0 (#5246): objsave.js
@@ -588,6 +589,7 @@ function ofcModal(kind, r) {
       const el = $('.aerr', md); if (!el) return;
       el.textContent = ofcErrHere(x);
     }
+    });
   });
   setTimeout(() => { if (!isTouch() && adm) $('input:not([type=hidden]),select,textarea', md)?.focus(); }, 50);
   return md;
@@ -1269,6 +1271,7 @@ const ofcErrTxt = (/** @type {any} */ x) => x instanceof Offline ? tr('Only avai
 /** @param {any} x */
 function ofcErr(x) {
   if (x?.shown || x?.message === 'auth') return;
+  if (x instanceof NoAnswer && x.retry) { netAgain(x); return; }  // #7494: a write without an answer: "Try again" with the same key
   toast(ofcErrTxt(x));
   if (x && typeof x === 'object') x.shown = true;
 }

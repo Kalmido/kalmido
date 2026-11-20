@@ -410,7 +410,9 @@ async function bkUpload(files) {
 // over it, and the merge bar of objsave.js marks the fields someone else changed (Keep mine / Take theirs)
 async function bkSheet(id, fresh, again) {
   let doc, rc;
-  try { [doc, rc] = await Promise.all([api('GET', `/api/docs/${id}`), api('GET', `/api/docs/${id}/receipt`)]); } catch (x) { ofcErr(x); return; }
+  // (#7507): the loading bar while both load, a second tap while it opens does nothing
+  try { [doc, rc] = await openOnce('bk-sheet', () => Promise.all([api('GET', `/api/docs/${id}`), api('GET', `/api/docs/${id}/receipt`)])) || []; } catch (x) { ofcErr(x); return; }
+  if (!doc) return;
   const r = rc.receipt || {}, cats = [...new Set([...(BK.info?.categories || []), ...(rc.categories || [])])];
   const wait = doc.state === 'wait' || doc.state === 'run';
   const md = modal(`<h3>${tr('Receipt')}</h3><p class="muted bk-sname">${esc(doc.name)}${doc.einvoice ? ` · <a class="bk-einv" href="/api/docs/${id}/einvoice" target="_blank" rel="noopener">${tr('Readable view')}</a>` : ''}</p><div class="bk-rx"></div><div class="bk-rcs"></div>

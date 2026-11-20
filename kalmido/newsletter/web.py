@@ -85,7 +85,7 @@ def _svc_err(e, code=400):
 
 @app.get("/api/newsletter")
 def nwl_get_conn():
-    """?ws= -- the connection (never the access data: only secret_set + the last four characters), segments, log."""
+    """?ws= -- the connection (never the access data: only secret_set; #6560 7: no part of it), segments, log."""
     c = db()
     _uid, org, ws = _ws(c, request.args.get("ws"))
     return jsonify(_public(c, ws, org))

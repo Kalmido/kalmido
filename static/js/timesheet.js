@@ -6,7 +6,7 @@
 // "tsheet" (event "timesheet" of the notification settings) open the time page on that month.
 // 2.125.0 B (#2120): the time zone of time tracking (Settings > Modules > Time tracking) with the device's zone as a suggestion,
 // and the switch "Entries over midnight" (count on each day with their share). The rules live in kalmido/personal/timesheet.py.
-const TSL = {month: '', data: /** @type {any} */ (null), loading: false, key: ''};
+const TSL = {month: '', data: /** @type {any} */ (null), loading: false, key: '', err: false};  // (#7507): err = the last load failed
 const TSL_STATE = {open: N_('Open|month'), closed: N_('Closed|month'), approved: N_('Approved')};
 const tsl_when = v => v ? fmtDate(ds(new Date(v))) : '';
 // the month the report shows (YYYY-MM) when its range is exactly one calendar month, else ''
@@ -18,7 +18,7 @@ async function tsl_load() {
   if (TSL.loading) return;
   TSL.loading = true;
   const m = tsl_monthOf(), key = m + '|' + S.v;
-  try { TSL.data = await rawFetch('GET', '/api/time/sheets' + (m ? '?month=' + m : '')); } catch { TSL.data = null; }
+  try { TSL.data = await rawFetch('GET', '/api/time/sheets' + (m ? '?month=' + m : '')); TSL.err = false; } catch { TSL.data = null; TSL.err = true; }
   finally { TSL.loading = false; TSL.key = key; TSL.month = m; }
   if (S.route.mod === 'time') renderView();
 }
@@ -27,7 +27,9 @@ function tsl_card() {
   if (!timeOn()) return '';
   const m = tsl_monthOf();
   if (TSL.key !== m + '|' + S.v && !TSL.loading) setTimeout(tsl_load, 0);
-  const j = TSL.data; if (!j) return '';
+  const j = TSL.data;
+  // (#7507): a failed load keeps the card's place with the error block and Try again (it used to vanish without a word)
+  if (!j) return TSL.err && m && !TSL.loading ? `<section class="stcard tslcard tslerr" aria-label="${esc(tr('Timesheet'))}">${/*html-ok*/ errorState({size: 'row', retry: tsl_reload}) /* the shared block escapes its texts */}</section>` : '';
   let h = '';
   if (m && j.month === m) {
     const sh = j.sheet, st = sh.state;

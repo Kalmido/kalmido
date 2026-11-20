@@ -18,11 +18,14 @@ async function cbLoad() {
   if (CB.loading) return;
   CB.loading = true;
   try {
+    // (#7507): with a cash book chosen already its entries come at the same time as the books (were one after the other)
+    const q0 = `${CB.bid}:${CB.year}`, early = CB.bid && !CB.base && (!CB.list || CB.q !== q0) ? api('GET', `/api/office/cashbooks/${CB.bid}/entries?year=${CB.year}`, undefined, {quiet: true}) : null;
+    early?.catch(() => {});  // awaited below (its failure: the error block) or dropped (another book): quiet, never an unhandled refusal
     if (!CB.base) CB.base = await api('GET', '/api/office/cashbooks');
     const act = CB.base.books.filter(b => !b.archived);
     if (!cbBook(CB.bid)) CB.bid = (act[0] || CB.base.books[0])?.id || null;
     const q = `${CB.bid}:${CB.year}`;
-    if (CB.bid && (!CB.list || CB.q !== q)) { CB.list = await api('GET', `/api/office/cashbooks/${CB.bid}/entries?year=${CB.year}`); CB.q = q; }
+    if (CB.bid && (!CB.list || CB.q !== q)) { CB.list = await (early && q === q0 ? early : api('GET', `/api/office/cashbooks/${CB.bid}/entries?year=${CB.year}`)); CB.q = q; }
     CB.err = null;
   } catch (x) { CB.err = ofcErrHere(x); }
   CB.loading = false;
@@ -129,7 +132,8 @@ async function cbLinks() {
   return CB.links;
 }
 async function cbEntryModal(e) {
-  const ro = e.locked || e.cancelled_by || e.storno_of, links = ro ? {receipts: [], invoices: []} : await cbLinks();
+  const ro = e.locked || e.cancelled_by || e.storno_of, links = ro ? {receipts: [], invoices: []} : await openOnce('cb-entry', cbLinks);  // (#7507): loading bar, one open at a time
+  if (!links) return;
   const rcs = links.receipts.map(r => [r.node_id, [fmtDateLoc(r.date), r.title, ofcMoney(r.amount)].filter(Boolean).join(' · ')]);
   if (e.node && !rcs.some(r => r[0] === e.node.id)) rcs.unshift([e.node.id, e.node.name]);
   const inv = links.invoices.map(i => [i.id, [i.number, i.client, fmtDateLoc(i.date)].filter(Boolean).join(' · ')]);

@@ -217,7 +217,7 @@ function dtTplModal(t) {
     <div class="foot">${t ? `<button class="btn danger" data-m="del">${tr('Archive')}</button>` : `<button class="btn" data-m="starters">${ic('copy', 's')}<span>${tr('Start from a sample')}</span></button>`}${t && typeof ofm_can === 'function' && ofm_can(ofm_officeFrom()) ? `<button class="btn" data-m="move">${ic('brief', 's')} ${tr('Move to another workspace…')}</button>` : ''}<span class="spacer"></span><button class="btn" data-m="close">${tr('Cancel')}</button><button class="btn pri" data-m="save">${t ? tr('Save') : tr('Create')}</button></div>`);
   md.classList.add('ofcdlg', 'dtp-dlg');
   const close = fgModal(md);
-  md.addEventListener('click', async e => {
+  md.addEventListener('click', busyClick(async e => {
     const b = e.target.closest('[data-m]'); if (!b) return;
     if (b.dataset.m === 'close') { close(); return; }
     if (b.dataset.m === 'starters') { md.remove(); dtStartersModal(); return; }  // 2.117.0 B (#2283)
@@ -243,7 +243,7 @@ function dtTplModal(t) {
         if (Object.keys(back).length) toast(tr('Saved'), async () => { await undoWrite(`/api/office/doc-templates/${t.id}`, back, sv.updated_at, {label: t.name}).catch(() => null); dtReload(); });  // 2.566.0 (#4704): core.js undoWrite
         else toast(tr('Saved'));
       } else {
-        const j = await api('POST', '/api/office/doc-templates', body); md.remove(); dtReload();
+        const j = await dlgCreate(md, '/api/office/doc-templates', body); md.remove(); dtReload();  // (#7507): the dialog's id, nothing twice
         toast(tr('Added'), async () => { await api('DELETE', `/api/office/doc-templates/${j.id}`); dtReload(); });
       }
     } catch (x) {
@@ -251,7 +251,7 @@ function dtTplModal(t) {
       if (typeof objConflict === 'function' && await objConflict(md, x, r => { const m2 = dtTplModal(r); dtReload(); return m2; })) return;  // 2.576.0 (#4794): the merge bar
       el.textContent = ofcErrHere(x);
     }
-  });
+  }));
 }
 async function dtStartersModal() {
   let j;

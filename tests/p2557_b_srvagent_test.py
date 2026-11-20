@@ -5,7 +5,7 @@ against tests/fake_anthropic.py (a stand-in for the Anthropic Messages API insid
 freelancer-matrix: agents (the person without an organisation sets up her own server agent: key, models, runs, chat, Stop)
 tenant-matrix: agent (another person neither reads nor changes it; its tool calls see only what is shared with it)
  - GET / PUT /api/agents/<id>/server: defaults (model, instructions), a bad key / unknown field refused, the key stored sealed,
-   never in an answer (only its last four characters), delete_key; only the owner (another person, the instance admin for a
+   never in an answer (no part of it, #6560 7; #6872: old hints emptied at the start), delete_key; only the owner (another person, the instance admin for a
    personal agent: 404), a team agent: the instance admin
  - models live from the provider: 409 no_key without a key, the default when offered, else the first Sonnet with a note
  - a chat message starts a run in the worker: the model calls get_task over the MCP tools, the answer lands in the chat, the

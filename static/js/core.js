@@ -485,6 +485,30 @@ function openTasks(ctx = false) { return td_rc(ctx ? 'ot1' : 'ot0', () => [...S.
 // offline get a negative temp id that is mapped to the real id during replay. The last server state is
 // cached for offline start. Every queued op carries the user id: ops of another user are never replayed.
 class Offline extends Error {}
+// #7494: a request without an answer within its time limit (NET_T; the line hangs, the server is jammed). Not Offline, not
+// saved: a write carries its idempotency key (key) and retry() sends it again with that key (applied once, also when the first
+// try did reach the server); status 408 = the outbox keeps the entry and tries again (outFlush). A read was tried twice.
+class NoAnswer extends Error {}
+// #7494: the shared time limits of rawFetch in ms: r = a read (GET; one silent second try), w = a write, long = a long task
+// that says so (rawFetch's / api()'s lim: an upload, an import, a bank fetch, a PDF, an export); 0 = no limit (an upload with
+// its progress bar has its own Cancel, upbar.js). Tests shorten them (w.eval('NET_T.w = 300')).
+const NET_T = {r: 15000, w: 20000, long: 300000};
+// #7494: the routes of long tasks (a path part of the address): they get NET_T.long without the caller naming it - imports and
+// exports, bank fetch, PDF / OCR / scans, sending mail, Peppol / DATEV, agents and AI, syncs, backups. One list, here; a caller
+// can still name its own limit (lim). The limit counts until the answer's head arrives; reading a big answer then gets NET_T.long
+// (a slow line that brings the account's state is no hang)
+const NET_LONG = /\/(?:import|imports|export|exports|zip|backup|backups|offsite|fints|bank|banks|peppol|datev|pdf|pdf-text|ocr|scan|split|pages|send|mail|mails|newsletter|paperless|sync|agent|agents|ai|llm|transcribe|finalize|reprice|purge|upload)(?:[/?.-]|$)/;
+// a time limit, no delay to move (no debounce): stop() only marks it answered, the timer then ends without a word
+const netLimit = ms => { let on = ms > 0; const p = new Promise((_, no) => { if (on) setTimeout(() => { if (on) no(new NoAnswer(tr('No answer from the server'))); }, ms); }); p.catch(() => { /* raced */ }); return {p, stop: () => { on = false; }}; };
+// #7494: a write without an answer, said once: "Not saved" with "Try again" = the same request with the same key (again: the
+// caller's own way to send it again, e.g. through the editor's row of saves); then = what follows a success (default: "Saved")
+function netAgain(e, what, then, again) {
+  if (!e || e.shown) return; e.shown = true;
+  toast(what ? `${what} (${tr('no answer from the server')})` : tr('Not saved: no answer from the server'), async () => {
+    try { const j = await (again || e.retry)(); if (then) then(j); else toast(tr('Saved')); }
+    catch (x) { if (x instanceof NoAnswer) netAgain(x, what, then, again); else if (x?.message !== 'auth' && !x?.shown) { toast(errText(x, what || tr('The change could not be saved'))); x.shown = true; } }
+  }, 15000, tr('Try again'));
+}
 const ML_WAITS = N_('The task was moved meanwhile: it is shown in that project again if it moves back within 24 hours.');  // 2.363.3 (#3133): POST .../links answers link_waits
 const MO_KEPT = N_('Your order of My tasks was changed on another device: that order stays, this change was not applied.');  // 2.363.3 (#3133): PUT /api/tasks/mine-order answers order_kept
 // 2.306.0 B (#2889): the session ended (401 / the login proxy's page): the stored state of the account (cache, tabs, chat
@@ -783,32 +807,48 @@ const ofc_spHdr = url => /^\/api\/(office\/|docs[/?]|search(\?|$))/.test(String(
 // 2.577.0 (#4638, review): links, window.open, images and pdfView cannot send the header: the same area as ?_osp= (once);
 // raw fetch() calls outside rawFetch0 go through ofc_spFetch (header); any <a href="/api/office/..."> gets it on its click
 const ofc_spUrl = url => { const u = String(url || ''), sp = ofc_spHdr(u); return sp && !/[?&]_osp=/.test(u) ? `${u}${u.includes('?') ? '&' : '?'}_osp=${encodeURIComponent(sp)}` : u; };
-const ofc_spFetch = (url, opt = {}) => { const sp = ofc_spHdr(url); if (sp) opt = {...opt, headers: {...(opt.headers || {}), 'X-Kalmido-Office-Space': sp}}; return fetch(url, opt); };
+const ofc_spFetch = (url, opt = {}) => { const sp = ofc_spHdr(url); if (sp) opt = {...opt, headers: {...(opt.headers || {}), 'X-Kalmido-Office-Space': sp}}; return netRaw(url, opt); };
+// #7494: a plain fetch() with the shared time limit until the answer's head (NET_T, NET_LONG; a form = a long task): past it
+// NoAnswer (status 408). For the few callers that need the Response itself (a refusal must not reload the page, bytes, a stream)
+function netRaw(url, opt = {}, lim) {
+  const m = (opt.method || 'GET').toUpperCase();
+  const tm = netLimit(lim ?? (opt.body instanceof FormData || NET_LONG.test(String(url).split('?')[0]) ? NET_T.long : m === 'GET' ? NET_T.r : NET_T.w));
+  return Promise.race([fetch(url, opt), tm.p]).catch(e => { if (e instanceof NoAnswer) { e.status = 408; e.data = {code: 'no_answer'}; } throw e; }).finally(tm.stop);
+}
 ['click', 'auxclick', 'contextmenu'].forEach(t => document.addEventListener(t, e => {
   const a = e.target?.closest?.('a[href^="/api/office/"]'), h = a?.getAttribute('href'); if (!h) return;
   const u = ofc_spUrl(h); if (u !== h) a.setAttribute('href', u);
 }, true));
-async function rawFetch(method, url, body, key, osp, oq) {  // key: 2.270.0 C (#3022) the outbox entry's idempotency key; osp: 2.577.0 (#4638) its office area; oq: 2.1358.0 (#6328) the outbox entry sent again
+// lim: #7494 the time limit in ms when it is not the shared one (NET_T.long for a long task, 0 = none)
+async function rawFetch(method, url, body, key, osp, oq, lim) {  // key: (#3022) the outbox entry's idempotency key; osp: (#4638) its office area; oq: (#6328) the outbox entry sent again
   // 2.64.1 (#1817): texts of a locked list leave encrypted, ciphers in answers become plain texts in memory (liste2e.js)
   if (typeof le2eOut === 'function') body = await le2eOut(method, url, body);
   const in_ = j => typeof le2eIn === 'function' ? le2eIn(j, url) : j;
-  if (method === 'GET') return in_(await rawFetch0(method, url, body, undefined, osp, oq));
+  if (method === 'GET') {  // #7494: no answer = once more without a word, then the error (the view's error block with "Try again")
+    try { return in_(await rawFetch0(method, url, body, undefined, osp, oq, lim)); }
+    catch (e) { if (!(e instanceof NoAnswer)) throw e; return in_(await rawFetch0(method, url, body, undefined, osp, oq, lim)); }
+  }
   S.wfly = (S.wfly || 0) + 1;  // (#7150)
-  try { return in_(await rawFetch0(method, url, body, key, osp, oq)); }
+  try { return in_(await rawFetch0(method, url, body, key, osp, oq, lim)); }
   catch (e) {  // 2.64.1 (#1817): a move missed texts (a subtask in the trash): fetched, converted, sent once more
+    if (e instanceof NoAnswer) { const b0 = body; e.retry = async () => { S.wfly = (S.wfly || 0) + 1; try { return in_(await rawFetch0(method, url, b0, e.key, osp, oq, lim)); } finally { S.wfly--; if (!S.wfly && S.wvAgain) ldAgain(); } };  /* (#7150): on its way like the first try */ throw e; }  // #7494: the same key
     const b2 = e.data?.code === 'list_e2e_move' && e.data.need && typeof le2eFix === 'function' ? await le2eFix(url, body, e.data.need).catch(() => null) : null;
     if (!b2) throw e;
-    return in_(await rawFetch0(method, url, b2, key, osp, oq));
+    return in_(await rawFetch0(method, url, b2, key, osp, oq, lim));
   } finally { S.wfly--; if (!S.wfly && S.wvAgain) ldAgain(); }  // (#7150)
 }
 // 2.298.0 C (#3187): a status code in words when the server sent no text (413 / 429 / 5xx; any other stays "Error 404").
 function httpErrText(st) {
   return st === 413 ? tr('File too large') : st === 429 ? tr('Too many requests, wait a moment') : st >= 500 ? tr('Server error, please try again later') : tr('Error {0}', st);
 }
-async function rawFetch0(method, url, body, key, osp, oq) {
+async function rawFetch0(method, url, body, key, osp, oq, lim) {
   const opt = {method, headers: {'X-Requested-With': 'kalmido'}, redirect: 'manual'};
   const sp = osp !== undefined ? osp : ofc_spHdr(url); if (sp) opt.headers['X-Kalmido-Office-Space'] = sp;  // 2.577.0 (#4638)
-  if (key) opt.headers['Idempotency-Key'] = key;  // 2.270.0 C (#3022): a replay the server already applied comes back as its first answer
+  // (#3022): a replay the server already applied comes back as its first answer; #7494: every write carries a key
+  // (its own one when the caller brings none), so "Try again" after no answer never applies it twice. The own key starts
+  // with "n." (idem.py IDEM_NET: short answer only, gone after an hour); presence pings (seen / typing / editing) get none
+  const ik = key || (method !== 'GET' && !/\/(?:seen|typing|editing)$/.test(String(url).split('?')[0]) ? 'n.' + outKey() : '');
+  if (ik) opt.headers['Idempotency-Key'] = ik;
   const dev = wpDevHeader(url); if (dev) opt.headers['X-Kalmido-Device'] = dev;
   if (method !== 'GET' && S.me && S.me.kind !== 'agent') opt.headers['X-Kalmido-Device-Name'] = histDevice();  // 2.773.0 (#5250): the device of a step in the list "Recent steps" (undo.js)
   // 2.1358.0 (#6328 C5, C8): an outbox entry sent again carries what it was written with (enqueue), not what runs now
@@ -818,11 +858,17 @@ async function rawFetch0(method, url, body, key, osp, oq) {
   if (body instanceof FormData) opt.body = body;
   else if (body !== undefined) { opt.body = JSON.stringify(body); opt.headers['Content-Type'] = 'application/json'; }
   let r;
+  // #7494: the time limit (NET_T) runs until the answer is read; an upload with its progress bar keeps its own Cancel (no limit),
+  // a form without one counts as a long task. Past the limit: NoAnswer (not Offline: the line may be up, the write may have arrived)
+  const upb = body instanceof FormData && typeof upSend === 'function' && upWanted(body);
+  const tm = netLimit(lim ?? (upb ? 0 : body instanceof FormData || NET_LONG.test(String(url).split('?')[0]) ? NET_T.long : method === 'GET' ? NET_T.r : NET_T.w));
+  const noAns = e => { if (!(e instanceof NoAnswer)) return e; e.status = 408; e.data = {code: 'no_answer'}; e.key = ik; return e; };
   // 2.363.3 (#3134): a form with files of some size goes with a progress bar and Cancel (upbar.js); Cancel is no lost connection
   // 2.655.0 (#5045): an answer that arrives after the page is gone (its window closed: no document) goes nowhere: it never settles,
   // so no caller draws into a page that is not there (outFlush -> renderTop, chatReact, rel_load, ld_go -> applyState, ...)
   // (#6338): every form with files counts as a transfer that runs while it goes (upbar.js upRun)
-  try { const fp = body instanceof FormData && typeof upSend === 'function' && upWanted(body) ? upSend(url, opt, body) : fetch(url, opt); r = await (body instanceof FormData && typeof upRun === 'function' ? upRun(fp) : fp); } catch (e) { if (!globalThis.document) return new Promise(() => {}); if (e.cancelled) throw e; const ch = OUT.down; OUT.down = false; setOnline(false); if (ch && S.booted) renderTop(); throw new Offline('offline'); }
+  try { const fp = upb ? upSend(url, opt, body) : fetch(url, opt); r = await Promise.race([body instanceof FormData && typeof upRun === 'function' ? upRun(fp) : fp, tm.p]); } catch (e) { if (e instanceof NoAnswer) throw noAns(e); tm.stop(); if (!globalThis.document) return new Promise(() => {}); if (e.cancelled) throw e; const ch = OUT.down; OUT.down = false; setOnline(false); if (ch && S.booted) renderTop(); throw new Offline('offline'); }
+  tm.stop();
   // 2.21.0 (#673): the device is online but the server is not (a proxy answers 502 / 503 / 504 without Kalmido's JSON): the
   // same as offline (cached data, changes wait), the hint says "server not reachable"; never a reload loop on a proxy page
   // 2.24.0 (#907): 503 (the proxy's maintenance page) or a notice of the kind "maintenance": "server in maintenance"
@@ -845,8 +891,10 @@ async function rawFetch0(method, url, body, key, osp, oq) {
     location.reload();  // login session expired -> login page
     throw new Error('auth');
   }
-  const j = await r.json().catch(() => ({}));
+  const tb = netLimit(lim === 0 || upb ? 0 : Math.max(lim || 0, NET_T.long));  // the head is there: reading the body gets the long limit
+  let j; try { j = await Promise.race([r.json().catch(() => ({})), tb.p]); } catch (e) { throw noAns(e); } finally { tb.stop(); }
   if (!globalThis.document) return new Promise(() => {});  // 2.655.0 (#5045): the page went while the body was read
+  if (ik && r.headers.get('Idempotent-Replayed') && j && typeof j === 'object') Object.defineProperty(j, '_replayed', {value: true, configurable: true});  // #7494: the stored (short) answer of a write sent again: the caller reads the object anew
   if (String(url).split('?')[0] === '/api/state' && (r.status === 401 || (r.status === 403 && j.auth))) await sessGone();  // 2.238.0 B (#2872); 2.369.2 (#3136): with its query (lz, auto)
   if ((r.status === 401 || r.status === 403) && j.auth) { keepW(); await authGone(); authScreen(j); throw new Error('auth'); }  // built-in login
   if (r.status === 401) { keepW(); await authGone(); location.reload(); throw new Error('auth'); }
@@ -919,9 +967,10 @@ function apiWhat(method, url, body) {
   if (method === 'DELETE' && /^\/api\/addr-shares\/\d+$/.test(u)) return tr('The invitation was not removed');
   return '';
 }
-/** @param {string} method @param {string} url @param {any} [body] @param {{quiet?: boolean, key?: string}} [o] @returns {Promise<any>} */  // (#1995)
+/** @param {string} method @param {string} url @param {any} [body] @param {{quiet?: boolean, key?: string, lim?: number, then?: Function}} [o] @returns {Promise<any>} */  // (#1995)
 // (#6372) o.quiet: a view that shows its own error block (errorState) for this load - no second message as a toast
 // (#6332) o.key: the caller's own idempotency key for a write it may send again (an upload: attachments.js)
+// #7494 o.lim: a long task's time limit (NET_T.long; rawFetch); o.then: what follows when "Try again" after no answer succeeds
 async function api(method, url, body, o) {
   const lk = tlkGuard(method, url, body); if (lk) throw lk;  // 2.36.0 (#1118)
   // 2.64.1 (#1817): encrypted before the outbox (it holds ciphers only); a Promise only when there is something to encrypt, so
@@ -958,10 +1007,11 @@ async function api(method, url, body, o) {
   // the queue sends again and reads back keep their whole answer, every other one its short answer and a secret none (#6558);
   // past 5000 keys of one person in the 14 days the oldest go first (core/idem.py IDEM_MAX_KEYS): a queue entry that old is the rare case
   const ik = method !== 'GET' ? o?.key || oxaKey(body) || outKey() : undefined;
-  try { let j = await rawFetch(method, url, body, ik); if (ox.on && j?.conflicts?.length && typeof le2eRekeyConflicts === 'function') j = await le2eRekeyConflicts(url, body, j, b2 => rawFetch(method, url, b2));  // (#4632): a key change is no conflict
+  try { let j = await rawFetch(method, url, body, ik, undefined, undefined, o?.lim); if (ox.on && j?.conflicts?.length && typeof le2eRekeyConflicts === 'function') j = await le2eRekeyConflicts(url, body, j, b2 => rawFetch(method, url, b2));  // (#4632): a key change is no conflict
     if (ox.on && j?.conflicts?.length) addConflicts(j.id || +url.split('/').pop(), j.conflicts, j.title); if (method !== 'GET' && S.sel && new RegExp(`^/api/tasks/${S.sel}(/|$)`).test(url)) savedPing(); return method === 'GET' ? mvResp(url, j) : j; }  // 2.436.0 (#3620)
   catch (e) {
-    if (e instanceof Offline) {
+    if (e instanceof NoAnswer && method !== 'GET') netAgain(e, apiWhat(method, url, body), o?.then);  // #7494: said once, "Try again" = the same key; o.then = the caller's follow-up of a success
+    else if (e instanceof Offline) {
       if (queueable(method, url) && !(body instanceof FormData)) return enqueue(method, url, body, ik);  // (#6332): the same key
       if (method !== 'GET') { toast(tr('Only available online.')); e.shown = true; }  // (#5451)
     } else if (o?.quiet) e.shown = true;  // (#6372): the caller's error block says it

@@ -16,11 +16,14 @@ const lbWarn = w => !w ? '' : w.kind === 'gap' ? tr('Gap of {0} km to the previo
 // the vehicles (last odometer) and the drives (warnings of the neighbours, closed) are fetched in the background and replace
 // the old ones only when they are there (no "Loading…"); a refusal takes the change back (api() says why)
 const LB_PEND = new Map();  // a new drive on its way: its provisional (negative) id -> the promise of the real id
+// (#7507): a refresh whose GETs ran across a write (one on its way, S.wfly, or answered meanwhile, S.wv moved: an at-once
+// change shows its new values, optWrite) is dropped - its answer has the state before the write and put the old values back;
+// the write's own end refreshes again
 async function lbRefresh() {
-  const seq = LB.rseq = (LB.rseq || 0) + 1, vid = LB.vid, q = `year=${lbYear()}` + (vid ? `&vehicle_id=${vid}` : '');
+  const seq = LB.rseq = (LB.rseq || 0) + 1, vid = LB.vid, q = `year=${lbYear()}` + (vid ? `&vehicle_id=${vid}` : ''), wv0 = S.wv || 0;
   let base, j;
-  try { base = await api('GET', '/api/office/vehicles'); j = vid ? await api('GET', '/api/office/drives?' + q) : null; } catch { return; }
-  if (seq !== LB.rseq) return;
+  try { base = await api('GET', '/api/office/vehicles'); j = vid ? await api('GET', '/api/office/drives?' + q) : null; } catch (x) { if (seq === LB.rseq) ofcErr(x); return; }  // (#7507): said once (offline too), the shown drives stay
+  if (seq !== LB.rseq || S.wfly || (S.wv || 0) !== wv0) return;
   LB.base = base; LB.rep = null;
   if (j && LB.vid === vid && `year=${lbYear()}` + (vid ? `&vehicle_id=${vid}` : '') === q) { LB.drives = j.drives; LB.closed = j.closed || []; LB.q = q; }
   ofcDraw();
@@ -44,12 +47,16 @@ async function lbLoad() {
   if (LB.loading) return;
   LB.loading = true;
   try {
+    // (#7507): the year's report and, with a vehicle chosen already, its drives come at the same time as the vehicles
+    const q0 = `year=${lbYear()}` + (LB.vid ? `&vehicle_id=${LB.vid}` : ''), early = LB.vid && !LB.base && (!LB.drives || LB.q !== q0) ? api('GET', '/api/office/drives?' + q0, undefined, {quiet: true}) : null;
+    const rep = LB.view === 'report' && (!LB.rep || LB.rep.year !== +lbYear()) ? api('GET', `/api/office/logbook/report?year=${lbYear()}`, undefined, {quiet: true}) : null;
+    early?.catch(() => {}); rep?.catch(() => {});  // awaited below (a failure: the error block) or dropped: quiet, never an unhandled refusal
     if (!LB.base) LB.base = await api('GET', '/api/office/vehicles');
     const act = LB.base.vehicles.filter(v => !v.archived);
     if (!lbVeh(LB.vid)) LB.vid = (act[0] || LB.base.vehicles[0])?.id || null;
     const q = `year=${lbYear()}` + (LB.vid ? `&vehicle_id=${LB.vid}` : '');
-    if (LB.vid && (!LB.drives || LB.q !== q)) { const j = await api('GET', '/api/office/drives?' + q); LB.drives = j.drives; LB.closed = j.closed || []; LB.q = q; }  // 2.152.0 C (#2169): + closed
-    if (LB.view === 'report' && (!LB.rep || LB.rep.year !== +lbYear())) LB.rep = await api('GET', `/api/office/logbook/report?year=${lbYear()}`);
+    if (LB.vid && (!LB.drives || LB.q !== q)) { const j = await (early && q === q0 ? early : api('GET', '/api/office/drives?' + q)); LB.drives = j.drives; LB.closed = j.closed || []; LB.q = q; }  // (#2169): + closed
+    if (rep) LB.rep = await rep;
     LB.err = null;
   } catch (x) { LB.err = ofcErrHere(x); }
   LB.loading = false;

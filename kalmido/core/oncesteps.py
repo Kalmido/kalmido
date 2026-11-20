@@ -141,6 +141,15 @@ def migr_origin6643(c):  # (#6643): the outside origin of the tasks made before 
     gset(c, "migr_origin6643", "1")
 
 
+def migr_hint6872(c):  # (#6872): the old "last four characters" of server agents' API keys and newsletter tokens, once
+    # Since 2.1322.0 (#6560 7) nothing writes, reads or serves them, but rows from before kept them in plain text until the key
+    # changed. One-way: emptied, nothing to bring back (no code reads them; the sealed key / token itself stays untouched).
+    with pg_system_ctx(c):  # every organisation's agents and newsletter connections (row-level security)
+        c.execute("UPDATE agent_server SET key_hint='' WHERE key_hint<>''")
+        c.execute("UPDATE nl_conns SET hint='' WHERE hint<>''")
+    gset(c, "migr_hint6872", "1")
+
+
 def migr_tcvorg6232(c):  # (#6232): history rows of team chat messages that stayed with the organisation before a project move
     # Since #6232 kalmido_orw_carry (core/orgrows.py) carries them along; the rows written before it get their project's
     # organisation once (the channel of a project: tchat_rooms kind 'list'; a private project: NULL).
@@ -160,6 +169,7 @@ STEPS = [  # (phase, key, once, f): the order of init_db (2.1356.0, #6824); 2.13
     ("cdn_backfill", "migr_textby6677", True, migr_textby6677),
     ("cdn_backfill", "migr_srvorg6363", True, migr_srvorg6363),
     ("cdn_backfill", "migr_origin6643", True, migr_origin6643),
+    ("cdn_backfill", "migr_hint6872", True, migr_hint6872),
     ("cdn_backfill", "migr_tcvorg6232", True, migr_tcvorg6232),
 ]
 

@@ -11,7 +11,11 @@ const OA = {pp: null, ppLoading: false};
 const oa_switchRowHtml = aid => `<div class="oa_sw" data-oa-aid="${+aid}" hidden></div>`;
 async function oa_switchLoad(md) {
   const box = md && $('[data-oa-aid]', md); if (!box) return;
-  let j; try { j = await rawFetch('GET', `/api/office/agents/${box.dataset.oaAid}`); } catch { return; }  // not in my office area: nothing shown
+  let j; try { j = await rawFetch('GET', `/api/office/agents/${box.dataset.oaAid}`); } catch (x) {  // not in my office area (403 / 404): nothing shown
+    // (#7507): any other failure says so in the box, with Try again (it used to stay silent)
+    if (![403, 404].includes(x?.status)) { box.hidden = false; box.innerHTML = errorState({size: 'row', retry: () => oa_switchLoad(md)}); }
+    return;
+  }
   oa_switchDraw(box, j);
   box.addEventListener('change', async e => {
     const cb = e.target.closest('#oa-sw'); if (!cb) return;

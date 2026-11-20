@@ -108,7 +108,7 @@ function clientModal(c, o = {}) {  // 2.80.0 (#1842): o.org_id (the office's are
   const clX = () => { clkRead(md); return JSON.stringify({icon: $('#cl-icon', md)?.value ?? null, k: md._clk, rm: md._clkRm}); }, clX0 = clX();
   fdDialog(md, 'cl.' + (c?.id || 'new'), c?.updated_at || '', {get: () => { const v = clX(); return v === clX0 ? undefined : JSON.parse(v); }, put: v => cl_fdPut(md, v)});  // 2.527.0 (#4304 A5): the input survives an ended session / a closed tab
   const num = numBody;  // 2.263.0 (#2976)
-  md.addEventListener('click', async (/** @type {any} */ e) => {
+  md.addEventListener('click', busyClick(async (/** @type {any} */ e) => {  // (#7507): Save disabled + busy while it runs
     const ib = e.target.closest('[data-clico]');
     if (ib) { cl_icoSet(md, ib.dataset.clico); $('#cl-icon', md).dispatchEvent(new Event('change', {bubbles: true})); return; }  // 2.218.0 C (#2804); 2.552.0 (#4547): "change" = kept (fdDialog)
     const b = e.target.closest('[data-m]'); if (!b) return;
@@ -153,7 +153,7 @@ function clientModal(c, o = {}) {  // 2.80.0 (#1842): o.org_id (the office's are
       let r, gone = false;
       // 2.576.0 (#4794): a change through objsave.js (only the fields that differ from the client as opened, with
       // expect_updated_at; saved elsewhere meanwhile -> the merge bar, never overwritten)
-      const send = async () => { if (!c) return wsp_post('/api/clients', body, {quiet: true}); /* (#7309): space_needed -> the choice */ await loadModule('objsave'); objSess(`/api/clients/${c.id}`, c.updated_at); return (await objSaveForm(md, `/api/clients/${c.id}`, c, body)) || c; };  // (#5246): objSess = the undo session of this save
+      const send = async () => { if (!c) return wsp_post('/api/clients', body, {quiet: true, send: (u, b) => dlgCreate(md, u, b)}); /* (#7309): space_needed -> the choice; (#7507): the dialog's key, nothing twice */ await loadModule('objsave'); objSess(`/api/clients/${c.id}`, c.updated_at); return (await objSaveForm(md, `/api/clients/${c.id}`, c, body)) || c; };  // (#5246): objSess = the undo session of this save
       try { r = await send(); if (r === null) return; }  // (#7309): the choice of the workspace cancelled - the dialog stays
       catch (x) {
         // 2.81.0 (#1852): a linked contact was deleted elsewhere -> drop that link, save once more, tell the person
@@ -170,7 +170,7 @@ function clientModal(c, o = {}) {  // 2.80.0 (#1842): o.org_id (the office's are
       if (typeof objConflict === 'function' && await objConflict(md, x, rec => clientModal(rec, o), cl_field)) return;  // 2.576.0 (#4794): the merge bar
       const el = $('.aerr', md); if (el) el.textContent = x.message || '';
     }
-  });
+  }));
   setTimeout(() => { if (!isTouch()) $('#cl-name', md)?.focus(); }, 50);
 }
 // 2.218.0 C (#2804): the chosen symbol (the hidden field and the pressed button)

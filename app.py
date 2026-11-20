@@ -72,10 +72,11 @@ if __name__ == "__main__":
         bk_start_clean()  # 2.510.0 (#4286): what a hard stop of a restore left; here, not on the import (helpers import the package too)
         from kalmido.accounts.setupcode import sh_code_startup
         sh_code_startup()  # 2.45.0 (#1515): a server without users prints its one-time setup code
-        from kalmido.core.db import skfp_warn_changed
+        from kalmido.core.db import skfp_warn_changed, test_mode_warn
         skfp_warn_changed()  # 2.190.0 R (#2592): KALMIDO_SECRET_KEY_CHANGED left on
         from kalmido.core.env import env_unknown_warn
         env_unknown_warn()  # (#6615): a misspelt variable (KALMIDO_SMTP_HOSTT) is named once, not silently ignored
+        test_mode_warn()  # (#6871): KALMIDO_TEST=1 (open test routes) is named at every start
     from waitress import serve
     from kalmido.core.config import PORT as port  # (#6615): checked at the start (a value that is no port = FATAL)
     listen = f"0.0.0.0:{port}" + (f" 0.0.0.0:{AUTH_PROXY_PORT}" if AUTH_PROXY_PORT and AUTH_PROXY_PORT != str(port) else "")

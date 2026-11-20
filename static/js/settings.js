@@ -1649,6 +1649,8 @@ function impInit(md) {
 const shToolsWarn = a => { const [t, sv] = String(a.backup_tools_problem || '').split('|'); return sv ? `<div class="shint warn shkey shtools" role="alert"><b>${tr('Backups are not possible')}</b> ${esc(tr('No backup is possible: pg_dump {0} refuses the newer PostgreSQL {1} of this server. Use a Kalmido image with postgresql-client {1} (see SELF-HOSTING.md).', t, sv))}</div>` : ''; };
 const shKeyWarn = a => a.secret_key === false ? `<div class="shint warn shkey" role="alert"><b>${tr('The server key is missing')}</b> ${esc(a.secret_key_problem === 'invalid' ? tr('KALMIDO_SECRET_KEY (or the key file) is not valid: it must be 32 random bytes, base64.') : a.secret_key_problem === 'file_in_data' ? tr('KALMIDO_SECRET_FILE lies inside the data or backup folder and was ignored. Put it on its own volume.') : a.secret_key_problem === 'file_error' ? tr('The key file KALMIDO_SECRET_FILE cannot be read or written, see the server log. After an update: create the folder secret next to data and give it to the user 1000 (mkdir secret && chown 1000 secret), then restart.') : tr('Without KALMIDO_SECRET_KEY or KALMIDO_SECRET_FILE no access token can be stored and organisation data stays unencrypted. See SELF-HOSTING.md.'))}</div>` : a.secret_key_src === 'file' ? `<div class="shint shkey">${esc(tr('The server key is kept in the key file. Keep a copy of it apart from the backups: without it the encrypted data of a backup cannot be read.'))}</div>` : '';  // 2.45.0 (#1515): review: a new key file is announced
 // 2.513.0 (#4356): opened on another address than PUBLIC_URL (forgotten after the install): links in mails and push messages lead elsewhere
+// (#6871): KALMIDO_TEST=1 opens test routes that bypass the separation of accounts and organisations - a lasting warning for admins
+const shTestWarn = a => a.test_mode ? `<div class="shint warn shkey shtest" role="alert"><b>${tr('Test mode: test routes are open')}</b> ${esc(tr('KALMIDO_TEST=1 is set. Never on a real server: remove KALMIDO_TEST from .env (or the compose file) and restart.'))}</div>` : '';
 const shAddrKey = u => { try { const o = new URL(u); return `${o.protocol}//${['127.0.0.1', '[::1]'].includes(o.hostname) ? 'localhost' : o.hostname}:${o.port || (o.protocol === 'https:' ? 443 : 80)}`; } catch { return ''; } };
 const shAddrWarn = a => {
   const here = location.origin;
@@ -1657,7 +1659,7 @@ const shAddrWarn = a => {
 };
 function instanceHtml(chk, hint) {
   const a = S.about || {};
-  return `${shKeyWarn(a)}${shToolsWarn(a)}${shAddrWarn(a)}<h4 id="s-instance-h">${tr('Whole server')}</h4>
+  return `${/*html-ok*/ shTestWarn(a) /* (#6871): fixed texts through tr() + esc() */}${shKeyWarn(a)}${shToolsWarn(a)}${shAddrWarn(a)}<h4 id="s-instance-h">${tr('Whole server')}</h4>
     ${hint(tr('Apply to every person at once. Nothing is deleted: switched back on, everything is there again.'))}
     <div class="featgrid">${ad_allSwHtml()}
       <label class="wide"><input type="checkbox" id="s-publinks" ${a.public_links !== false && a.public_links_env !== false ? 'checked' : ''} ${a.public_links_env === false ? 'disabled' : ''}><span>${tr('Allow public links')}<small class="muted">${a.public_links_env === false ? `<span title="KALMIDO_PUBLIC_LINKS=0">${tr('Switched off by the server operator.')}</span>` : tr('Shared with people without an account through a secret link, switched on or off per kind below. Off: every public link stops working at once; nothing is deleted.')}</small></span></label>${sh_pubKindsHtml(a)}

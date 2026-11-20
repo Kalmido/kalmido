@@ -38,7 +38,9 @@ IDEM_MAX_KEYS = 5000  # 2.380 (#3387 review): kept keys per person; the oldest b
 IDEM_MAX_BODY = 256 * 1024  # bytes of a stored answer; a larger one keeps its short answer (2.1437.0 #6558, was {"ok": true})
 # (#6558): the routes whose whole answer is kept (app and API v1): what the offline queue / service worker send again
 # and read back (the new task's fields, a note's text and updated_at, a chat message). Everything else: idem_short.
-IDEM_FULL = re.compile(r"^/api/(?:v1/)?(?:tasks|habits|time|notes|notepads|lists/\d+/notes|team/messages|agent/chats|agents/\d+/chat)(?:/|$)")
+# #7494 review F1: of the times only what the queue / an agent sends again (start, stop, entries, timer) - a timesheet decision's answer holds its
+# sealed note (time_sheets.note) in plain text and never lies in idem_keys
+IDEM_FULL = re.compile(r"^/api/(?:v1/)?(?:tasks|habits|time/(?:start|stop|entries|timer)|notes|notepads|lists/\d+/notes|team/messages|agent/chats|agents/\d+/chat)(?:/|$)")
 _IDEM_ID = re.compile(r"^(?:id|ids|.+_id|.+_ids)$")
 _IDEM_KEEP = ("ok", "updated_at")
 # (#6558): field names of a secret shown once; such a field with a text value: only the short answer is kept
@@ -47,6 +49,12 @@ IDEM_WAIT = 10.0  # 2.575.0 (#3948): was 3 s; a 503 retry of the MCP client duri
 IDEM_PRUNE = {"at": 0.0}  # 2.1315.0 (#6409): the last run of idem_prune (time.time())
 IDEM_PRUNE_S = 3600
 _IDEM_KEY = re.compile(r"^[A-Za-z0-9_.:-]{1,100}$")
+# (#7494): the key the app's rawFetch puts on every write of its own (no outbox entry, no dialog) starts with IDEM_NET: it only
+# guards "Try again" after a write without an answer (minutes). Such a key keeps only the short answer, also on IDEM_FULL (a
+# sealed text such as a timesheet's decision note never lies in idem_keys as plain text), and idem_prune drops it after
+# IDEM_NET_S, so the many ordinary writes do not push the offline queue's keys out of IDEM_MAX_KEYS.
+IDEM_NET = "n."
+IDEM_NET_S = 3600
 _IDEM_METHODS = ("POST", "PATCH", "PUT", "DELETE")
 
 
@@ -108,7 +116,7 @@ def idem_short(v):
     return None
 
 
-def idem_body(path, data, no_body=False):
+def idem_body(path, data, no_body=False, key=""):
     """(#6558): the text kept with a key for a 2xx JSON answer (bytes) of `path`: the whole answer on IDEM_FULL up to
     IDEM_MAX_BODY and without a secret-named field, else the short answer; None (a repeat gets {"ok": true}) for a route
     marked idem_no_body (it hands out a secret) or an answer that is no JSON."""
@@ -118,7 +126,7 @@ def idem_body(path, data, no_body=False):
         j = json.loads(data)
     except ValueError:
         return None
-    if IDEM_FULL.match(path) and len(data) <= IDEM_MAX_BODY and not idem_secretish(j):
+    if IDEM_FULL.match(path) and not key.startswith(IDEM_NET) and len(data) <= IDEM_MAX_BODY and not idem_secretish(j):
         return data.decode("utf-8", "replace")
     r = idem_short(j)
     if isinstance(j, dict):
@@ -142,6 +150,7 @@ def idem_prune(c, force=False):
         return 0
     IDEM_PRUNE["at"] = time.time()
     n = c.execute("DELETE FROM idem_keys WHERE created_at<?", (iso(now_utc() - timedelta(days=IDEM_DAYS)),)).rowcount
+    n += c.execute("DELETE FROM idem_keys WHERE created_at<? AND left(k, ?)=?", (iso(now_utc() - timedelta(seconds=IDEM_NET_S)), len(IDEM_NET), IDEM_NET)).rowcount  # (#7494)
     for (uid,) in c.execute("SELECT user_id FROM idem_keys GROUP BY user_id HAVING COUNT(*)>?", (IDEM_MAX_KEYS,)).fetchall():
         n += c.execute("DELETE FROM idem_keys WHERE user_id=? AND k IN (SELECT k FROM idem_keys WHERE user_id=? ORDER BY created_at DESC, k DESC OFFSET ?)",
                        (uid, uid, IDEM_MAX_KEYS)).rowcount
@@ -193,7 +202,7 @@ def idem_store(resp):
     # the effect happened, the secret is not handed out twice); (#6558): the whole text only on IDEM_FULL (idem_body)
     no_body = g.pop("idem_no_body", False)
     if ok and not resp.direct_passthrough and not resp.is_streamed and "json" in (resp.content_type or ""):
-        body = idem_body(request.path, resp.get_data(), no_body)
+        body = idem_body(request.path, resp.get_data(), no_body, k)
     c = None
     try:
         c = connect()

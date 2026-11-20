@@ -137,7 +137,7 @@ function agrModal(a) {
     per: v('#agr-per'), vat_pct: v('#agr-vat') || null, start: v('#agr-start'), ends: v('#agr-ends'), notice: +v('#agr-notice') || 0, notice_unit: v('#agr-nu'),
     renew_months: +v('#agr-renew') || 0, lead_days: +v('#agr-lead') || 0, cashflow: $('#agr-cf', md)?.checked ? 1 : 0, task: $('#agr-task', md)?.checked ? 1 : 0,
     list_id: +v('#agr-list') || null, doc_node_id: doc?.id || null, note: v('#agr-note')});
-  md.addEventListener('click', async e => {
+  md.addEventListener('click', busyClick(async e => {
     const b = e.target.closest('[data-m]'); if (!b) return;
     const m = b.dataset.m;
     if (m === 'close') { close(); return; }
@@ -153,7 +153,7 @@ function agrModal(a) {
       if (typeof objConflict === 'function' && await objConflict(md, x, r => { const m2 = agrModal(r); agrReload(); return m2; })) return;  // 2.576.0 (#4794): the merge bar
       el.textContent = ofcErrHere(x);
     }
-  });
+  }));
   return md;
 }
 const agrBody = a => ({kind: a.kind, name: a.name, provider: a.provider, number: a.number, cost: a.cost ?? '', per: a.per, vat_pct: a.vat_pct ?? null, start: a.start, ends: a.ends,
@@ -161,7 +161,7 @@ const agrBody = a => ({kind: a.kind, name: a.name, provider: a.provider, number:
   list_id: a.task?.list_id || null, doc_node_id: a.doc_node_id || null, note: a.note});
 async function agrSave(a, body, md) {
   if (!a) {
-    const j = await api('POST', '/api/office/agreements', body); agrReload();
+    const j = await (md ? dlgCreate(md, '/api/office/agreements', body) : api('POST', '/api/office/agreements', body)); agrReload();  // (#7507): the dialog's id, nothing twice
     offerUndo(tr('Added'), histAdd({label: tr('Contract added'), undo: async () => { await api('DELETE', `/api/office/agreements/${j.id}`); agrReload(); },
       redo: async () => { await api('POST', `/api/office/agreements/${j.id}/restore`, {}); agrReload(); }}));
     return j;

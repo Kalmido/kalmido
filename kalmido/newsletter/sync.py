@@ -6,7 +6,7 @@ books of exactly that workspace: an organisation's own address books (books.owne
 books outside every organisation -- never a member's private book, never another workspace.
 
 - The access data are sealed with a key derived from the server key per workspace (like the Paperless-ngx token, also
-  with the organisation's encryption off) and never leave the server; the app only gets "set" + the last four characters.
+  with the organisation's encryption off) and never leave the server; the app only gets "set" (#6560 7: no part of it; #6872: old hints emptied).
 - Consent per contact (contacts.nl_status): '' unknown | yes | pending (double opt-in at the service) | unsub | bounce.
   Only contacts with an address and consent go to the service (mode doi: also the pending ones, as unconfirmed -- the
   service sends the opt-in mail). unsub / bounce never go there again; a run does not turn them back either (also not when the

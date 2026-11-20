@@ -1,7 +1,7 @@
 // Office & finance (2.36.1, #1021), part C: quotations -- the tab "Quotations" of the office view (office.js calls
 // ofdOffersTab(el)) with the list and the editor (#office/offers/<id>). The server computes the sums (kalmido/office/calc.py)
 // on every change and returns them; the editor shows exactly those figures in the document's language and currency.
-const OFD = {list: null, next: null, more: false, listQ: '', loading: false, q: '', status: '', trial: LS.get('ofdTrial', '') || '', first: null, office: null, trialCount: 0, kind: 'offer', kindOf: {}, sec: '', doc: null, docId: null, docLoading: false, seq: 0, saving: 0, err: '', open: {head: true, rights: true, texts: false, fields: false, log: false, pay: true}, log: null, logFor: 0};
+const OFD = {list: null, next: null, more: false, listQ: '', loading: false, q: '', status: '', trial: LS.get('ofdTrial', '') || '', first: null, office: null, trialCount: 0, kind: 'offer', kindOf: {}, sec: '', doc: null, docId: null, docLoading: false, docErr: 0, seq: 0, saving: 0, pend: 0, err: '', open: {head: true, rights: true, texts: false, fields: false, log: false, pay: true}, log: null, logFor: 0};
 const OFD_STATUS = [['draft', N_('Draft')], ['sent', N_('Sent|document')], ['accepted', N_('Accepted|document')], ['declined', N_('Rejected')], ['superseded', N_('Superseded')]];
 // 2.38.0 (#1021, F1): invoices, credit notes and reminders share the tab; the server derives partial / overdue / cancelled
 const OFD_KINDS = [['offer', N_('Quotations')], ['invoice', N_('Invoices')], ['credit', N_('Credit notes')], ['reminder', N_('Payment reminders|dunning')], ['delivery', N_('Delivery notes')], ['archive', N_('Archive|documents')]];  // 2.39.1 (#1182): + the legacy archive (office_import.js)
@@ -162,12 +162,13 @@ async function ofdLoadDoc(id, force) {
   if (OFD.docLoading) return;
   if (OFD.doc && OFD.doc.id === id && !force) return;
   OFD.docLoading = true; OFD.docId = id;
+  OFD.docErr = 0;
   const wk = ofc_wsKey();
   try { const d = await api('GET', `/api/office/docs/${id}`); if (wk !== ofc_wsKey()) { OFD.docLoading = false; return; } OFD.doc = d; /* (#7313 F15): another office meanwhile: dropped */ OFD.viaFolder.delete(id); OFD.err = ''; OFD.conflict = null; if (OFD.doc?.kind && OFD.doc.kind !== OFD.kind) { OFD.kind = OFD.doc.kind; OFD.list = null; } }
   catch (x) {  // 2.199.0 B (#2742): no office right for it, but a shared folder holds it -> read through the folder (its PDF too)
-    OFD.doc = null; OFD.err = ofcErrHere(x);
+    OFD.doc = null; OFD.err = ofcErrHere(x); OFD.docErr = id;
     // 2.351.0 A (#2823): a draft with edit through the folder is edited (saved over the folder way, ofd_viaUrl)
-    try { const j = await rawFetch('GET', `/api/fsref/office_doc/${id}`); OFD.doc = ofd_viaDoc(j, j.folder_role); OFD.viaFolder.add(id); OFD.err = ''; } catch { /* keep the office's answer */ }
+    if (!(x instanceof NoAnswer)) try { const j = await rawFetch('GET', `/api/fsref/office_doc/${id}`); OFD.doc = ofd_viaDoc(j, j.folder_role); OFD.viaFolder.add(id); OFD.err = ''; OFD.docErr = 0; } catch { /* keep the office's answer */ }  // #7494: no answer = the error block, no second wait through the folder
   }
   OFD.docLoading = false;
   if (ofd_docArea()) return;  // 2.380.0 B (#3409)
@@ -242,7 +243,7 @@ function ofdOffersTab(el) {
   ofd_secSync();
   const id = S.route.id;
   if (id) {
-    if ((!OFD.doc || OFD.doc.id !== id) && !OFD.docLoading) setTimeout(() => ofdLoadDoc(id), 0);
+    if ((!OFD.doc || OFD.doc.id !== id) && !OFD.docLoading && !(OFD.docErr === id && OFD.err)) setTimeout(() => ofdLoadDoc(id), 0);  // #7494: a failed load waits for "Try again" (each draw of its error block loaded it again)
     if (!OFC.data.services && !OFC.loading.services) setTimeout(() => ofcLoad('services'), 0);
     if (!OFC.data.texts && !OFC.loading.texts) setTimeout(() => ofcLoad('texts'), 0);
     if (!OFC.data.contracts && !OFC.loading.contracts) setTimeout(() => ofcLoad('contracts'), 0);
@@ -947,16 +948,40 @@ const ofd_keepVia = j => OFD.doc?.via_folder && j && j.id === OFD.doc.id ? ofd_v
 // 2.351.0 A (#2823): a draft reached only through a folder share with edit saves over the folder way (office/docref.py: the
 // document's own fields and positions; links into the master data are refused there)
 const ofd_viaUrl = url => { const m = String(url).match(/^\/api\/office\/docs\/(\d+)(\/items)?$/); return m && OFD.viaFolder.has(+m[1]) ? `/api/fsref/office_doc/${m[1]}${m[2] || ''}` : url; };
-const ofdSave = (method, url, body, src) => ofd_inChain(() => ofd_save1(method, ofd_viaUrl(url), body, src));
+const ofdSave = (method, url, body, src) => { ofd_local(method, url, body); return ofd_inChain(() => ofd_save1(method, ofd_viaUrl(url), body, src)); };
 // a save outside ofdSave (the calculation sheet) in the same row; ofd_ver = its version field
-const ofd_inChain = fn => { const p = (OFD.chain || Promise.resolve()).then(fn, fn); OFD.chain = p.catch(() => { /* the caller reports it */ }); return p; };
+// #7509: OFD.pend = the saves in the row (queued or running); an answer while others wait keeps the local state (ofd_take)
+const ofd_inChain = fn => {
+  OFD.pend = (OFD.pend || 0) + 1;
+  const p = (OFD.chain || Promise.resolve()).then(fn, fn), dn = () => { OFD.pend--; };
+  p.then(dn, dn); OFD.chain = p.catch(() => { /* the caller reports it */ }); return p;
+};
+// #7509: a plain field of the document changed (PATCH of its head) is the local state at once: a redraw before its answer
+// (the answer of an earlier save) shows the new value, not the old one
+function ofd_local(method, url, body) {
+  if (method !== 'PATCH' || !OFD.doc || url !== `/api/office/docs/${OFD.doc.id}` || !body || typeof body !== 'object' || Array.isArray(body)) return;
+  for (const [k, v] of Object.entries(body)) if (k in OFD.doc && (v === null || typeof v !== 'object') && (OFD.doc[k] === null || typeof OFD.doc[k] !== 'object')) OFD.doc[k] = v;
+}
+// #7509 (decision): the server's answer replaces the open document only when no further save of it waits in the row; while
+// one waits, the answer gives only what the server assigns and computes (the version, the sums, parts it added; the ids of
+// new lines come through src) and the local positions and fields stay - the waiting save sends them. #7493 takes this over.
+function ofd_take(j) {
+  if (!(OFD.pend > 1)) { OFD.doc = ofd_keepVia(j.items ? j : {...OFD.doc, ...j}); return; }  /* the status answer has no positions */
+  const d = OFD.doc, ps = d.parts || [], sp = new Map((j.parts || []).map(p => [p.id, p]));
+  if (j.updated_at) d.updated_at = j.updated_at;
+  if (j.totals) d.totals = j.totals;
+  if (Array.isArray(j.missing)) d.missing = j.missing;
+  if (j.parts) d.parts = [...ps.map(p => sp.has(p.id) ? Object.assign(p, {totals: sp.get(p.id).totals, updated_at: sp.get(p.id).updated_at}) : p), ...j.parts.filter(p => !ps.some(x => x.id === p.id))];
+}
 const ofd_ver = () => OFD.doc?.updated_at ? {expect_updated_at: OFD.doc.updated_at} : {};
 const ofd_lnShut = j => !!OFD.langNotesShut && OFD.langNotesShut.id === j.id && OFD.langNotesShut.key === JSON.stringify(j.lang_notes);  // 2.482.0 (#3940)
 // 2.855.0 (#5451): the error of the last failed save (a field's change says it at the field)
 let OFD_SAVEX = /** @type {any} */ (null);
-async function ofd_save1(method, url, body, src) {
+// again: #7494 "Try again" after no answer: {key, ver} of the first try (the very same request: applied once, never over a later save)
+async function ofd_save1(method, url, body, src, again) {
   OFD.saving++; ofdSaveHint();
-  const ver = ofd_verUrl(url) && body && typeof body === 'object' && !Array.isArray(body) ? OFD.doc.updated_at : null;
+  const body0 = body;
+  const ver = again ? again.ver : ofd_verUrl(url) && body && typeof body === 'object' && !Array.isArray(body) ? OFD.doc.updated_at : null;
   if (ver) {
     if (src && Array.isArray(body.items)) body.items.forEach((x, i) => { if (!x.id && src[i]?.id) x.id = src[i].id; });
     body = {...body, expect_updated_at: ver};
@@ -965,15 +990,15 @@ async function ofd_save1(method, url, body, src) {
   // 2.552.0 (#4547): positions and fields of the document are kept in this browser until the server has them (core.js fdWrite):
   // the session ends during the save (401 -> sign-in -> reload) = sent after the sign-in under the same key and version
   // (saved elsewhere since: 409, not overwritten); the page going away (ofd_unload) sends it with keepalive
-  const fk = ver && (method === 'PUT' || method === 'PATCH') ? fdWrite(method, url, body, {slot: `ofd.${method}.${url}`, send: !!OFD.unload}) : null;
+  const fk = ver && !again && (method === 'PUT' || method === 'PATCH') ? fdWrite(method, url, body, {slot: `ofd.${method}.${url}`, send: !!OFD.unload}) : null;
   if (fk && OFD.unload) return null;
   try {
-    const j = await rawFetch(method, url, body, fk ? fdGet('fdw', fk)?.b?.k : undefined);
+    const j = await rawFetch(method, url, body, again ? again.key : fk ? fdGet('fdw', fk)?.b?.k : undefined);
     if (fk) fdDrop('fdw', fk);
     if (src && j) { const its = (j.part ? j.part.items : j.items) || []; src.forEach((x, i) => { if (!x.id && its[i]?.id) x.id = its[i].id; }); }
-    if (OFD.doc && j && j.id === OFD.doc.id) OFD.doc = ofd_keepVia(j.items ? j : {...OFD.doc, ...j}); /* the status answer has no positions */ OFD.err = ''; if (j && j.lang_notes && !ofd_lnShut(j)) OFD.langNotes = {id: j.id, notes: j.lang_notes};  // 2.482.0 (#3940): a late answer does not reopen a closed note
-    if (!ver && method !== 'GET' && OFD.doc && j && !j.updated_at && url.startsWith(`/api/office/docs/${OFD.doc.id}/`)) {  // a status / number / payment answer without the version: the current state
-      try { const f = await rawFetch('GET', `/api/office/docs/${OFD.doc.id}`); if (OFD.doc && f && f.id === OFD.doc.id) OFD.doc = f; } catch { /* the next save reports it */ }
+    if (OFD.doc && j && j.id === OFD.doc.id) ofd_take(j); OFD.err = ''; if (j && j.lang_notes && !ofd_lnShut(j)) OFD.langNotes = {id: j.id, notes: j.lang_notes};  // (#3940): a late answer does not reopen a closed note
+    if (method !== 'GET' && OFD.doc && j && ((!ver && !j.updated_at && url.startsWith(`/api/office/docs/${OFD.doc.id}/`)) || (j._replayed && ofd_verUrl(url)))) {  // a status / number / payment answer without the version: the current state; #7494: + the short answer of a write sent again
+      try { const f = await rawFetch('GET', `/api/office/docs/${OFD.doc.id}`); if (OFD.doc && f && f.id === OFD.doc.id) ofd_take(f); } catch { /* the next save reports it */ }
     }
     return j;
   }
@@ -981,6 +1006,10 @@ async function ofd_save1(method, url, body, src) {
     if (fk && x.message !== 'auth') fdDrop('fdw', fk);  // 2.552.0 (#4547): refused / offline: the field keeps the input (ofdChange), not sent later
     if (x.status === 409 && x.data?.doc && OFD.doc && x.data.doc.id === OFD.doc.id) { OFD.conflict = {id: OFD.doc.id, doc: x.data.doc}; OFD.err = ''; return null; }
     if (x.status === 409 && x.data?.code === 'terms_missing') { OFD.err = ''; return {terms_missing: x.data, message: x.message}; }  // 2.534.0 (#4339): the send dialog asks (ofcSendTerms)
+    if (x instanceof NoAnswer && OFD.doc) {  // #7494: no answer: not saved (the field keeps the input); "Try again" sends the same request in the row
+      const a = {key: x.key, ver}, did = OFD.doc.id;
+      netAgain(x, '', undefined, () => OFD.doc?.id === did ? ofd_inChain(() => ofd_save1(method, url, body0, src, a)).then(j => { if (!j) throw Object.assign(new Error(''), {shown: true}); return j; }) : Promise.resolve(null));
+    }
     OFD_SAVEX = x; ofcErr(x); return null;  // 2.855.0 (#5451): said once (a field's save: at the field, ofdChange), never raw in the head
   }
   finally { OFD.saving--; OFD.log = null; ofdDraw(); OFD.list = null; }
@@ -1562,7 +1591,9 @@ const tbill_h = s => fmtNum(s / 3600, 2);
 async function tbill_ftPreview(md) {
   const out = $('.tbill-open', md); if (!out) return;
   const q = new URLSearchParams({client_id: $('#ofd-ft-client', md).value, from: $('#ofd-ft-from', md).value, to: $('#ofd-ft-to', md).value});
-  let j; try { j = await rawFetch('GET', `/api/office/time-open?${q}`); } catch { out.textContent = ''; return; }
+  const my = md._ftSeq = (md._ftSeq || 0) + 1;  // (#7507): only the answer of the last choice is shown (a slower earlier one never overwrites it)
+  let j; try { j = await rawFetch('GET', `/api/office/time-open?${q}`); } catch { if (my === md._ftSeq) out.textContent = tr('Could not be loaded'); return; }
+  if (my !== md._ftSeq) return;
   const more = [j.billed_entries ? tr('{0} h already billed', tbill_h(j.billed_seconds)) : '', j.unbillable_entries ? tr('{0} h not billable', tbill_h(j.unbillable_seconds)) : ''].filter(Boolean);
   out.textContent = tr('Open billable: {0} h', tbill_h(j.open_seconds)) + (more.length ? ` (${more.join(', ')})` : '');
 }
@@ -1806,6 +1837,7 @@ async function ofdReminderDialog() {
 function ofdServicePicker() {
   const d = typeof tpCur === 'function' ? tpCur() : OFD.doc;  // 2.47.0 (#1215): into an open part
   const tpc = typeof TP === 'object' ? TP.open : null, sc = typeof tpf_sc === 'function' ? tpf_sc() : '';  // 2.113.0 (#2248): the part it was opened in
+  const did = OFD.doc?.id;  // #7509: a choice goes into the document as it is at the click (an answer may have come meanwhile), not the one seen at opening
   const md = modal(`<h3>${tr('Add service')}</h3><div class="ctsearch">${ic('search', 's')}<input id="ofd-sq" type="search" placeholder="${esc(tr('Search'))}" aria-label="${esc(tr('Search services'))}" autocomplete="off"></div><div id="ofd-slist" class="ofdslist"></div>
     <div class="foot"><button type="button" class="btn" data-m="free">${tr('Free position')}</button><span class="spacer"></span><button type="button" class="btn" data-m="close">${tr('Close')}</button></div>`);
   md.classList.add('ofdpick');
@@ -1829,6 +1861,8 @@ function ofdServicePicker() {
     if (typeof TP === 'object') TP.open = tpc;  // 2.113.0 (#2248)
     if (b.dataset.m === 'close' || b.dataset.m === 'tab') { md.remove(); return; }  // (tab: the link goes on to #office/services)
     if (b.dataset.m === 'part' && typeof tpPick === 'function') { md.remove(); await tpPick(+b.dataset.pid); return; }  // 2.47.0 (#1215)
+    if (!OFD.doc || OFD.doc.id !== did) { md.remove(); return; }  // #7509: another document is open now
+    const d = typeof tpCur === 'function' ? tpCur() : OFD.doc;
     const blank = {kind: 'service', service_id: null, title: '', detail: '', qty: 1, unit: 'day', rate: 0, tax: 'standard', raw_fee: 0, producing: 0, intext: 'intern', cost: 0, discountable: 1};
     if (b.dataset.m === 'free') { d.items.push(blank); md.remove(); await ofdPutItems(); $(`${sc}.ofdits [data-i="${d.items.length - 1}"][data-k="title"]`)?.focus(); return; }
     const s = ofcRow('services', +b.dataset.sid); if (!s) return;
@@ -1865,13 +1899,14 @@ FS_REF_ICON.office_doc = 'receipt';
 OFD.viaFolder = OFD.viaFolder || new Set();
 async function ofd_fileDlg(d) {
   let fs, cur;
-  try { [fs, cur] = await Promise.all([api('GET', '/api/files/folders').then(j => j.folders || []), api('GET', `/api/files/refs/office_doc/${d.id}`).catch(() => ({}))]); } catch { return; }
+  // (#7507): only a 404 of the reference means "in no folder"; any other failure is said (it used to offer the folders as if not filed)
+  try { [fs, cur] = await Promise.all([api('GET', '/api/files/folders').then(j => j.folders || []), api('GET', `/api/files/refs/office_doc/${d.id}`, undefined, {quiet: true}).catch(x => { if (x?.status === 404) return {}; x.shown = false; throw x; })]); } catch (x) { ofcErr(x); return; }
   const node = cur?.node && !cur.node.deleted_at ? cur.node : null;
   const org = (S.me?.workspaces || []).some(w => w.id === d.org_id);  // else a personal office: its owner's private tree
   const ok = fs.filter(f => org ? f.org_id === d.org_id : !f.org_id && f.owner_id === S.me?.id);  // the folders one may add to
   const put = async pid => {
     const was = node?.parent_id ?? null;
-    try { await api('POST', '/api/files/refs', {ref_kind: 'office_doc', ref_id: d.id, parent_id: pid}); } catch { return; }
+    try { await api('POST', '/api/files/refs', {ref_kind: 'office_doc', ref_id: d.id, parent_id: pid}); } catch (x) { ofcErr(x); return; }  // (#7507): said (offline too)
     const back = () => ab_req('POST', '/api/files/refs', {ref_kind: 'office_doc', ref_id: d.id, parent_id: was});
     offerUndo(pid ? tr('Filed in {0}', (ok.find(f => f.id === pid) || {}).path || '') : tr('Taken out of the folder'),
       histAdd({label: tr('File “{0}”', d.number || ofdKindName(d.kind, true)), undo: back, redo: () => ab_req('POST', '/api/files/refs', {ref_kind: 'office_doc', ref_id: d.id, parent_id: pid})}));

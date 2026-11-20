@@ -44,10 +44,10 @@ function leadBody(md) {
 async function leadConvert(x, md) {
   const j = await api('GET', `/api/office/deals/${x.id}/convert`);
   const go2 = async cid => {
-    const r = await api('POST', `/api/office/deals/${x.id}/convert`, cid ? {client_id: cid} : {});
+    const r = await (md ? dlgCreate(md, `/api/office/deals/${x.id}/convert`, cid ? {client_id: cid} : {}) : api('POST', `/api/office/deals/${x.id}/convert`, cid ? {client_id: cid} : {}));  // (#7507): the deal dialog's id, one client
     md?.remove(); PPS.stage = 'inquiry'; pp_reload();
     if (typeof OFD === 'object') OFD.clients = null;
-    toast(tr('Converted into a client: {0}', r.deal.client_name || ''), async () => { await api('POST', `/api/office/deals/${x.id}/unconvert`, {remove_client: !!r.client_new}); PPS.stage = 'lead'; pp_reload(); });
+    toast(tr('Converted into a client: {0}', r.deal?.client_name || ''), async () => { await api('POST', `/api/office/deals/${x.id}/unconvert`, {remove_client: !!r.client_new}); PPS.stage = 'lead'; pp_reload(); });
   };
   if (!(j.matches || []).length) return go2(null);
   const pick = modal(`<h3>${tr('Convert into a client')}</h3><p class="muted">${tr('There is already a client that fits this lead:')}</p>
@@ -58,7 +58,9 @@ async function leadConvert(x, md) {
     const b = e.target.closest('[data-lm]'); if (!b) return;
     const v = b.dataset.lm;
     if (v === 'close') { close(); return; }
-    try { await go2(v === 'new' ? null : +v); pick.remove(); } catch (x2) { ofcErr(x2); }
+    if (pick.dataset.busy) return;  // (#7507): one choice at a time (every button of the choice stays put until it is done)
+    pick.dataset.busy = '1';
+    try { await busyRun(b, () => go2(v === 'new' ? null : +v)); pick.remove(); } catch (x2) { ofcErr(x2); } finally { delete pick.dataset.busy; }
   });
 }
 

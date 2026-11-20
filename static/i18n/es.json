@@ -16271,7 +16271,6 @@
   "A drafted follow-up as a comment, posted only after your Yes.": "Un seguimiento redactado como comentario, publicado solo tras tu Sí.",
   "Agents on the Kalmido server are switched off on this server (an admin can allow them: Settings > Organisation > Agents).": "Los agentes en el servidor de Kalmido están desactivados en este servidor (un admin puede permitirlos: Ajustes > Organización > Agentes).",
   "New API key": "Nueva clave API",
-  "Your own key of the provider; its usage is billed to you by the provider. Kalmido stores it encrypted and never shows it again, only its last four characters.": "Tu propia clave del proveedor; el proveedor te factura el consumo. Kalmido la guarda cifrada y nunca la vuelve a mostrar, solo sus últimos cuatro caracteres.",
   "The list of models comes from the provider once the key is saved; you can change the model later in the agent’s settings.": "La lista de modelos llega del proveedor en cuanto se guarda la clave; puedes cambiar el modelo después en los ajustes del agente.",
   "Instructions": "Instrucciones",
   "Like a CLAUDE.md: how it works for you. It only uses the Kalmido tools within its permissions; no web, no terminal, no other services.": "Como un CLAUDE.md: cómo trabaja para ti. Solo usa las herramientas de Kalmido dentro de sus permisos; sin web, sin terminal, sin otros servicios.",
@@ -19732,5 +19731,13 @@
   "documents from templates": "documentos de plantillas",
   "invoice series": "series de facturas",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "El cliente de este documento ya no está en esta oficina (movido a otro espacio de trabajo). Elige primero otro cliente.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "El cliente de la factura plantilla ya no está en esta oficina (movido a otro espacio de trabajo). Elige otra factura plantilla y vuelve a activar la serie."
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "El cliente de la factura plantilla ya no está en esta oficina (movido a otro espacio de trabajo). Elige otra factura plantilla y vuelve a activar la serie.",
+  "No answer from the server": "Sin respuesta del servidor",
+  "no answer from the server": "sin respuesta del servidor",
+  "Not saved: no answer from the server": "No guardado: sin respuesta del servidor",
+  "Test mode: test routes are open": "Modo de prueba: las rutas de prueba están abiertas",
+  "KALMIDO_TEST=1 is set. Never on a real server: remove KALMIDO_TEST from .env (or the compose file) and restart.": "KALMIDO_TEST=1 está activado. Nunca en un servidor real: quita KALMIDO_TEST del .env (o del archivo compose) y reinicia.",
+  "Your own key of the provider; its usage is billed to you by the provider. Kalmido stores it encrypted and never shows it again, not even in part.": "Tu propia clave del proveedor; el proveedor te factura el consumo. Kalmido la guarda cifrada y nunca vuelve a mostrarla, ni siquiera en parte.",
+  "The entertainment receipt is saved, but the bill was not attached: {0}": "El comprobante de atenciones está guardado, pero la factura no se adjuntó: {0}",
+  "Archiving {0} of {1}…": "Archivando {0} de {1}…"
 }

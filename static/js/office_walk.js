@@ -19,7 +19,10 @@ async function wlk_open(kind) {
     WLK.sid = CC.sid;
     rows = (CC.sheet.lines || []).filter(x => x.state === 'open');
   } else {
-    try { rows = (await api('GET', '/api/office/bank/tx?state=open')).items || []; } catch (x) { return; }
+    // (#7507): the loading bar while the list loads, a second tap does not open it twice (api() says a failure)
+    let j; try { j = await openOnce('wlk', () => api('GET', '/api/office/bank/tx?state=open')); } catch (x) { return; }
+    if (!j) return;
+    rows = j.items || [];
   }
   Object.assign(WLK, {kind, items: rows.map(x => ({x, done: ''})), i: 0, cands: null, q: '', search: false, sel: 0, last: null, busy: false, taken: new Set()});
   const md = WLK.md = modal('');
