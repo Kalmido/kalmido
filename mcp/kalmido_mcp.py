@@ -3450,7 +3450,7 @@ TOOLSETS = {
         list_office_deals create_office_deal set_office_deal_stage
         list_letter_drafts update_letter_draft link_letter_document suggest_receipt list_receipt_suggestions
         list_invoice_series get_office_subscriptions list_filed_mails get_filed_mail
-        list_clients get_client create_client update_client delete_client bulk_clients
+        list_clients get_client create_client update_client delete_client copy_client bulk_clients
         get_timer start_timer stop_timer list_time_entries get_time_gaps add_time_entry update_time_entry delete_time_entry check_time_entries
         time_from_events propose_time_entries
         sheets_list sheet_read sheet_create sheet_update sheet_set_cells sheet_append_rows sheet_add_column sheet_vars sheet_undo_batch sheet_tabs
