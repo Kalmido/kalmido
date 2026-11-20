@@ -1223,10 +1223,10 @@ function sbb_panelHtml0(id) {
 function sbm_homeHtml() {
   const favs = typeof fv2_tiles === 'function' ? fv2_tiles().filter(t => !t.sep) : [];
   const seen = typeof palViewed === 'function' ? palViewed().slice(0, 5) : [];
-  const row = (icon, name, attrs, on) => `<button type="button" class="srow smod sbbi ${on ? 'on' : ''}"${on ? ' aria-current="page"' : ''} ${/*html-ok*/ attrs /* the tile's own attributes (fv2_tile escapes its values) or data-sbmrv with esc() */}>${/*html-ok*/ icon /* ic() or the tile's icon html */}<span class="n">${esc(name)}</span></button>`;
+  const row = (icon, name, attrs, on, ws) => `<button type="button" class="srow smod sbbi ${on ? 'on' : ''}"${/*html-ok*/ ws ? wso_row(ws) : '' /* the workspace's colour mark like every row (wscolor.js) */}${on ? ' aria-current="page"' : ''} ${/*html-ok*/ attrs /* the tile's own attributes (fv2_tile escapes its values) or data-sbmrv with esc() */}>${/*html-ok*/ icon /* ic() or the tile's icon html */}<span class="n">${esc(name)}</span></button>`;
   const grp = (g, label, rows) => rows.length ? `<div class="sgroup sbbp sbmhome" data-sbmh="${esc(g)}">${/*html-ok*/ sbb_head(g, label, rows.length, false) /* escapes its label */}${/*html-ok*/ sbb_folded(g) ? '' : rows.join('') /* the rows above, names escaped */}</div>` : '';
-  return grp('home:favs', tr('Favourites'), favs.map(t => row(t.icon, t.name, `${t.attrs} data-fv2="${esc(t.key)}"`, t.on)))
-    + grp('home:recent', tr('Recently opened'), seen.map(x => row(ic(x.icon), x.label, `data-sbmrv="${esc(x.id)}"`, false)));
+  return grp('home:favs', tr('Favourites'), favs.map(t => row(t.icon, t.name, `${t.attrs} data-fv2="${esc(t.key)}"`, t.on, t.ws)))
+    + grp('home:recent', tr('Recently opened'), seen.map(x => { const l = x.lic || (x.id.startsWith('rv:t:') ? listById(taskById(+x.id.slice(5))?.list_id) : null); return row(ic(x.icon), x.label, `data-sbmrv="${esc(x.id)}"`, false, l ? wsOf(l) : ''); }));
 }
 // a row of "Recently opened": what the search's entry does (palViewed fn), the drawer closes
 document.addEventListener('click', e => {
