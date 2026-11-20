@@ -105,6 +105,21 @@ def session_gen(u, ws):
     return hashlib.sha256(raw.encode()).hexdigest()[:24]
 
 
+def session_remember(c, tok=None):
+    """(#6500): did this sign-in ask for "Stay signed in"? The one answer for the offline copies (static/js/core.js devCopyOk:
+    without it a shared computer keeps nothing after the browser is closed) and for a passkey sign-in that keeps how long this
+    browser stays signed in (login.py _pk_keep_long). The column sessions.remember, written by start_session from its
+    parameter; a support session (supportgrant.py sga_session_cap) never stays signed in: the operator's browser keeps no copy
+    of the client's account. NULL (a session an older version wrote after the one-shot core/oncesteps.d/6500.py) = no.
+    tok None: this request's session cookie; no session cookie at all (a proxy login, an API token): True, as before."""
+    if tok is None:
+        tok = request.cookies.get(COOKIE) if g.auth_via == "session" else None
+        if not tok:
+            return True
+    r = c.execute("SELECT remember FROM sessions WHERE token_hash=?", (_token_hash(tok),)).fetchone()
+    return bool(r and r[0])
+
+
 def sgen_shares(c, uid):
     """2.666.0 (#4074 9): the live folder / page shares of the file store uid gets (directly or through a group), as part of
     the sign-in mark: a share taken back (or expired, or a group left) changes sgen, so sessGuard (core.js) drops the offline
@@ -678,12 +693,12 @@ def start_session(c, uid, remember, via="password"):
     via: password | 2fa | passkey | oidc | link (sign-in link) | restore (the admin after a backup restore)."""
     tok = secrets.token_urlsafe(32)
     days = SESSION_DAYS if remember else 1
-    c.execute("DELETE FROM sessions WHERE expires_at<?", (iso(now_utc()),))
     from flask import has_request_context
-    from ..accounts.sessions import ses_ua  # 2.115.0 B (#2062): last activity + the browser for "Active sessions"
-    c.execute("INSERT INTO sessions(token_hash,user_id,created_at,expires_at,via,last_seen_at,user_agent) VALUES(?,?,?,?,?,?,?)",
+    from ..accounts.sessions import ses_end, ses_ua  # (#2062): last activity + the browser for "Active sessions"
+    ses_end(c, None, expired=now_utc())  # (#6500): the ones that ran out, with their push subscriptions
+    c.execute("INSERT INTO sessions(token_hash,user_id,created_at,expires_at,via,last_seen_at,user_agent,remember) VALUES(?,?,?,?,?,?,?,?)",
               (_token_hash(tok), uid, iso(now_utc()), iso(now_utc() + timedelta(days=days)), via, iso(now_utc()),
-               ses_ua() if has_request_context() else ""))
+               ses_ua() if has_request_context() else "", bool(remember)))  # (#6500): "Stay signed in" (session_remember)
     c.execute("UPDATE users SET op_made_by=NULL WHERE id=? AND op_made_by IS NOT NULL", (uid,))  # 2.480.0 (#3944, F8): signed in = the client's own
     # 2.1062.0 (#5786, review F2): signed in once - never withdrawn as a never used account (accounts/orginvite.py oinv_expire)
     c.execute("UPDATE users SET oinv_used=TRUE WHERE id=? AND oinv_made_at IS NOT NULL AND NOT oinv_used", (uid,))

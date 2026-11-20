@@ -11,7 +11,6 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import timedelta
 import segno
 import webauthn
 from cryptography.hazmat.primitives import hashes
@@ -28,10 +27,10 @@ from ..core.ephem import eph_count_up, eph_drop, eph_get, eph_put, eph_set, eph_
 from ..core.i18n import lang, languages, N_, short_day, tr, LANGS
 from ..core.usertz import tz_names
 from .delhold import SDL_HELD, sdl_held  # 2.1298.0 (#6395)
-from ..core.db import adopt_orphans, body, bump, create_user, db, ensure_inbox, err, gset, gsetting, iso, local_now, now_utc, parse_iso, uset, write_lock
+from ..core.db import adopt_orphans, body, bump, create_user, db, ensure_inbox, err, gset, gsetting, iso, local_now, now_utc, uset, write_lock
 from ..accounts.session import (
     _DUMMY_HASH, _peer_trusted, _rate_fail, _rate_keys, _rate_reset, _token_hash, login_name_in,
-    client_ip, dname_clean, FAIL_WINDOW, login_wait, proxy_login_value, rate_ip, set_cookie, start_session, user_public,
+    client_ip, dname_clean, FAIL_WINDOW, login_wait, proxy_login_value, rate_ip, session_remember, set_cookie, start_session, user_public,
 )
 from ..accounts.session import login_known  # #6498
 from ..core.ratedb import rate_counts, rate_hit  # #6498
@@ -946,12 +945,10 @@ def auth_enrol_pk():
 
 # ---- passwordless login with a passkey (user verification required)
 def _pk_keep_long(c):
-    """2.611.0 (#4019, review): this browser's session was started with "remember me" (it lasts longer than one day); no session = no."""
+    """(#4019, review): this browser's session was started with "remember me"; no session = no. (#6500): the one helper
+    session_remember answers it from sessions.remember (one rule for passkeys and the offline copies)."""
     tok = request.cookies.get(COOKIE)
-    r = c.execute("SELECT created_at, expires_at FROM sessions WHERE token_hash=?", (_token_hash(tok),)).fetchone() if tok else None
-    if not r:
-        return False
-    return parse_iso(r[1]) - parse_iso(r[0]) > timedelta(days=1, hours=1)
+    return session_remember(c, tok) if tok else False
 
 
 @app.post("/api/auth/passkey/options")

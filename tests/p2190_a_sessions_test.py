@@ -158,6 +158,54 @@ left = {x["endpoint"] for x in DB.execute("SELECT endpoint FROM push_subs WHERE 
 check("ran" in out and f"{STUB}/push/orphan" not in left and f"{STUB}/push/old" in left and has_sub(se),
       f"#1991: clean-up: a subscription of a gone session goes, '' and live ones stay {left} {out[-300:]}")
 
+# ================================================================== #6500: push only to devices whose session still lives
+E2 = sess("erin")
+s_live = subscribe(E2)
+eh = hashlib.sha256(b"6500-ended-session").hexdigest()
+DB.execute("INSERT INTO sessions(token_hash,user_id,created_at,expires_at) VALUES(?,?,?,?)",
+           (eh, uid["erin"], "2026-01-01T00:00:00+00:00", "2026-01-02T00:00:00+00:00"))
+DB.execute("INSERT INTO push_subs(user_id,endpoint,p256dh,auth,session_hash,created_at) VALUES(?,?,?,?,?,?)",
+           (uid["erin"], f"{STUB}/push/ended6500", "x", "x", eh, "2026-01-01T00:00:00+00:00"))
+out = box("import kalmido.notify.push as P\nP.WEBPUSH_ON = True\nsent = []\n"
+          "P.webpush_send = lambda sub, payload, prio='4', ttl=86400, topic=None: (sent.append(sub['endpoint']) or (201, None))\n"
+          f"P.webpush_user({uid['erin']}, P.webpush_payload('T', 'x', '4'))\nprint('sent', sorted(sent))")
+check(f"{STUB}/push/ended6500" not in out and "/push/a" in out,
+      f"#6500: a push does not go to a subscription whose session ended, the live one gets it {out[-400:]}")
+check(sess("erin") and not DB.execute("SELECT 1 FROM push_subs WHERE endpoint=?", (f"{STUB}/push/ended6500",)).fetchone() and has_sub(s_live)
+      and not DB.execute("SELECT 1 FROM sessions WHERE token_hash=?", (eh,)).fetchone(),
+      "#6500: the next sign-in ends the sessions that ran out together with their subscriptions (sessions.py ses_end); the live one stays")
+R6 = requests.Session()
+R6.headers.update(H)
+r = R6.post(B + "/api/auth/login", json={"username": "erin", "password": "password123", "remember": False})
+check(r.ok and R6.get(B + "/api/me").json().get("remember") is False and R6.get(B + "/api/state").json()["me"].get("remember") is False,
+      f"#6500: without 'Stay signed in' /api/me and /api/state say remember: false (the client keeps no offline copies) {r.text[:200]}")
+check(E2.get(B + "/api/me").json().get("remember") is True and E2.get(B + "/api/state").json()["me"].get("remember") is True,
+      "#6500: with 'Stay signed in' (the default of the login) remember: true")
+# (#6500, decision 20.11. 18:56): one column - sessions.remember, written by start_session; no rule from the length any more
+# (a 30-day session without the mark is no; AUTH_SESSION_DAYS=1 with the tick still keeps the offline copies)
+out = box("from kalmido.accounts import session as S\nfrom kalmido.core.db import iso, now_utc\nfrom datetime import timedelta\n"
+          f"uid = {uid['erin']}\nres = []\n"
+          "for i, (rem, days) in enumerate([(True, 30), (False, 30), (None, 30), (True, 1)]):\n"
+          "    tok = f't6500rem{i}'\n"
+          "    c.execute('INSERT INTO sessions(token_hash,user_id,created_at,expires_at,via,remember) VALUES(?,?,?,?,?,?)', "
+          "(S._token_hash(tok), uid, iso(now_utc()), iso(now_utc() + timedelta(days=days)), 'password', rem))\n"
+          "    res.append(S.session_remember(c, tok))\n"
+          "    c.execute('DELETE FROM sessions WHERE token_hash=?', (S._token_hash(tok),))\n"
+          "S.SESSION_DAYS = 1\ntok, _ = S.start_session(c, uid, True)\nres.append(S.session_remember(c, tok))\n"
+          "c.execute('DELETE FROM sessions WHERE token_hash=?', (S._token_hash(tok),))\n"
+          "print('rem', res)")
+check("rem [True, False, False, True, True]" in out,
+      f"#6500: remember is the column (a NULL / 30-day session without it: no), AUTH_SESSION_DAYS=1 with the tick: yes {out[-300:]}")
+check(DB.execute("SELECT remember FROM sessions WHERE token_hash=?", (hashlib.sha256(R6.cookies.get("kalmido_session").encode()).hexdigest(),)).fetchone()[0] in (False, 0),
+      "#6500: a sign-in without 'Stay signed in' writes sessions.remember = false")
+out = box("from kalmido.core.oncesteps import FRAG_STEPS\nf = [x for x in FRAG_STEPS if x[1] == 'migr_remember6500'][0][3]\n"
+          f"uid = {uid['erin']}\n"
+          "for tok, h, via in (('t6500b1', 72, 'password'), ('t6500b2', 24, 'password'), ('t6500b3', 72, 'support')):\n"
+          "    c.execute(\"INSERT INTO sessions(token_hash,user_id,created_at,expires_at,via) VALUES(?,?,now(),now() + make_interval(hours => ?),?)\", (tok, uid, h, via))\n"
+          "f(c)\nprint('bf', [r[0] for r in c.execute(\"SELECT remember FROM sessions WHERE token_hash LIKE 't6500b%' ORDER BY token_hash\").fetchall()])\n"
+          "c.execute(\"DELETE FROM sessions WHERE token_hash LIKE 't6500b%'\")")
+check("bf [True, False, False]" in out, f"#6500: the one-shot fills the sessions of before: longer than a day = yes, one day / support = no {out[-300:]}")
+
 # ================================================================== #2496: tickets per address
 out = box("from kalmido.core.config import app as fa\nfrom kalmido.accounts import login as L\n"
           "with fa.test_request_context('/', environ_base={'REMOTE_ADDR': '198.51.100.7'}):\n"
