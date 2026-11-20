@@ -37,7 +37,7 @@ function tokWire(md) {
     const row = b.closest('[data-tokid]'), t = ($('#s-toks', md)._t || []).find(x => x.id === +row?.dataset.tokid); if (!t) return;
     if (b.dataset.tok === 'edit') {  // 2.15.0 (#479): what the token may do + from where
       permModal(tr('Permissions of {0}', t.name), $('#s-toks', md)._j?.scopes || [], t.scopes, t.allowed_ips, async (scopes, ips, pm) => {
-        await calReq('PATCH', `/api/me/tokens/${t.id}`, {scopes, allowed_ips: ips, list_ids: listCapVal(pm, 'pm-lcap')}); toast(tr('Saved')); tokDraw(md);  // 2.30.0 (#919)
+        await reauthReq('PATCH', `/api/me/tokens/${t.id}`, {scopes, allowed_ips: ips, list_ids: listCapVal(pm, 'pm-lcap')}); toast(tr('Saved')); tokDraw(md);  // 2.30.0 (#919)
       }, `<div class="row"><label>${tr('Projects')}</label>${listCapHtml(t.list_ids, tokLists(t.list_ids), 'pm-lcap')}</div>`);
       return;
     }
@@ -78,6 +78,19 @@ function permModal(title, offer, sel, ips, save, extra) {
   });
   return md;
 }
+// #6499 (decision 16.11.2026): a new way into the account (a token or wider rights for one, an app password, an agent or its
+// token, a setup code) confirms the sign-in once more when it is older than a few minutes: the server answers 403
+// password_needed (asked here with the password field) or reauth_needed (no password: sign in again, reauthFresh), then the same
+// request once more. Errors as calReq (a plain Error with the message); cancelled = Error 'Cancelled'.
+async function reauthReq(method, url, b = {}) {
+  const go = async x => { try { return await rawFetch(method, url, x); } catch (e) { if (e.data?.password_needed || e.data?.reauth_needed) throw e; throw new Error(e instanceof Offline ? tr('Only available online.') : e.message); } };
+  try { return await go(b); } catch (x) {
+    if (!x.data) throw x;
+    if (x.data.reauth_needed) { if (!await reauthFresh(x.data)) throw new Error(tr('Cancelled|dialog')); return await go(b); }
+    const p = await pwPrompt(tr('Confirm with your password'), {text: tr('A new way into your account: please confirm it is you.')}); if (!p) throw new Error(tr('Cancelled|dialog'));
+    return await go({...b, password: p.password});
+  }
+}
 // a new token for an agent: with an expiry (never by default)
 async function agTokenModal(a, url) {
   const md = modal(`<h3>${esc(tr('New API token for {0}', a.name))}</h3>
@@ -90,7 +103,7 @@ async function agTokenModal(a, url) {
     if (b.dataset.m === 'close') { md.remove(); return; }
     b.disabled = true;
     try {
-      const v = $('#agt-exp', md).value, r = await calReq('POST', url, {expires_days: v ? +v : null});
+      const v = $('#agt-exp', md).value, r = await reauthReq('POST', url, {expires_days: v ? +v : null});  // #6499
       md.remove();
       secretModal(tr('API token of {0}', a.name), r.token, tr('Copy it now into the agent’s configuration: it is shown only this once.'));
     } catch (x) { const er = $('#agt-err', md); er.textContent = x.message; er.hidden = false; } finally { b.disabled = false; }
@@ -115,7 +128,7 @@ function tokModal(done, offer) {
     const scopes = scopesVal(md);
     b.disabled = true;
     try {
-      const j = await calReq('POST', '/api/me/tokens', {name, scopes, allowed_ips: $('#tk-ips', md).value.trim(), list_ids: listCapVal(md, 'tk-lcap'), expires_days: $('#tk-exp', md).value ? +$('#tk-exp', md).value : null});
+      const j = await reauthReq('POST', '/api/me/tokens', {name, scopes, allowed_ips: $('#tk-ips', md).value.trim(), list_ids: listCapVal(md, 'tk-lcap'), expires_days: $('#tk-exp', md).value ? +$('#tk-exp', md).value : null});
       md.remove(); done && done();
       secretModal(tr('Your new API token'), j.token, tr('Copy it now: it is shown only this once. Anyone with this token can act as you within its access rights. Example:') + ` <code class="topic">curl -H "Authorization: Bearer ${esc(j.prefix)}…" ${esc(location.origin)}/api/v1/me</code>`);
     } catch (x) { err.textContent = x.message; err.hidden = false; } finally { b.disabled = false; }
@@ -147,7 +160,7 @@ function apwModal(md) {
     if (!name) { need($('#apw-name', m)); return; }
     b.disabled = true;
     try {
-      const j = await calReq('POST', '/api/me/app-passwords', {name});
+      const j = await reauthReq('POST', '/api/me/app-passwords', {name});  // #6499
       m.remove(); apwDraw(md);
       secretModal(tr('Your new app password'), j.password, tr('Enter it in the calendar app now, together with your user name {0}: it is shown only this once.', `<code class="topic">${esc(S.caldav?.username || S.me?.username || '')}</code>`));
     } catch (x) { er.textContent = x.message; er.hidden = false; } finally { b.disabled = false; }

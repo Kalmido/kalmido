@@ -198,7 +198,7 @@ async function srv_newModal(o = {}) {
     try {
       const nb = {username: un, display_name: name, provider: SRV_PROV, ...(pws.length ? {org_id: pws[0]} : {})};
       const torg = o.admin ? 0 : +String($('#srv-own', md)?.value || '').replace('org:', '') || 0;  // 2.569.0 B (#4675): a team agent of my organisation
-      r = torg ? await calReq('POST', `/api/orgs/${torg}/server-agents`, {username: un, display_name: name}) : o.admin ? await calReq('POST', '/api/admin/agents', team ? nb : {...nb, owner_id: S.me?.id}) : await calReq('POST', '/api/my/agents', nb);
+      r = torg ? await calReq('POST', `/api/orgs/${torg}/server-agents`, {username: un, display_name: name}) : o.admin ? await reauthReq('POST', '/api/admin/agents', team ? nb : {...nb, owner_id: S.me?.id}) : await reauthReq('POST', '/api/my/agents', nb);  // #6499
     } catch (x) { show(x.message); b.disabled = false; return; }
     // the agent exists from here on: a later step that fails is said, the agent stays (its settings open again from its row)
     const fails = [];
