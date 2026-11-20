@@ -285,6 +285,8 @@ def ains_redeem():
         c.commit()
         ver = ains_version()
         print("agent setup: code redeemed for agent", r["agent_id"], "token", tid, flush=True)
+        from ..accounts.secmail import sec_agent_token  # (#6354): a personal agent's owner hears of the new computer
+        sec_agent_token(c, r["agent_id"])
         return jsonify(token=tok, url=PUBLIC_URL.rstrip("/"), version=ver,
                        agent={"id": a["user_id"], "name": _plain(a["display_name"] or a["username"]), "username": _plain(a["username"]),
                               "team": not a["owner_id"]},

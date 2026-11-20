@@ -488,6 +488,8 @@ def apppw_create(c, u, name):
                     (u["id"], name, generate_password_hash(apppw_norm(pw)), iso(now_utc()), apppw_ident(apppw_norm(pw))))
     c.commit()
     print("app password", pid, "created for user", u["id"], flush=True)
+    from ..accounts.secmail import sec_mail  # (#6354)
+    sec_mail(c, u["id"], "apppw_new", name)
     return apppw_public(c.execute("SELECT * FROM app_passwords WHERE id=?", (pid,)).fetchone()), pw
 
 

@@ -860,7 +860,9 @@ def auth_enrol_totp_confirm():
     c.execute("UPDATE users SET totp_secret=?, totp_step=? WHERE id=?", (seal(c, f"totp:{u['id']}", p["totp"]), st, u["id"]))
     codes = rc_new(c, u["id"])
     pend_drop()
-    return finish_login(c, u, p.get("remember", True), "2fa", {"recovery_codes": codes})
+    r = finish_login(c, u, p.get("remember", True), "2fa", {"recovery_codes": codes})
+    _sec_new(c, u["id"], "2fa_on")  # (#6354)
+    return r
 
 
 @app.post("/api/auth/enrol/passkey/options")
@@ -884,14 +886,16 @@ def auth_enrol_pk():
     try:
         if not chal:
             raise ValueError(tr("The passkey could not be registered"))
-        wa_reg_verify(c, u, b.get("credential"), chal, p.get("rp"), b.get("name"))
+        pid = wa_reg_verify(c, u, b.get("credential"), chal, p.get("rp"), b.get("name"))
     except ValueError as x:
         _code_fail(u, p)
         c.rollback()
         return err(str(x), 400)
     codes = rc_new(c, u["id"])
     pend_drop()
-    return finish_login(c, u, p.get("remember", True), "2fa", {"recovery_codes": codes})
+    r = finish_login(c, u, p.get("remember", True), "2fa", {"recovery_codes": codes})
+    _sec_new(c, u["id"], "passkey_new", pid)  # (#6354)
+    return r
 
 
 # ---- passwordless login with a passkey (user verification required)
@@ -1032,6 +1036,7 @@ def me_totp_confirm():
         _end_other_sessions(c, u["id"])
     c.commit()
     aa_count("security", "2fa_on", u["username"], uid=u["id"])  # 2.367.4 (#2974): summed up per window
+    _sec_new(c, u["id"], "2fa_on")  # (#6354)
     return jsonify(recovery_codes=codes, **twofa_state(c, _user(c, u["id"])))
 
 
@@ -1085,6 +1090,15 @@ def me_recovery_new():
     return jsonify(recovery_codes=codes, **twofa_state(c, u))
 
 
+def _sec_new(c, uid, ev, pk_id=None):
+    """(#6354): the security mail of a new way in (after the commit): a passkey is named by its stored name."""
+    from .secmail import sec_mail
+    if pk_id is None:
+        return sec_mail(c, uid, ev)
+    r = c.execute("SELECT name FROM webauthn_creds WHERE id=? AND user_id=?", (pk_id, uid)).fetchone()
+    return sec_mail(c, uid, ev, (r["name"] if r else "") or "?")
+
+
 @app.post("/api/me/passkeys/options")
 def me_pk_options():
     u, c, b = g.user, db(), body()
@@ -1106,7 +1120,7 @@ def me_pk_add():
         return err(tr("The setup has expired, please start again"), 409)
     first = not twofa_methods(c, u)
     try:
-        wa_reg_verify(c, u, b.get("credential"), p["chal"], p["rp"], b.get("name"))
+        pid = wa_reg_verify(c, u, b.get("credential"), p["chal"], p["rp"], b.get("name"))
     except ValueError as x:
         c.rollback()
         return err(str(x), 400)
@@ -1115,6 +1129,7 @@ def me_pk_add():
         _end_other_sessions(c, u["id"])
     c.commit()
     aa_count("security", "2fa_on", u["username"], uid=u["id"])  # 2.367.4 (#2974): summed up per window
+    _sec_new(c, u["id"], "passkey_new", pid)  # (#6354)
     return jsonify(recovery_codes=codes, **twofa_state(c, _user(c, u["id"])))
 
 

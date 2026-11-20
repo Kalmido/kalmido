@@ -80,6 +80,25 @@ def ses_end(c, uid, hashes=None, keep=None):
     return len(rows)
 
 
+def ses_access_end(c, uid, tokens=True):
+    """(#6354): what a new password ends besides the sessions - one place for the own change (PATCH /api/me), the admin's
+    reset (PATCH /api/users/<id>) and the reset link (invite.py). Always the scan inbox keys (2.237.0 C, #2865); with tokens
+    (the dialog's tick, 2.539.0 B #4375; a reset always) also the app passwords, the person's own API tokens (an agent's
+    tokens belong to the agent's account: they stay, 2.360.0 A #2496), the task feed link (users.ical_token_hash), the event
+    calendar and absences feed links (ev_cal_feeds, abs_cal_feeds) and the upload token (users.drop_token_hash): someone who
+    was in a session once must not keep reading or writing through a link made then. The caller commits."""
+    from ..docs.scankeys import sk_revoke_all
+    sk_revoke_all(c, uid)
+    if not tokens:
+        return
+    c.execute("DELETE FROM app_passwords WHERE user_id=?", (uid,))
+    c.execute("DELETE FROM api_tokens WHERE user_id IN (SELECT id FROM users WHERE id=? AND COALESCE(kind, 'user')<>'agent')", (uid,))
+    c.execute("DELETE FROM ev_cal_feeds WHERE user_id=?", (uid,))
+    c.execute("DELETE FROM abs_cal_feeds WHERE user_id=?", (uid,))
+    c.execute("UPDATE users SET ical_token=NULL, ical_token_hash=NULL, ical_token_at=NULL, drop_token=NULL, drop_token_hash=NULL,"
+              " drop_token_at=NULL, drop_agent=0 WHERE id=?", (uid,))
+
+
 def ses_device(ua):
     """(device, browser, system) read from a User-Agent, '' when unknown (a small table, no library)."""
     ua = ua or ""

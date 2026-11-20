@@ -277,7 +277,7 @@ async function inviteScreen(tok) {
         <label class="chkl"><input type="checkbox" id="inv-2fa"> ${tr('Set up two-factor sign-in right after (recommended)')}</label>
         <div class="aerr" role="alert" id="inv-err"></div>
         <button class="btn pri" type="submit">${info.kind === 'reset' ? tr('Save and sign in') : tr('Set up my account')}</button>
-        ${info.kind === 'reset' ? `<p class="muted">${esc(tr('The new password revokes your app passwords (CalDAV) and your own API tokens; create new ones afterwards if you need them under Settings > Account (API tokens: Advanced · for developers). Agents keep their tokens.'))}</p>` : ''}${''/* 2.58.0 (#1792): L3; 2.360.0 (#2496): the reset revokes them */}
+        ${info.kind === 'reset' ? `<p class="muted">${esc(tr('The new password revokes your app passwords (CalDAV), your own API tokens, calendar feed links and the upload token; create new ones afterwards if you need them under Settings > Account. Agents and passkeys stay: check them there after signing in.'))}</p>` : ''}${''/* 2.58.0 (#1792): L3; 2.360.0 (#2496): the reset revokes them */}
       </form></div>`;
     el.querySelector('#inv-form').addEventListener('submit', async e => {
       e.preventDefault();

@@ -780,6 +780,8 @@ def my_agent_create():
     bump(c)
     c.commit()
     print("personal agent", uid, "created by", login_log_who(g.user), flush=True)
+    from ..accounts.secmail import sec_agent_token  # (#6354): a new way into the account is told
+    sec_agent_token(c, uid)
     return jsonify({**agent_admin_dict(c, agent_row(c, uid)), "token": tok}), 201
 
 
@@ -962,6 +964,8 @@ def my_agent_token(aid):
     c.execute("DELETE FROM api_tokens WHERE user_id=?", (aid,))
     tok = agent_token_new(c, aid, body().get("expires_days"))
     c.commit()
+    from ..accounts.secmail import sec_agent_token  # (#6354)
+    sec_agent_token(c, aid)
     return jsonify(token=tok)
 
 

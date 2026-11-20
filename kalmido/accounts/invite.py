@@ -254,12 +254,10 @@ def invite_accept():
         c.execute("UPDATE users SET email_proved=lower(coalesce(email,'')) WHERE id=?", (u["id"],))  # 2.360.2 (#2561): the link came to this address
     from ..accounts.sessions import ses_end  # 2.190.0 A (#1991): sessions end with their push subscriptions
     ses_end(c, u["id"])
-    # 2.190.0 A (#2496): a reset also revokes the app passwords (CalDAV/CardDAV). 2.360.0 A (#2496): and the person's own
-    # API tokens (an agent's tokens belong to the agent's account: they stay)
-    c.execute("DELETE FROM app_passwords WHERE user_id=?", (u["id"],))
-    c.execute("DELETE FROM api_tokens WHERE user_id IN (SELECT id FROM users WHERE id=? AND COALESCE(kind, 'user')<>'agent')", (u["id"],))
-    from ..docs.scankeys import sk_revoke_all  # 2.237.0 C (#2865): and the scan inbox keys
-    sk_revoke_all(c, u["id"])
+    # 2.190.0 A (#2496): a reset also revokes the app passwords (CalDAV/CardDAV) and the person's own API tokens; (#6354) and
+    # the scan keys, feed links and the upload token - one place (sessions.py ses_access_end)
+    from ..accounts.sessions import ses_access_end
+    ses_access_end(c, u["id"])
     if r["kind"] == "signup":  # 2.23.0 (#711): the address is confirmed; with "admin approval" the account waits now
         from ..accounts.signup import signup_confirmed
         if signup_confirmed(c, u):

@@ -686,6 +686,8 @@ def token_insert(c, name, scopes, exp, ips, lids):
                     (me(), name, _token_hash(tok), tok[:12], ",".join(scopes), exp, iso(now_utc()), ips, lids))
     c.commit()
     print("api token", tid, "created for user", me(), "scopes", ",".join(scopes), flush=True)
+    from ..accounts.secmail import sec_mail  # (#6354): a new way into the account is told (an agent's own: no mail)
+    sec_mail(c, me(), "token_new", name)
     g.idem_no_body = True  # 2.391.0 (#3362 review B1): the token is shown once, never kept with an idempotency key
     return jsonify({**token_public(c.execute("SELECT * FROM api_tokens WHERE id=?", (tid,)).fetchone()), "token": tok}), 201
 
