@@ -1958,8 +1958,10 @@ function staleDraw() {
 }
 // 2.27.0 (#968): the code in the browser vs. the server. index.html carries the version of the code it came with; /api/version
 // says what the server runs. Differ they (a window open across an update, a service worker that still served the old code):
-// a bar "New version available – Reload"; once nobody types (no field, dialog or unsent change, 20 s without input, or the app
-// comes back to the front) it reloads by itself, once per new version. Help shows both versions.
+// a bar "New version available – Reload"; once nobody types (no field, dialog or unsent change) it reloads by itself, once per
+// new version. Help shows both versions.
+// (#6364): by itself only while the window / tab is not seen (verAway); a window in view keeps the bar and reloads at the next
+// change of page (verNav) or the click on the bar - a reader is never pulled away (rule calm view)
 const APP_VER = document.querySelector?.('meta[name="kalmido-version"]')?.content || '';
 S.serverVer = '';
 let verIdle = Date.now();
@@ -1976,9 +1978,11 @@ const verDraft = () => ['#c-input', '#tc-in', '#chat-in', '#qinput', '#qsheet', 
 // 2.1257.0 (#6286 C2): + unsaved input the form guard knows (formguard.js fgAny: the import preview, a project dialog's save
 // waiting, a typing timer of a locked project)
 // (#6338): + a transfer that runs (upbar.js upAny: an upload, its portions)
-const verQuiet = () => !editing() && !editFocused() && !$('.modal') && !$('#pop:not(.hidden)') && !$('.qadd.sheet') && !OUT.q.length && !S.multiMode && !verDraft() && !(typeof fgAny === 'function' && fgAny()) && !(typeof upAny === 'function' && upAny());
-const verCalm = () => verQuiet() && (document.hidden || Date.now() - verIdle > 20000);
-let verBusy = false, verWant = false;
+// (#6364) nav: at a change of page the empty add box the list focuses by itself is no input (it held that reload back for good)
+const verQuiet = (nav = false) => (nav && document.activeElement?.id === 'qinput' && !document.activeElement.value.trim() || !editing() && !editFocused()) && !$('.modal') && !$('#pop:not(.hidden)') && !$('.qadd.sheet') && !OUT.q.length && !S.multiMode && !verDraft() && !(typeof fgAny === 'function' && fgAny()) && !(typeof upAny === 'function' && upAny());
+function verAway() { return !!document.hidden; }
+const verCalm = (nav = false) => verQuiet(nav) && (nav || verAway());
+let verBusy = false, verWant = false, verSpreadT = 0;
 // 2.1337.0 (#6892): the "Reload" button shows "Loading…" while it waits and is never left disabled: every early exit frees it
 function verBtn(busy) {
   const b = $('#newver [data-nv="go"]'); if (!b) return;
@@ -2000,7 +2004,7 @@ async function verReload(auto = false) {
     // 2.45.0 (#1529): only reload once the page and the stylesheet are really served (the container may still be restarting)
     if (typeof rl_waitServer === 'function' && !await rl_waitServer()) { verWant = false; verBtn(false); return; }
     try { const reg = await navigator.serviceWorker?.getRegistration(); await reg?.update(); } catch { /* no service worker */ }
-    if (auto && !verWant && !verCalm()) return;
+    if (auto && !verWant && !verCalm(auto === 'nav')) return;
     try { sessionStorage.setItem('kalmido-reloaded', S.serverVer); } catch { /* private mode */ }
     leaving = true;
     location.reload();
@@ -2023,6 +2027,8 @@ function verCheck(app) {
   if (!verStale()) { if (el) el.remove(); if (typeof I18N !== 'undefined' && I18N.stale) i18nRetry(); return; }
   let once = ''; try { once = sessionStorage.getItem('kalmido-reloaded') || ''; } catch { /* private mode */ }
   if (once !== S.serverVer && S.verSeen.n >= 2 && verCalm() && verSpreadDue()) { verReload(true); return; }  // 2.619.0 (#3890): + the spread
+  // (#6364): a hidden window gets no poll: calm but its spread time not yet come, it looks again by itself then
+  if (once !== S.serverVer && S.verSeen.n >= 2 && !verSpreadT && verCalm()) verSpreadT = setTimeout(() => { verSpreadT = 0; if (verStale() && verAway()) verCheck(); }, Math.max(0, (S.verSpread?.at || 0) - Date.now()) + 50);
   if (S.verShut === S.serverVer) { if (el) el.remove(); return; }  // 2.1170.0 (#6132): closed for this version (the reload by itself stays)
   if (!el) {
     el = document.createElement('div'); el.id = 'newver'; el.setAttribute('role', 'status');
@@ -2031,7 +2037,15 @@ function verCheck(app) {
   }
   el.title = tr('This window runs v{0}, the server v{1}', APP_VER, S.serverVer);
 }
-document.addEventListener('visibilitychange', () => { if (!document.hidden && verStale()) verCheck(); });
+// (#6364): also when the window goes to the background (the moment it may reload by itself)
+document.addEventListener('visibilitychange', () => { if (verStale()) verCheck(); });
+// (#6364): a window in view reloads at the next change of page - quiet as above (verReload asks once more before it leaves)
+function verNav() {
+  if (!verStale() || verBusy || !verQuiet(true)) return;
+  let once = ''; try { once = sessionStorage.getItem('kalmido-reloaded') || ''; } catch { /* private mode */ }
+  if (once !== S.serverVer) verReload('nav');
+}
+window.addEventListener('hashchange', verNav);
 document.addEventListener('click', e => { const b = e.target.closest?.('[data-nv="go"]'); if (b) { verBtn(true); verReload(); } });
 document.addEventListener('click', e => { if (e.target.closest?.('[data-nv="x"]')) { S.verShut = S.serverVer; $('#newver')?.remove(); } });  // 2.1170.0 (#6132)
 document.addEventListener('visibilitychange', async () => {
