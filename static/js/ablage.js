@@ -509,14 +509,17 @@ async function ab_upload(files, target) {
   const lid = await ab_lockOf(target);  // 2.353.0 A (#2758): encrypted here; F (review N8): also a folder outside the view, never plain
   if (lid) return typeof fsl_upload === 'function' ? fsl_upload(files, target, lid) : ab_noFsl();
   const old = new Set((AB.data?.items || []).map(x => x.id)), items = [], parts = ab_upParts(files, 50);
-  for (let i = 0; i < parts.length; i++) {
-    const fd = new FormData(); /** @type {any} */ (fd).upBar = true;  // 2.1177.0 (#6114): the bar for any size, no toast besides it
-    for (const f of parts[i]) fd.append('file', f, f.name);
-    if (target) fd.append('parent_id', String(target)); else fd.append('space', ab_curSpace());
-    // 2.1216.0 (#6109): rawFetch - a refused portion is said once, in the list (ab_upOut), no toast beside it
-    let j; try { j = await rawFetch('POST', '/api/files/upload', fd); } catch (x) { /* 2.1412.0 (#6227 N3): logged out = the rest "Signed out" in the list, reload + message as usual (was: return, nothing more) */ if (ab_upGoOn(x)) { out.push(...ab_upRest(parts, i, x, i + 1)); continue; } out.push(...ab_upRest(parts, i, x)); break; }
-    items.push(...(j.items || []));
-  }
+  const upRel = typeof upHold === 'function' ? upHold() : null;  // 2.1467 (#6338): the portions are one transfer (no reload by itself between two)
+  try {
+    for (let i = 0; i < parts.length; i++) {
+      const fd = new FormData(); /** @type {any} */ (fd).upBar = true;  // 2.1177.0 (#6114): the bar for any size, no toast besides it
+      for (const f of parts[i]) fd.append('file', f, f.name);
+      if (target) fd.append('parent_id', String(target)); else fd.append('space', ab_curSpace());
+      // 2.1216.0 (#6109): rawFetch - a refused portion is said once, in the list (ab_upOut), no toast beside it
+      let j; try { j = await rawFetch('POST', '/api/files/upload', fd); } catch (x) { /* 2.1412.0 (#6227 N3): logged out = the rest "Signed out" in the list, reload + message as usual (was: return, nothing more) */ if (ab_upGoOn(x)) { out.push(...ab_upRest(parts, i, x, i + 1)); continue; } out.push(...ab_upRest(parts, i, x)); break; }
+      items.push(...(j.items || []));
+    }
+  } finally { upRel?.(); }
   // review: two files of one upload with the same name are one node with two new versions - once in the message and in Undo,
   // which goes back to the version before the upload (a node that did not exist before goes to the trash)
   // 2.1412.0 (#6227 N2): lo / version = its lowest and highest new version; not one after the other (someone else's version in
