@@ -3499,8 +3499,13 @@ dispatcher (`core.hooksPath=/dev/null` for push and working copies):
   dispatcher reads the state of its own card each round and, once it stands on *approved*, runs that command exactly once -
   e.g. `gh pr edit {number} --add-label approved` -, so the yes is visible at the git server. No shell, no stdin; `{url}`
   `{number}` `{branch}` `{base}` `{title}` are filled in per argument; it runs in the project folder with the environment of
-  `pr_cmd`. *Rejected* or no decision within 30 days: nothing. A failing command is told to the person once and never tried
-  again. The command never merges; no agent reads the cards of another project for it.
+  `pr_cmd` and the same guards (the push address of `KALMIDO_DISPATCH_PUSH_URL`, no unsafe key in the repository's config);
+  `{number}` is the card's number of the pull request, and a placeholder the command uses that is empty runs nothing.
+  *Rejected* or no decision within 30 days: nothing. A failing command is told to the person once and never tried again.
+  The command never merges; no agent reads the cards of another project for it. **The label is a notice, not an approval:**
+  the build job runs as the same user with the same repository token and could set it too - whoever merges on it needs a
+  guard the build agent cannot write (branch protection with a person's review, or a token for `approved_cmd` the job's
+  user cannot read).
 
 Protect the target branch on the git server as well (only by pull request, the project's CI as the required check), and
 give the token on this computer write access to that one repository only. `KALMIDO_JOB_WORKTREES` (default 2) caps the
