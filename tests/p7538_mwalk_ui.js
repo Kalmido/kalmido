@@ -79,6 +79,12 @@ const key = (w, el, k) => el.dispatchEvent(new w.KeyboardEvent('keydown', {key: 
   check(/Check the prices/.test(d.querySelector('.mwp .mwpt')?.textContent || ''), 'j: the next entry (the review)');
   key(w, d.body, 'k'); await idle(w);
   check(/Add a gift card/.test(d.querySelector('.mwp .mwpt')?.textContent || ''), 'k: back');
+  // reader F7: a decision started here and cancelled does not count as mine
+  d.querySelector('.mwp [data-mw="cf-no"]').click();
+  const cancel = await until(() => d.querySelector('.modal [data-cd="no"]'));
+  check(!!cancel, 'Reject asks for the reason');
+  cancel?.click(); await idle(w);
+  check(!!(await until(() => d.querySelector('.mwp [data-mw="cf-no"]:not([disabled])'))) && w.eval('S.mw.mine') === null, 'cancelled: the buttons again, nothing noted as mine');
   // gone on another device (reader F1, a calm view): the entry stays, marked, without buttons; Next goes on
   check((await call(CF, 'POST', `/api/tasks/${K1}/reject`, {reason: 'Not this year'})).http === 200, 'rejected elsewhere');
   await w.eval(`mwLoad(true)`); await idle(w);

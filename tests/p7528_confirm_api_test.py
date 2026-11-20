@@ -145,7 +145,11 @@ check(conf(T1, AH) is None, "a change outside the hook ends it too (the text sta
 
 # ================================================================== take it back
 check(yes(F, T1).ok and conf(T1, AH), "confirmed again")
+dbx("UPDATE tasks SET updated_at=updated_at - INTERVAL '1 hour' WHERE id=?", (T1,))  # an older state, no wait for the clock
+u0 = requests.get(V + f"/tasks/{T1}", headers=AH).json().get("updated_at")
 r = F.delete(B + f"/api/tasks/{T1}/confirm")
+u1 = requests.get(V + f"/tasks/{T1}", headers=AH).json().get("updated_at")
+check(u0 and u1 and u1 > u0, f"reader F8 (job/6017): taking it back moves updated_at (updated_since sees it) {u0} -> {u1}")
 check(r.ok and r.json().get("confirmed") is None and conf(T1, AH) is None, "frida takes it back")
 check(len(acts(F, T1, "confirmed_off")) == 1, "logged")
 
