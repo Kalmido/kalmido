@@ -185,9 +185,14 @@ def office_allowed(c, uid, oid, write=None):
 
 def cap_list_role(c, uid, oid, role):
     """The list role uid has after their organisation role: read-only people view (participants stay participants, their
-    writes are refused by list_writable)."""
-    if role and oid and role in ("owner", "admin", "edit") and org_role_key(c, uid, oid) == "readonly":
-        return "view"
+    writes are refused by list_writable). #6610: guests and accounting at most edit -- no managing (members, links, forms,
+    deleting the project), also with an owner row from before or a project role admin somebody gave them."""
+    if role and oid and role in ("owner", "admin", "edit"):
+        r = org_role_key(c, uid, oid)
+        if r == "readonly":
+            return "view"
+        if r in ("guest", "accounting") and role != "edit":
+            return "edit"
     return role
 
 

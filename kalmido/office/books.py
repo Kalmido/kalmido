@@ -37,6 +37,7 @@ from .einvoice_in import ei_amount, ei_details, ei_rc_offer  # 2.237.0 C (#2865)
 from .homecur import hc_code, hc_doc_fx, hc_home, hc_office_rate
 from .ledger import ofx_company  # 2.355.0 C (#2844)
 from .model import ofx_name1, office_feature, office_gate, office_need_feature, office_org, office_settings, pb_owner
+from .model import small_for, vat_basis_of  # #6533
 from .pdf import pdf_money, pdf_paper_ns  # 2.357.0 A (#3156): the office's paper size; 2.534.0 (#4333): pdf_money
 
 BK_NOTE = N_("No tax advice; figures without guarantee.")
@@ -654,7 +655,7 @@ def bk_fees_paid(c, oid, frm, to, home):
 # ---------------------------------------------------------------- EUeR
 def bk_euer(c, oid, year):
     """The income / expense statement of a year (see the module text); amounts as text with two decimals."""
-    s = office_settings(c, oid)
+    s = small_for(office_settings(c, oid), f"{year}-01-01")  # #6533: the small business rule as it applied that year
     home = _home(s)
     small = bool(s.get("small_business"))
     y0, y1 = f"{year}-01-01", f"{year}-12-31"
@@ -896,7 +897,8 @@ def bk_ustva(c, oid, year, period):
     s = office_settings(c, oid)
     home = _home(s)
     frm, to = bk_period(year, period)
-    basis = s.get("vat_basis") if s.get("vat_basis") in ("ist", "soll") else "ist"
+    s = small_for(s, frm)  # #6533: a period before the day the small business rule applies from counts as before
+    basis = vat_basis_of(s)  # #6533: not chosen yet = accrual ("soll"), the legal rule (was: "ist")
     strict = eb_basis_of(s, year) == "bank"  # 2.603.0 (#4927): the strict basis of the EUeR also for the VAT figures
     head = {"year": year, "period": period, "from": frm, "to": to, "basis": basis, "currency": home, "note": tr(BK_NOTE),
             "euer_basis": "bank" if strict else "receipts"}
@@ -1023,6 +1025,7 @@ def bk_get():
     s = office_settings(c, oid)
     ws = bk_ws(c, oid)
     m_from, m_to = bk_period(int(mo[:4]), "m" + mo[5:])
+    s = small_for(s, m_from)  # #6533: the small business rule of that month
     gaps = {}  # 2.356.0 (#3097): receipts of the year the exports leave out (no date / no amount)
     y_from, y_to = f"{year}-01-01", f"{year}-12-31"
     y_rcs = bk_receipts(c, oid, y_from, y_to, gaps=gaps)

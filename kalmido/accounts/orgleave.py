@@ -27,7 +27,7 @@ from ..core.pg import system_ctx
 from ..core.access import Denied
 from .session import me
 from .orgretain import Nn_
-from .orgs import _need_admin, _need_org_admin, _no_change, _operator_apart, instance_mode, org_heir_to, org_role  # orgs imports this module only in functions
+from .orgs import _need_admin, _need_org_admin, _no_change, _operator_apart, _role_heir, instance_mode, org_heir_to, org_role, org_role_down_counts  # #6610: + _role_heir, org_role_down_counts; orgs imports this module only in functions
 
 
 # what of person uid stays in organisation oid when they leave it (and goes when it is deleted): (key, words, count query);
@@ -112,7 +112,8 @@ def olv_info(c, oid, uid, heir):
 @app.get("/api/orgs/<int:oid>/leave-info")
 def olv_leave_info(oid):
     """2.361.0 (#2922): the preview of leaving organisation oid (?uid = a member an admin removes; default: me) -- olv_info.
-    The heir is the one org_member_remove would choose: the removing admin, else the organisation's first other admin."""
+    The heir is the one org_member_remove would choose: the removing admin, else the organisation's first other admin.
+    #6610: ?down=1 (with uid) = the preview of a role change down: {to_heir: {lists, calendars, books}, heir} (orgs.org_role_down)."""
     c = db()
     try:
         uid = int(request.args.get("uid") or me())
@@ -124,6 +125,10 @@ def olv_leave_info(oid):
         raise Denied(404)
     if not c.execute("SELECT 1 FROM org_members WHERE org_id=? AND user_id=?", (oid, uid)).fetchone():
         return err(tr("unknown"), 404)
+    if request.args.get("down") and uid != me():  # #6610: the preview of a role change down to guest / accounting / read-only
+        h = _role_heir(c, oid, uid)
+        return jsonify(to_heir=org_role_down_counts(c, oid, uid) if h else {"lists": 0, "calendars": 0, "books": 0},
+                       heir=_names(c, [h]).get(h, "") if h else "")
     heir = me() if uid != me() else (c.execute(
         "SELECT m.user_id FROM org_members m JOIN users u ON u.id=m.user_id WHERE m.org_id=? AND m.role='admin' AND NOT u.disabled "
         "AND m.user_id!=? ORDER BY m.user_id LIMIT 1", (oid, uid)).fetchone() or [None])[0]

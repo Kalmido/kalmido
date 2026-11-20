@@ -43,9 +43,13 @@ const until = (fn, n) => require('./boot').until(fn, {timeout: n ? n * 150 : 150
     check(!!sec && sec === hs[0]?.closest('fieldset'), 'freelancer: the button sits in the same section as the heading');
     check(!d.querySelector('[data-ofc="pb-transfer"]'), 'freelancer: no existing organisation, no second button');
   }
-  d.querySelector('#os-small').checked = true;
-  d.querySelector('#os-small').dispatchEvent(new w.Event('change', {bubbles: true}));  // 2.113.0 (#2247): the box saves itself
+  // 2.1458.0 (#6533): a choice without default (select) and a question before it saves (boot.js answers the app's dialog
+  // with w.confirm: the text is caught here)
+  let asked = ''; w.confirm = t => { asked = String(t); return true; };
+  d.querySelector('#os-small').value = '1';
+  d.querySelector('#os-small').dispatchEvent(new w.Event('change', {bubbles: true}));  // 2.113.0 (#2247): the field saves itself
   check(await until(async () => (await call('GET', '/api/office/settings')).settings?.small_business === 1, 40), 'section 19: saved from the settings');
+  check(/Small business from now on\?/.test(asked) && /Finalised documents stay as they are/.test(asked), 'section 19: asked first, naming what it means ' + asked.slice(0, 200));
   w.close();
 
   // ================= a member of one organisation: Private shows the hint, the button switches, the office follows

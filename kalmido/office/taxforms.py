@@ -26,7 +26,7 @@ from ..core.i18n import N_, csv_dialect, lang, tr
 from .books import BK_NOTE, _ctx, _year, bk_csv_cell, bk_euer, bk_ustva, bk_years
 from .calc import calc_lang, dec, dstr, money
 from .ledger import ofx_company, ofx_log
-from .model import ofx_name1, office_need_feature, office_settings, office_settings_lock, office_settings_save
+from .model import ofx_name1, office_need_feature, office_settings, office_settings_lock, office_settings_save, small_at  # #6533: small_at
 from .pdf import pdf_paper_ns
 from .taxdates import txd_clean
 from .pdf import C_INK2, C_RULE, pdf_money, pdf_write
@@ -172,7 +172,7 @@ def tf_periods(c, oid, year, s):
     """2.589.0 (#3458): (rhythm of the tax dates, [bk_ustva of each month / quarter]) -- the advance returns of a year as Kalmido
     computes them, shared by tf_advance and the tax check (office/taxcheck.py); "year" and "none" have none."""
     mode = txd_clean(s)["ustva"]
-    if s.get("small_business"):
+    if small_at(s, f"{year}-01-01"):  # #6533: the rule as it applied from the year's start (a later day: bk_ustva per period)
         return mode, []
     periods = {"month": [f"m{m:02d}" for m in range(1, 13)], "quarter": ["q1", "q2", "q3", "q4"]}.get(mode, [])
     return mode, [bk_ustva(c, oid, year, p) for p in periods]

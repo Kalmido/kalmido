@@ -48,7 +48,9 @@ const ofdIsInv = d => !!d && d.kind !== 'offer';
 // 2.1289.0 (#6475): the office's switch "Small business" binds the tax (finalising refuses VAT, invoices.inv_missing): its
 // own choice of VAT is hidden while the draft is without VAT and shown with the hint while it differs (a draft from before
 // the switch, so it can be set right); a correction keeps its invoice's tax (ofdBound)
-const ofdSmall = d => !!OFC.info?.settings?.small_business && !(d.kind === 'credit' && d.cancels_id);
+// #6533: at the document's date -- the switch applies from its day (small_business_from; empty = always), as the server's lock
+const ofdSmallAt = day => { const s = OFC.info?.settings || {}; return !!s.small_business && (!s.small_business_from || String(day || new Date().toISOString()).slice(0, 10) >= s.small_business_from); };
+const ofdSmall = d => ofdSmallAt(d.date) && !(d.kind === 'credit' && d.cancels_id);
 const ofdVatHide = d => ofdSmall(d) && d.vat_mode === 'novat';
 const ofdKindName = (k, one) => tr(one ? {offer: N_('Quotation'), invoice: N_('Invoice'), credit: N_('Credit note'), reminder: N_('Payment reminder|dunning'), delivery: N_('Delivery note')}[k] || k : OFD_KINDS.find(x => x[0] === k)?.[1] || k);
 const OFD_RAW = [['optional', N_('optional (shown, not counted)')], ['included', N_('included (counted)')], ['none', N_('no raw data line')]];

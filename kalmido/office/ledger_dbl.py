@@ -74,7 +74,7 @@ from .datevin import DV_BU_IN, dv_card_account, dv_card_private, dv_cat_account,
 from .euerbasis import _bank_rows, _cash_rows
 from .ledger import ofx_company, ofx_log
 from .logbook import lb_allowance_year
-from .model import office_ctx_admin as _ctx, ofx_name1, office_rows, office_settings, office_settings_lock, office_settings_save, pb_owner
+from .model import office_ctx_admin as _ctx, ofx_name1, office_rows, office_settings, office_settings_lock, office_settings_save, pb_owner, small_for  # #6533: small_for
 from .pdf import C_INK2, C_RULE, pdf_date, pdf_money, pdf_paper_ns, pdf_write
 from .periodlock import period_need_open, pl_lock
 from .taxcheck import TC_CORP_RE
@@ -663,6 +663,7 @@ def ld_journal(c, oid, year):
     s, st = _ld_ctx(c, oid)
     dx_need_eur(s)
     y0, y1 = f"{year}-01-01", f"{year}-12-31"
+    s = small_for(s, y0)  # #6533: the small business rule as it applied that year
     j = _J(st)
     banks = _Banks(c, oid, st)  # 2.685.0 (#5128): an account per bank account
     opening = _opening(c, oid, j, st, year)

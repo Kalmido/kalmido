@@ -120,6 +120,22 @@ def migr_srvorg6363(c):  # (#6363): the Kalmido AI per organisation (orgs.srv_ag
     gset(c, "migr_srvorg6363", "1")
 
 
+def migr_tax6533(c):  # (#6533): the office's small business switch and VAT basis have no default any more (a new office
+    # chooses both once); the offices that exist keep what they counted with: vat_basis "ist" (the old default) and
+    # small_business 0 where the settings hold no value -- a saved row, and an office in use without one (documents or their
+    # log, as office/web.py of_pack_choice tells an office in use). Plain keys of the JSON, never the encrypted company lines;
+    # a value already there wins. A new database runs it on empty tables.
+    with pg_system_ctx(c):  # every organisation's office (row-level security)
+        c.execute("""UPDATE office_settings SET data = CAST('{"vat_basis": "ist", "small_business": 0}' AS JSONB) || data
+                     WHERE jsonb_typeof(data) = 'object' AND (data->'vat_basis' IS NULL OR data->'small_business' IS NULL)""")
+        c.execute("""INSERT INTO office_settings(org_id, data, updated_at)
+                     SELECT o.id, CAST('{"vat_basis": "ist", "small_business": 0}' AS JSONB), now() FROM orgs o
+                     WHERE NOT EXISTS (SELECT 1 FROM office_settings s WHERE s.org_id = o.id)
+                       AND (EXISTS (SELECT 1 FROM office_docs d WHERE d.org_id = o.id) OR EXISTS (SELECT 1 FROM office_doc_log l WHERE l.org_id = o.id))
+                     ON CONFLICT (org_id) DO NOTHING""")
+    gset(c, "migr_tax6533", "1")
+
+
 STEPS = [  # (phase, key, once, f): the order of init_db (2.1356.0, #6824); 2.1380.0 (#6826): the one-shots before MIN_FROM are gone
     ("cdn_backfill", "migr_upg2103", True, migr_upg2103),
     ("cdn_backfill", "migr_upg2360", True, migr_upg2360),
@@ -129,6 +145,7 @@ STEPS = [  # (phase, key, once, f): the order of init_db (2.1356.0, #6824); 2.13
     ("cdn_backfill", "migr_liststate5537", False, migr_liststate5537),
     ("cdn_backfill", "migr_textby6677", True, migr_textby6677),
     ("cdn_backfill", "migr_srvorg6363", True, migr_srvorg6363),
+    ("cdn_backfill", "migr_tax6533", True, migr_tax6533),  # (#6533)
 ]
 
 
