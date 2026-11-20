@@ -144,6 +144,14 @@ async function run(user, ck, tag) {
     check(await until(`location.hash === '#office/start' && !!document.querySelector('#view .ocf-choose:not(.ocf-slim) #ocf-ch')`), '#5449 phone: the button opens the start page with the big card ' + await ev('location.hash'));
     const lab = await ev(`(() => { const l = document.querySelector('#view .ocf-choose label[for="ocf-eb"]'), s = document.querySelector('#ocf-eb'); if (!l || !s) return null; const a = l.getBoundingClientRect(), b = s.getBoundingClientRect(); return {t: l.textContent.trim(), w: a.width, above: a.bottom <= b.top + 2}; })()`);
     check(lab && /Basis of the income statement/.test(lab.t) && lab.w > 0 && lab.above, '#5449 phone: the second choice has a visible name above it ' + JSON.stringify(lab));
+    // #7594: the hint below the basis explains the CHOSEN basis (was: always "Bank and cash (strict)" under "Receipts") and follows the choice
+    const hint = () => ev(`document.querySelector('#view .ocf-choose #ocf-ebh')?.textContent || ''`);
+    check(await ev(`document.querySelector('#ocf-eb').value`) === 'receipts' && /Receipts count on their payment day/.test(await hint()) && !/main account/.test(await hint()),
+          '#7594: with "Receipts" chosen the hint explains receipts: ' + await hint());
+    await ev(`(() => { const s = document.querySelector('#ocf-eb'); s.value = 'bank'; s.dispatchEvent(new Event('change', {bubbles: true})); return 1; })()`);
+    check(await until(`/Only what went through the bank account/.test(document.querySelector('#ocf-ebh')?.textContent || '')`), '#7594: choosing "Bank and cash (strict)" switches the hint: ' + await hint());
+    await ev(`(() => { const s = document.querySelector('#ocf-eb'); s.value = 'receipts'; s.dispatchEvent(new Event('change', {bubbles: true})); return 1; })()`);
+    check(await until(`/Receipts count on their payment day/.test(document.querySelector('#ocf-ebh')?.textContent || '')`), '#7594: and back to "Receipts"');
     await shot('p2892a-handy-start-leer.png');
   }, true);
 

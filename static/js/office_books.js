@@ -246,7 +246,11 @@ function ebBasisOf(s, year) {
 function ebSettingsRow(s) {
   const y = BK.ebYear || new Date().getFullYear(), cur = ebBasisOf(s, y), yn = new Date().getFullYear();
   return `<div class="row"><label id="bk-ebl" for="bk-eyear">${tr('Basis of the income statement')}</label><div class="lacts">${ofcSel('bk-eyear', y, [yn - 1, yn, yn + 1].map(v => [v, String(v)]), null, tr('Year'))}<div class="seg" role="group" aria-labelledby="bk-ebl">${EB_NAMES.map(([k, n]) => `<button type="button" data-bk="ebasis" data-v="${k}" class="${cur === k ? 'on' : ''}" aria-pressed="${cur === k}">${esc(tr(n))}</button>`).join('')}</div></div></div>
-    <p class="muted ofchint">${esc(cur === 'bank' ? tr('Only what went through the bank account, the cash book or a credit card counts. A receipt without a booking stays open; a booking without a receipt counts with a warning.') : tr('Receipts count on their payment day, else on their date. Applies to the whole year; a year with a locked month keeps its basis.'))}</p>`;
+    <p class="muted ofchint">${esc(ebHint(cur))}</p>`;
+}
+// (#7594): the one explanation of a basis - Settings and the office's first card ("Where is your office?") show the chosen one
+function ebHint(k) {
+  return k === 'bank' ? tr('Only what went through the bank account, the cash book or a credit card counts. A receipt without a booking stays open; a booking without a receipt counts with a warning.') : tr('Receipts count on their payment day, else on their date. Applies to the whole year; a year with a locked month keeps its basis.');
 }
 async function ebSet(year, basis) {
   await api('PUT', '/api/office/books/basis', {year, basis});
