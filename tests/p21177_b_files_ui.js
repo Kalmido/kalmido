@@ -52,6 +52,15 @@ const txt = el => (el?.textContent || '').replace(/\s+/g, ' ').trim();
     const r = await fetch(B + 'api/files/upload', {method: 'POST', headers: {'X-Requested-With': 'kalmido', Cookie: FK}, body: fd});
     check(r.status === 400 && !(await items(FK, 'space=private')).some(x => /^probe-/.test(x.name)), 'server: good + empty .mp4 in one form = 400, nothing stored (why the client checks first) ' + r.status);
   }
+  // #7411: two files of one form with the same name = one node, one item per file with the version THAT file made (1, 2) -
+  // before, both items carried the node's newest version (2, 2) and the client's Undo took the node for a gap and left it
+  {
+    const fd = new FormData(); fd.append('file', new Blob(['a']), 'probe-zwei.txt'); fd.append('file', new Blob(['b']), 'probe-zwei.txt'); fd.append('space', 'private');
+    const j = await (await fetch(B + 'api/files/upload', {method: 'POST', headers: {'X-Requested-With': 'kalmido', Cookie: FK}, body: fd})).json().catch(() => ({}));
+    const it = j.items || [];
+    check(it.length === 2 && it[0].id === it[1].id && it.map(x => x.version).join() === '1,2', 'server: same name twice in one form = one node, the items carry version 1 and 2 ' + JSON.stringify(it.map(x => [x.id, x.version])));
+    if (it[0]?.id) await call(FK, 'DELETE', `/api/files/nodes/${it[0].id}`);
+  }
 
   // ================= #6114 the upload: checked before sending, ONE message, the list of what stayed out
   const BOX = (await call(FK, 'POST', '/api/files/folders', {name: 'Drehorte', space: 'private'})).id;
