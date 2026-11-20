@@ -1,0 +1,22 @@
+{
+  "de": {
+    "Calculating…": "Wird berechnet…",
+    "The change was not saved, it is back as before": "Die Änderung wurde nicht gespeichert und ist wieder wie vorher"
+  },
+  "es": {
+    "Calculating…": "Calculando…",
+    "The change was not saved, it is back as before": "El cambio no se ha guardado, todo vuelve a estar como antes"
+  },
+  "fr": {
+    "Calculating…": "Calcul en cours…",
+    "The change was not saved, it is back as before": "La modification n'a pas été enregistrée, tout est revenu comme avant"
+  },
+  "it": {
+    "Calculating…": "Calcolo in corso…",
+    "The change was not saved, it is back as before": "La modifica non è stata salvata, è tornato tutto come prima"
+  },
+  "nl": {
+    "Calculating…": "Wordt berekend…",
+    "The change was not saved, it is back as before": "De wijziging is niet opgeslagen en staat weer zoals eerst"
+  }
+}
