@@ -220,8 +220,8 @@ const lst = async id => (await call('GET', '/api/state')).lists.find(l => l.id =
   click(w, d.querySelector('.qadd [data-act="q-clip"]')); await sleep(800);
   check(await nTasks() === before0 && /empty/.test(d.querySelector('#toast')?.textContent || ''), 'a 0-byte file is refused, no task');
   w.eval(`OUT.online = false`);
-  click(w, d.querySelector('.qadd [data-act="q-clip"]')); await sleep(300);
-  check(/Offline/.test(d.querySelector('#toast')?.textContent || ''), 'offline: the paper clip says it needs a connection');
+  click(w, d.querySelector('.qadd [data-act="q-clip"]'));
+  check(await until(() => /available online/.test(d.querySelector('#toast')?.textContent || ''), 20), 'offline: the paper clip says it needs a connection');  // the one offline sentence
   w.eval(`OUT.online = true`);
   w.close();
   // phone: the quick sheet has both, "Add and open" closes the sheet and opens the task
