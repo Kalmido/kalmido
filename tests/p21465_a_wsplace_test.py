@@ -184,8 +184,12 @@ check(r.ok, f"F8: the bank reminder of the private office on {r.status_code} {r.
 a = put(A, ws_mods_off={"private": ["office"]})
 check({"kind": "bank_reminder", "count": 1} in (a.get("still_running") or []), f"#7309 F8: the PATCH answer names the reminder that keeps running {a.get('still_running')}")
 check("private" not in a.get("wsp", {}).get("office", []), f"#7309: and the office is off in Private in the fresh lists {a.get('wsp', {}).get('office')}")
+ws_news = [x for x in A.get(B + "/api/news").json().get("items", []) if x.get("kind") == "wspstill"]
+check(len(ws_news) == 1 and "bank bookings without a receipt" in (ws_news[0].get("data") or {}).get("text", ""),
+      f"#7392: the bell names what keeps running (News of the own action) {ws_news}")
 a = put(A, ws_mods_off={"private": ["office", "clients"]})
 check("still_running" not in a, "#7309 F8: said once, when it goes off - not with every later switch")
+check(len([x for x in A.get(B + "/api/news").json().get("items", []) if x.get("kind") == "wspstill"]) == 1, "#7392: and the bell once, too")
 put(A, ws_mods_off={})
 
 # ---- F6: a move without a target is refused (was: Private)
@@ -201,4 +205,26 @@ if r.status_code in (200, 201):
     check(f"org:{SUED}" not in st(A)["wsp"]["clients"], "#7309: the card's cap counts in wsp")
 else:
     check(False, f"F10: the module card could not be made {r.status_code} {r.text[:160]}")
+
+# ---- #7392 F10: a card with the office but without Documents - the office's own document calls (a receipt's upload with
+# ws = the organisation, opening it by id with the organisation on top) are the office's, not the module Documents'
+r = A.post(B + "/api/modcards", json={"space": f"org:{SUED}", "name": "Buero ohne Dokumente", "icon": "office", "mods": ["office"], "dflt": True})
+check(r.status_code in (200, 201), f"#7392 F10: a card office without docs {r.status_code} {r.text[:160]}")
+put(A, workspace=f"org:{SUED}")
+r = A.post(B + "/api/docs", data={"ws": f"org:{SUED}", "area": "office"}, files=[("files", ("beleg-sued.txt", b"Beleg Atelier Sued 12,00 EUR", "text/plain"))])
+check(r.status_code != 403, f"#7392 F10: the office uploads its receipt through /api/docs although Documents is not on the card {r.status_code} {r.text[:160]}")
+did = ((r.json() if r.ok else {}).get("ids") or [0])[0]
+if did:
+    r = A.get(B + f"/api/docs/{did}/receipt")
+    check(r.status_code != 403, f"#7392 F10: and opens it as a receipt {r.status_code} {r.text[:160]}")
+# reader F3: only the office's own document calls - the module's list, export and an upload outside the office stay closed
+r = A.get(B + f"/api/docs?ws=org:{SUED}&facets=0")
+check(r.status_code == 403, f"#7392 F3: the Documents list stays behind the card {r.status_code} {r.text[:120]}")
+r = A.post(B + "/api/docs", data={"ws": f"org:{SUED}"}, files=[("files", ("frei.txt", b"x", "text/plain"))])
+check(r.status_code == 403, f"#7392 F3: an upload outside the office too {r.status_code} {r.text[:120]}")
+r = A.get(B + f"/api/docs?ws=org:{SUED}&area=office&facets=0")
+check(r.status_code == 200, f"#7392 F3: the office's own list (area=office, its office is this organisation's) {r.status_code} {r.text[:120]}")
+put(A, workspace="")
+r = A.get(B + f"/api/docs?ws=org:{SUED}&area=office&facets=0")
+check(r.status_code == 403, f"#7392 F3 (2nd round): area=office while the office is another one filters nothing - the card decides {r.status_code} {r.text[:120]}")
 sys.exit(done("p21465_a_wsplace_test"))

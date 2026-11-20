@@ -21,7 +21,7 @@ from ..core.access import feat_has
 from ..core.config import app
 from ..core.db import usettings
 from ..core.errors import BadInput, Denied
-from ..core.i18n import N_, tr
+from ..core.i18n import N_, tr, trn
 from .modcards import mc_cap, mc_mods
 from .orgroles import FULL_WRITE, org_roles_of
 from .orgs import _org_name, agent_org, has_workspaces, user_orgs
@@ -182,6 +182,29 @@ def wsp_still_running(c, uid, vals):
     for fn in WSP_STILL:
         out += [x for x in fn(c, uid) if x.get("count")]
     return out
+
+
+WSP_STILL_TXT = N_("Still running in your private office: {0}. Nothing was stopped; stop it in the office if you want.")
+WSP_STILL_NAME = {"bank_reminder": N_("the reminder for bank bookings without a receipt"),
+                  "card_reminder": N_("the reminder for card payments without a receipt")}
+
+
+def wsp_still_names(items, lg=None):
+    """(#7392): the words of wsp_still_running's [{kind, count}] in lg (the toast of areas.js wsp_take says the same)."""
+    out = []
+    for x in items or []:
+        if x.get("kind") == "invoice_series":
+            out.append(trn("{0} invoice series", "{0} invoice series", int(x.get("count") or 0), lg=lg))
+        elif x.get("kind") in WSP_STILL_NAME:
+            out.append(tr(WSP_STILL_NAME[x["kind"]], lg=lg))
+    return [n for n in out if n]
+
+
+def wsp_still_text(items, lg=None):
+    """(#7392, decision 19.11.2026: keep running, name it when switched off and show it in the bell): the bell's sentence about
+    what keeps running, in lg ("" = nothing to name). accounts/settings.py writes it as a News entry of the own action."""
+    names = wsp_still_names(items, lg)
+    return tr(WSP_STILL_TXT, ", ".join(names), lg=lg) if names else ""
 
 
 def wsp_all(c, uid):

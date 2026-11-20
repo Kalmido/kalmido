@@ -41,6 +41,7 @@ from ..accounts.orgs import is_org_admin, user_orgs
 from ..accounts.orgroles import org_role_key
 from ..accounts.spacemove import smv_refuse_agent
 from ..accounts.wsplace import wsp_on
+from ..accounts.modcards import MC_OFFICE_OF
 from ..files.store import fs_log_add, need_node
 from ..files.fsmove import _rm, fsm_apply, fsm_plan
 from ..office.model import OfficeNoArea, office_pick, office_pick_req  # (#7313); (#7325); (#7321)
@@ -184,6 +185,9 @@ def ar_invoice(c, nid, sure=True):
     office); sure=False: every sign counts (docs/pdfoptq.py: in doubt a document is kept as it is)."""
     k = ar_kind(c, S.meta_row(c, nid), ar_is_receipt(c, nid))
     return bool(k and (k[1] or not sure))
+
+
+MC_OFFICE_OF.append(ar_here)  # (#7392 F3): the module card's gate asks which office area=office narrows to (ar_sql: ar_here)
 
 
 def ar_view(c, node, m, uid):

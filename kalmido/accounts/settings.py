@@ -8,7 +8,7 @@ import urllib.request
 from cryptography.hazmat.primitives.asymmetric import ec
 from flask import g, jsonify, Response
 
-from .wsplace import WSP_KEYS, wsp_all, wsp_drop, wsp_still_running  # (#7309)
+from .wsplace import WSP_KEYS, wsp_all, wsp_drop, wsp_still_running, wsp_still_text  # (#7309); (#7392): the bell entry
 from ..core.config import app, APP_NAME, PUBLIC_URL
 from ..core.schema import USER_DEFAULTS
 from ..core.i18n import LANGS, N_, tr
@@ -17,7 +17,7 @@ from ..core.pg import write_lock  # 2.269.0 B (#3014)
 from ..accounts.session import me, user_public
 from ..lists.lists import clean_folder
 from ..tasks.validation import clean_reminders, valid_hm
-from ..collab.news import NEWS_GROUPS, notif_update
+from ..collab.news import NEWS_GROUPS, news_own, notif_update
 from ..core.errors import BadInput
 from ..core.numtext import user_num  # 2.263.0 (#2976)
 from ..api.common import hit_limit  # 2.367.5 (#2980)
@@ -748,6 +748,10 @@ def settings_update():
         if k == "dashboard" or k in LAYOUT_KEYS:  # 2.55.0 (#1069): the active saved arrangement follows
             from .layoutsets import lyv_follow
             lyv_follow(c, me(), k, v)
+    if sr and wsp_still_text(sr, "en"):  # (#7392): what keeps running is in the bell too - a News entry of the own action
+        # (core: news_own; news_put leaves one's own actions out), row "office", no push (the toast says it right now)
+        news_own(c, me(), "wspstill", lambda lg: wsp_still_text(sr, lg), click="settings/modules",
+                 data={"items": [{"kind": x.get("kind"), "count": int(x.get("count") or 0)} for x in sr]})
     bump(c)
     c.commit()
     if any(k in vals for k in WSP_KEYS):  # (#7309): the lists of the shared place fresh (no state load needed)
