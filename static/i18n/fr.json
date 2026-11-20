@@ -19742,6 +19742,7 @@
   "The e-mail left from the server's address: the mailbox of the workspace is switched off. Switch it on again in Settings > Company & office > E-mail.": "L'e-mail est parti depuis l'adresse du serveur : la boîte mail de l'espace de travail est désactivée. Réactive-la dans Paramètres > Entreprise et bureau > E-mail.",
   "Sending: {0}": "Envoi : {0}",
   "The sender address must belong to this SMTP account (its own address or one the provider allows for it): servers check it against the domain's SPF and DKIM, other addresses are refused or land in spam.": "L'adresse d'expéditeur doit appartenir à ce compte SMTP (sa propre adresse ou une que le fournisseur autorise) : les serveurs la vérifient avec le SPF et le DKIM du domaine, les autres adresses sont refusées ou finissent en spam.",
+  "The display name cannot contain @ or a web address.": "Le nom affiché ne peut contenir ni @ ni adresse web.",
   "Only the person who created the client can move it into Private: there it would belong to them, not to you.": "Seule la personne qui a créé le client peut le déplacer dans Privé : il lui appartiendrait alors, pas à toi.",
   "Its office still has {0} for this client, so it stays here. “Move to another workspace…” in the office takes the client with all of it along.": "Le bureau contient encore {0} pour ce client, il reste donc ici. « Déplacer vers un autre espace de travail… » dans le bureau emmène le client avec tout cela.",
   "draft quotations or invoices": "des brouillons de devis ou de factures",

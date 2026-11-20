@@ -39,7 +39,7 @@ from ..core.access import Denied, collab_all, live_sql
 from ..core.pg import insert_id, system_ctx
 from ..core.schema import USER_DEFAULTS
 from ..api.common import hit_limit
-from ..accounts.session import _accept_lang, _rate_fail, client_ip, rate_ip
+from ..accounts.session import _accept_lang, _rate_fail, client_ip, name_urlish, rate_ip
 from ..accounts.login import finish_login, login_log_ip, pend_cookie, pend_new
 from ..accounts.invite import _limited, invite_new
 from ..accounts.discover import _link, _pair, _push
@@ -313,12 +313,7 @@ def cinv_accept():
     return finish_login(c, u, True, "invite", extra={"username": u["username"]})
 
 
-def _urlish(name):
-    """Fable F5: a name that looks like a link or a web address ("://", "www.", "example.com")."""
-    return bool(_URLISH.search(name))
-
-
-_URLISH = re.compile(r"://|\bwww\.|[^\s./]\.[a-z]{2,24}(?:[/:?#]|$|\s)", re.I)
+_urlish = name_urlish  # Fable F5: the one check lives in accounts/session.py since #6549
 
 
 def _new_account(c, name, pw, ulang, email=""):
