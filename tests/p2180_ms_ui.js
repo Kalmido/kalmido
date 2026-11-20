@@ -198,7 +198,8 @@ const task = async id => (await state()).tasks.find(t => t.id === id);
     if (!AXE) return;
     if ((await ev('typeof axe')) === 'undefined') await ev(AXE + '\n;1');
     const r = await ev(`axe.run(document.querySelector('#detail'), {runOnly: {type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']}, resultTypes: ['violations']})
-      .then(r => r.violations.map(v => v.id + '(' + v.nodes.length + ') ' + v.nodes[0].target.join(' ')))`);
+      .then(r => r.violations.map(v => { const n = v.nodes[0], e = document.querySelector(n.target.join(' ')), q = e && e.getBoundingClientRect();  // #7465: what axe measured (size / neighbour) and the box
+        return v.id + '(' + v.nodes.length + ') ' + n.target.join(' ') + (v.id === 'target-size' ? ' [' + (n.any || []).concat(n.none || []).map(a => a.message).join('; ') + (q ? '; box ' + [q.left, q.top, q.width, q.height].map(Math.round).join(',') : '') + ']' : ''); }))`);
     check(!r.length, `${where}: no axe violations in the milestone panel: ` + r.join(' | ').slice(0, 500));
   };
   for (const th of ['light', 'dark']) await firefox(async o => {
@@ -221,7 +222,14 @@ const task = async id => (await state()).tasks.find(t => t.id === id);
     const pw = await ev(`(() => { const d = document.querySelector('#detail'); const s = document.querySelector('#d-ms .msburn').getBoundingClientRect(); return {o: d.scrollWidth - d.clientWidth, w: Math.round(s.width)}; })()`);
     check(pw.o <= 0 && pw.w > 200, `${tag} panel: nothing sideways, the burndown uses the width ` + JSON.stringify(pw));
     await shot(`p2180ms-${th}-390-panel.png`);
+    // #7465: axe on the whole panel at phone width, nothing cut by its scroller - a field that the scroll position cut at the
+    // panel's lower edge (9 of 44 px seen) read as "partially obscured" target-size; at a tall window every field shows whole
+    await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: 390, height: 2400}});
+    await ev(`new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(1))))`);
+    const cut = await ev(`(() => { const d = document.querySelector('#detail'); return d ? d.scrollHeight - d.clientHeight : -1; })()`);
     await axe(ev, tag);
+    await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: 390, height: 844}});
+    if (cut > 0) console.log(`note: ${tag} the panel still scrolls by ${cut} px at 2400 px height`);
     await o.nav(B + '#cal'); await ready(ev);
     const cx = await ev(OVER);
     check(cx.o <= 0, `${tag} calendar: nothing sideways ` + JSON.stringify(cx));

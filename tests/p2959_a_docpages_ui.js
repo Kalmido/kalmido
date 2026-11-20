@@ -179,9 +179,12 @@ const ver = async id => (await call('GET', `/api/files/nodes/${id}`)).version;
       let r1 = await ev(posJs);
       for (let i = 0; i < 40; i++) { await sleep(150); const r2 = await ev(posJs); if (JSON.stringify(r2) === JSON.stringify(r1)) break; r1 = r2; }
       // page 1 dragged onto the right half of page 3 (a finger holds first)
+      // #7473: the pointer events the drag brought (type, kind, the drag's state) - named when the order did not change
+      await ev(`(() => { window.__pe = []; for (const t of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'touchstart', 'contextmenu']) document.addEventListener(t, e => { if (window.__pe.length < 40) window.__pe.push(t + ':' + (e.pointerType || '') + ':' + (DPG.drag ? (DPG.drag.on ? 'on' : 'wait') : '-') + (e.type === 'pointercancel' || e.type === 'touchstart' ? ':' + getComputedStyle(e.target.closest('.dpg-list') || document.body).touchAction : '')); }, {capture: true}); return 1; })()`);
       await drag(r1.x, r1.y, r1.tx - r1.x, 0, touch ? 'touch' : 'mouse', touch ? 600 : 0);
       const order = `[...document.querySelectorAll('.dpg [data-dpgp]')].map(x => +x.dataset.dpgp).join(',')`;
-      check(await wait(`${order} === '2,3,1'`), `Firefox ${tag}: page 1 dragged behind page 3 - the strip shows 2, 3, 1 (${await ev(order)})`);
+      const pe = () => ev(`JSON.stringify((window.__pe || []).filter((x, i, a) => !x.startsWith('pointermove') || a[i - 1] !== x).slice(0, 30))`);
+      check(await wait(`${order} === '2,3,1'`), `Firefox ${tag}: page 1 dragged behind page 3 - the strip shows 2, 3, 1 (${await ev(order)}; events ${await pe()})`);
       const lay = await ev(`(() => { const v = document.querySelector('.dv-view'), b = document.querySelector('.dpg [data-dpg="save"]').getBoundingClientRect(); return {sw: v.scrollWidth, cw: v.clientWidth, br: Math.round(b.right), vw: innerWidth}; })()`);
       check(lay && lay.sw <= lay.cw + 1 && lay.br <= lay.vw, `Firefox ${tag}: Save in view, nothing sideways ` + JSON.stringify(lay));
       await shot(`p2959-docpages-${tag}.png`);

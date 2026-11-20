@@ -76,6 +76,9 @@ async function create(w, d, T, un, own, pj) {
   const P2 = (await call('POST', '/api/lists', {name: 'Lighthouse project', org_id: ORG}, BK)).id;
   const FL = (await call('POST', '/api/lists', {name: 'Frida garden'}, FK)).id;
   check(P1 && P2 && FL, 'setup: the projects');
+  // #6363: the Kalmido AI is off in a new organisation until its admin switches it on (as in p2777_c_srvagent_test.py)
+  const on = await call('PATCH', `/api/orgs/${ORG}`, {server_agents: true}, BK);
+  check(on.status >= 200 && on.status < 300, 'setup: bob switches the Kalmido AI on for the organisation ' + JSON.stringify(on));
   const agentOf = async (ck, un) => ((await call('GET', '/api/agents', null, ck)).agents || []).find(a => a.username === un);
 
   // ---------------------------------------------------------------- a team agent with a chosen project

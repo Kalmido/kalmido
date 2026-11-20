@@ -21,13 +21,16 @@ function piece(f, start, need = true) {
 }
 const code = [
   piece('i18n.js', 'const i18nFmt ='), piece('i18n.js', 'const i18nKey ='), piece('i18n.js', 'function tr('), piece('i18n.js', 'function plOne('),
-  piece('i18n.js', 'function trn('), piece('i18n.js', 'const i18nEsc =', false), piece('i18n.js', 'function trh(', false), piece('i18n.js', 'function trnh(', false),
+  piece('i18n.js', 'function trn('),
+  // #6432: i18nEsc keeps a value marked by i18nHtml() - the marker class has to come along, else node stops at a ReferenceError
+  piece('i18n.js', 'class I18nHtml ', false), piece('i18n.js', 'const i18nHtml =', false), piece('i18n.js', 'const i18nEsc =', false), piece('i18n.js', 'function trh(', false), piece('i18n.js', 'function trnh(', false),
 ].join('\n');
 const ctx = {I18N: {code: 'de', dict: {'{0} invites you': '<b>{0}</b> lädt dich ein', '{0} file': ['{0} Datei von {1}', '{0} Dateien von {1}'],
   'saved ({0}), empty = keep': 'gespeichert ({0}), leer = behalten'}}, I18N_PL: null, i18nPyAsk() {}, LOCALE: () => 'de-DE'};
 vm.createContext(ctx);
 vm.runInContext(`${code}
-globalThis.__t = {tr, trn, trh: typeof trh === 'function' ? trh : null, trnh: typeof trnh === 'function' ? trnh : null};`, ctx);
+globalThis.__t = {tr, trn, trh: typeof trh === 'function' ? trh : null, trnh: typeof trnh === 'function' ? trnh : null,
+  i18nHtml: typeof i18nHtml === 'function' ? i18nHtml : null};`, ctx);
 const T = ctx.__t;
 const evil = '<img src=x onerror="alert(1)">&\'';
 check(T.trh && T.trnh, '#4074 8: trh and trnh exist');
@@ -39,6 +42,10 @@ if (T.trh) {
   const n = T.trnh('{0} file', '{0} files', 2, '<i>Ana</i>');
   check(n === '2 Dateien von &lt;i&gt;Ana&lt;/i&gt;', `#4074 8: trnh escapes the values, the count stays (${n})`);
   check(T.trnh('{0} file', '{0} files', 1, 'Ben') === '1 Datei von Ben', '#4074 8: trnh one form');
+  if (T.i18nHtml) {
+    const m = T.trh('{0} invites you', T.i18nHtml('<i>Ana</i>'));
+    check(m === '<b><i>Ana</i></b> lädt dich ein', `#6432: a value marked by i18nHtml stays HTML (${m})`);
+  }
 }
 check(T.tr('{0} invites you', '<b>Ana</b>') === '<b><b>Ana</b></b> lädt dich ein', '#4074 8: tr itself is unchanged (HTML values of callers that escaped them)');
 
