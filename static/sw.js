@@ -840,6 +840,57 @@ async function swOutbox() {
   return locks ? locks.request('kalmido-outbox', {ifAvailable: true}, l => l ? swOutboxSend() : null) : swOutboxSend();
 }
 const SW_OBX_URL = /^\/api\/(?!v1\/)[\w/-]+(\?[\w=&%.,-]*)?$/, SW_OBX_METHODS = ['POST', 'PATCH', 'PUT', 'DELETE'];
+// 2.1467 (#6334 A9/D7): a note's or a knowledge page's change needs the app (its sent text is the base of the next change,
+// ntSent / wkoSent, a page is sealed with the current key, wkoReseal): sent here, the second offline change of the same text
+// ran into a conflict with itself. The worker stops there; that entry and the rest wait for the app
+const SW_OBX_APP = /^\/api\/(notes\/-?\d+|lists\/\d+\/notes|wiki\/pages\/\d+)$/;
+// 2.1467 (#6334 A6): every place a temporary task id sits in a queued body, as core.js outFixIds (the same rules)
+const SW_IDF = ['parent_id', 'task_id', 'milestone_id'];
+function swFixIds(body, fix) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return body;
+  const one = o => {
+    if (!o || typeof o !== 'object' || Array.isArray(o)) return o;
+    const r = {...o};
+    for (const k of SW_IDF) if (k in r) r[k] = fix(r[k]);
+    if (r._prev && typeof r._prev === 'object') r._prev = one(r._prev);
+    return r;
+  };
+  const keyed = m => Object.fromEntries(Object.entries(m).map(([id, v]) => [/^-\d+$/.test(id) ? fix(+id) : id, one(v)]));
+  const b = one(body);
+  if (Array.isArray(b.items)) b.items = b.items.map(it => it && typeof it === 'object' ? {...one(it), id: fix(it.id)} : it);
+  if (Array.isArray(b.ids)) b.ids = b.ids.map(fix);
+  if (b.data && typeof b.data === 'object' && !Array.isArray(b.data)) {
+    const d = one(b.data);
+    for (const k of ['items', 'expect', 'guard', 'prev']) if (d[k] && typeof d[k] === 'object' && !Array.isArray(d[k])) d[k] = keyed(d[k]);
+    b.data = d;
+  }
+  return b;
+}
+// 2.1467 (#6334 D2a): what the worker sent is in the offline start state too (static/js/offcache.js, database "kalmido-start"):
+// a task the answer brings is put in (a new one, a change), a deleted one goes. Before, the next offline start lacked the tasks
+// made offline (the queue had sent them, the state did not know them; made again = twice). ch: [[id, task | null], ...]
+async function swStartFold(ch) {
+  if (!ch.length || typeof indexedDB === 'undefined') return;
+  const db = await new Promise((ok, no) => {
+    const r = indexedDB.open('kalmido-start', 1);  // as static/js/offcache.js oc_held
+    r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains('s')) r.result.createObjectStore('s'); };
+    r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); r.onblocked = () => no(new Error('blocked'));
+  });
+  try {
+    const t = db.transaction('s', 'readwrite'), st = t.objectStore('s'), rec = await swReq(st.get('state'));
+    if (!rec) return;
+    let c = rec.o;
+    if (!c) { try { c = JSON.parse(rec.s); } catch { return; } }
+    if (!c || !Array.isArray(c.tasks)) return;
+    const by = new Map(c.tasks.map(x => [x.id, x]));
+    for (const [id, tk] of ch) { if (tk) by.set(tk.id, tk); else by.delete(id); }
+    c.tasks = [...by.values()];
+    st.put(rec.o ? {...rec, o: c} : {...rec, s: JSON.stringify(c)}, 'state');
+    await new Promise((ok, no) => { t.oncomplete = ok; t.onerror = t.onabort = () => no(t.error); });
+  } finally { db.close(); }
+}
+// an answer that is a whole task (POST /api/tasks, PATCH / complete / reopen of one task)
+const swTask = j => j && typeof j.id === 'number' && j.id > 0 && typeof j.list_id === 'number' && typeof j.title === 'string' && 'status' in j;
 async function swOutboxSend() {
   const db = await swIdb(), uid = await swMeta(db, 'uid');
   if (!uid) return;
@@ -850,6 +901,7 @@ async function swOutboxSend() {
   const fix = v => (typeof v === 'number' && v < 0 && idm[v]) ? idm[v] : v;
   const ch = typeof BroadcastChannel === 'function' ? new BroadcastChannel('kalmido-outbox') : null;
   const rows = (await swReq(db.transaction('ops').objectStore('ops').getAll())).sort((a, b) => a.n - b.n);
+  const fold = [];
   try {
     for (const e of rows) {
       // 2.306.0 D4 (#2875): an entry of nobody is never sent by the service worker. 2.533.0 A2 (#4318 A15): it is kept, not
@@ -858,22 +910,11 @@ async function swOutboxSend() {
       if (e.uid !== uid) continue;  // another user's entry: the app drops it
       // 2.143.0 C2 (#2153): only the app's own write routes are sent again (no API v1, no other origin, no GET)
       if (typeof e.url !== 'string' || !SW_OBX_URL.test(e.url) || !SW_OBX_METHODS.includes(e.method)) break;
+      if (SW_OBX_APP.test(e.url)) break;  // 2.1467 (#6334 A9/D7): for the app
       const url = e.url.replace(/\/(-\d+)(?=\/|$)/, (_, n) => '/' + (idm[n] || n));
-      let body = e.body;
-      if (body && typeof body === 'object') {
-        body = {...body};
-        if (body.parent_id) body.parent_id = fix(body.parent_id);
-        if (body.task_id) body.task_id = fix(body.task_id);
-        if (body.items) body.items = body.items.map(it => ({...it, id: fix(it.id)}));
-        if (body.ids) body.ids = body.ids.map(fix);
-        if (body.data && typeof body.data === 'object') {
-          const d = {...body.data};
-          for (const k of ['items', 'expect', 'guard']) if (d[k] && !Array.isArray(d[k])) d[k] = Object.fromEntries(Object.entries(d[k]).map(([id, v]) => [fix(+id), v]));
-          body.data = d;
-        }
-      }
+      const body = swFixIds(e.body, fix);  // 2.1467 (#6334 A6)
       // 2.359.0 A (#3023): a temporary id without its real one (its create failed or waits for the app): never sent as such
-      if (/\/-\d+(?=[/?]|$)/.test(url) || (body && [body.parent_id, body.task_id, ...(body.ids || []), ...(body.items || []).map(it => it && it.id)].some(v => typeof v === 'number' && v < 0))) break;
+      if (/\/-\d+(?=[/?]|$)/.test(url) || (body && [body.parent_id, body.task_id, body.milestone_id, ...(body.ids || []), ...(body.items || []).map(it => it && it.id)].some(v => typeof v === 'number' && v < 0))) break;
       const opt = {method: e.method, credentials: 'same-origin', redirect: 'manual', headers: {'X-Requested-With': 'kalmido'}};
       if (e.ik || e.k) opt.headers['Idempotency-Key'] = String(e.ik || e.k);  // 2.270.0 C (#3022): stopped before the delete below = the tab's resend is not applied twice; 2.574.0 (#4692): ik = the rebased send's own key, as core.js outFlush
       if (e.osp) opt.headers['X-Kalmido-Office-Space'] = String(e.osp);  // 2.577.0 (#4638): the office area the change was made in
@@ -886,11 +927,14 @@ async function swOutboxSend() {
       if (!r.ok || !/json/.test(r.headers.get('content-type') || '')) break;  // for the app (its own handling of errors)
       const j = await r.json().catch(() => ({}));
       if (j.conflicts && j.conflicts.length && url === '/api/tasks/batch' && body && body.action === 'complete') { j.conflicts = []; j.skipped = true; }  // 2.270.0 C (#3022): already ticked
+      if (e.tmp && !j.id) break;  // 2.1467 (#6334 D7): a create answered without its id (a repeat's short answer): for the app, the mapping must not get lost
       if (e.tmp && j.id) { idm[e.tmp] = j.id; swmap[e.tmp] = j.id; await swPut(db, 'meta', {k: 'swmap', v: swmap}); }
+      const tm = url.match(/^\/api\/tasks\/(\d+)(?:\/(complete|reopen))?$/);
+      if (swTask(j) && (url === '/api/tasks' || tm)) { const {conflicts, shifted, skipped, ...tk} = j; fold.push([j.id, tk]); } else if (tm && e.method === 'DELETE' && !tm[2]) fold.push([+tm[1], null]);  // 2.1467 (#6334 D2a)
       if ((j.conflicts && j.conflicts.length) || j.skipped) { res.push({id: j.id, title: j.title || '', conflicts: j.conflicts || [], skipped: !!j.skipped}); await swPut(db, 'meta', {k: 'swres', v: res}); }
       await swReq(db.transaction('ops', 'readwrite').objectStore('ops').delete(e.k));
       if (ch) ch.postMessage({del: [e.k], sw: true});
     }
-  } finally { if (ch) ch.close(); }
+  } finally { if (ch) ch.close(); await swStartFold(fold).catch(() => 0); }
 }
 self.addEventListener('pushsubscriptionchange', e => { e.waitUntil(resubscribe(e.oldSubscription, e.newSubscription).catch(() => {})); });

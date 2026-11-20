@@ -8,6 +8,9 @@
 // - a temporary id: the create's real id replaces it in the next URL and in parent_id, and is kept for the app (meta swmap)
 // - every write carries the app's request header and the Idempotency-Key (the entry's own key, ik before k), same origin
 // - an entry without an owner (made before the sign-in was known) stops the queue (kept, noted for the app)
+// - 2.1467 (#6334): a note's / knowledge page's change stops the queue (for the app: A9/D7); a create answered without its id
+//   stops it too (the mapping is kept for the app); a milestone / a parent in data.items / a _prev are mapped too (A6); what
+//   was sent is in the offline start state (D2a: a new or changed task put in, a deleted one out)
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -19,10 +22,11 @@ const SW = fs.readFileSync(path.join(__dirname, '..', 'static', 'sw.js'), 'utf8'
 const ME = 7, OTHER = 8;
 
 function sandbox({meUid = ME, uidMeta = ME, answer = () => jres(200, {ok: true})} = {}) {
-  const idb = {ops: new Map(), meta: new Map(uidMeta ? [['uid', {k: 'uid', v: uidMeta}]] : [])}, sent = [];
+  const idb = {ops: new Map(), meta: new Map(uidMeta ? [['uid', {k: 'uid', v: uidMeta}]] : []), s: new Map()}, sent = [];  // s: the offline start state (kalmido-start)
   const req = fn => { const r = {}; setTimeout(() => { try { r.result = fn(); if (r.onsuccess) r.onsuccess(); } catch (e) { r.error = e; if (r.onerror) r.onerror(); } }, 0); return r; };
-  const fakeDb = {objectStoreNames: {contains: () => true}, transaction: () => ({objectStore: n => ({
-    get: k => req(() => idb[n].get(k)), getAll: () => req(() => [...idb[n].values()]), put: v => req(() => idb[n].set(v.k, v)), delete: k => req(() => idb[n].delete(k))})})};
+  const fakeDb = {objectStoreNames: {contains: () => true}, close() {}, transaction: () => { const t = {objectStore: n => ({
+    get: k => req(() => idb[n].get(k)), getAll: () => req(() => [...idb[n].values()]), delete: k => req(() => idb[n].delete(k)),
+    put: (v, key) => { const r = req(() => idb[n].set(key ?? v.k, v)); setTimeout(() => t.oncomplete && t.oncomplete(), 5); return r; }})}; return t; }};
   let meAsked = 0;
   const ctx = vm.createContext({
     self: {addEventListener() {}, location: {origin: 'https://kalmido.example'}, clients: {matchAll: async () => []}, navigator: {}},
@@ -112,6 +116,50 @@ function sandbox({meUid = ME, uidMeta = ME, answer = () => jres(200, {ok: true})
     await s.run();
     check(s.sent.map(x => x.url).join() === '/api/tasks/1' && s.idb.ops.has('o2') && s.idb.ops.has('o3'), 'an entry of nobody stops the queue, it and the rest stay ' + JSON.stringify(s.sent.map(x => x.url)));
     check((s.idb.meta.get('swres')?.v || []).some(x => x.nouid), 'the app is told (swres nouid)');
+  }
+
+  // ================= 2.1467 (#6334 A9/D7) notes and knowledge pages are left to the app
+  for (const u of ['/api/notes/5', '/api/lists/3/notes', '/api/wiki/pages/9']) {
+    const s = sandbox();
+    s.add({k: 'n0', n: 1, method: 'PATCH', url: '/api/tasks/1', body: {title: 'before'}, uid: ME},
+      {k: 'n1', n: 2, method: u.endsWith('notes') ? 'POST' : 'PATCH', url: u, body: {body: 'text'}, uid: ME},
+      {k: 'n2', n: 3, method: 'PATCH', url: '/api/tasks/2', body: {title: 'after'}, uid: ME});
+    await s.run();
+    check(s.sent.map(x => x.url).join() === '/api/tasks/1' && s.idb.ops.has('n1') && s.idb.ops.has('n2'), `A9/D7: ${u} stops the queue, it and the rest wait for the app ` + JSON.stringify(s.sent.map(x => x.url)));
+  }
+  // ================= 2.1467 (#6334 D7) a create answered without its id
+  {
+    const s = sandbox({answer: () => jres(200, {ok: true})});
+    s.add({k: 'i1', n: 1, method: 'POST', url: '/api/tasks', body: {title: 'made offline'}, uid: ME, tmp: -5},
+      {k: 'i2', n: 2, method: 'PATCH', url: '/api/tasks/-5', body: {title: 'renamed'}, uid: ME});
+    await s.run();
+    check(s.sent.length === 1 && s.idb.ops.has('i1') && s.idb.ops.has('i2') && !s.idb.meta.get('swmap')?.v?.[-5], 'D7: a create without id in its answer stays for the app, nothing behind it goes ' + JSON.stringify(s.sent.map(x => x.url)));
+  }
+  // ================= 2.1467 (#6334 A6) every temporary id of a body
+  {
+    const s = sandbox({answer: (u, o) => u === '/api/tasks' && o.method === 'POST' ? jres(200, {id: 42}) : jres(200, {ok: true})});
+    s.add({k: 'm1', n: 1, method: 'POST', url: '/api/tasks', body: {title: 'a milestone', ms: 1}, uid: ME, tmp: -5},
+      {k: 'm2', n: 2, method: 'PATCH', url: '/api/tasks/7', body: {milestone_id: -5, _prev: {milestone_id: -5}}, uid: ME},
+      {k: 'm3', n: 3, method: 'POST', url: '/api/tasks/batch', body: {action: 'patch_each', ids: [7], data: {items: {7: {parent_id: -5, _prev: {parent_id: -5}}}}}, uid: ME});
+    await s.run();
+    const sent = JSON.stringify(s.sent.slice(1).map(x => x.body));
+    check(s.sent.length === 3 && !/-5/.test(sent) && /"milestone_id":42/.test(sent) && /"parent_id":42/.test(sent), 'A6: milestone, a parent in data.items and the base values are mapped ' + sent);
+  }
+  // ================= 2.1467 (#6334 D2a) the offline start state follows what was sent
+  {
+    const s = sandbox({answer: (u, o) => u === '/api/tasks' && o.method === 'POST' ? jres(200, {id: 42, list_id: 3, title: 'made offline', status: 0, conflicts: []})
+      : u === '/api/tasks/1' ? jres(200, {id: 1, list_id: 3, title: 'renamed offline', status: 0, conflicts: []}) : jres(200, {ok: true})});
+    s.idb.s.set('state', {o: {v: 9, tasks: [{id: 1, list_id: 3, title: 'old title', status: 0}, {id: 2, list_id: 3, title: 'deleted offline', status: 0}]}, at: 1});
+    s.add({k: 'd1', n: 1, method: 'POST', url: '/api/tasks', body: {title: 'made offline'}, uid: ME, tmp: -5},
+      {k: 'd2', n: 2, method: 'PATCH', url: '/api/tasks/1', body: {title: 'renamed offline'}, uid: ME},
+      {k: 'd3', n: 3, method: 'DELETE', url: '/api/tasks/2', uid: ME});
+    await s.run();
+    const ts = s.idb.s.get('state')?.o?.tasks || [];
+    check(ts.map(t => t.id + ':' + t.title).sort().join() === '1:renamed offline,42:made offline' && !ts.some(t => 'conflicts' in t), 'D2a: the start state holds the new task, the change, not the deleted one ' + JSON.stringify(ts));
+    s.idb.s.set('state', {s: JSON.stringify({tasks: [{id: 1, list_id: 3, title: 'old', status: 0}]}), at: 1});
+    s.add({k: 'd4', n: 4, method: 'PATCH', url: '/api/tasks/1', body: {title: 'renamed offline'}, uid: ME});
+    await s.run();
+    check(JSON.parse(s.idb.s.get('state')?.s || '{}').tasks?.[0]?.title === 'renamed offline', 'D2a: a start state kept as JSON follows too');
   }
 
   console.log(`p2743_d_sw_outbox: ${ok} ok, ${F.length} failed`);

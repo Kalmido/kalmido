@@ -44,7 +44,7 @@ document.addEventListener('auxclick', e => {
 });
 if (MW_GUARD) {  // 2.891.0 (#5358): the own window and the split view's right half
   // nothing of this window's UI state goes back: only the offline queue and its id map (shared data) are written locally
-  const MW_LS = new Set(['outbox', 'idmap', 'conflicts', 'uid']), lsSet = LS.set.bind(LS);
+  const MW_LS = new Set(['outbox', 'idmap', 'idmapAt', 'conflicts', 'uid']), lsSet = LS.set.bind(LS);
   LS.set = (k, v) => { if (MW_LS.has(k)) lsSet(k, v); };
   const lsDel = LS.del.bind(LS); LS.del = k => { if (MW_LS.has(k)) lsDel(k); };  // 2.742.0 (#4858): nor removes (a grip's double click, a reset)
   const api0 = api;

@@ -1,6 +1,7 @@
 // 2.126.0 UI tests, part D (jsdom), fresh DB:
 // - #1989 two windows of one browser (one localStorage, Web Locks): both offline, one change each -> each window knows both
 //   waiting changes; back online in both at the same moment -> each change reaches the server exactly once, both queues empty
+// - 2.1467 (#6334 B2): a task made offline in one window and sent by the other shows once in the window that made it
 // - #1990 a new task whose answer gets lost on the way back (the request reached the server) and that is sent again from
 //   the queue = one task
 // - #1992 O8 an offline change the server refuses (the task went to the trash meanwhile) waits in the conflicts dialog
@@ -54,6 +55,28 @@ const spy = w => { const calls = []; const of = w.fetch; w.fetch = (u, o = {}) =
   const patches = [...c1, ...c2].filter(([m, p]) => m === 'PATCH' && p === '/api/tasks/' + T0).length;
   check(posts === 1 && patches === 1, `each change was sent once (POST ${posts}, PATCH ${patches})`);
   check(await until(() => [...w2.eval('S.tasks').values()].some(t => t.title === 'Made in window one' && t.id > 0)), 'the other window gets the real task too');
+
+  // ================= 2.1467 (#6334 B2) window one makes a task offline, window two sends it: window one shows it exactly once
+  // (was: its provisional row stayed, the delta brought the real one beside it - deleting the "copy" deleted the real task)
+  w1.__offline = w2.__offline = true;
+  await w1.eval(`api('POST', '/api/tasks', {title: 'Made in one, sent by two', list_id: ${P}})`);
+  check(w1.eval('OUT.q.length') === 1 && w2.eval('OUT.q.length') === 1 && w1.eval('OUT.q[0].tmp') < 0, 'B2: the new task waits with its temporary id, both windows know it');
+  w1.eval('OUT.retryAt = Date.now() + 600000');  // window one does not send itself (the other one wins the lock)
+  w1.__offline = w2.__offline = false;
+  w2.dispatchEvent(new w2.Event('online'));
+  check(await until(() => w2.eval('OUT.q.length') === 0 && w1.eval('OUT.q.length') === 0), 'B2: window two sent it, both queues empty');
+  const B2T = () => [...w1.eval('S.tasks').values()].filter(t => t.title === 'Made in one, sent by two');
+  check(await until(() => { const a = B2T(); return a.length === 1 && a[0].id > 0; }), 'B2: window one shows the task once, with its real id ' + JSON.stringify(B2T().map(t => t.id)));
+  check(await until(() => !!w1.document.querySelector('#view .trow[data-id="' + B2T()[0]?.id + '"]')) && w1.document.querySelectorAll('#view .trow').length === [...w1.document.querySelectorAll('#view .trow')].filter(r => +r.dataset.id > 0).length, 'B2: no provisional row left in the list');
+  w1.eval('OUT.retryAt = 0');
+  // ================= #6334 A5 / A6 / D10 in place
+  const a5 = w1.eval(`(() => { const d0 = Date.now, a = obxSeq(); Date.now = () => d0() - 864e5; try { return [a, obxSeq(), obxSeq()]; } finally { Date.now = d0; } })()`);
+  check(a5[1] > a5[0] && a5[2] > a5[1], 'A5: the queue\'s order rises with a clock set back ' + JSON.stringify(a5));
+  const a6 = w1.eval(`JSON.stringify(outFixIds({milestone_id: -5, parent_id: -5, _prev: {milestone_id: -5, title: 'x'}, ids: [-5, 3], items: [{id: -5, parent_id: -5}],
+    data: {items: {'-5': {parent_id: -5, milestone_id: -5, _prev: {parent_id: -5}}}, prev: {'-5': {title: 'y'}}, guard: {'-5': 1}}}, v => v === -5 ? 77 : v))`);
+  check(!/-5/.test(a6) && /"milestone_id":77/.test(a6), 'A6: every temporary id of a queued body is mapped ' + a6);
+  const d10 = w1.eval(`(() => { const old = -(Date.now() - 3 * 864e5), gone = -(Date.now() - 3 * 864e5 - 1000); idmapSent([old]); const m = idmapTrim({[old]: 41, [gone]: 42}); return [old in m, gone in m]; })()`);
+  check(d10[0] === true && d10[1] === false, 'D10: the id map keeps a mapping by the time it was sent, an old unsent one goes ' + JSON.stringify(d10));
   w2.close();
 
   // ================= #1990 the answer got lost: sent again = the same task
