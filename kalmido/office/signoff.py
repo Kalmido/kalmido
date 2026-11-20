@@ -16,6 +16,7 @@ import html
 import json
 import secrets
 import threading
+import time
 from collections import OrderedDict
 from datetime import date, datetime, timedelta
 
@@ -716,8 +717,9 @@ def sig_page(c, r, token, lg, error=None, code=200):
         from .terms import agb_sig_html
         head += agb_sig_html(c, r, lg, token, SIG_PREFIX)
     elif r["kind"] == "offer":  # #7338: the quotation's PDF carries the terms pages: a sentence at the acceptance, no own button
-        from .terms import agb_sig_offer_note
-        agb = agb_sig_offer_note(c, r, lg, sig_offer_pages(c, r))
+        from .terms import agb_sig_offer_note, agb_sig_terms
+        pages, joined = sig_offer_pages(c, r) if agb_sig_terms(c, r) else (None, False)
+        agb = agb_sig_offer_note(c, r, lg, pages, joined, f"{SIG_PREFIX}{token}/terms")  # #7416: "in the PDF" only when it is
     acc = (tr("I accept the quotation", lg=lg) if r["kind"] == "offer" else tr("I sign this document", lg=lg) if r["kind"] == "document"
            else tr("I approve this version", lg=lg) if vkind in ("image", "pdf")  # 2.764.0 (#5040)
            else tr("I approve this version of the video", lg=lg) if vid else tr("I confirm the acceptance", lg=lg))
@@ -749,33 +751,44 @@ def sig_page(c, r, token, lg, error=None, code=200):
     return resp
 
 
-SIG_PAGES = OrderedDict()  # #7338: (office, quotation, content hash of the link) -> pages of the quotation's own PDF
+SIG_PAGES = OrderedDict()  # #7338: (office, quotation, content hash of the link) -> (pages of the quotation's own PDF, terms joined)
 SIG_PAGES_MAX = 256
+SIG_PAGES_FAIL_S = 60  # #7416: a count that failed is kept this long (each view of the page would render again)
 SIG_PAGES_LOCK = threading.Lock()
 
 
 def sig_offer_pages(c, r):
-    """#7338: the number of pages of the open link's quotation before the terms pages (its stored PDF, a quotation sent
-    without finalising rendered), None when not reliably known. Kept per content hash: an open link's quotation is
-    unchanged (sig_open), so one count per link."""
+    """#7338: (pages, joined) of the open link's quotation: its pages before the terms pages (its stored PDF, a quotation sent
+    without finalising rendered; None when not reliably known) and whether the terms pages really are behind them in the
+    PDF the link gives (#7416: agb_offer_pdf leaves them out with a log line when joining fails). Kept per content hash: an
+    open link's quotation is unchanged (sig_open), so one count per link. #7416: any error (a key, an input, a missing PDF/A
+    tool, memory) gives (None, False) -- the approval page never fails on it -- and is kept SIG_PAGES_FAIL_S seconds."""
     key = (r["org_id"], r["doc_id"], r["doc_hash"])
     with SIG_PAGES_LOCK:
         if key in SIG_PAGES:
-            return SIG_PAGES[key]
+            v, until = SIG_PAGES[key]
+            if until is None or time.monotonic() < until:
+                return v
+            del SIG_PAGES[key]
     try:
         from ..docs.pdfopt import po_pages
         d = doc_row(c, r["org_id"], r["doc_id"])
         data = epdf_stored(c, r["org_id"], d, "pdf", commit=False)
-        n = po_pages(data if data is not None else _render(c, r["org_id"], d)[0])
-    except (Denied, OSError, ValueError, KeyError, TypeError) as ex:  # the page shows the sentence without the page
+        data = data if data is not None else _render(c, r["org_id"], d)[0]
+        n = po_pages(data)
+        n = n if isinstance(n, int) and n > 0 else None
+        out = epdf_out(c, r["org_id"], d, data)
+        m = po_pages(out) if out is not data else None
+        v = (n, bool(n and isinstance(m, int) and m > n))
+        until = None if v[1] else time.monotonic() + SIG_PAGES_FAIL_S  # terms not joined: tried again a minute later
+    except Exception as ex:  # noqa: BLE001 -- #7416: the page shows the sentence without "in the PDF", never a 500
         print("signoff: pages of the quotation unknown", r["id"], type(ex).__name__, flush=True)
-        return None
-    n = n if isinstance(n, int) and n > 0 else None
+        v, until = (None, False), time.monotonic() + SIG_PAGES_FAIL_S
     with SIG_PAGES_LOCK:
-        SIG_PAGES[key] = n
+        SIG_PAGES[key] = (v, until)
         while len(SIG_PAGES) > SIG_PAGES_MAX:
             SIG_PAGES.popitem(last=False)
-    return n
+    return v
 
 
 @app.get("/s/q/<token>")

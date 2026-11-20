@@ -19743,6 +19743,7 @@
   "Sending: {0}": "Senden: {0}",
   "The sender address must belong to this SMTP account (its own address or one the provider allows for it): servers check it against the domain's SPF and DKIM, other addresses are refused or land in spam.": "Die Absender-Adresse muss zu diesem SMTP-Konto gehören (seine eigene Adresse oder eine, die der Anbieter dafür erlaubt): Server prüfen sie gegen SPF und DKIM der Domain, andere Adressen werden abgelehnt oder landen im Spam.",
   "The display name cannot contain @ or a web address.": "Der Anzeigename darf kein @ und keine Webadresse enthalten.",
+  "Our terms and conditions as of {0} apply.": "Es gelten unsere AGB, Stand {0}.",
   "Only the person who created the client can move it into Private: there it would belong to them, not to you.": "Nur wer den Kunden angelegt hat, kann ihn nach Privat umziehen: dort gehörte er dieser Person, nicht dir.",
   "Its office still has {0} for this client, so it stays here. “Move to another workspace…” in the office takes the client with all of it along.": "Im Büro gibt es zu diesem Kunden noch {0}, darum bleibt er hier. „In anderen Arbeitsbereich verschieben…“ im Büro nimmt den Kunden mit allem davon mit.",
   "draft quotations or invoices": "Entwürfe von Angeboten oder Rechnungen",
