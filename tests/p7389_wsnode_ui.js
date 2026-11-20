@@ -52,7 +52,8 @@ const until = (fn, n) => require('./boot').until(fn, {timeout: n ? n * 150 : 150
   await call('PATCH', '/api/settings', {ws_colors: JSON.stringify({private: tone})});
   w.close();
 
-  const rows = () => [...d.querySelectorAll('#side .sbbt.sbbws')];
+  let scope = '#side';  // #7387: on Contacts the address book's folders (the office's entries per office stand above them)
+  const rows = () => [...d.querySelectorAll(`${scope} .sbbt.sbbws`)];
   const rowOf = name => rows().find(x => x.querySelector('.sbbtn .n')?.textContent === name);
   const icons = {};
   // [area, hash, LS, what has to be there before the rows are complete]
@@ -64,7 +65,7 @@ const until = (fn, n) => require('./boot').until(fn, {timeout: n ? n * 150 : 150
     ['Office', 'office', {'tasks.ofmAll': 'true'}],  // #7387: one entry per office (it unfolds to that office's menu)
   ];
   for (const [area, hash, ls] of AREAS) {
-    w = await boot({hash, allWs: true, ls}); d = w.document;
+    w = await boot({hash, allWs: true, ls}); d = w.document; scope = area === 'Contacts' ? '#side .ctfpanel' : '#side';
     const ok1 = await until(() => rowOf('Studio') && rowOf('Private'));
     check(ok1, `${area}: the panel has a row for Private and for Studio under "All" (` + rows().map(x => x.textContent).join('|') + ')');
     if (!ok1) { w.close(); continue; }
