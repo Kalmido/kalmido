@@ -26,7 +26,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "tools"))
-from check_migrations import fragments  # noqa: E402
+from check_migrations import fragments  # noqa: E402 -- tools/ is put on sys.path just above, the import must follow it
 
 STEPS = os.path.join("tools", "umz_v_steps.json")
 ACCT = os.path.join("kalmido", "admin", "acctexport.py")

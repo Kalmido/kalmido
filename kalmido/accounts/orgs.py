@@ -6,7 +6,7 @@ import re
 
 from flask import g, has_request_context, jsonify, request
 
-from ..core.objhooks import OBJ, obj_node_take, obj_person_keep, obj_settle, person_revoked  # #6610: + obj_person_keep; 2.1168.0 (#4782): + OBJ, obj_node_take; 2.558.0 (#4709): the shared core without importing the domain layer
+from ..core.objhooks import OBJ, obj_node_take, obj_person_keep, obj_settle, person_revoked  # #6610: + obj_person_keep; (#4782): + OBJ, obj_node_take; (#4709): the shared core without importing the domain layer
 from ..core.objfollow import ofl_drop  # 2.981.0 (#5286)
 from ..core.objseen import osn_drop  # 2.981.0 (#5286)
 from ..core.config import app, OFFICE_DIR
@@ -1688,7 +1688,7 @@ def org_member_put(oid, ghost=False):
         if cur["role"] != role:
             org_role_news(c, oid, uid, role)  # 2.367.4 (#2974)
             heir = _role_heir(c, oid, uid) if role in ROLE_DOWN else None  # #6610
-            person_revoked(c, uid, oid, "role", role=role, heir=heir)  # 2.558.0 (#4709): a guest / accounting leaves the open channels joined; #6610: heir
+            person_revoked(c, uid, oid, "role", role=role, heir=heir)  # (#4709): a guest / accounting leaves the open channels joined; #6610: heir
             if cur["role"] == "admin":
                 rck_admin_gone(c, oid, uid)  # 2.539.0 (#4373)
             org_open_chan_off(c, oid, uid, role)  # 2.560.0 (#4698 b)
@@ -1963,7 +1963,7 @@ def _cals_books_to_heir(c, oid, uid, heir):
     for table, kind in (("ev_cals", "evcal"), ("books", "address_book")):
         for (xid,) in c.execute(f"SELECT id FROM {table} WHERE owner_id=? AND org_id=?", (uid, oid)).fetchall():
             if heir and heir != uid:
-                obj_share_gone(c, kind, xid, heir)  # 2.924.0 (#5069): the new owner needs no share of its own (was the old member row)
+                obj_share_gone(c, kind, xid, heir)  # (#5069): the new owner needs no share of its own (was the old member row)
                 c.execute(f"UPDATE {table} SET owner_id=? WHERE id=?", (heir, xid))
                 out.append((kind, xid))
             else:

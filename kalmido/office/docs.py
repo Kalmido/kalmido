@@ -1225,7 +1225,7 @@ def doc_create(c, oid, uid, b, admin, number=True):
            "rights": json.dumps(rights, ensure_ascii=False), "fields": "[]", "totals": "{}", "created_by": uid, "created_at": ts,
            "updated_at": iso_ms(now_utc()), "sent_at": None, "trial": trial_flag(b.get("trial")),  # (#2576)
            "author_id": oda_default(c, oid, uid, kind)}  # (#7300): "Created by" = the person making it
-    if small_at(s, today.isoformat()):  # 2.47.3 (#1360): section 19 UStG; #6533: from the day it applies
+    if small_at(s, today.isoformat()):  # (#1360): section 19 UStG; #6533: from the day it applies
         row["vat_note"] = "small"
     row["currency"] = hc_code(row["currency"]) or hc_home(s)  # 2.189.0 (#2475): the office's currency of new documents
     if row["currency"] not in (hc_home(s), "EUR", "USD") or hc_home(s) != "EUR":  # EUR offices keep fx_usd / 1.09 as before
