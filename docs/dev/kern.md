@@ -623,6 +623,8 @@ newReg('mymod', {label: N_('New thing'), icon: 'plus', on: () => mayCreateHere()
 
 The phone layout shows the round + at the bottom right (tap = `run`, long press = the menu), a computer and the tablet
 layout one blue button in the head bar next to the title (`headNew`, arrow = the menu). Never a second button in the view.
+`on` answers for the page drawn now: a flag the view sets while drawing starts false at the top of every draw, so a page
+that returns early (an overview) never keeps the + of the page before (#7611, Files under "All workspaces").
 
 ## 7. Tests
 
