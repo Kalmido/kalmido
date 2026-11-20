@@ -149,12 +149,17 @@ def mc_cap_list(c, uid, oid):
 
 def mc_private_office_off(c, uid):
     """2.794.0 (#5392): Settings > Modules > Office & finance > "Also private" is off: the module "office" stands in my
-    ws_mods_off "private" (the same entry a private card writes). Hides my own personal office only; nothing is deleted."""
-    try:
-        off = json.loads(usettings(c, uid).get("ws_mods_off") or "{}").get("private") or []
-    except (ValueError, AttributeError):
-        return False
-    return isinstance(off, list) and "office" in off
+    ws_mods_off "private" (the same entry a private card writes). Hides my own personal office only; nothing is deleted.
+    (#7309): one case of the shared place (accounts/wsplace.py wsp_private_off; the area switched off in Private too)."""
+    from .wsplace import wsp_private_off  # wsplace builds on this module
+    return wsp_private_off(c, uid, "office")
+
+
+def mc_need_private_office(c, uid):
+    """(#7309 F7): 403 with the readable text when something would write into my own personal office while "Also private"
+    is off (the shared place, accounts/wsplace.py): a trip's expenses from Home, a device into the office."""
+    if mc_private_office_off(c, uid):
+        raise Denied(403, tr(MC_PRIV_OFFICE_TEXT))
 
 
 def mod_ws_on(c, uid, oid, area, feat):
@@ -162,7 +167,8 @@ def mod_ws_on(c, uid, oid, area, feat):
     oid (None = Private)? The server's twin of areas.js mod_spaces / mod_entryOn (docs/dev/kern.md, #6722): off when the
     organisation's admins switched the area off (orgs.areas_off), when I switched the area off there (ws_areas_off) or the
     module (ws_mods_off), or when it is outside my card's cap. For what lands somewhere without the person naming the
-    workspace: it must never land where the list under "All workspaces" hides it."""
+    workspace: it must never land where the list under "All workspaces" hides it.
+    (#7309): the single question; the lists of every workspace (and the new entry's place) are accounts/wsplace.py."""
     key = "org:%d" % oid if oid else "private"
     st = usettings(c, uid)
 

@@ -33,6 +33,7 @@ from ..core.orgcrypt import oc_item_store, oc_dec_fields
 from ..core.errors import BadInput, err_stored
 from .calc import dec, dstr, fmt_money, money
 from .model import office_gate, office_on, office_org, office_role, office_settings, onc_ready, pb_cl_sql, pb_owner
+from .model import pb_personal  # (#7309 F8)
 from .contacts_cl import fk_send_rcpts  # 2.433.0 (#3599)
 
 RIN_EVERY = ("monthly", "quarterly", "yearly")
@@ -80,6 +81,7 @@ from .fixedimport import fci_people  # 2.369.5 (#2517): pulled up from functions
 from ..tasks.validation import log_act  # 2.369.5 (#2517): pulled up from functions
 from .cashflow import _fx  # 2.369.5 (#2517): pulled up from functions
 from ..core.movelock import mv_sql  # noqa: E402  2.1337.0 (#6600)
+from ..accounts.wsplace import WSP_STILL  # noqa: E402  (#7309 F8) in the import block that follows the first statements of the module, like its neighbours
 from ..accounts.bgjobs import bgj_fn  # noqa: E402  2.1337.0 (#6600)
 from ..core.db import connect  # noqa: E402  2.1337.0 (#6600)
 from .owrite import ow_history_answer, ow_kind, ow_write  # 2.567.0 D (#4711): the saves go through the core's write layer
@@ -976,3 +978,16 @@ def rin_run(sid):
     if sent and datev:
         rin_datev(c, oid, nid)
     return jsonify(series=rin_public(c, oid, rin_row(c, oid, sid)), doc_id=nid, sent=bool(sent), prev_next_date=prev, error=error, note=note)
+
+
+def rin_still(c, uid):
+    """(#7309 F8): the active invoice series of uid's own personal office -- they keep making and sending invoices after
+    "Also private" goes off (the switch only hides; Settings > Modules names them)."""
+    oid = pb_personal(c, uid, create=False)
+    if not oid:
+        return []
+    n = c.execute(f"SELECT count(*) FROM office_inv_series WHERE org_id=? AND {live_sql()} AND active", (oid,)).fetchone()[0]
+    return [{"kind": "invoice_series", "count": int(n)}]
+
+
+WSP_STILL.append(rin_still)

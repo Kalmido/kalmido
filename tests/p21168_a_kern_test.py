@@ -104,7 +104,7 @@ kinds = boundary(A)
 check(not kinds.get("cal_person") and not kinds.get("cal_agent"), f"#4782 N2: the nightly boundary check finds nothing on it {kinds}")
 
 # ================================================================== N2: a private address book into an organisation
-BK = A.post(B + "/api/books", json={"name": "Private contacts"}).json()["id"]
+BK = A.post(B + "/api/books", json={"name": "Private contacts", "space": "private"}).json()["id"]  # (#7309): named (two organisations, none chosen = 400 space_needed)
 r = A.put(B + f"/api/books/{BK}/members", json={"user_id": BOB, "role": "view"})
 check(r.ok and share("address_book", BK, BOB) == "view", f"alice's private book shared with bob {r.status_code} {r.text[:160]}")
 NB = node("address_book", BK)

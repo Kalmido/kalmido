@@ -1321,7 +1321,7 @@ function sh_smvItems(x) {
 async function sh_smvMove(x) {
   const id = x.id, from = sh_smvOrg(x.space);
   const req = (to, extra) => rawFetch('POST', `/api/sheets/${id}/move-space`, {to: smv_ws(to), ...extra});
-  const r = await smv_open({what: qn(x.title || tr('Untitled table')), from, check: to => req(to, {dry: 1}),
+  const r = await smv_open({mod: 'sheets', what: qn(x.title || tr('Untitled table')), from, check: to => req(to, {dry: 1}),
     run: async to => { try { return await req(to, {}); } catch (e) { toast(errText(e, tr('The move was not saved'))); throw e; } }});
   if (!r || !r.ok) return;
   let mid = r.move_id;

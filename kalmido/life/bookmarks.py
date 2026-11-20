@@ -664,7 +664,7 @@ def bm_move(c, uid, b):
         ids = list(dict.fromkeys(int(i) for i in ids))
     except (TypeError, ValueError):
         raise Denied(400, tr("Invalid value: {0}", "ids")) from None
-    to = smv_target(c, uid, b.get("to"))
+    to = smv_target(c, uid, b.get("to"), "reading")
     rows = [bm_get(c, uid, i, write=True) for i in ids]
     rows = [r for r in rows if (r["org_id"] or None) != (to or None)]
     if not rows:

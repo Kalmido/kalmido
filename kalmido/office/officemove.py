@@ -951,7 +951,7 @@ def ofm_move_space():
         if src2 != src or [dict(r) for r in rows2] != [dict(r) for r in rows]:
             raise Denied(409, tr("Changed in the meantime"))
     frm_ws = ofm_ws(c, src)
-    to = smv_target(c, uid, b.get("to"))
+    to = smv_target(c, uid, b.get("to"), "office")
     if not b.get("dry") and ofm_copied_already(c, what, rows, to):  # 2.407.0 (#3396): still under the lock
         raise Denied(409, tr("Changed in the meantime"))
     smv_same(frm_ws, to)
