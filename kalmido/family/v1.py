@@ -188,7 +188,7 @@ def v1_family_reward_request(rid):
 def v1_family_reward_decide(rid):
     v1_args(())
     b = v1_json()
-    reject_unknown(b, ("approve",))
+    reject_unknown(b, ("approve", "requested_at"))  # #6343: the request the client saw (409 when another parent decided it)
     return jsonify(v1_call(family_reward_decide, rid, body=b))
 
 
@@ -311,7 +311,8 @@ def family_spec(paths, schemas, op, ok, errs, ref, pid, nul, page, q):
     paths["/family/rewards/{id}/request"] = {"post": op("Ask for a reward (the kid itself, with enough stars)", F, ok(ref("Kid")) | errs("403", "404", "409"),
                                                         [rid_p], scope="tasks:write")}
     paths["/family/rewards/{id}/decide"] = {"post": op("Approve (stars are taken) or decline a reward (parents)", F, ok(ref("Kid")) | errs("400", "404", "409"),
-                                                       [rid_p], body={"type": "object", "required": ["approve"], "properties": {"approve": {"type": "boolean"}}},
+                                                       [rid_p], body={"type": "object", "required": ["approve"], "properties": {"approve": {"type": "boolean"},
+                                                             "requested_at": nul("string", description="The request you saw (null = open): another one now = 409")}},
                                                        scope="tasks:write")}
     paths["/me/purpose"] = {"post": op("What the token's user uses Kalmido for: switches the modules and creates the starter lists once", F,
                                        ok({"type": "object", "properties": {"features": {"type": "string"}, "created": {"type": "array", "items": {"type": "integer"}}}}) | errs("400"),

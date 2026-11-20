@@ -385,6 +385,12 @@ async function famGive(kid) {
   });
 }
 function famKidSet(k) { S.kids = (S.kids || []).map(x => x.id === k.id ? k : x); render(); }
+// #6343: redeem / decline sends the request the parent saw; another parent was faster = 409 with the kid's state: shown, list fresh
+async function famDecide(rid, approve) {
+  const r = (S.kids || []).flatMap(x => x.rewards || []).find(x => x.id === +rid);
+  try { const j = await api('POST', `/api/family/rewards/${rid}/decide`, {approve, requested_at: r?.requested_at ?? null}); famKidSet(j); return j; }
+  catch (e) { if (e?.status === 409 && e.data?.kid) famKidSet(e.data.kid); throw e; }
+}
 function rewardsModal(kid) {
   let k = (S.kids || []).find(x => x.id === kid); if (!k) return;
   const md = modal(`<h3>${ic('gift', 's')} ${tr('Rewards for {0}', esc(k.display_name))}</h3><div id="rw-list"></div>
@@ -407,7 +413,7 @@ function rewardsModal(kid) {
         $('#rw-title', md).value = ''; $('#rw-err', md).textContent = '';
         reload((await api('GET', '/api/family/kids')).kids.find(x => x.id === kid)); return;
       }
-      if (b.dataset.redeem) { reload(await api('POST', `/api/family/rewards/${b.dataset.redeem}/decide`, {approve: true})); toast(tr('Redeemed')); return; }
+      if (b.dataset.redeem) { try { reload(await famDecide(b.dataset.redeem, true)); } catch (x) { if (x?.status === 409 && x.data?.kid) reload(x.data.kid); throw x; } toast(tr('Redeemed')); return; }
       if (b.dataset.rdel) { if (!await askConfirm(tr('Delete this reward?'), '', {ok: tr('Delete'), danger: true})) return; await api('DELETE', `/api/family/rewards/${b.dataset.rdel}`); reload((await api('GET', '/api/family/kids')).kids.find(x => x.id === kid)); }
     } catch (er) { $('#rw-err', md).textContent = er.message || ''; }
   });
@@ -685,7 +691,7 @@ document.addEventListener('click', async e => {
   else if (k === 'fam-give') famGive(+a.dataset.kid);
   else if (k === 'fam-rewards') rewardsModal(+a.dataset.kid);
   else if (k === 'fam-pin') kd_pinSet(+a.dataset.kid);  // 2.49.0 (#1551)
-  else if (k === 'fam-decide') { try { famKidSet(await api('POST', `/api/family/rewards/${a.dataset.rid}/decide`, {approve: a.dataset.ok === '1'})); toast(a.dataset.ok === '1' ? tr('Redeemed') : tr('Rejected')); } catch { /* api() said it */ } }
+  else if (k === 'fam-decide') { try { await famDecide(a.dataset.rid, a.dataset.ok === '1'); toast(a.dataset.ok === '1' ? tr('Redeemed') : tr('Rejected')); } catch { /* api() said it */ } }
   else if (k === 'kid-tick') {
     const t = taskById(id); if (!t) return;
     const was = t.status, before = S.kids?.[0]?.stars ?? 0;

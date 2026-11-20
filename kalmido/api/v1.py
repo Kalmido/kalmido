@@ -2017,11 +2017,13 @@ def v1_habit_checkin(hid):
     old = c.execute("SELECT count FROM habit_logs WHERE habit_id=? AND day=?", (hid, day)).fetchone()
     cnt = as_int(b["count"], "count", 0, 1000) if "count" in b else (old[0] if old else 0) + 1
     fwd = {"day": day, "count": cnt}
+    if "count" not in b:
+        fwd["prev"] = old[0] if old else 0  # #6343: "one more" on the count read here, a tick in between stays
     if "note" in b:
         if not isinstance(b["note"], str):
             raise BadInput(tr("Invalid value: {0}", "note"))
         fwd["note"] = b["note"]
-    v1_call(habit_log, hid, body=fwd)
+    cnt = (v1_call(habit_log, hid, body=fwd) or {}).get("count", cnt)
     return jsonify({**v1_habit(c, c.execute("SELECT * FROM habits WHERE id=?", (hid,)).fetchone()), "date": day, "count": cnt})
 
 

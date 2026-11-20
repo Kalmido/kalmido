@@ -188,8 +188,12 @@ def habit_log(hid):
     day = b.get("day") or local_now().date().isoformat()
     c = db()
     need_habit(c, hid)
+    write_lock(c, f"habit_logs-{hid}-{day}")  # #6343: two devices tick the same day
     old = c.execute("SELECT count, note FROM habit_logs WHERE habit_id=? AND day=?", (hid, day)).fetchone()
     cnt = max(0, int(b["count"])) if "count" in b else (old["count"] if old else 0)
+    if "count" in b and b.get("prev") is not None:  # #6343: the count the device saw; another one now = its step on top
+        now = old["count"] if old else 0
+        cnt = max(0, now + cnt - max(0, int(b["prev"])))
     note = (b.get("note") or "").strip()[:500] if "note" in b else (old["note"] if old else "")
     if cnt or note:  # a note keeps the day even when it is not ticked
         c.execute("INSERT INTO habit_logs(habit_id,day,count,note) VALUES(?,?,?,?) "
@@ -199,7 +203,7 @@ def habit_log(hid):
         c.execute("DELETE FROM habit_logs WHERE habit_id=? AND day=?", (hid, day))
     bump(c)
     c.commit()
-    return jsonify(ok=True)
+    return jsonify(ok=True, count=cnt)  # #6343: the count now (another device may have ticked too)
 
 
 # ---------------------------------------------------------------- pomodoro (private per user)
