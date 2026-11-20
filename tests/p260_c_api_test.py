@@ -113,6 +113,20 @@ def agent(name):
 
 
 RV, rv = agent("reviewbot")      # member of P
+ALICE = A.get(B + "/api/me").json()["id"]
+
+
+def rv_card(m, p, **k):
+    """(#6453, #7142): reviewbot reads OTHER (alice only) and P (more people): a write into P is a write into a wider circle -
+    the agent (no control level chosen = "free") asks with the circle's card, alice says Yes, the step runs (kt.circle_yes)
+    and its answer is the route's own (200 / 403 / 400)."""
+    from kt import circle_yes
+    r = rv.req(m, p, **k)
+    e = (r.json().get("error") or {}) if r.status_code == 409 else {}
+    check(isinstance(e, dict) and e.get("circle") == "wider", f"reviewbot's {m} {p} asks for the wider circle's card {r.status_code} {r.text[:200]}")
+    return circle_yes(r, rv.h, RV, A, V, ALICE, base=B)
+
+
 OUT, out = agent("outsider")     # no member of P
 P = A.post(B + "/api/lists", json={"name": "App", "kind": "project"}).json()["id"]
 OTHER = A.post(B + "/api/lists", json={"name": "Other"}).json()["id"]
@@ -183,9 +197,9 @@ r = Bo.post(B + f"/api/tasks/{T1}/complete")
 check(r.status_code == 409 and "Waiting for approval by Carol" in r.text, f"web tick: 409 {r.status_code} {r.text[:200]}")
 r = Bo.post(B + "/api/tasks/batch", json={"ids": [T1], "action": "complete"})
 check(one(T1)["status"] == 0 and any("Waiting for approval" in e for e in (r.json().get("errors") or [])), "batch: left open with the reason " + r.text[:200])
-r = rv.req("POST", f"/tasks/{T1}/complete")
-check(r.status_code == 409, f"API v1 complete: 409 ({r.status_code})")
-rv.req("POST", "/tasks/batch", json={"ids": [T1], "action": "complete"})
+r = rv_card("POST", f"/tasks/{T1}/complete")  # past the circle's card: the review gate itself answers 409
+check(r.status_code == 409 and "Waiting for approval" in r.text, f"API v1 complete: 409 ({r.status_code} {r.text[:200]})")
+rv_card("POST", "/tasks/batch", json={"ids": [T1], "action": "complete"})
 check(one(T1)["status"] == 0, "API v1 batch: still open")
 TS = Bo.post(B + "/api/tasks", json={"title": "sub", "list_id": P, "parent_id": T1}).json()["id"]
 check(Bo.post(B + f"/api/tasks/{TS}/complete").ok, "a subtask without a reviewer completes freely")
@@ -194,7 +208,7 @@ check(Bo.post(B + f"/api/tasks/{TS}/complete").ok, "a subtask without a reviewer
 check(rvw(Bo, T1, action="approve").status_code == 403, "the assignee cannot approve")
 check(rvw(Ev, T1, action="approve").status_code == 404, "a stranger: 404")
 check(rvw(Da, T1, action="approve").status_code == 403, "a viewer who is not the reviewer: 403")
-check(rv.req("POST", f"/tasks/{T1}/review", json={"action": "approve"}).status_code == 403, "an agent that is not the reviewer: 403")
+check(rv_card("POST", f"/tasks/{T1}/review", json={"action": "approve"}).status_code == 403, "an agent that is not the reviewer: 403")
 r = rvw(Ca, T1, action="approve")
 check(r.ok and r.json().get("review") == "approved" and r.json().get("review_by") == CAROL, "the reviewer approves " + r.text[:200])
 check(Bo.post(B + f"/api/tasks/{T1}/complete").ok and one(T1)["status"] == 2, "approved: completing works")
@@ -264,9 +278,9 @@ def events(since, want, t=10.0):
 ev = events(cur, {"review_requested"})
 d = ev[0]["data"] if ev else {}
 check(ev and (d.get("task") or {}).get("id") == T6 and (d.get("review") or {}).get("state") == "pending", f"agent event review_requested {d}")
-r = rv.req("POST", f"/tasks/{T6}/review", json={"action": "approve"})
+r = rv_card("POST", f"/tasks/{T6}/review", json={"action": "approve"})
 check(r.ok and r.json().get("review") == "approved", "the agent approves as the reviewer " + r.text[:200])
-check(rv.req("POST", f"/tasks/{T6}/review", json={"action": "approve", "bogus": 1}).status_code == 400, "unknown field: 400")
+check(rv_card("POST", f"/tasks/{T6}/review", json={"action": "approve", "bogus": 1}).status_code == 400, "unknown field: 400")
 
 # ---------------------------------------------------------------- git: a merged pull request counts
 r = A.post(B + f"/api/lists/{P}/repos", json={"provider": "github", "base_url": GH, "repo": "acme/app", "token": TOKEN})
