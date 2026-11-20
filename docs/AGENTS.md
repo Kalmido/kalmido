@@ -3478,6 +3478,16 @@ server counts it as their hand -- move somebody else's text onto a dispatched li
 unlocking a note of somebody else's task makes its description the unlocker's. Still give write access to a dispatched list
 only to people you trust with it.
 
+**Confirmed as an order (2.1494.0).** The one way for another hand's text to become the person's order is the person's own
+*Confirm as an order* on the task (the button in the task panel's header, on a phone in the task's menu; only project owners,
+project admins and admins, never an agent, a token, a child account or a support session). The API shows it read only as
+`confirmed: {by, at}`; it is bound to the text: once anyone but the confirmer changes the title or the description, the
+server drops it (the history says who changed the text) and `confirmed` is `null` again. The dispatcher builds a task whose
+`confirmed.by` is its person as the person's own, whatever `created_by` / `updated_by` say; a confirmation by another decider
+does not count for it. The MCP server keeps a confirmed task's title and description unfenced when `confirmed.by` is one of
+the trusted accounts; its comments and files stay data as before. *Reject* closes the task as won't do with the decider's
+reason in its history (the reason is required); an agent can do neither, and no card can bring either about.
+
 **A job ends in a pull request (2.1368.0).** The end of a dispatcher job is fixed, not a sentence in the brief. Once a job
 ended, the dispatcher itself runs `check_cmd` in the job's working copy (a temporary one of the branch if it was cleaned
 away; at most `check_timeout_min` minutes; exit 0 = green). The check runs the code of the job's branch: it gets an

@@ -56,13 +56,15 @@ def people_merge(c, tid, old, mine):
     return part_merge(have, old, mine)
 
 
-def apply_update(c, tid, b, conflicts=None, lock=False):
+def apply_update(c, tid, b, conflicts=None, lock=False, carry_yes=False):
     """b may carry `_prev` = the values the client saw before its edit (offline replay, detail typing).
     A field whose server value differs from `_prev` was changed elsewhere meanwhile: it is NOT
     overwritten but reported back as a conflict (client lets the user pick).
     The caller checked write access to the task; moves are checked here (Denied).
     lock (2.36.0, #1118): a direct edit of a person (PATCH /api/tasks/<id>, multi-select, undo) honours the task lock; applied
-    proposals / suggestions, dependent dates and roadmap shifts do not (they were approved or switched on on purpose)."""
+    proposals / suggestions, dependent dates and roadmap shifts do not (they were approved or switched on on purpose).
+    carry_yes (#7528): only the person's direct edit (PATCH /api/tasks/<id>, the multi-select edit) passes it -- a confirmation
+    as an order then stays with its confirmer's own change; every other write of title / description ends it (boundyes)."""
     from ..collab.comments import assignment_events
     from ..lists.fields import field_value, set_field_values
     from ..agents.core import agent_task_mentions
@@ -292,7 +294,7 @@ def apply_update(c, tid, b, conflicts=None, lock=False):
         if ("list_id" in f and f["list_id"] != cur["list_id"]) or ("ms" in f and f["ms"] != cur["ms"]):
             ms_cleanup(c)  # 2.18.0 (#430): moved / no milestone any more: its tasks (and moved subtasks) let go
     if f:
-        log_changes(c, tid, cur, b.get("_act"))
+        log_changes(c, tid, cur, b.get("_act"), carry_yes=carry_yes)  # before agent_task_mentions: an ended yes is not in it
         if le2_post:  # 2.1375.0 (#6677, review F5): a move across the lock re-writes the texts, it does not author them
             text_by_carry(c, tid, cur, f)
         new_a, new_g = c.execute("SELECT assignee_id, assignee_group_id FROM tasks WHERE id=?", (tid,)).fetchone()

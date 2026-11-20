@@ -19,6 +19,7 @@ from meeting notes) and their shared infrastructure.
  - retention: proposal jobs older than 30 days go with their input (own container, restarted); OpenAPI documents the routes
 Starts its OWN containers (start.sh).
 usage: p230_api_test.py <datadir>"""
+import hashlib
 import json
 import os
 import dbx as dbxm  # 2.37.0: the suite has its own dbx() helper
@@ -343,8 +344,17 @@ check(cl.post(f"/agent/jobs/{J3}/proposal", json={"items": [{"task_id": I1}, {"t
 TRI = {"items": [{"task_id": I1, "list_id": TEAM, "section_id": SEC, "tags": ["print", "#Mine"], "priority": "medium"},
                  {"task_id": I2, "rewrite_title": "Birthday gift for Mum", "due": "2031-04-02", "tags": ["family"]}]}
 check(cl.post(f"/agent/jobs/{J3}/proposal", json=TRI).status_code == 201, "triage: valid 201")
+# #7528 (f): alice's confirmation of I2, set in the database with the text state of core/boundyes.py by_sig (the confirm route
+# would change I2, which the apply then skips as changed) - the triage's rewrite_title is an agent's text: it ends it
+_sig = "|".join(hashlib.sha256((v or "").encode()).hexdigest()[:16] for v in dbx("SELECT title, content FROM tasks WHERE id=?", (I2,))[0])
+_c = dbxm.connect(os.path.join(DATA, "tasks.db"))
+_c.execute("UPDATE tasks SET confirmed_by=?, confirmed_at='2026-11-20T10:00:00+00:00', confirmed_sig=? WHERE id=?", (ALICE, _sig, I2))
+_c.commit()
+_c.close()
+check(task(A, I2).get("confirmed"), "#7528: setup, I2 confirmed")
 r = A.post(B + f"/api/proposals/{J3}/apply", json={"select": ["0", "1"], "edits": {"1": {"due": "2031-04-03"}}})
 check(r.ok and r.json()["changed"] == 2, f"triage applied ({r.text[:200]})")
+check(task(A, I2).get("confirmed") is None, "#7528 (f): the triage's rewrite_title ends alice's confirmation")
 t1, t2 = task(A, I1), task(A, I2)
 check(t1["list_id"] == TEAM and t1["section_id"] == SEC and t1["priority"] == 3 and sorted(t1["tags"]) == ["mine", "print"],
       f"I1 moved to Team / Doing, medium, personal tags merged: {t1['list_id']} {t1['section_id']} {t1['tags']}")

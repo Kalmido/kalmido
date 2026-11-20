@@ -210,6 +210,11 @@ def openapi_spec():
     task_props["irreversible"] = {"type": ["object", "null"], "description": "2.392.0: a one-way step: PATCH {reason} marks the task (a "
                                   "new reason takes a yes back), null takes the mark off (people only). Read: reason, yes_by, yes_at. Where the "
                                   "project has irreversible_needs_yes on, integrate / deploy requests stay open until a person said yes"}
+    # (#7528): read only -- only a person with the decider role gives it in the app (tasks/boundyes.py)
+    task_props["confirmed"] = {"type": ["object", "null"], "readOnly": True, "description": "2.1494.0: a decider (project owner, project admin "
+                               "or an admin; never an agent or a token) confirmed the task as an order: {by, at}. Bound to the text: null again once "
+                               "anyone but that person changes the title or the description. Read only: PATCH refuses it (unknown field)",
+                               "properties": {"by": {"type": ["integer", "null"]}, "at": {"type": "string", "format": "date-time"}}}
     task_props["delivery"] = {"type": ["object", "null"], "description": "2.392.2: the delivery state, next to code.build.state (which stays "
                               "released / main / branch / none). PATCH {state: in_progress | parked | waiting, note?, job_id?, task_id?}; null clears "
                               "it. in_progress: job_id = an open job of this task (an agent: its own; omitted = the newest one); a running job of "

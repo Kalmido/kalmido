@@ -617,7 +617,7 @@ def task_update(tid):
     from ..collab.notelock import ln_guard
     if ln_guard(c, tid, b):  # 2.48.0 (#1642): app, API and agents: a locked note is not overwritten (409, a clear message)
         return err(ln_guard(c, tid, b), 409)
-    e = apply_update(c, tid, b, conflicts, lock=True)
+    e = apply_update(c, tid, b, conflicts, lock=True, carry_yes=True)  # (#7528): the person's direct edit keeps their confirmation
     if e:
         return err(e)
     new_due = c.execute("SELECT due FROM tasks WHERE id=?", (tid,)).fetchone()[0]

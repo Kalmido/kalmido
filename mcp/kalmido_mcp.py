@@ -382,7 +382,7 @@ S_KIND = {"type": "string", "enum": ["open", "progress", "review", "done", "reje
 COMPACT_FIELDS = ("id", "title", "list_id", "section_id", "section_kind", "parent_id", "status", "due", "due_time", "priority", "tags", "list_tags",
                   "assignee_id")
 # #7151: kept when present, so the data fence knows whose title it is (review F6: and who last rewrote it)
-COMPACT_OUTSIDE = ("created_by", "updated_by", "by_creator", "origin", "untrusted")
+COMPACT_OUTSIDE = ("created_by", "updated_by", "by_creator", "origin", "untrusted", "confirmed")  # 2.1494.0 (#7528): + confirmed
 COMPACT_AUTO = 25  # 2.0.8: without `compact`, a page with more tasks than this comes back compact
 
 
@@ -516,6 +516,10 @@ def _writer(d, ids, ctx):
     ctx: the key d stands under (a file under attachments without an uploader is data)."""
     if ctx == "reply":  # a quote of another comment: always data
         return "a quoted comment"
+    cf = d.get("confirmed")  # 2.1494.0 (#7528): a trusted person confirmed exactly this text as an order (the server shows it
+    if "by_creator" in d and isinstance(cf, dict) and "at" in cf and not isinstance(cf.get("by"), bool) \
+            and isinstance(cf.get("by"), int) and cf["by"] in ids:  # reader F8: only on the shape of a task  # only while title and description are unchanged since; only a person gives it)
+        return None
     if d.get("untrusted") is True:
         return f"outside Kalmido: {_one_line(d['origin'], 40)}" if d.get("origin") else "outside Kalmido: a mail or a form"
     au = d.get("author")

@@ -16,6 +16,7 @@ usage: p2390_b_api_test.py <datadir>"""
 import os
 import subprocess
 import sys
+import hashlib
 
 import requests
 
@@ -58,6 +59,17 @@ def ask(s, **b):
 
 def task(s, tid):
     return s.get(B + f"/api/tasks/{tid}").json()
+
+
+def confirm_db(*ids):
+    """#7528: alice's confirmation as an order, set in the database with the text state of core/boundyes.py by_sig -- the confirm
+    route would change the task (updated_at), which an apply then skips as changed since the request."""
+    con = dbxm.connect(os.path.join(DATA, "tasks.db"))
+    for t in ids:
+        sig = "|".join(hashlib.sha256((v or "").encode()).hexdigest()[:16] for v in q("SELECT title, content FROM tasks WHERE id=?", (t,))[0])
+        con.execute("UPDATE tasks SET confirmed_by=?, confirmed_at='2026-11-20T10:00:00+00:00', confirmed_sig=? WHERE id=?", (ALICE, sig, t))
+    con.commit()
+    con.close()
 
 
 def new_task(s, lid, title, **k):
@@ -201,6 +213,11 @@ con_.execute("UPDATE tasks SET content_by=0 WHERE id=?", (T["dup2"],))
 con_.commit()
 con_.close()
 check(tuple(q("SELECT title_by, content_by FROM tasks WHERE id=?", (T["dup1"],))[0]) == (None, None), "#6677: dup1 untouched so far")
+# #7528 (reader F6): alice confirms dup1 as an order - the merge brings in a text of another hand, so the yes ends there
+# (set in the database: the confirm route would change dup1 after the request, which the apply then skips as changed)
+# vague: alice's own text throughout - the rename the agent proposed is still not a text she confirmed (reader F1 r3)
+confirm_db(T["dup1"], T["vague"])
+check(task(A, T["dup1"]).get("confirmed") and task(A, T["vague"]).get("confirmed"), "#7528: dup1 and vague confirmed by alice")
 
 # ================================================================== applying: four kinds, skipped with the reason
 check(Bo.post(B + f"/api/tasks/{T['editing']}/editing").ok, "#999: Bob is editing a task")
@@ -220,6 +237,10 @@ d2 = task(A, T["dup2"])
 check(d2["status"] == -1, f"merge: the other one is closed as won't do ({d2['status']})")
 check(tuple(q("SELECT title_by, content_by FROM tasks WHERE id=?", (T["dup1"],))[0]) == (ALICE, 0),
       f"#6677 (F4): merged text of another hand -> the description is nobody's (0), the title alice's: {q('SELECT title_by, content_by FROM tasks WHERE id=?', (T['dup1'],))}")
+check(q("SELECT confirmed_at FROM tasks WHERE id=?", (T["dup1"],))[0][0] is None,
+      "#7528 (reader F6): the merged text of another hand ends alice's confirmation (it is not carried along)")
+check(q("SELECT confirmed_at FROM tasks WHERE id=?", (T["vague"],))[0][0] is None,
+      "#7528 (reader F1 r3): a rename applied from the agent's proposal ends it too, though every part was alice's")
 # 2.972.0 (#5272): the task comments are rows of the core's obj_comments (kind 'task', ref_id = the task)
 check(len(q("SELECT id FROM obj_comments WHERE kind='task' AND ref_id=? AND deleted_at IS NULL", (T["dup2"],))) == 1, "merge: its comment stays with it")
 check(task(A, SUB2)["parent_id"] == T["dup1"] and task(A, SUB2)["status"] == 0, "merge: an open subtask of the other one moves to the kept task")
@@ -281,6 +302,39 @@ check(submit({"kind": "cleanup", "summary": "x", "items": [{"op": "close", "task
 r = A.post(B + f"/api/proposals/{J}/apply", json={"select": ["0"]})
 check(r.ok and task(A, FP)["status"] == -1 and task(A, LKC)["status"] == 0, f"closing a free task leaves its locked subtask open {r.text[:200]}")
 check(A.post(B + f"/api/proposals/{J}/undo").ok and task(A, FP)["status"] == 0 and task(A, LKC)["status"] == 0, "undo: reopened, the locked one untouched")
+
+# ================================================================== #7528 (decision 25398 / 16:24): only the confirmer's direct
+# edit carries a confirmation; an applied proposal (merge, rename), its redo end it - before the mention event is built
+CFL = A.post(B + "/api/lists", json={"name": "Bob's orders"}).json()["id"]
+for who in (AG, BOB):
+    A.put(B + f"/api/lists/{CFL}/members", json={"user_id": who, "role": "edit"})
+A.patch(B + f"/api/lists/{CFL}", json={"agent_members": True})
+K, R = new_task(Bo, CFL, "Bob's order", content="as Bob wrote it"), new_task(Bo, CFL, "Bob's order again", content="more of Bob")
+V2 = new_task(Bo, CFL, "Bob's vague one", content="v")
+confirm_db(K, V2)
+check(task(A, K).get("confirmed") and task(A, V2).get("confirmed"), "#7528: alice confirmed two of bob's tasks")
+r = ask(A, list_id=CFL)
+check(r.status_code == 201, f"#7528: request {r.status_code} {r.text[:160]}")
+J = r.json()["job"]["id"]
+seen_m = len(events(cl, "mention"))
+check(submit({"kind": "cleanup", "summary": "x", "items": [
+    {"op": "merge", "task_ids": [K, R], "title": "Bob's order, all of it @tidy", "reason": "the same"},
+    {"op": "rename", "task_id": V2, "title": "Bob's vague one, clearer @tidy"}]}).status_code == 201, "#7528: proposal")
+r = A.post(B + f"/api/proposals/{J}/apply", json={"select": ["0", "1"]})
+check(r.ok and task(A, K)["title"].startswith("Bob's order, all"), f"#7528: applied {r.text[:200]}")
+check(task(A, K).get("confirmed") is None and q("SELECT confirmed_at FROM tasks WHERE id=?", (K,))[0][0] is None,
+      "#7528 (a): K and R of the same foreign creator, alice applies the merge - her confirmation ends")
+check(any(a["kind"] == "confirmed_lapsed" for a in A.get(B + f"/api/tasks/{K}/timeline").json()["activity"]), "#7528 (a): with a history line")
+check(task(A, V2).get("confirmed") is None, "#7528 (b): an applied rename an agent proposed ends it")
+ms = [e for e in events(cl, "mention")[seen_m:] if e["data"]["task"]["id"] in (K, V2)]
+check(len(ms) >= 2 and all(e["data"]["task"].get("confirmed") is None for e in ms),
+      f"#7528 (e): the mention events of the merge and the rename carry no confirmed {[(e['data']['task']['id'], e['data']['task'].get('confirmed')) for e in ms]}")
+check(A.post(B + f"/api/proposals/{J}/undo").ok and task(A, K)["title"] == "Bob's order", "#7528: undo")
+check(task(A, K).get("confirmed") is None, "#7528 (c): the undo does not bring it back")
+confirm_db(K)
+check(task(A, K).get("confirmed"), "#7528: alice confirms the text after the undo")
+check(A.post(B + f"/api/proposals/{J}/redo").ok and task(A, K)["title"].startswith("Bob's order, all"), "#7528: redo")
+check(task(A, K).get("confirmed") is None, "#7528 (f): redoing the proposal (cln_undo back=False) ends it")
 
 # ================================================================== packages: 50 per job, at most 5
 BIG = A.post(B + "/api/lists", json={"name": "Backlog"}).json()["id"]

@@ -9,6 +9,7 @@ from ..core.config import ATT_DIR
 from ..core.i18n import tr
 from ..core.ctx import me  # 2.149.0 G (#2517): was accounts.session
 from ..core.access import plists, PROJ_SQL, pvis
+from ..core.boundyes import by_view  # (#7528)
 from ..core.pg import st_ids
 from .objfollow import ofl_watchers_of  # 2.972.0 (#5285)
 from ..core.dlock import dl_tasks_locked  # 2.576.0 (#3371)
@@ -76,6 +77,12 @@ def task_dict(r, tags, full_snips=False):
     d.pop("nag_at", None)
     d.pop("client_ref", None)  # 2.126.0 D (#1990): only the server matches it
     d.pop("acceptance_of", None)  # 2.392.0 C (#3370): only the server matches it
+    if "confirmed_at" in d:  # (#7528): "confirmed as an order" {by, at} only while it belongs to the text (absent otherwise)
+        cf = by_view(d, "confirm") if d["confirmed_at"] else None
+        for k in ("confirmed_by", "confirmed_at", "confirmed_sig"):
+            d.pop(k, None)
+        if cf:
+            d["confirmed"] = cf
     d.pop("org_id", None)  # 2.724.0 (#5184): the row-level security column of #4602, the client takes the organisation from the list
     for k in ("rev", "updated_by", "deleted_by"):  # 2.1031.0 (#5538): the core's columns of its restore (5491_a), the server's only
         d.pop(k, None)  # (the task's version stays updated_at; who deleted it is in its log) -- the dict stays as before 2.1002

@@ -264,6 +264,7 @@ The foundation: database, schema, access layer, request context, conflicts (409)
 
 - `kalmido/core/access.py` (`acx`) - Access control: who sees / changes which list and task, module switches, list roles
 - `kalmido/core/addrshare.py` (`ads`) - Open shares by e-mail address in the shared core: obj_addr_shares, redeemed when the account of the address signs in with it proved (projects, folders, knowledge pages)
+- `kalmido/core/boundyes.py` - the rules and the reading of THE yes of a person bound to a text state (docs/dev/kern.md "A person's yes bound to a text"); the writing (...
 - `kalmido/core/codemanifest.py` - Code integrity: the web manifest, the full SHA-256 of every file the browser gets (GET /api/code-manifest, tools/web_manifest.py)
 - `kalmido/core/colbool.py` - the old yes / no columns as BOOLEAN instead of BIGINT / INTEGER 0/1
 - `kalmido/core/coltime.py` - the other old time columns (*_at / *_on / *_until) onto TIMESTAMPTZ / DATE, area by area
@@ -881,6 +882,7 @@ Knowledge pages (wiki): pages, history, sharing, search, tags, folders and the l
 The start-up module.
 
 - `kalmido/startup.py` - Start-up: init_db() and the background threads (watchdog, update check, calendars, backups, webhooks, mail, git)
+- `kalmido/tasks/boundyes.py` - the writing of THE yes of a person bound to a text state: give it, take it off, the hook after a write of the bound texts
 - `kalmido/wiki/wkdoc.py` - one knowledge page as a PDF or a Word file (.docx), for texts that go out (decision of 10.11.2026: no word processor of its own, the Mark...
 
 ## Scripts (`static/js/`)

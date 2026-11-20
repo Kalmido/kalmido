@@ -1389,6 +1389,39 @@ a new kind. One way per table: a second registration is refused, `tools/check_ex
   (`admin/orgexport.py ox_history_where`); what no import takes over stands in the manifests' `not_imported`. Every table
   (not only those with an organisation column) is in the organisation export or `OX_LEFT` (#6359).
 
+### A person's yes bound to a text (2.1494.0, #7528)
+
+ONE block for "a decider said yes to exactly this text": `core/boundyes.py` (the kinds, the rule of a decider, the reading)
+and `tasks/boundyes.py` (giving, dropping, the hook after a text change). `BY_KINDS` names per kind the columns (`by`, `at`,
+optionally `sig`), the bound texts and whether the decider's own change keeps the yes:
+
+| Kind | Columns | Bound to | Own change |
+|---|---|---|---|
+| `irreversible` (one-way step, #3370) | `irreversible_yes_by` / `_at` | the reason | ends it (a new reason, whoever writes it) |
+| `confirm` (*Confirm as an order*) | `confirmed_by` / `_at` / `_sig` | title + description | keeps it (bound to the new text) |
+
+- `by_decider(c, task, user)`: a person (no agent, child account, token, public link, webhook, CalDAV or support session) who
+  sees the whole task and is project owner / admin or an instance admin. Every yes and no of a task asks this, nothing else.
+- `by_give` / `by_drop` write the yes (and its history line); `by_view(row, kind)` -> `{by, at}` or `None` is the only reading
+  (task dict, API v1, MCP). With a `sig` column the yes also compares a hash of each bound text with the text now
+  (`by_valid`), so a write on a path that never reaches the hook still ends it.
+- The hook: `tasks/validation.py log_changes` calls `by_text_written` when title or description changed (inside
+  `apply_update`, before `agent_task_mentions`, so an ended yes is not in the mention event). Carrying a yes onto a new text
+  is an explicit permission, never a conclusion from the writing hand: only the person's direct edit passes it
+  (`apply_update(..., carry_yes=True)`: PATCH /api/tasks/<id> in tasks/tasks.py and the multi-select edit in tasks/batch.py),
+  and then only for the confirmer in session or proxy (`by_person`). Every other write of title / description ends the yes
+  with the history line `<kind>_lapsed`: applied agent proposals (cleanup merge / rename and its redo, triage's
+  rewrite_title), tidy, list rules, undo / redo, imports, tokens. No caller drops it on its own.
+- The yes goes to the text the decider read: the confirm route takes `{title, content}` as the panel shows them (server form,
+  a locked list's ciphers), compares them by `by_sig` and gives the yes in one locked section (`write_lock(c, "task-<id>")`),
+  409 when the text changed since (not `updated_at`: whole seconds).
+  A decider's yes / no is never queued offline (core.js `queueable`). `by_give` writes the compared text state, it does not
+  read the row again.
+
+A new "yes to a text" (a document's approval, a proposal) adds a kind here, never a column pair with its own checks.
+`agents/apvdiff.py` `desc_proof` is a different thing (a proof that the person read the server's description of a step
+before the Yes on a card) and stays as it is.
+
 ## Filter (2.846.0, #5520)
 
 A saved filter, a shared view, a segment: an area that lets people pick its items by conditions builds **no condition logic
@@ -1753,6 +1786,9 @@ knew "where is the module on"; new entries landed where the list then hid them.
   on in Private and in the organisation gets `space_needed` too (API callers name `space` / `org_id`; the browser always does).
 - the request names its workspace in the JSON body as `space` (`"private"` | `"org:<id>"`), multipart as the form field
   `space`; `org_id` stays accepted (the same). `wsp_named(body)` reads it (None = nothing named; `org_id: null` = Private).
+- "Also private" of the office off (#7309 F8, #7392): `wsp_still_running` names what keeps running there (invoice series,
+  reminders; nothing is stopped) in the PATCH answer (toast) and once as a bell entry of the own action (News kind `wspstill`,
+  row "office", written with `collab/news.py news_own`, words from `wsp_still_text`).
 - `wsp_on(c, uid, mod, oid, write=False)`: one workspace (`oid` None = Private); `wsp_private_off(c, uid, mod)`: switched off
   in my Private while I have organisations (`modcards.mc_private_office_off` = this for the office).
 - `/api/state` carries `wsp` = `{mod: [ws…]}` (on) and `wsp_w` = `{mod: [ws…]}` (on and writable) for every module
