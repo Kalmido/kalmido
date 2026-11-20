@@ -271,6 +271,9 @@ def invite_accept():
     if r["kind"] == "reset":  # 2.266.0 (#2963): the person hears of it (a link in the wrong hands)
         from .secmail import sec_mail
         sec_mail(c, u["id"], "password_reset")
+        if r["sent_at"]:  # #6498: a reset link that came by mail makes this address known (the second step works from here)
+            from .session import _rate_reset
+            _rate_reset(u["username"])
     u = c.execute("SELECT * FROM users WHERE id=?", (u["id"],)).fetchone()
     print("account set up with an invitation link:", login_log_who(u), "from", login_log_ip(client_ip()), flush=True)
     methods = twofa_methods(c, u)
