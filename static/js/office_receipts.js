@@ -76,10 +76,10 @@ function rclHtml(own, pre) {  // 2.276.0 A (#3039): own = the page Office > Rece
   if (!RCL.data.total?.count && OFC.info?.used && !OFC.info.used.receipt) {
     RCL.sel = null;
     // 2.1185.0 (#6151): the empty office shows ONE upload (the empty block's), not the tool row's as well, and no heading over nothing
-    // (the inputs of the upload stay in the page, hidden: "Upload receipt" opens the same camera / files choice)
-    const inputs = own && typeof bkPhotoHtml === 'function' ? `<div class="rcl-upin" hidden>${/*html-ok*/ bkPhotoHtml(false) /* office_books.js, escaped there */}</div>` : '';
+    // (#6842): the empty block carries the upload itself (bkPhotoHtml: a computer "Upload files", a phone camera + files as everywhere)
+    const up = own && typeof bkPhotoHtml === 'function' ? bkPhotoHtml(false) : '';
     return top + (pre || '') + emptyState({icon: 'receipt', title: tr('No receipts yet.'), cls: 'rcl-empty rcl-none',
-      action: `<div class="eacts"><button type="button" class="btn pri" data-rcl="upfirst" aria-haspopup="${isTouch() ? 'menu' : 'false'}">${ic('upload', 's')}<span>${tr('Upload receipt')}</span></button></div>${/*html-ok*/ inputs}`});
+      action: up ? `<div class="eacts">${/*html-ok*/ up /* office_books.js, escaped there */}</div>` : ''});
   }
   return back + rclFiltersHtml() + rclListHtml();
 }
@@ -251,7 +251,6 @@ document.addEventListener('click', e => {
   const k = b.dataset.rcl;
   if (k === 'rc') { rcl_open(+b.dataset.id); return; }  // 2.557.0 A (#4553): beside the list on a wide area
   if (k === 'more') { b.disabled = true; rclLoad(true); return; }
-  if (k === 'upfirst') { if (isTouch() && $('#bk-file') && typeof bkUpMenu === 'function') { bkUpMenu(b); return; } const u = $('.rcl-tools .bk-shot') || $('#bk-files'); if (u) u.click(); else go('office/receipts'); return; }  // 2.1185.0 (#6151): a phone: the same sheet (camera / files) at this button  // 2.1076.0 (#5450): the empty office's way to the first receipt
   if (k === 'reset') { const d = rclDefault(); rclSet({category: '', supplier: '', project: '', novat: false, hints: false, q: '', status: d.status, checked: d.checked}); return; }
   // 2.420.0 C (#3448): the multiple choice
   if (k === 'sel') { RCL.sel = new Set(); ofcDraw(); return; }

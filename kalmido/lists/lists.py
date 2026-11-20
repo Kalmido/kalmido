@@ -369,7 +369,7 @@ def list_create():
         from ..lists.folders import folder_ptype
         fpt = folder_ptype(db(), me(), folder)  # (ptype "" in the request = chosen: no type; a chosen type goes first)
         if fpt:
-            b = {**b, "ptype": fpt, "sections": True}
+            b = {**b, "ptype": fpt}  # (#6842): without the standard sections - new projects start without them unless asked (#972)
     if "bug_inbox" in b and not isinstance(b["bug_inbox"], bool):  # 2.473.0 (#3378)
         return err(tr("Invalid value: {0}", "bug_inbox"))
     if b.get("ptype"):  # 2.4.0 (#243): a project of a built-in type (sections, fields, view, ticket types, modules)

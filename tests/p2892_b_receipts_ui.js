@@ -1,9 +1,9 @@
 // 2.892.0 UI test, part B (#5453): Office > Receipts on a phone (360 px, a finger). Own container (start.sh, mode workspaces),
 // kalmido-suite: fresh
 // Firefox with touch. Invented companies and figures only.
-// - the first receipt row stands in the first screen without scrolling (one tool row: "Upload receipt" + "More"; Select,
-//   the kinds, CSV and ZIP behind "More")
-// - "Upload receipt" is ONE button: its sheet offers the camera and the files
+// - the first receipt row stands in the first screen without scrolling (one tool row: "Photograph receipt" + "Upload files" +
+//   "More"; Select, the kinds, CSV and ZIP behind "More")
+// - (#6842, the decision of #4892 again): a phone has the two upload buttons as before, no sheet in between
 // - a complete receipt (amount, date, category, VAT rate) carries no "With hints" tag and its sheet shows no hint block;
 //   a receipt without VAT rate keeps the tag (a real gap)
 // - the filters are folded with the number of the active filters
@@ -88,17 +88,14 @@ async function receipt(ck, ws, name, amount, day, category, vat) {
     await ev(`(() => { scrollTo(0, 0); return 1; })()`);
     const first = JSON.parse(await ev(`JSON.stringify((() => { const b = document.querySelector('.rcl-list > li').getBoundingClientRect(); return {top: b.top, bottom: b.bottom, h: innerHeight, y: scrollY}; })())`));
     check(first.y === 0 && first.top > 0 && first.bottom <= first.h, 'the first receipt row in the first screen, without scrolling ' + JSON.stringify(first));
-    check(await ev(`(() => { const t = document.querySelector('.rcl-tools'), bs = [...t.querySelectorAll('.btn')].filter(b => b.getClientRects().length); return bs.length === 2 && bs.every(b => Math.abs(b.getBoundingClientRect().top - bs[0].getBoundingClientRect().top) < 2) && !!t.querySelector('.bk-shot') && !!t.querySelector('.rcl-mbtn'); })()`),
-      'one tool row: "Upload receipt" + "More" ' + await ev(`[...document.querySelectorAll('.rcl-tools .btn')].filter(b => b.getClientRects().length).map(b => b.textContent.trim()).join(' | ')`));
+    check(await ev(`(() => { const t = document.querySelector('.rcl-tools'), bs = [...t.querySelectorAll('.btn')].filter(b => b.getClientRects().length); return bs.length === 3 && !!t.querySelector('.bk-shot') && !!t.querySelector('.bk-files') && !!t.querySelector('.rcl-mbtn'); })()`),
+      'the tool row: "Photograph receipt" + "Upload files" + "More" ' + await ev(`[...document.querySelectorAll('.rcl-tools .btn')].filter(b => b.getClientRects().length).map(b => b.textContent.trim()).join(' | ')`));
     check(await ev(`!document.querySelector('.rcl-filters').open && !document.querySelector('.rcl-filters summary .rotag')`), 'filters folded, no number while none is set');
     check(await ev(`!document.querySelector('.bk-photohint')`), 'the office holds receipts: no line of explanation');
     await shot('p2892-b-belege-phone.png');
-    // the one upload button: camera or files
-    await ev(`(() => { document.querySelector('.rcl-tools .bk-shot').click(); return 1; })()`);
-    check(await ready(ev, `${popItems}.length === 2`, 20), 'Upload receipt: a sheet with two ways ' + await ev(`JSON.stringify(${popItems})`));
-    check(await ev(`/Photograph receipt/.test(${popItems}[0]) && /Select files/.test(${popItems}[1])`), 'camera, then files');
-    check(await ev(`document.querySelector('#bk-file').getAttribute('capture') === 'environment' && document.querySelector('#bk-files').multiple`), 'the inputs stay (camera with capture, files several)');
-    await ev(`(() => { closePop(); return 1; })()`);
+    // (#6842): two upload buttons, no sheet: the camera button holds the camera field, the files button the files field
+    check(await ev(`(() => { const s = document.querySelector('.rcl-tools .bk-shot'), f = document.querySelector('.rcl-tools .bk-files'); return s.tagName === 'LABEL' && /Photograph receipt/.test(s.textContent) && s.querySelector('#bk-file')?.getAttribute('capture') === 'environment' && /Upload files/.test(f.textContent) && !!f.querySelector('#bk-files')?.multiple; })()`),
+      'camera button (capture) and files button (several files), each with its own field');
     // More: Select, CSV, ZIP
     await ev(`(() => { document.querySelector('.rcl-tools .rcl-mbtn').click(); return 1; })()`);
     check(await ready(ev, `${popItems}.some(t => /ZIP for the tax adviser/.test(t))`, 20), 'More: ' + await ev(`JSON.stringify(${popItems})`));
@@ -138,7 +135,7 @@ async function receipt(ck, ws, name, amount, day, category, vat) {
     check(await signIn(ev, 'frida') === 200, 'frida signed in');
     await nav(B + '#office/receipts');
     check(await ready(ev, `${rows} === 1 && !!${row(RF)}`, 120), 'frida: her receipt in the list ' + await ev(`location.hash + ' ' + ${rows}`).catch(e => String(e)));
-    check(await ev(`(() => { const t = document.querySelector('.rcl-tools'); return !!t && !!t.querySelector('.bk-shot') && !!t.querySelector('.rcl-mbtn') && t.querySelector('.rcl-mbtn').getClientRects().length > 0; })()`), 'frida: the tool row with "Upload receipt" and "More"');
+    check(await ev(`(() => { const t = document.querySelector('.rcl-tools'); return !!t && !!t.querySelector('.bk-shot') && !!t.querySelector('.rcl-mbtn') && t.querySelector('.rcl-mbtn').getClientRects().length > 0; })()`), 'frida: the tool row with the upload buttons and "More"');
     check(await ready(ev, `!${row(RF)}.querySelector('.rcl-hint')`, 40), 'frida: a complete receipt without "With hints" ' + await ev(`${row(RF)}.textContent.replace(/\\s+/g, ' ')`));
   }, true);
 

@@ -63,8 +63,8 @@ const today = TC.today();
     await ready(ev, `BK.ustva && BK.ustva.period === '${quarter}' && BK.ustva.year === ${+year}`);
     check(await ev(`!!document.querySelector('#side [data-ofm="books"][aria-current="page"]')`), 'the tab "Bookkeeping" is selected');  // 2.98.0 (#2180): the office rail  // 2.152.2 (#2617): the office points sit in the panel #side
     // 2.591.0 (#4892): on the desktop only "Upload files" (main button), the camera button is for touch devices (checked below on the phone)
-    check(await ev(`(() => { const i = document.querySelector('#bk-files'); return !document.querySelector('#bk-file') && !document.querySelector('.bk-shot') && !!i && i.closest('label').classList.contains('pri') && /image\\/\\*/.test(i.accept) && /pdf/.test(i.accept); })()`),
-      'desktop: no camera button, "Upload files" is the main button and takes images and PDF');
+    check(await ev(`(() => { const i = document.querySelector('#bk-files'); return !document.querySelector('#bk-file') && !document.querySelector('.bk-shot') && !!i && i.closest('label').classList.contains('pri') && i.closest('label').textContent.trim() === 'Upload files' && /image\\/\\*/.test(i.accept) && /pdf/.test(i.accept); })()`),
+      'desktop: no camera button, "Upload files" is the main button and takes images and PDF (#6842: the words of #4892 again)');
     check(await ev(`[...document.querySelectorAll('.bk-note')].some(n => /No tax advice/.test(n.textContent))`), 'the note "no tax advice"');  // 2.298.0 (R7): once at the end of the page, not in every section
     check(await ready(ev, `/1,000/.test(document.querySelector('#bk-ustva .bk-kz').textContent) && /Field 81/.test(document.querySelector('#bk-ustva .bk-kz').textContent)`),
       'field 81 with the paid invoice ' + await ev(`document.querySelector('#bk-ustva .bk-kz')?.textContent`));
@@ -106,6 +106,9 @@ const today = TC.today();
     await ev(`(() => { bkReload(); return 1; })()`);  // (the office does not redraw on a resize)
     check(await ready(ev, `!!document.querySelector('.bk-shot')`, 60), '#4892: on a phone the camera button is there');
     check(await ev(`document.querySelector('#bk-file').getAttribute('capture') === 'environment'`), '#4892: it is a file field with capture=environment');
+    // (#6842): on a phone as before #5453 - two buttons, no sheet: "Photograph receipt" opens the camera, "Upload files" the files
+    check(await ev(`(() => { const s = document.querySelector('.bk-shot'), f = document.querySelector('#bk-files')?.closest('label'); return !!s && !!f && s.tagName === 'LABEL' && !!s.querySelector('#bk-file') && /Photograph receipt/.test(s.textContent) && /Upload files/.test(f.textContent) && f.getClientRects().length > 0 && !s.hasAttribute('aria-haspopup'); })()`),
+      '#6842: on a phone "Photograph receipt" (with the camera field inside) and "Upload files" side by side, no sheet');
     check(await ev(noSide), 'on a phone nothing sticks out to the side');
     check(await ev(`document.querySelector('.bk-shot').getBoundingClientRect().height >= 44`), 'on a phone the photo button is large');
     await shot('p290-a-books-phone.png');

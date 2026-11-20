@@ -7,7 +7,7 @@
 // - the office start page (phone): the figures card has the row "Overdue" while loading AND with the figures (no growth by a
 //   row), the menu pen is a labelled button below the menu, not an empty line above the card
 // - a computer: an open quotation has one way back ("< Quotations"), no path line
-// - receipts: the upload button says "Upload receipt" on a computer too; an office without receipts shows ONE upload button,
+// - receipts: (#6842) the upload button says "Upload files" on a computer (#4892); an office without receipts shows ONE upload button,
 //   which opens the file choice
 // - "Times to bill": the page's heading is not repeated inside the page
 const {execFileSync} = require('child_process');
@@ -68,11 +68,8 @@ const shown = el => !!el && !el.closest('[hidden]');
   w = await boot({user: 'alice', hash: 'office/receipts'}); d = w.document;
   const none = await until(() => d.querySelector('#view .rcl-none'), 80);
   const ups = [...d.querySelectorAll('#view button, #view label')].filter(e => /Upload (receipt|files)/.test(txt(e)) && shown(e));
-  check(!!none && ups.length === 1 && txt(ups[0]) === 'Upload receipt', 'an office without receipts shows ONE upload button: ' + ups.map(txt).join(' | '));
-  w.eval(`window.__picked = 0; document.querySelector('#bk-files').click = () => { window.__picked++; }; 1`);
-  d.querySelector('#view .rcl-none [data-rcl="upfirst"]').click();
-  check(w.eval(`window.__picked`) === 1, '"Upload receipt" opens the file choice');
-  check(/Upload receipt/.test(w.eval(`bkPhotoHtml(false)`)) && !/Upload files</.test(w.eval(`bkPhotoHtml(false)`)), 'the computer\'s upload button says "Upload receipt"');
+  check(!!none && ups.length === 1 && txt(ups[0]) === 'Upload files', 'an office without receipts shows ONE upload button, "Upload files" (#6842: #4892): ' + ups.map(txt).join(' | '));
+  check(ups[0] && ups[0].tagName === 'LABEL' && !!ups[0].querySelector('#bk-files') && !d.querySelector('#view .bk-shot'), 'it is the file field\'s own button, a computer has no camera button');
   w.close();
 
   // ================= "Times to bill": the heading once

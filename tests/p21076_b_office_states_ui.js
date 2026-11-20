@@ -3,7 +3,7 @@
 // (render.js emptyState / loadingHtml / errorState / noAccessState), own container (start.sh, mode workspaces), jsdom, a phone
 // (about 360 px: mobile) and a computer (1280 px). Invented companies, people and figures only.
 // - an office without receipts (Fiona, no organisation: her private office): Receipts shows a real empty state with its text
-//   and "Upload receipt", no filter block and no "nothing matches"
+//   and "Upload files" (#6842), no filter block and no "nothing matches"
 // - a failed load (the request held in the page and answered with a refusal) shows the reason and "Try again" -- never the
 //   empty text; "Try again" really loads: the receipt list of the organisation, the bank page of the private office
 // - the start page keeps the place of "bookings without a receipt" while its counter loads (no jump when it comes)
@@ -87,7 +87,7 @@ const S_ok = w => { const d = w.document, b = d.querySelector('#view .office[dat
     let w = await boot({user: 'fiona', mobile, hash: 'office/receipts'}), d = w.document;
     check(await until(() => d.querySelector('#view .rcl-none')), `${tag}: Fiona: Receipts shows the empty state`);
     check(/No receipts yet\./.test(txt(d, '#view .rcl-none')), `${tag}: Fiona: it says so in a sentence`);
-    check(!!d.querySelector('#view .rcl-none [data-rcl="upfirst"]') && /Upload receipt/.test(txt(d, '#view .rcl-none [data-rcl="upfirst"]')), `${tag}: Fiona: with "Upload receipt"`);
+    check(!!d.querySelector('#view .rcl-none #bk-files') && /Upload files/.test(txt(d, '#view .rcl-none .bk-files')), `${tag}: Fiona: with "Upload files" (#6842)`);
     check(!d.querySelector('#view .rcl-filters') && !/Nothing matches/.test(txt(d, '#view')), `${tag}: Fiona: no filter block, no "nothing matches" for 0 receipts`);
     check(await until(() => !d.querySelector('#view .eload')), `${tag}: Fiona: nothing left loading`);
 
