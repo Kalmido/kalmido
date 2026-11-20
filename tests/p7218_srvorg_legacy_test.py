@@ -9,6 +9,8 @@ tenant-matrix: agent (the organisation's project stays closed to a private serve
  - the agent's token: the task by id (404/403), the task list of the project and the list overview leave it out
  - frida (no organisation): her private server agent reads her own project and its task as before
 usage: p7218_srvorg_legacy_test.py <datadir>      (KMT_NOSTART=1 / P7218_NOSTART=1: a running server)"""
+import sys
+
 from kt import B, H, check, dbx, done, fresh, sess
 from freelancer_fixture import freelancer
 
@@ -66,4 +68,4 @@ FK, FH = server_agent(Fr, "frida-kki")
 dbx("INSERT INTO list_members(list_id, user_id, role, added_at) VALUES(?, ?, 'edit', now()) ON CONFLICT DO NOTHING", (FP, FK))
 r = sess().get(V + f"/tasks/{FT}", headers=FH)
 check(r.status_code == 200, f"freelancer: her private server agent reads her own project's task ({r.status_code} {r.text[:120]})")
-done("p7218_srvorg_legacy")
+sys.exit(done("p7218_srvorg_legacy"))
