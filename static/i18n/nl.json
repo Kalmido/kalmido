@@ -19732,22 +19732,5 @@
   "documents from templates": "documenten uit sjablonen",
   "invoice series": "factuurreeksen",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "De klant van dit document staat niet meer in dit kantoor (naar een andere werkruimte verplaatst). Kies eerst een andere klant.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "De klant van de sjabloonfactuur staat niet meer in dit kantoor (naar een andere werkruimte verplaatst). Kies een andere sjabloonfactuur en zet de reeks weer aan.",
-  "No subscriptions yet. Add one under Settings > Connections > Calendars.": "Nog geen abonnementen. Voeg er een toe onder Instellingen > Verbindingen > Agenda's.",
-  "Settings > Connections > Calendars": "Instellingen > Verbindingen > Agenda's",
-  "A personal API token of your account there (Settings > Connections) with the permissions: read, change tasks, delete, calendar, comments.": "Een persoonlijk API-token van je account daar (Instellingen > Verbindingen) met de rechten: lezen, taken wijzigen, verwijderen, agenda, opmerkingen.",
-  "The folder of the file store, the folder watcher, scan inboxes and the e-mail address: Settings > Connections.": "De map in het archief, de mapbewaker, scan-inboxen en het e-mailadres: Instellingen > Verbindingen.",
-  "Connect a newsletter service first: Settings > Connections.": "Koppel eerst een nieuwsbriefdienst: Instellingen > Verbindingen.",
-  "Please share images and files with HTTP Shortcuts or the Shortcuts app (Settings > Connections > Share from your phone)": "Deel afbeeldingen en bestanden met HTTP Shortcuts of de Opdrachten-app (Instellingen > Verbindingen > Delen vanaf je telefoon)",
-  "Sending to agents is switched off for this upload token (Settings > Connections > Share from your phone).": "Versturen naar agents staat uit voor dit uploadtoken (Instellingen > Verbindingen > Delen vanaf je telefoon).",
-  "Messages through the upload token reach your agents marked as from outside. You can switch this off: Settings > Connections > Share from your phone.": "Berichten via het uploadtoken komen bij je agents aan als ‘van buitenaf’ gemarkeerd. Uitzetten kan via Instellingen > Verbindingen > Delen vanaf je telefoon.",
-  "Phone and calendar": "Telefoon en agenda",
-  "Other programs": "Andere programma's",
-  "Agent tokens": "Agent-tokens",
-  "Phone and calendar, e-mail, other programs, agents": "Telefoon en agenda, e-mail, andere programma's, agents",
-  "API tokens, webhooks and agent tokens are under Connections.": "API-tokens, webhooks en agent-tokens staan onder Verbindingen.",
-  "Open Connections": "Verbindingen openen",
-  "The new password revokes your app passwords (CalDAV), your own API tokens, calendar feed links and the upload token; create new ones afterwards if you need them under Settings > Connections. Agents and passkeys stay: check them after signing in (Settings > Connections > Agents, Settings > Account).": "Het nieuwe wachtwoord trekt je app-wachtwoorden (CalDAV), je eigen API-tokens, agenda-feedlinks en het uploadtoken in; maak daarna zo nodig nieuwe aan onder Instellingen > Verbindingen. Agenten en passkeys blijven: controleer ze na het aanmelden (Instellingen > Verbindingen > Agenten, Instellingen > Account).",
-  "Settings: Connections": "Instellingen: Verbindingen",
-  "More to create": "Meer aanmaken"
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "De klant van de sjabloonfactuur staat niet meer in dit kantoor (naar een andere werkruimte verplaatst). Kies een andere sjabloonfactuur en zet de reeks weer aan."
 }

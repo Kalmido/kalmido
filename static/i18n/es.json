@@ -19732,22 +19732,5 @@
   "documents from templates": "documentos de plantillas",
   "invoice series": "series de facturas",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "El cliente de este documento ya no está en esta oficina (movido a otro espacio de trabajo). Elige primero otro cliente.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "El cliente de la factura plantilla ya no está en esta oficina (movido a otro espacio de trabajo). Elige otra factura plantilla y vuelve a activar la serie.",
-  "No subscriptions yet. Add one under Settings > Connections > Calendars.": "Aún no hay suscripciones. Añade una en Ajustes > Conexiones > Calendarios.",
-  "Settings > Connections > Calendars": "Ajustes > Conexiones > Calendarios",
-  "A personal API token of your account there (Settings > Connections) with the permissions: read, change tasks, delete, calendar, comments.": "Un token de API personal de tu cuenta allí (Ajustes > Conexiones) con los permisos: leer, cambiar tareas, borrar, calendario, comentarios.",
-  "The folder of the file store, the folder watcher, scan inboxes and the e-mail address: Settings > Connections.": "La carpeta del archivo, el vigilante de carpetas, las entradas de escaneo y la dirección de correo: Ajustes > Conexiones.",
-  "Connect a newsletter service first: Settings > Connections.": "Conecta primero un servicio de boletines: Ajustes > Conexiones.",
-  "Please share images and files with HTTP Shortcuts or the Shortcuts app (Settings > Connections > Share from your phone)": "Comparte imágenes y archivos con HTTP Shortcuts o la app Atajos (Ajustes > Conexiones > Compartir desde el móvil)",
-  "Sending to agents is switched off for this upload token (Settings > Connections > Share from your phone).": "El envío a agentes está desactivado para este token de subida (Ajustes > Conexiones > Compartir desde el móvil).",
-  "Messages through the upload token reach your agents marked as from outside. You can switch this off: Settings > Connections > Share from your phone.": "Los mensajes enviados con el token de subida llegan a tus agentes marcados como externos. Puedes desactivarlo en Ajustes > Conexiones > Compartir desde el móvil.",
-  "Phone and calendar": "Móvil y calendario",
-  "Other programs": "Otros programas",
-  "Agent tokens": "Tokens de agentes",
-  "Phone and calendar, e-mail, other programs, agents": "Móvil y calendario, correo, otros programas, agentes",
-  "API tokens, webhooks and agent tokens are under Connections.": "Los tokens de API, los webhooks y los tokens de agentes están en Conexiones.",
-  "Open Connections": "Abrir conexiones",
-  "The new password revokes your app passwords (CalDAV), your own API tokens, calendar feed links and the upload token; create new ones afterwards if you need them under Settings > Connections. Agents and passkeys stay: check them after signing in (Settings > Connections > Agents, Settings > Account).": "La nueva contraseña revoca tus contraseñas de aplicación (CalDAV), tus propios tokens de API, los enlaces de suscripción de calendario y el token de subida; si los necesitas, crea nuevos después en Ajustes > Conexiones. Los agentes y las passkeys se mantienen: revísalos después de iniciar sesión (Ajustes > Conexiones > Agentes, Ajustes > Cuenta).",
-  "Settings: Connections": "Ajustes: Conexiones",
-  "More to create": "Crear algo más"
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "El cliente de la factura plantilla ya no está en esta oficina (movido a otro espacio de trabajo). Elige otra factura plantilla y vuelve a activar la serie."
 }
