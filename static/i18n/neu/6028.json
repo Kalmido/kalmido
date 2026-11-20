@@ -1,0 +1,37 @@
+{
+  "de": {
+    "Built": "Gebaut",
+    "Parked: {0}": "Zurückgestellt: {0}",
+    "Waiting for {0}": "Wartet auf {0}",
+    "{0}× back": "{0}× zurück",
+    "With {0}|lies with": "Liegt bei {0}"
+  },
+  "es": {
+    "Built": "Construido",
+    "Parked: {0}": "Aparcado: {0}",
+    "Waiting for {0}": "Espera a {0}",
+    "{0}× back": "{0}× atrás",
+    "With {0}|lies with": "Lo tiene {0}"
+  },
+  "fr": {
+    "Built": "Construit",
+    "Parked: {0}": "En attente : {0}",
+    "Waiting for {0}": "Attend {0}",
+    "{0}× back": "{0}× en arrière",
+    "With {0}|lies with": "Chez {0}"
+  },
+  "it": {
+    "Built": "Costruito",
+    "Parked: {0}": "Accantonato: {0}",
+    "Waiting for {0}": "Attende {0}",
+    "{0}× back": "{0}× indietro",
+    "With {0}|lies with": "Ce l'ha {0}"
+  },
+  "nl": {
+    "Built": "Gebouwd",
+    "Parked: {0}": "Geparkeerd: {0}",
+    "Waiting for {0}": "Wacht op {0}",
+    "{0}× back": "{0}× terug",
+    "With {0}|lies with": "Ligt bij {0}"
+  }
+}
