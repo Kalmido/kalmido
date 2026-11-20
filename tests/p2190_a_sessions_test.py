@@ -181,6 +181,21 @@ check(r.ok and R6.get(B + "/api/me").json().get("remember") is False and R6.get(
       f"#6500: without 'Stay signed in' /api/me and /api/state say remember: false (the client keeps no offline copies) {r.text[:200]}")
 check(E2.get(B + "/api/me").json().get("remember") is True and E2.get(B + "/api/state").json()["me"].get("remember") is True,
       "#6500: with 'Stay signed in' (the default of the login) remember: true")
+# reader F3 / F4 (2.1488): one helper, one column - sessions.remember; a support session never counts as staying signed in
+# (the operator's browser keeps no copy of the client's account); an older session without the column: its length
+out = box("from kalmido.accounts import session as S\nfrom kalmido.core.db import iso, now_utc\nfrom datetime import timedelta\n"
+          f"uid = {uid['erin']}\nres = []\n"
+          "for i, (rem, via, days) in enumerate([(True, 'password', 30), (True, 'support', 7), (None, 'password', 30), (None, 'password', 1), (False, 'link', 30)]):\n"
+          "    tok = f't6500rem{i}'\n"
+          "    c.execute('INSERT INTO sessions(token_hash,user_id,created_at,expires_at,via,remember) VALUES(?,?,?,?,?,?)', "
+          "(S._token_hash(tok), uid, iso(now_utc()), iso(now_utc() + timedelta(days=days)), via, rem))\n"
+          "    res.append(S.session_remember(c, tok))\n"
+          "    c.execute('DELETE FROM sessions WHERE token_hash=?', (S._token_hash(tok),))\n"
+          "print('rem', res)")
+check("rem [True, False, True, False, False]" in out,
+      f"reader F3/F4: remember column first, support never, an older session by its length (more than 25 h) {out[-300:]}")
+check(DB.execute("SELECT remember FROM sessions WHERE token_hash=?", (hashlib.sha256(R6.cookies.get("kalmido_session").encode()).hexdigest(),)).fetchone()[0] in (False, 0),
+      "reader F4: a sign-in without 'Stay signed in' writes sessions.remember = false")
 
 # ================================================================== #2496: tickets per address
 out = box("from kalmido.core.config import app as fa\nfrom kalmido.accounts import login as L\n"
