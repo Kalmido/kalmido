@@ -430,6 +430,32 @@ def mcpr_authorize():
     return _consent(c, u, cl, {"c": cl["client_id"], "r": ruri, "ch": p["code_challenge"], "s": p["state"], "res": p["resource"]})
 
 
+def _consent_pw(c, u):
+    """#6499: the password field of the consent page while this browser's sign-in is not fresh (accounts/oidc.py creator_reauth)."""
+    from ..accounts.oidc import reauth_fresh
+    if g.get("auth_via") == "proxy" or not u["password_hash"] or reauth_fresh(c):
+        return ""
+    e = html.escape
+    return (f'<p><label>{e(tr("Confirm with your password"))} <input type="password" name="password" required '
+            f'autocomplete="current-password"></label></p>')
+
+
+def _consent_reauth(c, u):
+    """#6499 (decision 16.11.2026): connecting an app is a new way into the account - the sign-in is confirmed once more: a fresh
+    sign-in of this browser, else the password of the form (an account without one: sign in again). A problem text or ""."""
+    from ..accounts.oidc import REAUTH_FRESH_MIN, reauth_fresh
+    from ..accounts.login import _reauth
+    if g.get("auth_via") == "proxy" or reauth_fresh(c):
+        return ""
+    if not u["password_hash"]:
+        return tr("To change this, please sign in again to confirm (at most {0} minutes ago).", REAUTH_FRESH_MIN)
+    r = _reauth(u, {"password": request.form.get("password", "")})
+    if r is None:
+        return ""
+    r = r[0] if isinstance(r, tuple) else r
+    return (r.get_json(silent=True) or {}).get("error") or tr("Current password is wrong")
+
+
 def _consent(c, u, cl, req, problem="", code=200):
     e = html.escape
     req = {**req, "u": u["id"], "x": int(time.time()) + MCPR_CODE_S}
@@ -459,6 +485,7 @@ def _consent(c, u, cl, req, problem="", code=200):
             f'<p>{e(tr("It gets exactly the permissions of the agent you select: only the projects shared with it. You can disconnect it at any time under Settings > Agents."))}</p>'
             + (f'<p class="err" role="alert">{e(problem)}</p>' if problem else "")
             + f'<fieldset><legend>{e(tr("Which agent?"))}</legend>{rows}</fieldset>'
+            + _consent_pw(c, u) +
             f'<input type="hidden" name="t" value="{e(t)}">'
             f'<p><button type="submit" name="decision" value="allow">{e(tr("Connect"))}</button> '
             f'<button type="submit" name="decision" value="deny">{e(tr("Cancel"))}</button></p></form>')
@@ -488,6 +515,9 @@ def mcpr_authorize_post():
         return _msg_page(tr("Connection not possible"), tr("This app is not registered here. Start the connection in the app again."))
     if request.form.get("decision") != "allow":
         return redirect(_with_query(req["r"], {"error": "access_denied", "state": req.get("s")}), 303)
+    problem = _consent_reauth(c, u)  # #6499
+    if problem:
+        return _consent(c, u, cl, req, problem, 403)
     pick = request.form.get("agent", "")
     if pick == "new":
         try:

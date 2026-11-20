@@ -19751,5 +19751,7 @@
   "invoice series": "series de facturas",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "El cliente de este documento ya no está en esta oficina (movido a otro espacio de trabajo). Elige primero otro cliente.",
   "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "El cliente de la factura plantilla ya no está en esta oficina (movido a otro espacio de trabajo). Elige otra factura plantilla y vuelve a activar la serie.",
-  "Width of the name column": "Ancho de la columna de nombres"
+  "Width of the name column": "Ancho de la columna de nombres",
+  "Switching it on signs you out everywhere else and ends your API tokens and app passwords.": "Al activarlo se cierra tu sesión en todos los demás sitios y se revocan tus tokens de API y contraseñas de aplicación.",
+  "A new way into your account: please confirm it is you.": "Un nuevo acceso a tu cuenta: confirma que eres tú."
 }
