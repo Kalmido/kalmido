@@ -290,6 +290,7 @@ The foundation: database, schema, access layer, request context, conflicts (409)
 - `kalmido/core/jsonlimit.py` - The size limit of JSON request bodies
 - `kalmido/core/kernretire.py` - Stage 7 of the shared core: the start check and DROP of an area's old member table once the core alone decides (2.924.0, #5069)
 - `kalmido/core/liststate.py` - the old column archived of lists goes
+- `kalmido/core/longslots.py` - ONE budget of web threads of this process for every request that holds a thread for long: an agent's long-poll (agents/api.py), a hosted ...
 - `kalmido/core/mailbudget.py` - daily e-mail limits
 - `kalmido/core/mailframe.py` - The one HTML frame of every Kalmido mail (invitation, findability, appointment booking, portal, event invitation, security, notification and daily mails)
 - `kalmido/core/mailguard.py` - the one way a foreign mail (bytes) becomes an email.message object

@@ -15,6 +15,7 @@ from datetime import timedelta
 from flask import g, jsonify, request
 
 from ..core.config import app
+from ..core.longslots import long_slot_give, long_slot_take
 from ..core.pg import insert_id
 from ..core.objtags import otg_user_list  # 2.955.0 (#5276)
 from ..core.i18n import N_, lang, tr
@@ -42,8 +43,9 @@ from ..collab.news import notif_ok  # 2.369.5 (#2517): pulled up from functions
 ASST_OFF_MSG = N_("Switch the assistant on in Settings first")
 ASST_SHARE_MSG = N_("Share this project with the assistant first")
 ASST_ERR_MSG = {"network": N_("The assistant is not reachable right now"), "auth": N_("The assistant is not reachable right now"),
-                "bad": N_("The assistant gave no usable answer"), "timeout": N_("The assistant took too long")}
-ASST_ERR_CODE = {"network": 502, "auth": 502, "bad": 502, "timeout": 504}
+                "bad": N_("The assistant gave no usable answer"), "timeout": N_("The assistant took too long"),
+                "busy": N_("The server is busy, please try again in a moment")}
+ASST_ERR_CODE = {"network": 502, "auth": 502, "bad": 502, "timeout": 504, "busy": 503}
 ASST_KIND_NAMES = {"summary": N_("Summary"), "draft": N_("Draft"), "extract": N_("Tasks from notes"),
                    "tags": N_("Tags and due date"), "triage": N_("Sort tasks"), "dayplan": N_("Day plan")}
 _ASST_CLEAN = {"at": 0.0}
@@ -546,7 +548,12 @@ def asst_run():
                               ensure_ascii=False)
         msg, rec["chars_in"], cut = A.asst_frame(data, instr if kind == "draft" else None)
         c.commit()  # no open transaction while the model works (up to KALMIDO_AI_TIMEOUT_S); nothing is written before
-        answer = A.asst_chat(system, msg)
+        if not long_slot_take("assistant"):  # (#6408): the model call holds this thread up to the time limit - the budget
+            raise A.AsstError("busy")         # shared with agents' long-polls and hosted MCP keeps threads free for people
+        try:
+            answer = A.asst_chat(system, msg)
+        finally:
+            long_slot_give("assistant")
         if kind in ("summary", "draft"):
             out = A.asst_cap(answer)
             if not out:

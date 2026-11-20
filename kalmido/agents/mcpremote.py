@@ -25,7 +25,7 @@ Who may connect: OAuth 2.1 with this server as the authorization server.
  - /oauth/revoke (RFC 7009) and Settings > Agents (GET / DELETE /api/my/mcp-grants): revoking ends the access token and the
    refresh token at once.
 Limits (2.488.0 review): /mcp never waits in the web process (a 429 / 503 of /api/v1 goes back to the client at once), a
-batch has at most MCPR_BATCH_MAX messages, one access runs at most MCPR_PER_GRANT requests at once (of MCPR_CONCURRENT), a
+batch has at most MCPR_BATCH_MAX messages, one access runs at most MCPR_PER_GRANT requests at once (of the places core/longslots.py shares, #6408), a
 request stops making calls after MCPR_RUN_S, file answers are read in pieces up to max_bytes. A new token of the agent (or
 deleting its token) ends the access at the next refresh; a support access opened by a client never lets the operator hand
 out the client's agents.
@@ -58,6 +58,7 @@ from ..accounts.login import seal, unseal, WA_ORIGINS_ENV
 from ..accounts.login import _reauth  # #6499
 from ..accounts.oidc import REAUTH_FRESH_MIN, reauth_fresh  # #6499
 from ..accounts.orgs import op_foreign_account
+from ..core.longslots import long_slot_give, long_slot_take
 from ..agents.core import agent_owner_locked, agent_row, is_agent, need_person
 from ..agents.admin import agent_policy, agent_token_new, agent_ws_allowed_any, my_agent_make
 from ..agents.reqtoken import mcpr_cut  # 2.1386.0 (#6668)
@@ -73,7 +74,6 @@ MCPR_REG_PER_HOUR = 20               # client registrations per address and hour
 MCPR_REG_KEEP_DAYS = 7               # a registered client without any access is forgotten after this
 MCPR_BAD_LIMIT = 30                  # failed token / code attempts per address within the fail window (accounts/session.py)
 MCPR_MAX_BODY = 1_000_000            # bytes of one /mcp request (as kalmido_mcp.py --http)
-MCPR_CONCURRENT = 16                 # /mcp requests running at once on this process (each holds a thread)
 MCPR_PER_GRANT = 4                   # review F3: /mcp requests of one access at once (the rest 429)
 MCPR_BATCH_MAX = 20                  # review F3: JSON-RPC messages in one /mcp batch (more: 400)
 MCPR_RUN_S = 90                      # review F3: an /mcp request answers 504 after this (the work goes on; its places stay taken)
@@ -87,7 +87,6 @@ CHALLENGE_RE = re.compile(r"[A-Za-z0-9_-]{43}")          # base64url of a SHA-25
 VERIFIER_RE = re.compile(r"[A-Za-z0-9._~-]{43,128}")     # RFC 7636
 MCPR_FILES = (os.path.join(APP_DIR, "kalmido_mcp.py"), os.path.join(APP_DIR, "mcp", "kalmido_mcp.py"))  # image, checkout
 _MOD, _MOD_LOCK = {}, threading.Lock()
-_SEM = threading.BoundedSemaphore(MCPR_CONCURRENT)
 _RUNNING, _RUN_LOCK = {}, threading.Lock()   # review F3: grant id -> /mcp requests of that access still running
 
 
@@ -884,7 +883,7 @@ def mcpr_mcp():
     with _RUN_LOCK:  # review F3: one access never takes more than MCPR_PER_GRANT of the places
         if _RUNNING.get(gid, 0) >= MCPR_PER_GRANT:
             return jsonify(error=f"at most {MCPR_PER_GRANT} requests of one access at once, try again"), 429, {"Retry-After": "5"}
-        if not _SEM.acquire(blocking=False):
+        if not long_slot_take("mcp"):  # (#6408): each holds a thread - the budget shared with long-polls and the assistant
             return jsonify(error="busy, try again"), 503, {"Retry-After": "5"}
         _RUNNING[gid] = _RUNNING.get(gid, 0) + 1
     api = _inproc_cls(mod)(tok, client_ip(), request.host_url, time.time() + MCPR_RUN_S, grant_id=gid)  # 2.1078.0 (#5866, N1)
@@ -900,7 +899,7 @@ def mcpr_mcp():
                 _RUNNING[gid] -= 1
                 if not _RUNNING[gid]:
                     del _RUNNING[gid]
-            _SEM.release()
+            long_slot_give("mcp")
     th = threading.Thread(target=run, name="mcp-remote", daemon=True)  # its own thread: the calls are requests of their own
     th.start()
     th.join(MCPR_RUN_S + 15)  # the calls stop at MCPR_RUN_S (InProc.call); one running call may still finish

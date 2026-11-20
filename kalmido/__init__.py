@@ -38,6 +38,7 @@ ORDER = (
     "core.mailguard",  # 2.1281.0 (#6425): a foreign mail is counted before it is taken apart (standard library only)
     "core.numtext",  # 2.263.0 (#2976): one reader for typed numbers
     "core.pg",  # 2.37.0 (#1150): the Postgres layer (core.db re-exports it)
+    "core.longslots",  # 2.1474.0 (#6408): the one budget of web threads for long requests (agents, hosted MCP, assistant)
     "core.reqtime",  # 2.149.0 B (#2504): request timing (Server-Timing, slow log); first hooks = whole request measured
     "core.db",
     "core.oncesteps",  # 2.1356.0 (#6824): the one-shot data steps of init_db (migr_*) in one ordered list

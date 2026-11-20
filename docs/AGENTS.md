@@ -973,7 +973,7 @@ GET /api/v1/agent/events?since=1042&wait=60
   `Restart=always`, a LaunchAgent with `KeepAlive`, a Windows task that restarts on failure). As a safety net, let the
   service look now and then (for example every 15 minutes) for comments of its owners on tasks in its projects that have no
   answer from the agent yet, and handle them: an event lost in a crash or a restart is then still answered.
-- The number of waiting requests is capped (2 per agent; on the server the web threads less 8, 16 with the default 24 threads, at least 6, see `KALMIDO_AGENT_WAITERS`). When the cap is reached, the request returns at once with the events that are there (usually none) and `"busy": true`. `Retry-After` (3-8 s, spread) says when to come back.
+- The number of waiting requests is capped (2 per agent; on the server the web threads less 8, 16 with the default 24 threads, at least 6, see `KALMIDO_AGENT_WAITERS`; the places are shared with hosted MCP calls and assistant calls). When the cap is reached, the request returns at once with the events that are there (usually none) and `"busy": true`. `Retry-After` (3-8 s, spread) says when to come back.
 - Reverse proxies must allow responses that take longer than `wait`:
   - Caddy: works with the defaults.
   - nginx: `proxy_read_timeout 75s;` or more.
