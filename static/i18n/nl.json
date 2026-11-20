@@ -17163,7 +17163,6 @@
   "Only favourites in the sidebar": "Alleen favorieten in de zijbalk",
   "Folded folders": "Ingeklapte mappen",
   "Active sidebar view": "Actieve weergave van de zijbalk",
-  "Shown workspace": "Getoonde werkruimte",
   "Arrangement and block settings of the views": "Indeling en blokinstellingen van de weergaven",
   "Menus and tab bar": "Menu's en tabbalk",
   "Task panel layout": "Indeling van het takenpaneel",
@@ -19731,5 +19730,6 @@
   "documents from templates": "documenten uit sjablonen",
   "invoice series": "factuurreeksen",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "De klant van dit document staat niet meer in dit kantoor (naar een andere werkruimte verplaatst). Kies eerst een andere klant.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "De klant van de sjabloonfactuur staat niet meer in dit kantoor (naar een andere werkruimte verplaatst). Kies een andere sjabloonfactuur en zet de reeks weer aan."
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "De klant van de sjabloonfactuur staat niet meer in dit kantoor (naar een andere werkruimte verplaatst). Kies een andere sjabloonfactuur en zet de reeks weer aan.",
+  "The office is switched off for this person in this workspace (Settings > Modules, for the own office “Also private”). Nothing was written: the draft would not show there. Ask the person to switch it on.": "Het kantoor is voor deze persoon in deze werkruimte uitgeschakeld (Instellingen > Modules, voor het eigen kantoor ‘Ook privé’). Er is niets geschreven: het concept zou daar niet zichtbaar zijn. Vraag de persoon het in te schakelen."
 }
