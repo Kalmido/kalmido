@@ -7399,6 +7399,7 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 .ptlwho{margin:.25rem 0 0;overflow-wrap:anywhere}
 .ptlacts{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .75rem;margin-top:.5rem}
 .ptlmail{min-height:2.75rem;display:inline-flex;align-items:center;gap:.375rem}
+.ptllink{margin:.5rem 0 0;font-size:var(--fs-m);display:flex;align-items:center;gap:.375rem}  /* (#6626) */
 .ptlsw{margin-right:.375rem}
 .ptlsw.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .ptltag.pub{color:var(--accent);white-space:nowrap}

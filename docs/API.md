@@ -1380,7 +1380,11 @@ batch, repeats, git keywords).
 2.63.0 (#1513) customer reports (web app only, no `/api/v1`): `GET /api/tasks/{id}/timeline` carries `ticket` for a task
 that came in through a form with a status link (`name`, `created_at`, `client_id` / `client_name`; for people who may change
 the task also `email`, `url` = the status link, `notify`, `last_seen_at`); `PATCH /api/tasks/{id}/ticket` `{notify}` turns
-the mails to the reporter on / off. `GET /clients/{id}` adds `tickets` (`task_id`, `title`, `done`, `created_at`; only tasks
+the mails to the reporter on / off. (#6626) The status link ends: `link` = `live` | `ended` (the team ended it) | `expired`
+(the task was done more than `link_days` = 90 days ago; reopening makes it valid again), `link_until` = the end of a live link of
+a done task, `url` only while live; `PATCH ... {link: "end"}` ends it at once (the page is the 404 of every unknown link),
+`{link: "on"}` is its undo, `{link: "new"}` makes a new link (the old one is dead at once) and mails it to the reporter's
+address (`mailed`); an expired link answers `409` to `on` / `new`. `GET /clients/{id}` adds `tickets` (`task_id`, `title`, `done`, `created_at`; only tasks
 the person sees). The reporter's pages are server-rendered HTML without an account: `/p/{token}` (status, public answers,
 answer form, "All my reports"), `/p/{token}/stop` (mails off), `/portal/login/{token}` (one-time sign-in link by mail, 30 min)
 and `/portal` (the reporter's tickets of the same space, cookie for 7 days).
