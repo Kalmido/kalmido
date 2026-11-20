@@ -43,6 +43,7 @@ from ..accounts.orgs import visible_people as umz_visible  # 2.278.0 B (#3094)
 from ..core.serializers import unlink_files  # 2.464.0 (#3865)
 from ..api.common import hit_limit, import_upload_rate  # 2.585.0 (#4350, review 2); 2.1282.0 (#6426)
 from ..core.pg import write_lock  # review 2.611 (#4866)
+from ..core.objhooks import USER_FILES  # (#6356)
 from ..files.upsafe import up_after_store, up_check, UploadRefused  # 2.464.0 (#3865): pulled up from functions
 from ..lists.projects import LIST_FILES_SUB
 from ..lists.tplextra import tx_import, tx_keys
@@ -391,6 +392,14 @@ class UmzBad(Exception):
 # ---------------------------------------------------------------- the folder of an upload
 def _base(uid):
     return os.path.join(UMZ_IN_DIR, str(int(uid)))
+
+
+def umi_user_files(c, uid):
+    """(#6356): account uid goes: its upload folder (up to 4 GB) after the commit, not up to 24 h later (core/objhooks.py USER_FILES)."""
+    return [lambda: shutil.rmtree(_base(uid), ignore_errors=True)]
+
+
+USER_FILES.append(umi_user_files)
 
 
 def _dir(uid, iid):

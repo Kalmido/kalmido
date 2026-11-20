@@ -17,7 +17,8 @@ are gone. The rows already in the trash before 2.947.0 are the core's trash as t
 from ..core.errors import Denied
 from ..core.i18n import N_
 from ..core.objects import obj_register, obj_row
-from ..core.pg import qi
+from ..core.objhooks import ORG_FILES, USER_FILES  # (#6356)
+from ..core.pg import qi, system_ctx
 from ..core.writes import obj_on_purge
 from .bookmarks import BM_KIND, bm_get, bm_may_write
 from .rss import RSS_KIND, rss_may_manage, rss_own
@@ -74,6 +75,20 @@ obj_register(BM_KIND, "bookmarks", label=N_("Bookmark"), fields={}, area="other"
              title=lambda c, rid: ((obj_row(c, BM_KIND, rid) or {"title": ""})["title"] or ""),
              open_url=lambda rid: "bookmarks", trash_prune=True)
 obj_on_purge(BM_KIND, _bm_purge)
+
+
+def _bm_files(q):
+    """(#6356): the stored pictures of the bookmarks of query q (one id), through the same hook as the trash's delete for good."""
+    def f(c, xid):
+        with system_ctx(c):  # the rows of the account / organisation that goes (also in organisations' spaces)
+            ids = [r[0] for r in c.execute(q, (int(xid),)).fetchall()]
+            return [p for rid in ids for p in (_bm_purge(c, rid) or [])]
+    return f
+
+
+# an account's bookmarks that are still its own when it goes (an organisation's were handed to the heir before), an organisation's
+USER_FILES.append(_bm_files("SELECT id FROM bookmarks WHERE user_id=? AND image<>''"))
+ORG_FILES.append(_bm_files("SELECT id FROM bookmarks WHERE org_id=? AND image<>''"))
 obj_register(RSS_KIND, "rss_feeds", label=N_("Feed"), fields={}, area="other", routes=False, listed=False, fsref=False,
              space=_space("rss_feeds"), base_role=_feed_base, visible=_visible("rss_feeds"), cap=lambda c, uid, rid: None,
              title=lambda c, rid: ((obj_row(c, RSS_KIND, rid) or {"title": ""})["title"] or ""),

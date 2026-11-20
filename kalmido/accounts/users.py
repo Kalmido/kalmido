@@ -9,7 +9,7 @@ import zipfile
 from flask import g, jsonify, request, Response, send_file
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from ..core.objhooks import obj_gone_drop, obj_private_refs, person_locked, person_revoked, USER_GONE  # 2.558.0 (#4709): the shared core without importing the domain layer
+from ..core.objhooks import obj_gone_drop, obj_private_refs, person_locked, person_revoked, USER_FILES, USER_GONE  # (#6356): USER_FILES; 2.558.0 (#4709): the shared core without importing the domain layer
 from ..core.config import app, COOKIE, EMAIL_RE, MIN_PASSWORD, PUBLIC_URL, USERNAME_RE
 from ..core.i18n import lang, LANGS, N_, tr, trn
 from ..core.db import body, bump, create_user, db, ensure_inbox, err, gsetting, now_utc, uset, usettings, iso
@@ -732,8 +732,8 @@ def _user_purge(c, uid, made):
     # 2.981.0 (#5274): the team chat's kept texts are kind 'tchat' of the core's trash (collab/cmttrash.py tcx_purge_user, USER_GONE)
     from ..accounts.orginvite import ojn_neutral
     ojn_neutral(c, uid)  # 2.985.0 (#4922): its silent invitations stay in their organisation's list as neutral rows
-    from .purgerest import pgr_user
-    files += pgr_user(c, uid)  # (#6356): bookmark pictures, agent chat files, an import upload, quotes in agent rules
+    for f in USER_FILES:  # (#6356): bookmark pictures, agent chat folders, an import upload (the areas' hooks)
+        files += f(c, uid) or []
     c.execute("DELETE FROM users WHERE id=?", (uid,))  # cascades: settings, memberships, sessions
     obj_gone_drop(c, gone)  # 2.578.0 (#4796): the objects went with the account (cascade): their history / undo rows too
     return files
