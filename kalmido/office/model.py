@@ -751,6 +751,8 @@ def office_settings_clean(c, oid, b, cur):
             out[k] = v
         elif k == "dunning_grace_days":  # 2.147.1 B (#2054)
             out[k] = int(_num(v, k, 0, 90))
+        elif k == "small_business" and v is None:  # #6533: not chosen yet stays so (an office's own export carries it back)
+            out[k] = None
         elif k in ("subtotals_on", "datev_auto", "producing_on", "raw_on", "small_business", "agents_read", "accept_on", "portal_docs", "sign_offers", "credit_shared"):  # 2.433.0 (#3597): credit_shared  # 2.120.0 B (#2088): portal_docs  # 2.114.4 B (#2270): accept_on  # 2.51.0 A (#1348): agents_read  # 2.40.0 (#1379): the two calculation switches
             out[k] = 1 if v in (1, True, "1", "true") else 0
         elif k.rsplit("_", 1)[0] in CLOSING_BASES:  # 2.460.0 (#3767): every language
@@ -794,8 +796,8 @@ def office_settings_clean(c, oid, b, cur):
                 except ValueError:
                     raise BadInput(tr("Invalid value: {0}", k)) from None
             out[k] = v
-        elif k == "vat_basis":  # 2.90.0 A (#1921)
-            if v not in ("ist", "soll"):
+        elif k == "vat_basis":  # 2.90.0 A (#1921); #6533: "" = not chosen yet (an office's own export carries it back)
+            if v not in ("ist", "soll", ""):
                 raise BadInput(tr("Invalid value: {0}", k))
             out[k] = v
         elif k == "offer_number_at":
