@@ -584,11 +584,12 @@ function idbHeld(open) {
   let dbp = null;
   const db = () => {
     if (dbp) return dbp;
-    let late = false, tm = 0;
+    let late = false, won = false;  // won: open() answered first, the limit then ends without a word
     const o = open();
-    o.then(d => { if (late) d.close(); }, () => {});
-    const lim = new Promise((_, no) => { tm = setTimeout(() => { late = true; no(new DOMException(`IndexedDB did not open within ${IDB_T.open} ms`, 'TimeoutError')); }, IDB_T.open); });
-    const p = dbp = Promise.race([o, lim]).finally(() => clearTimeout(tm)).then(d => {
+    o.then(d => { if (late) d.close(); else won = true; }, () => { won = true; });
+    const lim = new Promise((_, no) => { setTimeout(() => { if (won) return; late = true; no(new DOMException(`IndexedDB did not open within ${IDB_T.open} ms`, 'TimeoutError')); }, IDB_T.open); });
+    lim.catch(() => { /* raced */ });
+    const p = dbp = Promise.race([o, lim]).then(d => {
       const drop = () => { if (dbp === p) dbp = null; };
       d.addEventListener('close', drop);
       d.addEventListener('versionchange', () => { d.close(); drop(); });
