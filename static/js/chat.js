@@ -989,6 +989,7 @@ function ntKept(lid) { if (NT_MEM.has(lid)) return NT_MEM.get(lid); const c = LS
 const NT_URL = /^\/api\/(notes\/-?\d+|lists\/\d+\/notes)$/;
 function ntLocal(e) {  // applyLocal part of the outbox
   const {method, url, body = {}} = e, now = new Date().toISOString();
+  ntOwn(method === 'POST' ? e.tmp : +url.match(/notes\/(-?\d+)/)[1], body);  // 2.1474 (#7484)
   if (method === 'POST') {
     const lid = +url.match(/lists\/(\d+)/)[1], {client_ref, ...f} = body;
     let n = (S.nt.notes || []).find(x => x.id === e.tmp);
@@ -1010,6 +1011,32 @@ function ntEnqueue(method, url, body) {
   if (q) { outSave(() => { q.body = {...q.body, ...body, ...('expect_updated_at' in q.body ? {expect_updated_at: q.body.expect_updated_at} : {})}; }); renderTop(); return ntLocal({method, url, body}); }
   return enqueue(method, url, body);
 }
+// 2.1474 (#7484): the base (updated_at) of a note in this tab is kept in ONE place: every answer of a write (a new note's
+// too) and a "Keep mine" set it here, and the changes still waiting on the base before move on with it. (Before, a new note
+// kept the device's clock as its base: the next change got a 409 against its own note, "Changed in the meantime by <me>".)
+function ntBase(id, stamp, olds = []) {
+  if (!stamp) return;
+  const n = (S.nt.notes || []).find(x => x.id === id), b = (S.notes || []).find(x => x.id === id);
+  const old = new Set([...olds, n?.updated_at].filter(Boolean)), url = `/api/notes/${id}`;
+  if (n) n.updated_at = stamp;
+  if (b) b.updated_at = stamp;
+  outSave(() => { for (const x of OUT.q) if (!x.sending && !x.done && x.url === url && old.has(x.body?.expect_updated_at)) x.body = {...x.body, expect_updated_at: stamp}; });
+}
+// 2.1474 (#7484): the values this tab wrote into a note (and the server answered for its writes): a "changed in between" whose
+// every field is one of them (or the same as here) is this tab's own write, never another person's - no dialog for it
+const NT_OWN = new Map(), NT_F = ['title', 'body', 'tags', 'pinned'];
+const ntOwnKey = (k, v) => k + '\u0001' + JSON.stringify(v);
+function ntOwn(id, f) {
+  if (!id || !f) return;
+  let s = NT_OWN.get(id); if (!s) NT_OWN.set(id, s = new Set());
+  for (const k of NT_F) if (k in f) { const x = ntOwnKey(k, f[k]); s.delete(x); s.add(x); }
+  while (s.size > 100) s.delete(s.values().next().value);  // the oldest go
+}
+function ntOwnOnly(mine, theirs) {
+  if (!theirs || theirs.updated_by == null || theirs.updated_by !== S.me?.id) return false;
+  const s = NT_OWN.get(theirs.id);
+  return NT_F.every(k => !(k in theirs) || JSON.stringify(theirs[k]) === JSON.stringify(mine?.[k]) || !!s?.has(ntOwnKey(k, theirs[k])));
+}
 // a sent change came back (outFlush): the real note for one made offline, the new base for the changes still waiting
 function ntSent(e, j) {
   if (!j || !j.id) return;
@@ -1017,18 +1044,17 @@ function ntSent(e, j) {
     for (const a of [S.nt.notes, S.notes]) { const x = (a || []).find(n => n.id === e.tmp); if (x) x.id = j.id; }
     if (QN_MADE.has(e.tmp)) QN_MADE.add(j.id);  // 2.477.0 (#3881)
     if (S.nt.id === e.tmp) { S.nt.id = j.id; if (S.route.mod === 'notes') history.replaceState(null, '', '#note/' + j.id); }
-    return;
+    const o = NT_OWN.get(e.tmp); if (o) { NT_OWN.delete(e.tmp); for (const x of o) (NT_OWN.get(j.id) || NT_OWN.set(j.id, new Set()).get(j.id)).add(x); }
   }
-  const n = (S.nt.notes || []).find(x => x.id === j.id);
-  if (n) n.updated_at = j.updated_at;
-  const old = e.body?.expect_updated_at;
-  if (old && j.updated_at) outSave(() => { for (const x of OUT.q) if (x !== e && x.url === e.url && x.body?.expect_updated_at === old) x.body = {...x.body, expect_updated_at: j.updated_at}; });
+  ntOwn(j.id, j);
+  ntBase(j.id, j.updated_at, [e.body?.expect_updated_at]);  // 2.1474 (#7484): a new note's too
 }
 // one write of a note: into the outbox (2.536.0 #4567: online too), a locked list's note straight to the server
 async function ntWrite(n, patch) {
   const url = `/api/notes/${n.id}`;
   if (n.id < 0) delete patch.expect_updated_at;  // made offline: no base on the server yet
   if (n.id < 0 || !ntLocked(n.list_id)) { ntEnqueue('PATCH', url, patch); return {queued: true}; }
+  ntOwn(n.id, patch);  // 2.1474 (#7484)
   return await rawFetch('PATCH', url, patch);
 }
 // 2.536.0 (#4567): the server refused a sent change of a note with 409 (changed elsewhere since): the note's own dialog (both
@@ -1208,6 +1234,7 @@ window.addEventListener('pagehide', () => {
   const patch = notePatch(n); if (Object.keys(patch).length === 1) return;
   clearTimeout(S.nt.saveT); S.nt.dirty = false;
   if (n.id < 0) delete patch.expect_updated_at;
+  ntOwn(n.id, patch);  // 2.1474 (#7484)
   outKeep('PATCH', `/api/notes/${n.id}`, patch);
 });
 // 2.380 H (#3387): back from the back-forward cache the note's base (updated_at) is old - the change sent at pagehide moved it
@@ -1239,9 +1266,15 @@ async function noteFlush() {
   }
 }
 async function noteConflict(mine, theirs, patch) {
+  // 2.1474 (#7484): the other version is this tab's own (same person, each field one this tab wrote or holds, only the base
+  // differs): mine goes on its base without a question
+  if (ntOwnOnly(mine, theirs)) return noteResolve(mine, theirs, patch, true);
   const keep = await askDialog({title: tr('Changed in the meantime by {0}', theirs.updated_by_name || '?'), html: `<p>${tr('Keep your version or take theirs?')}</p><div class="ntdiff"><div><b>${tr('Yours')}</b><pre>${esc(patch.body ?? mine.body)}</pre></div><div><b>${tr('Theirs')}</b><pre>${esc(theirs.body)}</pre></div></div>`, ok: tr('Keep mine'), cancel: tr('Take theirs')});
+  return noteResolve(mine, theirs, patch, keep);
+}
+async function noteResolve(mine, theirs, patch, keep) {
   let kept = false;  // 2.1397.0 (#6329 E6)
-  if (keep && !ntLocked(mine.list_id)) { mine.updated_at = theirs.updated_at; ntEnqueue('PATCH', `/api/notes/${mine.id}`, {...patch, expect_updated_at: theirs.updated_at}); kept = true; }  // 2.536.0 (#4567): the outbox
+  if (keep && !ntLocked(mine.list_id)) { ntBase(mine.id, theirs.updated_at, [patch.expect_updated_at]); mine.updated_at = theirs.updated_at; ntEnqueue('PATCH', `/api/notes/${mine.id}`, {...patch, expect_updated_at: theirs.updated_at}); kept = true; }  // 2.536.0 (#4567): the outbox
   else if (keep) {
     try { const r = await rawFetch('PATCH', `/api/notes/${mine.id}`, {...patch, expect_updated_at: theirs.updated_at}); Object.assign(mine, r); kept = true; } catch (e) { toast(errText(e, tr('The note could not be saved'))); }
   } else Object.assign(mine, theirs);
