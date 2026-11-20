@@ -1212,9 +1212,28 @@ function sbb_panelHtml0(id) {
   if (id === 'team') return title + tc_panelHtml();  // 2.479.0 (#2814): channels and direct messages (chat.js)
   // the agents: their overview, then each agent (its page; the status dot as in the sidebar's conversations)
   if (id === 'agents') return title + `<div class="sgroup sbbp">${sbb_row('agents', 'bot', tr('Agents'), S.route.mod === 'agents' && !S.route.agent)}${(S.agents || []).map(x => `<button type="button" class="srow steam sbbi ${S.route.agent === x.id ? 'on' : ''}" data-go="agents/${x.id}"${S.route.agent === x.id ? ' aria-current="page"' : ''}><span class="sdot">${hdot(agentHst(x))}</span><span class="n">${esc(x.name)}</span>${x.waiting || x.chat_unread ? `<span class="c nunread">${x.waiting + x.chat_unread}</span>` : ''}</button>`).join('')}</div>`;
+  if (id === 'home' && sbm_on()) return sbm_homeHtml();  // 2.1493.0 (#7617)
   if (sbm_on()) return '';  // 2.1113.0 (#5966): one entry only (Start ...): the phone's row of areas already marks it, nothing twice
   return title + `<div class="sgroup sbbp">${sbb_row(sbb_target(id), d[1], tr(d[2]), true)}</div>`;
 }
+// 2.1493.0 (#7617): the phone's drawer, area Start: under the tiles the favourites (the one list fav_items, favtiles.js
+// fv2_tiles; approved 20.11.2026 in #7617, newer than #4618 "no favourites in the phone's menu") and "Recently opened" (the
+// source of the search's "Recently viewed", palViewed: LS recentViewed, at most 5) - plain rows (.srow) in groups that fold
+// like the others (sbb_head); an empty group is left out, with both empty the area has no head either (sbb_panelHtml)
+function sbm_homeHtml() {
+  const favs = typeof fv2_tiles === 'function' ? fv2_tiles().filter(t => !t.sep) : [];
+  const seen = typeof palViewed === 'function' ? palViewed().slice(0, 5) : [];
+  const row = (icon, name, attrs, on) => `<button type="button" class="srow smod sbbi ${on ? 'on' : ''}"${on ? ' aria-current="page"' : ''} ${/*html-ok*/ attrs /* the tile's own attributes (fv2_tile escapes its values) or data-sbmrv with esc() */}>${/*html-ok*/ icon /* ic() or the tile's icon html */}<span class="n">${esc(name)}</span></button>`;
+  const grp = (g, label, rows) => rows.length ? `<div class="sgroup sbbp sbmhome" data-sbmh="${esc(g)}">${/*html-ok*/ sbb_head(g, label, rows.length, false) /* escapes its label */}${/*html-ok*/ sbb_folded(g) ? '' : rows.join('') /* the rows above, names escaped */}</div>` : '';
+  return grp('home:favs', tr('Favourites'), favs.map(t => row(t.icon, t.name, `${t.attrs} data-fv2="${esc(t.key)}"`, t.on)))
+    + grp('home:recent', tr('Recently opened'), seen.map(x => row(ic(x.icon), x.label, `data-sbmrv="${esc(x.id)}"`, false)));
+}
+// a row of "Recently opened": what the search's entry does (palViewed fn), the drawer closes
+document.addEventListener('click', e => {
+  const b = /** @type {HTMLElement} */ (e.target).closest?.('#side [data-sbmrv]'); if (!b) return;
+  const x = typeof palViewed === 'function' ? palViewed().find(y => y.id === b.dataset.sbmrv) : null;
+  closeSide(); x?.fn();
+});
 // ---- 2.409.0 (#3490): areas on / off per workspace. The module switches ("features") stay the main switch (off = off
 // everywhere); below it each person switches areas off per own workspace (setting ws_areas_off, json {ws: [area]}, Settings >
 // Modules "Areas per workspace") and an organisation's admins switch areas off for all its members (orgs.areas_off, Settings >
