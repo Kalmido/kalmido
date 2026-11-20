@@ -19757,5 +19757,7 @@
   "Waiting for me: entry before": "M’attend : entrée précédente",
   "Waiting for me: yes (only where an entry has exactly yes and no)": "M’attend : oui (seulement si l’entrée a exactement oui et non)",
   "Waiting for me: no (only where an entry has exactly yes and no)": "M’attend : non (seulement si l’entrée a exactement oui et non)",
-  "Yes to the one-way step": "Oui à l’étape sans retour"
+  "Yes to the one-way step": "Oui à l’étape sans retour",
+  "The task is closed as won’t do.": "La tâche est fermée comme « ne sera pas fait ».",
+  "Already decided elsewhere": "Déjà décidé ailleurs"
 }

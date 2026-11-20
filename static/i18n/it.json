@@ -19758,5 +19758,7 @@
   "Waiting for me: entry before": "Aspetta me: voce precedente",
   "Waiting for me: yes (only where an entry has exactly yes and no)": "Aspetta me: sì (solo se la voce ha esattamente sì e no)",
   "Waiting for me: no (only where an entry has exactly yes and no)": "Aspetta me: no (solo se la voce ha esattamente sì e no)",
-  "Yes to the one-way step": "Sì al passo senza ritorno"
+  "Yes to the one-way step": "Sì al passo senza ritorno",
+  "The task is closed as won’t do.": "L’attività viene chiusa come «non si farà».",
+  "Already decided elsewhere": "Già deciso altrove"
 }

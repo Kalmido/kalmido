@@ -1408,7 +1408,8 @@ optionally `sig`), the bound texts and whether the decider's own change keeps th
 - The hook: `tasks/validation.py log_changes` calls `by_text_written` when title or description changed (inside
   `apply_update`, before `agent_task_mentions`, so an ended yes is not in the mention event). Carrying a yes onto a new text
   is an explicit permission, never a conclusion from the writing hand: only the person's direct edit passes it
-  (`apply_update(..., carry_yes=True)`: PATCH /api/tasks/<id> in tasks/tasks.py and the multi-select edit in tasks/batch.py),
+  (`apply_update(..., carry_yes=True)`: PATCH /api/tasks/<id> in tasks/tasks.py, not with `_act: restore` (the history's "Restore
+  description"), and the multi-select edit in tasks/batch.py; the table view's `patch_each` does not pass it),
   and then only for the confirmer in session or proxy (`by_person`). Every other write of title / description ends the yes
   with the history line `<kind>_lapsed`: applied agent proposals (cleanup merge / rename and its redo, triage's
   rewrite_title), tidy, list rules, undo / redo, imports, tokens. No caller drops it on its own.

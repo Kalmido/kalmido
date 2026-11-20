@@ -171,8 +171,9 @@ project admins and admins see **Confirm…** in the header of such an open task'
 - **Confirm as an order** - your yes to the title and description as they are now. The panel shows *Confirmed as an order*
   with your name and the time, the history keeps it, agents read it (`confirmed`). You can *Withdraw* it.
 - The yes belongs to the text: when anyone but you changes the title or the description, it ends (the history names who
-  changed the text); your own direct edits in the app keep it; anything else ends it - an applied agent proposal, undo / redo, a list rule, a
-  change through your own access token - and you confirm again. If the text
+  changed the text); your own edit in the task panel or of several selected tasks keeps it; anything else ends it - an applied agent
+  proposal, undo / redo, "Restore description" from the history, an edit in the table view, a list rule, a change through your own
+  access token - and you confirm again. If the text
   changed while you were reading it, confirming says so and shows the new text first; confirming needs a connection.
 - **Reject…** - closes the task as *won't do* with your reason (required) in its history. A task an agent wrote starts locked;
   rejecting it takes the lock off.

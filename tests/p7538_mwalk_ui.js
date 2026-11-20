@@ -5,7 +5,7 @@
 //   it; an agent's token sees no confirm entry (never a decider's yes)
 // - a computer: the list on the left, the first entry open on the right; the entry shows the text the yes goes to; Confirm
 //   -> the server has the yes to exactly that text, the next entry of the same group opens by itself
-// - j / k next and back; an entry that goes away on another device: the next one opens; y while typing in a field does
+// - j / k next and back; an entry decided on another device stays marked until Next (reader F1); a held y and y while typing do
 //   nothing, y on the page approves the review (exactly two answers); the last one: "Nothing waits for you any more"
 // - a phone: the list first, a row opens its entry over the whole view, "List" goes back
 // - freelancer-matrix: tasks (frida and gert are people without an organisation)
@@ -79,11 +79,17 @@ const key = (w, el, k) => el.dispatchEvent(new w.KeyboardEvent('keydown', {key: 
   check(/Check the prices/.test(d.querySelector('.mwp .mwpt')?.textContent || ''), 'j: the next entry (the review)');
   key(w, d.body, 'k'); await idle(w);
   check(/Add a gift card/.test(d.querySelector('.mwp .mwpt')?.textContent || ''), 'k: back');
-  // gone on another device: the next one opens
+  // gone on another device (reader F1, a calm view): the entry stays, marked, without buttons; Next goes on
   check((await call(CF, 'POST', `/api/tasks/${K1}/reject`, {reason: 'Not this year'})).http === 200, 'rejected elsewhere');
   await w.eval(`mwLoad(true)`); await idle(w);
-  check(/Check the prices/.test(d.querySelector('.mwp .mwpt')?.textContent || ''), 'the entry went away on another device: the next one opens');
+  check(/Add a gift card/.test(d.querySelector('.mwp .mwpt')?.textContent || '') && /Already decided elsewhere/.test(d.querySelector('.mwp .mwdone')?.textContent || '') && !d.querySelector('.mwp [data-mw="cf-yes"]'),
+    'decided on another device: the entry stays, marked "Already decided elsewhere", no buttons under the finger');
+  key(w, d.body, 'j'); await idle(w);
+  check(/Check the prices/.test(d.querySelector('.mwp .mwpt')?.textContent || ''), 'j (Next) goes on to the following entry');
   check(!!d.querySelector('.mwp .mwpk'), 'the review has exactly two answers: the keys are named');
+  // a held key (repeat) does nothing
+  d.body.dispatchEvent(new w.KeyboardEvent('keydown', {key: 'y', repeat: true, bubbles: true, cancelable: true})); await sleep(500); await idle(w);
+  check((await call(CF, 'GET', `/api/tasks/${T}`)).review === 'pending', 'a held y (key repeat) does nothing');
   // y while typing: nothing
   const inp = d.createElement('input'); d.querySelector('.mwp').appendChild(inp); inp.focus();
   key(w, inp, 'y'); await sleep(500); await idle(w);

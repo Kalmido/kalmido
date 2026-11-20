@@ -61,12 +61,18 @@ async function cf_off(id) {
   ow_draw(); await loadTimeline(id);
 }
 async function cf_no(id) {
-  const v = await askPrompt(tr('Why is it rejected?'), '', {ok: tr('Reject|order'), input: {max: 500}});
-  if (v === null || !v.trim()) return;
-  const j = await api('POST', `/api/tasks/${id}/reject`, {reason: v.trim()});
+  const v = await cf_reason(taskById(id)); if (v === null) return;
+  const j = await api('POST', `/api/tasks/${id}/reject`, v ? {reason: v} : {});
   if (j?.id) putTask(j);
   render(); if (S.sel === id) renderDetail();
   toast(tr('Rejected: closed as won’t do')); await loadTimeline(id);
+}
+// the reason of a no (null = cancelled); reader F3 (job/6017): a list with the lock keeps no plain text in its history, so
+// there the no is only confirmed, without a reason ('' = none), as parking does
+async function cf_reason(t) {
+  if (t && typeof le2u_on === 'function' && le2u_on(t.list_id)) return await askConfirm(tr('Reject|order'), tr('The task is closed as won’t do.'), {ok: tr('Reject|order'), danger: true}) ? '' : null;
+  const v = await askPrompt(tr('Why is it rejected?'), '', {ok: tr('Reject|order'), input: {max: 500}});
+  return v === null || !v.trim() ? null : v.trim();
 }
 document.addEventListener('click', async e => {
   const b = e.target.closest?.('[data-tcf]'); if (!b) return;

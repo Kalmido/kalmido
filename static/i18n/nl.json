@@ -19757,5 +19757,7 @@
   "Waiting for me: entry before": "Wacht op mij: vorig item",
   "Waiting for me: yes (only where an entry has exactly yes and no)": "Wacht op mij: ja (alleen waar een item precies ja en nee heeft)",
   "Waiting for me: no (only where an entry has exactly yes and no)": "Wacht op mij: nee (alleen waar een item precies ja en nee heeft)",
-  "Yes to the one-way step": "Ja op de stap zonder terugweg"
+  "Yes to the one-way step": "Ja op de stap zonder terugweg",
+  "The task is closed as won’t do.": "De taak wordt gesloten als ‘wordt niet gedaan’.",
+  "Already decided elsewhere": "Elders al beslist"
 }
