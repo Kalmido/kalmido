@@ -5,7 +5,7 @@
 const {execFileSync} = require('child_process');
 const path = require('path');
 const {JSDOM, VirtualConsole} = require('jsdom');
-const {boot, errs: bootErrs, sleep, untilEl} = require('./boot');
+const {boot, errs: bootErrs, sleep, untilEl, idle} = require('./boot');
 const B = process.env.BASE || `http://127.0.0.1:${process.env.KALMIDO_TEST_PROXY_PORT || 3041}/`;
 const CT = process.env.KALMIDO_TEST_CONTAINER || 'kalmido-test';
 const F = []; let ok = 0; const errs = [];
@@ -72,6 +72,7 @@ async function submit(w, code) {
   const warn = [...d.querySelectorAll('.smodal [data-admp="server"] .shkey')].find(e => /server key is missing/.test(e.textContent));
   check(!!d.querySelector('.smodal [data-admp="server"] .shkey.shtest[role="alert"]'), 'Administration > Server: the test mode (KALMIDO_TEST=1) is named too (#6871)');
   check(warn && warn.getAttribute('role') === 'alert' && /server key is missing/.test(warn.textContent) && /KALMIDO_SECRET_KEY/.test(warn.textContent), 'Administration > Server: red warning without a server key');
+  await idle(w);  // (#7578): its requests done before the container restarts below (a cut answer crashed the next page's load)
   w.close();
 
   // ---- 3: KALMIDO_SETUP_CODE=off: no field (the other suites)
@@ -84,4 +85,4 @@ async function submit(w, code) {
   check(!all.length, 'no script errors: ' + all.slice(0, 3).join(' | '));
   console.log(`p2450_b_ui: ${ok} ok, ${F.length} failed`);
   process.exit(F.length ? 1 : 0);
-})().catch(e => { console.log('FAIL: crashed', e); process.exit(1); });
+})().catch(e => { console.log('FAIL: crashed', e, e?.stack, e?.cause); process.exit(1); });  // (#7578): the stack, to know which step
