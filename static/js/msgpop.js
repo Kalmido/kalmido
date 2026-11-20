@@ -91,7 +91,7 @@ function mp_wire(el) {
   const keep = mp_keep, go = () => mp_run(MP_MS / 2);
   el.addEventListener('mouseenter', keep); el.addEventListener('focusin', keep);
   el.addEventListener('mouseleave', go); el.addEventListener('focusout', e => { if (!el.contains(/** @type {Node} */ (e.relatedTarget))) go(); });
-  // a swipe sideways or up closes it (2.1493.0, #7615): the card sits on the finger (no transition while dragging, the
+  // a swipe sideways or up closes it (#7615): the card sits on the finger (no transition while dragging, the
   // pointer captured so the edge does not lose it), the axis is fixed after the first pixels (sideways or up; down moves
   // nothing), past MP_SWIPE or with a flick it flies out that way, short of it it springs back
   let g = null;

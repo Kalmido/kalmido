@@ -1212,11 +1212,11 @@ function sbb_panelHtml0(id) {
   if (id === 'team') return title + tc_panelHtml();  // 2.479.0 (#2814): channels and direct messages (chat.js)
   // the agents: their overview, then each agent (its page; the status dot as in the sidebar's conversations)
   if (id === 'agents') return title + `<div class="sgroup sbbp">${sbb_row('agents', 'bot', tr('Agents'), S.route.mod === 'agents' && !S.route.agent)}${(S.agents || []).map(x => `<button type="button" class="srow steam sbbi ${S.route.agent === x.id ? 'on' : ''}" data-go="agents/${x.id}"${S.route.agent === x.id ? ' aria-current="page"' : ''}><span class="sdot">${hdot(agentHst(x))}</span><span class="n">${esc(x.name)}</span>${x.waiting || x.chat_unread ? `<span class="c nunread">${x.waiting + x.chat_unread}</span>` : ''}</button>`).join('')}</div>`;
-  if (id === 'home' && sbm_on()) return sbm_homeHtml();  // 2.1493.0 (#7617)
+  if (id === 'home' && sbm_on()) return sbm_homeHtml();  // (#7617)
   if (sbm_on()) return '';  // 2.1113.0 (#5966): one entry only (Start ...): the phone's row of areas already marks it, nothing twice
   return title + `<div class="sgroup sbbp">${sbb_row(sbb_target(id), d[1], tr(d[2]), true)}</div>`;
 }
-// 2.1493.0 (#7617): the phone's drawer, area Start: under the tiles the favourites (the one list fav_items, favtiles.js
+// (#7617): the phone's drawer, area Start: under the tiles the favourites (the one list fav_items, favtiles.js
 // fv2_tiles; approved 20.11.2026 in #7617, newer than #4618 "no favourites in the phone's menu") and "Recently opened" (the
 // source of the search's "Recently viewed", palViewed: LS recentViewed, at most 5) - plain rows (.srow) in groups that fold
 // like the others (sbb_head); an empty group is left out, with both empty the area has no head either (sbb_panelHtml)

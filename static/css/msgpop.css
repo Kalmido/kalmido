@@ -4,7 +4,7 @@
   width:min(22rem,calc(100vw - 1.5rem));background:var(--bg3);border-radius:var(--radius);box-shadow:var(--shadow);touch-action:none;
   transition:opacity .18s ease,transform .18s ease-out;animation:mpIn .18s ease}
 .msgpop.mpgone{opacity:0;pointer-events:none}
-/* 2.1493.0 (#7615): while the finger drags it the card sits on the finger (no transition); let go it springs back or flies out */
+/* (#7615): while the finger drags it the card sits on the finger (no transition); let go it springs back or flies out */
 .msgpop.mpdrag{transition:none;animation:none}
 .msgpop .mpopen{flex:1;min-width:0;display:flex;gap:.625rem;align-items:center;padding:.625rem .25rem .625rem .75rem;text-align:left;color:inherit;background:none;border:0;border-radius:var(--radius);min-height:2.75rem}
 .msgpop .mpopen .avatar{flex:none}

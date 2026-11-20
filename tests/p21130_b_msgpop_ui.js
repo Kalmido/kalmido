@@ -4,7 +4,7 @@
 // - the conversation open: Bob's next message pops up nothing
 // - three messages in quick succession: ONE card "3 new messages from Bob", the newest line
 // - the x and Esc close it; it goes by itself after its time
-// - 2.1493.0 (#7615) a swipe sideways or up past the threshold (or a flick) closes it, short of it the card springs back to
+// - (#7615) a swipe sideways or up past the threshold (or a flick) closes it, short of it the card springs back to
 //   transform none; the end of a swipe opens no chat; Firefox at 412 px: no transition while the finger drags
 // - an agent's answer: a card with the agent's name, a tap opens its chat
 // - the switch Settings > Notifications > "Pop-up for new messages" off: nothing pops up, the service worker hears "not visible"
