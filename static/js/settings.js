@@ -542,7 +542,7 @@ function aiHtml(hint, want) {
     ${collab() ? '' : hint(setLinkHtml(tr('Agents work together with you in shared projects: switch on Collaboration (Settings > Modules) as well.')))}
     <div class="members aglist" id="${adm ? 's-ags' : 's-myags'}"><div class="muted mhint">${tr('Loading…')}</div></div>
     <div class="row aibtns">${adm ? `<button class="btn sm" data-ag="new" aria-haspopup="menu">${ic('plus', 's')} ${tr('Add agent…')}</button>` : `<button class="btn sm" data-aigo="setup">${ic('plus', 's')} ${tr('Personal agent…')}</button>`}<button class="btn sm" data-m="ag-guide" title="${esc(tr('Set up an agent step by step, or let Claude Code do it'))}">${ic('help', 's')} ${tr('How to set one up')}</button></div>
-    ${acz_linkHtml()}${''/* 2.166.0 (#2633); (#6368): to Connections > Agents */}
+    ${/*html-ok*/ acz_linkHtml() /* its row from tr() texts */}${''/* 2.166.0 (#2633); (#6368): to Connections > Agents */}
     ${agDotsHtml(hint)}
     <h4 id="s-agsteps-h">${tr('Steps in the chat')}</h4>
     <div class="row"><label class="chkl swl"><span class="swc"><input type="checkbox" id="s-agsteps" ${S.settings?.agent_steps_always === '1' ? 'checked' : ''}><span class="swt" aria-hidden="true"></span></span><span>${tr('Always show steps')}</span></label></div>
