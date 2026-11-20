@@ -55,6 +55,8 @@ from ..core.access import Denied
 from ..core.errors import BadInput
 from ..accounts.session import _rate_blocked, _rate_fail, _token_hash, client_ip, me, rate_ip
 from ..accounts.login import seal, unseal, WA_ORIGINS_ENV
+from ..accounts.login import _reauth  # #6499
+from ..accounts.oidc import REAUTH_FRESH_MIN, reauth_fresh  # #6499
 from ..accounts.orgs import op_foreign_account
 from ..agents.core import agent_owner_locked, agent_row, is_agent, need_person
 from ..agents.admin import agent_policy, agent_token_new, agent_ws_allowed_any, my_agent_make
@@ -432,7 +434,6 @@ def mcpr_authorize():
 
 def _consent_pw(c, u):
     """#6499: the password field of the consent page while this browser's sign-in is not fresh (accounts/oidc.py creator_reauth)."""
-    from ..accounts.oidc import reauth_fresh
     if g.get("auth_via") == "proxy" or not u["password_hash"] or reauth_fresh(c):
         return ""
     e = html.escape
@@ -443,8 +444,6 @@ def _consent_pw(c, u):
 def _consent_reauth(c, u):
     """#6499 (decision 16.11.2026): connecting an app is a new way into the account - the sign-in is confirmed once more: a fresh
     sign-in of this browser, else the password of the form (an account without one: sign in again). A problem text or ""."""
-    from ..accounts.oidc import REAUTH_FRESH_MIN, reauth_fresh
-    from ..accounts.login import _reauth
     if g.get("auth_via") == "proxy" or reauth_fresh(c):
         return ""
     if not u["password_hash"]:

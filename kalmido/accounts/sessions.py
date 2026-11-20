@@ -21,6 +21,7 @@ from ..core.config import app, COOKIE
 from ..core.i18n import tr
 from ..core.db import db, err, iso, now_utc
 from ..accounts.session import _token_hash, me
+from ..core.ephem import eph_drop_uid  # #6498
 
 SES_TOUCH = 300  # s: last activity is written at most this often per session
 SES_UA_MAX = 200
@@ -89,7 +90,6 @@ def ses_access_end(c, uid, tokens=True):
     was in a session once must not keep reading or writing through a link made then. The caller commits.
     #6498: always (also without tokens) the account's open sign-in tickets end (the second step or the enrolment begun with
     the old password, ns pend of core/ephem.py)."""
-    from ..core.ephem import eph_drop_uid
     eph_drop_uid("pend", uid)
     if not tokens:
         return
