@@ -4,7 +4,7 @@
    project's conversation, a channel, a group, a direct message, a thread I take part in) or a finished answer / question of
    an agent. No bell entry: the bell stays "waiting for you" (12.11.2026).
    ONE small card at the top edge (picture, sender, first line). It lies over the page and moves nothing (calm view): no
-   layout, only position:fixed. A tap opens the chat; it goes by itself after MP_MS, the x / Esc / a swipe sideways close it
+   layout, only position:fixed. A tap opens the chat; it goes by itself after MP_MS, the x / Esc / a swipe sideways or up close it
    earlier; a pointer, a finger or the keyboard focus on it keep it (WCAG 2.2.1, like the toast). Several messages in quick
    succession = one bundled card ("3 new messages from Anna"). Never for the chat that is open right now, never for one's
    own messages. A screen reader hears it (announce). Switch: Settings > Notifications > "Pop-up for new messages" (per
@@ -13,7 +13,8 @@
 'use strict';
 
 const MP_MS = 6000;  // how long the card stays
-const MP_SWIPE = 60;  // px sideways that close it
+const MP_SWIPE = 60;  // px sideways / up that close it
+const MP_FLING = 0.5;  // px per ms: a flick shorter than MP_SWIPE closes it too
 let mp_items = [];  // the messages the card shows now (newest first)
 
 // the chat of a message is open right now (the team view / its window in the side panel / the agent's chat)
@@ -90,16 +91,42 @@ function mp_wire(el) {
   const keep = mp_keep, go = () => mp_run(MP_MS / 2);
   el.addEventListener('mouseenter', keep); el.addEventListener('focusin', keep);
   el.addEventListener('mouseleave', go); el.addEventListener('focusout', e => { if (!el.contains(/** @type {Node} */ (e.relatedTarget))) go(); });
-  // a swipe sideways closes it (the finger moves it along)
-  let x0 = null;
-  el.addEventListener('pointerdown', e => { keep(); x0 = e.clientX; });
-  el.addEventListener('pointermove', e => { if (x0 === null) return; const dx = e.clientX - x0; if (Math.abs(dx) > 6) el.style.transform = `translateX(${dx}px)`; });
+  // a swipe sideways or up closes it (2.1493.0, #7615): the card sits on the finger (no transition while dragging, the
+  // pointer captured so the edge does not lose it), the axis is fixed after the first pixels (sideways or up; down moves
+  // nothing), past MP_SWIPE or with a flick it flies out that way, short of it it springs back
+  let g = null;
+  el.addEventListener('pointerdown', e => { keep(); g = {x0: e.clientX, y0: e.clientY, ax: '', d: 0, p: 0, t: e.timeStamp, v: 0}; });
+  el.addEventListener('pointermove', e => {
+    if (!g) return;
+    const dx = e.clientX - g.x0, dy = e.clientY - g.y0;
+    if (!g.ax) {
+      if (Math.hypot(dx, dy) <= 6) return;
+      g.ax = Math.abs(dx) >= Math.abs(dy) ? 'x' : dy < 0 ? 'y' : '-';
+      if (g.ax === '-') return;
+      el.classList.add('mpdrag');
+      try { el.setPointerCapture(e.pointerId); } catch { /* a synthetic pointer has nothing to capture */ }
+    }
+    if (g.ax === '-') return;
+    const d = g.ax === 'x' ? dx : Math.min(0, dy), dt = e.timeStamp - g.t;
+    if (dt > 0) g.v = (d - g.p) / dt;
+    g.d = d; g.p = d; g.t = e.timeStamp;
+    el.style.transform = g.ax === 'x' ? `translateX(${d}px)` : `translateY(${d}px)`;
+  });
   const up = e => {
-    if (x0 === null) return;
-    const dx = e.clientX - x0; x0 = null;
-    if (Math.abs(dx) >= MP_SWIPE) { el.dataset.swiped = '1'; setTimeout(() => delete el.dataset.swiped, 400); mp_hide(); return; }
+    if (!g) return;
+    const {ax, d, v} = g; g = null;
+    el.classList.remove('mpdrag');
+    if (ax) { el.dataset.swiped = '1'; setTimeout(() => delete el.dataset.swiped, 400); }  // the end of a swipe is no tap
+    if ((ax === 'x' || ax === 'y') && (Math.abs(d) >= MP_SWIPE || (Math.abs(d) > 12 && Math.abs(v) >= MP_FLING && Math.sign(v) === Math.sign(d)))) { mp_fly(el, ax, Math.sign(d)); return; }
     el.style.transform = '';
     if (!(e.pointerType === 'mouse' && el.matches(':hover'))) go();
   };
   el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+}
+// out of the screen in the swipe's direction, then gone (with reduced motion at once, no flight)
+function mp_fly(el, ax, s) {
+  const r = el.getBoundingClientRect();
+  el.style.transform = ax === 'x' ? `translateX(${s > 0 ? innerWidth - r.left : -r.right}px)` : `translateY(${-r.bottom - 8}px)`;
+  mp_hide();
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) el.remove();
 }

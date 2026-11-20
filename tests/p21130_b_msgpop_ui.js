@@ -4,6 +4,8 @@
 // - the conversation open: Bob's next message pops up nothing
 // - three messages in quick succession: ONE card "3 new messages from Bob", the newest line
 // - the x and Esc close it; it goes by itself after its time
+// - 2.1493.0 (#7615) a swipe sideways or up past the threshold (or a flick) closes it, short of it the card springs back to
+//   transform none; the end of a swipe opens no chat; Firefox at 412 px: no transition while the finger drags
 // - an agent's answer: a card with the agent's name, a tap opens its chat
 // - the switch Settings > Notifications > "Pop-up for new messages" off: nothing pops up, the service worker hears "not visible"
 // - Firefox: the card lies over the page (the page under it does not move), top right on a desktop, across the width on a phone
@@ -90,6 +92,36 @@ const call = async (method, url, body, ck, hdr = {}) => { const r = await fetch(
   check(await until(card), 'a new one pops up');
   card().dispatchEvent(new w.KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
   check(await until(() => !card()), 'Esc closes it');
+  // ================= #7615 swipe: sideways / up closes, short springs back, the end of a swipe opens no chat
+  const ptr = (type, x, y) => card().querySelector('.mpopen').dispatchEvent(new w.MouseEvent(type, {clientX: x, clientY: y, bubbles: true}));
+  const slow = async pts => { for (const [x, y] of pts) { ptr('pointermove', x, y); await sleep(120); } };
+  await bobSays('Swipe me');
+  await ask();
+  check(await until(card), 'a card to swipe');
+  ptr('pointerdown', 200, 40); await slow([[215, 40], [230, 40], [240, 40]]);
+  check(card()?.style.transform === 'translateX(40px)', 'the card sits on the finger: ' + card()?.style.transform);
+  check(card()?.classList.contains('mpdrag'), 'while dragging: class mpdrag (transition none)');
+  ptr('pointerup', 240, 40); card().querySelector('.mpopen').click();
+  check(!!card() && card().style.transform === '' && !card().classList.contains('mpdrag'), 'short of the threshold it springs back');
+  check(w.location.hash === '#today', 'the end of a short swipe opens nothing: ' + w.location.hash);
+  ptr('pointerdown', 200, 60); await slow([[198, 40], [197, 20], [196, -10]]);
+  check(card()?.style.transform === 'translateY(-70px)', 'up: the card follows the finger up: ' + card()?.style.transform);
+  ptr('pointerup', 196, -10); d.querySelector('#msgpop .mpopen')?.click();
+  check(await until(() => !card()), 'a swipe up closes it');
+  check(w.location.hash === '#today', 'the end of the swipe up opens no chat: ' + w.location.hash);
+  await bobSays('Flick me');
+  await ask();
+  check(await until(card), 'another card');
+  ptr('pointerdown', 200, 40); ptr('pointermove', 180, 40); ptr('pointermove', 160, 40); ptr('pointerup', 160, 40);
+  check(await until(() => !card()), 'a quick flick shorter than the threshold closes it too');
+  await bobSays('Not down');
+  await ask();
+  check(await until(card), 'one more card');
+  ptr('pointerdown', 200, 40); await slow([[200, 80], [200, 140]]);
+  check(card()?.style.transform === '', 'down moves nothing: ' + card()?.style.transform);
+  ptr('pointerup', 200, 140);
+  check(!!card(), 'down does not close it');
+  card().querySelector('.mpx').click(); await until(() => !card());
   await bobSays('Goes by itself');
   await ask();
   check(await until(card), 'another one pops up');
@@ -156,6 +188,23 @@ const call = async (method, url, body, ck, hdr = {}) => { const r = await fetch(
     check(ph && ph.left <= 12 && ph.right <= 12 && ph.w >= ph.iw - 24, 'phone: across the width ' + JSON.stringify(ph));
     check(ph && ph.view === v1, `phone: the page under it does not move (${v1} -> ${ph && ph.view})`);
     await shot('p21130b-phone-390.png');
+    // #7615 at 412 px: no transition while the finger drags, short of the threshold back to transform none, up past it gone
+    await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: 412, height: 860}}); await sleep(300);
+    await pop();
+    const P = (t, x, y) => `document.querySelector('#msgpop .mpopen').dispatchEvent(new PointerEvent('${t}', {clientX: ${x}, clientY: ${y}, pointerId: 1, pointerType: 'touch', isPrimary: true, bubbles: true}))`;
+    await ev(`(${P('pointerdown', 200, 40)}, 1)`); await ev(`(${P('pointermove', 215, 40)}, 1)`); await sleep(150); await ev(`(${P('pointermove', 230, 40)}, 1)`);
+    const drag = await ev(`(() => { const m = document.querySelector('#msgpop'); return {td: getComputedStyle(m).transitionDuration, tf: m.style.transform}; })()`);
+    check(drag && drag.td.split(',').every(x => parseFloat(x) === 0), 'firefox 412: no transition while dragging ' + JSON.stringify(drag));
+    await sleep(150); await ev(`(${P('pointerup', 230, 40)}, 1)`);
+    let back = null;
+    for (let i = 0; i < 30 && back !== 'none'; i++) { await sleep(50); back = await ev(`getComputedStyle(document.querySelector('#msgpop')).transform`); }
+    check(back === 'none', 'firefox 412: short of the threshold back at transform none: ' + back);
+    const h0 = await ev('location.hash');
+    await ev(`(${P('pointerdown', 200, 60)}, 1)`); await ev(`(${P('pointermove', 199, 40)}, 1)`); await sleep(150); await ev(`(${P('pointermove', 198, -30)}, 1)`); await sleep(150); await ev(`(${P('pointerup', 198, -30)}, 1)`);
+    let gone = false;
+    for (let i = 0; i < 30 && !gone; i++) { await sleep(50); gone = await ev("!document.querySelector('#msgpop:not(.mpgone)')"); }
+    check(gone, 'firefox 412: a swipe up past the threshold closes it');
+    check(await ev('location.hash') === h0, 'firefox 412: the swipe opens no chat');
   });
 
   check(!errs.length, 'no script errors: ' + errs.join(' | '));
