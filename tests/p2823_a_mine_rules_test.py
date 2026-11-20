@@ -249,4 +249,34 @@ AH = A.post(B + "/api/lists", json={"name": "Alice's"}).json()["id"]
 TA = A.post(B + "/api/tasks", json={"title": "Alice overdue", "list_id": AH, "due": "2020-01-01"}).json()["id"]
 check(len(rules(A)) == 1 and apply([TA], A).get("moved") == 1 and sec_of(TA, A) == by_kind(AL, "now")["id"], "alice (organisation): the same first rule")
 
+# ================================================================== 15. #6289: the project joins an organisation with a label of the
+# tag's name (kalmido_otg_joined gives the tag the label's id): the own rule follows the new id, its once-marker too; a rule whose
+# tag is gone says so ("Tag missing") instead of doing nothing in silence
+OG = Gi.post(B + "/api/orgs", json={"name": "Gina Studio"}).json().get("id")
+GT = Gi.post(B + "/api/lists", json={"name": "Shoot"}).json()["id"]
+GTAG = Gi.post(B + f"/api/lists/{GT}/tags", json={"name": "rush"}).json()["id"]
+r = Gi.post(B + "/api/mine-rules", json={"trigger": {"kind": "ltag", "tag_id": GTAG}, "section_id": GSOON, "place": "top"})
+GR = r.json().get("id")
+r2 = Gi.post(B + "/api/mine-rules", json={"trigger": {"kind": "prio"}, "section_id": GSOON, "conditions": {"list_id": GT, "tag_id": GTAG}})
+GR2 = r2.json().get("id")
+check(r.ok and r2.ok, f"gina: a tag rule and a rule with a tag condition {r.text[:200]} {r2.text[:200]}")
+G3 = Gi.post(B + "/api/tasks", json={"title": "Rush job", "list_id": GT}).json()["id"]
+check(Gi.patch(B + f"/api/tasks/{G3}", json={"ltags": ["rush"]}).ok and apply([G3], Gi).get("moved") == 1 and sec_of(G3, Gi) == GSOON,
+      "the tag rule moves the tagged task into Soon")
+check(Gi.put(B + "/api/tasks/mine-order", json={"ids": [G3], "secs": {str(G3): GNOW}}).ok and sec_of(G3, Gi) == GNOW, "moved by hand into Now")
+LB = Gi.post(B + "/api/org-labels", json={"org_id": OG, "name": "rush"}).json().get("id")
+r = Gi.patch(B + f"/api/lists/{GT}", json={"org_id": OG})
+check(r.ok and LB and LB != GTAG, f"the project joins the organisation with the label 'rush' {r.status_code} {r.text[:200]}")
+rr = {x["id"]: x for x in rules(Gi)}
+check(rr[GR]["trigger"].get("tag_id") == LB and rr[GR2]["conditions"].get("tag_id") == LB,
+      f"#6289: the own rules name the label now (trigger and condition) {rr[GR]['trigger']} {rr[GR2]['conditions']}")
+check(not rr[GR]["tag_missing"] and rr[GR]["trigger"].get("tag_name") == "rush", f"#6289: not missing, its name comes along {rr[GR]}")
+check(apply([G3], Gi).get("moved") == 0 and sec_of(G3, Gi) == GNOW, "#6289: the once-marker followed: the task put by hand stays in Now")
+G4 = Gi.post(B + "/api/tasks", json={"title": "Rush job 2", "list_id": GT}).json()["id"]
+check(Gi.patch(B + f"/api/tasks/{G4}", json={"ltags": ["rush"]}).ok and apply([G4], Gi).get("moved") == 1 and sec_of(G4, Gi) == GSOON,
+      "#6289: a task that gets the label afterwards: the rule fires again")
+kt.dbx("UPDATE user_mine_rules SET trig_val='99999999' WHERE id=?", (GR,))
+check(next(x for x in rules(Gi) if x["id"] == GR)["tag_missing"] and not next(x for x in rules(Gi) if x["id"] == GR2)["tag_missing"],
+      "#6289: a rule whose tag is gone says 'Tag missing'")
+
 sys.exit(kt.done("p2823_a_mine_rules"))
