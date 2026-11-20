@@ -19731,13 +19731,5 @@
   "documents from templates": "des documents issus de modèles",
   "invoice series": "des séries de factures",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "Le client de ce document n'est plus dans ce bureau (déplacé vers un autre espace de travail). Choisis d'abord un autre client.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Le client de la facture modèle n'est plus dans ce bureau (déplacé vers un autre espace de travail). Choisis une autre facture modèle et réactive la série.",
-  "No answer from the server": "Pas de réponse du serveur",
-  "no answer from the server": "pas de réponse du serveur",
-  "Not saved: no answer from the server": "Non enregistré : pas de réponse du serveur",
-  "Test mode: test routes are open": "Mode test : les routes de test sont ouvertes",
-  "KALMIDO_TEST=1 is set. Never on a real server: remove KALMIDO_TEST from .env (or the compose file) and restart.": "KALMIDO_TEST=1 est défini. Jamais sur un vrai serveur : retire KALMIDO_TEST du .env (ou du fichier compose) et redémarre.",
-  "Your own key of the provider; its usage is billed to you by the provider. Kalmido stores it encrypted and never shows it again, not even in part.": "Ta propre clé chez le fournisseur ; l'utilisation t'est facturée par le fournisseur. Kalmido la stocke chiffrée et ne la montre plus jamais, même pas en partie.",
-  "The entertainment receipt is saved, but the bill was not attached: {0}": "Le justificatif de repas d'affaires est enregistré, mais la facture n'a pas été jointe : {0}",
-  "Archiving {0} of {1}…": "Archivage {0} sur {1}…"
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Le client de la facture modèle n'est plus dans ce bureau (déplacé vers un autre espace de travail). Choisis une autre facture modèle et réactive la série."
 }

@@ -19731,13 +19731,5 @@
   "documents from templates": "Dokumente aus Vorlagen",
   "invoice series": "Rechnungsserien",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "Der Kunde dieses Dokuments ist nicht mehr in diesem Büro (in einen anderen Arbeitsbereich umgezogen). Wähle zuerst einen anderen Kunden.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Der Kunde der Vorlage-Rechnung ist nicht mehr in diesem Büro (in einen anderen Arbeitsbereich umgezogen). Wähle eine andere Vorlage-Rechnung und schalte die Serie wieder ein.",
-  "No answer from the server": "Keine Antwort vom Server",
-  "no answer from the server": "keine Antwort vom Server",
-  "Not saved: no answer from the server": "Nicht gespeichert: keine Antwort vom Server",
-  "Test mode: test routes are open": "Testmodus: Test-Routen sind offen",
-  "KALMIDO_TEST=1 is set. Never on a real server: remove KALMIDO_TEST from .env (or the compose file) and restart.": "KALMIDO_TEST=1 ist gesetzt. Nie auf einem echten Server: entferne KALMIDO_TEST aus der .env (oder der compose-Datei) und starte neu.",
-  "Your own key of the provider; its usage is billed to you by the provider. Kalmido stores it encrypted and never shows it again, not even in part.": "Dein eigener Schlüssel beim Anbieter; der Verbrauch wird dir vom Anbieter berechnet. Kalmido speichert ihn verschlüsselt und zeigt ihn nie wieder, auch nicht teilweise.",
-  "The entertainment receipt is saved, but the bill was not attached: {0}": "Der Bewirtungsbeleg ist gespeichert, aber die Rechnung wurde nicht angehängt: {0}",
-  "Archiving {0} of {1}…": "Wird archiviert: {0} von {1} …"
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Der Kunde der Vorlage-Rechnung ist nicht mehr in diesem Büro (in einen anderen Arbeitsbereich umgezogen). Wähle eine andere Vorlage-Rechnung und schalte die Serie wieder ein."
 }
