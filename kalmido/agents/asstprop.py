@@ -117,7 +117,7 @@ def ast_office_agents(c, uid, oid, area="offers"):
             a = agent_row(c, aid)
         if not a or not ofa_agent_on(c, a, oid, area, "edit"):  # 2.187.0 C (#2476): its switch or its office groups
             continue
-        if ofa_area(c, a) != oid or not _person_ok(c, a, uid):
+        if ofa_area(c, a, uid) != oid or not _person_ok(c, a, uid):  # (#7326): on for uid
             continue
         if a["owner_id"] and a["owner_id"] != uid and (office_role(c, a["owner_id"], oid) not in ("admin", "member") or not office_on(c, a["owner_id"])
                                                        or not ofr_allows(c, a["owner_id"], oid, area, "edit")):
@@ -390,7 +390,7 @@ def _office_target(c, j):
     with system_ctx(c):  # the agent's settings row (structure)
         a = agent_row(c, j["agent_id"])
     inp = json.loads(j["input"] or "{}")
-    return _office_doc(c, g.user["id"], ofa_area(c, a), (inp.get("doc") or {}).get("id"))
+    return _office_doc(c, g.user["id"], ofa_area(c, a, g.user["id"]), (inp.get("doc") or {}).get("id"))
 
 
 def _doc_target(c, j, write=True):

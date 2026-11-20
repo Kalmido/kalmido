@@ -1745,7 +1745,10 @@ and each organisation whose office is on for you and where you are no guest. Wit
 Scope `office` (never in the legacy `write` or a new agent's default). Agents only, and only with office access (since 2.187.0 an office rights group; the switch *May draft
 office documents* only for an agent in no group) and the area's privacy switch *Agents may read office data* on (else `403`). `requested_by` (query or
 body) = the person the agent acts for (default: its owner; a team agent must name one). Drafts only: no route sets a
-number, a status, finalises, sends, deletes or books. Details: [AGENTS.md](AGENTS.md#office-drafts-only).
+number, a status, finalises, sends, deletes or books. Details: [AGENTS.md](AGENTS.md#office-drafts-only). (#7326): the agent's office
+area off for that person (an organisation's area or module switched off for them, a personal agent's owner with *Also
+private* off) = `409 {error: {code: "office_off", message}}` on every office call, nothing written; `app_url` and the chat
+card's link carry the office (`#office/s/private/offers/<id>`, `#office/s/org:<id>/letters/<id>`).
 
 | Call | Scope | What it does |
 |---|---|---|

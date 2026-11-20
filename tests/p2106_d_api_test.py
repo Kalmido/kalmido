@@ -153,12 +153,12 @@ if r.status_code >= 500:
     app_log()
 check(r.status_code == 201, f"a letter draft without answers: 201 ({r.status_code} {r.text[:200]})")
 L1 = r.json() if r.status_code == 201 else {}
-check(L1.get("status") == "draft" and L1.get("agent_id") == AG and L1.get("client_id") == CL and L1.get("app_url") == f"#office/letters/{L1.get('id')}",
+check(L1.get("status") == "draft" and L1.get("agent_id") == AG and L1.get("client_id") == CL and L1.get("app_url") == f"#office/s/org:{ORG}/letters/{L1.get('id')}",  # (#7326): with its office
       f"the draft: status draft, agent_id, client, app_url {L1}")
 check(bool(L1.get("chat_message_id")), "the card in the person's chat (notify default true)")
 r = A.get(B + f"/api/agents/{AG}/chat")
 chat = json.dumps(r.json(), ensure_ascii=False) if r.ok else r.text  # umlauts are escaped in the raw JSON
-check("Kündigung Wartungsvertrag" in chat and f"#office/letters/{L1.get('id')}" in chat, "the card names the subject and opens the letter")
+check("Kündigung Wartungsvertrag" in chat and f"#office/s/org:{ORG}/letters/{L1.get('id')}" in chat, "the card names the subject and opens the letter (#7326: in its office)")
 h = A.get(B + f"{O}/letters/{L1.get('id')}")
 check(h.ok and h.json().get("agent_id") == AG and h.json().get("status") == "draft", f"the admin sees the agent's draft ({h.status_code})")
 for nid, what in ((D2, "not shared"), (DP, "private (another documents space)"), (DC, "of another organisation"), (999999, "missing")):

@@ -68,7 +68,9 @@ OFA_MASTER = ("services", "texts", "contracts")
 OFA_LOG_TARGETS = ("office", "services", "texts", "contracts", "clients", "docs", "doc", "pdf", "offer", "invoice", "reminder", "payment", "leads", "letter", "series", "subs", "deals")  # 2.644.0 (#3663): + deals; 2.94.0 A (#1930): + leads; 2.153.0 (#2031): + letter; 2.483.0 (#2007): + series, subs
 # link buttons in the chat (agents/chat.py): only the office document view, a list, and a document's PDF preview -- no other
 # app route (some do something when opened), no outside address; 2.153.0 (#2031): + a letter (#office/letters/<id>)
-NOTIFY_HREF_RE = re.compile(r"^(#office/offers/\d{1,12}|#office/letters/\d{1,12}|#l/\d{1,12}|/api/office/docs/\d{1,12}/pdf\?inline=1)$")
+# (#7326): + the same with the draft's office area (#office/s/<private | org:<id>>/offers/<id>, ofa_href): opens in that office under
+# any workspace on top, which stays (static/js/agentchat.js OA_HREF is the twin)
+NOTIFY_HREF_RE = re.compile(r"^(#office/(s/(private|org:\d{1,9})/)?(offers|letters)/\d{1,12}|#l/\d{1,12}|/api/office/docs/\d{1,12}/pdf\?inline=1)$")
 OFA_RULES = N_("Drafts only: a person reserves the number, finalises, sends and books. Free positions, other prices and discounts are marked.")
 OFA_OFF = N_("This agent may not work in the office (its switch “May draft office documents” is off)")
 OFA_NO_AREA = N_("The office rights of this agent do not include this area (office settings, rights)")  # 2.187.0 C (#2476)
@@ -76,9 +78,24 @@ OFA_NOT_ASKED = N_("requested_by: this person has not asked the agent for anythi
 OFA_PRIVACY_OFF = N_("Agents may not read the office data of this area (switch in the office settings)")
 
 
+# (#7326): the office is off for the person the agent works for in the agent's office area (its organisation: the area or the
+# module switched off there; a personal agent's: its owner's own office with "Also private" off) -- 409, nothing written
+OFA_OFF_HERE = N_("The office is switched off for this person in this workspace (Settings > Modules, for the own office “Also private”). Nothing was written: the draft would not show there. Ask the person to switch it on.")
+
+
+class OfaOfficeOff(Denied):
+    """(#7326): 409 office_off -- the agent's office area is off for the person (accounts/wsplace.py wsp_on)."""
+    v1_name = "office_off"
+
+    def __init__(self):
+        super().__init__(409, tr(OFA_OFF_HERE))
+
+
 # ---------------------------------------------------------------- the area, the switches, the log
-def ofa_area(c, a):
-    """The office area agent row a works in (None: none -- a team agent without a workspace, an owner without an office)."""
+def ofa_home(c, a):
+    """The office area of agent row a's workspace: its organisation; a personal agent its owner's personal office (None:
+    none -- a team agent without a workspace, an owner without an office). Agents keep their own workspace (docs/dev/kern.md
+    "Where does New go": agent_org); whether the office is on there for a person is ofa_on_for."""
     if a is None:
         return None
     if a["org_id"]:
@@ -86,6 +103,31 @@ def ofa_area(c, a):
     if a["owner_id"]:
         return pb_personal(c, a["owner_id"], create=False)
     return None
+
+
+def ofa_href(c, oid, tail):
+    """(#7326): the app's address of a place in office area oid (tail: "offers/12"): #office/s/<area>/<tail> -- the area
+    goes with the link (the person's own office = "private"), so it opens there whatever workspace is on top (was:
+    #office/offers/<id>, 404 under another workspace)."""
+    return f"#office/s/{'private' if pb_owner(c, oid) is not None else 'org:%d' % int(oid)}/{tail}"
+
+
+def ofa_on_for(c, uid, oid):
+    """(#7326): is the office of area oid on for person uid? THE one answer (accounts/wsplace.py wsp_on, #7309): an
+    organisation's area / module switches and the card; a personal office (its owner's Private) "Also private"."""
+    from ..accounts.wsplace import wsp_on
+    with system_ctx(c):  # the person's switches and roles (structure), whoever asks
+        return wsp_on(c, uid, "office", None if pb_owner(c, oid) is not None else oid)
+
+
+def ofa_area(c, a, uid=None):
+    """The office area agent row a works in for person uid (default: its owner) -- None: none, or the office is off for that
+    person there (ofa_on_for; #7326: never a draft behind a 403). Every caller asks here (part B's pk2_area too)."""
+    oid = ofa_home(c, a)
+    who = uid or (a["owner_id"] if a is not None else None)
+    if oid and who and not ofa_on_for(c, who, oid):
+        return None
+    return oid
 
 
 # 2.187.0 C (#2476): what an agent's office request needs from its office groups, by the log target of _v1ctx
@@ -171,7 +213,7 @@ def _v1ctx(c, rb=None, write=False, target="office", area=None):
     a = agent_row(c, aid)
     area = area or OFA_TARGET_AREA.get(target)
     level = "edit" if write else "view"
-    oid = ofa_area(c, a) if a else None
+    oid = ofa_home(c, a) if a else None  # (#7326): whether the office is on there for the person: below (409)
     if not a or not oid and not a["office_drafts"]:
         raise Denied(403, tr(OFA_OFF))
     if not oid:
@@ -196,6 +238,8 @@ def _v1ctx(c, rb=None, write=False, target="office", area=None):
         raise Denied(403, tr(OFA_NOT_ASKED))
     if office_role(c, uid, oid) not in ("admin", "member") or not office_on(c, uid):
         raise Denied(403, tr("This person does not work in this office"))
+    if not ofa_on_for(c, uid, oid):  # (#7326): the same switches as the app (was: mc_gate, which leaves /api/v1 out)
+        raise OfaOfficeOff()
     if area and not office_can(c, uid, oid, area, level):  # 2.223.2 B (#2862): previous access too (a member: no bank)
         raise Denied(403, tr(NO_RIGHT))
     _as_person(c, uid)
@@ -505,7 +549,7 @@ def _doc_v1(c, oid, r, items=True):
     # 2.674.0 (#4382 finding 9): the agent's list restriction -- after _v1ctx g.user is the person it acts for, the agent is g.ofa_agent
     aid = (g.get("ofa_agent") or g.user)["id"]
     oil_agent_filter(d, lambda x: ofa_doc_in_lists(c, aid, x))  # 2.356.0 C (#3003): linked documents only inside the agent's projects
-    d["app_url"] = f"#office/offers/{r['id']}"  # every kind opens in the tab "Quotations & invoices"
+    d["app_url"] = ofa_href(c, oid, f"offers/{r['id']}")  # every kind opens in the tab "Quotations & invoices"; (#7326): with its office
     return d
 
 
@@ -696,7 +740,7 @@ def _notify(c, aid, uid, did, oid, what):
     d = doc_public(c, oid, doc_row(c, oid, did), False, items=False)
     title = d.get("project_title") or tr("without title")
     text = tr("{0} “{1}”: {2} net, {3} gross. A draft; you finalise and send it.", tr(what), title, d["net_text"], d["gross_text"])
-    ch = [{"id": "open", "label": tr("Open in the office"), "style": "primary", "href": f"#office/offers/{did}"},
+    ch = [{"id": "open", "label": tr("Open in the office"), "style": "primary", "href": ofa_href(c, oid, f"offers/{did}")},
           {"id": "pdf", "label": tr("PDF preview"), "href": f"/api/office/docs/{did}/pdf?inline=1"}]
     r = chat_post(c, aid, uid, "agent", {"body": text, "choices": ch}, None)
     return r["id"]
@@ -998,7 +1042,7 @@ def _agent_area(c, aid):
         a = agent_row(c, aid)
     if not a:
         raise Denied(404)
-    return a, ofa_area(c, a)
+    return a, ofa_home(c, a)  # (#7326): the agent's own area, also while the office is off there for its owner
 
 
 @app.get("/api/office/agents/<int:aid>")
@@ -1131,11 +1175,11 @@ def ofa_spec(paths, schemas, op, ok, errs, ref, pid, q):
     rules = ("Both switches must be on: the agent's \"May draft office documents\" and the area's privacy switch \"Agents may read "
              "office data\". Drafts only: never a number, status, finalising, sending, deleting or booking. Every request is in the "
              "office log.")
-    paths["/office"] = {"get": op("The office area you work in (2.51.0)", T, ok(o) | errs("400", "403", "404"), [rb], scope="office", desc=rules)}
-    paths["/office/{kind}"] = {"get": op("Services, text blocks, framework contracts or clients of the office (2.51.0)", T, ok(o) | errs("400", "403", "404"),
+    paths["/office"] = {"get": op("The office area you work in (2.51.0)", T, ok(o) | errs("400", "403", "404", "409"), [rb], scope="office", desc=rules)}
+    paths["/office/{kind}"] = {"get": op("Services, text blocks, framework contracts or clients of the office (2.51.0)", T, ok(o) | errs("400", "403", "404", "409"),
                                          [{"name": "kind", "in": "path", "required": True, "schema": {"type": "string", "enum": list(OFA_MASTER) + ["clients"]}},
                                           q("q", "Search", {"type": "string"}), rb], scope="office", desc="Never purchase prices or markups.")}
-    paths["/office/docs"] = {"get": op("Quotations, invoices or reminders of the office, newest first (2.51.0)", T, ok(o) | errs("400", "403", "404"),
+    paths["/office/docs"] = {"get": op("Quotations, invoices or reminders of the office, newest first (2.51.0)", T, ok(o) | errs("400", "403", "404", "409"),
                                        [q("kind", "offer (default), invoice, credit, reminder", {"type": "string"}), q("client_id", "Only this client", {"type": "integer"}),
                                         q("status", "Stored status", {"type": "string"}), q("open", "1 = only open invoices (issued, sent, partial, overdue)", {"type": "string"}),
                                         q("trial", "2.144.10: 1 = only trial documents, 0 = only real ones (each document carries trial)", {"type": "string"}),
@@ -1143,20 +1187,20 @@ def ofa_spec(paths, schemas, op, ok, errs, ref, pid, q):
                                         q("limit", "2.463.0: documents per page, at most 500", {"type": "integer"}), rb],
                                        scope="office", desc="2.483.0: an invoice made by an invoice series carries series_id and series_period (its period start); null otherwise.")}
     # 2.483.0 (#2007): invoice series and subscriptions, read only
-    paths["/office/series"] = {"get": op("The invoice series of the office, read only (2.483.0)", T, ok(o) | errs("400", "403", "404"), [rb], scope="office",
+    paths["/office/series"] = {"get": op("The invoice series of the office, read only (2.483.0)", T, ok(o) | errs("400", "403", "404", "409"), [rb], scope="office",
                                          desc="data: per series its template invoice (number, client, gross), every (monthly / quarterly / yearly), "
                                               "start, until, next_date, auto_send, active, the newest invoices made (made: doc_id, number, state, period, "
                                               "gross, open) and the next periods. The person (requested_by) must manage the quotes in the office "
                                               "(an admin); never the bin, never a change. The invoices made carry series_id and series_period in /office/docs.")}
-    paths["/office/subs"] = {"get": op("The subscriptions and tools of the office, read only (2.483.0)", T, ok(o) | errs("400", "403", "404"), [rb], scope="office",
+    paths["/office/subs"] = {"get": op("The subscriptions and tools of the office, read only (2.483.0)", T, ok(o) | errs("400", "403", "404", "409"), [rb], scope="office",
                                        desc="As the app's overview: items (fixed costs marked as subscription: label, category, amount, gross, repeat, "
                                             "next_renewal, cancel_by, cancel_missed, cancel_next, notice_days, per_month / per_year gross and net, seats, "
                                             "seat_names, low_use, url, running), totals, candidates (fixed costs that look like one), today. Needs the area "
                                             "Subscriptions & tools for the agent and the person; 404 when the function is switched off in the office.")}
-    paths["/office/docs/{id}"] = {"get": op("One document with its positions (2.51.0)", T, ok(o) | errs("400", "403", "404"), [pid("id", "Document id"), rb], scope="office")}
+    paths["/office/docs/{id}"] = {"get": op("One document with its positions (2.51.0)", T, ok(o) | errs("400", "403", "404", "409"), [pid("id", "Document id"), rb], scope="office")}
     paths["/office/docs/{id}/pdf"] = {"get": {**op("The PDF preview of a draft (2.51.0)", T, errs("400", "403", "404", "409"), [pid("id", "Document id"), rb], scope="office"),
                                               "responses": {"200": {"description": "application/pdf"}, **errs("400", "403", "404", "409")}}}
-    paths["/office/offers"] = {"post": op("Create a quotation draft (2.51.0)", T, ok(o, "Created", "201") | errs("400", "403", "404"), body=ref("OfficeDraftInput"),
+    paths["/office/offers"] = {"post": op("Create a quotation draft (2.51.0)", T, ok(o, "Created", "201") | errs("400", "403", "404", "409"), body=ref("OfficeDraftInput"),
                                           scope="office", desc=rules + " Free positions, other prices and discounts are marked for the person.")}
     paths["/office/offers/{id}"] = {"patch": op("Change your own quotation draft (2.51.0)", T, ok(o) | errs("400", "403", "404", "409"), [pid("id", "Document id")],
                                                 body=ref("OfficeDraftPatch"), scope="office", desc="items replaces the whole list. Only while it is a draft.")}

@@ -118,7 +118,7 @@ def _target(c, j):
     uid = g.user["id"]
     with system_ctx(c):  # the agent's settings row (structure)
         a = agent_row(c, j["agent_id"])
-    oid = ofa_area(c, a)
+    oid = ofa_area(c, a, uid)  # (#7326): None when the office is off for uid there
     if not ofr_allows(c, uid, oid, "receipts", "edit"):
         raise Denied(403, tr(NO_RIGHT))
     sid = (json.loads(j["input"] or "{}").get("statement") or {}).get("id")

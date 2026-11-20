@@ -67,14 +67,15 @@ def _pk2_as(c, uid):
 
 def pk2_area(c, uid, aid):
     """(org of the new list or None = private, office area id or None) for person uid applying a proposal of agent aid:
-    the agent's organisation when the person is a member there, else the person's private space / personal office.
-    Never another organisation."""
-    from ..office.model import pb_personal
-    r = c.execute("SELECT org_id FROM agents WHERE user_id=?", (aid,)).fetchone()
-    org = r["org_id"] if r else None
-    if org and org_role(c, uid, org) in ("admin", "member"):  # 2.143.0 A (#2151): not the limited roles
-        return org, org
-    return None, pb_personal(c, uid, create=False)
+    the agent's organisation when the person is a member there, else the person's private space. The office area is part
+    A's one answer (office/agentdocs.py ofa_area, #7326): the agent's own area while the office is on there for uid, else
+    None (no quotation part; was: the person's own office even with "Also private" off). Never another organisation."""
+    from ..office.agentdocs import ofa_area
+    a = agent_row(c, aid)
+    org = a["org_id"] if a else None
+    if org and org_role(c, uid, org) not in ("admin", "member"):  # 2.143.0 A (#2151): not the limited roles
+        org = None
+    return org, ofa_area(c, a, uid) if a and (org or not a["org_id"]) else None
 
 
 def pk2_office(c, uid, aid, oid):
@@ -92,7 +93,7 @@ def pk2_office(c, uid, aid, oid):
     from ..office.model import office_on, office_role, office_settings
     from ..office.rights import ofr_allows
     a = agent_row(c, aid)
-    if not a or ofa_area(c, a) != oid or not ofa_agent_on(c, a, oid, "offers", "edit"):  # 2.187.0 C (#2476): switch or groups
+    if not a or ofa_area(c, a, uid) != oid or not ofa_agent_on(c, a, oid, "offers", "edit"):  # 2.187.0 C (#2476): switch or groups; (#7326): on for uid
         return False, "agent_no_office"
     # 2.51.0 (#1351) review: office data only with the scope office too (like part A's v1 routes; agentdocs.py)
     from ..api.scopes import scopes_effective

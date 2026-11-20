@@ -165,17 +165,19 @@ def lta_v1(c, oid, aid, d):
         if lta_agent_sees(c, r["node_id"], aid):
             links.append({"node_id": r["node_id"], "kind": r["kind"]})
     out["links"] = links
-    out["app_url"] = f"#office/letters/{d['id']}"
+    from .agentdocs import ofa_href
+    out["app_url"] = ofa_href(c, oid, f"letters/{d['id']}")  # (#7326): with its office
     return out
 
 
-def _notify(c, aid, uid, d):
+def _notify(c, aid, uid, d, oid):
     """The card in the person's chat with the agent: "Letter draft from <agent>: <subject>", "Open in the office"."""
     from ..agents.chat import chat_post
     u = c.execute("SELECT display_name, username FROM users WHERE id=?", (aid,)).fetchone()
     name = (u["display_name"] or u["username"]) if u else tr("an agent")
     text = tr("Letter draft from {0}: “{1}”. A draft; you check and send it.", name, d.get("subject") or tr("without title"))
-    ch = [{"id": "open", "label": tr("Open in the office"), "style": "primary", "href": f"#office/letters/{d['id']}"}]
+    from .agentdocs import ofa_href
+    ch = [{"id": "open", "label": tr("Open in the office"), "style": "primary", "href": ofa_href(c, oid, f"letters/{d['id']}")}]  # (#7326): with its office
     return chat_post(c, aid, uid, "agent", {"body": text, "choices": ch}, None)["id"]
 
 
@@ -215,7 +217,7 @@ def v1_letter_post():
     d = lt_row(c, oid, lid)
     out = lta_v1(c, oid, aid, d)
     if notify:
-        out["chat_message_id"] = _notify(c, aid, uid, d)
+        out["chat_message_id"] = _notify(c, aid, uid, d, oid)
     bump(c)
     c.commit()
     return jsonify(out), 201
@@ -274,7 +276,7 @@ def v1_letter_patch(lid):
     d = lt_update(c, oid, lid, {k: b[k] for k in LTA_PATCH if k in b and k != "notify"}, uid=aid, version=True)
     out = lta_v1(c, oid, aid, d)
     if notify:
-        out["chat_message_id"] = _notify(c, aid, uid, d)
+        out["chat_message_id"] = _notify(c, aid, uid, d, oid)
     c.commit()
     return jsonify(out)
 
@@ -329,7 +331,7 @@ def lta_spec(paths, schemas, op, ok, errs, ref, pid, q):
         "post": op("Create a letter draft (2.153.0)", T, ok(o, "Created", "201") | errs("400", "403", "404"), body=ref("LetterDraftInput"),
                    scope="office", desc=rules + " After the event letter_draft_requested: answers = its node_id.")}
     paths["/office/letters/{id}"] = {
-        "get": op("One of your letters (2.153.0)", T, ok(o) | errs("400", "403", "404"), [lid, rb], scope="office"),
+        "get": op("One of your letters (2.153.0)", T, ok(o) | errs("400", "403", "404", "409"), [lid, rb], scope="office"),
         "patch": op("Change your own letter draft (2.153.0)", T, ok(o) | errs("400", "403", "404"), [lid], body=ref("LetterDraftPatch"),
                     scope="office", desc="Only while it is a draft (400 once a person sent it).")}
     paths["/office/letters/{id}/links"] = {

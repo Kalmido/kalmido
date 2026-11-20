@@ -132,8 +132,8 @@ cm = r.json().get("chat_message_id")
 msgs = A.get(B + f"/api/agents/{AG}/chat").json()
 msgs = msgs.get("messages", msgs) if isinstance(msgs, dict) else msgs
 card = [m for m in msgs if m.get("id") == cm]
-check(card and [c.get("href") for c in card[0]["choices"]["choices"]] == [f"#office/offers/{QID}", f"/api/office/docs/{QID}/pdf?inline=1"],
-      "#1348: the chat card with Open in the office + PDF preview")
+check(card and [c.get("href") for c in card[0]["choices"]["choices"]] == [f"#office/s/org:{ORG}/offers/{QID}", f"/api/office/docs/{QID}/pdf?inline=1"],
+      "#1348: the chat card with Open in the office (#7326: in its office) + PDF preview")
 r = requests.post(B + f"/api/v1/agent/chats/{ALICE}", headers=AH, json={"body": "x", "choices": [{"id": "a", "label": "A", "href": "#settings/agents"}]})
 check(r.status_code == 400, "#1348: link buttons only to office documents, lists and the PDF preview " + str(r.status_code))
 r = requests.post(B + f"/api/v1/agent/chats/{ALICE}", headers=AH, json={"body": "x", "choices": [{"id": "a", "label": "A", "href": "https://example.com/x"}]})

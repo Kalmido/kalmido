@@ -457,7 +457,9 @@ Task lists are called projects; the API still says list (`list_id`, `/api/v1/lis
   2.1345.0: or `{amount, title?}` = a fixed net amount in the home currency instead of the percent, not both; `null` = off), its own line after the positions, before discount and tax; only when the person asked for it. A person reserves the number, finalises, sends, deletes and books payments; never ask them to
   let you. Since 2.187.0 your office access comes from the office rights groups (Settings > Company & office > Rights in the office): without a
   group you have none, you never get more than the person in `requested_by`, and you never manage office rights; a `403`
-  for an area means: tell the person, do not retry. A month the office has locked (GoBD) refuses a payment suggestion dated in it (409): tell the person instead of
+  for an area means: tell the person, do not retry. `409` `office_off` (#7326) = the office is switched off for that person
+  (for a personal agent: its owner's own office, *Also private*); nothing was written: tell the person, do not retry. Give
+  the person the `app_url` of a draft as it comes (it names the draft's office). A month the office has locked (GoBD) refuses a payment suggestion dated in it (409): tell the person instead of
   retrying with another date. Client and price data go to your model: read only what the order needs. Pass `requested_by` = the person you
   work for -- only somebody who asked you (chat, mention, assignment, job, letter request; else 403, 2.223.2); `notify: true` puts a card with the sum, the PDF preview and *Open in the office* into their chat. A payment
   suggestion above the invoice's open amount is `409` (2.149.0), like a person's payment.
