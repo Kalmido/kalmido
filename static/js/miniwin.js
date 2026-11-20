@@ -48,7 +48,7 @@ if (MW_GUARD) {  // 2.891.0 (#5358): the own window and the split view's right h
   LS.set = (k, v) => { if (MW_LS.has(k)) lsSet(k, v); };
   const lsDel = LS.del.bind(LS); LS.del = k => { if (MW_LS.has(k)) lsDel(k); };  // 2.742.0 (#4858): nor removes (a grip's double click, a reset)
   const api0 = api;
-  api = (method, url, body) => method === 'PATCH' && /^\/api\/settings\b/.test(url) ? Promise.resolve({}) : api0(method, url, body);
+  api = (method, url, body, o) => method === 'PATCH' && /^\/api\/settings\b/.test(url) ? Promise.resolve({}) : api0(method, url, body, o);  // o: {quiet} (#6372)
 }
 if (MW_ON) {
   document.documentElement.classList.add('mini');

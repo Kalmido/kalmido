@@ -242,7 +242,7 @@ async function ctx_more() {
   if (CT.book) qs.set('book_id', CT.book);
   if (CT.folder) qs.set('folder', CT.folder);  // 2.351.0 B (#2749): the books / contacts filed in one folder
   try {
-    const j = await api('GET', '/api/contacts?' + qs, undefined, {quiet: true});  // (#6372): the list's error block says a failure
+    const j = await api('GET', '/api/contacts?' + qs);  // loading more has no error block: api() says a failure (#6372)
     if (seq === CT.seq && key === ctx_key() && CT.items) {
       const have = new Set(CT.items.map(c => c.id));
       CT.items.push(...j.items.filter(c => !have.has(c.id)));
@@ -526,7 +526,7 @@ async function bk_matching() {
     const qs = new URLSearchParams({q: CT.q, limit: '2000', offset: String(off)});
     if (CT.group) qs.set('group', CT.group);
     if (CT.book) qs.set('book_id', CT.book);
-    const j = await api('GET', '/api/contacts?' + qs, undefined, {quiet: true});  // (#6372): the list's error block says a failure out.push(...j.items);
+    const j = await api('GET', '/api/contacts?' + qs); out.push(...j.items);  // no error block here: api() says a failure (#6372)
     if (j.items.length < 2000) break;
   }
   return out;
