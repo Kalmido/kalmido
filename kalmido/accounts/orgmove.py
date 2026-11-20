@@ -14,6 +14,11 @@ POST   /api/orgs/<org id>/moving   an admin: {confirm: the organisation's name, 
 DELETE /api/orgs/<org id>/moving   an admin: ends it -> {moving: false, paused: [series ids]}; (#6951): an instance admin
                                    too when the organisation has no active admin of its own (else 409; org log move_off with
                                    instance_admin), so no organisation stays read only
+(#6937, P4): org id 0 = the signed-in person's own personal office (the hidden organisation personal_of, as the export
+admin/orgexport.py _ox_area): its owner starts and ends the move in Office > Settings beside the export (the second
+confirmation: the own user name typed), the same lock (core/movelock.py) - the office's rows (org_id of the hidden
+organisation) are read only, the private area (rows without org_id, e.g. the private clients) stays writable: the account
+export takes it along by itself. 404 while the person has no personal office; never through an API token.
 People only (agents 403); app only (APP_ONLY "* /api/orgs" in tests/parity_test.py)."""
 import json
 
@@ -25,6 +30,7 @@ from ..core.access import live_sql
 from ..core.errors import Denied
 from ..core.i18n import tr
 from ..core.movelock import mv_allow, mv_forget, mv_info
+from ..core.orgcrypt import _org_admin  # (#6937): org id 0 = the own personal office (as the export)
 from ..core.pg import system_ctx
 from .bgjobs import bgj_add
 from .session import me
@@ -41,6 +47,21 @@ def _org(c, oid):
     return r
 
 
+def _own(c):
+    """(#6937): the row of the signed-in person's personal office (org id 0): a person in the web app only (an agent 403, an
+    API token 403 as the export's _ox_area), 404 while there is none (office/model.py pb_personal, never made here)."""
+    if getattr(g, "auth_via", None) == "token":
+        raise Denied(403)
+    pid = _org_admin(c, 0)
+    with system_ctx(c):  # the person's own hidden organisation
+        return c.execute("SELECT * FROM orgs WHERE id=?", (int(pid),)).fetchone()
+
+
+def _who():
+    u = g.user
+    return (u["display_name"] or u["username"]) if u else ""
+
+
 def _log(c, oid, action, detail=None):
     c.execute("INSERT INTO org_list_log(org_id, list_id, list_name, action, by_id, owner_id, to_id, created_at, detail) "
               "VALUES(?,NULL,'',?,?,NULL,NULL,?,?)", (int(oid), action, me(), iso(now_utc()),
@@ -55,6 +76,8 @@ def _out(r):
 @app.get("/api/orgs/<int:oid>/moving")
 def org_moving_get(oid):
     c = db()
+    if oid == 0:  # (#6937): the own personal office
+        return jsonify(_out(_own(c)))
     org_need_person(c, oid)
     return jsonify(_out(_org(c, oid)))
 
@@ -62,18 +85,23 @@ def org_moving_get(oid):
 @app.post("/api/orgs/<int:oid>/moving")
 def org_moving_start(oid):
     c, b = db(), body()
-    _need_org_admin(c, oid)
-    r = _org(c, oid)
+    own = oid == 0
+    if own:  # (#6937): the own personal office; its name is hidden, the second confirmation is the own user name
+        r = _own(c)
+        oid, want, ask = r["id"], g.user["username"], tr("Type your user name to start the move")
+    else:
+        _need_org_admin(c, oid)
+        r = _org(c, oid)
+        want, ask = r["name"], tr("Type the name of the organisation to start the move")
     if r["moving_at"]:
         return jsonify(error=tr("The move of this organisation has already started"), **_out(r)), 409
-    if not isinstance(b, dict) or not isinstance(b.get("confirm"), str) or b["confirm"].strip().casefold() != (r["name"] or "").strip().casefold():
-        raise Denied(400, tr("Type the name of the organisation to start the move"))
+    if not isinstance(b, dict) or not isinstance(b.get("confirm"), str) or b["confirm"].strip().casefold() != (want or "").strip().casefold():
+        raise Denied(400, ask)
     why = b.get("why", "")
     if not isinstance(why, str):
         raise Denied(400, tr("Invalid value: {0}", "why"))
     why = why.strip()[:MV_WHY_MAX]
-    u = c.execute("SELECT display_name, username FROM users WHERE id=?", (me(),)).fetchone()
-    name = (u["display_name"] or u["username"]) if u else ""
+    name = _who()
     _log(c, oid, "move_on", {"why": why} if why else None)  # first: from the next statement on the organisation is read only
     with system_ctx(c):  # the organisation's own row (orgs has no org_id: its admin switches it, checked above)
         c.execute("UPDATE orgs SET moving_at=?, moving_by=?, moving_by_name=?, moving_why=? WHERE id=? AND moving_at IS NULL",
@@ -81,7 +109,7 @@ def org_moving_start(oid):
     bump(c)
     c.commit()
     mv_forget()
-    return jsonify(_out(_org(c, oid)))
+    return jsonify(_out(_own(c) if own else _org(c, oid)))
 
 
 def _need_ender(c, oid):
@@ -106,8 +134,12 @@ def _need_ender(c, oid):
 @app.delete("/api/orgs/<int:oid>/moving")
 def org_moving_end(oid):
     c = db()
-    inst = _need_ender(c, oid)
-    r = _org(c, oid)
+    if oid == 0:  # (#6937): the own personal office - only its owner
+        r, inst = _own(c), False
+        oid = r["id"]
+    else:
+        inst = _need_ender(c, oid)
+        r = _org(c, oid)
     if not r["moving_at"]:
         return jsonify(moving=False, paused=[])
     if r["retired_at"]:  # (#7199, reader F7): a retired organisation (orgretain) keeps its data as it is -- no series

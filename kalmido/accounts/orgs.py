@@ -417,6 +417,16 @@ def workspaces_for(c, uid):
                                f"WHERE id IN ({q}) ORDER BY id", oids)]
 
 
+def office_moving(c, uid):
+    """(#6937): {office_moving: {since, by, by_name, why}} while the person's own personal office (the hidden organisation
+    personal_of, accounts/orgmove.py org id 0) is moving - the bar of render.js mvSync; {} otherwise (it is in no workspaces list)."""
+    with system_ctx(c):  # the person's own hidden organisation
+        r = c.execute("SELECT moving_at, moving_by, moving_by_name, moving_why FROM orgs WHERE personal_of=? AND moving_at IS NOT NULL",
+                      (int(uid),)).fetchone()
+    mi = mv_info(r) if r else None
+    return {"office_moving": mi} if mi else {}
+
+
 def org_peers(c, uid):
     """2.364.0 D (#3036): does uid work with someone in an organisation (another member or an agent of one of its
     organisations)? Part of the app's mark "has collaborators" (with the shared projects, the client)."""
