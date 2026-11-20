@@ -34,6 +34,7 @@ from ..core.orgcrypt import oc_log_detail
 from ..accounts.session import me
 from ..accounts.orgroles import office_allowed
 from ..accounts.login import login_log_who  # 2.239.0 B (#2888)
+from ..accounts.wsplace import wsp_on  # (#7326)
 from ..core.conflict import take_version
 from ..core.errors import BadInput
 from ..api.v1 import UnknownFields
@@ -115,7 +116,6 @@ def ofa_href(c, oid, tail):
 def ofa_on_for(c, uid, oid):
     """(#7326): is the office of area oid on for person uid? THE one answer (accounts/wsplace.py wsp_on, #7309): an
     organisation's area / module switches and the card; a personal office (its owner's Private) "Also private"."""
-    from ..accounts.wsplace import wsp_on
     with system_ctx(c):  # the person's switches and roles (structure), whoever asks
         return wsp_on(c, uid, "office", None if pb_owner(c, oid) is not None else oid)
 
