@@ -30,6 +30,11 @@ MOVE = []  # 2.972.0 (#5272): f(c) that core/db.init_db runs at every start befo
 #            of old tables into the core (core/objcomments.py ocm_move) before its fragment drops them
 USER_GONE = []  # 2.972.0 (#5272): f(c, uid) before account uid goes (accounts/users.py): the core's rows of the person
 #                 (core/objcomments.py ocm_purge_user: the kept texts of its deleted comments, its mentions)
+# (#6356, audit #4773 F8): what the delete for good of an account / organisation leaves on the disk, collected by the delete
+# itself - independent of the retention switch (deletion rule 18.10.2026); the orphan sweeps stay the net behind it.
+# f(c, uid) / f(c, oid) -> paths relative to ATT_DIR or callables to run after the commit (core/serializers.py unlink_files)
+USER_FILES = []  # accounts/users.py _user_purge, right before the account row goes (life/lfkern.py, agents/chat.py, admin/acctimport.py)
+ORG_FILES = []  # accounts/orgretain.py odl_dismantle, before the organisation row goes (life/lfkern.py)
 USER_LOCKED = []  # #6978 F6: f(c, uid) when account uid is locked (accounts/users.py, admin/operator.py, admin/selfdelete.py):
 #                   what works in the person's name and must end at once (agents/reqtoken.py req_drop_person: request tokens)
 # 2.1076.0 (#5271, review): the area relations of the links' core (core/objlinks.py olnk_rel registers only these; the boundary

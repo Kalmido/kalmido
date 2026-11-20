@@ -3,6 +3,7 @@ import json
 import mimetypes
 import os
 import re
+import shutil
 import uuid
 import threading
 import time
@@ -12,7 +13,8 @@ from flask import g, jsonify, request
 from ..core.env import env_int  # (#6615): a wrong value = one warning with its name
 from ..core.config import app, ATT_DIR, MAX_FILE_MB
 from ..core.pgbus import bus_on, bus_send  # 2.622.0 (#3891)
-from ..core.pg import insert_id
+from ..core.objhooks import USER_FILES  # (#6356)
+from ..core.pg import insert_id, system_ctx
 from ..core.i18n import N_, tr
 from ..core.db import ag_cursor, ag_cursor_parse, ag_limit, body, bump, db, err, iso, iso_ms, now_utc
 from ..core.retention import ret_days, ret_on, ret_report  # 2.272.0 A (#3026)
@@ -882,6 +884,27 @@ def chat_files_gc(c):
 
 
 _CHAT_GC = {"at": 0.0}
+
+
+def chat_user_files(c, uid):
+    """(#6356): account uid goes (a person or an agent): its chat files on either side (the rows cascade) and, after the commit,
+    the folders chat/<agent>-<person>/ with uid on a side - also files without a row; chat_files_gc only runs with the
+    retention switch on (core/objhooks.py USER_FILES)."""
+    uid = int(uid)
+    with system_ctx(c):  # both sides of every conversation of the account
+        paths = [r[0] for r in c.execute("SELECT f.path FROM chat_files f JOIN agent_chat m ON m.id=f.message_id "
+                                         "WHERE m.user_id=? OR m.agent_id=?", (uid, uid)).fetchall()]
+
+    def drop():
+        root = os.path.join(ATT_DIR, "chat")
+        for d in (os.listdir(root) if os.path.isdir(root) else []):
+            a, _, p = d.partition("-")
+            if a.isdigit() and p.isdigit() and uid in (int(a), int(p)):
+                shutil.rmtree(os.path.join(root, d), ignore_errors=True)
+    return paths + [drop]
+
+
+USER_FILES.append(chat_user_files)
 
 
 # 2.13.0 (#453 A2): a 👍 / 👎 of the person counts as an approval / rejection only on an agent message that asks something:

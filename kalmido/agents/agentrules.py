@@ -23,7 +23,8 @@ from flask import g, jsonify
 from ..core.config import app
 from ..core.i18n import tr
 from ..core.db import body, bump, db, iso, iso_ms, now_utc
-from ..core.pg import insert_id, write_lock
+from ..core.objhooks import USER_GONE  # (#6356)
+from ..core.pg import insert_id, system_ctx, write_lock
 from ..core.access import Denied, task_visible
 from ..api.runfor import run_chat_ok  # 2.1287.0 (#6454, review F1)
 from ..core.errors import BadInput, UnknownFields
@@ -43,6 +44,16 @@ AR_PROPOSED_MAX = 5  # 2.1269.0 (#6451): open proposals per agent (it cannot flo
 AR_DECISIONS = ("confirm", "reject", "withdraw")
 AR_KINDS = ("chat", "comment")  # what an agent may name as the source; "manual" = added by a person in the settings
 _MENTION = re.compile(r"<@(\d+)>")
+
+
+def ar_user_gone(c, uid):
+    """(#6356): account uid goes: a standing rule of another agent that quoted its message keeps the rule, without the
+    person's words and id (core/objhooks.py USER_GONE)."""
+    with system_ctx(c):  # the rules of every agent that quoted the person
+        c.execute("UPDATE agent_rules SET source_excerpt='', source_user_id=NULL WHERE source_user_id=?", (int(uid),))
+
+
+USER_GONE.append(ar_user_gone)
 
 
 def _excerpt(s):

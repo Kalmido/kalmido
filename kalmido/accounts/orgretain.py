@@ -20,7 +20,7 @@ import re
 
 from flask import g, has_request_context
 
-from ..core.objhooks import FOLLOW, KIDS_FIRST, OBJ, person_revoked  # 2.1032.0 (#5788): KIDS_FIRST; 2.558.0 (#4709): the shared core without importing the domain layer
+from ..core.objhooks import FOLLOW, KIDS_FIRST, OBJ, ORG_FILES, person_revoked  # (#6356): ORG_FILES; 2.1032.0 (#5788): KIDS_FIRST; 2.558.0 (#4709): the shared core without importing the domain layer
 from ..core.access import Denied, live_sql
 from ..core.objhooks import obj_rows_drop_many  # 2.1004.0 (#5494)
 from ..core.db import iso, local_now, now_utc  # 2.488.0 (#4004): local_now knows the test clock
@@ -495,8 +495,8 @@ def odl_dismantle(c, oid):
         # 2.627.0 (#4504, review F2): the organisation's standard arrangements of the views (global settings) go with it
         for k in WG_STD_KEYS:
             c.execute("DELETE FROM settings WHERE key IN (?,?)", (wg_org_k(oid, k), wg_org_k(oid, k, True)))
-        from .purgerest import pgr_org
-        files += pgr_org(c, oid)  # (#6356): its bookmarks' pictures (the rows cascade)
+        for f in ORG_FILES:  # (#6356): e.g. its bookmarks' pictures (the rows cascade; the areas' hooks)
+            files += f(c, oid) or []
         c.execute("DELETE FROM orgs WHERE id=?", (oid,))
 
     def after():
