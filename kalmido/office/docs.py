@@ -16,7 +16,7 @@ from ..core.pg import insert_id, like_escape, qi, table_columns, ts_canon, write
 from ..core.orgcrypt import oc_dec_fields, oc_item_store, oc_json_store
 from ..core.i18n import N_, lang, tr, trn
 from ..core.db import body, bump, db, err, iso, iso_ms, local_now, now_utc
-from ..core.access import Denied, live_sql
+from ..core.access import Denied, list_role, live_sql
 from ..core.errors import BadInput, BadKey, DeniedKey
 from .costs import ek_item_margins, ek_purchases_write, ek_role_cost
 from .calc import INV_ITEM_KINDS, INV_VAT_NOTES, PRD_INTERNAL_DETAIL, OPT_KINDS, RAW_MODES, TAX_KEYS, calc_tax_day, dec, fmt_money, fmt_rate, inv_calc, label, office_calc, opt_label_under
@@ -696,7 +696,8 @@ def doc_public(c, oid, r, admin, items=True):
         d["offer_exp"] = ofe_doc_state(c, oid, r)  # 2.1064.0 (#5818): sent, no answer, near / past "valid until" -> the editor's note
     from .peppol import pep_doc_extra
     if r["kind"] in ("offer", "invoice", "credit"):  # #6945: the project's PO number, for the editor's "differs from the project's PO"
-        d["project_po"] = ppo_of(c, _cur_val(r, "list_id"))
+        lid = _cur_val(r, "list_id")  # #7190 (F1): only for a person who sees the project
+        d["project_po"] = ppo_of(c, lid) if lid and has_request_context() and g.get("user") and list_role(c, lid) else ""
     if items and ofx_locked(r):  # #6945: the send dialog's suggested subject (the one rule of office/invoices.py inv_mail_subject)
         d["mail_subject"] = inv_mail_subject(c, oid, r)
     pep_doc_extra(c, oid, d)  # 2.154.0 B (#1960): the newest Peppol send of an invoice / credit note
