@@ -247,8 +247,9 @@ function settingsSync(keep = null) {
   sf_sync(md);  // 2.1353.0 (#6827): the counts in the head rows and their open state from another device
 }
 // 2.1353.0 (#6827): every section of a settings tab is a folded head row (native details like the integrations' intr_row #4489
-// and the module groups details.modgrp): icon, name and a short state ("Small business · RE-2026-###", "2 changed"). A tab
-// opens with every section closed except at most one (SF_OPEN: the one for a quick change). Open / closed is the person's
+// and the module groups details.modgrp): icon (its own per section, SF_IC), name and a short state ("Small business · RE-2026-###", "2 changed").
+// (#7555, 20.11.2026): a section is OPEN at the start unless SF_SHUT lists it with its reason; the first section of a
+// tab is always open (was #6827: all closed but one, SF_OPEN - too much folding, a fold with one row behind it). Open / closed is the person's
 // setting settings_more (all devices): "o:<tab>/<section>" = open against the start, "c:<tab>/<section>" = closed against it;
 // the search, a jump and a hint link open a section on the screen only (SF.tmp, not saved). Replaces the one fold "Further
 // options" of #4833 (SET_MORE); its count "n changed" stands in every head row now. Keyboard: the summary is the button (#6377).
@@ -257,7 +258,20 @@ function settingsSync(keep = null) {
 // themselves again in place, e.g. #s-lookin). Rows that are folds already (details.introw, details.modgrp) keep their look
 // and get the stored state. Company & office draws its groups as such rows itself (office.js biz_paint with sf_html).
 const SF = {tmp: new Set(), defs: null};
-const SF_OPEN = {look: 'lookin', help: 'n0'};  // the one section open at the start (none: all closed); listed on #6827
+// (#7555): the sections closed at the start, each with its reason: 'lang' = its content is higher than 320 px at 412 px width
+// (measured by tests/p7555_settings_open_ui.js, which fails when an open one is higher or a 'lang' one is not), 'selten' =
+// rarely needed or delicate. '<tab>/*' = every section of the tab but the first (Company & office: long, #6827). The first
+// section of a tab is open whatever stands here. What the person opened or closed (settings_more o: / c:) wins.
+const SF_SHUT = {
+  'account/sig': 'lang', 'account/ses': 'selten', 'account/storage': 'selten', 'account/sync': 'selten', 'account/msv': 'selten',
+  'account/rs': 'selten', 'account/sdl': 'selten',
+  'general/fmt': 'lang', 'look/side': 'lang', 'modules/g3': 'lang', 'modules/g4': 'lang', 'notify/news': 'lang', 'notify/rem': 'lang',
+  'integr/ical': 'lang', 'integr/dav': 'lang', 'integr/share': 'lang', 'integr/scan': 'lang', 'integr/fetch': 'lang', 'integr/pl': 'lang',
+  'data/imp': 'selten', 'data/exp': 'selten', 'data/umz': 'selten', 'data/sample': 'selten', 'data/xlstd-sec': 'lang',
+  'help/hfav': 'lang', 'help/hlock': 'lang', 'help/about': 'lang', 'help/sup': 'selten',
+  'biz/*': 'lang',
+};
+const sf_dflt = (key, first) => !!first || !(key in SF_SHUT || key.split('/')[0] + '/*' in SF_SHUT);
 const SF_ONE = {'s-lookin': N_('Colours and font'), 's-xlstd-sec': N_('Sharing defaults')};
 // an SF_ONE element drawn later with its own heading first (xl_stdLater): that heading takes the place of the stand-in in the head row
 function sf_adopt(w) {
@@ -266,11 +280,20 @@ function sf_adopt(w) {
   const own = Element.prototype.scrollIntoView; h.scrollIntoView = function (o) { sf_reveal(this, true); return own ? own.call(this, o) : undefined; };
 }
 const SF_IC = {lang: 'globe', startpg: 'home', fmt: 'clock', today: 'sun', dates: 'done', plan: 'cal', wt: 'brief', ind: 'sliders',
-  lookin: 'palette', split: 'columns', wacc: 'palette', lemo: 'smile', sdd: 'done', tips: 'bulb', tabbar: 'menu', prbg: 'list', side: 'panel', sv: 'eye', fav: 'star',
+  lookin: 'palette', split: 'columns', wacc: 'drop', lemo: 'smile', sdd: 'done', tips: 'bulb', tabbar: 'menu', prbg: 'list', side: 'panel', sv: 'eye', fav: 'star',
   dlv: 'send', thisdev: 'phone', inapp: 'bell', ntfy: 'bellring', rem: 'alarm', quiet: 'moon',
   imp: 'upload', exp: 'download', pmeta: 'camera', vext: 'film', tpl: 'note', sample: 'sparkle', umz: 'arrow', 'xlstd-sec': 'link', ofdata: 'receipt',
   account: 'user', mview: 'eye', sig: 'edit', purpose: 'target', nav: 'menu',
-  company: 'building', tax: 'wallet', docs: 'file', packs: 'box', functions: 'sliders', data: 'archive', access: 'shield', rights: 'shield', bizmail: 'mail'};
+  company: 'building', tax: 'wallet', docs: 'file', packs: 'box', functions: 'sliders', data: 'archive', access: 'shield', rights: 'shield', bizmail: 'mail',
+  // (#7555): each section its own icon (in Account almost every row showed the person of the tab)
+  dsc: 'search', ws: 'grid', orgadd: 'building', '2fa': 'key', ses: 'laptop', e2e: 'lock', storage: 'cloud', sync: 'sync', msv: 'monitor',
+  rs: 'undo', sdl: 'trash', groups: 'users', share: 'link', industry: 'brief', wsr: 'columns',
+  chn: 'megaphone', news: 'news', tbl: 'sheet', trd: 'comment', kbd: 'keyboard', tty: 'ticket',
+  'dcs-auto': 'zap', 'dcs-asn': 'users', 'dcs-rules': 'filter', 'dcs-lists': 'list', 'dcs-in': 'inbox',
+  hstart: 'start', hqa: 'plus', hundo: 'undo', hmd: 'edit', hproj: 'proj', hfav: 'star', hlock: 'lock', htpl: 'note', htime: 'timer',
+  hdeps: 'deps', hstats: 'chart', hgest: 'grip', about: 'info', cc: 'code', sup: 'heart', wsa: 'grid'};
+// (#7555): the module groups' icons (MOD_GROUPS, setcore.js: Views, Calendar and people, For you, Projects and team, Areas)
+const MOD_GRP_IC = ['columns', 'cal', 'star', 'users', 'map'];
 const SF_ST = {  // a short state of a few sections (the rest: only the count of changed settings)
   lang: d => $('[data-lang-set].on', d)?.textContent.trim() || '',
   lookin: d => $('#s-theme button.on', d)?.textContent.trim() || '',
@@ -282,19 +305,22 @@ function sf_isOpen(key, dflt) {
 }
 const sf_secOf = (n, cx) => (n.id ? n.id.toLowerCase().replace(/^s-/, '').replace(/-h$/, '').replace(/[^a-z0-9_-]/g, '-').slice(0, 40) : '') || 'n' + cx.n++;
 // one head row as HTML (Company & office): head = the heading element (it keeps its id for the jumps and the search)
-function sf_html(key, icon, head, body, st = '', dflt = false) {
+function sf_html(key, icon, head, body, st = '', dflt = sf_dflt(key)) {
   return `<details class="sfold" data-sf="${esc(key)}"${dflt ? ' data-sfd="1"' : ''}${sf_isOpen(key, dflt) ? ' open' : ''}><summary class="sfsum">${ic(icon, 's')}${/*html-ok*/ head}<span class="sfst">${esc(st)}</span><span class="sfc"></span>${ic('chev', 's fcar')}</summary><div class="sfb">${/*html-ok*/ body}</div></details>`;
 }
 function sf_make(n, pane, cx, one) {
-  const sec = sf_secOf(n, cx), key = pane + '/' + sec, dflt = SF_OPEN[pane] === sec;
-  const d = document.createElement('details'); d.className = 'sfold'; d.dataset.sf = key; if (dflt) d.dataset.sfd = '1';
+  const sec = sf_secOf(n, cx), key = pane + '/' + sec;
+  const d = document.createElement('details'); d.className = 'sfold'; d.dataset.sf = key;
   const sm = document.createElement('summary'); sm.className = 'sfsum';
   const b = document.createElement('div'); b.className = 'sfb';
   n.before(d);
   sm.insertAdjacentHTML('beforeend', ic(SF_IC[sec] || SET_SECS.find(x => x[0] === pane)?.[1] || 'gear', 's'));
   if (one) { const h = document.createElement('h4'); h.id = n.id + '-sfh'; h.textContent = tr(one); sm.append(h); b.append(n); } else sm.append(n);
   sm.insertAdjacentHTML('beforeend', `<span class="sfst"></span><span class="sfc"></span>${ic('chev', 's fcar')}`);
-  d.append(sm, b); d.open = sf_isOpen(key, dflt);
+  d.append(sm, b);
+  const pn = d.closest('.spane'), dflt = sf_dflt(key, !pn || $('details[data-sf], details.introw, details.modgrp', pn) === d);  // (#7555): the first of its tab is open
+  if (dflt) d.dataset.sfd = '1';
+  d.open = sf_isOpen(key, dflt);
   cx.made++;
   return d;
 }
@@ -323,10 +349,14 @@ function sf_build(md) {
   for (const p of $$('.spane', md)) {
     const pane = p.dataset.pane;
     if (pane === 'org' || pane === 'users' || pane === 'ai' || pane === 'biz') continue;  // sub-tabs / drawn later (biz: office.js biz_paint)
-    const cx = sf_wrap(p, pane);
-    const fs = $$('details.sfold', p);
-    if (cx.made === 1 && fs.length === 1 && !$('details.introw, details.modgrp', p)) { fs[0].dataset.sfd = '1'; fs[0].open = sf_isOpen(fs[0].dataset.sf, true); }  // one section only: open
-    for (const d of $$('details.introw[data-intr], details.modgrp[data-modgrp]', p)) { d.dataset.sf = d.matches('.introw') ? 'integr/' + d.dataset.intr : 'modules/g' + d.dataset.modgrp; d.open = sf_isOpen(d.dataset.sf, false); }
+    sf_wrap(p, pane);
+    // (#7555): the connections and the module groups by the same rule (SF_SHUT; the first of the tab open)
+    const first = $('details.sfold, details.introw, details.modgrp', p);
+    for (const d of $$('details.introw[data-intr], details.modgrp[data-modgrp]', p)) {
+      d.dataset.sf = d.matches('.introw') ? 'integr/' + d.dataset.intr : 'modules/g' + d.dataset.modgrp;
+      const dflt = sf_dflt(d.dataset.sf, d === first); if (dflt) d.dataset.sfd = '1';
+      d.open = sf_isOpen(d.dataset.sf, dflt);
+    }
     // a jump to a place in here (the focus keys of settingsModal, the integration cards, a test) opens its section first
     const own = Element.prototype.scrollIntoView;
     for (const el of $$('details[data-sf] [id]', p)) el.scrollIntoView = function (o) { sf_reveal(this, true); return own ? own.call(this, o) : undefined; };
@@ -460,7 +490,7 @@ function modulesHtmlMain(hint) {
     ${pk2_setupHtml()}
     ${hint(tr('Switched off disappears from the menus; nothing is deleted.'))}
     <div class="modtot muted" id="s-modtot">${esc(modCount())}</div>
-    ${MOD_GROUPS.map(([g, ks], gi) => { const r = modGroupKeys(ks); return r.length ? `<details class="modgrp" data-modgrp="${gi}"><summary><span class="mgn">${tr(g)}</span><span class="mgc muted">${esc(modGroupCount(r))}</span>${ic('chev', 's fcar')}</summary><div class="modlist">${r.map(row).join('')}</div></details>` : ''; }).join('')}`;
+    ${/*html-ok*/ MOD_GROUPS.map(([g, ks], gi) => { const r = modGroupKeys(ks); return r.length ? `<details class="modgrp" data-modgrp="${gi}"><summary>${ic(MOD_GRP_IC[gi] || 'grid', 's')}<span class="mgn">${esc(tr(g))}</span><span class="mgc muted">${esc(modGroupCount(r))}</span>${ic('chev', 's fcar')}</summary><div class="modlist">${r.map(row).join('')}</div></details>` : ''; }).join('')}`;  // html-ok: the module groups as HTML - fixed names (esc), escaped counts, the rows of modRowHtml; (#7555) + the group's icon
 }
 // 2.25.0 (UX-19): the module groups start folded and say how many are on ("3 of 4 on"); the total on top counts the same
 // switches (every module shown here), and the setup counts against it too
@@ -1032,7 +1062,7 @@ function settingsModal(focus) {
       , intr_row('share', 'phone', N_('Share from your phone'), shareHtml(hint))])
       + intr_grp('mail', N_('E-mail'), [intr_row('mail', 'send', N_('Tasks by e-mail'), `<h4 id="s-mail-h">${tr('Tasks by e-mail')}</h4><div id="s-mail"></div>`)
       , intr_row('scan', 'download', N_('Documents: inboxes'), feat('docs') && typeof dsc_integrHtml === 'function' ? dsc_integrHtml(false) : '')])  // (#2773): docscan.js, drawn by dsc_integrDraw
-      + intr_grp('grid', N_('Other programs'), [intr_row('api', 'key', N_('API tokens'), apiHtml()), intr_row('wh', 'sync', N_('Webhooks'), whHtml())  // (#6368): were the tab Access (#2633)
+      + intr_grp('grid', N_('Other programs'), [intr_row('api', 'code', N_('API tokens'), apiHtml()), intr_row('wh', 'plug', N_('Webhooks'), whHtml())  // (#6368): were the tab Access (#2633)
       , intr_row('fetch', 'receipt', N_('Receipt fetcher'), feat('docs') && typeof fx_html === 'function' ? fx_html() : '')  // (#4489): its own row (was inside dsc_integrHtml)
       , intr_row('pl', 'file', N_('Paperless-ngx'), feat('docs') && typeof pl_setHtml === 'function' ? pl_setHtml() : '')
       , intr_row('kk', 'bookmark', N_('Karakeep'), kks_html()), intr_row('nwl', 'megaphone', N_('Newsletter service'), nwls_html()), intr_row('apb', 'clock', N_('Booking page'), apbs_html())  // (#2789): integrations.js
@@ -1067,7 +1097,7 @@ function settingsModal(focus) {
       server: serverPaneHtml(chk, hint),  // 2.555.0 C (#4664): one builder for the first draw and the redraw after "Publish"
       log: aaHtml(),
       backup: bkHtml() + stoHtml()}, ad_admFocus(focus)) : '',  // 2.582.0 (#4827): the server admins' backups (also without an organisation)
-    help: `<h4>${tr('Getting started')}</h4>
+    help: `<h4 id="s-hstart-h">${tr('Getting started')}</h4>
       <div class="row"><button type="button" class="btn sm" data-hlp="">${ic('help', 's')} ${tr('Help: how things work')}</button></div><!-- 2.1086.0 (#5820): the page Help (helpview.js) -->
       <div class="row"><button class="btn sm" data-m="tour">${ic('arrow', 's')} ${tr('Restart the welcome tour')}</button>${isTouch() ? '' : `<button class="btn sm" data-m="keys">${ic('help', 's')} ${tr('Keyboard shortcuts')} ${kb('?')}</button>`}<button class="btn sm" data-m="cele-try">${ic('check', 's')} ${tr('Show the celebration')}</button></div>
       <div class="row"><button class="btn sm" data-m="practice-add">${ic('plus', 's')} ${tr('Create the practice project')}</button>${S.sample ? '' : `<button class="btn sm" data-m="sample-add">${ic('plus', 's')} ${tr('Create sample project')}</button>`}</div>
@@ -1075,25 +1105,25 @@ function settingsModal(focus) {
       ${S.me?.kid ? '' : `<div class="row">${chk('s-tmore', s.tours_more !== '0', tr('Show more introductions'))}</div>
       <div class="row">${TOUR_AREAS.filter(id => sbb_def(id)?.[3]()).map(id => `<button class="btn sm" data-m="tour-mod" data-v="${id}">${esc(tr(sbb_def(id)[2]))}</button>`).join('')}</div>`}<!-- 2.466.0 (#3314): one area's introduction again -->
       ${isTouch() ? '' : `<div class="shelp">${trh('{0}: search and commands for everything (tasks, projects, views, settings). All keys are listed in the overview “Keyboard shortcuts”.', kbText('Mod+K'))}</div>`}  <!-- 2.1211.0 (#6128): one source for the keys (shortcutsModal), no second hand list -->
-      <h4>${tr('Quick add')}</h4>
+      <h4 id="s-hqa-h">${tr('Quick add')}</h4>
       <div class="shelp">${tr('today, tomorrow, day after tomorrow, friday, next monday, in 3 days, 12.10., 3pm, at 15:00<br>daily, weekdays, weekly, every monday, every 2 weeks, monthly, yearly<br>!high / !medium / !low (or !!!, !!, !) · #tag · ~project, “in project Work” or “… in Work” at the end<br>German works too: morgen 15 uhr, jeden montag, !hoch<br>Keyboard: n = new task, / = search, Esc = close')}</div>
       <div class="shelp">${tr('@name assigns (people of the project) · 30 min, 2h, for 1.5 hours = duration<br>remind me 15 min before · remind me tomorrow 9am, remind me Tue 9:00 (also without a date)')}</div>  <!-- 2.111.0 C (#2057) -->
-      <h4>${tr('Undo')}</h4>
+      <h4 id="s-hundo-h">${tr('Undo')}</h4>
       <div class="shelp">${tr('Every change can be undone: the ← / → buttons at the top (on a phone in the “…” menu), the “Undo” in the message, Ctrl+Z / ⌘Z. Settings too. Offline, the change is simply not sent.')}</div>
-      <h4>${tr('Formatting (Markdown)')}</h4>
+      <h4 id="s-hmd-h">${tr('Formatting (Markdown)')}</h4>
       <div class="shelp">${tr('<b>Descriptions:</b> <code>**bold**</code>, <code>*italic*</code>, <code>~~strikethrough~~</code>, <code>&#96;code&#96;</code>, links as <code>[text](https://…)</code> or a plain https:// address, headings <code>#</code> / <code>##</code> / <code>###</code>, lists <code>- item</code> or <code>1. item</code>, checklists <code>- [ ]</code> / <code>- [x]</code> (tick them right in the formatted text). “Turn the open checklist items into subtasks” below the formatted description makes real subtasks of the unticked items.')}${collab() ? '<br>' + tr('<b>Comments:</b> the same bold, italic, strikethrough, code and links, plus line breaks and @mentions; no headings, lists or checklists.') : ''}</div>
-      <h4>${tr('Projects')}</h4>
+      <h4 id="s-hproj-h">${tr('Projects')}</h4>
       <div class="shelp">${tr('Every task list is a project with a project page, progress and dependencies. Give it a status to follow it on the start page and in “Where is it stuck?”; clear the status to stop following it. Project menu … (or Sort) > Show completed at the bottom: what you tick off stays visible at the bottom and comes back with one tap, for example in shopping lists.')}</div>
-      <h4>${tr('Favourites')}</h4>
+      <h4 id="s-hfav-h">${tr('Favourites')}</h4>
       <div class="shelp">${tr(VW_FAV_HELP)}</div>
-      <h4>${tr('Locked notes')}</h4>
+      <h4 id="s-hlock-h">${tr('Locked notes')}</h4>
       <div class="shelp">${tr('In a task of your own project that is not shared: “Lock note” under the description encrypts the note in your browser with your encryption passphrase (set up once, with a recovery code to print). The server keeps only the encrypted text; title, dates and project stay readable. Search, agents, exports, calendar apps, e-mails and public links leave a locked note out. Unlock once per session to read or change it; “Remove lock” makes it a normal note again. Passphrase and recovery code lost = the note is lost, nobody can restore it, not even the operator. Copies made before locking (older backups of the server) still hold the old text.')}</div>${''/* 2.48.0 (#1642) */}
-      <h4>${tr('Templates')}</h4>
+      <h4 id="s-htpl-h">${tr('Templates')}</h4>
       <div class="shelp">${tr('Task menu (…) or project dialog > Save as template. The template button in the add bar creates the task in the current project, Projects > + > New project from template a whole project. Manage them under Settings > Data.')}</div>
-      ${timeOn() ? `<h4>${tr('Time tracking')}</h4><div class="shelp">${tr('Start a timer from a task (detail panel, task menu …) or add time by hand; the running timer shows in the top bar on every device. Sidebar > Time tracking: hours per project and task for a week, month or any range, CSV export and a printable timesheet. In shared projects everyone sees the time of all members, but only changes their own entries. Finished focus sessions on a task count as time unless a timer ran at the same time.')}</div>` : ''}
-      ${depsOn() || fieldsOn() || progressOn() ? `<h4>${tr('Dependencies, fields, status')}</h4>${''/* 2.555.0 C (#4664): the first one is called Projects */}<div class="shelp">${tr('<b>Dependencies:</b> in a task, “Waiting on…” > “Another task” picks the tasks that have to be done first; the task shows “blocked” until they are, and whoever it is assigned to gets a message once the last one is done. “Waiting on…” > “Someone outside” marks a task that waits on a person (a client, an office, a delivery) with a follow-up day. <b>Custom fields</b> (project dialog, owner and project admins): text, number, selection, date, checkbox, person or link per task; show up to two in the task rows, sort and filter by them. <b>Status and progress</b> (Project progress module): the project header shows the progress; with collaboration, owner and editors set a status with a short note, and the project status (“Where is it stuck?”) lists overdue, blocked and unassigned tasks of all projects.')}</div>` : ''}
-      ${feat('stats') ? `<h4>${tr('Statistics')}</h4><div class="shelp">${tr('Sidebar > Statistics (or pin it as a tab): completions per week / day and per project, on-time rate, overdue trend, focus time and habit streaks of the last 12 weeks.')}</div>` : ''}
-      <h4>${tr('Gestures (phone)')}</h4>
+      ${timeOn() ? `<h4 id="s-htime-h">${tr('Time tracking')}</h4><div class="shelp">${tr('Start a timer from a task (detail panel, task menu …) or add time by hand; the running timer shows in the top bar on every device. Sidebar > Time tracking: hours per project and task for a week, month or any range, CSV export and a printable timesheet. In shared projects everyone sees the time of all members, but only changes their own entries. Finished focus sessions on a task count as time unless a timer ran at the same time.')}</div>` : ''}
+      ${depsOn() || fieldsOn() || progressOn() ? `<h4 id="s-hdeps-h">${tr('Dependencies, fields, status')}</h4>${''/* 2.555.0 C (#4664): the first one is called Projects */}<div class="shelp">${tr('<b>Dependencies:</b> in a task, “Waiting on…” > “Another task” picks the tasks that have to be done first; the task shows “blocked” until they are, and whoever it is assigned to gets a message once the last one is done. “Waiting on…” > “Someone outside” marks a task that waits on a person (a client, an office, a delivery) with a follow-up day. <b>Custom fields</b> (project dialog, owner and project admins): text, number, selection, date, checkbox, person or link per task; show up to two in the task rows, sort and filter by them. <b>Status and progress</b> (Project progress module): the project header shows the progress; with collaboration, owner and editors set a status with a short note, and the project status (“Where is it stuck?”) lists overdue, blocked and unassigned tasks of all projects.')}</div>` : ''}
+      ${feat('stats') ? `<h4 id="s-hstats-h">${tr('Statistics')}</h4><div class="shelp">${tr('Sidebar > Statistics (or pin it as a tab): completions per week / day and per project, on-time rate, overdue trend, focus time and habit streaks of the last 12 weeks.')}</div>` : ''}
+      <h4 id="s-hgest-h">${tr('Gestures (phone)')}</h4>
       <div class="shelp">${tr('Swipe right: complete · swipe left: snooze / delete · long-press: selects the task (a bar with Move, Date, Complete and More; tap more tasks to add them, drag them by the grip) · long-press and drag: reorder, move to another column, quadrant or onto a day; drag to the left edge and hold briefly to open the projects (dropping a subtask there = standalone task in that project).')}</div>`,
   };
   pane.help += asst_helpHtml();  // 2.75.0 (#1411)
