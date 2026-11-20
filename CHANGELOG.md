@@ -24,6 +24,40 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1452.0] - 2026-11-20
+
+Package 2.1431.0 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Fixed
+- Self-hosting (#6609): the way back after a failed or bad update is one command, `update.sh --restore data/backups/kalmido-<when>.dump`: it stops Kalmido, keeps a copy of the database as it is now, empties the schema and loads the copy in one transaction (an error leaves the database as it was), then starts the version that made the copy (noted beside it as `.dump.version`). The bare `pg_restore --clean` of the docs failed on tables of the newer version with a key to `users`.
+- Self-hosting (#6609): a start that fails after an update no longer restarts again and again: `update.sh` stops the container and prints the ready `--restore` command with the version before and its copy. `update.sh` now passes its options to the installer.
+- Self-hosting (#6609): the "Previous" line at the end of an update names the image-only way back only when the version before is not below the format limit of the database; otherwise the `--restore` command.
+- Self-hosting (#6609): a version whose release page is pruned can be installed again from its git tag with `KALMIDO_BUILD=1` (without it the installer stops and names that way).
+- The nightly install-upgrade check goes back once with `update.sh --restore` and checks version and data (#6609).
+
+Package 2.1449 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Added
+- Notes and knowledge without the sidebar panel (own window, children's mode): the list beside an open note / page gets a grip on its right edge - drag it (or arrow keys, Home / End, Enter) to make the list wider, double-click for the standard width; at 1700 px and more the sheet layout grows with it (#7303)
+- Team chat and file store without the sidebar panel (own window, children's mode): the conversations list and the file store's areas get the same grip on their right edge (#7304)
+- The grip building block (static/js/grip.js) can stand outside the layout (`place: true`): on the panel's edge, hidden in one-column layouts; render.js gcol_html / gcol_sync for a list beside its content (docs/dev/kern.md) (#7303, #7304)
+- Pull request lint: the new check `griff` (tools/griff_lint.py) is red when a change adds a fixed column (12rem or more, or a variable without a fallback) beside an fr column, a flex: 0 0 column or a floating box with a fixed width / height without the grip; way out: `/* griff-ok: REASON */` at the rule (#7294)
+
+### Changed
+- Clients: a client no longer moves into another workspace while its office still has drafts, requests, letters, contracts, documents from templates or invoice series for it - the message names them and points at "Move to another workspace…" in the office; only the person who created a client can move it into Private (#7317)
+
+### Fixed
+- Phone: an open client or contact no longer shows a grey vertical line at the card's left edge (the list grip of 2.1434 stays hidden without the list) (#7376)
+- Office: duplicating a document whose client left the office and the invoice series of such a client no longer make documents for a client the office cannot find (409; the series pauses and says why) (#7317)
+
+Package 2.1452 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Changed
+- Sidebar under "All workspaces": a workspace's row (Private, each organisation) looks and behaves the same in Knowledge, Files, Contacts, Tables and the office's overview - the organisation's own symbol (Private: the house), its colour stripe on the row (Private in the colour you chose; never on the tables and folders below it), an arrow only when the workspace has content, and only the workspace with the open item starts unfolded (otherwise what you folded yourself). One place in the core draws it (areas.js sbb_treeHtml, node with wso); a guard refuses an area's own icon / arrow / open state for such a row (#7389)
+
+### Fixed
+- Calendar on the phone: pinching the week with two fingers follows the fingers smoothly again, sideways (number of days), up / down (hour height) and diagonal. Measured cause: every day that came or went redrew the grid under the fingers, after which the browser no longer passed their moves on - the zoom froze after one day and the pinch did not end with the fingers. The grid is now prepared once when the fingers land and only moved and resized while they move; it is drawn once on release (#7388)
+
 ## [2.1447.0] - 2026-11-19
 
 Package 2.1438 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
@@ -537,7 +571,8 @@ Package 2.1401.0 (Bündel: Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher
 - #7037 Number ranges: a closed range opens again only with a scheme the office accepts; the import cleans a refused scheme; a new range and the import also check the correction scheme; the settings refuse the scheme of a range; moving the personal office refuses a range scheme the organisation already uses.
 - #6952 MCP: a test checks that the items of a completed task's subtask copy (`sub_snapshot`, an object) are fenced as data (the fence came with #6906).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1447.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1452.0...HEAD
+[2.1452.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1452.0
 [2.1447.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1447.0
 [2.1441.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1441.0
 [2.1434.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1434.0
