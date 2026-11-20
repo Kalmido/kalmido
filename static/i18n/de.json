@@ -19735,5 +19735,8 @@
   "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Der Kunde der Vorlage-Rechnung ist nicht mehr in diesem Büro (in einen anderen Arbeitsbereich umgezogen). Wähle eine andere Vorlage-Rechnung und schalte die Serie wieder ein.",
   "Width of the name column": "Breite der Namensspalte",
   "Switching it on signs you out everywhere else and ends your API tokens and app passwords.": "Das Einschalten meldet dich überall sonst ab und beendet deine API-Tokens und App-Passwörter.",
-  "A new way into your account: please confirm it is you.": "Ein neuer Zugang zu deinem Konto: bitte bestätige, dass du es bist."
+  "A new way into your account: please confirm it is you.": "Ein neuer Zugang zu deinem Konto: bitte bestätige, dass du es bist.",
+  "Someone knows your password": "Jemand kennt dein Passwort",
+  "Your account {0} was signed in to with the right password but a wrong second factor: {1} wrong tries in 24 hours, the last from address {2}.": "Bei deinem Konto {0} wurde mit dem richtigen Passwort, aber einem falschen zweiten Faktor angemeldet: {1} Fehlversuche in 24 Stunden, der letzte von Adresse {2}.",
+  "Too many wrong codes for this account today. Sign in from a device you used before, or reset the password with the link from the e-mail.": "Heute zu viele falsche Codes für dieses Konto. Melde dich von einem Gerät an, das du schon benutzt hast, oder setze das Passwort mit dem Link aus der E-Mail zurück."
 }

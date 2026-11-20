@@ -33,6 +33,8 @@ from ..accounts.session import (
     _DUMMY_HASH, _peer_trusted, _rate_fail, _rate_keys, _rate_reset, _token_hash, login_name_in,
     client_ip, dname_clean, FAIL_WINDOW, login_wait, proxy_login_value, rate_ip, set_cookie, start_session, user_public,
 )
+from ..accounts.session import login_known  # #6498
+from ..core.ratedb import rate_counts, rate_hit  # #6498
 
 
 # 2.148.1 C (#2494): failed sign-ins in the server log name neither the typed name (it may be a password typed into the
@@ -203,6 +205,8 @@ def auth_login():
         return err(tr("Wrong username or password"), 401)  # 2.13.0 (#453 P7): the page's language
     remember = bool(b.get("remember", True))
     methods = twofa_methods(c, u)
+    if methods and twofa_locked(u):  # #6498: the day's ceiling of wrong second factors, an unknown address
+        return twofa_locked_err()
     if methods:  # second step: a code, a passkey or a recovery code (POST /api/auth/2fa...)
         tok = pend_new("2fa", u["id"], remember=remember)
         return pend_cookie(jsonify(ok=False, twofa=True, methods=methods), tok)
@@ -603,8 +607,37 @@ def _user(c, uid):
     return c.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
 
 
+# #6498 (audit #4800 F3, decision 16.11.2026): every password step gives a fresh ticket with PEND_TRIES tries, so the second factor
+# needs its own count per account over a day: TWOFA_FAIL_DAY wrong tries, then the second step only from an address the account
+# signed in from before (login_known; a reset link that came by mail makes its address known, invite.py) - an attacker with the
+# password neither guesses on nor locks the owner out on a known device. The owner hears of it by mail (SEC_EVENT 2fa_fail): from
+# the TWOFA_FAIL_MAIL-th wrong try from an unknown address and at the ceiling, each once a day.
+TWOFA_FAIL_DAY, TWOFA_FAIL_MAIL, TWOFA_WINDOW = 20, 3, 86400
+
+
+def _2f_key(uid):
+    return f"2f:{int(uid)}"
+
+
+def twofa_fails(uid, add=False):
+    """Wrong second factors of account uid in the last TWOFA_WINDOW seconds (add: one more first). 0 when the count fails
+    (a database error never locks anybody out)."""
+    k = _2f_key(uid)
+    return ((rate_counts([k], TWOFA_WINDOW, add=add, cap={k: TWOFA_FAIL_DAY * 2}) or {}).get(k) or 0)
+
+
+def twofa_locked(u):
+    """#6498: the day's ceiling of wrong second factors is reached and this address is not one the account knows."""
+    return twofa_fails(u["id"]) >= TWOFA_FAIL_DAY and not login_known(u["username"])
+
+
+def twofa_locked_err():
+    return jsonify(error=tr("Too many wrong codes for this account today. Sign in from a device you used before, or reset the password with the link from the e-mail."),
+                   twofa_locked=True), 429
+
+
 def _code_fail(u, p=None):
-    """A wrong second factor: counts like a wrong password; the ticket dies after PEND_TRIES."""
+    """A wrong second factor: counts like a wrong password; the ticket dies after PEND_TRIES. #6498: and in the account's day count."""
     from ..notify.alerts import aa_count
     keys = _rate_keys(u["username"])
     _rate_fail(keys)
@@ -612,6 +645,12 @@ def _code_fail(u, p=None):
     print("second factor failed for", login_log_name(u["username"]), "from", login_log_ip(client_ip()), flush=True)  # 2.148.1 C (#2494)
     if p is not None:
         pend_fail(p)  # 2.622.0 (#3891): counted in the database (every process sees the same tries)
+    n = twofa_fails(u["id"], add=True)
+    tell = (n >= TWOFA_FAIL_MAIL and not login_known(u["username"]) and rate_hit(f"2fm:{int(u['id'])}", 1, TWOFA_WINDOW) is False) \
+        or (n >= TWOFA_FAIL_DAY and rate_hit(f"2fc:{int(u['id'])}", 1, TWOFA_WINDOW) is False)
+    if tell:
+        from .secmail import sec_mail
+        sec_mail(db(), u["id"], "2fa_fail", n, client_ip())
 
 
 def _ticket(kinds):
@@ -626,6 +665,8 @@ def _ticket(kinds):
     e = login_wait(_rate_keys(u["username"]), u["username"])  # 2.282.0 (#3111)
     if e:
         return None, None, e
+    if "2fa" in kinds and twofa_locked(u):  # #6498
+        return None, None, twofa_locked_err()
     return p, u, None
 
 
