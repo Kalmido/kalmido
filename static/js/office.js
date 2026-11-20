@@ -45,18 +45,17 @@ const ofcMemberHint = () => !ofcNoBooks() ? '' : `<p class="muted ofcmbr">${ic('
 const ofcAdmOnly = (size = 'big') => noAccessState({sub: tr('Only for admins of the office.'), size});
 const ofcFail = (sub, reset, size = 'big') => errorState({sub: sub || undefined, size, retry: reset ? () => { reset(); ofcDraw(); } : undefined, action: ofc_noAreaBtns(sub)});
 // (#7297): the server's "Which workspace? The office always belongs to a workspace." (code
-// office_no_area) gets a button per workspace with an office right under it, wherever it shows (the office's pages, Settings >
-// Company & office); a click chooses that workspace and opens its office. ofcErrHere notes the answer's text (the screens keep
+// office_no_area) gets a button per workspace with an office right under it on the office's pages (#7556: Settings > Company &
+// office picks its office with its own tabs instead); a click chooses that workspace and opens its office. ofcErrHere notes the answer's text (the screens keep
 // only the text); with a workspace chosen the app names its area with every request, so it does not come there
 const OFC_NOAREA = new Set();
 const ofc_noAreaBtns = t => !t || !OFC_NOAREA.has(t) || typeof ofc_spaces !== 'function' ? ''
   : ofc_spaces().map(w => `<button type="button" class="btn sm" data-ofc="noarea" data-ws="${esc(w)}">${/*html-ok*/ wsIcon(w)}<span>${esc(wsName(w))}</span></button>`).join('');
 async function ofc_noAreaGo(ws) {
   if (!ofc_spaces().includes(ws)) return;
-  const inSet = !!$('#s-biz');
   if (wsCur() !== ws) await wsSet(ws, {keep: true});
   else { OFC.infoErr = null; if (typeof OFD !== 'undefined' && OFD.err) { OFD.err = ''; OFD.list = null; } ofcDraw(); }
-  if (!inSet && S.route?.mod !== 'office') go('office');  // Settings > Company & office stays open and shows that office's settings
+  if (S.route?.mod !== 'office') go('office');  // (#7556): Settings > Company & office has its own office tabs, no buttons here
 }
 const ofcNoHit = (action = '', size = 'big', cls = '') => emptyState({icon: 'search', title: tr('Nothing matches.'), size, cls, action: action ? `<div class="eacts">${/*html-ok*/ action}</div>` : ''});
 const ofcSubmitBtn = () => OFC.info?.submit ? `<a class="btn sm" href="#office/receipts" data-ofc-submit>${ic('upload', 's')}<span>${tr('Submit receipt')}</span></a>` : '';
@@ -149,7 +148,7 @@ function ofc_objGo() {
 }
 const ofc_allOvr = () => wsOn() && wsCur() === 'all' && ofc_spaces().length > 1 && !ofc_sp();
 const ofc_allUpHtml = () => wsCur() === 'all' && ofc_sp() && ofc_spaces().length > 1 ? `<a href="#office" class="linkbtn ofcallup" data-ofcall="up">${esc(tr('All workspaces'))}</a><span class="abcsep" aria-hidden="true">/</span>` : '';  // (#6717): not for the only office under "All" (no overview)
-const ofc_wsKey = () => (typeof wsCur === 'function' ? wsCur() : '') + (ofc_sp() ? '>' + ofc_sp() : '');  // OFC.ws: the shown office (a workspace, or "All" + an area)
+const ofc_wsKey = () => (typeof wsCur === 'function' ? wsCur() : '') + (ofc_sp() ? '>' + ofc_sp() : '') + (biz_sp() ? '#' + biz_sp() : '');  // OFC.ws: the shown office (a workspace, or "All" + an area; #7556: + the settings' office tab)
 // 2.1254.0 (#6180): every page of the office (and an open quotation / invoice / receipt / template) reports its organisation (wscolor.js)
 wso_open('office', () => S.route?.mod === 'office' && OFC.info && !OFC.infoErr && !ofc_allOvr() ? ofcWs() : null);
 // the office header: the area, the company, the role (2.936.0, #5448: without an area no leading dot, nothing = no line)
@@ -1086,17 +1085,45 @@ function ost_tplHtml() {
 // ---- 2.365.2 (#2789): the settings live in Settings > Company & office (settings.js biz_draw): the same form #ofc-set with its
 // autosave for the current workspace (private = the person's own office), the areas one below the other with a heading each
 // (no tab row) and the office's rights as a link; the workspace badge switches the workspace like in the office
+// ---- (#7556): Settings > Company & office picks its office with its own tabs (one per office the person has: Private, each
+// organisation; symbol and colour as the workspace switch). A tab changes only whose office settings the page shows: the
+// app's workspace stays as it is, "All" too. Every office request of the page names the tab's area (core.js ofc_spCur: biz_sp
+// first, the one way of #7313, no second mechanism). Preselected: the office a link came from (an office page, ofcSetLink),
+// else the current workspace, else the office used last here, else the first; never empty, never the question "Which
+// workspace?". One office: no tabs, the line with its name. Closing the settings gives the office pages their area back.
+OFC.setSp = OFC.setSp || '';
+const biz_sp = () => OFC.setSp && $('#s-biz')?.isConnected ? OFC.setSp : '';
+function biz_spPick() {
+  const sp = ofc_spaces(), from = S.route?.mod === 'office' ? ofc_spCur() : '', cur = typeof wsCur === 'function' ? wsCur() : 'all', last = LS.get('bizsp', '');
+  return [from, cur, last].find(w => w && sp.includes(w)) || sp[0] || '';
+}
+const biz_spTabs = () => ofc_spaces().length < 2 ? '' : `<div class="bizsp" role="tablist" aria-label="${esc(tr('Office'))}">${ofc_spaces().map(w =>
+  `<button type="button" role="tab" class="bizspt${w === OFC.setSp ? ' on' : ''}" aria-selected="${/*html-ok*/ w === OFC.setSp /* a boolean */}" data-ofc="bizsp" data-ws="${esc(w)}"${/*html-ok*/ wsp_attr(w) /* workspace.js: an escaped style attribute */}>${/*html-ok*/ wsIcon(w)}<span>${esc(wsName(w))}</span></button>`).join('')}</div>`;
+function biz_spSet(w) {
+  if (!ofc_spaces().includes(w) || w === OFC.setSp) return;
+  OFC.setSp = w; LS.set('bizsp', w);
+  biz_paint();  // pb_wsFollow: another office, its settings load (the app's workspace is not touched)
+}
+function biz_spEnd() {
+  OFC.setSp = '';
+  if (OFC.ws === undefined || OFC.ws === ofc_wsKey()) return;
+  pb_reset(); OFC.ws = ofc_wsKey();
+  if (S.route?.mod === 'office') ofcDraw();
+}
 function biz_paint() {
   const box = $('#s-biz'); if (!box) return;
+  if (!OFC.setSp || !ofc_spaces().includes(OFC.setSp)) OFC.setSp = biz_spPick();
+  const md = box.closest('.modal');  // the settings close: the office pages get their own area back
+  if (md && !md._bizSp) { md._bizSp = new MutationObserver(() => { if (!md.isConnected) { md._bizSp.disconnect(); biz_spEnd(); } }); md._bizSp.observe(document.body, {childList: true}); }
   pb_wsFollow();
-  if (OFC.infoErr) { const b = ofc_noAreaBtns(OFC.infoErr); box.innerHTML = `<p class="muted">${esc(OFC.infoErr)}</p>${/*html-ok*/ b ? `<div class="eacts ofcnoarea">${/*html-ok*/ b}</div>` : ''}`; return; }  // (#7297): + the workspaces
-  if (!OFC.info) { if (!OFC.infoLoading) setTimeout(ofcInfo, 0); box.innerHTML = loadingHtml('row'); return; }
+  if (OFC.infoErr) { box.innerHTML = `${/*html-ok*/ biz_spTabs() /* escaped inside */}<p class="muted">${esc(OFC.infoErr)}</p>`; return; }  // (#7556): the tabs choose, no workspace buttons here
+  if (!OFC.info) { if (!OFC.infoLoading) setTimeout(ofcInfo, 0); box.innerHTML = biz_spTabs() + loadingHtml('row'); return; }
   const rights = typeof orr_html === 'function' && OFC.info.rights;  // 2.470.0 (#3596): members too, their "My rights" (was a tab of the old page)
   // 2.470.0 (#3596): the areas are put in order before the drawing: setHtml keeps input being typed, and a field moved afterwards would lose the focus
   const t = document.createElement('template');
-  // 2.555.0 (#4664): no "Applies to" with the workspace menu (it offered "All workspaces"): the settings hold for the area
-  // ofcWs() picks, named once as plain text; the switch is the workspace at the top of the app
-  t.innerHTML = `<p class="sbizws muted">${esc(tr('Workspace: {0}', biz_areaName()))}</p>${pb_hintHtml()}${typeof ocf_chooseHtml === 'function' ? ocf_chooseHtml(true) : '' /* 2.470.0 (#3596): were on the old page */}${ofcSettingsHtml()}
+  // 2.555.0 (#4664): no "Applies to" with the workspace menu (it offered "All workspaces"); (#7556): the office tabs pick the
+  // area (with one office its name as plain text), the "Switch to …" hint of the office pages (pb_hintHtml) is not here
+  t.innerHTML = `${/*html-ok*/ biz_spTabs() /* escaped inside */ || `<p class="sbizws muted">${esc(tr('Workspace: {0}', biz_areaName()))}</p>`}${typeof ocf_chooseHtml === 'function' ? ocf_chooseHtml(true) : '' /* 2.470.0 (#3596): were on the old page */}${ofcSettingsHtml()}
     ${/*html-ok*/ rights ? sf_html('biz/rights', 'key', `<h3 id="s-biz-rights" class="sbizg">${esc(tr('Rights|office'))}</h3>`, `<p class="shint">${esc(tr('Who may see and change which part of the office.'))}</p><div class="row"><a class="btn sm" href="#office/rights" data-bizgo>${ic('shield', 's')} ${esc(tr('Rights in the office'))}</a></div>`) : ''}`;
   const form = $('#ofc-set', t.content);
   for (const [k, i, n] of OST_SUBS) {
@@ -1344,6 +1371,7 @@ document.addEventListener('click', async e => {
   if (a === 'pb-transfer') { pb_transfer(); return; }  // 2.137.0 D (#1981)
   if (a === 'org-out') { ofc_orgOut(); return; }  // 2.356.0 A (#2926)
   if (a === 'noarea') { ofc_noAreaGo(b.dataset.ws); return; }  // (#7297)
+  if (a === 'bizsp') { biz_spSet(b.dataset.ws); return; }  // (#7556): the settings' office tab
   if (a === 'pb-ws') { if (ofc_sp()) go('office/s/' + b.dataset.ws); else if (typeof wsSet === 'function') wsSet(b.dataset.ws, {keep: true}); return; }  // 2.577.0 (#4638): under "All" the area's address  // 2.47.3 (#1360); 2.397.0 (#3404): the office stays
   if (a === 'new') { e.preventDefault(); ofcModal(b.dataset.kind, null); }
   else if (a === 'open') { e.preventDefault(); const r = ofcRow(b.dataset.kind, +b.dataset.id); if (r) ofcModal(b.dataset.kind, r); }

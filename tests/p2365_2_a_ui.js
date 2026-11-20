@@ -47,7 +47,7 @@ const FEAT = 'cal,comments,collab,files,docs,office,clients';
       const hs = [...form.querySelectorAll(':scope > details.sfold > summary > h3')].map(h => h.id);  // 2.555.0 (#4664): the groups are h3; 2.1353.0 (#6827): in folded head rows
       check(hs[0] === 's-biz-company' && hs.includes('s-biz-docs') && hs.length >= 4, `${who}: one heading per area, Company first ` + hs.join());
       // 2.555.0 (#4664): no "Applies to" with the workspace menu any more: the area once as plain text
-      check(/^Workspace: \S/.test(d.querySelector('#s-biz .sbizws')?.textContent || '') && !d.querySelector('#s-biz [data-act="ws-menu"]'), `${who}: the head names the workspace as text, no menu`);
+      check((/^Workspace: \S/.test(d.querySelector('#s-biz .sbizws')?.textContent || '') || !!d.querySelector('#s-biz .bizsp .bizspt.on')) && !d.querySelector('#s-biz [data-act="ws-menu"]'), `${who}: the head names the workspace (as text, or the chosen office tab, #7556), no menu`);
       check(!form.querySelector('#os-paydays')?.disabled, `${who}: the own office is editable`);
       // a field saves itself (autosave): change + focus out, the server has it
       const f = form.querySelector('#os-paydays');
