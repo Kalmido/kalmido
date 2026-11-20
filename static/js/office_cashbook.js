@@ -9,7 +9,14 @@ OFC_TABS.splice(OFC_TABS.findIndex(t => t[0] === 'settings'), 0, /** @type {any}
 
 /** @param {string} s @param {any} [r] @returns {any} */
 const cb$ = (s, r) => (r || document).querySelector(s);  // $ with a dialog as root (typed loosely)
-const cbReload = (all) => { if (all) CB.base = null; CB.list = null; CB.err = null; ofcDraw(); };  // 2.144.11 (#2354, N5): a failed load does not stick
+// #7495: a write, an undo or a switch of book / year keeps the entries on screen (dimmed) until the fresh ones are there
+const cbReload = (all) => ofcRefetch('cashbook', ofcTab() === 'cashbook' && !!CB.base && !!CB.list && !CB.err, () => cbGet(all), () => { if (all) CB.base = null; CB.list = null; CB.err = null; });  // 2.144.11 (#2354, N5): a failed load does not stick
+async function cbGet(all) {
+  const base = all || !CB.base ? await api('GET', '/api/office/cashbooks') : CB.base, act = base.books.filter(b => !b.archived);
+  const bid = base.books.some(b => b.id === CB.bid) ? CB.bid : (act[0] || base.books[0])?.id || null, y = CB.year;
+  const list = bid ? await api('GET', `/api/office/cashbooks/${bid}/entries?year=${y}`) : null;
+  return () => { CB.base = base; CB.bid = bid; CB.err = null; if (list) { CB.list = list; CB.q = `${bid}:${y}`; } };
+}
 const cbBook = id => (CB.base?.books || []).find(b => b.id === id);
 const cbToday = () => CB.base?.today || today();
 const cbVat = v => v ? `${v} %` : '';
@@ -37,7 +44,8 @@ function cbHtml() {
   if (CB.oid !== OFC.info?.org_id) Object.assign(CB, {oid: OFC.info?.org_id, base: null, list: null, err: null, bid: null, links: null});  // another office area
   if (!ofcAdmin()) return ofcLockedHtml();  // 2.356.0 D (#3006): why, and the way to hand in receipts
   if (CB.err) return ofcFail(CB.err, () => cbReload(true));  // 2.144.11 (#2354, N5); 2.1076.0 (#5450): the shared block
-  if (!CB.base || !CB.list || CB.q !== `${CB.bid}:${CB.year}`) { if (!CB.loading) setTimeout(cbLoad, 0); return loadingHtml('big'); }
+  if (!CB.base || !CB.list) { if (!CB.loading) setTimeout(cbLoad, 0); return loadingHtml('big'); }
+  if (CB.q !== `${CB.bid}:${CB.year}` && !ofcHeldBusy('cashbook')) setTimeout(() => { if (!ofcHeldBusy('cashbook') && CB.q !== `${CB.bid}:${CB.year}`) cbReload(); }, 0);  // #7495: another book / year: the old one dimmed
   const bs = CB.base.books, act = bs.filter(b => !b.archived || b.id === CB.bid), b = cbBook(CB.bid);
   const years = ofcYearOpts(CB.list.years, CB.year);  // 2.593.0 (#4891): the years of the box's entries (was this year .. -4)
   const q = `book_id=${CB.bid}&year=${CB.year}`;

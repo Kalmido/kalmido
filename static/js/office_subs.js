@@ -8,14 +8,16 @@ OFC_TABS.splice(Math.max(0, OFC_TABS.findIndex(t => t[0] === 'cashflow' || t[0] 
 
 // the subscription fields of a fixed cost as the routes take them (the undo of a delete posts them again)
 const aboFields = o => ({sub: o.sub || 0, notice_days: o.notice_days || 0, seats: o.seats || [], low_use: o.low_use || 0, remind_days: o.remind_days || 0, remind_user: o.remind_user || null, url: o.url || ''});
+const aboGet = async () => { const j = await api('GET', '/api/office/subs'); return () => { ABO.data = j; ABO.err = null; }; };
 async function aboLoad() {
   if (ABO.loading) return;
   ABO.loading = true;
-  try { ABO.data = await api('GET', '/api/office/subs'); ABO.err = null; } catch (x) { ABO.err = ofcErrHere(x); }
+  try { (await aboGet())(); } catch (x) { ABO.err = ofcErrHere(x); }
   ABO.loading = false;
   ofcDraw();
 }
-const aboReload = () => { ABO.data = null; if (typeof RKF === 'object') RKF.data = null; ofcDraw(); };
+// #7495: the rows on screen stay (dimmed) until the fresh list is there (office.js ofcRefetch)
+const aboReload = () => { if (typeof RKF === 'object') RKF.data = null; ofcRefetch('subs', ofcTab() === 'subs' && !!ABO.data, aboGet, () => { ABO.data = null; }); };
 const aboDays = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 864e5);
 const aboNet = () => ABO.basis === 'net';
 const aboPer = (o, k) => o[aboNet() ? k + '_net' : k];
