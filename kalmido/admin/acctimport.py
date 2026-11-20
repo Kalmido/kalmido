@@ -42,6 +42,7 @@ from ..wiki.pages import WIKI_TASK_RE  # (#6584): the one link form of a task in
 from ..accounts.orgs import visible_people as umz_visible  # 2.278.0 B (#3094)
 from ..core.serializers import unlink_files  # 2.464.0 (#3865)
 from ..api.common import hit_limit, import_upload_rate  # 2.585.0 (#4350, review 2); 2.1282.0 (#6426)
+from ..api.v1 import tt_origin  # (#6643)
 from ..core.pg import write_lock  # review 2.611 (#4866)
 from ..core.objhooks import USER_FILES  # (#6356)
 from ..files.upsafe import up_after_store, up_check, UploadRefused  # 2.464.0 (#3865): pulled up from functions
@@ -1953,7 +1954,6 @@ def umz_tt_id(eid, org, old, src=None):
     tasks of a file are never taken twice.
     (#6643): src = the task's key in the file; its outside origin (api/v1.py tt_origin: mail, form, errors, webhook, git) stays
     as ':origin:<origin>' at the end, so the moved task still reaches agents with origin + untrusted (was lost)."""
-    from ..api.v1 import tt_origin
     o = tt_origin(src)
     return f"kalmido:{eid[:16]}:{f'o{org}' if org else 'p'}:{_oid(old) or 0}" + (f":origin:{o}" if o else "")
 
