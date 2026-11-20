@@ -54,7 +54,7 @@ async function rvw_do(id, act, extra = {}) {
   const before = rvw_snap(t);
   let note = '';
   if (act === 'changes') {
-    const v = await askPrompt(tr('What should change?'), '', {body: tr('optional, the assignee sees it'), input: {max: 2000}});
+    const v = await askPrompt(tr('What should change?'), '', {body: tr('optional, the assignee sees it'), input: {max: 2000}, ok: tr('Request changes')});
     if (v === null) return;
     note = v;
   }

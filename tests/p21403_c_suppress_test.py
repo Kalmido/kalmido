@@ -6,7 +6,7 @@
  2. a reason is two words beside the marker - a version mark alone is none; a docstring that names a marker is no marker;
     JavaScript // eslint-disable and /* sprung-ok */ count
  3. fewer = green with a notice; --update lowers the baseline and never raises it (a rise stays red after --update)
- 4. tools/check_rules.py: os.environ outside core/env.py, a starter helper defined twice = red with
+ 4. tools/check_rules.py: os.environ outside core/env.py, a starter helper defined twice, a dialog without its verb (#6373) = red with
     the rule's Why / Instead; a writing api() call in static/js and the total of version marks = a notice only; inside core/env.py = no finding
  5. every red message carries Why / Instead / "Do not suppress it"; tools/lintmsg.red_hint prints nothing on green
  6. every tools/check_*.py says Why / Instead (lintmsg); ci.yml runs both new checks with --notice (a rise there is a notice:
@@ -166,6 +166,20 @@ try:
     rc, out = run(RUL, d)
     check(rc == 1 and "rule wording: 2, the baseline allows 0" in out and "rule emoji: 1, the baseline allows 0" in out
           and "Privat" in out, f"#7262: 'chip', an old name of Private and an emoji in the texts: red ({out[-500:]})")
+    # #6373: one verb for creating (docs/dev/glossar.md): "Save : Add" in a dialog's main button, a question without its verb,
+    # the German "Create" not "Anlegen" = red; the verb given, the options handed on, "Anlegen" = no finding
+    put(d, "static/i18n/de.json", '{"Create": "Anlegen", "Save": "Speichern"}\n')
+    put(d, "static/js/w.js", "askConfirm(t, b, {ok, danger: true});\nconst ask = (t, b, o) => askConfirm(t, b, o);\n"
+        "askConfirm(t, '', {...o, html: h});\naskPrompt(tr('Rename (it)'), v, {ok: tr('Rename')});\n"
+        "const f = `<button class=\"btn pri\" data-m=\"save\">${x ? tr('Save') : tr('Create')}</button>`;\n")
+    rc, out = run(RUL, d)
+    check(rc == 0 and "dialog-verb" not in out, f"#6373: verbs given / handed on, 'Anlegen': no finding ({out[-300:]})")
+    put(d, "static/js/w.js", "askConfirm(tr('Remove it?'), '', {danger: true});\naskPrompt(tr('Name'), '');\n"
+        "const f = `<button class=\"btn pri\" data-m=\"save\">${x ? tr('Save') : tr('Add')}</button>`;\n")
+    put(d, "static/i18n/de.json", '{"Create": "Erstellen"}\n')
+    rc, out = run(RUL, d)
+    check(rc == 1 and "rule dialog-verb: 4, the baseline allows 0" in out and "tr('Create')" in out,
+          f"#6373: two questions without their verb, 'Save : Add', 'Erstellen': red with the way ({out[-500:]})")
 finally:
     shutil.rmtree(d, ignore_errors=True)
 

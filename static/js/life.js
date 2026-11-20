@@ -146,7 +146,7 @@ function contractModal(t) {
       <div class="row"><label>${tr('Since')}</label>${dateIn('lf-start', f.start || '', {label: tr('Since'), empty: tr('optional')})}</div></details>
     ${t ? '' : lifeListOpts('contracts')}
     <div class="shint lhint keep">${tr('Due on the last day to cancel. Ticking it off means you keep it: it moves on to the next term.')}</div>
-    ${lifeFoot(t ? tr('Save') : tr('Add'))}`, async md => {
+    ${lifeFoot(t ? tr('Save') : tr('Create'))}`, async md => {
     const v = id => $(id, md)?.value?.trim() ?? '';
     const name = v('#lf-name'), endsV = v('#lf-ends');
     if (!name) { $('#lf-name', md).focus(); throw new Error(tr('Please enter a name')); }

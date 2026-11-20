@@ -55,7 +55,7 @@ function xl_draw(box, n, j) {
 }
 async function xl_reload(box, n) { try { xl_draw(box, n, await api('GET', `/api/files/nodes/${n.id}/ext-links`)); } catch { /* shown */ } ab_reload(); return {}; }
 async function xl_copy(url) {
-  try { await navigator.clipboard.writeText(url); toast(tr('Link copied')); } catch { await askPrompt(tr('Copy the selected link'), url); }
+  try { await navigator.clipboard.writeText(url); toast(tr('Link copied')); } catch { await askPrompt(tr('Copy the selected link'), url, {ok: tr('Close')}); }
 }
 async function xl_click(e, box, n) {
   const b = /** @type {any} */ (e.target).closest('[data-xl]'); if (!b) return;

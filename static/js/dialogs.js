@@ -16,7 +16,25 @@ function modal(html) {
   vvSync();
   modalA11y(m);
   queueMicrotask(() => dlg_resizable(m));  // after the caller added its classes (they name the dialog kind)
+  requestAnimationFrame(() => dlgCross(m));  // #6373: once laid out
   return m;
+}
+// #6373 (decided 16.11.2026): a large dialog (more than half the window high) always has the close cross at the top right; a
+// small question dialog (askDialog: .cdlg) never. A dialog that draws its own cross (an icon button named Close) keeps it.
+// Content that loads after opening is looked at once more. The cross closes like Esc (modalClose: asks first with unsaved input).
+const DLG_NOX = /^(cdlg|authscreen|shopmode)$/;
+function dlgCross(m, again) {
+  const card = m.querySelector(':scope > .card');
+  if (!card || !m.isConnected || [...m.classList].some(c => DLG_NOX.test(c)) || card.querySelector(':scope > .dlgx')) return;
+  if ([...card.querySelectorAll('button')].some(b => b.getAttribute('aria-label') === tr('Close') && !b.closest('.foot'))) return;
+  if (card.getBoundingClientRect().height <= (window.visualViewport?.height || window.innerHeight) / 2) {
+    if (!again) setTimeout(() => dlgCross(m, true), 600);
+    return;
+  }
+  const x = document.createElement('button');
+  x.type = 'button'; x.className = 'iconbtn dlgx'; x.setAttribute('aria-label', tr('Close')); x.title = tr('Close'); x.innerHTML = ic('x');
+  x.addEventListener('click', () => modalClose(m));
+  card.classList.add('has-dlgx'); card.append(x);  // last in the Tab order: the dialog's own fields come first
 }
 // 2.138.0 E (#2234): desktop: a grip at the bottom right resizes the dialog (pointer events: mouse + pen); the size is kept per
 // dialog kind (its own classes; none = not kept); double click on the grip = back to the default size. Phones: no grip.
@@ -27,7 +45,8 @@ const dlg_wide = () => { try { return matchMedia('(min-width: 768px) and (pointe
 // or content that already overflows; a short one (confirm, password, one input) has none and forgets a size kept earlier
 const DLG_GROWS = 'textarea,[contenteditable="true"],[contenteditable=""],.editor,iframe,img,embed,object,canvas,table,.tbl,.list,.scroll,[class*="editor"]';
 function dlg_grows(card) {
-  if ($$(DLG_GROWS, card).some(x => !x.closest('.foot') && !x.classList.contains('dlggrip'))) return true;
+  // #6373: what waits in a closed "More details" does not count (the short new-client sheet had a grip for its hidden note)
+  if ($$(DLG_GROWS, card).some(x => !x.closest('.foot') && !x.classList.contains('dlggrip') && !x.closest('details:not([open])'))) return true;
   return [card, ...$$('*', card)].some(x => x.scrollHeight > x.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(x).overflowY));
 }
 function dlg_resizable(m, again) {

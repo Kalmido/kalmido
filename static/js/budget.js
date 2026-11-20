@@ -163,7 +163,7 @@ function bg_entryModal(e, cf) {
     <div class="row"><label for="bg-note">${tr('Note')}</label><textarea id="bg-note" rows="2" maxlength="1000" placeholder="${esc(tr('optional'))}">${esc(e?.note || '')}</textarea></div>
     <div class="bgfwrap">${filesHtml(e)}</div>
     ${e && w ? `<div class="row"><span></span><button type="button" class="btn sm danger" data-bg-del>${ic('trash', 's')}<span>${tr('Delete entry')}</span></button></div>` : ''}
-    ${w ? lifeFoot(e ? tr('Save') : tr('Add')) : `<div class="foot"><span class="spacer"></span><button class="btn" data-m="close">${tr('Close')}</button></div>`}`, async md => {
+    ${w ? lifeFoot(e ? tr('Save') : tr('Create')) : `<div class="foot"><span class="spacer"></span><button class="btn" data-m="close">${tr('Close')}</button></div>`}`, async md => {
     const v = id => $(id, md)?.value?.trim() ?? '';
     const amount = bg_num(v('#bg-amt')), title = v('#bg-title'), day = v('#bg-day');
     if (!amount) { $('#bg-amt', md).focus(); throw new Error(tr('Please enter an amount (up to 10,000,000)')); }

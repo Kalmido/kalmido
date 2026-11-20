@@ -212,7 +212,7 @@ document.addEventListener('click', async e => {
   while (!j) {
     try { j = await suApi('POST', url, x0, tr('Download'), SU_PASS); } catch (err) {
       if (!SU_PASS.includes(err.data?.code)) return;
-      const pass = await askPrompt(tr('Passphrase of this backup'), '', {body: err.data.error, input: {type: 'password'}});
+      const pass = await askPrompt(tr('Passphrase of this backup'), '', {body: err.data.error, input: {type: 'password'}, ok: tr('Continue')});
       if (!pass) return;
       x0 = {passphrase: pass};
     }

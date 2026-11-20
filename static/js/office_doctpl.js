@@ -214,7 +214,7 @@ function dtTplModal(t) {
     <label for="dt-tbody" class="dtp-lab">${tr('Text')}</label>${dtVarBar('dt-tbody')}<textarea id="dt-tbody" class="dtp-ta" rows="14" maxlength="60000">${esc(t?.body || '')}</textarea>${dtHint()}
     <p class="muted ofchint">${esc(d.note || tr('Sample text, no legal advice.'))}</p>
     <div class="aerr" role="alert"></div>
-    <div class="foot">${t ? `<button class="btn danger" data-m="del">${tr('Archive')}</button>` : `<button class="btn" data-m="starters">${ic('copy', 's')}<span>${tr('Start from a sample')}</span></button>`}${t && typeof ofm_can === 'function' && ofm_can(ofm_officeFrom()) ? `<button class="btn" data-m="move">${ic('brief', 's')} ${tr('Move to another workspace…')}</button>` : ''}<span class="spacer"></span><button class="btn" data-m="close">${tr('Cancel')}</button><button class="btn pri" data-m="save">${t ? tr('Save') : tr('Add')}</button></div>`);
+    <div class="foot">${t ? `<button class="btn danger" data-m="del">${tr('Archive')}</button>` : `<button class="btn" data-m="starters">${ic('copy', 's')}<span>${tr('Start from a sample')}</span></button>`}${t && typeof ofm_can === 'function' && ofm_can(ofm_officeFrom()) ? `<button class="btn" data-m="move">${ic('brief', 's')} ${tr('Move to another workspace…')}</button>` : ''}<span class="spacer"></span><button class="btn" data-m="close">${tr('Cancel')}</button><button class="btn pri" data-m="save">${t ? tr('Save') : tr('Create')}</button></div>`);
   md.classList.add('ofcdlg', 'dtp-dlg');
   const close = fgModal(md);
   md.addEventListener('click', async e => {

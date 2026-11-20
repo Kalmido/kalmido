@@ -95,7 +95,7 @@ function clientModal(c, o = {}) {  // 2.80.0 (#1842): o.org_id (the office's are
     ${nm}${/*html-ok*/ wsp /* (#7298): built above, the names through esc() */}
     ${o.quick ? `${nx}${addr}` : short ? `${em}${emi}${city}<details class="clmore" id="cl-more" ${o.parent_id ? 'open' : ''}><summary>${ic('chev', 's fcar')}<span>${tr('More details')}</span></summary>${nx}${dn}${sc}${rest}</details>` : `${nx}${dn}${sc}${rest}`}
     <div class="aerr" role="alert"></div>
-    <div class="foot ${short ? 'clfoot' : ''}">${c?.can_delete ? `<button class="btn danger" data-m="del">${tr('Delete')}</button>` : ''}<span class="spacer"></span><button class="btn" data-m="close">${tr('Cancel')}</button><button class="btn pri" data-m="save">${c ? tr('Save') : tr('Add')}</button></div>`);
+    <div class="foot ${short ? 'clfoot' : ''}">${c?.can_delete ? `<button class="btn danger" data-m="del">${tr('Delete')}</button>` : ''}<span class="spacer"></span><button class="btn" data-m="close">${tr('Cancel')}</button><button class="btn pri" data-m="save">${c ? tr('Save') : tr('Create')}</button></div>`);
   md.classList.add('cldlg');
   if (c && c.bill_edit === false) for (const el of md.querySelectorAll('.clbill [data-clb], [data-clb="email_invoice"]')) { el.disabled = true; el.removeAttribute('data-clb'); }  // 2.187.1 A (#2735): read only, never sent
   clkInit(md, c);

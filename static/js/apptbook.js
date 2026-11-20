@@ -224,7 +224,7 @@ function apbTypeDlg(t) {
     <div class="row"><label for="apt-note">${tr('Note')}</label><textarea id="apt-note" rows="2" maxlength="1000">${esc(t?.note || '')}</textarea></div>
     <label class="chkl"><input type="checkbox" id="apt-active" ${!t || t.active ? 'checked' : ''}><span>${tr('Clients can book it')}</span></label>
     <div class="aerr" role="alert"></div>
-    <div class="foot"><span class="spacer"></span><button class="btn" data-m="close">${tr('Cancel')}</button><button class="btn pri" data-m="save">${t ? tr('Save') : tr('Add')}</button></div>`);
+    <div class="foot"><span class="spacer"></span><button class="btn" data-m="close">${tr('Cancel')}</button><button class="btn pri" data-m="save">${t ? tr('Save') : tr('Create')}</button></div>`);
   md.classList.add('apb-tdlg');
   const close = fgModal(md);
   const v = id => $(id, md)?.value ?? '';

@@ -19,6 +19,7 @@ Rules (RULES below; sharp = a rise is red, otherwise a notice until the task tha
   window-open    window.open( in the client code outside static/js/miniwin.js (a tab only with a mouse)  (#7262)
   wording        "chip" in the English texts, the old names of the own workspace in the German ones          (#7262)
   emoji          emoji in the texts of static/i18n other than the thumbs                                     (#7262)
+  dialog-verb    a dialog that creates says "Create" (German "Anlegen"), a question dialog names its verb   (#6373)
 The product rules behind the last three stand in docs/dev/produkt-regeln.md.
 Not built here (the right way does not exist yet, so the message could not name it): FOR UPDATE outside the lock helper
 (#7153), IBAN patterns outside core/iban.py (#7154), except Exception around unseal( (#7156: unseal_or); the schema,
@@ -219,6 +220,61 @@ def count_emoji(root):
     return out
 
 
+# (#6373): the main button "<edit> ? Save : Add" of a dialog (its foot data-m="save", lifeFoot(...), an ok: option) - a new
+# thing is created, "Add" is for something existing that joins; a question dialog (askConfirm / askPrompt / askDialog) without its
+# own button text (ok:) shows "OK"; the German "Create" is "Anlegen" (docs/dev/glossar.md)
+SAVE_ADD = re.compile(r"""(?:data-m="save"|lifeFoot\(|\bok\s*:)[^\n]{0,40}?tr\('Save'\)\s*:\s*tr\('Add'\)""")
+ASK_CALL = re.compile(r"\bask(Confirm|Prompt|Dialog)\(")
+OK_OPT = re.compile(r"[{,]\s*ok\s*[:,}]")
+
+
+def _call_args(src, start):
+    """The text of a call from its opening parenthesis (start = after it) to the closing one."""
+    i, d = start, 1
+    while i < len(src) and d:
+        ch = src[i]
+        if ch in "([{":
+            d += 1
+        elif ch in ")]}":
+            d -= 1
+        elif ch in "'\"`":  # skip a string (a parenthesis in a text does not count)
+            q, i = ch, i + 1
+            while i < len(src) and src[i] != q:
+                i += 2 if src[i] == "\\" else 1
+        i += 1
+    return src[start:i - 1]
+
+
+def _ask_without_verb(src):
+    n = 0
+    for m in ASK_CALL.finditer(src):
+        if src[max(0, m.start() - 9):m.start()].endswith("function ") or src[max(0, m.start() - 6):m.start()].endswith("const "):
+            continue
+        args = _call_args(src, m.end())
+        if OK_OPT.search(args) or re.search(r"\{\s*\.\.\.", args):  # its own verb, or the caller's options spread in
+            continue
+        last = args.rsplit(",", 1)[-1].strip() if "{" not in args.rsplit(",", 1)[-1] else ""
+        if re.fullmatch(r"[A-Za-z_$][\w$]*", last or "") and last not in ("url", "body", "title") and args.count(",") >= (0 if m.group(1) == "Dialog" else 2):
+            continue  # the options handed on (a wrapper: askConfirm(title, body, o))
+        n += 1
+    return n
+
+
+def count_dialog_verb(root):
+    out = {}
+    for rel in client_js(root):
+        if not rel.startswith("static/js/") or rel == "static/js/dialogs.js":
+            continue
+        src = read(root, rel)
+        n = len(SAVE_ADD.findall(src)) + _ask_without_verb(src)
+        if n:
+            out[rel] = n
+    de = i18n_texts(root).get("static/i18n/de.json", {})
+    if "Create" in de and de["Create"] != "Anlegen":
+        out["static/i18n/de.json"] = 1
+    return out
+
+
 # name: (counter, sharp, why, instead)
 RULES = {
     "env": (count_env, True,
@@ -253,6 +309,10 @@ RULES = {
                 "decided words: no 'chip' (a label, shown in the task row), the own workspace is 'Privat' "
                 "(docs/dev/produkt-regeln.md, #4605)",
                 "'label' / 'show in the task row'; 'Privat' (en: Private)"),
+    "dialog-verb": (count_dialog_verb, True,
+                    "one verb for creating, a question names what it does (docs/dev/glossar.md, decided 16.11.2026, #6373)",
+                    "the main button of a dialog that creates: tr('Create') (German 'Anlegen'), editing: tr('Save'), something "
+                    "existing joins: tr('Add'); askConfirm / askPrompt / askDialog with ok: tr('<verb>')"),
     "emoji": (count_emoji, True,
               "app icons instead of emoji; the thumbs are the only emoji in texts (docs/dev/produkt-regeln.md)",
               "an app icon (ic(...) of static/js/icons.js) beside the text"),

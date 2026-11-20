@@ -858,13 +858,13 @@ function bkWire(md) {
       }
       if (b.dataset.bk === 'del' && item) { if (!await askConfirm(tr('Delete the backup of {0}?', aaWhen(item.created_at)), tr('The file is removed from the server.'), {ok: tr('Delete'), danger: true})) return; await bkDraw(md, await api('DELETE', '/api/admin/backups/' + encodeURIComponent(name))); }
       if (b.dataset.bk === 'verify' && item) {
-        let pass = item.encrypted && !j.passphrase_set ? await askPrompt(tr('Passphrase of this backup'), '', {input: {type: 'password'}}) : '', r;
+        let pass = item.encrypted && !j.passphrase_set ? await askPrompt(tr('Passphrase of this backup'), '', {input: {type: 'password'}, ok: tr('Continue')}) : '', r;
         if (pass === null) return;
         // 2.525.0 (#4303): made with an earlier passphrase (old_passphrase) or a typed one that does not fit: ask for it, as the download does
         while (!r) {
           try { r = await suApi('POST', `/api/admin/backups/${encodeURIComponent(name)}/verify`, {passphrase: pass || ''}, tr('Check'), SU_PASS); } catch (err) {
             if (!SU_PASS.includes(err.data?.code)) return;
-            pass = await askPrompt(tr('Passphrase of this backup'), '', {body: err.data.error, input: {type: 'password'}});
+            pass = await askPrompt(tr('Passphrase of this backup'), '', {body: err.data.error, input: {type: 'password'}, ok: tr('Continue')});
             if (!pass) return;
           }
         }

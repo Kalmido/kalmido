@@ -736,7 +736,7 @@ async function ctEditor(c, cf, draft, mate) {  // draft: (#4764) the input of a 
       <div class="row"><label for="ct-dept">${tr('Department')}</label><input id="ct-dept" value="${esc(st.dept || '')}" autocomplete="off" maxlength="300"></div>
       ${multi('urls', tr('Website'), 'https://…', 'url')}
       ${fold ? '' : `<div class="row"><label for="ct-bk">${tr('Address book')}</label><select id="ct-bk">${books.map(b => `<option value="${b.id}" ${b.id === st.book_id ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select></div>`}</details>
-    <div class="foot"><span class="spacer"></span><button class="btn" data-ctm2="close">${tr('Cancel')}</button><button class="btn pri" data-ctm2="save">${tr('Save')}</button></div>`);
+    <div class="foot"><span class="spacer"></span><button class="btn" data-ctm2="close">${tr('Cancel')}</button><button class="btn pri" data-ctm2="save">${c ? tr('Save') : tr('Create')}</button></div>`);
   md.classList.add('ctmodal');
   md.dataset.dlgsz = 'contact';  // 2.805.0 (#5357): the size grip (dialogs.js dlg_sizer)
   md.classList.toggle('ctisorg', kind === 'org');  // 2.1174.0 (#6119): a company hides first / last name
@@ -1207,7 +1207,7 @@ async function ctx_groupsModal() {
     const r = e.target.closest('[data-ctgr]'), d = e.target.closest('[data-ctgd]');
     if (r) {
       const g = items[+r.dataset.ctgr]; if (!g) return;
-      const n = await askPrompt(tr('Rename the group'), g.name, {input: {max: 100}});
+      const n = await askPrompt(tr('Rename the group'), g.name, {input: {max: 100}, ok: tr('Rename')});
       if (n && n.trim() && n.trim() !== g.name) run(g, n.trim().replace(/,/g, ' '));
     } else if (d) {
       const g = items[+d.dataset.ctgd]; if (!g) return;
@@ -1238,7 +1238,7 @@ async function ctBooksModal() {
       const b = ctBook(+m.dataset.cbmenu); if (!b) return;
       // 2.1238.0 (#6161, Stufe 1): the owner's entries only where canWrite says yes (an organisation's reader changes nothing)
       const own = b.role === 'owner', mng = own && ctWrite(b);
-      menu(m, [mng && {label: tr('Rename…'), icon: 'edit', fn: async () => { const n = await askPrompt(tr('Rename the address book'), b.name, {input: {max: 100}}); if (n && n.trim()) { const nm = n.trim(); optWrite(optSet(() => ctBook(b.id), {name: nm}), () => api('PATCH', `/api/books/${b.id}`, {name: nm}), () => { draw(); ctDraw(); }).catch(() => {}); } }},  // 2.46.2 (#1659): at once
+      menu(m, [mng && {label: tr('Rename…'), icon: 'edit', fn: async () => { const n = await askPrompt(tr('Rename the address book'), b.name, {input: {max: 100}, ok: tr('Rename')}); if (n && n.trim()) { const nm = n.trim(); optWrite(optSet(() => ctBook(b.id), {name: nm}), () => api('PATCH', `/api/books/${b.id}`, {name: nm}), () => { draw(); ctDraw(); }).catch(() => {}); } }},  // 2.46.2 (#1659): at once
         mng && wsOn() && !b.org_owned && {label: tr('Workspace…'), icon: 'brief', next: 1, fn: () => wsMoveMenu(m, b.org_id, async org => { try { await api('PATCH', `/api/books/${b.id}`, {org_id: org}); } catch { return; } refresh(); })},
         mng && collab() && {label: tr('Share…'), icon: 'users', fn: () => ctShareModal(b, users, names, refresh)},
         ...(typeof ctf_bookItems === 'function' ? ctf_bookItems(b, m) : []),  // 2.351.0 B (#2749): into a folder of the address book

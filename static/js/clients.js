@@ -229,7 +229,7 @@ function viewWorkload() {
 }
 async function wlCap(uid) {
   const p = WLV.data?.people.find(x => x.id === uid); if (!p) return;
-  const v = await askPrompt(tr('Hours per week of {0}', p.display_name), fmtNum(p.capacity_h, 2), {body: tr('Empty = 5 × the hours per day of the server'), input: {placeholder: '40'}});
+  const v = await askPrompt(tr('Hours per week of {0}', p.display_name), fmtNum(p.capacity_h, 2), {body: tr('Empty = 5 × the hours per day of the server'), ok: tr('Save'), input: {placeholder: '40'}});
   if (v === null) return;
   try { await api('PUT', `/api/workload/capacity/${uid}`, {hours: numBody(v)}); WLV.data = null; wlLoad(); } catch { /* api() said it */ }
 }
@@ -273,7 +273,7 @@ async function approvalRequest(id) {
 async function approvalDecide(id, k) {
   let note = '';
   if (k !== 'approve') {
-    const v = await askPrompt(k === 'changes' ? tr('What should change?') : tr('Why rejected?'), '', {body: tr('optional, the person who asked sees it'), input: {max: 2000}});
+    const v = await askPrompt(k === 'changes' ? tr('What should change?') : tr('Why rejected?'), '', {body: tr('optional, the person who asked sees it'), input: {max: 2000}, ok: k === 'changes' ? tr('Request changes') : tr('Reject')});
     if (v === null) return;
     note = v;
   }

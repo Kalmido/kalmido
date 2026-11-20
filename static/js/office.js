@@ -528,7 +528,7 @@ function ofcModal(kind, r) {
   const md = modal(`<h3>${tr(titles[kind][r ? 1 : 0])}</h3>${f}
     ${r ? ofcChk('of-archived', tr('Archived (hidden from the lists and the pickers)'), r.archived) : ''}
     <div class="aerr" role="alert"></div>
-    <div class="foot">${r && adm ? `<button class="btn danger" data-m="del">${tr('Delete')}</button>` : ''}<span class="spacer"></span><button class="btn" data-m="close">${adm ? tr('Cancel') : tr('Close')}</button>${adm ? `<button class="btn pri" data-m="save">${r ? tr('Save') : tr('Add')}</button>` : ''}</div>`);
+    <div class="foot">${r && adm ? `<button class="btn danger" data-m="del">${tr('Delete')}</button>` : ''}<span class="spacer"></span><button class="btn" data-m="close">${adm ? tr('Cancel') : tr('Close')}</button>${adm ? `<button class="btn pri" data-m="save">${r ? tr('Save') : tr('Create')}</button>` : ''}</div>`);
   md.classList.add('ofcdlg');
   const close = fgModal(md);  // 2.40.0 (#1371): Cancel / Esc / backdrop ask before unsaved input is lost
   if (r?.updated_at && adm) loadModule('objsave').then(() => dlgStale(md, `/api/office/${kind}/${r.id}`, () => (md._objBase || r).updated_at)).catch(() => {});  // 2.576.0 (#4764): saved elsewhere meanwhile -> the calm bar
