@@ -274,7 +274,7 @@ async function dgBlock(ids, row, after, plain = false) {
   const mode = plain ? 'custom' : sortMode();
   const g = !kcol && row.closest('.group')?.querySelector('.ghead[data-section]');
   let sec = target.parent_id ? undefined : kcol ? (kcol.dataset.kcol ? +kcol.dataset.kcol : null) : g ? (g.dataset.section ? +g.dataset.section : null) : target.section_id ?? null;
-  if (sec < 0) { sec = await secReal(sec); if (!sec) return; }  // 2.559.0 (#4659): a section still on its way
+  if (sec < 0) { sec = await secReal(sec); if (!sec) return; }  // (#4659): a section still on its way
   const prio = mode === 'prio' && !kcol;
   const lk = list.filter(i => { const t = S.tasks.get(i); return tlkHits(t, {...(!target.parent_id ? {list_id: target.list_id} : {}), ...(prio ? {priority: target.priority} : {})}); });
   if (lk.length && lk.length === list.length && list.length === 1) { tlkToast(S.tasks.get(lk[0])); render(); return; }
@@ -285,7 +285,7 @@ async function dgBlock(ids, row, after, plain = false) {
   let lo, hi;
   if (after) { const nx = rows[i + 1]; lo = target.sort; hi = nx && nx.list_id === target.list_id ? nx.sort : target.sort + n + 1; }
   else { const pv = rows[i - 1]; hi = target.sort; lo = pv && pv.list_id === target.list_id ? pv.sort : target.sort - n - 1; }
-  const tmr = S.route.key === 'tomorrow' && target.due && target.due === addDays(today(), 1) ? target.due : null;  // 2.1365.0 (#6960)
+  const tmr = S.route.key === 'tomorrow' && target.due && target.due === addDays(today(), 1) ? target.due : null;  // (#6960)
   const items = {}, days = [];
   list.forEach((id, k) => {
     const t = S.tasks.get(id), it = {sort: lo + (hi - lo) * (k + 1) / (n + 1)};
@@ -304,7 +304,7 @@ async function dgBlock(ids, row, after, plain = false) {
     : under ? trn('{0} task is now a subtask of “{1}”', '{0} tasks are now subtasks of “{1}”', n, dgShort(S.tasks.get(target.parent_id)?.title))
     : insec ? wip_msg(one ? tr('Moved to section {0}', secName(sec)) : trn('{0} task moved to section {1}', '{0} tasks moved to section {1}', n, secName(sec)), sec)
     : trn('{0} task moved', '{0} tasks moved', n);
-  if (one && away) lab = wsc_moveMsg(one.list_id, target.list_id, lab);  // 2.53.0 (#1474): Private -> organisation: who sees it now
+  if (one && away) lab = wsc_moveMsg(one.list_id, target.list_id, lab);  // (#1474): Private -> organisation: who sees it now
   const notes = [list.some(i => 'priority' in items[i]) ? tr('Priority: {0}', tr([N_('None'), N_('Low'), '', N_('Medium'), '', N_('High'), '', N_('Urgent')][target.priority] || N_('None'))) : '',
     deep.length ? trn('{0} task stays: its own subtasks would go deeper than {1} levels', '{0} tasks stay: their own subtasks would go deeper than {1} levels', deep.length, maxDepth()) : '',
     ro.length ? trn('{0} task skipped (read-only)', '{0} tasks skipped (read-only)', ro.length) : '',
@@ -318,7 +318,7 @@ async function dgBlock(ids, row, after, plain = false) {
 // into a section / kanban column of a list as standalone tasks, at its top, order kept
 // (#7351): also the single task's way (dropped on a section's head or a column, "Move to section…"): only a move into another
 // project needs the right on that project, the section alone the right on the task
-async function dgToSection(ids, lid, sid) {
+async function dgToSection(ids, lid, sid, lab0) {  // lab0: the gesture's own words (New section …)
   if (sid < 0) { sid = await secReal(sid); if (!sid) return; }  // 2.559.0 (#4659): a section still on its way (dnd.js)
   if (sid && !S.sections.some(x => x.id === sid && x.list_id === lid)) return;
   let list = dgRoots(dgOrder(ids));
@@ -334,9 +334,10 @@ async function dgToSection(ids, lid, sid) {
   const items = {};
   list.forEach((id, k) => { const t = S.tasks.get(id); items[id] = {section_id: sid, sort: top - list.length + k, ...(t.parent_id ? {parent_id: null} : {}), ...(t.list_id !== lid ? {list_id: lid} : {})}; });
   if (['date', 'title', 'creator', 'flow', 'created', 'created_asc'].includes(sortMode()) || sortByCol(sortMode())) LS.set('sort2.' + S.route.key, 'prio');
-  const n = list.length, subs = list.filter(i => S.tasks.get(i).parent_id).length;
-  return dgApply(items, wip_msg(n === 1 ? tr('Moved to section {0}', secName(sid)) : trn('{0} task moved to section {1}', '{0} tasks moved to section {1}', n, secName(sid)), sid),
-    [subs ? trn('{0} subtask is now standalone', '{0} subtasks are now standalone', subs) : '',
+  const n = list.length, subs = list.filter(i => S.tasks.get(i).parent_id).length, one = n === 1;
+  const lab = lab0 || wip_msg(one ? (subs ? tr('Subtask is now standalone') + ' · ' : '') + tr('Moved to section {0}', secName(sid)) : trn('{0} task moved to section {1}', '{0} tasks moved to section {1}', n, secName(sid)), sid);
+  return dgApply(items, lab,
+    [subs && (!one || lab0) ? trn('{0} subtask is now standalone', '{0} subtasks are now standalone', subs) : '',
       ro.length ? trn('{0} task skipped (read-only)', '{0} tasks skipped (read-only)', ro.length) : '', lk.length ? trn('{0} task is locked', '{0} tasks are locked', lk.length) : '']);
 }
 async function dgToNewSection(ids, lid) {
@@ -344,12 +345,12 @@ async function dgToNewSection(ids, lid) {
   if (!canEditList(lid)) { roToast(); return; }
   const name = (await askPrompt(tr('New section'), tr('New section'), {ok: tr('Create'), input: {max: 100}}))?.trim();
   if (!name) return;
-  return histGroup(async () => {
+  return histGroup(async () => {  // one step: Undo puts the tasks back and removes the section
     const had = new Set(S.sections.map(s => s.id));
     await sectionCreate(lid, name);
     const s = S.sections.find(x => x.list_id === lid && !had.has(x.id));
-    if (s) await dgToSection(ids, lid, s.id);
-  });
+    if (s) await dgToSection(ids, lid, s.id, tr('New section {0}', qn(name)));
+  }, tr('New section {0}', qn(name)));
 }
 // a list in the sidebar: standalone tasks there (subtasks leave their parent)
 async function dgToList(ids, lid) {

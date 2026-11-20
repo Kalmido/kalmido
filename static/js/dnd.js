@@ -187,7 +187,7 @@ async function dropTask0(id, el, clientY) {
     item.due = wad.dataset.day; item.due_time = null;
   } else if (quad) {
     if (mxQuad(t) === +quad.dataset.quad) return;
-    item.priority = +quad.dataset.quad;  // 2.574.0 (#3376): Urgent stays Urgent in its quadrant
+    item.priority = +quad.dataset.quad;  // (#3376): Urgent stays Urgent in its quadrant
   }
   if (item.list_id && !canEditList(item.list_id)) { roToast(); return; }
   if (tlkHits(t, item)) { tlkToast(t); render(); return; }  // 2.36.0 (#1118): a locked task keeps its list / day / priority
@@ -409,7 +409,7 @@ function sectionPicker(anchor, id) {
   const cur = secs.some(x => x.id === t.section_id) ? t.section_id : null;
   menu(anchor, [...(secs.length ? [{label: tr('Unassigned'), icon: 'list', on: !cur && !t.parent_id, fn: () => taskToSection(id, null)},
     ...secs.map(x => ({label: x.name, icon: 'folder', on: cur === x.id && !t.parent_id, fn: () => taskToSection(id, x.id)}))] : []),
-    ...(add ? [...(secs.length ? ['-'] : []), {label: tr('New section…'), icon: 'plus', fn: () => dgToNewSection([id], t.list_id)}  /* 2.19.0 (#667), (#7351): name it, the task lands in it; one step */] : [])]);
+    ...(add ? [...(secs.length ? ['-'] : []), {label: tr('New section…'), icon: 'plus', fn: () => dgToNewSection([id], t.list_id)}  /* (#667), (#7351): name it, the task lands in it; one step */] : [])]);
 }
 function secHeadMenu(anchor, sid) {
   const s = S.sections.find(x => x.id === sid); if (!s) return;
