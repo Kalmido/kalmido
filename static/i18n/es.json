@@ -19732,8 +19732,5 @@
   "documents from templates": "documentos de plantillas",
   "invoice series": "series de facturas",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "El cliente de este documento ya no está en esta oficina (movido a otro espacio de trabajo). Elige primero otro cliente.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "El cliente de la factura plantilla ya no está en esta oficina (movido a otro espacio de trabajo). Elige otra factura plantilla y vuelve a activar la serie.",
-  "Tag missing: the rule does nothing until you select a tag again": "Falta la etiqueta: la regla no hace nada hasta que vuelvas a elegir una etiqueta",
-  "Crew|mail group": "Equipo de rodaje",
-  "Please select a contact": "Elige un contacto"
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "El cliente de la factura plantilla ya no está en esta oficina (movido a otro espacio de trabajo). Elige otra factura plantilla y vuelve a activar la serie."
 }
