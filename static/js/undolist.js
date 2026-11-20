@@ -147,19 +147,29 @@ function ul_open(anchor) {
   const p = openPop(anchor, `<div class="ulpop" role="dialog" aria-label="${esc(tr('Recent steps'))}">${ul_head()}<div class="ulbody">${ul_inner()}</div></div>`,
     () => $('.ulpop', p)?._grip?.destroy());  // #7311: the grip goes with the window
   p.classList.add('ulwin');
+  let right = 0;
   const place = () => {  // as wide as it needs, inside the window
     if (isMobile() || p.classList.contains('hidden') || !p.classList.contains('ulwin')) return;
     const r = anchor.getBoundingClientRect(), w = p.offsetWidth, h = p.offsetHeight;
     p.style.left = Math.max(12, Math.min(r.left, innerWidth - w - 12)) + 'px';
     p.style.top = (r.bottom + 6 + h > innerHeight - 12 ? Math.max(12, r.top - h - 6) : r.bottom + 6) + 'px';
+    right = p.getBoundingClientRect().right;
   };
   place();
-  // #7311: the corner grip like the bell's (the one grip, grip.js): width and height per device under grip:undo-win, at most
-  // the rest of the window right of / below the window's corner; off on the phone (the sheet)
+  // #7311: the corner grip like the bell's (the one grip, grip.js): width and height per device under grip:undo-win. The window
+  // hangs under the arrow at the top right: its right edge stays, it grows to the left and down (at most to the window's edge;
+  // an arrow in the left half: to the right); off on the phone (the sheet)
   const win = $('.ulpop', p), rem = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
   if (win && !isMobile()) {
-    Promise.resolve(grip_corner(win, {key: 'undo-win', minW: 20, minH: 16,
-      maxW: () => (innerWidth - p.getBoundingClientRect().left - 12) / rem(), maxH: () => (innerHeight - p.getBoundingClientRect().top - 12) / rem()}))
+    const ar = anchor.getBoundingClientRect(), toLeft = ar.left + ar.width / 2 > innerWidth / 2;  // an arrow on the left: grows right
+    const keep = toLeft && typeof ResizeObserver === 'function' ? new ResizeObserver(() => {  // after the layout, before the paint
+      if (!win.isConnected || p.classList.contains('hidden')) { keep.disconnect(); return; }
+      if (right) p.style.left = Math.max(12, right - p.offsetWidth) + 'px';
+    }) : null;
+    keep?.observe(win);
+    const room = () => { const b = p.getBoundingClientRect(); return (toLeft ? (right || b.right) - 12 : innerWidth - b.left - 12) / rem(); };
+    Promise.resolve(grip_corner(win, {key: 'undo-win', at: toLeft ? 'bl' : 'br', minW: 20, minH: 16,
+      maxW: room, maxH: () => (innerHeight - p.getBoundingClientRect().top - 12) / rem()}))
       .then(place).catch(() => {});
   }
   ul_fetch().then(ul_draw);
