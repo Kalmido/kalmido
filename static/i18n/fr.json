@@ -19751,5 +19751,5 @@
   "invoice series": "des séries de factures",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "Le client de ce document n'est plus dans ce bureau (déplacé vers un autre espace de travail). Choisis d'abord un autre client.",
   "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Le client de la facture modèle n'est plus dans ce bureau (déplacé vers un autre espace de travail). Choisis une autre facture modèle et réactive la série.",
-  "Tag missing: the rule does nothing until you choose a tag again": "Étiquette manquante : la règle ne fait rien tant que tu ne choisis pas une autre étiquette"
+  "Tag missing: the rule does nothing until you select a tag again": "Étiquette manquante : la règle ne fait rien tant que tu ne choisis pas une autre étiquette"
 }

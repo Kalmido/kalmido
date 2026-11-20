@@ -54,7 +54,7 @@ function mr_took(j) {  // an answer of a change: the rules, the sections (with t
 function mr_rowsHtml() {
   const n = MR.rules.length;
   const rows = MR.rules.map((r, i) => `<div class="mrow rul-row mr-row${r.active ? '' : ' off'}" data-rid="${/*html-ok*/ r.id}">${ic('zap', 's')}
-    <div class="rul-txt"><b>${esc(mr_title(r))}</b><span class="muted">${esc(mr_sentence(r))}</span>${r.waiting ? `<span class="rul-paused">${esc(tr('Waiting: its section was deleted'))}</span>` : ''}${r.tag_missing ? `<span class="rul-paused" data-mr-tagmiss="${/*html-ok*/ r.id}">${esc(tr('Tag missing: the rule does nothing until you choose a tag again'))}</span>` : ''}</div>
+    <div class="rul-txt"><b>${esc(mr_title(r))}</b><span class="muted">${esc(mr_sentence(r))}</span>${r.waiting ? `<span class="rul-paused">${esc(tr('Waiting: its section was deleted'))}</span>` : ''}${r.tag_missing ? `<span class="rul-paused" data-mr-tagmiss="${/*html-ok*/ r.id}">${esc(tr('Tag missing: the rule does nothing until you select a tag again'))}</span>` : ''}</div>
     <label class="rul-sw" title="${esc(tr('Active'))}"><input type="checkbox" data-mr-on="${/*html-ok*/ r.id}" ${r.active ? 'checked' : ''} aria-label="${esc(tr('Active') + ': ' + mr_title(r))}"></label>
     ${i > 0 ? `<button type="button" class="iconbtn" data-mr-up="${/*html-ok*/ r.id}" title="${esc(tr('Move up'))}" aria-label="${esc(tr('Move up') + ': ' + mr_title(r))}">${ic('up', 's')}</button>` : ''}
     <button type="button" class="iconbtn" data-mr-edit="${/*html-ok*/ r.id}" title="${esc(tr('Edit'))}" aria-label="${esc(tr('Edit') + ': ' + mr_title(r))}">${ic('edit', 's')}</button>
