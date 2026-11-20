@@ -104,6 +104,20 @@ const OFF = `() => { try { if (localStorage.getItem('t2663off') !== '1') return;
     check(r5 && r5.tasks.includes('Mist the orchids'), 'hidden page (#6340): the start state holds the change made just before, at once ' + JSON.stringify(r5));
     const at5 = await ev(AT);
     check(at5 > Date.now() - 120000, 'hidden page (#6340): the record carries the time the server confirmed it ' + at5);
+    // ---- (#6340, reader F1): another tab of this browser signed out (it removed tasks.uid): a hidden page here writes no
+    // start state back - the next person at this browser finds nothing (#2889, #4200)
+    const T3 = await ev(`api('POST', '/api/tasks', {title: 'Repot the fern', list_id: ${L}}).then(t => t.id)`);
+    check(T3 > 0 && await pu(`S.tasks.has(${T3}) && !OUT.q.length`), 'signed out elsewhere: a newer state to write');
+    const so = await ev(`(() => {
+      const uid0 = LS.get('uid', null), w0 = oc_write; let n = 0;
+      oc_write = function () { n++; return w0.apply(this, arguments); };
+      try {
+        LS.del('uid'); dispatchEvent(new Event('pagehide')); const off = n;
+        LS.set('uid', uid0); dispatchEvent(new Event('pagehide')); return {uid0, off, on: n - off};
+      } finally { oc_write = w0; }
+    })()`);
+    check(so.uid0 != null && so.off === 0, 'signed out in another tab (#6340): the hidden page writes no start state ' + JSON.stringify(so));
+    check(so.on === 1, 'signed in again: the hidden page writes as before ' + JSON.stringify(so));
 
     // ---- IndexedDB refuses (quota): localStorage as before, logged
     const fb = await ev(`(async () => {
