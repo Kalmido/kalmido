@@ -1,5 +1,9 @@
 /* Kalmido web client: the styles of the module "clientpage" (2.1420.0, #4742), loaded with it (static/js/lazyload.js LD_CSS).
    Moved unchanged from app.css (same order); later than app.css in the cascade. */
+/* 2.1511.0 (#4742): moved unchanged from app.css, only this module draws them (start budget). They stand before the file's own rules, so the cascade stays as it was. Where only part of a section moved, its comment stands in both places. */
+/* 2.223.0 B (#2819): the import link of the client page is drawn without the office module, so its rules live here */
+.oimlink a:hover{color:var(--accent);text-decoration:none}
+/* the rules of this file */
 .mscav{border-radius:var(--radius);background:color-mix(in srgb,var(--cc,var(--accent)) 16%,var(--bg3));color:var(--cc,var(--accent));font-size:var(--fs-l)}
 .mstag{display:inline-flex;align-items:center;gap:.25rem;padding:0 .5rem;border-radius:99rem;border:1px solid var(--line2);color:var(--text2);font-size:var(--fs-s);line-height:1.5rem}
 .mstag-cl{border-color:color-mix(in srgb,var(--accent) 40%,var(--line2));color:var(--accent)}
