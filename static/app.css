@@ -2280,6 +2280,16 @@ body.fab-on #view .chcomp.tccomp{padding-right:calc(var(--fab-safe) + .75rem)}  
 /* 2.437.0 A (#3737): the typing row of the agent chat is always there: fixed height, a rule above, the text on one line */
 .atyping.atyrow,#achat .atyping.atyrow,.chview .atyping.atyrow{box-sizing:border-box;flex:none;height:2.25rem;padding-top:.25rem;padding-bottom:.25rem;border-top:1px solid var(--line);overflow:hidden}
 .atyping.atyrow .ttx{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* (#7672): the typing line and "Earlier suggestions (N)" share ONE row of a fixed height (36 px, 44 px with the button):
+   the hint left (cut with "…"), the button right and whole; the open list wraps below across the full width. The list of messages
+   does not jump when the hint comes or goes (#3737) */
+.actysug{flex:none;display:flex;flex-wrap:wrap;align-items:flex-start;border-top:1px solid var(--line)}
+.actysug>.atyping.atyrow,#achat .actysug>.atyping.atyrow,.chview .actysug>.atyping.atyrow{flex:1 1 0;min-width:0;border-top:0}
+.actysug.sugon>.atyping.atyrow,#achat .actysug.sugon>.atyping.atyrow,.chview .actysug.sugon>.atyping.atyrow{height:2.75rem}
+.actysug>.acsug{display:contents}
+.actysug>.acsug[hidden]{display:none}
+.actysug>.acsug>.acsug-t{flex:none;width:auto;max-width:100%;padding:0 .75rem}
+.actysug>.acsug>.acsug-l{flex:1 0 100%;box-sizing:border-box;padding:0 .5rem .5rem;background:var(--bg2)}
 /* global: spinning ring on the agent chip / agents button while an agent works, an accent dot while it waits */
 .achip{position:relative}
 .achip.aspin::before,#rail .aspin::before,#tabs .aspin .tico::before{content:'';position:absolute;border-radius:50%;border:2px solid color-mix(in srgb,var(--accent) 22%,transparent);border-top-color:var(--accent);pointer-events:none}

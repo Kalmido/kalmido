@@ -188,6 +188,18 @@ the e-mail address (required then). After sending, a person without an account s
 and gets it once by mail; the link shows only that report (see the customer portal). People of the organisation who
 send a form signed in get no status link: they see the task in the app.
 
+**Report a problem from the app** (2.1514, #7531): the command palette and *Settings > Help > About* open a short form -
+*Something is wrong* asks **Problem** and **Expected**, *A wish* asks **What do you want to do?** and **What is in the way
+today?** (both required) and **How should it work?**. Under it the reporter sees the details that go along (page, version,
+device, the last errors and failed requests - no texts of tasks, documents or inputs) and can leave them out, and below
+what was already reported at this place with its state (*Open*, *In progress*, *Fixed*, *Will not be done*; done ones
+dimmed). The report becomes a task in the project the server admin chose for error reports (in the hosting: the
+operator's), the details as its own attachment `kalmido-context.json`; the state follows the task by itself (assigned = in
+progress, done = fixed, won't do = will not be done). Without a chosen project *Report a problem* writes to the support
+(hosting) or opens the issue tracker as before. API: [Report a problem](API.md#report-a-problem).
+<!-- No "How to" section of its own: the help shows 2-4 sections per area (tests/p21072_b_help_api_test.py) and Team has
+     four; the dialog explains itself (fields, what goes along, the state below it). -->
+
 Against spam, without any outside service: the hidden honeypot field, limits per address and per form, a signed time
 stamp in the page (sent sooner than 3 seconds after loading or more than 24 hours later = "please send it once more"),
 at most 5 reports per e-mail address, form and hour, at most 3 confirmation mails per address and hour (plus the server's

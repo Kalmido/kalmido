@@ -63,6 +63,10 @@ folder's owner connects it; the token stays sealed.
   error again only counts up at its open ticket. A new error sends one News item and push (*Settings > Notifications >
   New error reports*); repeats stay quiet. At most `KALMIDO_ERROR_REPORTS_PER_HOUR` (default 30) new tickets per
   project and hour. Tasks by e-mail (see [Tasks by e-mail](IMPORT.md#tasks-by-e-mail)) are another way in.
+  *Since 2.1514 (#7531):* the project an admin picks for the browser's error reports (*Settings > Server*, block *Errors in the browser*) also
+  takes *Report a problem* from the app (bug or wish, see [TEAM.md](TEAM.md#report-forms)); such a ticket carries the
+  context block (page, version, device, the last browser errors and failed requests, never contents) as its own attachment
+  `kalmido-context.json`, as does the inbound webhook with `context` ([API.md](API.md#report-a-problem)).
 - **Code in Markdown** (2.18.0): code blocks are highlighted by language and have *Copy*; `src/app.py:42` (or
   `app.js:10-20`) in notes and comments links to that file and line at the default branch.
 - **API / MCP:** `GET /api/v1/lists/{id}/repos` (never a token), `get_task` includes `code` and `repo`;

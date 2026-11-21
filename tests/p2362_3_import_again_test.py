@@ -128,6 +128,11 @@ CAL = ok(F.post(B + "/api/evcals", json={"name": "Mein Kalender"}), "a calendar"
 ok(F.post(B + "/api/events", json={"cal_id": CAL, "title": "Termin Probe", "start": "2026-11-02T10:00", "end": "2026-11-02T11:00"}), "an event")
 # 2.1235.0 (#6240): a task of the inbox - the inbox of a file always goes into my private inbox, whatever the target
 ok(F.post(B + "/api/tasks", json={"title": "Eingang Probe"}), "an inbox task")
+# (#6358): a Home & life project (stays private whatever the target) with a task, and a private knowledge page (umz_private)
+LIFE = ok(F.post(B + "/api/lists", json={"name": "Vertrag Probe"}), "a Home & life project")["id"]
+dbxm.connect(DATA).execute("UPDATE lists SET life='contracts' WHERE id=?", (LIFE,))
+ok(F.post(B + "/api/tasks", json={"title": "Vertrag Aufgabe", "list_id": LIFE}), "a task of the Home & life project")
+ok(F.post(B + "/api/wiki/pages", json={"space": "private", "path": "Privat Seite", "body": "Nur meins"}), "a private knowledge page")
 FILE1 = export(F)
 base = counts(FID)
 check(all(v == 1 for v in base.values()), f"the data as it starts {base}")
@@ -177,6 +182,11 @@ F.post(B + "/api/orgs", json={"name": "Frida Studio"})
 FORG = one("SELECT org_id FROM org_members WHERE user_id=?", (FID,))
 if FORG:
     inbox_n = one("SELECT COUNT(*) FROM tasks WHERE created_by=? AND title='Eingang Probe' AND deleted_at IS NULL", (FID,))
+    PRIV = ("SELECT (SELECT COUNT(*) FROM lists WHERE owner_id=? AND name='Vertrag Probe' AND deleted_at IS NULL), "
+            "(SELECT COUNT(*) FROM tasks WHERE created_by=? AND title='Vertrag Aufgabe' AND deleted_at IS NULL), "
+            "(SELECT COUNT(*) FROM wiki_pages WHERE owner_id=? AND org_id IS NULL AND path LIKE '%Privat Seite%' AND deleted_at IS NULL)")
+    priv0 = tuple(dbxm.connect(DATA).execute(PRIV, (FID, FID, FID)).fetchall()[0])
+    check(priv0[0] >= 2 and priv0[1] >= 2 and priv0[2] >= 1, f"#6358: the private import brought the Home & life project and its task {priv0}")
     iid, j = upload(F, FILE1)
     j = run(F, iid, target=FORG)
     check(j.get("state") == "done" and counts(FID)["lists"] == first["lists"] + 1, f"into another workspace it is a copy {counts(FID)}")
@@ -186,6 +196,17 @@ if FORG:
               (FORG,)) == 1, "#6240: the task came along into the copy")
     check(one("SELECT COUNT(*) FROM tasks WHERE created_by=? AND title='Eingang Probe' AND deleted_at IS NULL", (FID,)) == inbox_n,
           f"#6240: the inbox task is not doubled by the copy {inbox_n}")
+    # (#6358, audit #4773 F10): what lands private whatever the target is matched against the private import before: habits,
+    # address books with contacts, calendars with events, the Home & life project with its task, the knowledge page - nothing twice
+    after, res = counts(FID), j.get("result") or {}
+    check({k: after[k] for k in after if k not in ("lists", "tasks", "comments", "sections")} == {k: first[k] for k in first if k not in ("lists", "tasks", "comments", "sections")},
+          f"#6358: the private parts are not doubled by the copy {after} {first}")
+    priv1 = tuple(dbxm.connect(DATA).execute(PRIV, (FID, FID, FID)).fetchall()[0])
+    check(priv1 == priv0 and not one("SELECT COUNT(*) FROM lists WHERE org_id=? AND name='Vertrag Probe'", (FORG,)),
+          f"#6358: the Home & life project (no empty second one), its task and the private knowledge page are not doubled {priv0} -> {priv1}")
+    check(not any("could not be imported" in w["text"] for w in res.get("warnings") or []), f"#6358: no warning for the private tasks {res.get('warnings')}")
+    check((res.get("stats") or res.get("counts") or {}).get("skipped", 0) > 0 or any("skipped" in w["text"] for w in res.get("warnings") or []),
+          f"#6358: they count as skipped {res}")
     dbxm.connect(DATA).execute("DELETE FROM lists WHERE org_id=?", (FORG,))
 
 # review: the imported project went to somebody else: nothing more is written into it; a project in the trash is not there

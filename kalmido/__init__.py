@@ -269,6 +269,7 @@ ORDER = (
     "integrations.git_issues",  # 2.394.0 B (#3377): issue import of a repository connection
     "integrations.git_sync",  # 2.394.0 C (#3377): two-way issue sync (hooks into git / tasks.validation)
     "integrations.errorreports",
+    "integrations.meldung",  # (#7531): the one intake for reports of people (after errorreports)
     "api.projects",
     "lists.sprints",  # 2.60.0 (#343): sprints of project lists (after api.v1: it has token routes)
     "lists.parttrash",  # 2.567.0 A (#4707): sections / sprints in the trash, the trash view of the other parts

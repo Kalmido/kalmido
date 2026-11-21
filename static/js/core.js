@@ -909,7 +909,7 @@ async function rawFetch0(method, url, body, key, osp, oq, lim) {
   if (method !== 'GET' && own) opt.headers['X-Kalmido-Undo-Own'] = '1';  // 2.1074.0 (#5493): this device's own undo / redo of a step without a server group (undo.js histDo) is no new server step
   if (body instanceof FormData) opt.body = body;
   else if (body !== undefined) { opt.body = JSON.stringify(body); opt.headers['Content-Type'] = 'application/json'; }
-  let r;
+  let r; const t0 = performance.now();  // (#7531): the duration of a failed request (clienterr.js cer_req)
   // #7494: the time limit (NET_T) runs until the answer is read; an upload with its progress bar keeps its own Cancel (no limit),
   // a form without one counts as a long task. Past the limit: NoAnswer (not Offline: the line may be up, the write may have arrived)
   const upb = body instanceof FormData && typeof upSend === 'function' && upWanted(body);
@@ -920,8 +920,9 @@ async function rawFetch0(method, url, body, key, osp, oq, lim) {
   // so no caller draws into a page that is not there (outFlush -> renderTop, chatReact, rel_load, ld_go -> applyState, ...)
   // (#6338): every form with files counts as a transfer that runs while it goes (upbar.js upRun)
   // #7521: stays - rawFetch0 itself (its time limit tm, NET_T)
-  try { const fp = upb ? upSend(url, opt, body) : fetch(url, opt); r = await Promise.race([body instanceof FormData && typeof upRun === 'function' ? upRun(fp) : fp, tm.p]); } catch (e) { if (e instanceof NoAnswer) throw noAns(e); tm.stop(); if (!globalThis.document) return new Promise(() => {}); if (e.cancelled) throw e; const ch = OUT.down; OUT.down = false; setOnline(false); if (ch && S.booted) renderTop(); throw new Offline('offline'); }
+  try { const fp = upb ? upSend(url, opt, body) : fetch(url, opt); r = await Promise.race([body instanceof FormData && typeof upRun === 'function' ? upRun(fp) : fp, tm.p]); } catch (e) { if (typeof cer_req === 'function') cer_req(method, url, 0, t0); if (e instanceof NoAnswer) throw noAns(e); tm.stop(); if (!globalThis.document) return new Promise(() => {}); if (e.cancelled) throw e; const ch = OUT.down; OUT.down = false; setOnline(false); if (ch && S.booted) renderTop(); throw new Offline('offline'); }
   tm.stop();
+  if (r.status >= 400 && typeof cer_req === 'function') cer_req(method, url, r.status, t0);  // (#7531): a failed request for a report's context
   // 2.21.0 (#673): the device is online but the server is not (a proxy answers 502 / 503 / 504 without Kalmido's JSON): the
   // same as offline (cached data, changes wait), the hint says "server not reachable"; never a reload loop on a proxy page
   // 2.24.0 (#907): 503 (the proxy's maintenance page) or a notice of the kind "maintenance": "server in maintenance"

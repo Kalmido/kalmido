@@ -1433,6 +1433,7 @@ def umz_srcs(st):
 
 
 _ANY = object()
+_MINE = object()  # (#6358): my own imports of the source into any target (what lands private whatever the target)
 
 
 def umz_earlier(c, uid, src, eid="", org=_ANY):
@@ -1440,7 +1441,8 @@ def umz_earlier(c, uid, src, eid="", org=_ANY):
     source key). src: a key or (key, address key). (#6593, with #6358): an exact question to the JSON column (no text
     search), and per target instead of per person -- an import into an organisation counts for every admin of it, one into
     the private space only for its owner. org: the one target (None = private); _ANY = every target the person may import
-    into (the preview, before the choice: Private and the organisations she administers, umz_targets)."""
+    into (the preview, before the choice: Private and the organisations she administers, umz_targets); _MINE = my own imports
+    into any target (#6358: the private parts of an account export land in my private space whatever the target)."""
     keys = [k for k in ([src] if isinstance(src, str) else src) if k and UMZ_EID_RE.fullmatch(k)]
     first = eid or (keys[0] if keys else "")
     if not keys and not (first and UMZ_EID_RE.fullmatch(first)):
@@ -1451,6 +1453,8 @@ def umz_earlier(c, uid, src, eid="", org=_ANY):
         tw, ta = f"({priv} OR report->>'target' = ANY(?))", [uid, orgs]
     elif org is None:
         tw, ta = priv, [uid]
+    elif org is _MINE:
+        tw, ta = "user_id=?", [uid]
     else:
         tw, ta = "report->>'target' = ?", [str(int(org))]
     return c.execute("SELECT id, user_id, created, created_at, report FROM imports WHERE source=? AND undone_at IS NULL AND "
@@ -1473,23 +1477,36 @@ def umz_again(c, uid, src, eid):
     return {"id": r["id"], "at": r["created_at"], "undo_until": iso(until) if until > now_utc() else ""}
 
 
-def umz_have(c, run, uid, rows, mine=False):
+UMZ_PRIV_KINDS = ("time_entries", "habits", "filters", "templates", "books", "ev_cals", "contacts", "events", "event_attendees",
+                  "template_files")  # (#6358): an account export's parts that land in my private space whatever the target
+
+
+def umz_have(c, run, uid, rows, mine=False, priv_lists=()):
     """2.362.3 (#3098): fills run.have {kind: {old id: new id}} from the earlier imports of this source, with what still counts
-    as there (UMZ_SRC), in the person's access context. Only imports into the same target: a copy into another workspace is
-    wanted. An earlier run with the areas of an organisation export: run.oi_done. mine = the file is my own export of this
-    server: it holds the copies of the earlier imports too, under their ids here."""
-    known = {}
+    as there (UMZ_SRC), in the person's access context. Imports into the same target: a copy into another workspace is
+    wanted. (#6358, audit #4773 F10): what lands private whatever the target (an account export's habits, filters, templates,
+    address books, calendars, time entries, the inbox and the Home & life projects = priv_lists, the old list ids, with what
+    hangs on them; the file store, pages and tables of umz_private = run.priv_done) is matched against EVERY earlier import of
+    mine, also one into another target. An earlier run with the areas of an organisation export: run.oi_done. mine = the
+    file is my own export of this server: it holds the copies of the earlier imports too, under their ids here."""
+    known, other, priv_lists = {}, {}, {_oid(x) for x in priv_lists if _oid(x)}
     for r in rows:
-        if json.loads(r["report"] or "{}").get("target") != run.org:
+        same = json.loads(r["report"] or "{}").get("target") == run.org
+        if not same and (run.kind == "org" or r["user_id"] != uid):  # (#6358): another target: only my own account imports
             continue
         cr = json.loads(r["created"] or "{}")
-        run.oi_done = run.oi_done or bool(cr.get("oi_done"))
+        if same:
+            run.oi_done = run.oi_done or bool(cr.get("oi_done"))
+        run.priv_done = run.priv_done or bool(cr.get("oi_done"))  # (#6358): an account export's oi_done = its private parts (umz_private)
         for kind, m in (cr.get("src") or {}).items():
             if kind in UMZ_SRC and isinstance(m, dict):
                 m = {_oid(k): v for k, v in m.items() if _oid(k) and _oid(v)}
-                known.setdefault(kind, {}).update({**({v: v for v in m.values()} if mine else {}), **m})
+                if not same:  # (#6358): of another target only what lands private here too (a list's parts follow it: parent check below)
+                    m = {k: v for k, v in m.items() if k in priv_lists} if kind == "lists" else \
+                        m if kind in UMZ_PRIV_KINDS or UMZ_SRC[kind][2] in ("lists", "tasks") else {}
+                (known if same else other).setdefault(kind, {}).update({**({v: v for v in m.values()} if mine else {}), **m})
     for kind, (table, col, parent) in UMZ_SRC.items():
-        m, here = known.get(kind) or {}, {}
+        m, here = {**(other.get(kind) or {}), **(known.get(kind) or {})}, {}  # (#6358): the same target's copy first
         ids, ups = sorted(set(m.values())), set(run.have.get(parent, {}).values()) if parent else {uid}
         for i in range(0, len(ids), 500):
             part = ids[i:i + 500]
@@ -1663,6 +1680,7 @@ class _Run:
         self.uid, self.iid, self.eid, self.org = uid, iid, eid, org
         self.maps = {}
         self.have, self.src, self.oi_done = {}, {}, False  # 2.362.3 (#3098): umz_have; old -> new of this run, for the next one
+        self.priv_done = False  # (#6358): an earlier import of mine (any target) brought the private parts (umz_private) already
         self.created = {"lists": [], "sections": [], "tasks": [], "habits": [], "filters": [], "templates": [], "ev_cals": [],
                         "books": [], "time_entries": [], "journal": [], "settings": {}, "files": [], "template_files": []}
         self.stats = {}
@@ -2127,6 +2145,9 @@ def umz_write(c, run, uid, man, zf, files, data, people):
             "tt_id": umz_tt_id(eid, run.list_org.get(lid), t.get("id"), t.get("tt_id")), "parent_id": None, "updated_at": ts,
             **_umz_delivery(t)}, ts)
         tid = umz_insert(c, "tasks", d, told=True) if d else None
+        if not tid and d and c.execute("SELECT 1 FROM tasks WHERE created_by=? AND tt_id=?", (uid, d["tt_id"])).fetchone():
+            run.count("skipped")  # (#6358): its key is here already (the same file's task in the same workspace, e.g. in the trash)
+            continue
         if not tid:
             run.warning(N_("A task could not be imported: {0}"), _txt(t.get("title"), 80))
             continue
@@ -2573,8 +2594,8 @@ def umz_private(c, run, uid, man, zf, files, data, who):
     oi = umz_private_oi(data, files, me_old)
     if not oi and not umz_more_has(data):
         return
-    again = run.oi_done
-    if again:  # 2.362.3 (#3098): an earlier import of this file brought them already
+    again = run.priv_done
+    if again:  # (#3098): an earlier import of this file brought them already (#6358: into any target, they are private)
         run.warning(N_("Your files, knowledge pages and tables are here already from an earlier import: they were skipped."))
         # 2.995.0 (#5602, review F1): the own ticket types and field schema still go through (one with the same key here stays,
         # a new one comes), so the projects this run creates find their types and link their fields
@@ -2841,15 +2862,18 @@ def umz_run(uid, iid, opts):
             src = umz_src(man, st.get("export_id") or "")
             # (#3098); (#6593): the imports into this target (by any of its admins); mine = my own export of this server
             me_src = {"format": UMZ_FORMAT, "source": {"url": PUBLIC_URL, "instance": umz_instance(c)}, "user": {"id": uid}}
-            umz_have(c, run, uid, umz_earlier(c, uid, (src, umz_src_old(man)), st.get("export_id") or "", opts["org"]),
-                     mine=src in (umz_src(me_src, ""), umz_src_old(me_src)))
+            # (#6358): + my own imports of the source into any target, for what lands private whatever the target
+            keys, eid0 = (src, umz_src_old(man)), st.get("export_id") or ""
+            rows = {r["id"]: r for r in [*umz_earlier(c, uid, keys, eid0, opts["org"]), *(umz_earlier(c, uid, keys, eid0, _MINE) if run.kind != "org" else [])]}
+            umz_have(c, run, uid, [rows[k] for k in sorted(rows)], mine=src in (umz_src(me_src, ""), umz_src_old(me_src)),
+                     priv_lists=[L.get("id") for L in data.get("lists") or [] if isinstance(L, dict) and (L.get("is_inbox") or _txt(L.get("life"), 20))])
             if run.kind == "org" and not run.org:  # 2.96.0 D (#1941): an organisation export into the private space
                 run.warning(N_("Imported into your private workspace: nobody joins an organisation, projects are only shared with the people you ticked."))
             c.commit()
             if run.kind == "org":  # 2.137.0 (#2344): the personal office for office parts going into the private space
                 from .orgimport import oi_prepare
                 oi_prepare(c, run, uid, data)
-            elif data.get("absences") and not run.oi_done:  # 2.765.0 (#3965, review N3: not for a second import of the file): my absences go into my personal office (umz_private, also next to an organisation)
+            elif data.get("absences") and not run.priv_done:  # (#3965, review N3): not for a second import of the file (#6358: into any target): my absences go into my personal office (umz_private, also next to an organisation)
                 from .orgimport import oi_prepare
                 oi_prepare(c, run, uid, {"oi": umz_office_oi(data, _oid((man.get("user") or {}).get("id")) or -1)}, private=True)
             _L.rej = {}  # 2.531.0 (#4317) F11: umz_insert counts the refused rows of the run

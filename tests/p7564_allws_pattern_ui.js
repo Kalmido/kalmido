@@ -48,6 +48,7 @@ const FEAT = 'cal,comments,collab,files,docs,reading,wiki,sheets,office,clients'
   const SP = (await call('POST', '/api/sheets', {title: 'Household table', space: 'private'}, CA)).id;
   const SO = (await call('POST', '/api/sheets', {title: 'Studio table', space: WA}, CA)).id;
   check(SP > 0 && SO > 0, 'setup: a table in Private and in Alpha');
+  check((await call('POST', '/api/clients', {name: 'Studio client', org_id: A}, CA)).id > 0, 'setup: a client in Alpha (an item of the office, #7664)');
   const QL = (await call('POST', '/api/notes/quick-list', null, CA)).list_id;
   const LO = (await call('POST', '/api/lists', {name: 'Alpha film', org_id: A}, CA)).id;
   const NP = (await call('POST', `/api/lists/${QL}/notes`, {title: 'Grocery idea', body: 'Mine alone'}, CA)).id;
@@ -116,6 +117,9 @@ const FEAT = 'cal,comments,collab,files,docs,reading,wiki,sheets,office,clients'
       await ev(`(document.querySelector('#view .zleov [data-zlego]').click(), 1)`);
       check(await ready(`location.hash === '#${mod}/recent' && !!document.querySelector('#view .zlepage') && document.querySelector('#view .zlehead [data-navup]')?.getAttribute('href') === '#${mod}'`), t + 'the page "Recently edited" opens with the way back');
       if (mod === 'office' || mod === 'sheets') check(await ready(`document.querySelectorAll('#view .zlepage .zler').length > 0`), t + 'its page lists the recent items');
+      // (#7664): the page lists only the area's own kind (no page, file or read-later entry of the others)
+      const own = {wiki: '#wiki/', ablage: '#ablage/', reading: '#reading', office: '#(client|office|docs)/', sheets: '#sheets/'}[mod];
+      check(await ev(`[...document.querySelectorAll('#view .zlepage .zler')].every(a => new RegExp('^${own}').test(a.getAttribute('href')))`), t + '#7664: only its own kind ' + await ev(`[...document.querySelectorAll('#view .zlepage .zler')].map(a => a.getAttribute('href')).join()`));
     }
     // Notes: one mixed list, every card names its project and where it belongs
     await nav(B + '#notes');

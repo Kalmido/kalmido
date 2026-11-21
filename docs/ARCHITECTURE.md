@@ -217,6 +217,7 @@ The most used helpers:
 | `integrations/git_issues.py` | 2.394.0 (#3377): issues of a repository connection (GitHub, GitLab): fetching and the one-time import (base of the issue sync). |
 | `integrations/git_sync.py` | 2.394.0 (#3377): the two-way issue sync: pull in the git poll, changes noted per request (tasks.validation ACT_NOTES) and sent from the git loop, conflict per field. |
 | `integrations/errorreports.py` | Error reports (Sentry, GlitchTip ...) -> tickets. |
+| `integrations/meldung.py` | 2.1514 (#7531): the one intake for reports of people: "Report a problem" from the app (bug / wish fields, the context block as the task's own attachment, `task_reports` + the state for the reporter), shared by the inbound webhook and the error reports. |
 | `api/projects.py` | The project page in the token API. |
 | `api/scopes.py` | Token scopes, approvals and the complete agent API (the routes the web client has). |
 | `collab/notes.py` | Notes of a list / project. |
@@ -755,6 +756,7 @@ settings sections), `ctlinks.js` (the contacts in the task panel) and `officeOn`
 | `listmodal`, `sharemodal`, `foldershare`, `folderprops` | one file each | 2.1238.0 (#4280): the project dialog, a project's Share dialog (split off `dialogs.js`), a folder's Share dialog (`sharedlg.js`) and settings (`sidebar.js`); stand-ins in `LD_CALL` |
 | `clientdlg`, `fieldmodal`, `orgadmin`, `sched`, `habitdlg` | one file each | 2.1238.0 (#4280): the client / forms dialogs (`clients.js`), the custom field dialog (`projects.js`), an organisation's projects (`account.js`), an agent's plans (`agents.js`), the habit dialog (`habits.js`); stand-ins in `LD_CALL` |
 | `propcards`, `signoff`, `tagsview` | `importprop.js`, `contractprop.js`, `propcards.js`; one file each | 2.1238.0 (#4280): the card of an agent's proposal (`propOpen`, split off `agents.js`, stand-in in `LD_CALL`), approval links (`office`, `integrations` need it), the tags overview (`LD_VIEW viewTags`) |
+| `report` | `report.js` | 2.1514 (#7531): the dialog "Report a problem" of the shared intake (`setcore.js` `rptOpen` loads it; the context block comes from `clienterr.js` `cer_ctx`) |
 | `timesheet` | `timesheet.js` | 2.149.0 F: the time page's card, Settings (`LD_NEED`); News texts / lock mark in `time.js` |
 | `team` | `absence.js`, `leave.js`, `dispo.js` (+ `css/team.css`, 2.1305.0 #4742) | 2.149.0 F: the tabs Absences / Disposition, vacation, Settings (`LD_NEED`); tabs, `dp_on`, day hint in `clients.js` |
 | `listprint`, `evinvite`, `projtime`, `envs` | one file each | 2.149.0 F: "Print", the event editor, the "Tracked" figure (its click stays in `projects.js`), a project's environments (row texts in `quickadd.js`) |

@@ -170,6 +170,14 @@ function supMail(problem) {
 // a sentence that sends a person to someone: hosted with a support address the support (its address as the last value), else as before
 const supAsk = (self, hosted, ...a) => hostedOn() && supAddr() ? tr(hosted, ...a, supAddr()) : tr(self, ...a);
 function supContact(problem) { if (supAddr()) location.href = supMail(problem); else toast(tr('No support address is set on this server.')); }
+// (#7531): "Report a problem" opens the report dialog of the shared intake (report.js, loaded on the click) when the server
+// chose a project for reports (S.about.client_errors: the admin's project for error reports; in the hosting the operator's); without
+// one the old way: hosting a mail to the support, else the issue tracker on GitHub. Agents never report through it
+const rptOn = () => !!S.about?.client_errors && S.me?.kind !== 'agent';
+function rptOpen() {
+  if (rptOn()) { loadModule('report').then(() => rpt_open()).catch(() => {}); return; }
+  if (hostedOn()) supContact(true); else openExt(ABOUT_LINKS[2][0]);
+}
 // the block itself (Settings > Help and the page Help): the mail to the support, under it the way to "Support access"
 function supHelpHtml() {
   if (!hostedOn()) return '';
@@ -180,7 +188,7 @@ function supHelpHtml() {
     <div class="row"><button type="button" class="btn sm" data-supgrant>${ic('key', 's')} ${tr('Allow support access')}</button></div>
     <div class="shelp">${esc(tr('Support cannot look into your account. If they need to, open it for a limited time under Settings > Account > Support access.'))}</div></div>`;
 }
-document.addEventListener('click', e => { if (e.target.closest?.('[data-supreport]')) { e.preventDefault(); supContact(true); return; } if (!e.target.closest?.('[data-supgrant]')) return; e.preventDefault(); settingsModal('supportaccess'); });  // like data-setlink: a new settings dialog on the account
+document.addEventListener('click', e => { if (e.target.closest?.('[data-supreport]')) { e.preventDefault(); rptOpen(); /* (#7531) */ return; } if (!e.target.closest?.('[data-supgrant]')) return; e.preventDefault(); settingsModal('supportaccess'); });  // like data-setlink: a new settings dialog on the account
 // 2.143.0 C (#2153): a quiet hint to install the app. Android / desktop: the browser's own install question
 // (beforeinstallprompt, kept until the hint's button is pressed); iPhone / iPad (Safari has no such question): how to add it
 // (Share, then "Add to Home Screen"). At most once per start, not in the first half minute, never in the installed app, the
