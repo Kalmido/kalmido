@@ -1,0 +1,42 @@
+{
+  "de": {
+    "Interactions|contact": "Vorgänge",
+    "Export as…": "Exportieren als…",
+    "Export as Word (.docx)": "Exportieren als Word (.docx)",
+    "Encrypt “{0}”?": "„{0}“ verschlüsseln?",
+    "Encrypt folder": "Ordner verschlüsseln",
+    "Encrypt folder…": "Ordner verschlüsseln…"
+  },
+  "es": {
+    "Interactions|contact": "Interacciones",
+    "Export as…": "Exportar como…",
+    "Export as Word (.docx)": "Exportar como Word (.docx)",
+    "Encrypt “{0}”?": "¿Cifrar «{0}»?",
+    "Encrypt folder": "Cifrar carpeta",
+    "Encrypt folder…": "Cifrar carpeta…"
+  },
+  "fr": {
+    "Interactions|contact": "Interactions",
+    "Export as…": "Exporter en…",
+    "Export as Word (.docx)": "Exporter en Word (.docx)",
+    "Encrypt “{0}”?": "Chiffrer « {0} » ?",
+    "Encrypt folder": "Chiffrer le dossier",
+    "Encrypt folder…": "Chiffrer le dossier…"
+  },
+  "it": {
+    "Interactions|contact": "Interazioni",
+    "Export as…": "Esporta come…",
+    "Export as Word (.docx)": "Esporta come Word (.docx)",
+    "Encrypt “{0}”?": "Cifrare «{0}»?",
+    "Encrypt folder": "Cifra cartella",
+    "Encrypt folder…": "Cifra cartella…"
+  },
+  "nl": {
+    "Interactions|contact": "Interacties",
+    "Export as…": "Exporteren als…",
+    "Export as Word (.docx)": "Exporteren als Word (.docx)",
+    "Encrypt “{0}”?": "„{0}” versleutelen?",
+    "Encrypt folder": "Map versleutelen",
+    "Encrypt folder…": "Map versleutelen…"
+  }
+}
