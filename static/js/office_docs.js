@@ -624,7 +624,7 @@ function ofdItemsHtml(d, adm) {
   const subRow = n => subs[n] ? `<li class="ofdit ofdsub"><span class="ofdpos muted">${ic('calc', 's')}</span><span class="ofcn">${esc(subs[n].label || '')}</span><b class="ofdlt">${esc(subs[n].total_text || ofdMoney(subs[n].total, d))}</b></li>` : '';
   const rows = its.map((it, i) => {
     const pre = it.kind === 'heading' && bfaFilled(it) ? subRow(hd.n++) : '';
-    return pre + (d === OFD.doc ? ofd_rwRow(ofd_itRow(d, adm, it, i, its, inv, taxes, gp), it) : ofd_itRow(d, adm, it, i, its, inv, taxes, gp));  // #7493: the row's key and state
+    return pre + (d === OFD.doc || d.tpPart ? ofd_rwRow(ofd_itRow(d, adm, it, i, its, inv, taxes, gp), it) : ofd_itRow(d, adm, it, i, its, inv, taxes, gp));  // #7493: the row's key and state
   }).join('') + subRow(hd.n);
   return ofd_itsWrap(d, rows, inv);
 }
@@ -978,25 +978,58 @@ function ofd_W(d) {
     W = rwRows({name: 'ofd' + id, whole: true, send: () => ofd_itemsSend(W), draw: () => ofd_lite(),
       fail: x => !!x?.rwShown || x?.status === 409, again: x => x.rwAgain ? x.rwAgain() : Promise.reject(x)});
     W.dobj = d || null; OFD_WS.set(id, W);
+    W.scopes = new Set();  // #7496: what the next save sends: 'doc' (the positions), a part's id (its positions), 's' + id (its sheet)
+    // F16: the writer hangs on the document's id: while it is open its object is OFD.doc (a reload / an answer replaces that
+    // object, the writer takes the new one), else the last object it saw (the editor was left meanwhile)
+    W.doc = () => { if (OFD.doc && OFD.doc.id === id) W.dobj = OFD.doc; return W.dobj; };
   }
+  if (d && d === OFD.doc) W.dobj = d;
   return W;
 }
 // the save goes to the document the change was made in (W.dobj: its local positions and version), also when another one is
 // open by now or the editor was left meanwhile
+// #7496: one save sends every part of the document changed since the last one, one request after the other (the document's
+// positions, a part's positions, a part's sheet), each built from the newest local state when it goes; a part not sent (an error)
+// stays to send, so "Try again" and the next save send it too
 async function ofd_itemsSend(W) {
-  const d = W.dobj; if (!d) throw Object.assign(new Error(''), {rwShown: true});
-  const src = (d.items || []).filter(bfaFilled);
-  OFD_SAVEX = null;
-  const j = await ofd_save1('PUT', ofd_viaUrl(`/api/office/docs/${d.id}/items`), {items: ofdItemsBody(d), ...(d.kind === 'offer' ? {parts_known: (d.parts || []).map(p => p.id)} : {}), lite: true}, src, undefined, d);  // #7505: the short answer (ofd_take)
-  if (!j) throw OFD_SAVEX || Object.assign(new Error(''), {rwShown: true});  // a conflict (the bar), another document open now
+  const d = W.doc(); if (!d) throw Object.assign(new Error(''), {rwShown: true});
+  const todo = W.scopes.size ? [...W.scopes] : ['doc']; W.scopes.clear();
+  let j = null;
+  for (const [n, sc] of todo.entries()) {
+    try { j = await ofd_sendOne(W.doc() || d, sc); }
+    catch (x) { for (const r of todo.slice(n)) W.scopes.add(r); throw x; }
+  }
   return j;
+}
+async function ofd_sendOne(d, sc) {
+  OFD_SAVEX = null;
+  const fail = () => OFD_SAVEX || Object.assign(new Error(''), {rwShown: true});  // a conflict (the bar), another document open now
+  if (sc === 'doc') {
+    const src = (d.items || []).filter(bfaFilled);
+    const j = await ofd_save1('PUT', ofd_viaUrl(`/api/office/docs/${d.id}/items`), {items: ofdItemsBody(d), ...(d.kind === 'offer' ? {parts_known: (d.parts || []).map(p => p.id)} : {}), lite: true}, src, undefined, d);  // #7505: the short answer (ofd_take)
+    if (!j) throw fail(); return j;
+  }
+  const sheet = typeof sc === 'string', pid = sheet ? +sc.slice(1) : sc, p = (d.parts || []).find(x => x.id === pid);
+  if (!p) return null;  // the part is gone meanwhile
+  if (sheet) {  // a part's calculation sheet (office_sheet.js): the newest local sheet; the answer gives its figures and the ids of new rows
+    const refs = dk_refs(p.sheet);
+    const j = await ofd_save1('PATCH', `/api/office/docs/${d.id}/parts/${pid}`, {sheet: dkPayload(p.sheet, DK.adm[pid])}, null, undefined, d);
+    if (!j) throw fail();
+    dk_take(d, pid, j.part, refs);
+    return j;
+  }
+  const src = (p.items || []).filter(bfaFilled);
+  const j = await ofd_save1('PUT', `/api/office/docs/${d.id}/parts/${pid}/items`, {items: tpItemsBody(src)}, src, undefined, d);
+  if (!j) throw fail(); return j;
 }
 // a change of positions: in the document through its writer (no wait for the row, the caller goes on at once: after()), in an
 // open part as before (saved, then drawn; the parts follow in #7496). put: the local change, returns how to take it back;
 // it: the row it touches; wo.back: an error takes the change back (a removed / moved row comes back)
 async function ofd_rows(d, put, it, wo, after) {
-  if (!d || d !== OFD.doc) { put(); await ofdPutItems(); after?.(); return; }
-  const W = ofd_W(d); W.dobj = d;  // the object the change is made in (sent by ofd_itemsSend)
+  const pid = d?.tpPart && OFD.doc && d.id === OFD.doc.id ? d.tpPart.id : 0;  // #7496: a position of an open part (its view, office_parts.js tpf_view)
+  if (!d || (d !== OFD.doc && !pid)) { put(); await ofdPutItems(); after?.(); return; }
+  const W = ofd_W(OFD.doc); W.dobj = OFD.doc;  // the object the change is made in (sent by ofd_itemsSend)
+  W.scopes.add(pid || 'doc');
   const p = W.write(put, it ? [rwKey(it)] : [], wo).catch(() => null);
   after?.(); return p;
 }
@@ -1046,7 +1079,7 @@ function ofd_take(j) {
   if (j.updated_at) d.updated_at = j.updated_at;
   if (j.totals) d.totals = j.totals;
   if (Array.isArray(j.missing)) d.missing = j.missing;
-  if (j.parts) d.parts = [...ps.map(p => sp.has(p.id) ? Object.assign(p, {totals: sp.get(p.id).totals, updated_at: sp.get(p.id).updated_at}) : p), ...j.parts.filter(p => !ps.some(x => x.id === p.id))];
+  if (j.parts) d.parts = [...ps.map(p => sp.has(p.id) ? Object.assign(p, {totals: sp.get(p.id).totals, updated_at: sp.get(p.id).updated_at}, sp.get(p.id).calc ? {calc: sp.get(p.id).calc} : {}) : p), ...j.parts.filter(p => !ps.some(x => x.id === p.id))];  // #7496: + a shoot part's figures
 }
 const ofd_ver = () => OFD.doc?.updated_at ? {expect_updated_at: OFD.doc.updated_at} : {};
 const ofd_lnShut = j => !!OFD.langNotesShut && OFD.langNotesShut.id === j.id && OFD.langNotesShut.key === JSON.stringify(j.lang_notes);  // 2.482.0 (#3940)
@@ -1083,9 +1116,10 @@ async function ofd_save1(method, url, body, src, again, lite) {
     if (fk && x.message !== 'auth') fdDrop('fdw', fk);  // 2.552.0 (#4547): refused / offline: the field keeps the input (ofdChange), not sent later
     if (x.status === 409 && x.data?.doc && OFD.doc && x.data.doc.id === OFD.doc.id) { OFD.conflict = {id: OFD.doc.id, doc: x.data.doc}; OFD.err = ''; return null; }
     if (x.status === 409 && x.data?.code === 'terms_missing') { OFD.err = ''; return {terms_missing: x.data, message: x.message}; }  // 2.534.0 (#4339): the send dialog asks (ofcSendTerms)
-    if ((x instanceof NoAnswer || x instanceof Offline) && D && D === OFD.doc && S.route.id === D.id) {  // #7493: the writer's rows say it; "Try again" there sends this request once more (a document left meanwhile: the toast below)
-      const a = {key: x.key, ver};
-      if (x instanceof NoAnswer) x.rwAgain = () => D ? (OFD_SAVEX = null, ofd_save1(method, url, body0, src, a, D)).then(j => j || Promise.reject(OFD_SAVEX || Object.assign(new Error(''), {rwShown: true}))) : Promise.reject(Object.assign(new Error(''), {rwShown: true}));
+    // F17: a save of the writer without an answer can always be sent once more as it was (its key and version), also when the
+    // answer was missed after the editor was left: "Try again" at the row after the return sends it (to the document's current object)
+    if (x instanceof NoAnswer && D) { const a = {key: x.key, ver}; x.rwAgain = () => { OFD_SAVEX = null; return ofd_save1(method, url, body0, src, a, ofd_W(D).doc() || D).then(j => j || Promise.reject(OFD_SAVEX || Object.assign(new Error(''), {rwShown: true}))); }; }
+    if ((x instanceof NoAnswer || x instanceof Offline) && D && OFD.doc?.id === D.id && S.route.id === D.id) {  // #7493: the writer's rows say it; "Try again" there sends this request once more (a document left meanwhile: the toast below)
       x.shown = true; x.rwQuiet = true; OFD_SAVEX = x; return null;  // rwQuiet: a change taken back says it itself (core.js W.write)
     }
     if (x instanceof NoAnswer && OFD.doc && !lite) {  // #7494: no answer: not saved (the field keeps the input); "Try again" sends the same request in the row
@@ -1959,7 +1993,7 @@ function ofdServicePicker() {
   draw();
   if (!Array.isArray(OFC.data.services)) {  // the catalogue may still be loading: show it once it is there
     $('#ofd-slist', md).innerHTML = loadingHtml('row');
-    (async () => { for (let i = 0; i < 60 && !Array.isArray(OFC.data.services) && md.isConnected; i++) { if (!OFC.loading.services) ofcLoad('services', true); await sleep(150); } if (!md.isConnected) return; if (ofd_svcPick()?.length === 0 && !(typeof tpPickerHtml === 'function' && tpPickerHtml(d)) && OFD.doc?.id === did) { md.remove(); ofd_addFree(d, sc); return; } draw(); })();  // #7596: loaded empty = the free position
+    (async () => { for (let i = 0; i < 60 && !Array.isArray(OFC.data.services) && md.isConnected; i++) { if (!OFC.loading.services) ofcLoad('services', true); await sleep(150); } if (!md.isConnected) return; if (ofd_svcPick()?.length === 0 && !(typeof tpPickerHtml === 'function' && tpPickerHtml(d)) && OFD.doc?.id === did) { md.remove(); if (typeof TP === 'object') TP.open = tpc; ofd_addFree(typeof tpCur === 'function' ? tpCur() : OFD.doc, sc); return; }  /* F19: the document as it is now (an answer may have replaced it while the catalogue loaded), like the click */ draw(); })();  // #7596: loaded empty = the free position
   }
   md.addEventListener('input', e => { if (e.target.id === 'ofd-sq') draw(); });
   md.addEventListener('click', async e => {

@@ -1,8 +1,8 @@
 // 2.47.0 (#1216): the shoot calculation sheet (Drehkalkulation) -- the editor of a quotation part of kind 'shoot'.
 // The part editor (office_parts.js) renders dkSheetHtml(part, doc, adm) and calls dkSheetBind(root, part); every change
-// is saved with PATCH /api/office/docs/<doc>/parts/<pid> {sheet} and the server's answer (sheet + calc, kalmido/office/
+// is saved with PATCH /api/office/docs/<doc>/parts/<pid> {sheet} through the document's writer (#7496, dkSave) and the server's answer (calc, kalmido/office/
 // sheet.py) is drawn again: the server computes every figure. Purchase, surplus, markup and intern / extern reach admins only.
-const DK = {parts: {}, adm: {}, saving: 0};
+const DK = {parts: {}, adm: {}};
 const DK_HEAD = [['shoot_days', N_('Shooting days')], ['travel_days', N_('Travel days')], ['travel_share', N_('Travel share of the day rate')],
   ['prep_days', N_('Preparation days')], ['prep_share', N_('Preparation share of the day rate')], ['nights', N_('Nights')],
   ['night_rate', N_('Price per night')], ['meal_large', N_('Meals full day')], ['meal_small', N_('Meals part day')],
@@ -39,7 +39,8 @@ function dkSheetHtml(part, doc, adm) {
   const sums = [[tr('Sum'), c.sum], [tr('Discount'), +c.discount ? c.discount : null], [tr('Net total'), c.net]].filter(x => x[1] != null)
     .concat(adm && c.costs != null ? [[tr('Third-party costs'), c.costs], [tr('Surplus'), c.margin]] : [])
     .map(([n, v], i) => `<p class="dksum ${i > 2 || n === tr('Net total') ? 'dkstrong' : ''}"><span>${esc(n)}</span><b>${esc(m(v))}</b></p>`).join('');
-  return `<div class="dksheet" data-pid="${part.id}">
+  const W = typeof ofd_W === 'function' && OFD.doc ? ofd_W(OFD.doc) : null, calc = !!W?.calc;  // #7496: the state of the sheet's save
+  return `<div class="dksheet${esc(rwCls(W, dkKey(part.id)))}" data-pid="${part.id}" data-rwk="${esc(rwKey(dkKey(part.id)))}">
     <details class="dkbox" open><summary>${tr('Shoot')}</summary><div class="dkgrid">${head}</div></details>
     <section class="dkbox"><h4>${tr('Crew')}</h4><ul class="ofdits" role="list">${/*html-ok*/ staff || `<li>${/*html-ok*/ emptyState({title: tr('No crew yet.'), size: 'row'})}</li>`}</ul>
       <div class="ofdadd"><button type="button" class="btn sm pri" data-dka="role">${ic('plus', 's')}<span>${tr('Add crew')}</span></button></div></section>
@@ -50,7 +51,7 @@ function dkSheetHtml(part, doc, adm) {
     <section class="dkbox"><h4>${tr('Equipment')}</h4>${setHtml}</section>
     <section class="dkbox"><h4>${tr('Additional costs')}</h4><ul class="ofdits" role="list">${extras}</ul>
       <div class="ofdadd"><button type="button" class="btn sm" data-dka="extra">${ic('plus', 's')}<span>${tr('Additional costs')}</span></button><button type="button" class="btn sm" data-dka="svc">${ic('plus', 's')}<span>${tr('Shooting service')}</span></button></div></section>
-    <section class="dkbox dktotals"><div class="dkgrid">${dkNum('discount_pct', s.discount_pct, tr('Discount %'))}</div>${sums}</section></div>`;
+    <section class="dkbox dktotals${calc ? ' rwcalc' : ''}"${calc ? ' aria-busy="true"' : ''}><div class="dkgrid">${dkNum('discount_pct', s.discount_pct, tr('Discount %'))}</div>${calc ? `<p class="rwcalcl muted" role="status">${esc(tr('Calculating…'))}</p>` : ''}${sums}${/*html-ok*/ rwMarkHtml(W, dkKey(part.id)) /* the core's mark, its texts escaped */}</section></div>`;
 }
 
 // the request body: the stored sheet with the edits; members send no base rate of crew rows (the server keeps it)
@@ -64,27 +65,31 @@ function dkSet(obj, path, val) {
   for (let i = 0; i < ks.length - 1; i++) { const k = /^\d+$/.test(ks[i]) ? +ks[i] : ks[i]; if (o[k] == null) o[k] = {}; o = o[k]; }
   o[ks.at(-1)] = val;
 }
-async function dkSave(root, pid, sheet) {
-  const part = DK.parts[pid], d = OFD.doc; if (!part || !d) return;
-  const focus = document.activeElement?.dataset?.dk;
-  DK.saving++; ofdSaveHint?.();
-  DK.parts[pid] = {...part, sheet};  // 2.269.0 A (#3012): the next change builds on this one, even before the answer
-  try {
-    // 2.269.0 A (#3012): in the row of the document's saves, with its version (409 = the conflict bar)
-    const j = await ofd_inChain(() => rawFetch('PATCH', `/api/office/docs/${d.id}/parts/${pid}`, {sheet: dkPayload(sheet, DK.adm[pid]), ...ofd_ver()}));
-    const np = {...part, ...(j?.part || j || {})}; DK.parts[pid] = np;
-    if (j?.updated_at && OFD.doc && OFD.doc.id === j.id) OFD.doc.updated_at = j.updated_at;
-    if (j?.doc_totals && OFD.doc) OFD.doc.totals = j.doc_totals;
-    const pi = (OFD.doc?.parts || []).findIndex(x => x.id === pid); if (pi >= 0) OFD.doc.parts[pi] = np;
-    if (root.isConnected) { root.innerHTML = dkSheetHtml(np, d, DK.adm[pid]); if (focus) $(`[data-dk="${focus}"]`, root)?.focus(); }
-    ofdDraw();  // the view was drawn again meanwhile (e.g. master data loaded): draw it with the new figures; 2.113.0 (#2248): also the title page next to the open sheet
-  } catch (x) {
-    if (x.status === 409 && x.data?.doc && OFD.doc && x.data.doc.id === OFD.doc.id) { OFD.conflict = {id: OFD.doc.id, doc: x.data.doc}; ofdDraw(); }  // 2.269.0 A (#3012)
-    else ofcErr(x);
-  }
-  finally { DK.saving--; ofdSaveHint?.(); }
+// #7496 (decision): the sheet writes at once through the document's writer (office_docs.js ofd_W, one row of saves with the
+// document's version, docs/dev/kern.md "Write shows at once"): a change is the part's local sheet at once and drawn light, the
+// save is built when it goes (the newest sheet); the answer gives the figures (calc) and the ids of new rows, and the whole
+// sheet only when no further save waits. The sheet box carries "Saving…" / "Not saved - Try again" and the sums "Calculating…".
+// Was: the answer of each save overwrote the model and the box was set anew by innerHTML (a second change jumped back, typed
+// text in another field was lost, an error left the change standing as if saved).
+const dkPart = pid => tpPart(OFD.doc, pid) || DK.parts[pid];
+const dkKey = pid => ({_rk: 'dk' + pid});
+function dkSave(_root, pid, sheet) {
+  const d = OFD.doc, p = tpPart(d, pid); if (!p || !d) return null;
+  const W = ofd_W(d); W.dobj = d; W.scopes.add('s' + pid);
+  return W.write(() => { p.sheet = sheet; return null; }, [rwKey(dkKey(pid))]).catch(() => null);  // the box says it
 }
-const dkCopy = pid => JSON.parse(JSON.stringify(DK.parts[pid]?.sheet || {}));
+// the local rows of a sheet as sent (new rows take their ids from the answer by their place, like core.js rwIds)
+const dk_refs = s => ({staff: [...(s?.staff || [])], extras: [...(s?.extras || [])], items: [...(s?.set?.items || [])]});
+function dk_take(d, pid, got, refs) {
+  if (!got) return;
+  const p = tpPart(OFD.doc?.id === d.id ? OFD.doc : d, pid); if (!p) return;
+  const ids = (a, b) => a.forEach((x, i) => { if (x && !x.uid && b?.[i]?.uid) x.uid = b[i].uid; });
+  ids(refs.staff, got.sheet?.staff); ids(refs.extras, got.sheet?.extras); ids(refs.items, got.sheet?.set?.items);
+  p.calc = got.calc; if (got.totals) p.totals = got.totals;
+  if (ofd_W(OFD.doc?.id === d.id ? OFD.doc : d).last()) p.sheet = got.sheet;  // nothing else waits: the server's sheet is the local one
+  DK.parts[pid] = p;
+}
+const dkCopy = pid => JSON.parse(JSON.stringify(dkPart(pid)?.sheet || {}));
 
 function dkSheetBind(root, part) {
   if (!root || root._dkBound) return;
@@ -107,7 +112,7 @@ function dkSheetBind(root, part) {
     if (a === 'del') { const arr = b.dataset.k.split('.').reduce((o, k) => o?.[k], s); if (Array.isArray(arr)) { arr.splice(+b.dataset.i, 1); dkSave(root, pid, s); } return; }
     if (a === 'set-off') { s.set = null; dkSave(root, pid, s); return; }
     if (a === 'extra') { (s.extras = s.extras || []).push({name: '', qty: 1, rate: 0}); dkSave(root, pid, s); return; }
-    if (a === 'role') return dkPick('crew', tr('Add crew'), r => `${dkName({name: r.name_de, name_en: r.name_en})}`, r => r.rate_day != null ? ofdMoney(r.rate_day) + ' ' + tr('per day') : '', r => { (s.staff = s.staff || []).push({role_id: r.id, qty: 1, prep: 1}); dkSave(root, pid, s); });
+    if (a === 'role') return dkPick('crew', tr('Add crew'), r => `${dkName({name: r.name_de, name_en: r.name_en})}`, r => r.rate_day != null ? ofdMoney(r.rate_day) + ' ' + tr('per day') : '', r => { (s.staff = s.staff || []).push({role_id: r.id, qty: 1, prep: 1, name: r.name_de || '', name_en: r.name_en || '', ...(r.rate_day != null ? {rate: r.rate_day} : {})}); dkSave(root, pid, s); });  // #7496: its name and rate at once (the server takes them from the role)
     if (a === 'svc') return dkPick('services', tr('Shooting service'), r => dkName({name: r.name_de, name_en: r.name_en}), r => r.daily_rate != null ? ofdMoney(r.daily_rate) : '', r => { (s.extras = s.extras || []).push({service_id: r.id, qty: 1}); dkSave(root, pid, s); }, r => r.intext === 'shooting');
     if (a === 'set') return dkPick('sets', tr('Select equipment set'), r => r.name, r => r.discount_pct ? tr('{0} % discount', ofdQty(r.discount_pct)) : '', r => { s.set = {set_id: r.id}; dkSave(root, pid, s); });
     if (a === 'eq') return dkPick('equipment', tr('Add equipment'), r => dkName(r), r => r.daily_rate != null ? ofdMoney(r.daily_rate) + ' ' + tr('per day') : '', r => {
