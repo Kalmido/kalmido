@@ -322,6 +322,7 @@ The foundation: database, schema, access layer, request context, conflicts (409)
 - `kalmido/core/objversions.py` (`obj_version`) - Versions exist once, in the shared core: one table obj_versions for numbered whole states (knowledge pages since 2.958, stage Q7a)
 - `kalmido/core/objweb.py` (`obj`) - The generic routes of the core objects (core/objects.py, core/writes.py)
 - `kalmido/core/omitted.py` - what an export leaves out is said, never dropped silently
+- `kalmido/core/oncesteps.d/6500.py` - the sessions of before get sessions.remember (migrations.d/6500.py) once: a sign-in with "Stay signed in" lived longer than one day (star...
 - `kalmido/core/oncesteps.py` - the one-shot data steps of the start (settings flag migr_* = "1") in ONE ordered list, out of core/db.py init_db
 - `kalmido/core/orgcrypt.py` (`oc`) - Server-side keys per organisation
 - `kalmido/core/orgrows.py` (`orw`) - The organisation of tasks, comments, events and contacts (column org_id, migrations.d/4602_a.py)
