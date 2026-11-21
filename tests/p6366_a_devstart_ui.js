@@ -77,7 +77,8 @@ const REC = `new Promise(res => { const r = indexedDB.open('kalmido-start'); r.o
     check(await ev(`!document.querySelector('#top .offline')`), 'online: no sync chip');
 
     // ---- the server changes meanwhile, then the line hangs
-    check((await call('PATCH', `/api/tasks/${T}`, {title: SRV})).status === 200, 'a change on the server (another device)');
+    const ch = await call('PATCH', `/api/tasks/${T}`, {title: SRV});
+    check(ch.id === T && ch.title === SRV, 'a change on the server (another device) ' + JSON.stringify({id: ch.id, title: ch.title}));
     await nav(O + 'static/icon.svg');  // a new document below (the same address with its hash would stay in the page)
     R.hold = true; R.held = 0;
     await go(O + `#l/${L}`);
@@ -108,8 +109,9 @@ const REC = `new Promise(res => { const r = indexedDB.open('kalmido-start'); r.o
     await go(O + `#l/${L}`);
     check(await pu(`typeof S !== 'undefined' && S.booted && !!S.devOld && !!document.querySelector('#view .trow[data-id="${T}"]')`, 30000), 'session ended, network hangs: the kept state is drawn (the accepted rest of #6500)');
     R.release();
-    check(await pu(`!!document.querySelector('.authscreen') && document.getElementById('app').hidden && !document.querySelector('#view .trow') && !S.devOld`, 30000),
-      'session ended, released: the 401 clears the screen, the sign-in takes over');
+    // the 401 of the sync (built-in login: the sign-in on top, devWipe) or of a request before it (a reload: the sign-in)
+    const gone = await pu(`!!document.querySelector('.authscreen') && !document.querySelector('#view .trow') && !S.devOld`, 30000);
+    check(gone, 'session ended, released: the 401 clears the screen, the sign-in takes over ' + (gone ? '' : JSON.stringify(await ev(`({auth: !!document.querySelector('.authscreen'), rows: document.querySelectorAll('#view .trow').length, old: typeof S !== 'undefined' && !!S.devOld, hidden: document.getElementById('app')?.hidden, url: location.href})`).catch(e => e.message))));
     check(await pu(`(${REC}).then(r => r == null)`), 'session ended, released: the start record in IndexedDB is gone (devEnd)');
     await shot('p6366a-ended.png');
   }, false);
