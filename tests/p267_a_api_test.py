@@ -231,7 +231,7 @@ r = A.put(B + CK, json={"on": 1, "user_id": DAVE})
 T2 = r.json()["task_id"]
 check(r.ok and T2 != T1 and task(T1)[4] == 2 and task(T1)[3] == "" and task(T1)[6] is None, "another person: the old task is ended (done, no repeat), not deleted")
 check(task(T2)[8] == DAVE and task(T2)[5] == DAVE, "the new one in Dave's inbox")
-assert A.put(B + f"/api/orgs/{ORG}/members", json={"email": "dave@example.com", "role": "member"}).ok
+assert A.put(B + f"/api/orgs/{ORG}/members", json={"user_id": DAVE, "role": "member"}).ok  # down only by user_id (decision 21.11.2026, #6610)
 c1 = A.get(B + CK).json()
 check(c1["lost"] is True and c1["user_id"] == DAVE and task(T2)[4] == 0, f"Dave lost the cash flow: shown, not reassigned {c1}")
 r = A.put(B + CK, json={"on": 0})

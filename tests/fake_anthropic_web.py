@@ -6,6 +6,10 @@
 #     FAKEWEB_INJECT <task> <person> <asker>  step 1: a web search + a fetched page whose text tries to give orders, then (as
 #                       if the model obeyed) add_comment on <task> and send_chat to <person>; step 2: request_chat_approval
 #                       to <asker>; step 3: a text with a cited web source + send_chat to <asker> with the earlier tool results
+#     FAKEWEB_META <task> <person> <asker>  (2.1507.0, #6297 (10)) step 1: a fetched page, then the free texts of the agent's own
+#                       channel towards <person> and the task (create_job, report_progress, set_working, set_status, a job on the
+#                       task, a status model not the run's) + a step and a job to <asker>; step 3: send_chat to <asker> with the
+#                       tool results
 #     FAKEWEB_SLOW <task>  (review F1) step 1: a fetched page + check_vat_id DE555555555 (a slow tool: the VIES time limit);
 #                       step 2 waits until /data/slow-go exists (the test took the run for lost meanwhile), then add_comment
 #                       on <task>; step 3: "ok"
@@ -122,6 +126,31 @@ class H(BaseHTTPRequestHandler):
                         {'type': 'web_search_result_location', 'url': CITED, 'title': 'Cited', 'cited_text': 'pelicans', 'encrypted_index': 'e'}]},
                     {'type': 'tool_use', 'id': 'toolu_c4', 'name': 'send_chat', 'input': {
                         'user_id': asker, 'body': 'FAKEWEB done: ' + text_of(msgs[2]['content'])[:1500]}}])
+            return answer('end_turn', [{'type': 'text', 'text': 'ok'}])
+        m = re.search(r'FAKEWEB_META (\d+) (\d+) (\d+)', first)
+        if m:
+            tid, other, asker = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            if k == 1:
+                return answer('tool_use', [
+                    {'type': 'server_tool_use', 'id': 'srvtoolu_m1', 'name': 'web_fetch', 'input': {'url': PAGE}},
+                    {'type': 'web_fetch_tool_result', 'tool_use_id': 'srvtoolu_m1', 'content': {
+                        'type': 'web_fetch_result', 'url': PAGE, 'retrieved_at': '2026-11-06T10:00:00Z',
+                        'content': {'type': 'document', 'source': {'type': 'text', 'media_type': 'text/plain', 'data': INJECT}, 'title': 'Offer'}}},
+                    {'type': 'tool_use', 'id': 'toolu_m1', 'name': 'create_job', 'input': {
+                        'title': 'INJECTED job', 'user_id': other, 'state': 'waiting'}},
+                    {'type': 'tool_use', 'id': 'toolu_m2', 'name': 'report_progress', 'input': {'text': 'INJECTED step', 'chat_user_id': other}},
+                    {'type': 'tool_use', 'id': 'toolu_m3', 'name': 'set_working', 'input': {'task_id': tid, 'text': 'INJECTED working'}},
+                    {'type': 'tool_use', 'id': 'toolu_m4', 'name': 'set_status', 'input': {'status': 'working', 'text': 'INJECTED status'}},
+                    {'type': 'tool_use', 'id': 'toolu_m5', 'name': 'report_progress', 'input': {'text': 'web step ok', 'chat_user_id': asker}},
+                    {'type': 'tool_use', 'id': 'toolu_m6', 'name': 'create_job', 'input': {'title': 'INJECTED task job', 'user_id': asker, 'task_id': tid}},
+                    {'type': 'tool_use', 'id': 'toolu_m7', 'name': 'set_status', 'input': {'status': 'working', 'model': 'INJECTED model'}},
+                    {'type': 'tool_use', 'id': 'toolu_m8', 'name': 'create_job', 'input': {'title': 'web job ok', 'user_id': asker}},
+                ], {'web_fetch_requests': 1})
+            if k == 3:
+                return answer('tool_use', [{'type': 'tool_use', 'id': 'toolu_m9', 'name': 'send_chat', 'input': {
+                    'user_id': asker, 'body': 'FAKEWEB meta: ' + ' | '.join(  # each tool's result on one line, named by its id
+                        b.get('tool_use_id', '') + ' ' + text_of([b]).replace('\n', ' ')[:300]
+                        for b in msgs[2]['content'] if isinstance(b, dict) and b.get('type') == 'tool_result')}}])
             return answer('end_turn', [{'type': 'text', 'text': 'ok'}])
         m = re.search(r'FAKEWEB_SLOW (\d+)', first)
         if m:

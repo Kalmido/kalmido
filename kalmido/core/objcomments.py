@@ -300,6 +300,14 @@ def ocm_may_delete(c, row, uid):
     return bool(uid) and (row["user_id"] == uid or _role(c, uid, row["kind"], row["ref_id"]) == "manage")
 
 
+def ocm_may_restore(c, row, uid, deleted_by):
+    """(#6297 3, audit #4741): restoring follows ocm_may_delete, but a delete by another account (a moderator with
+    'manage') is undone only with 'manage': the author does not bring back what was taken down."""
+    if not ocm_may_delete(c, row, uid):
+        return False
+    return not deleted_by or deleted_by == uid or _role(c, uid, row["kind"], row["ref_id"]) == "manage"
+
+
 # ---- mentions
 def ocm_names(c, ids):
     """{id: display name} of the accounts ids."""
@@ -451,7 +459,7 @@ def ocm_restore(c, cid, uid, *, check=True):
     """A comment from the trash back (text, mentions, the kind's rows of that moment). check: it is in the trash (404), uid
     reads the object (404), author or 'manage' (403). -> True, False when nothing is kept (the trash run was quicker, or it
     was deleted before 2.530). Caller commits."""
-    r = c.execute("SELECT id, kind, ref_id, user_id, deleted_at FROM obj_comments WHERE id=? AND deleted_at IS NOT NULL FOR UPDATE",
+    r = c.execute("SELECT id, kind, ref_id, user_id, deleted_at, deleted_by FROM obj_comments WHERE id=? AND deleted_at IS NOT NULL FOR UPDATE",
                   (int(cid),)).fetchone()
     if r is None:
         if check:
@@ -459,8 +467,9 @@ def ocm_restore(c, cid, uid, *, check=True):
         return False
     if check:
         _need_read(c, r["kind"], r["ref_id"], uid)
-        if not ocm_may_delete(c, r, uid):
+        if not ocm_may_restore(c, r, uid, r["deleted_by"]):  # (#6297 3): a moderator's delete stays theirs to undo
             raise Denied(403, tr(OCM_DEL_TXT))
+        ocm_need_say(c, r["kind"], r["ref_id"], uid)  # (#6297 3): a guest / read-only person publishes nothing again
     if not c.execute("SELECT 1 FROM obj_comment_trash WHERE kind='comment' AND comment_id=?", (r["id"],)).fetchone():
         return False
     rs = _hook(r["kind"], "restore")

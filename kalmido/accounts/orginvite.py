@@ -47,6 +47,8 @@ from ..accounts.invite import invite_state, invite_new  # 2.369.5 (#2517): pulle
 from ..accounts.mailfail import mail_disturbed  # (#6385)
 from ..accounts.users import user_purge  # 2.369.5 (#2517): pulled up from functions
 from ..core.objhooks import person_revoked  # 2.649.0 (#5051)
+from ..core.objhooks import REVOKE, USER_LOCKED  # #6297 (1)
+from ..accounts.invite import INVITE_VOID, invite_void  # #6297 (1)
 from ..core.support import support_ask  # (#6534): hosted = the support instead of "the server admin"
 
 OINV_DAY = 20  # new invitations per inviting person and day
@@ -56,7 +58,13 @@ OJN_DAYS = 14  # 2.148.1 A (#2480): an invitation of an existing account stays o
 # long as the invitation: whoever uses it on the last day still gets the full time to accept). Params: the same cut twice.
 # Only a link of this invitation or newer counts (created_at): an older link does not bring an expired invitation back.
 # 2.593.0 (#3570): + never a silent invitation (ojn_silent): it does not exist for the invited person
-OJN_LIVE = "NOT j.silent AND (j.created_at>? OR EXISTS (SELECT 1 FROM user_invites v WHERE v.user_id=j.user_id AND v.kind='invite' AND v.used_at>? AND v.created_at>=j.created_at))"
+# #6297 (1, audits #4741 / #4818 / #6007): an invitation lives only while whoever made it may still invite: an active admin of
+# the organisation, or an instance admin (the operator's org_join_or_add) while they are one -- the one test of accepting
+# (ojn_open), of the lists and of waking a silent row (ojn_proved). invite_void (accounts/invite.py) deletes the rows when the
+# right ends; this covers what it does not see (e.g. a database of before).
+OJN_BY = ("EXISTS (SELECT 1 FROM users b WHERE b.id=j.created_by AND NOT b.disabled AND (b.is_admin OR EXISTS (SELECT 1 FROM "
+          "org_members bm WHERE bm.org_id=j.org_id AND bm.user_id=b.id AND bm.role='admin')))")
+OJN_LIVE = "NOT j.silent AND " + OJN_BY + " AND (j.created_at>? OR EXISTS (SELECT 1 FROM user_invites v WHERE v.user_id=j.user_id AND v.kind='invite' AND v.used_at>? AND v.created_at>=j.created_at))"
 OINV_REF = "org-invite"  # 2.360.2 M (#2561): purpose of the sealed row reference
 
 # 2.985.0 (#4922, review F1): the address of an org_joins row as the list shows it: a silent row the one typed (it never follows
@@ -331,16 +339,16 @@ def org_invite_resend(oid, ref):
         # 2.593.0 (#3570): starts again for the list only, the person still hears nothing. 2.985.0 (#4922): so does a neutral
         # row (no account any more: ojn_hidden says hidden) - the answer is the same as for a silent one
         if r["silent"] and ojn_hidden(c, oid, r["user_id"], r["email"]):
-            with system_ctx(c):  # the row of a person who is no member
-                c.execute("UPDATE org_joins SET created_at=? WHERE id=?", (iso(now_utc()), r["id"]))
+            with system_ctx(c):  # the row of a person who is no member; reader job/6130 F9: the resending admin is its inviter now
+                c.execute("UPDATE org_joins SET created_at=?, created_by=? WHERE id=?", (iso(now_utc()), me(), r["id"]))
         else:
             ojn_invite(c, oid, r["user_id"], r["role"])
         inv = {"sent": True, "email": oinv_addr(r)}
     else:
         joined = _acct_join(c, oid, uid)
         if joined:  # 2.453.0 (#3780): the invitation starts again with the link (the News item it has stays the one)
-            with system_ctx(c):  # the row of a person who is no member
-                c.execute("UPDATE org_joins SET created_at=? WHERE org_id=? AND user_id=?", (iso(now_utc()), oid, uid))
+            with system_ctx(c):  # the row of a person who is no member; Leser #6120 F1: the resending admin is its inviter now
+                c.execute("UPDATE org_joins SET created_at=?, created_by=? WHERE org_id=? AND user_id=?", (iso(now_utc()), me(), oid, uid))
         inv = _no_link_if_sent(invite_new(c, uid, me(), send=True, days=OJN_DAYS if joined else None, bg=not g.user["is_admin"]), uid)  # review F3
         if not g.user["is_admin"]:  # 2.453.0 (#3780): the answer of an existing account, it must not tell the two apart (a failed mail: log only)
             if inv.get("error"):
@@ -702,16 +710,13 @@ def ojn_proved(c, uid, email):
     if not em or not oinv_on(c) or instance_mode(c) != "workspaces":
         return 0
     with system_ctx(c):  # the person is no member of these organisations yet
-        rows = c.execute("""SELECT j.org_id, j.role, j.created_by, o.self_made FROM org_joins j JOIN orgs o ON o.id=j.org_id
-                            WHERE j.user_id=? AND j.silent AND lower(COALESCE(j.email, ''))=? AND j.created_at>?
+        rows = c.execute(f"""SELECT j.org_id, j.role, j.created_by, o.self_made FROM org_joins j JOIN orgs o ON o.id=j.org_id
+                            WHERE j.user_id=? AND j.silent AND lower(COALESCE(j.email, ''))=? AND j.created_at>? AND {OJN_BY}
                             AND o.retired_at IS NULL AND NOT EXISTS (SELECT 1 FROM org_members m WHERE m.org_id=j.org_id AND m.user_id=j.user_id)
                             ORDER BY j.created_at""", (uid, em, cut)).fetchall()
         n = 0
         for r in rows:
-            by = r["created_by"]
-            if not by or not c.execute("SELECT 1 FROM org_members m JOIN users u ON u.id=m.user_id WHERE m.org_id=? AND m.user_id=? "
-                                       "AND m.role='admin' AND NOT u.disabled", (r["org_id"], by)).fetchone():
-                continue
+            by = r["created_by"]  # #6297 (1): still allowed to invite (OJN_BY in the query)
             if r["self_made"] and not may_see(c, by, uid):  # #3570: a company of its own reaches only people its admin may see
                 continue
             # review F7: the row is locked and still silent (an admin withdrawing it meanwhile: nothing comes back)
@@ -739,11 +744,17 @@ def ojn_push(c, uid, who, org):
 
 
 def ojn_answer(c, r, oid, uid, yes):
-    """2.367.4 (#2974): whoever invited hears the answer (row "share"); system context, the person is no member yet or just became one."""
+    """(#2974): whoever invited hears the answer (row "share"); system context, the person is no member yet or just became one.
+    #6297 (1, audit #6007 c): someone accepting the role admin is told to every other admin of the organisation too."""
     from ..collab.news import news_add
     name = c.execute("SELECT name FROM orgs WHERE id=?", (oid,)).fetchone()[0]
     if r["created_by"]:
         news_add(c, r["created_by"], "orgjoinres", actor=uid, row="share", data={"org_id": oid, "name": name, "yes": bool(yes)})
+    if yes and r["role"] == "admin":  # #6297 (1, audit #6007 c): a new admin -- every other active admin learns it (like org_role_news)
+        for (a,) in c.execute("SELECT m.user_id FROM org_members m JOIN users u ON u.id=m.user_id WHERE m.org_id=? AND m.role='admin' "
+                              "AND NOT u.disabled AND COALESCE(u.kind,'user')!='agent' AND m.user_id NOT IN (?, ?) ORDER BY m.user_id",
+                              (oid, uid, r["created_by"] or 0)).fetchall():
+            news_add(c, a, "orgjoinres", actor=uid, row="share", data={"org_id": oid, "name": name, "yes": True, "admin_join": True})
 
 
 def ojn_later(c, oid, uid, by, pairs):
@@ -776,6 +787,55 @@ def ojn_share_later(c, oid, uid, r):
         if l and not l["deleted_at"] and l["org_id"] == oid and l["owner_id"] == by and _folder_member_add(c, lid, uid, role, by):
             n += 1
     return n
+
+
+def ojn_by_void(c, uid, org=None):
+    """#6297 (1, audits #4741 / #4818 / #6007): the organisation invitations uid made end (in org; None = in every organisation)
+    -- the kind 'org' of accounts/invite.py invite_void. Every row runs out alike (decision 21.11.2026, reader job/6130 F9):
+    it loses its inviter (created_by NULL, so OJN_BY is false for good: a later unlock or the account's link does not bring it
+    back; reader job/6120 F1) and its time (as a row after OJN_DAYS); the other admins still see it in the list as expired and
+    can send it again (then as theirs) or withdraw it. The unused link of an account an organisation invitation set up
+    (org_invites) ends with it unless another live invitation still hangs on it. The caller commits. -> rows ended."""
+    w, a = ("j.created_by=? AND j.org_id=?", (uid, int(org))) if org else ("j.created_by=?", (uid,))
+    now = now_utc()
+    with system_ctx(c):  # the invited people are no members
+        # decision 21.11.2026 (reader job/6130 F9): no row is deleted - every kind (ordinary, silent, neutral, a new account's)
+        # runs out the same way, so the list never tells which address has an account (#3570, #4922); ojn_purge clears them
+        kept = [r[0] for r in c.execute(f"SELECT j.user_id FROM org_joins j WHERE {w} AND EXISTS (SELECT 1 FROM org_invites i "
+                                        "WHERE i.org_id=j.org_id AND i.user_id=j.user_id)", a).fetchall()]
+        n = c.execute(f"UPDATE org_joins j SET created_by=NULL, created_at=LEAST(j.created_at, ?) WHERE {w}",
+                       (iso(now - timedelta(days=OJN_DAYS, seconds=1)), *a)).rowcount
+        for v in kept:
+            if not c.execute("SELECT 1 FROM org_joins WHERE user_id=? AND created_by IS NOT NULL", (v,)).fetchone():
+                c.execute("UPDATE user_invites SET expires_at=? WHERE user_id=? AND kind='invite' AND used_at IS NULL "
+                          "AND expires_at>?", (iso(now), v, iso(now)))
+    return n
+
+
+INVITE_VOID["org"] = ojn_by_void
+
+
+def ojn_revoked(c, uid, org, reason, heir=None, role=None):
+    """core/objhooks.person_revoked (REVOKE): uid leaves organisation org or its role there changed. #6297 (1): leaving or a
+    role other than admin ends the invitations uid made there (an instance admin's stay while they are one, OJN_BY); leaving
+    also ends an invitation row of uid itself (audit #4818 b: after a removal no way back in its role within 14 days)."""
+    if reason not in ("leave", "role") or not uid or not org or (reason == "role" and role == "admin"):
+        return {}
+    out = {}
+    if not c.execute("SELECT 1 FROM users WHERE id=? AND is_admin AND NOT disabled", (uid,)).fetchone():
+        out["org_joins_by"] = invite_void(c, uid, ("org",), org=org)["org"]
+    if reason == "leave":
+        with system_ctx(c):  # the person's own invitation row (they are no member any more)
+            out["org_joins"] = c.execute("DELETE FROM org_joins WHERE org_id=? AND user_id=?", (org, uid)).rowcount
+    return out
+
+
+def _ojn_locked(c, uid):
+    invite_void(c, uid, ("org",))  # #6297 (1, audit #6007 b): a locked account invites nobody any more
+
+
+REVOKE.append(ojn_revoked)
+USER_LOCKED.append(_ojn_locked)
 
 
 def ojn_open(c, oid, uid):

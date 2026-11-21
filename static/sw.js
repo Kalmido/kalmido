@@ -586,10 +586,13 @@ async function swAnyCache(req, opt) {
 }
 async function swShell(req, url) {
   // 2.53.0 (#1410): modules on demand come with ?v=; 2.149.0 B (#2505): every start script / stylesheet too (a content hash)
-  const opt = {ignoreSearch: url.pathname === '/' || url.pathname === '/capture' || url.pathname.startsWith('/static/')};
+  const opt = {ignoreSearch: url.pathname.startsWith('/static/')};
   // 2.190.0 A (#2496): the app page and the quick capture page are kept without their query (a captured page's title and
   // address never become a cache key)
-  const key = (url.pathname === '/' || url.pathname === '/capture') && url.search ? url.pathname : req;
+  // (#6297 (13)): the right half of the split view (/?split=1) may be framed by the app (core/pages.py): kept under
+  // its own key, so the app page itself never comes from a copy with those frame headers (and the other way round)
+  const page = url.pathname === '/' || url.pathname === '/capture';
+  const key = page ? (url.pathname === '/' && url.searchParams.get('split') === '1' ? '/?split=1' : url.pathname) : req;
   // 2.149.0 B (#2506): ?v=<content hash> never changes: a kept copy of exactly that address is the file, no network needed
   const hashed = url.pathname.startsWith('/static/') && SW_HASH.test(url.searchParams.get('v') || '');
   if (hashed) { const hit = await caches.match(req); if (hit) return hit; }
@@ -601,7 +604,7 @@ async function swShell(req, url) {
   if (r && r.ok) return r;
   // network error or 5xx (server restarting): any cached copy beats a broken answer; 2.4.0 (#187): the quick capture page is the app shell too
   if (!r || r.status >= 500) {
-    const hit = (await swAnyCache(req, opt)) || (url.pathname === '/capture' ? await swAnyCache('/', {ignoreSearch: true}) : undefined);
+    const hit = (await swAnyCache(page ? key : req, page ? {} : opt)) || (url.pathname === '/capture' ? await swAnyCache('/', {}) : undefined);
     if (hit) return hit;
     if (!r) throw new TypeError('network error');
   }

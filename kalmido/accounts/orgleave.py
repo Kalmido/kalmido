@@ -21,12 +21,13 @@ from flask import g, has_request_context, jsonify, request
 from ..core.access import list_people, live_sql, ov_role, task_visible
 from ..core.config import app
 from ..core.db import body, bump, db, err, iso, iso_ms, now_utc, parse_iso
+from ..core.objhooks import obj_heir_count  # #6610: the preview of a role down counts what the hand-over gives
 from ..core.i18n import trn, tr
 from ..core.pg import system_ctx
 from ..core.access import Denied
 from .session import me
 from .orgretain import Nn_
-from .orgs import _need_admin, _need_org_admin, _no_change, _operator_apart, instance_mode, org_heir_to, org_role  # orgs imports this module only in functions
+from .orgs import _need_admin, _need_org_admin, _no_change, _operator_apart, _role_heir, instance_mode, org_heir_to, org_role  # orgs imports this module only in functions
 
 
 # what of person uid stays in organisation oid when they leave it (and goes when it is deleted): (key, words, count query);
@@ -92,10 +93,26 @@ def olv_info(c, oid, uid, heir):
             "heir": hname, "stays": stays, "stays_text": olv_text(stays), "assigned": assigned}
 
 
+def olv_down_info(c, oid, uid):
+    """#6610: what a role change of uid down to a role that may not own hands over in organisation oid and to whom (the one
+    way of a role down, orgs._role_heir): {to_heir: {lists, calendars, books, objects}, heir}; nobody to take it: zeros."""
+    h = _role_heir(c, oid, uid)
+    th = {"lists": 0, "calendars": 0, "books": 0, "objects": 0}
+    if h:
+        with system_ctx(c):  # numbers only (also of objects the admin does not see)
+            th["lists"] = c.execute("SELECT COUNT(*) FROM lists WHERE owner_id=? AND org_id=? AND NOT is_inbox", (uid, oid)).fetchone()[0]
+            n = obj_heir_count(c, uid, oid)  # reader job/6122 F8: the same selection as the hand-over, the core's objects too
+        th["calendars"], th["books"] = n.pop("ev_cals", 0), n.pop("books", 0)
+        th["objects"] = sum(n.values())
+    return {"to_heir": th, "heir": _names(c, [h]).get(h, "") if h else ""}
+
+
 @app.get("/api/orgs/<int:oid>/leave-info")
 def olv_leave_info(oid):
     """2.361.0 (#2922): the preview of leaving organisation oid (?uid = a member an admin removes; default: me) -- olv_info.
-    The heir is the one org_member_remove would choose: the removing admin, else the organisation's first other admin."""
+    The heir is the one org_member_remove would choose: the removing admin, else the organisation's first other admin.
+    #6610: ?down=1 (with uid) = the preview of a role change down to a role that may not own (the one way of a role down,
+    orgs._role_heir): {to_heir: {lists, calendars, books}, heir} -- what person uid owns there and who gets it (nobody: zeros)."""
     c = db()
     try:
         uid = int(request.args.get("uid") or me())
@@ -107,6 +124,8 @@ def olv_leave_info(oid):
         raise Denied(404)
     if not c.execute("SELECT 1 FROM org_members WHERE org_id=? AND user_id=?", (oid, uid)).fetchone():
         return err(tr("unknown"), 404)
+    if request.args.get("down"):  # #6610: the preview of a role change down (Leser #6120 F2: also of one's own)
+        return jsonify(olv_down_info(c, oid, uid))
     heir = me() if uid != me() else (c.execute(
         "SELECT m.user_id FROM org_members m JOIN users u ON u.id=m.user_id WHERE m.org_id=? AND m.role='admin' AND NOT u.disabled "
         "AND m.user_id!=? ORDER BY m.user_id LIMIT 1", (oid, uid)).fetchone() or [None])[0]

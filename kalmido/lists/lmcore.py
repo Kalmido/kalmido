@@ -52,6 +52,7 @@ from .lffolder import lf_own_stale, lf_place
 from ..core.objhooks import SETTLE
 from .lists import member_set
 from .listtrash import otr_can, otr_core_purge, otr_keep  # 2.936.0 (#5364): the kind list's retention hooks; #5491: otr_can
+from .ownership import owner_hand_over  # #6610: the projects' part of the one hand-over (ownership imports this module in its functions)
 
 LMC_KIND = "list"
 LMC_HIST = ("columns", "col_sums", "kpis", "props", "ticket_tpl", "agent_members", "po_number")  # the settings with a history (#6945: po_number)
@@ -192,12 +193,17 @@ def _on_restore(c, uid, lid, share):
         g.pop("lmc_restore", None)
 
 
-def _on_revoke(c, uid, org, reason, role=None):
-    """obj_revoke_person: the organisation role of uid changed -> the roles through groups anew in the organisation's
-    projects (A-F10: a guest / accounting person loses them, a member gets them back). Leaving / retiring / deleting: the
-    rows of list_members go in accounts/orgs.py org_leave (with its memo for coming back) and with the account."""
+def _on_revoke(c, uid, org, reason, role=None, heir=None, keep=None):
+    """obj_revoke_person: #6610: heir given (leaving, a role that may not own) -> the projects uid owns in org go to heir with
+    keep as uid's role after (lists/ownership.py owner_hand_over; key lists_to_heir). The organisation role of uid changed ->
+    the roles through groups anew in the organisation's projects (A-F10: a guest / accounting person loses them, a member gets
+    them back). Leaving / retiring / deleting: the other rows of list_members go in accounts/orgs.py org_leave (with its memo
+    for coming back) and with the account."""
+    out = {}
+    if heir is not None and uid and org:
+        out["lists_to_heir"] = owner_hand_over(c, int(org), int(uid), heir, keep=keep)
     if reason != "role" or not uid or not org:
-        return {}
+        return out
     ids = set()
     for gid in grp_of_user(c, int(uid)):
         ids |= grp_list_ids(c, gid=gid)
@@ -207,7 +213,7 @@ def _on_revoke(c, uid, org, reason, role=None):
         ids = [r[0] for r in c.execute(f"SELECT id FROM lists WHERE org_id=? AND id IN ({q})", (int(org),))]
     if ids:
         grp_sync(c, ids)
-    return {"list_members": len(ids)}
+    return {**out, "list_members": len(ids)}
 
 
 _COLS = {"columns": "col_cfg", "col_sums": "tb_sums", "kpis": "fx_kpis", "props": "props", "ticket_tpl": "ticket_tpl",
@@ -262,6 +268,7 @@ def _lm_gone_back(r):
 undo_gone("lists", _lm_gone_add, _lm_gone_back)
 obj_register(LMC_KIND, "lists", label=N_("Project"), fields={}, open_url=lambda lid: f"list/{int(lid)}", title=_title,
              base_role=_base, visible=_visible, area="tasks", routes=False, fsref=False, share_cols=("list_role", "list_own"),
+             scopes=("read", "structure"),  # (#6297 8): as v1 /lists (read; a project's own fields = structure)
              on_restore=_on_restore, on_revoke=_on_revoke, list_col="id",
              # 2.936.0 (#5364): the projects' trash period runs in the core's retention run (lists/listtrash.py); 50 per run:
              # a project goes with all its tasks and files (2.817.0 review F4)

@@ -19706,5 +19706,12 @@
   "documents from templates": "des documents issus de modèles",
   "invoice series": "des séries de factures",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "Le client de ce document n'est plus dans ce bureau (déplacé vers un autre espace de travail). Choisis d'abord un autre client.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Le client de la facture modèle n'est plus dans ce bureau (déplacé vers un autre espace de travail). Choisis une autre facture modèle et réactive la série."
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Le client de la facture modèle n'est plus dans ce bureau (déplacé vers un autre espace de travail). Choisis une autre facture modèle et réactive la série.",
+  "{0} joined {1} as an admin": "{0} a rejoint {1} en tant qu'administrateur",
+  "Change the role of {0}?": "Changer le rôle de {0} ?",
+  "{0} owns things in this organisation that this role cannot own. They go to {1}: {2}. {0} stays in them and reads them.": "{0} possède dans cette organisation des éléments que ce rôle ne peut pas posséder. Ils passent à {1} : {2}. {0} y reste et peut les lire.",
+  "{0} owns things in this organisation that this role cannot own. They go to {1}: {2}. {0} stays in them and may edit them.": "{0} possède dans cette organisation des éléments que ce rôle ne peut pas posséder. Ils passent à {1} : {2}. {0} y reste et peut les modifier.",
+  "Change role": "Changer le rôle",
+  "Invitations you sent to organisations end with a new password; an admin of the organisation can send them again from its members list.": "Les invitations que tu as envoyées à des organisations prennent fin avec un nouveau mot de passe ; un administrateur de l’organisation peut les renvoyer depuis sa liste des membres.",
+  "Invitations you sent to organisations end too; an admin of the organisation can send them again from its members list.": "Les invitations que tu as envoyées à des organisations prennent fin aussi ; un administrateur de l’organisation peut les renvoyer depuis sa liste des membres."
 }

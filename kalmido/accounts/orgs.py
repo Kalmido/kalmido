@@ -6,7 +6,7 @@ import re
 
 from flask import g, has_request_context, jsonify, request
 
-from ..core.objhooks import OBJ, obj_node_take, obj_settle, person_revoked  # 2.1168.0 (#4782): + OBJ, obj_node_take; 2.558.0 (#4709): the shared core without importing the domain layer
+from ..core.objhooks import OBJ, REVOKE, obj_node_take, obj_settle, person_revoked  # #6610: + REVOKE; (#4782): + OBJ, obj_node_take; (#4709): the shared core without importing the domain layer
 from ..core.objfollow import ofl_drop  # 2.981.0 (#5286)
 from ..core.objseen import osn_drop  # 2.981.0 (#5286)
 from ..core.config import app, OFFICE_DIR
@@ -21,8 +21,6 @@ from ..core.orgcrypt import oc_send_file, oc_write_file, rck_admin_gone, rck_org
 from ..core.errors import BadInput  # 2.149.0 G (#2517): pulled up from functions
 from .navmenus import nav_clean_org, nav_org_off  # 2.418.0 (#3560)
 from .orgretain import Nn_, odl_former  # 2.186.0 A (#2599); 2.414.0 (#3502): Nn_ marks the plural pair below
-from .orgretain import obj_nodes_follow  # 2.566.0 (#4712)
-from .orgretain import obj_share_gone  # 2.924.0 (#5069)
 from .pictures import org_icon_tok, org_icon_url, AVATAR_MAX_MB, LIST_ICON_DIR, list_icon_process, org_icon_drop_file, org_icon_path  # 2.369.5 (#2517): pulled up from functions
 from ..core.i18n import trn  # 2.369.5 (#2517): pulled up from functions
 from ..core.serializers import unlink_files  # 2.369.5 (#2517): pulled up from functions
@@ -190,6 +188,8 @@ def org_member_add(c, oid, uid, role="member"):
     data, on every device and without a word; under "All" the office shows both offices since #7313)."""
     n = c.execute("INSERT INTO org_members(org_id,user_id,role) VALUES(?,?,?) ON CONFLICT (org_id, user_id) DO NOTHING", (oid, uid, role)).rowcount
     acx_drop()
+    with system_ctx(c):  # #6297 (1b, audit #4818): an open invitation of the person ends (else back in its role after a removal)
+        c.execute("DELETE FROM org_joins WHERE org_id=? AND user_id=?", (oid, uid))
     if n == 1:  # 2.363.3 (#3133): back within a day: their assignments and "coming along" return (every way of joining comes here)
         from .orgleave import olv_rejoin
         olv_rejoin(c, oid, uid, role)
@@ -484,9 +484,10 @@ def ws_check_member(c, lid, uid, org_id=None):
 def ws_check_owner(c, oid, uid):
     """2.538.0 (#4371): Denied(409) when uid may not own a project of organisation oid -- the rule of list_owner_set for every
     way a project changes hands (handover by an organisation admin, a folder, an heir when someone leaves): only a member or
-    an admin (org_writes); a guest / read-only / accounting person never becomes the owner (the role cap #2151)."""
-    from .orgroles import org_writes
-    if oid and not org_writes(c, uid, oid):
+    an admin; a guest / read-only / accounting person never becomes the owner (the role cap #2151). #6610: the rule is the
+    table of accounts/orgroles.py (ROLE_CAPS own), which the request's caps and the role change read too."""
+    from .orgroles import org_may_own
+    if oid and not org_may_own(c, uid, oid):
         raise Denied(409, tr("Only a member or admin of the organisation can own its projects"))
 
 
@@ -1064,12 +1065,14 @@ def orgs_get():
 @app.post("/api/admin/orgs/boundary/repair")
 def oa_boundary_repair():
     """2.46.0 (#1563): the button "Clean up" of the boundary check: takes out the memberships of people (not agents) in an
-    organisation's lists / calendars / address books that are not members of the organisation (tenancy.boundary_repair)."""
+    organisation's lists / calendars / address books that are not members of the organisation (tenancy.boundary_repair).
+    #6610: and hands what a member owns there whose role may not own to the organisation's first admin."""
     _need_admin()
     from ..accounts.tenancy import boundary_repair, boundary_summary, rp_foreign
     c = db()
     with system_ctx(c):  # 2.480.0 (#3944, F5): hosted: only the operator's own organisations, a client's rows are only counted
-        done = boundary_repair(c, keep=(lambda k, a, b: rp_foreign(c, k, a, b)) if _operator_apart() else None)
+        # #6610: owners=True -- an owner whose role may not own hands it to the organisation's first admin (the one way of a role down)
+        done = boundary_repair(c, keep=(lambda k, a, b: rp_foreign(c, k, a, b)) if _operator_apart() else None, owners=True)
         kept = done.pop("_kept", {})
         if done:
             bump(c)
@@ -1684,21 +1687,31 @@ def org_member_put(oid, ghost=False):
     if not u or (u["kind"] or "user") == "agent" or (uid != me() and not by_mail and not may_see(c, me(), uid)):
         return err(tr("unknown person"), 404)
     cur = c.execute("SELECT role FROM org_members WHERE org_id=? AND user_id=?", (oid, uid)).fetchone()
-    if cur and uid == me() and role != "admin" and _admins(c, oid) <= 1:
-        return err(tr("The last admin of an organisation cannot step down: make somebody else an admin first"), 409)
+    from .orgroles import role_down  # orgroles imports this module at its top
+    if by_mail and cur and role_down(cur["role"], role):
+        # decision 21.11.2026 (#6610, reader job/6130 F10): by address a member's role never goes down (the add field sends no
+        # role, member by default) - the role stays and the answer is the one of any address; down only by user_id, where the
+        # role selector shows the preview of what goes to whom
+        role = cur["role"]
+    if cur and cur["role"] == "admin" and role != "admin":
+        # #6297 (1c, audit #4818): two admins stepping down (or demoting each other) at once: the second waits for the first and
+        # counts what it left -- the organisation keeps an active admin
+        org_lock(c, oid)
+        if _admins(c, oid, besides=uid) < 1:
+            return err(tr("The last admin of an organisation cannot step down: make somebody else an admin first"), 409)
     pending = False
     if cur:
         c.execute("UPDATE org_members SET role=? WHERE org_id=? AND user_id=?", (role, oid, uid))
         acx_drop()  # 2.143.0 A (#2151): the cached roles of this request
         if cur["role"] != role:
             org_role_news(c, oid, uid, role)  # 2.367.4 (#2974)
-            person_revoked(c, uid, oid, "role", role=role)  # 2.558.0 (#4709): a guest / accounting leaves the open channels joined
+            # (#4709) / #6610: the one way of a role change, as leaving (core/objhooks.person_revoked): what the new role
+            # may not own goes to an admin (uid keeps a share at the role's cap), guest / accounting leave the open channels, the
+            # office groups and agents go after accounts/orgroles.py ROLE_CAPS (org_caps_out), the invitations uid made end
+            # with the admin right (#6297 1, accounts/orginvite.py)
+            person_revoked(c, uid, oid, "role", role=role, heir=_role_heir(c, oid, uid))
             if cur["role"] == "admin":
                 rck_admin_gone(c, oid, uid)  # 2.539.0 (#4373)
-            org_open_chan_off(c, oid, uid, role)  # 2.560.0 (#4698 b)
-            if role in ("guest", "accounting"):  # #6605: no agents in these roles -- their personal agents leave as with org_leave
-                for aid in org_agents_out(c, oid, uid):
-                    person_revoked(c, aid, oid, "leave")  # the core's revocation of each agent (as agents/admin.py _agent_org_set)
             _office_start(c, oid, uid, role)  # #6527: e.g. an admin who becomes a member
     elif uid != me() and (not g.user["is_admin"] or _operator_apart()):  # 2.148.1 A (#2480): an existing account joins only by accepting an invitation (2.306.0 D1, #2875: also the operator's)
         from .orginvite import ojn_invite
@@ -1717,26 +1730,60 @@ def org_member_put(oid, ghost=False):
                    org=org_mine_dict(c, c.execute("SELECT * FROM orgs WHERE id=?", (oid,)).fetchone(), me()))
 
 
-def org_open_chan_off(c, oid, uid, role):
-    """2.560.0 (#4698 b): uid's role in oid became guest / accounting (no full reading): they leave the organisation's OPEN
-    channels they had joined, with their personal agents (an open channel is the organisation's room, a member row there
-    would keep reading it); closed channels stay (a personal invitation)."""
-    from .orgroles import FULL_READ
-    if role in FULL_READ:
-        return
-    with system_ctx(c):  # the person's own rows in the organisation's channels, also when an admin changes the role
-        # 2.565.0 (#4719): their shares of those rooms in the shared core (core/objects.py obj_revoke_person took them into
-        # obj_revoked just before; this takes one that was left). 2.924.0 (#5069): no old rows of tchat_members any more
-        c.execute("DELETE FROM fs_shares WHERE (user_id=? OR user_id IN (SELECT user_id FROM agents WHERE owner_id=?) OR agent_id IN "
-                  "(SELECT user_id FROM agents WHERE owner_id=?)) AND node_id IN (SELECT id FROM fs_nodes WHERE kind='ref' AND ref_kind='tchat_room' "
-                  "AND ref_id IN (SELECT id FROM tchat_rooms WHERE kind='channel' AND is_open AND org_id=?))", (uid, uid, uid, oid))
-
-
 def org_role_news(c, oid, uid, role):
     """2.367.4 (#2974): the person's role in the organisation changed: a News item (row "share"), never for one's own change."""
     from ..collab.news import news_add
     name = c.execute("SELECT name FROM orgs WHERE id=?", (oid,)).fetchone()[0]
     news_add(c, uid, "orgrole", row="share", data={"org_id": oid, "name": name, "role": role})
+
+
+def org_lock(c, oid):
+    """#6297 (1c, audit #4818): the organisation's row locked until the transaction ends, before counting its admins for a
+    change that may leave none (a second such change waits and then counts what the first left)."""
+    with system_ctx(c):  # the row of the organisation (structure)
+        c.execute("SELECT id FROM orgs WHERE id=? FOR UPDATE", (oid,)).fetchone()
+
+
+def _role_heir(c, oid, uid):
+    """#6610: who takes over what uid owns in organisation oid when uid's role goes down to one that may not own: the admin
+    changing it (a person who may own there), else the organisation's first other active admin; None = nobody (nothing is
+    handed over, the caps of accounts/orgroles.py hold anyway)."""
+    from .orgroles import org_may_own
+    by = me()
+    if by != uid and org_role(c, by, oid) and org_may_own(c, by, oid) and \
+            c.execute("SELECT 1 FROM users WHERE id=? AND COALESCE(kind,'user')!='agent'", (by,)).fetchone():
+        return by
+    return org_own_admin(c, oid, but=uid)
+
+
+def org_caps_out(c, uid, org, reason, heir=None, role=None):
+    """#6610: uid's role in organisation org is now role (core/objhooks.person_revoked 'role', REVOKE): what the role may not
+    keep goes after accounts/orgroles.py ROLE_CAPS -- its rows of the office's rights groups (written into the office rights
+    log like a change on the rights page, office/rights.py member_groups) and its personal agents (they leave the
+    organisation as with org_leave, each with the core's revocation, #6605). Leaving: org_leave ends both with the membership."""
+    if reason != "role" or not uid or not org or not role:
+        return {}
+    from .orgroles import role_caps
+    caps, out = role_caps(role), {}
+    if not caps["office"]:
+        with system_ctx(c):  # the office's rights structure of a person whose role an admin changes
+            refs = [f"g:{r[1]}" if r[1] else f"tpl:{r[0]}" for r in c.execute(
+                "SELECT tpl, group_id FROM office_rgroup_members WHERE org_id=? AND user_id=? ORDER BY id", (org, uid)).fetchall()]
+            if refs:
+                c.execute("DELETE FROM office_rgroup_members WHERE org_id=? AND user_id=?", (org, uid))
+                by = g.user["id"] if has_request_context() and getattr(g, "user", None) is not None else uid
+                c.execute("INSERT INTO office_rights_log(org_id, by_user, target_user, group_ref, action, before, after, at) VALUES(?,?,?,?,?,?,?,?)",
+                          (org, by, uid, "", "member_groups", json.dumps(refs), "[]", iso(now_utc())))
+        out["office_groups"] = len(refs)
+    if not caps["agents"]:
+        ags = org_agents_out(c, org, uid)
+        for aid in ags:
+            person_revoked(c, aid, org, "leave")  # the core's revocation of each agent (as agents/admin.py _agent_org_set)
+        out["agents"] = len(ags)
+    return out
+
+
+REVOKE.append(org_caps_out)
 
 
 def _admins(c, oid, besides=0):
@@ -1798,65 +1845,40 @@ def org_agents_out(c, oid, uid, person=False):
 
 
 def org_leave(c, oid, uid, heir):
-    """uid leaves organisation oid: their lists of that workspace go to heir (an organisation admin), uid leaves every list
-    of the organisation (members and the agents it owns there stay with the lists), their personal agents of that workspace
-    become private. Decision #935 (back with #6840): what uid brought in from the private space stays with the organisation
-    too (lists to the heir, tables, files, knowledge pages ... where they are); only private lists stay uid's. The caller
-    commits. Returns the number of lists transferred."""
-    from ..lists.ownership import owner_transfer
+    """uid leaves organisation oid: what they own there goes to heir (an organisation admin) -- #6610: through the one way of
+    leaving and of a role down, core/objhooks.person_revoked with heir (projects, calendars, their address books, the core's
+    objects; nobody to take over: projects, calendars and address books become private) --, uid leaves every list of the
+    organisation (members and the agents it owns there stay with the lists), their personal agents of that workspace become
+    private. Decision #935 (back with #6840): what uid brought in from the private space stays with the organisation too. The
+    caller commits. Returns the number of lists transferred."""
     from .orgleave import olv_memo, olv_snap
     if heir and heir != uid:
         ws_check_owner(c, oid, heir)  # 2.538.0 (#4371): every caller's heir is a member / admin of the organisation (409)
     snap = olv_snap(c, oid, uid)  # 2.363.3 (#3133): what the end of the membership takes away, for coming back within a day
     was_admin = c.execute("SELECT 1 FROM org_members WHERE org_id=? AND user_id=? AND role='admin'", (oid, uid)).fetchone()  # 2.539.0 (#4373)
-    n, priv = 0, []
-    for lr in c.execute("SELECT * FROM lists WHERE owner_id=? AND org_id=? AND NOT is_inbox", (uid, oid)).fetchall():
-        if heir and heir != uid:
-            owner_transfer(c, lr, heir, force=True)  # 2.64.1 (#1817): a list with the lock too (the heir waits for its key)
-            c.execute("DELETE FROM list_members WHERE list_id=? AND user_id=?", (lr["id"], uid))
-            from .orglists import _ol_log
-            _ol_log(c, oid, lr, "owner", to_id=heir)  # 2.148.1 A (#2480): the handover is in the admins' history
-            n += 1
-        elif lr["deleted_at"]:  # 2.102.0 A (#1988): a list in the trash stays the organisation's (never the leaver's private one)
-            continue
-        else:
-            ol_private(c, lr["id"], uid)
-            priv.append(lr["id"])
+    from ..contacts.orgbooks import obk_leave
+    obk_leave(c, oid, uid, heir)  # (#1438): the organisation's own address books stay with it (another manager)
+    # (#4709) / #6610: the core's revocation and hand-over (file store shares, team chat rooms, public links, what they
+    # follow; their projects, calendars, address books and core objects to heir, 0 = nobody: private)
+    n = person_revoked(c, uid, oid, "leave", heir=heir if heir and heir != uid else 0).get("lists_to_heir", 0)
     for (lid,) in c.execute("SELECT m.list_id FROM list_members m JOIN lists l ON l.id=m.list_id WHERE m.user_id=? AND l.org_id=?", (uid, oid)).fetchall():
         c.execute("DELETE FROM list_members WHERE list_id=? AND user_id=?", (lid, uid))
         c.execute("UPDATE tasks SET assignee_id=NULL WHERE list_id=? AND assignee_id=?", (lid, uid))
         dlg_gone(c, lid, uid)  # 2.473.0 (#3357): delegated tasks and watching of this list end
         c.execute("DELETE FROM task_people WHERE user_id=? AND task_id IN (SELECT id FROM tasks WHERE list_id=?)", (uid, lid))
-    if priv:  # 2.352.0 F (#2748, review N3): the lists now private leave the organisation's tree, its folders' roles end
-        from ..lists.groups import grp_sync
-        grp_sync(c, priv)
     # 2.473.0 (#3357): watching without a membership ends the same way (a list open to the organisation) -- 2.972.0 (#5285):
-    # person_revoked 'leave' below takes every row of obj_follow of them and their agents in the organisation
+    # person_revoked 'leave' above takes every row of obj_follow of them and their agents in the organisation
     # 2.83.0 (#1725): tasks assigned without joining (a list everyone in the organisation may edit)
     c.execute("UPDATE tasks SET assignee_id=NULL WHERE assignee_id=? AND list_id IN (SELECT id FROM lists WHERE org_id=? AND owner_id!=?)", (uid, oid, uid))
     # 2.363.3 (#3133): coming along without a membership too (brought back by joining again in a list open to the organisation)
     c.execute("DELETE FROM task_people WHERE user_id=? AND task_id IN (SELECT id FROM tasks WHERE list_id IN (SELECT id FROM lists WHERE org_id=? AND owner_id!=?))", (uid, oid, uid))
-    from ..contacts.orgbooks import obk_leave
-    obk_leave(c, oid, uid, heir)  # 2.52.0 C (#1438): the organisation's own address books stay with it (another manager)
-    # 2.30.0 (#1036): the organisation's calendars and address books follow the same way: the leaver's go to heir (else
-    # they become private), the leaver leaves the ones of others
-    for table, kind in (("ev_cals", "evcal"), ("books", "address_book")):
-        for (xid,) in c.execute(f"SELECT id FROM {table} WHERE owner_id=? AND org_id=?", (uid, oid)).fetchall():
-            if heir and heir != uid:
-                obj_share_gone(c, kind, xid, heir)  # 2.924.0 (#5069): the new owner needs no share of its own (was the old member row)
-                c.execute(f"UPDATE {table} SET owner_id=? WHERE id=?", (heir, xid))
-            else:
-                c.execute(f"UPDATE {table} SET org_id=NULL WHERE id=?", (xid,))
-    with system_ctx(c):  # 2.566.0 (#4712, review F1): the ones now private: their nodes follow with the shares (no fallback to old rows)
-        obj_nodes_follow(c, oid)
     # 2.566.0 (#4712): their (and their agents') member rows and shares of the organisation's calendars and address books
-    # are the shared core's revocation (person_revoked 'leave' below: members= of the kinds, restorable rows)
+    # are the shared core's revocation (person_revoked 'leave' above: members= of the kinds, restorable rows)
     # 2.46.0 (#1592, review fix): the leaver's personal agents leave the organisation with them -- its lists, calendars,
     # address books and the membership (an agent of an organisation is one of its members)
     ags = org_agents_out(c, oid, uid, person=True)
     with system_ctx(c):
         c.execute("DELETE FROM doc_fetchers WHERE org_id=? AND user_id=?", (oid, uid))  # 2.425.0 (#3453 review): their receipt fetchers end (coming back = no old key)
-    person_revoked(c, uid, oid, "leave", heir=heir)  # 2.558.0 (#4709): the core's revocation (file store shares, team chat rooms, core objects)
     c.execute("DELETE FROM org_members WHERE org_id=? AND user_id=?", (oid, uid))
     if was_admin:  # 2.539.0 (#4373): an admin who saw the recovery key leaves: the other admins are asked to renew it
         rck_admin_gone(c, oid, uid)
@@ -1892,10 +1914,12 @@ def org_member_remove(oid, uid):
         raise Denied(404)
     if instance_mode(c) != "workspaces":
         _no_change()
-    if not c.execute("SELECT 1 FROM org_members WHERE org_id=? AND user_id=?", (oid, uid)).fetchone():
+    org_lock(c, oid)  # #6297 (1c, audit #4818): two admins leaving / removing each other at once: the second counts what the first left
+    cur = c.execute("SELECT role FROM org_members WHERE org_id=? AND user_id=?", (oid, uid)).fetchone()
+    if not cur:
         return err(tr("unknown"), 404)
     # 2.585.0 (#4290): the active admins besides the person (a disabled admin counted against the remover)
-    if uid != me() and org_role(c, uid, oid) == "admin" and _admins(c, oid, besides=uid) < 1:
+    if uid != me() and cur["role"] == "admin" and _admins(c, oid, besides=uid) < 1:
         return err(tr("The last admin of an organisation cannot leave it: make somebody else an admin first"), 409)
     heir = me() if uid != me() else (c.execute("SELECT m.user_id FROM org_members m JOIN users u ON u.id=m.user_id WHERE m.org_id=? AND m.role='admin' AND NOT u.disabled AND m.user_id!=? ORDER BY m.user_id LIMIT 1", (oid, uid)).fetchone() or [None])[0]
     if uid != me() and request.args.get("to"):  # 2.88.0 (#1980): the admin hands the person's lists to another active member

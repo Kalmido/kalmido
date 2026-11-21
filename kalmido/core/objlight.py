@@ -214,6 +214,7 @@ def _client_title(c, cid):
 
 
 obj_register(LT_TASK, "tasks", label=N_("Task"), fields={}, node=False, area="tasks", base_role=_task_base, space=_task_space,
+             scopes=("read", "tasks:write"),  # (#6297 8): the tasks' v1 scopes, named (no default any more)
              title=_task_title, open_url=lambda tid: f"t/{int(tid)}",
              # 2.936.0 (#5364): the tasks' trash period runs in the core's retention run (tasks/tasktrash.py)
              trash_prune=True, trash_keep=ttp_keep, trash_batch=TTP_BATCH,
@@ -225,9 +226,11 @@ obj_register(LT_EVENT, "events", label=N_("Event"), fields={}, node=False, area=
              title=_ev_title, open_url=lambda eid: f"ev/{int(eid)}",
              scopes=("calendar", "calendar"))  # review 2.1076 (#5271): events need calendar also to read (api/scopes.py)
 obj_register(LT_MAIL, "hub_mails", label=N_("E-mail"), fields={}, node=False, area="other", base_role=_mail_base, space=_mail_space,
-             title=_mail_title, open_url=lambda mid: f"mailhub/{int(mid)}")
+             title=_mail_title, open_url=lambda mid: f"mailhub/{int(mid)}",
+             scopes=("read", "tasks:write"))  # (#6297 8): the mails have no scope of their own (v1 /mails: read)
 obj_register(LT_CLIENT, "clients", label=N_("Client"), fields={}, node=False, area="other", base_role=_client_base,
-             space=_client_space, title=_client_title, open_url=lambda cid: f"client/{int(cid)}")
+             space=_client_space, title=_client_title, open_url=lambda cid: f"client/{int(cid)}",
+             scopes=("read", "structure"))  # (#6297 8): as v1 /clients (read; writing = structure)
 
 
 if os.environ.get("KALMIDO_TEST") == "1":  # test containers only (tests/p2754_d_kinds_api_test.py)

@@ -36,6 +36,34 @@ from .bgjobs import BGJ_FNS, bgj_add  # 2.593.0 (#3570)
 INVITE_DAYS = 7
 
 
+# #6297 (1) / #6362: THE one place that ends open ways in a person made or holds -- kind -> f(c, uid, org) -> rows ended. A kind
+# registers here once; every event that must end it calls invite_void with the kinds it ends (no second place deletes them).
+#   org   the organisation invitations uid made (accounts/orginvite.py ojn_by_void): they end with uid's admin right in org
+#         (core/objhooks.person_revoked 'leave' / 'role'), with the lock of the account (USER_LOCKED) and with every run of
+#         accounts/sessions.py ses_access_end (row invites_made of accounts/accessways.py, PW_VOID below): a new password, a reset and the first second factor (accounts/login.py); the password
+#         and two-factor dialogs say so, the members list keeps the ended invitation with "send again"; org None = everywhere
+# #6362 adds its kinds of the account's own links (reset, login) to INVITE_VOID and PW_VOID.
+INVITE_VOID = {}
+PW_VOID = ["org"]  # the kinds a new password / a reset / the first second factor end (invite_pw_void, accessways.py)
+
+
+def invite_void(c, uid, kinds, org=None):
+    """The open ways in of the given kinds (INVITE_VOID) of account uid end -- in organisation org only, where the kind knows
+    organisations (None: everywhere). An unknown kind is a programming error (ValueError). The caller commits. {kind: n}."""
+    out = {}
+    for k in kinds:
+        if k not in INVITE_VOID:
+            raise ValueError(f"invite_void: unknown kind {k!r}")
+        out[k] = INVITE_VOID[k](c, int(uid), org) or 0
+    return out
+
+
+def invite_pw_void(c, uid):
+    """#6297 (1): the row "invites_made" of accounts/accessways.py ACCESS_WAYS (end always): a new password, an admin's reset, a
+    used reset link and the first second factor end the open ways in of the kinds PW_VOID."""
+    invite_void(c, uid, PW_VOID)
+
+
 def _hash(tok):
     return hashlib.sha256(tok.encode()).hexdigest()
 

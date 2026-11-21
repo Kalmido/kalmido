@@ -68,6 +68,7 @@ SRV_BUSY_S = 5             # s a run waits for a free place before it tries agai
 SRV_WAIT_NOTE_S = 25       # 2.1292.0 (#6569): s of waiting for a place before the people who asked are told (once per wait)
 SRV_WAIT_TEXT = N_("All places for server agents are busy right now. I start as soon as one is free.")
 SRV_LOST_S = SRV_CALL_S + 120  # a run without a beat for this long was lost (its process is gone)
+SRV_USAGE_NOTE = "server agent run {}"  # (#6297 (10)): the note of a run's usage report (the web gate lets only this one by)
 SRV_LOST_TEXT = N_("The server agent was interrupted")  # agent_runs.error of a lost run (srvweb.srvweb_state reads it)
 # (#6388): what the person whose request a lost / stopped run worked on reads in the chat (its events are taken: no second
 # run on its own, the cost brake stays)
@@ -540,6 +541,11 @@ def _run(aid, rid):
 
 
 def _finish(aid, rid, tok, state, text, asker, lang):
+    # (#6297 (10)): the row ends first - the model is done, so the run's own closing words (a pause with its reason on
+    # the avatar) are no longer held by the web gate, which asks a card for a status text of the model; whether the watchdog took
+    # the run for lost (#7181) is read before
+    taken = state in ("failed", "aborted") and _taken(rid)
+    _end(rid, state, text if state != "done" else "")
     api = _api(mcpr_module(), tok, time.time() + 30) if tok else None
     if api is not None:
         try:
@@ -552,7 +558,7 @@ def _finish(aid, rid, tok, state, text, asker, lang):
                 _status(api, "paused", None, tr(text, lg=lang))
             else:
                 _status(api, "idle", None)
-            if asker and state in ("failed", "aborted") and _taken(rid):
+            if asker and taken:
                 asker = None  # #7181: the watchdog took it for lost and told the person already (_lost_say)
             if asker and state == "failed":
                 _say(api, asker, tr("I could not finish this: {0}", tr(text, lg=lang), lg=lang))
@@ -560,7 +566,6 @@ def _finish(aid, rid, tok, state, text, asker, lang):
                 _say(api, asker, tr("Stopped.", lg=lang))
         except Exception as e:  # noqa: BLE001 -- the run's row says what happened
             print("server agent", aid, "run", rid, "status:", type(e).__name__, flush=True)
-    _end(rid, state, text if state != "done" else "")
 
     def tidy(c):
         if tok:
@@ -722,7 +727,7 @@ def _usage(api, aid, rid, model, u, flow=""):
     try:  # the usage ring, the limits and their alerts: the same report as any agent's (numbers only)
         r = api.call("POST", "/agent/usage", body={"model": model, "input_tokens": u["input"], "output_tokens": u["output"],
                                                    "cache_read_tokens": u["cache_read"], "cache_write_tokens": u["cache_write"],
-                                                   "note": f"server agent run {rid}"})
+                                                   "note": SRV_USAGE_NOTE.format(rid)})
         _db(lambda c: srv_usage_mark(c, aid, rid, (r or {}).get("id") if isinstance(r, dict) else None))  # 2.569.0 B (#4675): per member
     except Exception as e:  # noqa: BLE001 -- the run's row keeps the numbers
         print("server agent", aid, "usage not reported:", type(e).__name__, flush=True)

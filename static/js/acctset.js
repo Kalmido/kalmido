@@ -143,7 +143,8 @@ function accountHtml() {
     ${pw ? `<div class="row pwrow"><label for="a-cur">${tr('Password')}</label><input type="text" class="cfhid" hidden tabindex="-1" aria-hidden="true" autocomplete="username" value="${esc(S.me?.username || '')}" readonly><span class="pwcol"><input type="password" id="a-cur" placeholder="${tr('current password')}" aria-label="${esc(tr('current password'))}" autocomplete="current-password"><input type="password" id="a-new" placeholder="${tr('new password')}" aria-label="${esc(tr('new password'))}" autocomplete="new-password"><button class="btn sm" data-acc="pw">${tr('Change')}</button></span></div>${''/* 2.1391.0 (#6130): the two fields one under the other, never cut off */}
     <div class="featgrid"><label class="wide"><input type="checkbox" id="a-pwrev" checked><span>${tr('End all app passwords and API tokens')}<small class="muted">${tr('Ticked: calendar and contacts apps and scripts must be connected again afterwards (new app password, new token).')} ${tr('Calendar feed links and the upload token end too; make new ones where you use them.')} ${tr('Your own webhooks and forwardings (Slack, Matrix, Telegram, Signal) are switched off; switch on again under Connections and Notifications the ones that are yours.')} ${tr('So is the webhook of your document flows; switch it on again in the list of flows.')}</small></span></label></div>
     <div class="shint">${tr('Passkeys and your own agents keep working after a new password: remove the ones you do not know under Two-factor authentication (below) and under Your agents.')} <button type="button" class="linkbtn" data-acc="pw-agents">${tr('Your agents…')}</button></div>
-    <div class="shint">${tr('These stay too: your push topic (ntfy), the secret e-mail addresses for tasks and documents, the inbound webhooks and Git connections of your projects and your mailbox. Check what you do not know.')} <button type="button" class="linkbtn" data-acc="pw-conns">${tr('Connections…')}</button></div>` : ''}${''/* #7633: the rows "stays" of accounts/accessways.py */}${''/* (#6354): the other ways in - the existing lists, no second one */}
+    <div class="shint">${tr('These stay too: your push topic (ntfy), the secret e-mail addresses for tasks and documents, the inbound webhooks and Git connections of your projects and your mailbox. Check what you do not know.')} <button type="button" class="linkbtn" data-acc="pw-conns">${tr('Connections…')}</button></div>
+    <div class="shint">${tr('Invitations you sent to organisations end with a new password; an admin of the organisation can send them again from its members list.')}</div>` : ''}${''/* #6297 (1): the password ends the invitations one made (accounts/invite.py PW_VOID) */}${''/* #7633: the rows "stays" of accounts/accessways.py */}${''/* (#6354): the other ways in - the existing lists, no second one */}
     ${tfaHtml()}
     ${typeof sesHtml === 'function' ? sesHtml() : ''}${''/* 2.115.0 B (#2062): active sessions */}${typeof sgvHtml === 'function' ? sgvHtml() : ''}${''/* 2.485.0 (#3939): support access (hosted) */}
     ${e2eHtml()}${''/* 2.42.0 (#828, #909) */}
@@ -666,6 +667,8 @@ async function tfaDraw(md, j) {
 }
 // #6499: the first second factor ends the other sessions, the own API tokens, app passwords and feed links (accounts/login.py _end_other_sessions)
 const tfaFirstText = j => j.totp || (j.passkeys || []).length ? '' : tr('Switching it on signs you out everywhere else, ends your API tokens, app passwords and calendar feed links and switches your own webhooks and forwardings off.');
+// #6297 (1): the first second factor also ends the invitations one made (accounts/invite.py PW_VOID), its own sentence
+const tfaFirstAll = j => tfaFirstText(j) && `${tfaFirstText(j)} ${tr('Invitations you sent to organisations end too; an admin of the organisation can send them again from its members list.')}`;
 function tfaWire(md) {
   md.addEventListener('click', async e => {
     const b = e.target.closest('[data-tfa]'); if (!b) return;
@@ -674,7 +677,7 @@ function tfaWire(md) {
     b.disabled = true;
     try {
       if (a === 'totp-on') {
-        const pw = await pwPrompt(tr('Set up the authenticator app'), {text: tfaFirstText(j)}); if (!pw) return;
+        const pw = await pwPrompt(tr('Set up the authenticator app'), {text: tfaFirstAll(j)}); if (!pw) return;
         const t = await api('POST', '/api/me/2fa/totp', {password: pw.password});
         const res = await new Promise(done => {
           const m = modal(`<h3>${tr('Set up the authenticator app')}</h3><form class="totpform">${totpSetupHtml(t)}<div class="aerr" role="alert" id="totp-err"></div>
@@ -703,7 +706,7 @@ function tfaWire(md) {
         await rcModal(r.recovery_codes); await tfaDraw(md, r);
       }
       if (a === 'pk-add') {
-        const pw = await pwPrompt(tr('Add a passkey'), {text: tfaFirstText(j)}); if (!pw) return;
+        const pw = await pwPrompt(tr('Add a passkey'), {text: tfaFirstAll(j)}); if (!pw) return;
         const o = await api('POST', '/api/me/passkeys/options', {password: pw.password});
         let cred;
         try { cred = await pkCreate(o); } catch (x) { toast(pkErr(x)); return; }

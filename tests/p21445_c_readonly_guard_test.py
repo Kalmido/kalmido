@@ -132,7 +132,9 @@ r = Ri.put(B + "/api/folders/public-links", json={"folder": "Work", "on": True})
 check(r.ok and r.json().get("created") == 1, f"control: as a member Rita switches the folder's public links on ({r.status_code} {r.text[:160]})")
 
 # Rita becomes read-only
-ok(A.put(B + f"/api/orgs/{ORG}/members", json={"user_id": RITA, "role": "readonly"}), "Rita becomes read-only")
+# #6610: the role change through the API hands her projects to Alice (a read-only person owns nothing); these guards are for
+# a read-only owner from before that rule (an old database), so the role is set in the table as it stood then
+dbx("UPDATE org_members SET role='readonly' WHERE org_id=? AND user_id=?", (ORG, RITA))
 st = {x["id"]: x for x in Ri.get(B + "/api/state").json()["lists"]}
 check(st.get(L2, {}).get("role") == "view" and st.get(L1, {}).get("role") == "view", "read-only: both projects as view")
 

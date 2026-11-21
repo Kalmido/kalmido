@@ -73,7 +73,8 @@ def _bm_purge(c, rid):
 obj_register(BM_KIND, "bookmarks", label=N_("Bookmark"), fields={}, area="other", routes=False, listed=False, fsref=False,
              space=_space("bookmarks"), base_role=_bm_base, visible=_visible("bookmarks"), cap=lambda c, uid, rid: None,
              title=lambda c, rid: ((obj_row(c, BM_KIND, rid) or {"title": ""})["title"] or ""),
-             open_url=lambda rid: "bookmarks", trash_prune=True)
+             open_url=lambda rid: "bookmarks", trash_prune=True,
+             scopes=("read", "tasks:write"))  # (#6297 8): no scope of their own, named
 obj_on_purge(BM_KIND, _bm_purge)
 
 
@@ -92,4 +93,5 @@ ORG_FILES.append(_bm_files("SELECT id FROM bookmarks WHERE org_id=? AND image<>'
 obj_register(RSS_KIND, "rss_feeds", label=N_("Feed"), fields={}, area="other", routes=False, listed=False, fsref=False,
              space=_space("rss_feeds"), base_role=_feed_base, visible=_visible("rss_feeds"), cap=lambda c, uid, rid: None,
              title=lambda c, rid: ((obj_row(c, RSS_KIND, rid) or {"title": ""})["title"] or ""),
-             open_url=lambda rid: "feeds", trash_prune=True)
+             open_url=lambda rid: "feeds", trash_prune=True,
+             scopes=("read", "tasks:write"))  # (#6297 8): no scope of their own, named

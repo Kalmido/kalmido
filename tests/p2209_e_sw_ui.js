@@ -81,6 +81,22 @@ const tag = t => ({ok: true, status: 200, tag: t});
   r = await s.get('/capture?title=x');
   check(r && r.tag === 'older', `offline: /capture gets the app page of a complete cache (${r && r.tag})`);
 
+  // 2.1507.0 (#6297 (13)): the split view's right half (/?split=1, other frame headers) is kept under its own key, never under /
+  s = sandbox();
+  await s.get('/?split=1');
+  await new Promise(res => setTimeout(res, 0));
+  check(s.has(CACHE, '/?split=1') && !s.has(CACHE, '/'), `online: /?split=1 is kept under its own key, not under / (${[...(s.store.get(CACHE) || new Map()).keys()]})`);
+  await s.get('/?share=err');
+  await new Promise(res => setTimeout(res, 0));
+  check(s.has(CACHE, '/') && s.store.get(CACHE).get('/').url === '/?share=err', 'online: another query of the app page is kept under /');
+  s = sandbox({offline: true, old: {[CACHE]: {'/': tag('page'), '/?split=1': tag('split')}}});
+  const got = [];
+  for (const u of ['/', '/?split=1', '/?x=1', '/capture?title=x']) { r = await s.get(u).then(x => x, () => null); got.push(r && r.tag); }
+  check(JSON.stringify(got) === JSON.stringify(['page', 'split', 'page', 'page']), `offline: / and its queries get the app page, /?split=1 its own copy (${got})`);
+  s = sandbox({offline: true, old: {[CACHE]: {'/?split=1': tag('split')}}});
+  r = await s.get('/').then(x => x, () => null);
+  check(!r, `offline: the app page never comes from the split copy (${r && r.tag})`);
+
   console.log(`p2209_e_sw_ui: ${ok} ok, ${F.length} failed`);
   process.exit(F.length ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

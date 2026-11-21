@@ -25,13 +25,14 @@ the area's own role: a share gives at most 'edit'). obj_role(c, uid, kind, id) i
      person, group, agent, expiry, the folders above, read-only members at most 'view', the area's cap) -- the higher one
   4. an object in the trash: only 'manage' (to restore / delete it); obj_need refuses it unless trash=True
 Default base role (no hook): agents nothing (only explicit shares); a private object: its owner 'manage'; an
-organisation's object: its admins 'manage', its owner 'manage' as a member ('view' when read-only / guest / accounting
-now), every other full member org_access ('edit' default | 'view' | None), read-only members at most 'view', guests /
-accounting nothing (only personal shares).
+organisation's object: its admins 'manage', its owner 'manage' when the role may own (#6610: a read-only person reads it
+as every read-only member, a guest / accounting person who still owns it from before has no role through owning), every
+other full member org_access ('edit' default | 'view' | None), read-only members at most 'view', guests / accounting nothing
+(only personal shares). #6610: obj_role ends with the organisation role's cap (accounts/orgroles.py org_cap).
 
 Interface (signatures fixed; stages 2 / 3 and the first areas #1958 #1957 #4675 use them):
   obj_register(kind, table, *, label, fields, open_url=None, space=None, title=None, base_role=None, visible=None, cap=None,
-               hidden=None, org_access="edit", area="other", scopes=("read", "tasks:write"), dl_area=None, feat=None,
+               hidden=None, org_access="edit", area="other", scopes, dl_area=None, feat=None,
                protect=None, on_trash=None, content=None, undo_scope=None, public=None, routes=True, trash_role="manage",
                fsref=True, share_cols=(), on_restore=None, on_revoke=None, list_col="list_id", org_join="member")
       fields     {name: cleaner} -- what obj_create / obj_write may set; cleaner(c, value, row) -> the clean value (raise
@@ -41,7 +42,10 @@ Interface (signatures fixed; stages 2 / 3 and the first areas #1958 #1957 #4675 
       visible    f(c, uid) -> an SQL subquery of the ids the base role opens (required with a base_role hook: obj_visible_sql)
       cap        f(c, uid, id) -> the most a share gives uid (fsref cap); hidden f(c, uid) -> SQL of ids a share never opens
       area       the change counter of /api/version this kind bumps (core/db.py LV_AREA_KEYS)
-      scopes     (read, write) scope of API tokens for the agent routes (core/objweb.py)
+      scopes     (read, write) scope of API tokens for the agent routes (core/objweb.py) and the links (core/objlinkweb.py);
+                 (#6297 8, audit #4741): required, no default - every kind names the v1 scopes of its area, one without
+                 an area scope ("read", "tasks:write") explicitly (a default let tables, files and knowledge pages fall back to
+                 the wide pair)
       undo_scope f(id, org_id) -> [(table, where, args, several rows?)] for undo of more than the main row (office/undo.py)
       public     f(c, uid, row, role) -> dict: the object as the client / the API see it (default: obj_public)
       routes     the generic routes /api/obj/<kind>/... and /api/v1/agent/objects/<kind>/... (core/objweb.py) serve the kind
@@ -53,7 +57,8 @@ Interface (signatures fixed; stages 2 / 3 and the first areas #1958 #1957 #4675 
       on_restore f(c, uid, id, share) after obj_share_restore put a share back (share = the row as it was): the area puts its
                  role table right under its own rules (raise Denied to refuse: the caller does not commit); with it the
                  core leaves the target check to the area
-      on_revoke  f(c, uid, org, reason, role=None) -> {what: n}: called by obj_revoke_person after the core's own part
+      on_revoke  f(c, uid, org, reason, role=None, heir=None, keep=None) -> {what: n}: called by obj_revoke_person before the
+                 core's own part; heir (#6610): hand uid's objects of org to heir (0 = nobody: private), keep = uid's role after
       list_col   the column an API token's list limit is checked against (lists: their own id)
       2.773.0 (#5292) -- the one trash of the core (core/writes.py obj_trash / obj_restore / obj_purge / obj_trash_prune):
       children   ((table, key column), ...): rows of other tables that belong to the object (an event of a calendar); they go
@@ -113,12 +118,12 @@ from datetime import timedelta
 
 from flask import g, has_request_context, request
 
-from ..accounts.orgroles import FULL_READ, RO_MSG, org_role_key
+from ..accounts.orgroles import FULL_READ, RO_MSG, org_cap, org_role_key, role_caps  # #6610: + org_cap, role_caps
 from .access import Denied, act_for, acx_of, acx_org_ok, acx_sup_write_row, acx_sup_writing, collab_all, need_feat, token_lists
 from .db import LV_AREA_KEYS, insert_id, iso, now_iso, now_utc
 from .errors import BadInput
 from .i18n import tr
-from .pg import st_ids, system_ctx, table_columns, write_lock
+from .pg import qi, st_ids, system_ctx, table_columns, write_lock
 from ..files.fsref import FSR, _api_way as fsr_api_way, fs_ref_node, fs_ref_node_role, fs_ref_register
 from ..files.store import _free_name, _FsPre, fs_chain, fs_chains, fs_log_add, fs_visible_sql_c, safe_fs_name
 from ..files.store import fs_role  # 2.649.0 (#5051): _take_public
@@ -132,7 +137,7 @@ from ..accounts.orgretain import obj_share_gone  # 2.924.0 (#5069)
 from .objhooks import BOUNDARY  # 2.649.0 (#5051)
 from .objexport import OEX_KEYS, obj_export  # 2.1093.0 (#5289): export= of a kind
 from .undogroups import ug_drop  # 2.747.0 (#5249): a person's step groups go where their undo rows go
-from .objhooks import FOLLOW, OBJ, REVOKE, UNSHARE  # 2.1168.0 (#4782): + UNSHARE; kind -> the registered hooks; what a person loses (core/objhooks.py: accounts reads them)
+from .objhooks import FOLLOW, HEIR_COUNT, OBJ, REVOKE, UNSHARE  # (#4782): + UNSHARE; kind -> the registered hooks; what a person loses (core/objhooks.py: accounts reads them)
 OBJ_RANK = {None: 0, "view": 1, "edit": 2, "manage": 3}
 OBJ_ROLES = ("view", "edit", "manage")
 OBJ_REVOKED_DAYS = 30  # rows taken away stay restorable this long (obj_revoked)
@@ -205,7 +210,7 @@ def f_date(null=True):
 
 # ---------------------------------------------------------------- the register
 def obj_register(kind, table, *, label, fields, open_url=None, space=None, title=None, base_role=None, visible=None, cap=None,
-                 hidden=None, org_access="edit", area="other", scopes=("read", "tasks:write"), dl_area=None, feat=None,
+                 hidden=None, org_access="edit", area="other", scopes, dl_area=None, feat=None,
                  protect=None, on_trash=None, content=None, undo_scope=None, public=None, routes=True, trash_role="manage",
                  fsref=True, share_cols=(), on_restore=None, on_revoke=None, list_col="list_id", listed=True, node_shares=False,
                  fs_hooks=None, org_join="member", children=(), trash_prune=False, node=True, agent_own=False,
@@ -406,7 +411,7 @@ def _for_cap(c, uid, kind, rid, row, role):
 
 def _gate(c, uid, reg, row):
     """Steps 1 + 2 of obj_role: the organisation floor, what the area hides from agents / tokens, the data lock, the token's
-    list limit. False = no role at all."""
+    list limit. False = no role at all, else the object's space (org_id | None, owner) -- #6610: obj_role caps with its org."""
     sp = reg["space"](c, row["id"]) if reg["space"] else (row["org_id"] or None, row["owner_id"])
     if not sp:
         return False
@@ -429,14 +434,17 @@ def _gate(c, uid, reg, row):
     if lim is not None:
         col = reg["list_col"]  # 2.568.0 (#4739): a list itself is checked by its own id
         if col not in row.keys() or not row[col]:  # 2.1287.0 (#6454): no project -- the token's own limit closes it (a run's cut: _for_cap)
-            return _req_token_lists(uid, own=True) is None
+            return sp if _req_token_lists(uid, own=True) is None else False  # reader job/6122 F6: the space, never a bare True
         if row[col] not in lim:
             return False
-    return True
+    return sp
 
 
 def _base(c, uid, reg, row):
-    """Step 3a: the area's own role (its hook, or the default of the module docstring)."""
+    """Step 3a: the area's own role (its hook, or the default of the module docstring). #6610: owning counts only for a role
+    that may own in the organisation (accounts/orgroles.py ROLE_CAPS own; a guest who still owns an object from before reads
+    it no more), and the default rule ends with the organisation role's cap (org_cap, as obj_role) -- the folders' base role
+    (fsr_base) asks this without obj_role."""
     if reg["base_role"]:
         r = reg["base_role"](c, uid, int(row["id"]))
         return r if r in OBJ_ROLES else None
@@ -448,13 +456,11 @@ def _base(c, uid, reg, row):
     rk = org_role_key(c, uid, org)
     if rk is None:
         return None
-    if rk == "admin":
+    if rk == "admin" or (owner == uid and role_caps(rk)["own"]):
         return "manage"
-    if owner == uid:
-        return "manage" if rk == "member" else "view"
     if rk not in FULL_READ or not reg["org_access"]:
         return None
-    return "view" if rk == "readonly" else reg["org_access"]
+    return org_cap(c, uid, org, reg["org_access"])
 
 
 def _share_role(c, uid, reg, row, pre=None):
@@ -507,7 +513,7 @@ def obj_role(c, uid, kind, rid, row=None, pre=None, own_trash=False):
     out = None
     if row is not None and row["deleted_at"] and reg.get("trash_can") is not None and not own_trash:
         out = "manage" if reg["trash_can"](c, uid, row) else None  # 2.1002.0 (#5491): the kind's trash rule
-    elif row is not None and _gate(c, uid, reg, row):
+    elif row is not None and (sp := _gate(c, uid, reg, row)):
         base = _base(c, uid, reg, row)
         # review F3: a share gives at most 'edit' -- the chain is read only when the area's own role is below it
         share = _share_role(c, uid, reg, row, pre=pre) if OBJ_RANK[base] < OBJ_RANK["edit"] and reg["fsref"] else None  # #4739
@@ -515,6 +521,7 @@ def obj_role(c, uid, kind, rid, row=None, pre=None, own_trash=False):
         own = own_trash and row["deleted_by"] is not None and int(row["deleted_by"]) == int(uid)
         if row["deleted_at"] and out != "manage" and not own:
             out = None  # step 4: the trash only for who may restore it
+        out = org_cap(c, uid, sp[0], out)  # #6610: never more than uid's organisation role may hold (accounts/orgroles.py ROLE_CAPS)
         out = _for_cap(c, uid, kind, rid, row, out)  # 2.1287.0 (#6454): never more than the person the agent acts for
     if cache is not None:
         cache[key] = out
@@ -1187,15 +1194,76 @@ def _actor():
     return u["id"] if u is not None else None
 
 
+def _heir_ids(c, uid, org, kinds=None):
+    """#6610: what _heir_take hands over -- (registration, ids) of the kinds of the default rule (no base_role) and of those
+    whose node carries their shares, owned by uid in organisation org (an organisation's own address book excluded)."""
+    for reg in list(OBJ.values()):
+        if not (reg["base_role"] is None or reg["node_shares"]) or (kinds is not None and reg["kind"] not in kinds):
+            continue
+        t = reg["table"]
+        more = " AND owner_org_id IS NULL" if "owner_org_id" in table_columns(c, t) else ""
+        yield reg, [r[0] for r in c.execute(f"SELECT id FROM {qi(t, (t,))} WHERE org_id=? AND owner_id=?{more} ORDER BY id",
+                                            (int(org), int(uid))).fetchall()]
+
+
+def _heir_count(c, uid, org):
+    """#6610 (reader job/6122 F8): {table: n} of what a hand-over (_heir_take) would give away -- the preview of a role down
+    names the same as the hand-over does. The caller reads in the system context (numbers of objects it may not see)."""
+    return {reg["table"]: len(ids) for reg, ids in _heir_ids(c, uid, org) if ids}
+
+
+def _heir_take(c, uid, org, heir, keep=None, kinds=None):
+    """#6610: THE hand-over of what person uid owns in organisation org (obj_revoke_person: leaving it, a role that may not own,
+    the account going). The objects of the default rule (no base_role) and of the kinds whose node carries their shares
+    (node_shares: calendars, a person's address books; an organisation's own address book has a manager, owner_org_id, and
+    stays with contacts/orgbooks.py obk_leave) go to heir; the heir's own share on such a node goes (the owner needs none) and
+    keep ('edit' / 'view': uid stays a member) becomes uid's share there -- an object of the default rule goes to the heir
+    alone. heir 0 or uid (leaving with nobody to take over): the node_shares objects leave the organisation with uid (private,
+    their node follows), the rest stays. kinds: only these kinds. Projects are the lists' own (their on_revoke). {kind: n}."""
+    out = {}
+    give = bool(heir) and int(heir) != int(uid)
+    for reg, ids in _heir_ids(c, uid, org, kinds):
+        t = reg["table"]
+        if not give and not reg["node_shares"]:
+            continue
+        for rid in ids:
+            if not give:
+                c.execute(f"UPDATE {qi(t, (t,))} SET org_id=NULL WHERE id=?", (rid,))
+                obj_node_follow(c, reg["kind"], rid)  # the node follows into uid's private tree with its shares
+                continue
+            if reg["node_shares"]:
+                obj_share_gone(c, reg["kind"], rid, heir)  # (#5069): the new owner needs no share of its own
+            c.execute(f"UPDATE {qi(t, (t,))} SET owner_id=? WHERE id=?", (int(heir), rid))
+            if keep and reg["node_shares"]:
+                obj_node_person_put(c, int(heir), obj_node(c, int(heir), reg["kind"], rid, make=True), int(uid), keep)
+        if ids:
+            out[reg["kind"]] = len(ids)
+    return out
+
+
 def obj_revoke_person(c, uid, org, reason, heir=None, role=None):
-    """What a person (and their agents) loses in one place (module docstring); runs beside the old loops of org_leave /
-    org_member_put / odl_retire / the account deletion, which stay as they are. Returns {what: number of rows}."""
+    """What a person (and their agents) loses in one place (module docstring). Returns {what: number of rows}.
+    #6610: leaving (reason 'leave') and a role down ('role' to a role that may not own, accounts/orgroles.py ROLE_CAPS) take
+    the same way: heir given (an admin / member; 0 = nobody: leaving makes the node_shares objects and the projects private)
+    hands what uid owns there over (_heir_take, the projects through the lists' on_revoke); after a role down uid keeps a share
+    stored as edit (projects, calendars, own address books; the default rule's objects go to the heir alone) - org_cap reads it down to the role's cap."""
     if reason not in OBJ_REASONS or reason in ("unshare", "expired", "boundary"):  # the two of one share (obj_unshare, an area's expiry); #5051: obj_boundary_take
         raise ValueError(f"obj_revoke_person: unknown reason {reason!r}")
     out = {}
     by = _actor()
+    if reason == "role" and (role is None or role_caps(role)["own"]):
+        heir = None  # a role that may own keeps what it owns
+    give = reason in ("leave", "role") and uid and org and heir is not None
+    # Festlegung 21.11.2026 (Leser #6120 F3): the kept role is stored as edit, also for read-only - the cap to reading is
+    # org_cap's alone, at every request; a role back up to member then writes again
+    keep = "edit" if give and reason == "role" else None
+    for reg in list(OBJ.values()):  # (#4739): an old area's own role table (lists: list_members through groups); #6610: + the hand-over of its objects, before the shares below are taken
+        if reg["on_revoke"]:
+            out.update(reg["on_revoke"](c, uid, org, reason, role=role, heir=heir if give else None, keep=keep) or {})
     with system_ctx(c):  # who loses what is structure (also rows of other people's agents and of nodes the actor does not see)
         _revoked_prune(c)
+        if give:
+            out.update(_heir_take(c, int(uid), int(org), heir, keep=keep))
         if reason == "leave" and uid and org:
             ppl = [int(uid), *_agents_of(c, uid)]
             q = ",".join("?" * len(ppl))
@@ -1207,16 +1275,13 @@ def obj_revoke_person(c, uid, org, reason, heir=None, role=None):
             c.execute("DELETE FROM obj_follow WHERE org_id=? AND user_id = ANY(CAST(? AS BIGINT[]))", (int(org), st_ids(ppl)))
             ug_drop(c, "user_id=? AND org_id=?", (int(uid), int(org)))  # 2.747.0 (#5249): the step groups there with their parts
             c.execute("DELETE FROM obj_undo WHERE user_id=? AND org_id=?", (int(uid), int(org)))
-            if heir and heir != uid:
-                for reg in OBJ.values():
-                    if reg["base_role"] is None:  # the default rules: the organisation's object stays with it, the heir owns it
-                        c.execute(f"UPDATE {reg['table']} SET owner_id=? WHERE org_id=? AND owner_id=?", (int(heir), int(org), int(uid)))
         elif reason == "role" and uid and org:
             # 2.649.0 (#5051): the public links / file requests of a node they can no longer share / write in die
             out.update(_take_public(c, "created_by=? AND org_id=?", (int(uid), int(org)), reason, by, int(org), uid=uid))
-            if role in ("guest", "accounting"):  # F5 (#2822): the open channels they had joined
-                # 2.565.0 (#4719): like #4698 b (accounts/orgs.py org_open_chan_off) every row of them and their personal agents,
-                # and their shares on those rooms' nodes too (the core's members) -- restorable, nothing stays to reopen the room
+            if role and role not in FULL_READ:  # F5 (#2822): guest / accounting leave the open channels they had joined
+                # (#4719): every row of them and their personal agents, and their shares on those rooms' nodes too (the
+                # core's members) -- restorable, nothing stays to reopen the room (#6610: the second pass over the same rows in
+                # accounts/orgs.py, org_open_chan_off of #4698 b, went)
                 ppl = [int(uid), *_agents_of(c, uid)]
                 q = ",".join("?" * len(ppl))
                 rooms = "SELECT id FROM tchat_rooms WHERE org_id=? AND kind='channel' AND is_open"
@@ -1236,14 +1301,16 @@ def obj_revoke_person(c, uid, org, reason, heir=None, role=None):
             ug_drop(c, "org_id=?", (int(org),))  # 2.747.0 (#5249)
             c.execute("DELETE FROM obj_undo WHERE org_id=?", (int(org),))
         elif reason == "delete" and uid:
-            for reg in OBJ.values():  # review F1: an organisation's object stays with it, the heir owns it (owner_id cascades)
-                if reg["base_role"] is None:
-                    out[reg["kind"]] = 0
-                    for (o,) in c.execute(f"SELECT DISTINCT org_id FROM {reg['table']} WHERE owner_id=? AND org_id IS NOT NULL", (int(uid),)).fetchall():
-                        h = upg_heir(c, o, uid)
-                        if h:
-                            out[reg["kind"]] += c.execute(f"UPDATE {reg['table']} SET owner_id=? WHERE org_id=? AND owner_id=?",
-                                                          (int(h), int(o), int(uid))).rowcount
+            # review F1: an organisation's object stays with it, the heir owns it (owner_id cascades) -- #6610: the one hand-over,
+            # the default rule's kinds (the calendars of a deleted account are accounts/orgretain.py's, its address books go with it)
+            dflt = [r["kind"] for r in OBJ.values() if r["base_role"] is None]
+            out.update({k: 0 for k in dflt})
+            orgs = {o for reg in OBJ.values() if reg["kind"] in dflt for (o,) in c.execute(
+                f"SELECT DISTINCT org_id FROM {qi(reg['table'], (reg['table'],))} WHERE owner_id=? AND org_id IS NOT NULL", (int(uid),)).fetchall()}
+            for o in sorted(orgs):
+                h = upg_heir(c, o, uid)
+                for k, n in (_heir_take(c, int(uid), int(o), h, kinds=dflt) if h else {}).items():
+                    out[k] += n
             for reg in OBJ.values():  # 2.565.0 (#4719): a node that only carries shares (a room) stays with the next person in it
                 if not reg.get("listed", True):
                     for n in c.execute("SELECT id FROM fs_nodes WHERE kind='ref' AND ref_kind=? AND owner_id=?", (reg["kind"], int(uid))).fetchall():
@@ -1257,9 +1324,6 @@ def obj_revoke_person(c, uid, org, reason, heir=None, role=None):
             c.execute("UPDATE obj_history SET user_id=NULL WHERE user_id=?", (int(uid),))
             c.execute("UPDATE obj_revoked SET by_id=NULL WHERE by_id=?", (int(uid),))
             c.execute("DELETE FROM obj_revoked WHERE user_id=?", (int(uid),))
-    for reg in list(OBJ.values()):  # 2.568.0 (#4739): an old area's own role table (lists: list_members through groups)
-        if reg["on_revoke"]:
-            out.update(reg["on_revoke"](c, uid, org, reason, role=role) or {})
     obj_forget()
     return out
 
@@ -1340,6 +1404,7 @@ def obj_public(c, uid, kind, row, role=None):
 
 
 BOUNDARY.append(obj_boundary_take)  # 2.649.0 (#5051): accounts/tenancy.py boundary_repair
+HEIR_COUNT.append(_heir_count)  # #6610: core/objhooks.obj_heir_count (accounts/orgleave.py preview of a role down)
 REVOKE.append(obj_revoke_person)  # core/objhooks.person_revoked (accounts calls it without importing the domain layer)
 FOLLOW.append(obj_node_follow)  # 2.566.0 (#4712, review F1): accounts/orgretain.py obj_nodes_follow
 UNSHARE.append(obj_node_unshare)  # 2.1168.0 (#4782, Fable review F2): accounts/orgs.py _obj_expired_drop
@@ -1353,7 +1418,7 @@ def _probe_register():
     import os
     if os.environ.get("KALMIDO_TEST") != "1" or os.environ.get("KALMIDO_TEST_OBJ") != "1":
         return
-    obj_register("objprobe", "obj_probe", label="Test object", area="other",
+    obj_register("objprobe", "obj_probe", label="Test object", area="other", scopes=("read", "tasks:write"),
                  fields={"title": f_text(120, required=True), "note": f_text(2000, line=False), "size": f_int(0, 1000), "done": f_bool()},
                  hidden=lambda c, uid: "(SELECT id FROM obj_probe WHERE title ILIKE 'hide%')", dl_area="contracts",
                  # 2.773.0 (#5292): with KALMIDO_TEST_OBJ_PARTS=1 (tests/p2773_b_trash_core_test.py) its parts (table
@@ -1361,7 +1426,7 @@ def _probe_register():
                  **({"children": (("obj_probe_part", "probe_id"),), "trash_prune": True} if os.environ.get("KALMIDO_TEST_OBJ_PARTS") == "1" else {}))
     if os.environ.get("KALMIDO_TEST_OBJ_PARTS") == "1":  # 2.778.0 (#5371): a kind whose writers may trash (table obj_probe_e)
         obj_register("objprobe_e", "obj_probe_e", label="Test object", area="other", fields={"title": f_text(120, required=True)},
-                     trash_role="edit")
+                     trash_role="edit", scopes=("read", "tasks:write"))
 
 
 _probe_register()

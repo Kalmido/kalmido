@@ -11,14 +11,17 @@ import os
 from ..core.i18n import N_
 from ..core.db import gset, gsetting, iso, local_now, now_utc
 from ..accounts.orgs import PRIVATE_FOLDER_RE, _operator_apart, has_workspaces, op_foreign_account, op_foreign_org
+from ..accounts.orgs import org_own_admin  # #6610: the heir of "Clean up"
 from ..core.pg import qi, system_ctx  # 2.149.0 G (#2517): pulled up from functions; 2.972.0 (#5285): qi
 from ..core.access import dlg_gone  # 2.473.0 (#3357)
 from ..core.access import live_sql  # 2.1076.0 (#5271)
 from ..core.objhooks import obj_boundary  # 2.649.0 (#5051)
+from ..core.objhooks import person_revoked  # #6610: the owners' hand-over of "Clean up"
 from ..core.objhooks import OLNK_AREA_RELS  # 2.1076.0 (#5271, review)
 from ..core.objhooks import FOLLOW  # 2.924.0 (#5069): core/objects.py obj_node_follow
 from ..accounts.orgs import INSTANCE_ENV  # 2.369.5 (#2517): pulled up from functions
 from ..core.env import env_int  # (#6615): a wrong value = one warning with its name
+from .orgroles import ROLE_CAPS  # #6610: which roles may own (list_owner / cal_owner / book_owner)
 
 # when the check runs: once a day at this local hour or later; KALMIDO_TENANT_CHECK=always = at every watchdog tick (tests)
 TENANT_CHECK_HOUR = env_int("KALMIDO_TENANT_CHECK_HOUR", 3)
@@ -30,6 +33,9 @@ TENANT_SAMPLE = 20
 # agent's workspace (agents.org_id, NULL = private) differs from the object's. Rows that only come from a group share
 # (list_members.grole set, no own role) are counted as "group".
 _PERSON = "u.kind!='agent' AND NOT EXISTS (SELECT 1 FROM org_members om WHERE om.org_id={o}.org_id AND om.user_id={m}.user_id)"
+# #6610: an owner counts across the boundary also as a member whose role may not own (accounts/orgroles.py ROLE_CAPS own: a guest,
+# read-only or accounting person who still owns from before the rule) -- the roles that may own, as SQL
+_OWNS = "om.role IN (" + ",".join(f"'{k}'" for k, v in ROLE_CAPS.items() if v["own"]) + ")"
 _NODE_SHARES = "FROM fs_shares s JOIN fs_nodes n ON n.id=s.node_id AND n.kind='ref' AND n.ref_kind='{rk}' JOIN {t} {o} ON {o}.id=n.ref_id "  # 2.924.0 (#5069)
 # review 2.1076 (#5271): kind of a link's side -> (its table, the table its workspace lies in and the column pointing there | None)
 OLNK_WS = (("task", "tasks", "lists", "list_id"), ("event", "events", "ev_cals", "cal_id"), ("hub_mail", "hub_mails", None, None),
@@ -64,7 +70,7 @@ CHECKS = {
     "list_agent_private": ("SELECT m.list_id, m.user_id FROM list_members m JOIN lists l ON l.id=m.list_id JOIN agents a "
                            "ON a.user_id=m.user_id WHERE a.org_id IS NULL AND l.org_id IS NOT NULL"),
     "list_owner": ("SELECT l.id, l.owner_id FROM lists l JOIN users u ON u.id=l.owner_id WHERE l.org_id IS NOT NULL AND u.kind!='agent' "
-                   "AND NOT EXISTS (SELECT 1 FROM org_members om WHERE om.org_id=l.org_id AND om.user_id=l.owner_id)"),
+                   "AND NOT EXISTS (SELECT 1 FROM org_members om WHERE om.org_id=l.org_id AND om.user_id=l.owner_id AND " + _OWNS + ")"),
     # 2.924.0 (#5069): a calendar's / address book's members are the shares of its reference node (ev_cal_members / book_members
     # are gone): (object id, person / agent) as before
     "cal_person": ("SELECT DISTINCT n.ref_id, s.user_id " + _NODE_SHARES.format(rk="evcal", t="ev_cals", o="k") + "JOIN users u ON u.id=s.user_id "
@@ -72,7 +78,7 @@ CHECKS = {
     "cal_agent": ("SELECT DISTINCT n.ref_id, s.agent_id " + _NODE_SHARES.format(rk="evcal", t="ev_cals", o="k") + "JOIN agents a ON a.user_id=s.agent_id "
                   "WHERE COALESCE(a.org_id,0)!=COALESCE(k.org_id,0)"),
     "cal_owner": ("SELECT k.id, k.owner_id FROM ev_cals k JOIN users u ON u.id=k.owner_id WHERE k.org_id IS NOT NULL AND u.kind!='agent' "
-                  "AND NOT EXISTS (SELECT 1 FROM org_members om WHERE om.org_id=k.org_id AND om.user_id=k.owner_id)"),
+                  "AND NOT EXISTS (SELECT 1 FROM org_members om WHERE om.org_id=k.org_id AND om.user_id=k.owner_id AND " + _OWNS + ")"),
     # 2.87.0 (#1983): a person invited to an event of an organisation's calendar who is not (any more) its member (the read
     # layer ignores the invitation: events/model.py ev_att_ok; boundary_repair takes it out), an agent of another workspace
     # invited there (counted only, like cal_agent)
@@ -85,7 +91,8 @@ CHECKS = {
     "book_agent": ("SELECT DISTINCT n.ref_id, s.agent_id " + _NODE_SHARES.format(rk="address_book", t="books", o="b") + "JOIN agents a ON a.user_id=s.agent_id "
                    "WHERE COALESCE(a.org_id,0)!=COALESCE(b.org_id,0)"),
     "book_owner": ("SELECT b.id, b.owner_id FROM books b JOIN users u ON u.id=b.owner_id WHERE b.org_id IS NOT NULL AND u.kind!='agent' "
-                   "AND NOT EXISTS (SELECT 1 FROM org_members om WHERE om.org_id=b.org_id AND om.user_id=b.owner_id)"),
+                   "AND NOT EXISTS (SELECT 1 FROM org_members om WHERE om.org_id=b.org_id AND om.user_id=b.owner_id "
+                   "AND (b.owner_org_id IS NOT NULL OR " + _OWNS + "))"),  # #6610: an organisation's own book has a manager, no owner
     # 2.52.0 C (#1438): an address book an organisation owns outside that organisation's workspace
     "book_org": "SELECT b.id, b.owner_id FROM books b WHERE b.owner_org_id IS NOT NULL AND b.org_id IS DISTINCT FROM b.owner_org_id",
     # 2.55.0 (#1455): a newsletter segment / member / run in another workspace than its connection
@@ -399,7 +406,12 @@ RP_ORG = {"list_person": "SELECT org_id FROM lists WHERE id=?", "group": "SELECT
           "task_bell_person": "SELECT l.org_id FROM tasks t JOIN lists l ON l.id=t.list_id WHERE t.id=?",
           "sheet_share_person": "SELECT org_id FROM sheets WHERE id=?",
           "doc_mail_person": None, "hub_token_person": None,
-          "client_contact": "SELECT org_id FROM clients WHERE id=?", "hub_mail_ref": "SELECT org_id FROM hub_mails WHERE id=?"}
+          "client_contact": "SELECT org_id FROM clients WHERE id=?", "hub_mail_ref": "SELECT org_id FROM hub_mails WHERE id=?",
+          "list_owner": "SELECT org_id FROM lists WHERE id=?", "cal_owner": "SELECT org_id FROM ev_cals WHERE id=?",  # #6610
+          "book_owner": "SELECT org_id FROM books WHERE id=?"}
+# #6610: owners whose role may not own: "Clean up" (owners=True) hands what they own over to the organisation's first admin on
+# the one way of a role down (core/objhooks.person_revoked 'role' with heir); an owner who is no member stays counted only
+OWNER_KINDS = ("list_owner", "cal_owner", "book_owner")
 
 
 def rp_foreign(c, kind, oid_, uid):
@@ -416,11 +428,13 @@ def rp_foreign(c, kind, oid_, uid):
     return op_foreign_org(c, org) if org else op_foreign_account(c, uid)
 
 
-def boundary_repair(c, keep=None):
+def boundary_repair(c, keep=None, owners=False):
     """Takes out every membership in an organisation's list / calendar / address book of a person who is not a member of
     that organisation. {kind: [[object id, user id], ...]} of what was removed; the
     caller commits. 2.480.0 (#3944, F5): keep(kind, object id, user id) -> True leaves that row as it is (counted only);
-    the rows kept are in out["_kept"] ({kind: n})."""
+    the rows kept are in out["_kept"] ({kind: n}). #6610: owners=True (the button "Clean up", a request: the hand-over
+    names its actor) -- a member who owns there but whose role may not own hands it to the organisation's first admin
+    (OWNER_KINDS); the nightly run only counts them."""
     out, kept = {}, {}
     def skip(k, a, b):
         if keep and keep(k, a, b):
@@ -460,8 +474,31 @@ def boundary_repair(c, keep=None):
             done.append([oid_, uid])
         if done:
             out[k] = done
+    if owners:
+        out.update(_owners_repair(c, skip))
     if kept:
         out["_kept"] = kept
+    return out
+
+
+def _owners_repair(c, skip):
+    """#6610: OWNER_KINDS rows of a member whose role may not own: once per (organisation, person) the one way of a role down
+    (person_revoked 'role' with the organisation's first other admin as heir). {kind: [[object id, user id], ...]}."""
+    out, todo = {}, {}
+    for k in OWNER_KINDS:
+        for oid_, uid in c.execute(CHECKS[k] + " ORDER BY 1, 2").fetchall():
+            org = c.execute(RP_ORG[k], (oid_,)).fetchone()
+            role = c.execute("SELECT role FROM org_members WHERE org_id=? AND user_id=?", (org[0], uid)).fetchone() if org else None
+            if role is None or skip(k, oid_, uid):
+                continue  # no member: counted only (as before)
+            todo.setdefault((org[0], uid, role[0]), []).append((k, oid_))
+    for (org, uid, role), rows in sorted(todo.items()):
+        heir = org_own_admin(c, org, but=uid)
+        if heir is None:
+            continue
+        person_revoked(c, uid, org, "role", role=role, heir=heir)
+        for k, oid_ in rows:
+            out.setdefault(k, []).append([oid_, uid])
     return out
 
 
@@ -562,7 +599,7 @@ def oa_details(c, limit=OA_DETAIL_MAX, viewer_uid=None):
                 elif ws is None and not person(who):
                     u = None
             out.append({"kind": k, "type": ot, "id": oid_, "name": name, "user_id": who, "user": u[0] if u else "", "agent": ag,
-                        "fixable": k in REPAIR or k in ("client_contact", "hub_mail_ref")})
+                        "fixable": k in REPAIR or k in ("client_contact", "hub_mail_ref") or k in OWNER_KINDS})
     return out
 
 

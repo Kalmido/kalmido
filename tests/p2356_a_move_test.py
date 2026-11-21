@@ -147,7 +147,7 @@ TPL = TPL.json().get("id") if TPL.ok else None
 # rights
 r = move(Bo, "office", [KAP], "private", dry=1)
 check(r.status_code == 200, "setup: Bob is an admin too " + r.text[:200])
-assert Fr.put(B + f"/api/orgs/{KAP}/members", json={"email": "bob@example.com", "role": "member"}).ok
+assert Fr.put(B + f"/api/orgs/{KAP}/members", json={"user_id": Bo.get(B + "/api/state").json()["me"]["id"], "role": "member"}).ok  # down only by user_id (decision 21.11.2026, #6610)
 check(move(Bo, "office", [KAP], "private", dry=1).status_code == 403, "a member (no admin) of the organisation: 403")
 check(requests.post(B + MS, headers=AGH, json={"what": "office", "ids": [KAP], "to": "private", "dry": 1}).status_code == 403, "an agent: 403")
 FID2, Fi = freelancer(B, A, "fiona")

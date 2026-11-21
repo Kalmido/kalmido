@@ -70,6 +70,7 @@ def _shk_purge(c, rid):
 
 
 obj_register(SHK_KIND, "sheets", label=N_("Table"), fields={}, area="sheets", routes=False, listed=False, fsref=False,
+             scopes=("sheets:read", "sheets:write"),  # (#6297 8, audit #4741): the tables' scopes, also on the agents' links
              space=_space, base_role=_base, visible=_visible, cap=lambda c, uid, rid: None, list_col="list_id", trash_prune=True)
 obj_on_purge(SHK_KIND, _shk_purge)
 

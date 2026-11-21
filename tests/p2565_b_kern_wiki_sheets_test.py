@@ -208,7 +208,7 @@ check(r.status_code == 201 and "/s/w/" in r.json().get("url", ""), f"bob makes a
 WL = "/s/w/" + r.json().get("url", "/s/w/x").split("/s/w/", 1)[1]
 anon = requests.Session()
 check(anon.get(B + WL).status_code == 200, "the link opens")
-check(A.put(B + f"/api/orgs/{ORG}/members", json={"email": "bob@example.com", "role": "readonly"}).ok, "bob made read-only")
+check(A.put(B + f"/api/orgs/{ORG}/members", json={"user_id": BOB, "role": "readonly"}).ok, "bob made read-only")  # down only by user_id (decision 21.11.2026, #6610)
 check(anon.get(B + WL).status_code in (404, 410), "the link of a maker made read-only ends")
 A.put(B + f"/api/orgs/{ORG}/members", json={"email": "bob@example.com", "role": "member"})
 

@@ -183,7 +183,10 @@ check(SUB in got and BINV in got, f"all: the subscription and the Beta invitatio
 Xa.patch(B + "/api/settings", json={"freebusy_share": "org"})
 check(An.put(B + f"/api/orgs/{OA}/members", json={"user_id": XAV, "role": "readonly"}).ok, "xavier becomes read-only in Alpha")
 got = slots(An, DS, XAV)
-check(got == [ALPHA], f"a read-only member: his own Alpha calendar still counts ({got})")
+# #6610: a read-only person owns nothing in the organisation -- his Alpha calendar went to anna (who changed the role) and is
+# no longer his time; he stays in it with a share
+check(got == [] and dbx("SELECT owner_id FROM ev_cals WHERE org_id=? AND name='Alpha-Kalender'", (OA,))[0][0] == ANNA,
+      f"a read-only member: his Alpha calendar is anna's now, not his time ({got})")
 r = fb(Xa, DS, [ANNA])
 check(r.ok and [p["user_id"] for p in r.json()["people"]] == [ANNA], "a read-only member may ask about a colleague " + r.text[:200])
 check(An.put(B + f"/api/orgs/{OA}/members", json={"user_id": XAV, "role": "member"}).ok, "xavier back to member")

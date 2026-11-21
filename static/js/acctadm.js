@@ -67,6 +67,7 @@ function wsPaneWire(md) {
     }
     const r = e.target.dataset?.wsrole; if (!r) return;
     const oid = +e.target.closest('[data-oid]').dataset.oid;
+    if (!await wsRoleDownOk(md, oid, +r, e.target.value)) { wsPaneDraw(md); return; }  // #6610: cancelled = the old role shows again
     try { await api('PUT', `/api/orgs/${oid}/members`, {user_id: +r, role: e.target.value}); toast(tr('Saved')); } catch { /* shown */ }
     wsPaneDraw(md);
   });
@@ -107,13 +108,27 @@ function wsPaneWire(md) {
     wsPaneDraw(md);
   });
 }
+// #6610: a role change down to guest / accounting / read-only hands what the person owns in the organisation to an admin
+// (the one way of leaving and of a role down, core/objhooks.person_revoked) -- the dialog names it first; nothing to hand over
+// = no question. The roles that may own come from the server's table (accounts/orgroles.py ROLE_CAPS).
+const ROLE_DOWN = ['guest', 'accounting', 'readonly'];
+async function wsRoleDownOk(md, oid, uid, role) {
+  if (!ROLE_DOWN.includes(role)) return true;
+  const o = (($('#s-ws', md)._j || {}).orgs || []).find(x => x.id === oid), m = o?.members.find(x => x.id === uid);
+  const li = await api('GET', `/api/orgs/${oid}/leave-info?uid=${uid}&down=1`).catch(() => null), th = li?.to_heir || {};
+  const given = [th.lists ? trn('{0} project', '{0} projects', th.lists) : '', th.calendars ? trn('{0} calendar', '{0} calendars', th.calendars) : '', th.books ? trn('{0} address book', '{0} address books', th.books) : '', th.objects ? trn('{0} item', '{0} items', th.objects) : ''].filter(Boolean).join(', ');
+  if (!given) return true;
+  const ro = role === 'readonly';  // canwrite-ok: the organisation role being handed out names the text, it decides no write entry
+  return askConfirm(tr('Change the role of {0}?', m?.name || ''), (ro ? tr('{0} owns things in this organisation that this role cannot own. They go to {1}: {2}. {0} stays in them and reads them.', m?.name || '', li.heir || tr('an admin'), given)
+    : tr('{0} owns things in this organisation that this role cannot own. They go to {1}: {2}. {0} stays in them and may edit them.', m?.name || '', li.heir || tr('an admin'), given)), {ok: tr('Change role')});
+}
 // 2.538.0 (#4369): the line in the leave dialog when unsent changes of the organisation wait on this device
 const outOrgWarnHtml = n => n ? `<div class="shint keep olvrow warn">${ic('alert', 's')} ${esc(trn('{0} change of this organisation has not been sent yet; it is discarded when you leave.', '{0} changes of this organisation have not been sent yet; they are discarded when you leave.', n))}</div>` : '';
 // (#2922): the leave / remove dialog lists every area: to an admin, stays, ends; (#6840, decision #935) nothing goes back
 // by itself, what the person brought in stays with the organisation too
 function olvLeaveHtml(j, self) {
   const rows = [], th = j.to_heir || {};
-  const given = [th.lists ? trn('{0} project', '{0} projects', th.lists) : '', th.calendars ? trn('{0} calendar', '{0} calendars', th.calendars) : '', th.books ? trn('{0} address book', '{0} address books', th.books) : ''].filter(Boolean).join(', ');
+  const given = [th.lists ? trn('{0} project', '{0} projects', th.lists) : '', th.calendars ? trn('{0} calendar', '{0} calendars', th.calendars) : '', th.books ? trn('{0} address book', '{0} address books', th.books) : '', th.objects ? trn('{0} item', '{0} items', th.objects) : ''].filter(Boolean).join(', ');
   if (given) rows.push([false, tr('Goes to {0}: {1}', j.heir || tr('an admin'), given)]);
   if (j.stays_text) rows.push([true, (self ? tr('Stays in the organisation, you no longer see it: {0}', j.stays_text) : tr('Stays in the organisation, the person no longer sees it: {0}', j.stays_text))]);
   if (self) rows.push([true, tr('What you brought in from your private workspace stays in the organisation too. To take something along, ask an admin to release it before you leave.')]);  // (#6840)

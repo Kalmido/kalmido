@@ -268,7 +268,8 @@ def tb_spec(paths, schemas, op, ok, errs, ref, nul):
         "markdown": {**s, "description": "The brief as a text of fixed headings; nothing is generated"}}}
     body = {"type": "object", "required": ["task_ids"], "properties": {
         "task_ids": {"type": "array", "items": i, "minItems": 1, "maxItems": BRIEF_MAX},
-        "lang": {**s, "description": "Language of the Markdown text (default: the token user's)"}}}
+        # (#6297 (10)): the languages it takes, named (the web run's gate and its schema test read them as no free text)
+        "lang": {**s, "enum": sorted({"en", *LANGS}), "description": "Language of the Markdown text (default: the token user's)"}}}
     paths["/tasks/brief"] = {"post": op("A work package: the brief of a choice of tasks", "Tasks", ok(ref("TaskBrief")) | errs("400"), body=body,
                                         desc="Reads only (scope read). Per task: decisions first, notes, subtasks, dependencies, repository hints, "
                                              "comments. Only what you see; a project with the lock is left out.")}

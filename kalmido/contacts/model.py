@@ -24,7 +24,7 @@ from ..core.errors import BadInput
 from ..core.config import APP_NAME, APP_VERSION  # 2.149.0 G (#2517): pulled up from functions
 from ..accounts.wsplace import wsp_named, wsp_new, wsp_oid  # (#7309)
 from ..accounts.orgs import org_role as om_role, user_orgs, clean_org_id, ws_obj_default, need_visible, ws_fit_problem  # 2.369.5 (#2517): pulled up from functions
-from ..accounts.orgroles import org_roles_of, org_readonly  # 2.369.5 (#2517): pulled up from functions
+from ..accounts.orgroles import OWNER_SCALE, org_cap, role_caps, org_roles_of  # (#2517): pulled up from functions; #6610: org_cap
 from ..collab.news import news_add  # 2.369.5 (#2517): pulled up from functions
 from ..family.family import _jparse, occ_create, occ_next, occ_rule  # 2.369.5 (#2517): pulled up from functions
 from ..tasks.lifecycle import restore_task  # 2.370.4 (#3089)
@@ -93,26 +93,21 @@ def obk_org_role(c, uid, oid, org_role):
 
 
 def book_role(c, uid, b, trash=False, fold=True):
-    """2.143.0 A (#2151): read-only in the book's organisation -> view. 2.272.0 E1 (#3038): a book in the trash only with trash.
+    """#6610: at most what uid's role in the book's organisation may hold (accounts/orgroles.py org_cap: read-only view, guest /
+    accounting edit -- also a book a guest still owns from before). (#3038, E1): a book in the trash only with trash.
     2.351.0 B (#2749): fold = also the role its folder gives (contacts/ctfolder.py; never 'owner'), the higher one counts.
     2.560.0 B (#4699): no role for an agent whose data lock leaves the contacts out (also not through a share or a folder)."""
     if dl_area_locked(c, uid, "contacts"):
         return None
-    role = _bk_ro(c, uid, b["org_id"] if b is not None and "org_id" in b.keys() else None, _book_role(c, uid, b, trash))
+    role = _book_role(c, uid, b, trash)
     if fold and b is not None and BOOK_RANK.get(role, 0) < BOOK_RANK["edit"] and not ("deleted_at" in b.keys() and b["deleted_at"]):
         from .ctfolder import CTF_BOOK, ctf_node_role  # a later module (ORDER)
         fr = ctf_node_role(c, uid, CTF_BOOK, b["id"])
         if BOOK_RANK.get(fr, 0) > BOOK_RANK.get(role, 0):
             role = fr
+    role = org_cap(c, uid, b["org_id"] if b is not None and "org_id" in b.keys() else None, role, OWNER_SCALE)  # #6610
     # 2.1287.0 (#6454): never more than the person the request's agent acts for (core/access.py act_for)
     return for_cap(uid, role, BOOK_RANK, lambda p: book_role(c, p, b, trash, fold))
-
-
-def _bk_ro(c, uid, oid, role):
-    if role and oid and role != "view":
-        if org_readonly(c, uid, oid):
-            return "view"
-    return role
 
 
 def _book_role(c, uid, b, trash=False):
@@ -208,9 +203,9 @@ def my_book_ids(c, uid, fold=True):
             if role:
                 out[r[0]] = role
     # 2.924.0 (#5069): the books shared with uid are the shares of their nodes only (the fold below; book_members is gone)
-    if out and "readonly" in org_roles_of(c, uid).values():  # 2.143.0 A (#2151)
+    if out and any(role_caps(r)["top"] < 3 for r in org_roles_of(c, uid).values()):  # #6610: the caps (book_role)
         orgs = {r[0]: r[1] for r in c.execute(f"SELECT id, org_id FROM books WHERE id IN ({','.join(str(int(k)) for k in out)})")}
-        out = {k: _bk_ro(c, uid, orgs.get(k), v) for k, v in out.items()}
+        out = {k: org_cap(c, uid, orgs.get(k), v, OWNER_SCALE) for k, v in out.items()}
     if fold:  # 2.351.0 B (#2749): + the books a folder opens to uid (the higher role counts)
         from .ctfolder import CTF_BOOK, ctf_reached
         for k, v in ctf_reached(c, uid, CTF_BOOK).items():

@@ -90,7 +90,7 @@ Every agent has **permissions** (scopes) on top of its projects and roles. New a
 | Comments, reactions, News read | `comments` | on |
 | Structure: projects, sections, fields, project tags, templates, filters, folders, overview, status | `structure` | off |
 | Delete & trash | `delete` | off |
-| Read / upload files of tasks, comments and projects; 2.674.0: also the files of the team chat (`GET /team/files/{id}`) and, for a person's token, of the agent chat (`GET /chat-attachments/{id}`; the agent of the conversation reads them with `read`) | `attachments:read` / `attachments:write` | off |
+| Read / upload files of tasks, comments and projects; 2.674.0: also the files of the team chat (`GET /team/files/{id}`) and, for a person's token, of the agent chat (`GET /chat-attachments/{id}`; the agent of the conversation reads them with `read`); 2.1507.0 (#6297): every GET that answers with a file (also the file of a sign-off version) | `attachments:read` / `attachments:write` | off |
 | The file store: read / add files and folders (2.48.0) | `files:read` / `files:write` | on |
 | Time tracking: timer and time entries; 2.582.0: also reading time entries (`GET /time/entries`, MCP `list_time_entries`) and the time gaps (`GET /time/gaps`, MCP `get_time_gaps`); without it the hours and amounts of clients, the project overview and table variables stay empty; the own running timer stays *Read* | `time` | off |
 | Export | `export` | off |
@@ -384,7 +384,11 @@ model itself. No computer of your own, no launcher, no `CLAUDE.md` file.
   such a run is on, every change waits for an approval card** - also for an agent whose control level would let it act or
   that has none - and so does every chat message to someone other than the person who asked and the agent's owner
   (2.571.0: a person whose mention, assignment or comment lies in the same run gets a message only by card), a standing rule and every proposal route except a proposal for a job and a task
-  proposal (409 `approval_required`, as in [Control level](#control-level)). Every chat message, approval card and proposal of the
+  proposal (409 `approval_required`, as in [Control level](#control-level)). 2.1507.0 (#6297): the agent's own channel stays free
+  only with the fields that carry no free text (a status, a number, an id) - a job's title / log / name and a progress step
+  only for a job or chat of the person who asked on no task, the status model and the usage note only as the run's own; a
+  status text, the working mark's line on a task, a job on a task and the plan usage (`PUT /agent/quota`) need a card, and so
+  does any field not named (a new one too). Every chat message, approval card and proposal of the
   run names the web sources it used under *From the web* (a proposal also as `web_sources: [{url, label}]`). The runs show
   the searches, pages and VAT checks; `GET /api/agents/usage` counts `web_searches` and `web_fetches`.
 - **The key**: stored encrypted, never returned, never written to a log. The app shows only "Saved" with *Replace* and
@@ -5530,7 +5534,10 @@ it, `in` = to it), `rel` (what it means), `note`, and `other` = the other side `
 `ok`, or `gone` once that object is deleted or in the trash (then without title); a side you may not see is left out.
 Review 2.1076: a side in the trash shows as `gone` only when you may restore it (else it is left out); a side deleted for good
 is `{state: gone}` without `kind` and `id` unless you made the link. Your token needs the read scope of the other side too
-(an event: `calendar`; a contact: `contacts`): linking to a kind you may not read is `403`, such sides are left out of the list,
+(an event: `calendar`; a contact: `contacts`; since 2.1507.0 (#6297) a table `sheets:read` / `sheets:write`, a file or folder
+`files:read` / `files:write`, a saved documents view `files:read` / `files:write`, a knowledge page `wiki:read` / `wiki:write`,
+a shoot day or call sheet `calendar`, a project, a template or a client `read` / `structure`; tasks and the others `read` /
+`tasks:write`): linking to a kind you may not read is `403`, such sides are left out of the list,
 and removing a link needs the write scope of its source. The workspace of a file, a knowledge page or a table is its own row's.
 `POST .../links` with `{kind, id, rel?, note?}` links the object (you need write on it: your share `edit`, the kind's write
 scope) with another one you see in the **same workspace**; `rel` is a short name (default `related`), `note` at most 500
@@ -5559,7 +5566,8 @@ cannot be replaced (`409`): send a new one. At most 100 per day (`429`), of them
 search's parameters as a query string, as `GET /api/v1/documents` (MCP `list_documents`) takes them, `ws` = the workspace it searches). A view is private
 to the person who saved it; you see one only when a person shared it with you (an admin's "share with everyone of the
 organisation" is for people, not agents). Reading a view gives you its search, not its documents: run it yourself with
-`GET /api/v1/documents` (MCP `list_documents`) and your own access.
+`GET /api/v1/documents` (MCP `list_documents`) and your own access. Since 2.1507.0 (#6297) reading a view needs `files:read`
+like the documents themselves (was `read`).
 *Since 2.857.0 (#5518):* a view also has the field `rules` = its filter `{op: "and" | "or", conds: [{f, op, v}], sort?, dir?}`
 (f: `sender`, `type`, `tag`, `folder`, `date`, `added`, `ftype`, `asn`, `review`, `text`, `cf`; op: `in`, `nin`, `empty`, `from`,
 `to`, `eq`, `set`, `has`, `nhas`; an older view's `query` comes converted). Run it with `GET /api/v1/documents?view=<id>`:
@@ -5747,7 +5755,7 @@ people (the API has no route for it).
 | Comment (optionally at `at_sec`) or answer (`parent_id`) | `POST /api/v1/videos/{id}/comments` | `add_comment` with `kind: "video"`, `id` (2.981.0; was `add_video_comment`) | comments |
 | Mark a comment done / open | `PATCH /api/v1/videos/{id}/comments/{comment_id}` | `set_video_comment_done` | comments |
 | Create image / PDF sign-offs from files of the file store, up to 50 at once (#7532) | `POST /api/v1/videos` `{task_id \| list_id, files: [{file_id, title?}]}` | `create_image_reviews` | tasks:write |
-| The image / PDF / audio file of a version (2.641.0, audio 2.658.0) | `GET /api/v1/videos/{id}/versions/{version_id}/file` | - (the file tools, `file_id`) | read |
+| The image / PDF / audio file of a version (2.641.0, audio 2.658.0) | `GET /api/v1/videos/{id}/versions/{version_id}/file` | - (the file tools, `file_id`) | attachments:read (2.1507.0; every download, #6297) |
 
 - **Comments** come by version and timecode: `{id, version, version_id, at_sec, timecode (mm:ss), author, customer, agent,
   done, body, replies: [...]}`. `state` of the sign-off: `open`, `approved`, `changes` (the customer asked for changes);

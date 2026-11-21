@@ -98,10 +98,12 @@ def _cs_data(c, value, row):
 
 
 obj_register(DSK_DAY, "hub_bookings", label=N_("Shoot day"), fields={}, node=False, area="team", space=_space_of("hub_bookings"),
-             base_role=_base_of("hub_bookings"), title=_day_title, open_url=lambda bid: "workload")
+             base_role=_base_of("hub_bookings"), title=_day_title, open_url=lambda bid: "workload",
+             scopes=("calendar", "calendar"))  # (#6297 8): the disposition's scope (v1 /dispo: calendar)
 obj_register(DSK_CS, "hub_callsheets", label=N_("Call sheet"), fields={"data": _cs_data}, area="team", routes=False, listed=False,
              fsref=False, space=_space_of("hub_callsheets"), base_role=_base_of("hub_callsheets"), visible=_cs_visible,
-             cap=lambda c, uid, rid: None, trash_prune=True, open_url=lambda rid: "workload")
+             cap=lambda c, uid, rid: None, trash_prune=True, open_url=lambda rid: "workload",
+             scopes=("calendar", "calendar"))  # (#6297 8): the disposition's scope (v1 /dispo: calendar)
 undo_skip("hub_callsheets", "sketch", "sketch_mime")  # the picture (up to 4 MB) never goes into an undo copy (core/writes.py)
 
 

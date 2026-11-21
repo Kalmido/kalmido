@@ -329,13 +329,11 @@ check(r.status_code == 404 and "Vertraulich" not in r.text, f"F4: an empty PATCH
 check(A.patch(B + f"/api/list-tags/{SEC}", json={}).ok, "F4: the admin (full view) still gets the answer")
 QR = tag_rule(A, LQ, SEC)
 r = Gi.get(B + f"/api/lists/{LQ}/rules")
-if r.ok:
-    rr = next((x for x in r.json()["rules"] if x["id"] == QR), {})
-    check(rr and rr["names"].get("tag_to") is None, f"F4: the rule shows the guest no name of a label she does not see {rr.get('names')}")
-    r = Gi.post(B + f"/api/lists/{LQ}/rules", json={"name": "x", "trigger": {"kind": "done"}, "action": {"kind": "tag", "tag_id": SEC}})
-    check(r.status_code == 400, f"F4: the guest cannot probe a label's id through a rule {r.status_code}")
-else:
-    check(False, f"F4 setup: the guest (project admin) reads the rules {r.status_code} {r.text[:200]}")
+# #6610: a guest has at most the project role edit, also when given admin -- the rules (managing) stay closed to her, and
+# with them every name of a label she does not see (was: she read them and the names were left out)
+check(r.status_code == 403 and "Vertraulich" not in r.text, f"F4: the guest (project admin, capped to edit) reads no rules {r.status_code} {r.text[:200]}")
+r = Gi.post(B + f"/api/lists/{LQ}/rules", json={"name": "x", "trigger": {"kind": "done"}, "action": {"kind": "tag", "tag_id": SEC}})
+check(r.status_code in (400, 403), f"F4: the guest cannot probe a label's id through a rule {r.status_code}")
 r = Gi.get(B + f"/api/lists/{LQ}/public-link")
 if r.ok:
     check(not any(x["id"] == SEC for x in r.json()["options"]["tags"]), "F4: the share dialog offers the guest no unseen label")

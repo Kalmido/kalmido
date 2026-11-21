@@ -172,7 +172,10 @@ def tmr_take(c, msg, mid, uid, how_to=None):
     # 2.393.2 F (#3375): review 1 - by In-Reply-To alone only when the account of the address the mail went to sees the task (the
     # reporter answers to the address their mail went to): an address of another account never leads into a task it does not see.
     # #4071: only a token in the address counts; "from" (mail_from_me) comes from the sender's address, which anyone can forge
-    if ok and (signed or (uid and how_to == "token" and task_visible(c, tid, uid, full=True))):  # in a person's name only through the signed address
+    # (#6297 4, audit #4741): the token holder must also be allowed to comment (a read-only / guest member forging a
+    # colleague's From got a comment; tmr_who checked the say right of the forged sender only)
+    if ok and (signed or (uid and how_to == "token" and task_visible(c, tid, uid, full=True)
+                          and not ocm_say_refusal(c, "task", tid, uid))):  # in a person's name only through the signed address
         return "comment", tmr_comment(c, msg, mid, tid, sender, who)
     lg = lang(c, uid) if uid else "en"
     return "note", tr("Reply to #{0}, sender not allowed", tid, lg=lg)

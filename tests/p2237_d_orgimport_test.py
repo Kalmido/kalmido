@@ -284,7 +284,7 @@ for f in files3:
 # ---------------------------------------------------------------- undo: only admins of the target now, nothing frozen since
 check(A.put(B + f"/api/orgs/{ORG3}/members", json={"email": "bob@example.com", "role": "admin"}).ok, "bob becomes admin of the target")
 kt.proved()  # 2.1021.0 (#5775): an organisation admin invites by address only an account that proved it
-check(Bo.put(B + f"/api/orgs/{ORG3}/members", json={"email": "alice@example.com", "role": "member"}).ok, "alice is no admin there any more")
+check(Bo.put(B + f"/api/orgs/{ORG3}/members", json={"user_id": ALICE, "role": "member"}).ok, "alice is no admin there any more")  # down only by user_id (decision 21.11.2026, #6610)
 before = counts(ORG3)
 r = A.post(B + f"/api/imports/{IMP3}/undo")
 check(r.status_code == 403, f"undo as a former admin: 403 ({r.status_code} {r.text[:160]})")

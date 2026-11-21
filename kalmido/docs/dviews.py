@@ -87,7 +87,8 @@ def dv_public(c, uid, row, role=None):
 
 obj_register(DV_KIND, "doc_views", label=N_("Saved view"), area="other", org_access="view", org_join="admin", listed=False,
              fields={"title": f_text(120, required=True), "query": dv_query_clean, "ws": dv_ws_clean, "rules": dvf_field},  # 2.857.0 (#5518): + rules
-             open_url=lambda rid: f"docs/v/{int(rid)}", public=dv_public)
+             open_url=lambda rid: f"docs/v/{int(rid)}", public=dv_public,
+             scopes=("files:read", "files:write"))  # (#6297 8): a view of the documents, as v1 /documents (files:read / files:write)
 
 
 def dv_args(row, extra=None):

@@ -164,7 +164,7 @@ check([x["name"] for gr in groups(Bo, "rcmeals", f"org:{ORG}") for x in gr["item
 check(A.put(B + f"/api/office/rights/people/{BOB}", json={"groups": ["tpl:staff"]}).ok, "setup: bob in the office group Staff (own only)")
 check(groups(Bo, "rcmeals", f"org:{ORG}") == [], "#4895: level 'own': not alice's meal")
 check(A.put(B + f"/api/office/rights/people/{BOB}", json={"groups": ["tpl:readonly"]}).ok, "setup: Read-only again")
-check(A.put(B + f"/api/orgs/{ORG}/members", json={"email": "bob@example.com", "role": "guest"}).ok, "setup: bob becomes a guest (keeps his group)")
+check(A.put(B + f"/api/orgs/{ORG}/members", json={"user_id": BOB, "role": "guest"}).ok, "setup: bob becomes a guest (keeps his group)")  # a member's role goes down only by user_id (decision 21.11.2026, #6610)
 check(groups(Bo, "rcmeals", f"org:{ORG}") == [] and groups(Bo, "rcoffice", f"org:{ORG}") == [] and rc_of(top(Bo, f"org:{ORG}")) is None,
       "#4895 (review F1): a guest with an office group reads nothing of the office")
 

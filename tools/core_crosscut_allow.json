@@ -77,7 +77,6 @@
  "rights": {
   "kalmido/accounts/layouts.py:_wg_role": "a project page's part: asks need_overview (the core's need_list + project switch); no rule of its own",
   "kalmido/accounts/layouts.py:need_person": "own logic: views are arranged by people only (wraps agents/core.py need_person)",
-  "kalmido/accounts/orgroles.py:cap_list_role": "the organisation floor of a list role (read-only people view): the source the core's list_role reads",
   "kalmido/accounts/orgroles.py:need_org_area": "the organisation floor of organisation-wide areas (guests / accounting 404, read-only read): the source the core reads",
   "kalmido/accounts/orgroles.py:need_org_write": "the organisation floor for changes (read-only / guest / accounting 403): the source the core reads",
   "kalmido/accounts/orgs.py:need_visible": "own logic: who may see which person (may_see, the people directory), not an object",
