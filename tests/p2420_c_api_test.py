@@ -218,7 +218,7 @@ for name, data in (("cut", raw[:-1000]),  # cut inside the last block
 z = zipfile.ZipFile(ZIP)
 names = set(z.namelist())
 man = json.loads(z.read("manifest.json"))
-check(man["format"] == "kalmido-org-export" and man["format_version"] == 1 and man["org"]["id"] == ORG and man["kalmido_version"], "manifest head")
+check(man["format"] == "kalmido-org-export" and man["format_version"] == 2 and man["org"]["id"] == ORG and man["kalmido_version"], "manifest head")
 check(all(k in names for k in ("lists.json", "tasks.json", "comments.json", "attachments.json", "events.json", "books.json", "members.json",
                                "office/company.json", "office/documents.json", "office/document_items.json", "calendars.json")), f"areas: {sorted(names)[:60]}")
 check(set(man["files"]) - {"manifest.json"} == names - {"manifest.json"}, "every entry has a checksum in the manifest")

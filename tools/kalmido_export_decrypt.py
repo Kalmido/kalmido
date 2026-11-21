@@ -80,7 +80,7 @@ def read_header(f):
         h = json.loads(head.decode("utf-8"))
     except ValueError:
         raise Bad("damaged header") from None
-    if h.get("format") != "kalmido-org-export" or h.get("v") != 1 or h.get("alg") != "AES-256-GCM":
+    if h.get("format") != "kalmido-org-export" or h.get("v") not in (1, 2) or h.get("alg") != "AES-256-GCM":
         raise Bad("unknown archive format or version (a newer Kalmido? update this tool)")
     return h, hashlib.sha256(MAGIC + raw + head).digest()
 

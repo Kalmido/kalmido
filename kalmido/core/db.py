@@ -1276,6 +1276,8 @@ def init_db(guard=True):
         for k, v in GLOBAL_DEFAULTS.items():
             if k not in have:
                 c.execute("INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT DO NOTHING", (k, v))
+        if "instance_key" not in have:  # (#6593): the server's fixed random key, made once (the move's double-import guard)
+            c.execute("INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT DO NOTHING", ("instance_key", secrets.token_hex(16)))
         from ..admin.hosting import quota_backfill
         quota_backfill(c)  # 2.24.0 (#910): who uploaded the files from before
         clk("quota_backfill")
