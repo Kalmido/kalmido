@@ -41,6 +41,7 @@ from flask import g, jsonify, request
 from ..core.config import EMAIL_RE, app
 from ..core.pg import insert_id, qi, system_ctx
 from ..core.pgbus import bus_on, bus_send  # 2.622.0 (#3891)
+from ..core.ephem import eph_hash, eph_within  # (#6905)
 from ..core.i18n import N_, lang, tr
 from ..core.db import body, bump, db, err, iso, now_utc, connect, parse_iso
 from ..core.db import DbError  # (#6546)
@@ -616,7 +617,7 @@ def mbx_put():
                 or bool(d.get("smtp_password")):
             c.execute("UPDATE hub_mailboxes SET send_fails=0, send_told_at=NULL WHERE id=?", (r["id"],))
         # review F2 / N1: "last successful fetch" belongs to the mailbox it was fetched from: another server, port, user or
-        # folder is another mailbox (a new password or switching it on again is not). mailed_at stays (review F1).
+        # folder is another mailbox (a new password or switching it on again is not). The mail clock stays (review F1, #6905: _mbx_mail_due).
         if any(v[k] != (int(r[k] or 0) if k in ("imap_port", "imap_ssl") else r[k]) for k in ("imap_host", "imap_port", "imap_ssl", "imap_user", "imap_folder")):
             c.execute("UPDATE hub_mailboxes SET ok_at=NULL WHERE id=?", (r["id"],))
     else:
@@ -823,11 +824,32 @@ def _mbx_space_name(c, box):
     return lambda lg: tr("Private", lg=lg)
 
 
+MBX_MAIL_NS = "mbxmail"  # (#6905): core/ephem.py kind of the outage-mail clock
+MBX_NAME_MAX = 60  # (#6905): the longest mailbox name (user name / host) in a notice
+
+
+def _mbx_label(box, *keys):
+    """(#6905): the mailbox name in a notice (the first of keys that is set), at most MBX_NAME_MAX characters: a user name may
+    be up to 300."""
+    n = next((str(box[k]) for k in keys if box[k]), "")
+    return n if len(n) <= MBX_NAME_MAX else n[:MBX_NAME_MAX - 1] + "\u2026"
+
+
+def _mbx_mail_due(box):
+    """(#6905): True = the outage mail of this mailbox may go now, and its clock starts (one mail in MBX_TELL_AGAIN_S, fetching
+    and sending together). The clock is kept per workspace and mailbox address (core/ephem.py, shared by every process), not
+    at the mailbox row: removing the mailbox and setting it up again never mails twice in 3 days (was hub_mailboxes.mailed_at,
+    #6545 review F1, deleted with the row). None (the count failed) = no mail: the News and the push still go."""
+    addr = (f"{box['imap_user']}@{box['imap_host']}" if box["imap_host"]
+            else f"{box['smtp_user'] or box['from_addr']}@{box['smtp_host']}").strip().lower()
+    return bool(eph_within(MBX_MAIL_NS, eph_hash(MBX_MAIL_NS, f"{box['ws']}|{addr}"), 1, 1, MBX_TELL_AGAIN_S))
+
+
 def _mbx_lost(box, k):
     """2.1269 (#6386): k mails of the mailbox were given up after their last attempt (integrations/mail.py MAIL_TRIES): they
     stay in the mailbox; its owners hear it once per round that gave some up (News + push of the event "integration")."""
     def tell(c):
-        integ_tell(c, _mbx_owners(c, box), "maillost", box["imap_user"] or box["imap_host"], str(k), ws=box["ws"])
+        integ_tell(c, _mbx_owners(c, box), "maillost", _mbx_label(box, "imap_user", "imap_host"), str(k), ws=box["ws"])
         c.commit()
     _bg(tell)
 
@@ -858,28 +880,28 @@ def _mbx_age_s(v, now):
 
 
 def mbx_due(box, now, interval):
-    """2.1333.0 (#6545): a mailbox that keeps failing waits longer each time (collab/integfail.py integ_backoff_s, at most 6 h)."""
+    """2.1333.0 (#6545): a mailbox that keeps failing waits longer each time (collab/integfail.py integ_backoff_s): (#6905) at
+    most 6 h while its login is refused, at most 15 min after a network failure."""
     if not box["fails"]:
         return True
     age = _mbx_age_s(box["polled_at"], now)
-    return age is None or age >= integ_backoff_s(interval, box["fails"])
+    return age is None or age >= integ_backoff_s(interval, box["fails"], (box["error"] or "") == "auth")
 
 
 def _mbx_trouble(c, box):
     """2.1333.0 (#6545): from INTEG_FAILS failures in a row the owners hear of the outage (News, push and mail), again every
     MBX_TELL_AGAIN_S while it lasts (was once, News + push only); the mail at most once per mailbox in MBX_TELL_AGAIN_S
-    (review F1, mailed_at). The caller commits."""
+    (review F1; #6905: _mbx_mail_due). The caller commits."""
     from datetime import timedelta
     with system_ctx(c):
         r = c.execute("UPDATE hub_mailboxes SET told_at=? WHERE id=? AND fails>=? AND error<>'' AND (told_at IS NULL OR told_at<?) "
                       "RETURNING error, error_at", (_now(), box["id"], INTEG_FAILS, iso(now_utc() - timedelta(seconds=MBX_TELL_AGAIN_S)))).fetchone()
         if r:
-            # review F1: the mail has a clock of its own (mailed_at) that saving, a check or a success never reset: told_at
-            # starts anew with new access data, so "save + 5 failed fetches" would else mail again and again
-            mail = bool(c.execute("UPDATE hub_mailboxes SET mailed_at=? WHERE id=? AND (mailed_at IS NULL OR mailed_at<?) RETURNING id",
-                                  (_now(), box["id"], iso(now_utc() - timedelta(seconds=MBX_TELL_AGAIN_S)))).fetchone())
+            # review F1: the mail has a clock of its own that saving, a check or a success never reset: told_at starts anew
+            # with new access data, so "save + 5 failed fetches" would else mail again and again (#6905: nor removing it)
+            mail = _mbx_mail_due(box)
             integ_tell(c, _mbx_owners(c, box), "mailbox_auth" if r["error"] == "auth" else "mailbox",
-                       box["imap_user"] or box["imap_host"], str(r["error_at"] or "")[:10], click="mailhub", mail=mail,
+                       _mbx_label(box, "imap_user", "imap_host"), str(r["error_at"] or "")[:10], click="mailhub", mail=mail,
                        mail_name=_mbx_space_name(c, box) if mail else None, ws=box["ws"])
 
 
@@ -910,10 +932,9 @@ def mbx_send_result(box_id, code):
                 told = c.execute("UPDATE hub_mailboxes SET send_told_at=? WHERE id=? AND (send_told_at IS NULL OR send_told_at<?) RETURNING id",
                                  (_now(), box_id, iso(now_utc() - timedelta(seconds=MBX_TELL_AGAIN_S)))).fetchone()
                 if told:
-                    # the mail shares the clock of the fetch outage (mailed_at, #6545 review F1): one mail per mailbox in 3 days
-                    mail = bool(c.execute("UPDATE hub_mailboxes SET mailed_at=? WHERE id=? AND (mailed_at IS NULL OR mailed_at<?) RETURNING id",
-                                          (_now(), box_id, iso(now_utc() - timedelta(seconds=MBX_TELL_AGAIN_S)))).fetchone())
-                    integ_tell(c, _mbx_owners(c, box), "mailbox_send", box["from_addr"] or box["smtp_user"] or box["smtp_host"],
+                    # the mail shares the clock of the fetch outage (#6545 review F1, #6905): one mail per mailbox in 3 days
+                    mail = _mbx_mail_due(box)
+                    integ_tell(c, _mbx_owners(c, box), "mailbox_send", _mbx_label(box, "from_addr", "smtp_user", "smtp_host"),
                                MBX_ERR.get(code) or MBX_ERR["network"], click="mailhub", more=(str(box["send_error_at"] or "")[:10],),
                                mail=mail, mail_name=_mbx_space_name(c, box) if mail else None, ws=box["ws"])
         c.commit()

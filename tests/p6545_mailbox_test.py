@@ -13,7 +13,10 @@ mailbox was fetched twice more.
    does not), again after 3 days, not before; the event "Integrations" switched off stops the mail; a changed sender name
    does not end the stop, the access data saved again does
  - review F1: the mail only to a proved address (an admin with an unproved one gets the News only); saving again + 5 failures
-   within 3 days: News again, no second mail (mailed_at); "Fetch now" is limited (429)
+   within 3 days: News again, no second mail (the mail clock); "Fetch now" is limited (429)
+ - #6905: the mail clock is kept per workspace + mailbox address (core/ephem.py), not at the row: removing the mailbox and
+   setting it up again within 3 days mails no second time; a network failure waits at most 15 min, a refused login up to 6 h;
+   the mailbox user name in a notice is cut to 60 characters
  - review F2: the warning "fetched twice" only among the workspaces the person manages (their private one + the
    organisations they are admin of), never about another customer's mailbox; ok_at goes with a changed server
  - an organisation mailbox nobody can receive for (no admin) is not fetched: error norecipient, its mail stays unseen
@@ -126,6 +129,17 @@ def news(s, what):
 def box(ws):
     r = dbx("SELECT fails, error, polled_at, told_at, ok_at, skipped FROM hub_mailboxes WHERE ws=?", (ws,))
     return dict(zip(("fails", "error", "polled_at", "told_at", "ok_at", "skipped"), r[0])) if r else {}
+
+
+def mail_clock(days):
+    """#6905: the outage-mail clock of the mailboxes (eph_state, kind mbxmail) runs out in `days` days (0 = it ran out)."""
+    dbx("UPDATE eph_state SET exp=? WHERE ns='mbxmail'", (time.time() + days * 86400 if days else 0,))
+
+
+def app_py(code):
+    """#6905: Python inside the app container (a fresh process), its output."""
+    out = subprocess.run(["docker", "exec", CT, "python", "-c", "import app\n" + code], capture_output=True, text=True)
+    return (out.stdout + out.stderr).strip()
 
 
 def rounds(k=2):
@@ -243,18 +257,20 @@ r = Bo.put(B + "/api/hubmail/mailbox", json={"ws": f"org:{ORG}", "from_name": "A
 check(r.ok and r.json()["box"]["halted"] and box(WS)["fails"] == 5, f"#6545: a changed sender name does not end the stop ({r.text[:200]})")
 
 # ---- again after 3 days while it lasts; the event switched off stops the mail
-dbx("UPDATE hub_mailboxes SET told_at=?, mailed_at=? WHERE ws=?", (ago(days=3, minutes=5), ago(days=3, minutes=5), WS))
+dbx("UPDATE hub_mailboxes SET told_at=? WHERE ws=?", (ago(days=3, minutes=5), WS))
+mail_clock(0)
 check(until(lambda: len(news(Bo, "mailbox_auth")) == 2, 40), "#6545: after 3 days the admin hears it again")
 check(until(lambda: len(mails("bob@example.test")) == 2, 30), "#6545: by mail too")
 check(Bo.patch(B + "/api/settings", json={"notify": {"integration": {"news": False, "push": False}}}).ok, "bob switches the event 'Integrations' off")
-dbx("UPDATE hub_mailboxes SET told_at=?, mailed_at=? WHERE ws=?", (ago(days=4), ago(days=4), WS))
+dbx("UPDATE hub_mailboxes SET told_at=? WHERE ws=?", (ago(days=4), WS))
+mail_clock(0)
 check(until(lambda: str(box(WS)["told_at"] or "")[:10] == datetime.now(timezone.utc).date().isoformat(), 40), "setup: the next notice is due and went out")
 rounds(1)
 check(len(mails("bob@example.test")) == 2 and len(news(Bo, "mailbox_auth")) == 2, f"#6545: the switched-off event stops News and mail ({len(mails('bob@example.test'))})")
 check(Bo.patch(B + "/api/settings", json={"notify": {"integration": {"news": True, "push": True}}}).ok, "setup: on again")
 
-# ---- review F1: saving again + 5 failures within 3 days: the News again, no second mail (mailed_at is not reset)
-dbx("UPDATE hub_mailboxes SET mailed_at=? WHERE ws=?", (ago(days=1), WS))  # the last mail went out yesterday
+# ---- review F1: saving again + 5 failures within 3 days: the News again, no second mail (the mail clock is not reset)
+mail_clock(2)  # the last mail went out yesterday
 nb, mb = len(news(Bo, "mailbox_auth")), queued(U["bob"])
 r = Bo.put(B + "/api/hubmail/mailbox", json={"ws": f"org:{ORG}", "imap_password": "wrong"})
 check(r.ok and not box(WS)["told_at"], f"setup: saved again, the outage starts anew ({box(WS)})")
@@ -263,12 +279,37 @@ dbx("UPDATE hub_mailboxes SET fails=4, polled_at=? WHERE ws=?", (ago(hours=1), W
 check(until(lambda: len(news(Bo, "mailbox_auth")) == nb + 1, 40), f"#6545 F1: the admin hears the new outage in the News ({box(WS)})")
 check(queued(U["bob"]) == mb, f"#6545 F1: but no second mail within 3 days ({queued(U['bob'])} vs {mb})")
 
+# ---- #6905: removing the mailbox and setting it up again within 3 days: the News again, still no second mail
+nb, mb = len(news(Bo, "mailbox_auth")), queued(U["bob"])
+check(Bo.delete(B + f"/api/hubmail/mailbox?ws=org:{ORG}").ok and not box(WS), "setup: Alpha's mailbox removed")
+r = Bo.put(B + "/api/hubmail/mailbox", json={**BOX, "imap_password": "wrong"})
+check(r.ok, f"setup: set up again, with the wrong password ({r.text[:200]})")
+check(until(lambda: box(WS).get("fails", 0) >= 1, 40), f"setup: refused again ({box(WS)})")
+dbx("UPDATE hub_mailboxes SET fails=4, polled_at=? WHERE ws=?", (ago(hours=1), WS))
+check(until(lambda: len(news(Bo, "mailbox_auth")) == nb + 1, 40), f"#6905: the admin hears the outage of the new mailbox ({box(WS)})")
+check(queued(U["bob"]) == mb, f"#6905: but no second mail within 3 days after removing + setting up again ({queued(U['bob'])} vs {mb})")
+
 # ---- the access data saved again: fetching goes on
 check(Er.put(B + "/api/hubmail/mailbox", json={"ws": "private", "active": False}).ok, "setup: erin's mailbox paused (nothing else takes the mails)")
 r = Bo.put(B + "/api/hubmail/mailbox", json={"ws": f"org:{ORG}", "imap_password": "secret"})
 check(r.ok and not r.json()["box"]["halted"] and box(WS)["fails"] == 0 and not box(WS)["told_at"], f"#6545: new access data ends the stop ({r.text[:200]}, {box(WS)})")
 after = drop("After the stop")
 check(until(lambda: dbx("SELECT 1 FROM hub_mails WHERE ws=? AND message_id=?", (WS, f"<p6545-{after}@example.org>")), 40), "#6545: and the mailbox is fetched again")
+
+# ---- #6905: a network failure waits at most 15 min (10 failures in a row: 10 s x 1024 would be almost 3 h)
+dbx("UPDATE hub_mailboxes SET fails=10, error='network', polled_at=? WHERE ws=?", (ago(minutes=16), WS))
+check(until(lambda: box(WS)["fails"] == 0, 40), f"#6905: 16 min after the 10th network failure the mailbox is fetched again ({box(WS)})")
+out = app_py("from datetime import timedelta\nfrom kalmido.collab.integfail import integ_backoff_s\nfrom kalmido.hub.mailbox import mbx_due\n"
+             "from kalmido.core.db import now_utc\nnow = now_utc()\n"
+             "b = lambda e, m: {'fails': 10, 'error': e, 'polled_at': now - timedelta(minutes=m)}\n"
+             "print('caps', integ_backoff_s(10, 16, True), integ_backoff_s(10, 16), integ_backoff_s(10, 16, False))\n"
+             "print('due', mbx_due(b('network', 16), now, 10), mbx_due(b('network', 14), now, 10), mbx_due(b('auth', 16), now, 10), "
+             "mbx_due(b('auth', 175), now, 10))")  # a refused login: 10 s x 1024 = 2 h 50 min
+check("caps 21600 900 900" in out, f"#6905: a refused login waits up to 6 h, any other failure at most 15 min ({out[-300:]})")
+check("due True False False True" in out, f"#6905: mbx_due follows it: network due after 15 min, a refused login after 2 h 50 min "
+      f"({[x for x in out.splitlines() if x.startswith(('due', 'caps', 'Trace', '  '))][-8:]!r})")
+out = app_py("from kalmido.hub.mailbox import _mbx_label\nprint('len', len(_mbx_label({'imap_user': 'u' * 300, 'imap_host': 'h'}, 'imap_user', 'imap_host')))")
+check("len 60" in out, f"#6905: the mailbox user name in a notice is cut to 60 characters ({out[-300:]})")
 
 # ---- 2.1333.0 (#6545): a mail refused by the limits of #6425 (here: parts too deep) is counted like a too large one
 sk = box(WS)["skipped"]
