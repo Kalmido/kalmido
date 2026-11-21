@@ -1398,6 +1398,16 @@ a new kind. One way per table: a second registration is refused, `tools/check_ex
   whole (history, undo, search). `obj_history`'s organisation file follows the objects the archive carries
   (`admin/orgexport.py ox_history_where`); what no import takes over stands in the manifests' `not_imported`. Every table
   (not only those with an organisation column) is in the organisation export or `OX_LEFT` (#6359).
+- (#6593) Version of an archive: both archives are SELECT * of the writing version's schema, so `kalmido_version` in the manifest
+  IS their format. The import compares it with its own version (`admin/acctimport.py umz_version_gate`): a newer file is refused
+  everywhere with both versions (an own server: update to that version first; the hosted server: it takes the file once it runs
+  that version); a file without a readable version passes. The format numbers `UMZ_V` / `OX_FORMAT` went to 2 once (servers from
+  before the gate refuse such a file by the number) and do not rise per schema change; the readers take 1 and 2. What an import
+  leaves out row by row (a required column without a valid value, an amount NUMERIC(14,2) would round, a row the database
+  refuses) the one row builder counts with table and reason (`umz_left_row`) and the result names it as a warning that must show.
+  The source of the double-import guard is the server's fixed key (`settings.instance_key`, manifest `source.instance`), asked
+  exactly in the JSON column per target (an organisation: any of its admins); the address key is only the fallback for
+  imports from before.
 
 ### A person's yes bound to a text (2.1494.0, #7528)
 

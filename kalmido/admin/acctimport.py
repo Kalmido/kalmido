@@ -36,7 +36,7 @@ from datetime import date, datetime, timedelta
 
 from flask import Response, g, jsonify, request
 
-from ..core.config import app, ATT_DIR, MAX_FILE_MB, PUBLIC_URL
+from ..core.config import app, APP_VERSION, ATT_DIR, MAX_FILE_MB, PUBLIC_URL
 from ..core.config import USERNAME_RE  # 2.278.0 B (#3094)
 from ..wiki.pages import WIKI_TASK_RE  # (#6584): the one link form of a task in a knowledge page
 from ..accounts.orgs import visible_people as umz_visible  # 2.278.0 B (#3094)
@@ -49,7 +49,7 @@ from ..files.upsafe import up_after_store, up_check, UploadRefused  # 2.464.0 (#
 from ..lists.projects import LIST_FILES_SUB
 from ..lists.tplextra import tx_import, tx_keys
 from ..tasks.attachments import safe_name
-from .hosting import fmt_bytes, quota_info
+from .hosting import fmt_bytes, hosted, quota_info
 from ..core.db import body, bump, connect, db, err, iso, iso_ms, now_utc, parse_iso, usettings, uset, create_user, DataError, IntegrityError, DbError
 from ..core.pg import insert_id, system_ctx, ts_canon  # 2.1095.0 (#5306): ts_canon
 from ..core.moneycol import MC_COLS, MC_FITS  # 2.765.0 (#5315): the money columns NUMERIC(14,2) and their rule
@@ -77,6 +77,7 @@ from ..tasks.validation import (DATE_MAX_Y, DATE_MIN_Y, DURATION_MAX, PRIORITIES
 from .orgexport import EXPORT_DIR, OX_SECRET_COLS, _safe_part
 from .acctexport import (UMZ_BLOCK, UMZ_FORMAT, UMZ_HEAD, UMZ_V, UmzReader, UmzWriter, umz_key, umz_person, umz_space_ok,
                          umz_user_conn, umz_write_state)
+from .acctexport import UMZ_INST_RE, umz_instance, umz_ver  # (#6593)
 from ..core.orgcrypt import OrgCryptError, oc_user_space, oc_write_file, rck_parse, rck_resolve  # 2.149.0 G (#2517); 2.531.0: + OrgCryptError, rck_resolve pulled up (layer budget)
 from ..core.schema import MAX_DEPTH  # 2.149.0 G (#2517): pulled up from functions
 from ..office.model import pb_personal  # 2.1316.0 (#6577): umz_office_space
@@ -528,6 +529,20 @@ def _json(raw, what, left=None):
         raise UmzBad(N_("The file contains a broken part: {0}"), what) from None
 
 
+UMZ_NEWER = N_("This export comes from Kalmido {0}, this server runs {1}. Update this server to version {0} or newer first, then import the file.")
+UMZ_NEWER_HOSTED = N_("This export comes from Kalmido {0}, this server runs {1}. It can be imported here as soon as this server runs {0} or newer.")
+
+
+def umz_version_gate(man):
+    """(#6593, audit #4808 T21): the Kalmido version of the file against this server's. The archive is SELECT * of the writing
+    version's schema, so a newer file may hold tables and columns this server does not know and would leave out silently:
+    refused everywhere with both versions -- an own server is told to update first, the hosted server (updated by its
+    operator) says when it can take the file. A file without a readable version passes (the format number still decides)."""
+    theirs, ours = umz_ver(man.get("kalmido_version")), umz_ver(APP_VERSION)
+    if theirs and ours and theirs > ours:
+        raise UmzBad(UMZ_NEWER_HOSTED if hosted() else UMZ_NEWER, ".".join(map(str, theirs)), APP_VERSION)
+
+
 def umz_open(path, key, size, full=True):
     """-> (zipfile, manifest, files {path: entry}, data {table: rows}). UmzBad when anything is off. full: check every
     file's SHA-256 too (the preview; the run checks each file again while it reads it)."""
@@ -574,6 +589,7 @@ def umz_open(path, key, size, full=True):
             # entry carries its SHA-256 in the manifest
             man = _json(mraw, "manifest.json", nodes)
             if isinstance(man, dict) and man.get("format") == "kalmido-org-export":
+                umz_version_gate(man)  # (#6593)
                 return (zf, *umz_org_open(zf, names, man, mraw, full, nodes))
         if "checksum.sha256" not in names:
             raise UmzBad(N_("This is not a Kalmido export (manifest.json is missing)."))
@@ -587,6 +603,7 @@ def umz_open(path, key, size, full=True):
         man = _json(mraw, "manifest.json", nodes)
         if not isinstance(man, dict) or man.get("format") != UMZ_FORMAT:
             raise UmzBad(N_("This is not a Kalmido account export. An organisation export is imported by the organisation's admin."))
+        umz_version_gate(man)  # (#6593): before the format number, which names no version
         if not isinstance(man.get("v"), int) or man["v"] > UMZ_V or man["v"] < 1:
             raise UmzBad(N_("This export comes from a newer Kalmido version. Update this server first."))
         if not isinstance(man.get("files"), list) or not isinstance(man.get("user"), dict):
@@ -689,7 +706,7 @@ def umz_org_open(zf, names, man, mraw, full, nodes=None):
     entries of admin/orgimport.py under data["oi"][entry])."""
     from .orgimport import oi_covers
     fl = man.get("files")
-    if man.get("format_version") != 1 or not isinstance(fl, dict) or not isinstance(man.get("org"), dict):
+    if man.get("format_version") not in (1, 2) or not isinstance(fl, dict) or not isinstance(man.get("org"), dict):
         raise UmzBad(N_("This export comes from a newer Kalmido version. Update this server first."))
     listed = set(fl) - {"manifest.json"}
     if set(names) - {"manifest.json"} != listed:
@@ -906,8 +923,8 @@ def umz_areas_tr(rows):
 def umz_office_there(c, uid, src, eid, org):
     """2.1316.0 (#6577): an earlier import of this source into target org (None: the private space) took the office along
     (oi_done): a second run skips the office, there is nothing to check (umz_write)."""
-    for r in umz_earlier(c, uid, src, eid):
-        if json.loads(r["report"] or "{}").get("target") == org and json.loads(r["created"] or "{}").get("oi_done"):
+    for r in umz_earlier(c, uid, src, eid, org):  # (#6593): the imports into this target, by any of its admins
+        if json.loads(r["created"] or "{}").get("oi_done"):
             return True
     return False
 
@@ -954,8 +971,8 @@ def umz_preview(c, uid, man, data, can_invite, files=None):
                        "found": bool(hit), "found_name": (hit["display_name"] or hit["username"]) if hit else "",
                        "need_address": not _email(p.get("email")), "by_login": not hit})  # by_login: the admin may type a user name
     eid = man.get("export_id") if isinstance(man.get("export_id"), str) and UMZ_EID_RE.fullmatch(man.get("export_id")) else ""
-    skey = umz_src(man, eid)
-    earlier = umz_again(c, uid, skey, eid)  # 2.362.3 (#3098): the same source, not only the same file
+    skey, sold = umz_src(man, eid), umz_src_old(man)  # (#6593): + the address key an import before the instance key recorded
+    earlier = umz_again(c, uid, (skey, sold), eid)  # (#3098): the same source, not only the same file
     targets = umz_targets(c, uid)
     oi = data.get("oi") if isinstance(data.get("oi"), dict) else {}
     # 2.1316.0 (#6577): the target check of the office part (numbers, locked months) for each target, the originals that are missing
@@ -1001,11 +1018,11 @@ def umz_preview(c, uid, man, data, can_invite, files=None):
         "too_large_mb": UMZ_FILE_MAX // (1024 * 1024),
         "not_taken": skipped, "taken_areas": oi_counts(data) if org_kind else [], "again": bool(earlier), "earlier": earlier, "office_copy": bool(not org_kind and office),
         "auto_paused": bool(org_kind and oi_auto_preview(data)),  # 2.1289.0 (#6576): invoice series and office reminders arrive paused
-        "export_id": eid, "src": skey, "kind": "org" if org_kind else "account",
+        "export_id": eid, "src": skey, "src_old": sold, "kind": "org" if org_kind else "account",
         "targets": targets,  # 2.96.0 D (#1941): an organisation export may go into the private space too
         # 2.1316.0 (#6577): what the start would refuse per target, the finalised documents (the undo keeps them), the missing
         # originals; "office_facts" stays with the upload (umz_check moves it out of the preview, umz_go checks again)
-        "office": {"final": facts["final"], "missing": facts["missing"], "targets": umz_office_check(c, uid, facts, targets, skey, eid)} if facts else None,
+        "office": {"final": facts["final"], "missing": facts["missing"], "targets": umz_office_check(c, uid, facts, targets, (skey, sold), eid)} if facts else None,
         "office_facts": facts,
     }
 
@@ -1210,8 +1227,8 @@ def umz_row(c, table, src, fixed, ts):
     """The row to insert: the file's values of the columns this server has (coerced to their type), never ids or columns
     that point at rows, plus the fixed values. None when a required column has no value."""
     cols, fks = umz_cols(c, table)
-    if umz_money_misfit(c, table, src):  # 2.765.0 (#5315): never rounded silently (the caller names the value)
-        return None
+    if umz_money_misfit(c, table, src):  # 2.765.0 (#5315): never rounded silently
+        return umz_left_row(table, "money")
     drop = UMZ_DROP.get(table, ())
     d = {}
     for k, v in src.items():
@@ -1252,8 +1269,18 @@ def umz_row(c, table, src, fixed, ts):
         if typ in ("text", "timestamp with time zone") and k.endswith("_at"):  # 2.760.0 (#5311): + TIMESTAMPTZ
             d[k] = ts
         else:
-            return None
+            return umz_left_row(table, "required")
     return d
+
+
+def umz_left_row(table, why):
+    """(#6593, audit #4808 T21): ONE book of the rows a run leaves out -- {(table, why): n} of this thread's run (_L.rej,
+    umz_refused names them): why "required" (a required column without a valid value), "money" (an amount NUMERIC(14,2)
+    would round), "db" (the database refused it, umz_insert). -> None, the row builder's answer."""
+    rej = getattr(_L, "rej", None)
+    if rej is not None:
+        rej[(table, why)] = rej.get((table, why), 0) + 1
+    return None
 
 
 def umz_billed(run, src, d, ts):
@@ -1284,22 +1311,26 @@ def umz_insert(c, table, d, rid=True, told=False):
             c.execute(sql, args)
             return True
     except (IntegrityError, DataError):  # a duplicate or a value the column refuses: this row is skipped
-        rej = getattr(_L, "rej", None)
-        if rej is not None and not told:
-            rej[table] = rej.get(table, 0) + 1
-        return None
+        return None if told else umz_left_row(table, "db")
+
+
+UMZ_LEFT_WHY = {
+    "db": N_("{1} entries in {0} were refused by this server and not imported"),
+    "required": N_("{1} entries in {0} have no valid value in a required field and were not imported"),
+    "money": N_("{1} entries in {0} have an amount with more than two decimal places or no number and were not imported"),
+}
 
 
 def umz_refused(run):
-    """2.531.0 (#4317) F11: the rows the database refused in this run, one warning per area, and the counting ends."""
+    """(#4317) F11: the rows this run left out (umz_left_row), one warning per area and reason, and the counting ends.
+    (#6593): named as warnings that must show (the list of what went missing), with the reason."""
     rej, _L.rej = getattr(_L, "rej", None) or {}, None
     by = {}
-    for table, n in rej.items():
-        area = UMZ_REFUSED_AREA.get(table, table)
-        by[area] = by.get(area, 0) + n
-    for area, n in by.items():
-        run.warning(N_("{1} entries in {0} were refused by this server and not imported"),
-                    (area,) if area in UMZ_REFUSED_AREA.values() else area, n)
+    for (table, why), n in rej.items():
+        k = (UMZ_REFUSED_AREA.get(table, table), why)
+        by[k] = by.get(k, 0) + n
+    for (area, why), n in by.items():
+        run.warning(UMZ_LEFT_WHY[why], (area,) if area in UMZ_REFUSED_AREA.values() else area, n, must=True)
 
 
 # 2.362.3 (#3098): what a second import of the same source into the same target skips, row by row: kind of _Run.put -> (table, column, kind of the
@@ -1377,23 +1408,54 @@ UMZ_SRC = {  # 2.947.0 (#5275, review F5): list_tags reads a project tag's list 
 
 def umz_src(man, eid):
     """2.362.3 (#3098): the key of what a file comes from: server + account of an account export, so a newer export of the same
-    account counts as the same source; else (no address of the server, an organisation export: its ids say nothing across
-    servers) the file itself."""
+    account counts as the same source; else (an organisation export: its ids say nothing across servers) the file itself.
+    (#6593, audit #4808 T21): the server is its fixed key (manifest source.instance, acctexport.py umz_instance), no longer
+    its address: two own servers with the default http://localhost:3040 looked like one and the second import skipped rows
+    silently. A file without the key (an older writer) keeps the address key (umz_src_old)."""
+    inst, oid = (man.get("source") or {}).get("instance"), _oid((man.get("user") or {}).get("id"))
+    if man.get("format") == UMZ_FORMAT and oid and isinstance(inst, str) and UMZ_INST_RE.fullmatch(inst):
+        return hashlib.sha256(f"kalmido-instance|{inst}|{oid}".encode()).hexdigest()[:32]
+    return umz_src_old(man) or eid
+
+
+def umz_src_old(man):
+    """The address key of (#3098): server address + account id of an account export, '' without one. (#6593): only the
+    fallback -- an import from before the instance key recorded this one, a newer file of the same account still finds it."""
     url, oid = _txt((man.get("source") or {}).get("url"), 300).strip().rstrip("/").lower(), _oid((man.get("user") or {}).get("id"))
     if man.get("format") != UMZ_FORMAT or not url or not oid:
-        return eid
+        return ""
     return hashlib.sha256(f"kalmido-source|{url}|{oid}".encode()).hexdigest()[:32]
 
 
-def umz_earlier(c, uid, src, eid=""):
-    """2.362.3 (#3098): the imports of this source that are not undone, oldest first (eid: also a file imported before there was
-    a source key)."""
-    a = [f'%"{k}": "{v}"%' for k, v in (("src", src), ("export_id", eid or src)) if v and UMZ_EID_RE.fullmatch(v)]
-    if not a:
+def umz_srcs(st):
+    """(#6593): the keys an upload's state keeps for umz_earlier: (the file's key, its address key)."""
+    return (st.get("src") or "", st.get("src_old") or "")
+
+
+_ANY = object()
+
+
+def umz_earlier(c, uid, src, eid="", org=_ANY):
+    """(#3098): the imports of this source that are not undone, oldest first (eid: also a file imported before there was a
+    source key). src: a key or (key, address key). (#6593, with #6358): an exact question to the JSON column (no text
+    search), and per target instead of per person -- an import into an organisation counts for every admin of it, one into
+    the private space only for its owner. org: the one target (None = private); _ANY = every target the person may import
+    into (the preview, before the choice: Private and the organisations she administers, umz_targets)."""
+    keys = [k for k in ([src] if isinstance(src, str) else src) if k and UMZ_EID_RE.fullmatch(k)]
+    first = eid or (keys[0] if keys else "")
+    if not keys and not (first and UMZ_EID_RE.fullmatch(first)):
         return []
-    w = " OR ".join("CAST(report AS text) ILIKE ?" for _ in a)
-    return c.execute(f"SELECT id, created, created_at, report FROM imports WHERE user_id=? AND source=? AND undone_at IS NULL AND ({w}) ORDER BY id",
-                     (uid, UMZ_SOURCE, *a)).fetchall()
+    priv = "((report->>'target' IS NULL OR report->>'target' = 'private') AND user_id=?)"
+    if org is _ANY:
+        orgs = [str(t["id"]) for t in umz_targets(c, uid) if t["id"] != "private"]
+        tw, ta = f"({priv} OR report->>'target' = ANY(?))", [uid, orgs]
+    elif org is None:
+        tw, ta = priv, [uid]
+    else:
+        tw, ta = "report->>'target' = ?", [str(int(org))]
+    return c.execute("SELECT id, user_id, created, created_at, report FROM imports WHERE source=? AND undone_at IS NULL AND "
+                     f"(report->>'src' = ANY(?) OR report->>'export_id' = ?) AND {tw} ORDER BY id",
+                     (UMZ_SOURCE, keys, first if UMZ_EID_RE.fullmatch(first or "") else "", *ta)).fetchall()
 
 
 def umz_undo_until(at):
@@ -2777,8 +2839,10 @@ def umz_run(uid, iid, opts):
             run.kind = man.get("kind") or "account"
             run.invites = int(opts.get("invites") or 0)  # 2.1402.0 (#6579): counted by umz_go
             src = umz_src(man, st.get("export_id") or "")
-            umz_have(c, run, uid, umz_earlier(c, uid, src, st.get("export_id") or ""),  # 2.362.3 (#3098)
-                     mine=src == umz_src({"format": UMZ_FORMAT, "source": {"url": PUBLIC_URL}, "user": {"id": uid}}, ""))
+            # (#3098); (#6593): the imports into this target (by any of its admins); mine = my own export of this server
+            me_src = {"format": UMZ_FORMAT, "source": {"url": PUBLIC_URL, "instance": umz_instance(c)}, "user": {"id": uid}}
+            umz_have(c, run, uid, umz_earlier(c, uid, (src, umz_src_old(man)), st.get("export_id") or "", opts["org"]),
+                     mine=src in (umz_src(me_src, ""), umz_src_old(me_src)))
             if run.kind == "org" and not run.org:  # 2.96.0 D (#1941): an organisation export into the private space
                 run.warning(N_("Imported into your private workspace: nobody joins an organisation, projects are only shared with the people you ticked."))
             c.commit()
@@ -3018,7 +3082,7 @@ def umz_check(uid, iid, can_invite):
                 ids[umz_pid(p)] = hit["id"] if hit else None
         c.rollback()
         facts = pv.pop("office_facts", None)  # 2.1316.0 (#6577): for the start's check, not for the client
-        _set(uid, iid, state="preview", preview=pv, export_id=pv["export_id"], src=pv["src"], office_facts=facts, need=need, people_ids=ids, people_salt=umz_salt(man))
+        _set(uid, iid, state="preview", preview=pv, export_id=pv["export_id"], src=pv["src"], src_old=pv.pop("src_old", ""), office_facts=facts, need=need, people_ids=ids, people_salt=umz_salt(man))
     except UmzBad as e:
         _set(uid, iid, state="invalid", error=[e.text, *e.args_])
         try:
@@ -3054,7 +3118,7 @@ def umz_org_head(path, key, size):
         raise UmzBad(N_("The file contains a broken part: {0}"), "header") from None
     if not isinstance(h, dict) or h.get("format") != "kalmido-org-export" or h.get("alg") != "AES-256-GCM":
         raise UmzBad(N_("The file contains a broken part: {0}"), "header")
-    if h.get("v") != 1:
+    if h.get("v") not in (1, 2):  # (#6593): 2 since the version gate (orgexport.py OX_FORMAT)
         raise UmzBad(N_("This export comes from a newer Kalmido version. Update this server first."))
     return {**h, "_raw": raw, "_head": head}
 
@@ -3488,7 +3552,7 @@ def umz_back_to_preview(uid, iid, st):
             return None
         pv = dict(st["preview"])
         try:
-            earlier = umz_again(db(), uid, st.get("src") or "", st.get("export_id") or "")
+            earlier = umz_again(db(), uid, umz_srcs(st), st.get("export_id") or "")
         except DbError:  # no answer from the database: the start asks again (umz_go)
             earlier = pv.get("earlier")
         pv["again"], pv["earlier"] = bool(earlier), earlier
@@ -3738,9 +3802,6 @@ def umz_go(iid):
     # 2.269.0 D (#3046): this export imported by now (another tab, another upload of the same file) -> 409 unless the
     # person saw the preview's warning and goes on anyway (again: true); importing it twice by mistake creates nothing.
     # 2.362.3 (#3098): the same source, and going on takes over only what the chosen target does not have yet
-    if b.get("again") is not True and umz_earlier(c, uid, st.get("src") or "", st.get("export_id") or ""):
-        c.rollback()
-        return err(tr("This export was imported already. Confirm that you want to import it again: what is already in the selected place is skipped."), 409)
     tg = b.get("target", "private")
     org = None
     if tg != "private":
@@ -3748,7 +3809,11 @@ def umz_go(iid):
             return err(tr("Invalid value: {0}", "target"))
         _need_org_admin(c, tg)  # 404 not a member, 403 not its admin: never into somebody else's organisation
         org = tg
-    if st.get("office_facts") and not umz_office_there(c, uid, st.get("src") or "", st.get("export_id") or "", org):
+    # (#6593, from #6358): per target -- an import of this source into the chosen organisation by any of its admins counts
+    if b.get("again") is not True and umz_earlier(c, uid, umz_srcs(st), st.get("export_id") or "", org):
+        c.rollback()
+        return err(tr("This export was imported already. Confirm that you want to import it again: what is already in the selected place is skipped."), 409)
+    if st.get("office_facts") and not umz_office_there(c, uid, umz_srcs(st), st.get("export_id") or "", org):
         from .oi_office import OI_REFUSED, oi_target_check  # 2.1316.0 (#6577): a colliding number / locked month refuses, with the list
         chk = umz_office_tr(oi_target_check(c, st["office_facts"], umz_office_space(c, uid, org)))
         if chk["conflicts"]:
