@@ -1,7 +1,7 @@
 /* 2.769.0 (#5352): "Recently edited" (recent.js): the overview "All workspaces" of Knowledge, Files and Reading and the start
    page's block. A start file: the views using it load in different modules. Every row is one line of the same height, so
    the placeholder while loading (--zlen rows) has the height of the list: nothing jumps when the answer comes.
-   2.1511.0 (#4742): the rules only recent.js draws load with it (css/recent.css), .zlefull with the knowledge pages (css/wiki.css);
+   (#4742): the rules only recent.js draws load with it (css/recent.css), .zlefull with the knowledge pages (css/wiki.css);
    here stay those the placeholder of the start scripts (areas.js spo_recentHtml) and other start code draw. */
 .zleov{width:100%;max-width:none}
 /* the knowledge overview: its section stands in a flex column with auto margins (start-breite.css), which shrank it to its content */

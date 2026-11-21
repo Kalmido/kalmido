@@ -1,6 +1,6 @@
-/* Kalmido web client: the styles of the module "meetprop" (2.1511.0, #4742), loaded with it (static/js/lazyload.js LD_CSS).
+/* Kalmido web client: the styles of the module "meetprop" (#4742), loaded with it (static/js/lazyload.js LD_CSS).
    Moved unchanged from app.css (same order); later than app.css in the cascade. */
-/* 2.1511.0 (#4742): moved unchanged from app.css, only this module draws them (start budget). They stand before the file's own rules, so the cascade stays as it was. Where only part of a section moved, its comment stands in both places. */
+/* (#4742): moved unchanged from app.css, only this module draws them (start budget). They stand before the file's own rules, so the cascade stays as it was. Where only part of a section moved, its comment stands in both places. */
 /* 2.70.0 A (#1354) a meeting becomes tasks: the photos in the request dialog, the cards of ready proposals in the agent chat */
 .mtgcard{border:1px solid color-mix(in srgb,var(--accent) 35%,var(--line2));background:var(--accent-soft);border-radius:var(--radius);padding:.5rem .625rem}
 .mtgcard .mtgl label{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;min-height:2.75rem;padding:.25rem 0;cursor:pointer}
