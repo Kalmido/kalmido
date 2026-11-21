@@ -1932,6 +1932,13 @@ review section (default: the section named *Review*) and *Done only after approv
   a later poll once approved).
 - A linked pull request counts as the approval when it is merged, or when its merge request comment got 👍 from someone
   who may approve the review (`review_by` stays empty, the history names the pull request).
+- #7535: **Retest after the build** (*Off* / *By a person* / *By a review job*, `retest` of `set_list_review`, named as
+  `retest` in `GET /lists`): what the starter's dispatcher does with a task whose commit reached its `close_ref`, see
+  [Retest after the build](#retest-after-the-build). Only a person changes it (an agent gets 403: the builder never switches
+  its own retest off); a body without `retest` keeps it. With it on, *changes* (does not work) needs a note. With *By a review
+  job*, a person with write access can set **Retest by a person** on a single task (`review_task` action `retest_person`
+  `{on}`; an agent gets 403 -- it may recommend it in a comment); the task then shows `retest_person: true`. With the switch
+  off or on *By a person* the field has no effect and the app does not show it.
 
 ## Status, jobs and chat
 
@@ -3440,6 +3447,43 @@ control level, a new agent starts on *approve all*) ends only that write: a star
 any further write of the round, and the next round never starts its bundle again. **Dry run**: no comment, no close, no job. What it would do goes to
 `dispatch-dry.log` in the state folder and into the day report, which is its only post.
 `"<python>" "<mcp>/agent_dispatch.py" --dry-run` runs one round by hand and prints it.
+
+#### Retest after the build
+
+*Since #7535.* The same pattern as the reading of a pull request before its card, after the commit reached `close_ref`.
+The project switches it in Kalmido (project settings > *Review step* > *Retest after the build*; the dispatcher reads it
+from `GET /lists`, `retest`), never in `KALMIDO-DISPATCH.json`. Off (the default) = as before: a built task is closed.
+On, the dispatcher does **not** close a built task: it comments the commit (*Built in commit abc1234 (main) - in review for
+the retest.*) and asks for its review:
+
+- **By a person**: the reviewer is the agent's person. The task stands in *Waiting for me* with *Approve* (works) and *Back*
+  (does not work, the reason is required). Approved = the dispatcher closes it (*Retested by a person (commit ...)*); sent
+  back = it is built again in the next bundle.
+- **By a review job**: the reviewer is the agent itself in a fresh, read-only job (`agent_job.py start --audit`, the review
+  area's own places, `retest_wait_h` hours at most) on the state of `close_ref`. Its brief carries the retest guide
+  (`retest_doc`, default `docs/NACHTEST.md`, a [template](NACHTEST.md)) and the task with its history -- comments, earlier
+  evidence and reasons -- all fenced as data. Its last line decides: `RETEST: works - <evidence>` = the evidence as a comment,
+  the review approved, the task completed; `RETEST: fails - <reason>` = the reason as a comment, sent back, built again; no
+  such line (or the job failed or ran too long) = it goes to the person as above and the chat says so once. At most
+  `retest_max` (1) review jobs run at a time -- one test instance, the same test accounts --, the others wait in the order
+  of their commits. A task with **Retest by a person** set never gets a review job: it goes to the person.
+- **The guide holds no values.** `docs/NACHTEST.md` describes the steps and what counts as evidence and names only
+  variables (`NACHTEST_URL`, `NACHTEST_USER`, ...); their values stay in a local file outside the repository or the
+  runner's env file. The brief says: use them, never write one into the evidence, a comment or a commit; the dispatcher
+  also replaces the value of every `NACHTEST_*` variable of its environment in the evidence by the name. A commit that
+  changes the guide itself is told to the person, and its retest follows the guide from before that commit. Without a
+  guide the job tests at the checkout (reads the code, runs the project's test command) and says so in the evidence.
+- **Ready command** (optional, `KALMIDO_DISPATCH_READY_CMD` in the runner's env file only, like `check_cmd`): a commit in
+  `close_ref` does not mean that the test instance runs it yet. The dispatcher runs the command in its round itself (at
+  most `ready_timeout_min`, an environment without `KALMIDO_*` variables and credentials, `{commit}` = the commit, else it is
+  the last argument) and starts the review job only at exit 0 -- the instance runs this commit or a younger one that holds
+  it. Until then the task says once *Waiting for the test instance (commit ...)*; after `retest_ready_h` (24) hours the
+  person is told once. Without a ready command the review job starts at once.
+- **One retest per commit.** The same commit never gets a second retest; a new commit naming the task does. *Does not work*
+  counts as a bundle that left the task open: after `max_bundles` it is *stuck* and the person is told once, as before.
+- Nothing an agent signals starts a retest (no event, no `deployed`): only the commit the dispatcher sees in `close_ref`.
+  `retest_doc`, `retest_max`, `retest_wait_h`, `retest_ready_h` and `ready_timeout_min` count only from the state folder's
+  `KALMIDO-DISPATCH.json` (the builder never shapes its own retest).
 
 **Where the configuration lives (2.1400, #7117):** put `KALMIDO-DISPATCH.json` into the runner's **state folder**
 (`KALMIDO_STATE_DIR`; the one-command setup uses `state` next to the env file) -- every run's and job's settings deny the
