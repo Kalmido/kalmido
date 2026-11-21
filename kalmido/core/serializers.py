@@ -101,6 +101,10 @@ def task_dict(r, tags, full_snips=False):
             d.pop(k, None)
     if d.get("reviewer_id") is None:
         d.pop("reviewer_id", None)
+    if d.get("retest_person"):  # (#7535): only when set (a person retests it although the project has the review job)
+        d["retest_person"] = True
+    else:
+        d.pop("retest_person", None)
     if d.get("delegate_agent_id") is None:  # 2.473.0 (#3357): only when set
         d.pop("delegate_agent_id", None)
     if not d.get("approval"):  # 2.23.0 (#463): only on tasks that wait for / had an approval

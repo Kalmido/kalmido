@@ -370,6 +370,7 @@ def task_core(r, tags, fields):
             "delegate_agent_id": r["delegate_agent_id"] if "delegate_agent_id" in r.keys() else None,
             "watchers": list(r["watchers"]) if "watchers" in r.keys() else [],
             "review": (r["review"] or None) if "review" in r.keys() else None,
+            "retest_person": bool(r["retest_person"]) if "retest_person" in r.keys() else False,  # (#7535): a person retests it
             # 2.35.0 (#1095): the code snippets: one task (GET / change / webhook row) all of them, lists only snippets_n
             **_snips(r)}
 
@@ -595,6 +596,15 @@ def v1_one(c, tid):
     return out
 
 
+def _retest_of(raw):
+    """(#7535): the review step's retest switch of a list ('' off | person | job; tasks/review.py rvw_cfg)."""
+    try:
+        o = json.loads(raw) if raw else {}
+    except ValueError:
+        return ""
+    return o.get("retest") if isinstance(o, dict) and o.get("on") and o.get("retest") in ("person", "job") else ""
+
+
 def v1_list(d):
     name = tr("Basket") if d["is_inbox"] and inbox_default(d["name"]) else d["name"]
     return {"id": d["id"], "name": name, "color": d["color"], "folder": d["folder"], "is_inbox": bool(d["is_inbox"]),
@@ -622,6 +632,7 @@ def v1_list(d):
             "points_on": bool(d.get("points_on")),  # 2.60.0 (#1511): story points shown in the app
             "mail_guests": bool(d.get("mail_guests")),  # 2.395.0 (#3380): guests read the project's filed e-mails (read only here)
             "irreversible_needs_yes": bool(d.get("irreversible_needs_yes")),  # 2.392.0 C (#3370): the gates wait for a person's yes to one-way tasks
+            "retest": _retest_of(d.get("review_cfg")),  # (#7535): the retest after the build: '' off | person | job (tasks/review.py)
             "two_eyes": bool(d.get("two_eyes")),  # 2.574.0 (#3376): approvals of integrate / deploy / merge requests need two people
             "header_style": d.get("header_style") or "",  # 2.83.0 (#1427): the list's header strip in the app (read only)
             "nag": d.get("nag") or "", "day_hours": d.get("day_hours"),  # 2.7.0 (#413, #407)

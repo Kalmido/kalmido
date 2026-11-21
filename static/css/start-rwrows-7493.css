@@ -1,6 +1,7 @@
-/* (#7493): write shows at once (core.js rwRows): a row's state, the sums while the server computes them */
+/* (#7493): write shows at once (core.js rwRows): a row's state, the sums while the server computes them; #7500 the cash book */
 .rwmark{display:inline-flex;align-items:center;gap:.25rem;flex:none;font-size:var(--fs-m);color:var(--muted)}
 .rwfail{color:var(--danger)}.rwfail .linkbtn{font-size:inherit}
 .rw-failed{border-color:var(--danger)}
 .rw-saving .ofdlt,.rwcalc .ofdtotals dd,.rwcalc .ofdtotals b{opacity:.45}
 .rwcalcl{margin:.25rem 0 0;font-size:var(--fs-m)}
+.rw-saving .cb-amt,.rwcalc .cb-bal{opacity:.45}

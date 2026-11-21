@@ -134,7 +134,13 @@ function fv2_tile(key, ctx) {
   }
   if (p === 'f') { const f = S.filters.find(x => x.id === +v); return f ? {key, name: f.name, icon: ic('filter'), ...go(keyToHash(key), onTasks && k === key)} : null; }
   if (p === 'tag') return ctx.c.tags[v] ? {key, name: v, icon: ic('tag'), col: fv2_tagColor(v), ...go(keyToHash(key), onTasks && k === key)} : null;
-  if (p === 'p') { const pp = ctx.people.find(x => x.id === +v); return pp ? {key, name: pp.name, icon: av(pp.id, pp.name, 'avatar fv2-av'), ...go('who/' + pp.id, onTasks && k === 'who:' + pp.id)} : null; }
+  // (#7525): the own person page (#who/<me>, titled "My tasks") is a person no list shares with oneself: teamPeople() leaves
+  // the own account out, so its favourite was stored (the star on) but drew no tile - the star showed and was gone. The own
+  // account counts here: the avatar with the own name, the label "My tasks"
+  if (p === 'p') {
+    const mine = S.me && +v === S.me.id, pp = mine ? {id: S.me.id, name: S.me.display_name || S.me.username || ''} : ctx.people.find(x => x.id === +v);
+    return pp ? {key, name: mine ? tr('My tasks') : pp.name, icon: av(pp.id, pp.name, 'avatar fv2-av'), ...go('who/' + pp.id, onTasks && k === 'who:' + pp.id)} : null;
+  }
   if (p === 'g') {
     const gr = collab() && (S.groups || []).find(x => x.id === +v && myGroup(x.id)); if (!gr) return null;
     return {key, name: gr.name, icon: ic('users'), ...go('grp/' + gr.id, onTasks && k === 'grp:' + gr.id)};
@@ -281,11 +287,13 @@ function fv2_sideHtml() {
   return sv ? `<div class="sgroup sg-favs sg-svonly">${sv}</div>` : '';  // 2.156.0 D (#2186)
 }
 
-// ---- saving: one PATCH per change, shown at once; a failure loads the server's state again
+// ---- saving: one PATCH per change, shown at once, in line with every other favourite write (favorites.js favWrite, #7525):
+// its answer is the list as stored (keys no longer known dropped, accounts/settings.py fv2_clean_items); a refusal says why
+// and loads the server's state again
 async function fv2_save(arr) {
   S.settings.fav_items = JSON.stringify(arr);
   render();
-  try { await api('PATCH', '/api/settings', {fav_items: arr}); fv2_fetch(true); } catch { try { await load(); } catch { /* offline */ } render(); }
+  if (await favWrite('PATCH', '/api/settings', {fav_items: arr})) fv2_fetch(true);
 }
 // one change = one undo step
 function fv2_change(arr, msg) {
@@ -320,7 +328,7 @@ async function fv2_metaSet(key, patch) {
   if (x.c || x.i) d[key] = x; else delete d[key];
   S.settings.fav_meta = JSON.stringify(d);
   render();
-  try { await api('PATCH', '/api/settings', {fav_meta: d}); } catch { try { await load(); } catch { /* offline */ } render(); }
+  await favWrite('PATCH', '/api/settings', {fav_meta: d});  // (#7525): the one way
 }
 const fv2_sepAdd = key => fv2_set('sep:' + (Date.now() % 1e9), true, key, true);
 // the star in a page's header (render.js renderTop; lists have favTopBtn): the same place on every page

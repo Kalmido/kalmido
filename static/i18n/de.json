@@ -19706,5 +19706,20 @@
   "documents from templates": "Dokumente aus Vorlagen",
   "invoice series": "Rechnungsserien",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "Der Kunde dieses Dokuments ist nicht mehr in diesem Büro (in einen anderen Arbeitsbereich umgezogen). Wähle zuerst einen anderen Kunden.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Der Kunde der Vorlage-Rechnung ist nicht mehr in diesem Büro (in einen anderen Arbeitsbereich umgezogen). Wähle eine andere Vorlage-Rechnung und schalte die Serie wieder ein."
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Der Kunde der Vorlage-Rechnung ist nicht mehr in diesem Büro (in einen anderen Arbeitsbereich umgezogen). Wähle eine andere Vorlage-Rechnung und schalte die Serie wieder ein.",
+  "Retest by the review job": "Nachtest durch den Prüf-Job",
+  "Retest by a person": "Nachtest durch eine Person",
+  "Retested by a person": "Nachtest durch eine Person",
+  "What does not work?": "Was geht nicht?",
+  "required, the assignee sees it": "Pflicht, die zuständige Person sieht es",
+  "Say what does not work": "Sag, was nicht geht",
+  "Retest after the build": "Nachtest nach dem Bau",
+  "By a person": "Durch eine Person",
+  "By a review job": "Durch einen Prüf-Job",
+  "A task the agent built is not closed: it goes into review with its commit. A person approves it or says what does not work; a review job tests it by itself.": "Eine Aufgabe, die der Agent gebaut hat, wird nicht geschlossen: sie geht mit ihrem Commit in die Prüfung. Eine Person gibt sie frei oder sagt, was nicht geht; ein Prüf-Job testet sie selbst.",
+  "{0} handed the retest to a person": "{0} hat den Nachtest an eine Person gegeben",
+  "{0} handed the retest back to the review job": "{0} hat den Nachtest an den Prüf-Job zurückgegeben",
+  "Only a person decides who retests a task": "Nur eine Person entscheidet, wer eine Aufgabe nachtestet",
+  "Only in a project whose retest is done by a review job": "Nur in einem Projekt, dessen Nachtest ein Prüf-Job macht",
+  "Only a person changes the retest of a project": "Nur eine Person ändert den Nachtest eines Projekts"
 }

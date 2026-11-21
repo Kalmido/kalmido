@@ -32,7 +32,12 @@ from ..lists.seckind import sk_first, sk_snap  # 2.577.0 (#3354)
 #   - a linked pull request counts as the approval when it is merged (git poll) or approved with a thumbs up in Kalmido by
 #     someone who may approve the review.
 RVW_STATES = ("", "pending", "approved", "changes")
-RVW_ACTIONS = ("reviewer", "request", "approve", "changes", "restore")
+RVW_ACTIONS = ("reviewer", "request", "approve", "changes", "restore", "retest_person")
+# (#7535): the retest after the build (review_cfg.retest): '' off (the starter's dispatcher closes a built task, as before),
+# "person" (the built task goes into review with the agent's owner as the reviewer: "Waiting for me", approve = works, changes =
+# does not work + reason), "job" (a read-only review job of the starter tests it; tasks.retest_person = this one task by a
+# person anyway, set only by a person with write access). The starter reads the switch from GET /api/v1/lists (retest)
+RVW_RETEST = ("", "person", "job")
 RVW_NOTE_MAX = 2000
 
 
@@ -46,7 +51,8 @@ def rvw_cfg(c, lid):
     if not isinstance(o, dict) or not o.get("on"):
         return {}
     num = lambda v: v if isinstance(v, int) and not isinstance(v, bool) else None  # noqa: E731
-    return {"on": True, "reviewer": num(o.get("reviewer")), "section": num(o.get("section")), "gate": bool(o.get("gate"))}
+    return {"on": True, "reviewer": num(o.get("reviewer")), "section": num(o.get("section")), "gate": bool(o.get("gate")),
+            "retest": o.get("retest") if o.get("retest") in RVW_RETEST else ""}  # (#7535)
 
 
 def rvw_section(c, lid, cfg=None):
@@ -242,6 +248,8 @@ def rvw_apply(c, tid, b):
             raise BadInput(tr("This task does not wait for a review"))
         if act == "approve" and t["review"] not in ("pending", "changes") or act == "changes" and t["review"] not in ("pending", "approved"):
             raise BadInput(tr("This task does not wait for a review"))
+        if act == "changes" and cfg.get("retest") and not note:  # (#7535): "does not work" of a retest says why
+            raise BadInput(tr("Say what does not work"))
         ts = iso(now_utc())
         if act == "approve":
             _set(c, tid, review="approved", review_at=ts, review_by=uid)
@@ -256,6 +264,19 @@ def rvw_apply(c, tid, b):
         log_act(c, tid, "review", {"state": "approved" if act == "approve" else "changes", **({"note": note} if note else {})})
         t2 = c.execute("SELECT * FROM tasks WHERE id=?", (tid,)).fetchone()
         _notify(c, t2, _owner(c, t2), "approved" if act == "approve" else "changes", note)  # 2.367.2 (#2968): approved too
+        return one_task(c, tid)
+    if act == "retest_person":  # (#7535): this task's retest by a person although the project has the review job
+        if _is_agent(c, uid):  # never an agent: the builder would take its own retest away or hand the person work
+            raise Denied(403, tr("Only a person decides who retests a task"))
+        need_task(c, tid)
+        on = b.get("on")
+        if not isinstance(on, bool):
+            raise BadInput(tr("Invalid value: {0}", "on"))
+        if on and cfg.get("retest") != "job":
+            raise BadInput(tr("Only in a project whose retest is done by a review job"))
+        if bool(t["retest_person"]) != on:
+            _set(c, tid, retest_person=1 if on else 0)
+            log_act(c, tid, "review", {"state": "retest_person" if on else "retest_job"})
         return one_task(c, tid)
     need_task(c, tid)  # change the task
     locked = _gate_holds(c, t) and not rvw_may(c, t, uid)
@@ -324,8 +345,10 @@ def task_review(tid):
 
 def rvw_cfg_clean(c, lid, b):
     """The stored json of a review setting body {on, reviewer?, section?, gate?} (BadInput on bad values)."""
-    if not isinstance(b, dict) or any(k not in ("on", "reviewer", "section", "gate") for k in b):
+    if not isinstance(b, dict) or any(k not in ("on", "reviewer", "section", "gate", "retest") for k in b):
         raise BadInput(tr("Invalid data"))
+    if (b.get("retest") or "") not in RVW_RETEST:  # (#7535)
+        raise BadInput(tr("Invalid value: {0}", "retest"))
     if not b.get("on"):
         return ""
     rv, sec = b.get("reviewer"), b.get("section")
@@ -336,19 +359,26 @@ def rvw_cfg_clean(c, lid, b):
     if sec is not None and (not isinstance(sec, int) or isinstance(sec, bool)
                             or not c.execute("SELECT 1 FROM sections WHERE id=? AND list_id=?", (sec, lid)).fetchone()):
         raise BadInput(tr("Invalid value: {0}", "section"))
-    return json.dumps({"on": 1, "reviewer": rv, "section": sec, "gate": 1 if b.get("gate") else 0}, separators=(",", ":"))
+    return json.dumps({"on": 1, "reviewer": rv, "section": sec, "gate": 1 if b.get("gate") else 0,
+                       **({"retest": b["retest"]} if b.get("retest") else {})}, separators=(",", ":"))
 
 
 @app.put("/api/lists/<int:lid>/review")
 def list_review_put(lid):
     """The review step of a list (editors): {on, reviewer?: user id, section?: section id (default: the one named Review),
-    gate?: done only after approval}. Answers {review_cfg} (the stored json, '' = off)."""
+    gate?: done only after approval, retest?: '' | person | job (#7535)}. Answers {review_cfg} (the stored json, '' = off)."""
     c = db()
     need_list(c, lid)
+    b = body()
+    if isinstance(b, dict) and b.get("on") and "retest" not in b:  # (#7535): a body without it (an older app, MCP) keeps the switch
+        b = {**b, "retest": rvw_cfg(c, lid).get("retest", "")}
     try:
-        v = rvw_cfg_clean(c, lid, body())
+        v = rvw_cfg_clean(c, lid, b)
     except BadInput as e:
         return err(str(e))
+    # (#7535): the retest switch is a person's: an agent (the builder) never switches its own retest off or to another way
+    if (json.loads(v).get("retest") or "" if v else "") != rvw_cfg(c, lid).get("retest", "") and _is_agent(c, me()):
+        raise Denied(403, tr("Only a person changes the retest of a project"))
     c.execute("UPDATE lists SET review_cfg=? WHERE id=?", (v, lid))
     bump(c)
     c.commit()
@@ -365,7 +395,7 @@ from ..core.errors import reject_unknown  # noqa: E402
 def v1_task_review(tid):
     v1_args(())
     b = v1_json()
-    reject_unknown(b, ("action", "reviewer_id", "note", "review", "section_id"))
+    reject_unknown(b, ("action", "reviewer_id", "note", "review", "section_id", "on"))
     return jsonify(v1_call(task_review, tid, body=b))
 
 
@@ -374,7 +404,7 @@ def v1_task_review(tid):
 def v1_list_review(lid):
     v1_args(())
     b = v1_json()
-    reject_unknown(b, ("on", "reviewer", "section", "gate"))
+    reject_unknown(b, ("on", "reviewer", "section", "gate", "retest"))
     return jsonify(v1_call(list_review_put, lid, body=b))
 
 
@@ -385,24 +415,29 @@ def rvw_spec(paths, schemas, op, ok, errs, ref, pid, nul):
     tp["review_at"] = nul("string", description="2.60.0: when the review state changed last")
     tp["review_by"] = nul("integer", description="2.60.0: who changed it last (null with review approved = a linked pull request)")
     tp["review_sec"] = nul("integer", description="2.60.0: the section the task came from into review (Back returns it there)")
+    tp["retest_person"] = {"type": "boolean", "description": "(#7535): retested by a person although the project's retest is a review "
+                           "job (set only by a person with write access: action retest_person); only when set"}
     if "List" in schemas:
         schemas["List"].setdefault("properties", {})["review_cfg"] = {
-            "type": "string", "description": "2.60.0 (#1512): review step, json {on, reviewer, section, gate}; empty = off"}
+            "type": "string", "description": "(#1512): review step, json {on, reviewer, section, gate, retest}; empty = off"}
     paths["/tasks/{id}/review"] = {"post": op(
         "2.60.0 (#1512): the review step. reviewer (reviewer_id, null = none; a person or an agent with access to the list), request "
         "(Send for review: into the list's review section, state pending, the reviewer is told), approve / changes (only the reviewer "
         "or a list admin; never the assignee on their own task; an agent only as the reviewer; changes returns the task to its "
         "previous section), restore (undo: reviewer_id, review, section_id). With the list's gate on, completing a task whose "
-        "review is not approved answers 409.", "Tasks", ok(ref("Task")) | errs("400", "403", "404"), [pid()],
+        "review is not approved answers 409. (#7535): retest_person {on} = this task is retested by a person although the project's "
+        "retest is a review job (people only: an agent gets 403); with the project's retest on, changes needs a note.", "Tasks", ok(ref("Task")) | errs("400", "403", "404"), [pid()],
         body={"type": "object", "required": ["action"], "additionalProperties": False, "properties": {
             "action": {"type": "string", "enum": list(RVW_ACTIONS)}, "reviewer_id": nul("integer"),
             "note": {"type": "string", "maxLength": RVW_NOTE_MAX}, "review": {"type": "string", "enum": list(RVW_STATES)},
-            "section_id": nul("integer")}}, scope="tasks:write")}
+            "section_id": nul("integer"), "on": {"type": "boolean"}}}, scope="tasks:write")}
     paths["/lists/{id}/review"] = {"put": op(
         "2.60.0 (#1512): the review step of a list (editors). on, reviewer (default reviewer), section (default: the section named "
-        "Review), gate (done only after approval). Off = {on: false}.", "Lists",
+        "Review), gate (done only after approval), retest (#7535: '' off, person, job -- the retest after the starter's "
+        "dispatcher built a task). Off = {on: false}.", "Lists",
         ok({"type": "object", "properties": {"review_cfg": {"type": "string", "description": "The stored json, empty = off"}}})
         | errs("400", "403", "404"), [pid("id", "List id")],
         body={"type": "object", "additionalProperties": False, "required": ["on"], "properties": {
-            "on": {"type": "boolean"}, "reviewer": nul("integer"), "section": nul("integer"), "gate": {"type": "boolean"}}},
+            "on": {"type": "boolean"}, "reviewer": nul("integer"), "section": nul("integer"), "gate": {"type": "boolean"},
+            "retest": {"type": "string", "enum": list(RVW_RETEST)}}},
         scope="structure")}

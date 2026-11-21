@@ -19706,5 +19706,20 @@
   "documents from templates": "documenten uit sjablonen",
   "invoice series": "factuurreeksen",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "De klant van dit document staat niet meer in dit kantoor (naar een andere werkruimte verplaatst). Kies eerst een andere klant.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "De klant van de sjabloonfactuur staat niet meer in dit kantoor (naar een andere werkruimte verplaatst). Kies een andere sjabloonfactuur en zet de reeks weer aan."
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "De klant van de sjabloonfactuur staat niet meer in dit kantoor (naar een andere werkruimte verplaatst). Kies een andere sjabloonfactuur en zet de reeks weer aan.",
+  "Retest by the review job": "Hertest door de controletaak",
+  "Retest by a person": "Hertest door een persoon",
+  "Retested by a person": "Hertest door een persoon",
+  "What does not work?": "Wat werkt er niet?",
+  "required, the assignee sees it": "verplicht, de toegewezen persoon ziet het",
+  "Say what does not work": "Zeg wat er niet werkt",
+  "Retest after the build": "Hertest na het bouwen",
+  "By a person": "Door een persoon",
+  "By a review job": "Door een controletaak",
+  "A task the agent built is not closed: it goes into review with its commit. A person approves it or says what does not work; a review job tests it by itself.": "Een taak die de agent heeft gebouwd, wordt niet gesloten: ze gaat met haar commit naar de controle. Een persoon keurt ze goed of zegt wat er niet werkt; een controletaak test ze zelf.",
+  "{0} handed the retest to a person": "{0} gaf de hertest aan een persoon",
+  "{0} handed the retest back to the review job": "{0} gaf de hertest terug aan de controletaak",
+  "Only a person decides who retests a task": "Alleen een persoon beslist wie een taak hertest",
+  "Only in a project whose retest is done by a review job": "Alleen in een project waarvan de hertest door een controletaak gebeurt",
+  "Only a person changes the retest of a project": "Alleen een persoon wijzigt de hertest van een project"
 }
