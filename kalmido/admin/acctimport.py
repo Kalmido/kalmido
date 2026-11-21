@@ -2451,8 +2451,8 @@ UMZ_PRIVATE_MORE = (("video_reviews", "videos/reviews.json"), ("video_versions",
                     # 2.995.0 (#5602): my own ticket types and field schema, into my private space as the organisation import does
                     # (admin/oi_team.py _ttype / _ofield; a type or field with the same key here stays and the project fields link to it)
                     ("ticket_types", "lists/ticket_types.json"), ("org_fields", "lists/org_fields.json"))
-UMZ_SCHEMA_OI = ("lists/ticket_types.json", "lists/org_fields.json")
-UMZ_LIST_OI = ("lists/notepads.json", "lists/playbooks.json")  # (#6358): parts of a project of the file (list_id)  # 2.995.0 (#5602): idempotent by key, also on a second run
+UMZ_SCHEMA_OI = ("lists/ticket_types.json", "lists/org_fields.json")  # 2.995.0 (#5602): idempotent by key, also on a second run
+UMZ_LIST_OI = ("lists/notepads.json", "lists/playbooks.json")  # (#6358): parts of a project of the file (list_id)
 
 
 def umz_mails_oi(data, nodes, me_old):
