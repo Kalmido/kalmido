@@ -26,7 +26,8 @@ check(/#toast\.one>span\{display:-webkit-box;[^}]*overflow-wrap:break-word/.test
 const off = rd('static/css/office.css'), od = rd('static/js/office_docs.js'), pp = rd('static/js/popovers.js');
 check(/\.ofdkinds button\{min-height:2\.75rem\}/.test(off), '#2805: document kind tabs 2.75rem on phones');
 check(/\.trow > \.caret::after\{[^}]*inset/.test(app) && /\.qchip:not\(\.dsxwho\)::after\{[^}]*height:2\.75rem/.test(app), '#2805: subtask arrow + recognised words have a 2.75rem area');
-check(/\.tsbar \.iconbtn\{min-width:2\.75rem;min-height:2\.75rem\}/.test(app) && /\.chath button\.chmode[^}]*min-height:2\.75rem/.test(app) && /\.chath \.avb::before/.test(app), '#2805: time close, agent chat head areas');
+// (#4742): the touch area of .chath button.chmode is gone with its dead rule (no code sets .chmode any more)
+check(/\.tsbar \.iconbtn\{min-width:2\.75rem;min-height:2\.75rem\}/.test(app) && /\.chath \.avb::before/.test(app), '#2805: time close, agent chat head areas');
 check(/time,\.meta \.dt,[^{]*\{font-family:inherit;font-variant-numeric:tabular-nums\}/.test(app), '#2805: dates and times in the normal font with tabular digits');
 check(/f\.matches\('\.numin'\)[^\n]*f\.select\(\)/.test(od), '#2805: number fields select on focus');
 check(/data-d="\$\{d\}" aria-label="\$\{esc\(pd\(d\)\.toLocaleDateString\(LOCALE\(\), \{weekday: 'long'/.test(pp), '#2805: date sheet days carry the full date');
