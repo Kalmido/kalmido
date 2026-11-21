@@ -171,7 +171,7 @@ function wlk_take(k) {
   const d = WLK.cands?.[k], it = wlk_cur(); if (!d || !it) return;
   const what = tr('Matched') + ' · ' + (d.label || d.title || '');
   if (WLK.kind === 'cc') wlk_step(what, () => ccMatchLine(it.x.id, d.id, d.title), d.id);
-  else wlk_step(what, () => bnkMatch(it.x.id, d.kind, d.id), d.kind === 'receipt' ? d.id : null);
+  else wlk_step(what, () => bnkMatch(it.x.id, d.kind, d.id, null, d.label || ''), d.kind === 'receipt' ? d.id : null);
 }
 const WLK_MARK = {noreceipt: N_('No receipt needed'), private: N_('Private'), ignored: N_('Ignored'), cash: N_('Cash box transfer')};
 function wlk_click(e) {
@@ -190,7 +190,7 @@ function wlk_change(e) {
   const t = /** @type {any} */ (e.target), it = wlk_cur();
   if (!t.matches?.('[data-wlk-up]') || !t.files?.length || !it) return;
   const f = t.files[0]; t.value = '';
-  wlk_step(tr('Receipt added'), async () => { if (WLK.kind === 'cc') return ccRcUpload(it.x.id, f); else { await bnr_upload(it.x.id, f); bnkReload(); } });
+  wlk_step(tr('Receipt added'), () => WLK.kind === 'cc' ? ccRcUpload(it.x.id, f) : bnr_upload(it.x.id, f));  // #7497: the row of the list behind takes the answer (no reload)
 }
 // the search of another receipt: the list reloads 250 ms after the last key (core.js debounce, tools/perf_budget.py CLEARTIMEOUT_MAX)
 const wlk_qLoad = debounce(async () => { await wlk_load(); const i = /** @type {any} */ ($('[data-wlk-q]', WLK.md)); if (i) { i.focus(); i.setSelectionRange(WLK.q.length, WLK.q.length); } }, 250);

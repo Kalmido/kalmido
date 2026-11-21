@@ -70,7 +70,8 @@ function bnr_row(t) {
   const acts = `<div class="bnkacts">${out ? `<label class="btn sm">${ic('upload', 's')}<span>${tr('Upload receipt')}</span><input type="file" data-bnr-up="${t.id}" accept="${esc(typeof BK_ACCEPT === 'string' ? BK_ACCEPT : 'application/pdf,image/*')}" hidden></label>` : ''}
     <button class="btn sm" data-bnr="pick" data-id="${t.id}" aria-expanded="${BNR.pick === t.id}">${ic('search', 's')}<span>${out ? tr('Select receipt…') : tr('Select invoice…')}</span></button>
     <button class="btn sm ghost" data-bnr="noreceipt" data-id="${t.id}">${tr('No receipt needed')}</button>${mem}</div>`;
-  return `<li class="bnkrow" data-tx="${t.id}" ${out ? `data-bnr-drop="${t.id}"` : ''}>${head}${acts}${BNR.pick === t.id ? bnr_pickHtml(t) : ''}</li>`;
+  const W = bnkW();  // #7497: a row put back after an error says "Not saved - Try again" (the core's mark, escaped there)
+  return `<li class="bnkrow${esc(rwCls(W, t))}" data-tx="${t.id}" data-rwk="${esc(rwKey(t))}" ${out ? `data-bnr-drop="${t.id}"` : ''}>${head}${acts}${BNR.pick === t.id ? bnr_pickHtml(t) : ''}${/*html-ok*/ rwMarkHtml(W, t)}</li>`;
 }
 function bnr_pickHtml(t) {
   const c = BNR.cand;
@@ -85,30 +86,27 @@ function bnr_rcHtml(rcs) {
 }
 
 // ---- actions (one undo step each)
-async function bnr_match(tid, kind, mid) {
-  const req = {kind, ...(mid ? {id: +mid} : {})};
-  try { await api('POST', `/api/office/bank/tx/${tid}/match`, req); } catch (x) { return; }
-  bnr_reload();
-  offerUndo(tr('Matched'), histAdd({label: tr('Bank booking matched'),
-    undo: async () => { await api('POST', `/api/office/bank/tx/${tid}/unmatch`); bnr_reload(); },
-    redo: async () => { await api('POST', `/api/office/bank/tx/${tid}/match`, req); bnr_reload(); }}));
-}
-async function bnr_upload(tid, file) {
-  const fd = new FormData();
-  fd.append('files', file, file.name || 'receipt.pdf'); fd.append('ws', BNR.data?.upload_ws || (typeof ofcWs === 'function' ? ofcWs() : 'private'));  /* 2.778.0 (#5383): the walk-through uploads without the list loaded */ fd.append('area', 'office');  // 2.522.0 (#4433): the office's own upload
-  let j; try { j = await api('POST', '/api/docs', fd); } catch (x) { return; }
-  for (const e of j.errors || []) toast(e);
-  const id = (j.ids || [])[0] || (j.dups || [])[0]?.id;
-  if (!id) return;
-  try {
-    if ((j.ids || []).length) await api('PUT', `/api/docs/${id}/receipt`, {keep: true});  // a receipt of the office even before its amount is read
-    await api('POST', `/api/office/bank/tx/${tid}/match`, {kind: 'receipt', id});
-  } catch (x) { bnr_reload(); return; }
-  const fresh = (j.ids || []).length > 0;
-  bnr_reload();
-  offerUndo(tr('Receipt added'), histAdd({label: tr('Bank booking matched'),
-    undo: async () => { await api('POST', `/api/office/bank/tx/${tid}/unmatch`); if (fresh) await api('DELETE', `/api/files/nodes/${id}`); bnr_reload(); },
-    redo: async () => { if (fresh) await api('POST', `/api/files/nodes/${id}/restore`); await api('POST', `/api/office/bank/tx/${tid}/match`, {kind: 'receipt', id}); bnr_reload(); }}));
+// #7497: through the bank list's action (office_bank.js bnkMatch: the row leaves at once, the answer takes the counts, no reload)
+const bnr_match = (tid, kind, mid) => { if (BNR.pick === tid) { BNR.pick = null; BNR.cand = null; } return bnkMatch(tid, kind, mid); };
+// #7497: the receipt uploaded, made a receipt of the office and matched as one action of the row (office_bank.js bnkAct): the
+// row leaves at once; an error brings it back with "Not saved - Try again", and Try again matches the file already uploaded
+// (it is never left unmatched, never uploaded twice)
+function bnr_upload(tid, file) {
+  let id = 0, fresh = false, rc = false;
+  const req = async () => {
+    if (!id) {
+      const fd = new FormData();
+      fd.append('files', file, file.name || 'receipt.pdf'); fd.append('ws', BNR.data?.upload_ws || (typeof ofcWs === 'function' ? ofcWs() : 'private'));  /* 2.778.0 (#5383): the walk-through uploads without the list loaded */ fd.append('area', 'office');  // 2.522.0 (#4433): the office's own upload
+      const j = await rawFetch('POST', '/api/docs', fd);
+      id = (j.ids || [])[0] || (j.dups || [])[0]?.id || 0; fresh = (j.ids || []).length > 0; rc = !fresh;
+      if (!id) throw new Error((j.errors || [])[0] || tr('The change could not be saved'));
+    }
+    if (!rc) { await rawFetch('PUT', `/api/docs/${id}/receipt`, {keep: true}); rc = true; }  // a receipt of the office even before its amount is read
+    return bnkPost(tid, 'match', {kind: 'receipt', id});
+  };
+  return bnkAct(tid, {kind: 'receipt', id: null, label: file.name || ''}, req, tr('Bank booking matched'),
+    async () => { const r = await api('POST', `/api/office/bank/tx/${tid}/unmatch`); if (fresh) await api('DELETE', `/api/files/nodes/${id}`); return r; },
+    async () => { if (fresh) await api('POST', `/api/files/nodes/${id}/restore`); return api('POST', `/api/office/bank/tx/${tid}/match`, {kind: 'receipt', id}); }, () => tr('Receipt added'));
 }
 async function bnr_remember(tid) {
   const t = (BNR.data?.items || []).find(x => x.id === tid); if (!t) return;

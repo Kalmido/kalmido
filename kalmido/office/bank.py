@@ -766,9 +766,7 @@ def bnk_tx_list():
                 raise BadInput(tr("Invalid value: {0}", k))
             q += f" AND day{op}?"
             args.append(v)
-    counts = {"open": 0, "matched": 0}
-    for r in c.execute("SELECT match_kind IS NULL AS o, COUNT(*) AS n FROM office_bank_tx WHERE org_id=? AND deleted_at IS NULL GROUP BY 1", (oid,)):
-        counts["open" if r["o"] else "matched"] += r["n"]
+    counts = bnk_counts(c, oid)
     if st == "open":
         q += " AND match_kind IS NULL"
     elif st == "matched":
@@ -853,6 +851,15 @@ def _card_labels(c, oid, rows):
     for t in rows:
         if t["match_kind"] == "card":
             t["card_label"] = cc_stmt_label(c, oid, t["match_id"])
+
+
+def bnk_counts(c, oid):
+    """{open, matched}: the bookings of area oid by state (one COUNT, nothing decrypted). #7497: the list's numbers, also in the
+    answer of a match / unmatch, so the client takes them without loading the list again."""
+    counts = {"open": 0, "matched": 0}
+    for r in c.execute("SELECT match_kind IS NULL AS o, COUNT(*) AS n FROM office_bank_tx WHERE org_id=? AND deleted_at IS NULL GROUP BY 1", (oid,)):
+        counts["open" if r["o"] else "matched"] += r["n"]
+    return counts
 
 
 def _tx_answer(c, oid, uid, tid):
@@ -957,7 +964,7 @@ def bnk_match(tid):
     if fee_node:  # 2.469.0 (#3459): the fees' receipt goes through the documents' queue
         from ..docs.ingest import docs_kick
         docs_kick()
-    return jsonify({**_tx_answer(c, oid, uid, tid), "rule_category": rcat, "rule_suggestion": learn, "amount_differs": differs})
+    return jsonify({**_tx_answer(c, oid, uid, tid), "rule_category": rcat, "rule_suggestion": learn, "amount_differs": differs, "counts": bnk_counts(c, oid)})  # #7497: + counts
 
 
 BNK_PARTS_MAX = 50
@@ -1052,7 +1059,7 @@ def bnk_unmatch(tid):
               "WHERE id=? AND org_id=?", (tid, oid))  # 2.299.0 B (#3191): + rule_id
     bump(c)
     c.commit()
-    return jsonify(item=_tx_answer(c, oid, uid, tid), was=was)
+    return jsonify(item=_tx_answer(c, oid, uid, tid), was=was, counts=bnk_counts(c, oid))  # #7497: + counts
 
 
 from . import bankrules as _br  # noqa: E402  2.299.0 B (#3191): at the end (bankrules reads this module's helpers)

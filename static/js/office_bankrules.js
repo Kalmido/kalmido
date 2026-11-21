@@ -155,8 +155,8 @@ async function brl_sugTake(yes) {
   const s = BNK.ruleSug; BNK.ruleSug = null; if (!s) return;
   if (!yes) { try { await api('POST', '/api/office/bank/rules/decline', {counterpart: s.counterpart || '', iban: s.iban || ''}); } catch (x) { ofcErr(x); } ofcDraw(); return; }
   const body = {name: s.counterpart || s.iban || '', ...(s.iban ? {iban: s.iban} : {counterpart: s.counterpart}), action: s.action, category: s.category || '', direction: s.direction || '', apply_open: true};
-  try { await brl_new(body); } catch (x) { ofcErr(x); }
-  bnkReload();
+  let j = null; try { j = await brl_new(body); } catch (x) { ofcErr(x); }
+  if (j?.applied) bnkReload();  // #7497: only when the rule marked open bookings (their rows come again, dimmed until then); a rule alone changes no row
 }
 
 document.addEventListener('click', e => {
