@@ -181,7 +181,7 @@ const wsc_rowAttr = l => l ? wso_row(l) : '';  // (#6179): the shared row mark; 
 // (#7661, decision of 20.11.2026, replaces "Private stays neutral"): as soon as the person has an organisation, Private is a
 // workspace like the others: it wears its colour (wsp_privTone) at the same places. ONE rule here (wso_vars) for wso_row,
 // wso_mark, wso_origin (its dot), wso_sync / wso_scope; no caller chooses (the old third parameter priv of #6957 is gone,
-// tools/check_wso_row.py). Without an organisation everything stays neutral.
+// the rule wso-priv of tools/check_rules.py). Without an organisation everything stays neutral.
 // wso_ws: an organisation's id, 'org:<id>', 'private', a list / an object with org_id -> the workspace key ('' = none)
 const wso_ws = w => w == null || w === '' ? '' : typeof w === 'number' ? (w ? 'org:' + w : 'private') : typeof w === 'object' ? (w.is_inbox || !w.org_id ? 'private' : 'org:' + +w.org_id) : String(w);
 // (1) a row / card / entry of an organisation: data-wso + data-wsc + --wsd / --wsl = the stripe on its left edge (app.css);
