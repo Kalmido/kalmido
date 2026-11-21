@@ -2581,6 +2581,28 @@ themselves and have their own proposals API); child accounts get `403`.
 - `GET /api/admin/assistant` (admins) -> `{provider, host, model, timeout_s, max_chars, today: {calls, errors}, days: [{day,
   calls, errors, chars_in, chars_out}]}` for 30 days, without people.
 
+## Report a problem
+
+*Since 2.1514 (#7531).* The app's *Report a problem* (command palette, Settings > Help > About) sends a report of a person
+into the project the server admin chose for error reports (*Settings > Server*, block *Errors in the browser*, the same choice as the browser's
+error reports; in the hosting the operator's project). Without a chosen project the app keeps its old way (hosting: a mail
+to the support, else the issue tracker). Cookie session of a person; agents get `403`.
+
+- `POST /api/reports` `{"kind": "bug" | "wish", "problem", "expected"` (bug, both required) `| "want", "blocker"` (wish,
+  required) `, "how"` (wish, optional) `, "place"` (the page, path only) `, "context"` (the block, or `null` = left out)`}`
+  -> `201 {"task_id": null, "context": true|false, "report": {...}}`. The task lands in the chosen project (first section,
+  ticket type bug / feature, the fields under their labels in the notes, "Reported in the app by ..."), as nobody inside
+  that project's organisation - the reporter gets no rights there. `400` a required field empty, an unknown key, more than
+  4000 characters; `409 {"none": true}` no project chosen; `429` more than 10 reports per person and hour or the project's
+  hourly limit of error reports.
+- `GET /api/reports?place=` -> `{"target": bool, "items": [{"kind", "title", "place", "state", "created_at", "mine",
+  "here"}]}`: what was reported at this place (own reports and those of people who share an organisation with you) and your
+  own other reports; open ones first. Only the reporter's own title and the **state**, never the task: `open` (open, nobody
+  assigned), `working` (open with an assignee), `fixed` (done), `wont` (won't do or in the trash) - a fixed table from the
+  task, nobody keeps it by hand.
+
+The **context block** says where it happened: the page (its address without the query), the app version, the device (platform, browser, touch, window size, pixel ratio), the last errors of the browser (message with quoted texts, addresses and long numbers cut, place in the code) and the failed requests (method, path without the query, status, duration). It never holds contents: no texts of tasks, documents or input fields, no request or answer bodies, no tokens - the server keeps only these keys and shapes and drops the rest. It hangs at the task as its own attachment `kalmido-context.json`, never in the notes.
+
 ## Inbound webhook of a list
 
 *Since 2.138.1.*
@@ -2602,7 +2624,7 @@ and pauses itself; the owner or a list admin resumes it with their own rights (`
 
 | Body | |
 |---|---|
-| `application/json` | `{"title": "..." (required), "notes", "due": "YYYY-MM-DD" or an ISO date-time (with an offset: converted to the server's time zone), "priority": "none" \| "low" \| "medium" \| "high" \| "urgent", "tags": [list tags], "fields": {"field name or id": value}}` |
+| `application/json` | `{"title": "..." (required), "notes", "due": "YYYY-MM-DD" or an ISO date-time (with an offset: converted to the server's time zone), "priority": "none" \| "low" \| "medium" \| "high" \| "urgent", "tags": [list tags], "fields": {"field name or id": value}, "context": {the context block, see below}}` |
 | form fields | the same names, `tags` comma separated |
 | `text/plain` (or anything else) | the first line is the title, the rest the notes |
 
@@ -2611,6 +2633,13 @@ value); `404` for an unknown, rotated or deleted token; `403` paused; `409` arch
 above 60 requests per minute or 1000 per day and webhook. Keys Kalmido does not know, tags the list does not have and
 fields of other lists are **ignored** (never created) and named in `ignored`, so a flow keeps running when the list
 changes.
+
+*Since 2.1514 (#7531):* `context` is the context block of the shared intake (the same as *Report a problem* sends, see
+[Report a problem](#report-a-problem)): `{"route", "version", "device": {"platform", "browser", "touch", "width",
+"height", "dpr"}, "errors": [{"msg", "place"}], "requests": [{"method", "path", "status", "ms"}]}` (as a form field: the
+same as JSON text). Only these keys and shapes are kept (a query part, a body, a token, any other key goes); the task gets
+it as its own attachment `kalmido-context.json`, the notes stay as sent. A `context` that is no object is a `400` and no
+task is made.
 
 ```bash
 curl -X POST -H 'X-Kalmido-Hook-Token: khi_...' -H 'Content-Type: application/json' \

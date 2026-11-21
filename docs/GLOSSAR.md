@@ -485,6 +485,7 @@ Outbound and inbound connections: e-mail, webhooks, git, importers and exporters
 - `kalmido/integrations/mailproof.py` (`eproof`) - A person proves the own e-mail address: a mailed one-time link, wakes the silent organisation invitations of that address
 - `kalmido/integrations/mailtrim.py` (`md`) - Shorten a forwarded mail. A pure text function (no database, no request)
 - `kalmido/integrations/mailtrim_html.py` - The shortened HTML view of a filed mail
+- `kalmido/integrations/meldung.py` (`rpt`) - The one intake for reports of people ("Meldung"): "Report a problem" from the app, the context block as the task's own attachment, the state for the reporter (2.1514 #7531)
 - `kalmido/integrations/reqmail.py` (`rq`) - Requests by e-mail -- a customer
 - `kalmido/integrations/taskbrief.py` (`brief`) - A work package as one document
 - `kalmido/integrations/taskmail.py` (`tmr`) - The mail thread of a task -- replies by e-mail become comments, a comment can go back to the reporter
@@ -1153,6 +1154,7 @@ The start-up module.
 - `static/js/related.js` (`rt9`) - Related tasks. A folded "Related tasks"
 - `static/js/reloadguard.js` (`rl`) - Rl_waitServer(): the page and the stylesheet answer with 200 (used before the automatic reload of core.js verReload)
 - `static/js/render.js` (`cfk`) - Rendering: the shell (sidebar, header, tabs)
+- `static/js/report.js` (`rpt`) - "Report a problem": the dialog of the shared intake (bug / wish fields, the context block shown before sending, earlier reports of this place with their state); loaded on demand (2.1514 #7531)
 - `static/js/review.js` (`rvw`) - The review step of a list
 - `static/js/richcopy.js` (`rcp`) - Copying a chat message with its formatting
 - `static/js/roadmap.js` (`rm`) - The roadmap

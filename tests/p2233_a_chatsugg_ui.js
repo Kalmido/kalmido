@@ -164,7 +164,7 @@ const V = B + 'api/v1';
   };
   const ready = async (ev, n = 30) => { for (let i = 0; i < n && !(await ev(`!!document.querySelector('#chat-sug:not([hidden])')`).catch(() => false)); i++) await sleep(300); await sleep(500); };
   const geo = `(() => { const s = document.querySelector('#chat-sug'), t = s && s.querySelector('.acsug-t'), ci = document.querySelector('#chat-in'); if (!t || !ci) return null;
-    const l = s.querySelector('.acsug-l'), sr = s.getBoundingClientRect(), cr = ci.getBoundingClientRect();
+    const l = s.querySelector('.acsug-l'), tr = t.getBoundingClientRect(), sr = {bottom: Math.max(tr.bottom, l ? l.getBoundingClientRect().bottom : 0), height: tr.height}, cr = ci.getBoundingClientRect();  // (#7672): the shelf is part of the typing row (display: contents), measured by its button and list
     const tg = [...s.querySelectorAll('.acsug-t, .acsug-x, .cchb')].filter(x => x.getBoundingClientRect().height > 0);
     return {above: sr.bottom <= cr.top + 1, h: Math.round(sr.height), tog: Math.round(t.getBoundingClientRect().height), min: Math.round(Math.min(...tg.map(x => x.getBoundingClientRect().height))),
       scroll: l ? l.scrollHeight > l.clientHeight && getComputedStyle(l).overflowY === 'auto' : null, list: l ? Math.round(l.getBoundingClientRect().height) : 0,

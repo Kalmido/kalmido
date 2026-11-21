@@ -78,6 +78,7 @@ KINDS = {
                          "p2124_c_api_test.py: sharing a private table (2.124.0); p2199_c_sheets_test.py: tables in her "
                          "private folders, shared with her own agent (2.199.0); p2578_c_fmt_test.py: cell formats and colour rules "
                          "of her private table, her agent's formats taken back (2.578.0)"),
+    "report": ("matrix", "p21514_b_meldung_test.py: a person without an organisation reports a problem / wish from the app into the project the admin chose and sees its state; the list of a place stays inside her own circle (2.1499.0)"),  # (#7531)
     "bookmarks": ("matrix", "p297_a_api_test.py: bookmarks (2.97.0) in the private workspace of a person without an organisation"),  # 2.97.0 A (#1950)
     "life_org": ("matrix", "p2173_a_travel_care_scope_test.py: trips, staying in touch and travel expenses from a trip (2.173.0) in the "
                  "private workspace and the personal office of a person without an organisation"),  # 2.173.0 A (#2680)
@@ -850,6 +851,7 @@ ROUTES = {
     "PUT /api/v1/contacts/{}/care": "pim", "PUT /api/v1/event-calendars/{}/members/{}": "pim",
     # ---- public (19)
     "GET /": "public", "GET /agent-setup.ps1": "public", "GET /agent-setup.sh": "public", "GET /api/about": "public", "POST /api/client-errors": "clienterr",
+    "POST /api/reports": "report", "GET /api/reports": "report",  # (#7531)
     "GET /api/health": "public", "GET /api/layouts/std": "public", "GET /api/related/config": "public",
     "GET /api/v1/announcement": "public", "GET /api/v1/openapi.json": "public", "GET /api/version": "public",
     "GET /capture": "public", "GET /manifest.json": "public", "GET /robots.txt": "public", "GET /share": "public",

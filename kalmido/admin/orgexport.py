@@ -623,6 +623,7 @@ _SHARE = "who shares what with whom (a share is made anew on the target)"  # 2.1
 _ISSUER = "invoice issuers and their keys (an admin sets them up again on the target)"  # 2.1381.0 (#6699)
 _ONLINEPAY = "the online provider's working data (the payments themselves are in the export)"
 OX_LEFT = {
+    "task_reports": "The reporters of tasks from “Report a problem” (accounts of other workspaces): the tasks go along with the project",  # (#7531)
     # organisation column
     "agents": _AGENT, "bg_jobs": _SERVER, "doc_mail": _SECRET, "doc_models": _DERIVED, "doc_flow_runs": _DERIVED, "file_text": _DERIVED,
     "doc_fetchers": "a person's receipt fetcher and its token (set up again on the target)", "doc_fetch_portals": _DERIVED,

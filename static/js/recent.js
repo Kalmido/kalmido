@@ -7,8 +7,8 @@
      Private, each organisation, Shared with me; the trash set off small at the end. No chips, no list of items on it.
    - the page "Recently edited" of each (#wiki/recent, #ablage/recent, #reading/recent, #office/recent, #sheets/recent, zle_pageHtml): the arrow
      back to the overview (the address carries the page: the phone's Back returns there too), "Pinned" (the person's
-     favourites of the area), chips to filter by workspace (All / Private / an organisation ...), then the last 20 pages, files
-     and read-later entries, newest first, each only name and when (+ who, when it was not the person herself)
+     favourites of the area), chips to filter by workspace (All / Private / an organisation ...), then the last 20 items of
+     this area only (#7664: Knowledge only pages, Files only files, Reading only read-later entries ...), newest first, each only name and when (+ who, when it was not the person herself)
    - the start page's block "Recently edited" (dashboard.js dashCard 'recent'): 8 entries; under "All" from every workspace
      with the chip, in one workspace only its own; "More" leads to the overview.
    The rows keep their height while loading (a placeholder of the same height): nothing jumps when the answer comes. */
@@ -22,20 +22,23 @@ const ZLE_AREA = {wiki: ['note', N_('Knowledge|area')], files: ['file', N_('File
 // (#7662): an office item by its kind: [icon, name]
 const ZLE_KIND = {offer: ['receipt', N_('Quotation')], invoice: ['receipt', N_('Invoice')], credit: ['receipt', N_('Credit note')],
   client: ['user', N_('Client')], receipt: ['receipt', N_('Receipt')]};
-const zle_key = (sp, n) => sp + '|' + n;
-async function zle_load(sp, n) {
-  const k = zle_key(sp, n); if (ZLE.busy[k]) return;
+// (#7664): the page "Recently edited" of an area shows only its own kind (Knowledge only pages, Files only files ...);
+// mixed over all areas stays the start page's block alone. The one rule for every area here (the server's ?areas=)
+const ZLE_MODAREA = {wiki: 'wiki', ablage: 'files', reading: 'reading', office: 'office', sheets: 'sheets'};
+const zle_key = (sp, n, ar = '') => sp + '|' + n + '|' + ar;
+async function zle_load(sp, n, ar = '') {
+  const k = zle_key(sp, n, ar); if (ZLE.busy[k]) return;
   ZLE.busy[k] = true;
   const v0 = S.v;
-  try { const j = await api('GET', `/api/recent?space=${encodeURIComponent(sp)}&limit=${n}`); ZLE.d[k] = {items: j.items || [], v: v0, err: ''}; }
+  try { const j = await api('GET', `/api/recent?space=${encodeURIComponent(sp)}&limit=${n}${ar ? '&areas=' + encodeURIComponent(ar) : ''}`); ZLE.d[k] = {items: j.items || [], v: v0, err: ''}; }
   catch (e) { if (e.message === 'auth') { ZLE.busy[k] = false; return; } ZLE.d[k] = {items: ZLE.d[k]?.items || null, v: v0, err: e instanceof Offline ? tr('Only available online.') : e.message || tr('unknown')}; }
   ZLE.busy[k] = false;
   if (['home', 'wiki', 'ablage', 'reading', 'office', 'sheets'].includes(S.route.mod)) viewSafeRender();  // (#7564): + the office, Tables
 }
-// the items of a workspace key ('all' | 'private' | 'org:<id>'), loaded again after a change (S.v)
-function zle_data(sp, n) {
-  const d = ZLE.d[zle_key(sp, n)];
-  if (!d || d.v !== S.v) zle_load(sp, n);
+// the items of a workspace key ('all' | 'private' | 'org:<id>'), loaded again after a change (S.v); ar = only this area (#7664)
+function zle_data(sp, n, ar = '') {
+  const d = ZLE.d[zle_key(sp, n, ar)];
+  if (!d || d.v !== S.v) zle_load(sp, n, ar);
   return d || null;
 }
 // where a tap leads: the page, the file (its document view or folder), the read-later list of its workspace
@@ -88,7 +91,7 @@ function zle_ovrHtml(mod, to, rows, o = {}) {
 function zle_pageHtml(mod, rows) {
   const sps = rows.filter(r => r[0] !== 'trash'), keys = ['all', ...sps.map(r => r[0])];
   const f = keys.includes(ZLE.f[mod]) ? ZLE.f[mod] : 'all';
-  const d0 = zle_data(f === 'shared' ? 'all' : f, f === 'shared' ? 50 : ZLE_N);
+  const d0 = zle_data(f === 'shared' ? 'all' : f, f === 'shared' ? 50 : ZLE_N, ZLE_MODAREA[mod] || '');  // (#7664): only the area's own kind
   const d = f === 'shared' && d0?.items ? {...d0, items: d0.items.filter(x => x.space === 'shared')} : d0;
   const chip = (k, name) => `<button type="button" class="zlefc${k === f ? ' on' : ''}" data-zlef="${esc(k)}" data-zlemod="${esc(mod)}" aria-pressed="${/*html-ok*/ k === f}">${esc(name)}</button>`;
   const chips = sps.length > 1 ? `<div class="zlefs" role="group" aria-label="${esc(tr('Workspaces'))}">${/*html-ok*/ chip('all', tr('All'))}${/*html-ok*/ sps.map(r => chip(r[0], r[1])).join('')}</div>` : '';

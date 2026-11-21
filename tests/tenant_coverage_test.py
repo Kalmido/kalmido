@@ -161,6 +161,7 @@ KINDS = {
     "own": ("n/a", "the person's own rows only (settings, devices, tokens, habits, time, filters, imports, Home & life, their own "
                    "connections): read and written as user_id = me, never shared; a task / list named in them is checked with "
                    "need_task / need_list (covered by the task / list matrix)"),
+    "report": ("matrix", "p21514_b_meldung_test.py: \"Report a problem\" (#7531) -- the reporter sees only own reports and those of people of her organisations at a place, never another organisation's; the task in the chosen project stays hidden (only its state)"),
     # 2.102.0 (#1999)
     "clienterr": ("n/a", "the web app's own unexpected error (message cut of data, place in the code, version, area): written as "
                          "nobody into the one project list the server operator chose, nothing is read back or answered"),
@@ -946,6 +947,7 @@ ROUTES = {
     "GET /api/avatar/{}/{}.jpg": "people",
     # ---- public (15)
     "GET /api/v1/announcement": "public", "GET /api/v1/openapi.json": "public", "GET /api/about": "public", "POST /api/client-errors": "clienterr",
+    "POST /api/reports": "report", "GET /api/reports": "report",  # (#7531)
     "GET /": "public", "GET /capture": "public", "GET /share": "public", "POST /share": "public", "POST /drop": "public",
     "POST /drop/drop": "public", "GET /robots.txt": "public", "GET /manifest.json": "public", "GET /sw.js": "public",
     "GET /mail/off/{}": "mailoff", "POST /mail/off/{}": "mailoff",  # 2.367.5 (#2975): no sign-in, the link's signature names the person

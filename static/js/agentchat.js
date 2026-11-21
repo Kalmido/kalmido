@@ -528,6 +528,7 @@ function acsug_sync() {
   const h = acsug_html(); if (p._h === h) return;
   const f = document.activeElement && p.contains(document.activeElement) ? document.activeElement.dataset : null;
   p._h = h; p.innerHTML = h; p.hidden = !h;
+  p.parentElement?.classList.toggle('sugon', !!h);  // (#7672): the shared row takes the button's height
   if (f) (p.querySelector(`[data-act="${f.act}"]${f.mid ? `[data-mid="${f.mid}"]` : ''}${f.cid ? `[data-cid="${CSS.escape(f.cid)}"]` : ''}`) || $('.acsug-t', p))?.focus({preventScroll: true});
 }
 function acsug_put(mid, r) {
@@ -1117,6 +1118,7 @@ function chatWsHtml(a) {
   const n = wsName(a.org_id ? 'org:' + a.org_id : 'private');
   return `<span class="chws" title="${esc(n)}"><i class="wsp-dot"${acw_attr(a.org_id)} aria-hidden="true"></i><span class="chwsn">${esc(n)}</span></span>`;
 }
+// (#7672): the typing line (#chat-typing) and "Earlier suggestions" (#chat-sug) share ONE row (.actysug, app.css)
 function chatInner(aid) {
   const a = agentById(aid); if (!a) return `<div class="muted mhint">${tr('Agent not found')}</div>`;
   // 2.13.0 (#453 P11): on the phone "back" sits on the left (where every back button is) and the chat header replaces the
@@ -1134,11 +1136,11 @@ function chatInner(aid) {
       <span class="chhb" role="group" aria-label="${esc(tr('Chat'))}">${back ? '' : chatWinBtns()}${/*html-ok*/ a.shared === false ? '' /* 2.777.0 C (#5378, review F4) */ : jcd_fbtnHtml() /* 2.152.2 C (#2627): the menu button */}${back ? '' : `<button class="iconbtn" data-act="chat-close" title="${tr('Close')}" aria-label="${tr('Close')}">${ic('x')}</button>`}</span></div>
     ${jc_barHtml()}${jcd_filtHtml()}${msBarHtml('a', a.id)}<div class="apvpins${acv ? ' wac-loc' : ''}" id="chat-apv"${acv ? ` data-agacc="${/*html-ok*/ a.id}" style="${/*html-ok*/ acv}"` : ''} hidden></div>${cpnBarHtml('a:' + a.id)}<div class="chmsgs${acv ? ' wac-loc' : ''}" id="chat-msgs" data-agid="${a.id}"${acv ? ` data-agacc="${a.id}" style="--agcol:${gc};${acv}"` : gc ? ` style="--agcol:${gc}"` : ''} role="log" aria-live="polite" aria-relevant="additions" aria-label="${esc(tr('Messages'))}">${chatMsgs()}</div>
     <button type="button" class="chnew hidden${acv ? ' wac-loc' : ''}" id="chat-new" data-act="chat-bottom"${acv ? ` data-agacc="${a.id}" style="${acv}"` : ''}>${tr('New message')} <span aria-hidden="true">↓</span></button>
-    ${typingHtml(chatTypers(a), 'chat-typing')}
+    <div class="actysug">${typingHtml(chatTypers(a), 'chat-typing')}<div class="acsug" id="chat-sug" hidden></div></div>
     ${chatStepsLiveHtml()}
     <div class="mtgcards" id="chat-mtg">${mtg_cardsHtml(a.id)}</div>
     <div class="cfiles chfiles" id="chat-files">${chatFilesHtml(a.id)}</div>
-    <div class="acsug" id="chat-sug" hidden></div>${/*html-ok*/ a.shared === false ? '' : replyBarHtml('a:' + a.id)}${/*html-ok*/ a.shared === false ? '' : intBarHtml('a:' + a.id) /* (#7534): the kind of the message */}<div class="chcomp${acc}">${/*html-ok*/ a.shared === false ? '' /* (#5378, review F4): text only */ : chToolsHtml([`<button type="button" class="iconbtn chclip" data-act="chat-attach" title="${esc(tr('Attach images or files'))}" aria-label="${esc(tr('Attach images or files'))}" ${a.enabled ? '' : 'disabled'}>${ic('clip')}</button>`, mtg_btnHtml(a), typeof rf_btnHtml === 'function' ? rf_btnHtml('chat-in', !a.enabled) : '' /* (#2523) */])/* (#2788): phones: one plus menu */}<input type="file" id="chat-file" multiple hidden><textarea id="chat-in" rows="1" enterkeyhint="enter" placeholder="${esc(jc_ph(a))}" aria-label="${esc(jc_ph(a))}" ${a.enabled ? '' : 'disabled'}>${esc(S.drafts['chat:' + a.id] || '')}</textarea><span class="muted chkh">${esc(chatKeyHintVis())}</span><button class="btn sm pri" data-act="chat-send" title="${esc(chatKeyHint())}" aria-label="${esc(tr('Send'))}" ${a.enabled ? '' : 'disabled'}>${ic('send', 's')}<span>${tr('Send')}</span></button></div>`;
+    ${/*html-ok*/ a.shared === false ? '' : replyBarHtml('a:' + a.id)}${/*html-ok*/ a.shared === false ? '' : intBarHtml('a:' + a.id) /* (#7534): the kind of the message */}<div class="chcomp${acc}">${/*html-ok*/ a.shared === false ? '' /* (#5378, review F4): text only */ : chToolsHtml([`<button type="button" class="iconbtn chclip" data-act="chat-attach" title="${esc(tr('Attach images or files'))}" aria-label="${esc(tr('Attach images or files'))}" ${a.enabled ? '' : 'disabled'}>${ic('clip')}</button>`, mtg_btnHtml(a), typeof rf_btnHtml === 'function' ? rf_btnHtml('chat-in', !a.enabled) : '' /* (#2523) */])/* (#2788): phones: one plus menu */}<input type="file" id="chat-file" multiple hidden><textarea id="chat-in" rows="1" enterkeyhint="enter" placeholder="${esc(jc_ph(a))}" aria-label="${esc(jc_ph(a))}" ${a.enabled ? '' : 'disabled'}>${esc(S.drafts['chat:' + a.id] || '')}</textarea><span class="muted chkh">${esc(chatKeyHintVis())}</span><button class="btn sm pri" data-act="chat-send" title="${esc(chatKeyHint())}" aria-label="${esc(tr('Send'))}" ${a.enabled ? '' : 'disabled'}>${ic('send', 's')}<span>${tr('Send')}</span></button></div>`;
 }
 function chatViewHtml(aid) {
   if (S.chat.aid !== +aid) { S.chat = {aid: +aid, msgs: [], err: null}; setTimeout(chatLoad, 0); }
