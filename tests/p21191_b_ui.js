@@ -3,7 +3,7 @@
 //   page's address too
 // - #2082 More > "Create as client" makes the client with the contact as its linked contact person, one undo step (the
 //   toast's Undo deletes it again); a linked contact offers "Open client"
-// - #2083 "Activities" on the card (2.1497.0 #7015: was "Contact history"; German "Vorgänge"): the client's quotation and the event, a tap target each; the phone shows it too
+// - #2083 "Interactions" on the card (#7015: was "Contact history"; German "Vorgänge"): the client's quotation and the event, a tap target each; the phone shows it too
 const {execFileSync} = require('child_process');
 const path = require('path');
 const {boot, sleep, B, login, undoToast} = require('./boot');
@@ -91,7 +91,7 @@ const acme = async () => ((await call('GET', '/api/clients')).clients || []).fin
   check([200, 201].includes(ev.http), 'setup: an event with the contact ' + ev.http);
   w = await boot({hash: `contacts/${ct.id}`}); d = w.document;
   const sec = await until(() => { const x = d.querySelector('#view .ctkhist'); return x && !x.hidden && x.querySelector('li') ? x : null; }, 60);
-  check(sec && /Activities/.test(sec.querySelector('h4')?.textContent || ''), '#2083: the card shows "Activities" (#7015)');
+  check(sec && /Interactions/.test(sec.querySelector('h4')?.textContent || ''), '#2083: the card shows "Interactions" (#7015)');
   const lis = sec ? [...sec.querySelectorAll('li')].map(x => x.textContent) : [];
   // 2.1221.0 (#6241): since #6119 (2.1174.0) the contact's events are no longer in the history - the card shows them in its own block "Events"
   check(lis.length === 1 && /Image film/.test(lis[0]) && /Quotation/.test(lis[0]) && !lis.some(x => /Kick-off/.test(x)), '#2083: the history lists the quotation, the event not twice ' + JSON.stringify(lis));
