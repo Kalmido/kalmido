@@ -170,10 +170,11 @@ check(A.delete(B + f"/api/modcards/{r.json()['card']['id']}").ok, "setup: the ca
 check(("office", "offer", OFF) in keys(recent(Bo)), "#7662 F1: without the card the office is there again")
 
 # ================================================================== the clients through their own gate (reader F5)
-r = A.post(B + "/api/modcards", json={"space": SP, "name": "Office without clients", "mods": ["office", "sheets"], "people": [BOB]})
+r = A.post(B + "/api/modcards", json={"space": SP, "name": "Office without clients", "mods": ["office"], "people": [BOB]})
 check(r.status_code == 201, "setup: a card with the office but without clients for bob " + r.text[:200])
 k = keys(recent(Bo))
 check(("office", "offer", OFF) in k and ("office", "client", CL) not in k, f"#7662 F5: card without clients: the quotation yes, the client no {sorted(office(recent(Bo)))}")
+check(("sheets", "", SH_ORG) not in k, "#7662 F4 (reader round 3): card without Tables: the organisation's table no")
 check(A.delete(B + f"/api/modcards/{r.json()['card']['id']}").ok, "setup: the card is deleted")
 ED, Ed = mkuser("edda", [ORG])
 r = A.put(B + f"/api/orgs/{ORG}/members", json={"email": "edda@example.com", "role": "accounting"})

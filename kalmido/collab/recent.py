@@ -222,7 +222,7 @@ def rcn_office(c, uid, key, oid, limit):
         if office_can(c, uid, ofid, "offers"):  # the area's own check: quotations & invoices (and their clients)
             ph = ",".join("?" * len(RCN_DOC_KINDS))
             for r in c.execute(f"SELECT id, kind, number, project_title, created_by, updated_at FROM office_docs WHERE org_id=? "
-                               f"AND kind IN ({ph}) AND {live_sql()} ORDER BY updated_at DESC, id DESC LIMIT ?",
+                               f"AND kind IN ({ph}) AND trial=0 AND {live_sql()} ORDER BY updated_at DESC, id DESC LIMIT ?",
                                (ofid, *RCN_DOC_KINDS, limit)).fetchall():
                 title = r["number"] or r["project_title"] or ""
                 out.append({"area": "office", "kind": r["kind"], "id": r["id"], "space": sp, "title": title,
@@ -241,10 +241,11 @@ def rcn_office(c, uid, key, oid, limit):
                              "d.node_id=r.node_id JOIN fs_nodes n ON n.id=r.node_id WHERE d.ws=? AND n.kind='file' AND "
                              f"{live_sql('n')} ORDER BY n.updated_at DESC, n.id DESC LIMIT ?", (bk_ws(c, ofid), limit * 2)).fetchall()
             acc = fs_roles_many(c, [r["id"] for r in rows], uid) if rows else {}
+            lk = fsl_map(c, [r["id"] for r in rows])  # like the files' reader: nothing out of an encrypted folder
             got = 0
             for r in rows:
                 gone, role = acc.get(r["id"], (True, None))
-                if gone or not role or got >= limit:
+                if gone or not role or r["id"] in lk or got >= limit:
                     continue
                 got += 1
                 out.append({"area": "office", "kind": "receipt", "id": r["id"], "space": sp, "title": r["name"], "place": "",
@@ -258,7 +259,18 @@ def rcn_sheets(c, uid, key, oid, limit):
         rows = sh_index(c, uid, key)  # the tables' own check (sh_space, sh_may; "all" with the shared ones)
     except (Denied, BadInput):
         return []
-    rows = [r for r in rows if not _off(c, r["org_id"], "sheets")]
+    # the module Tables on for me in the table's workspace (my area / module switches, the card's cap - mod_ws_on, reader F4);
+    # a table someone shared with me privately counts as shared, not as my Private
+    on = {}
+
+    def sh_on(r):
+        o = r["org_id"] or None
+        if o is None and r["owner_id"] != uid:
+            return True
+        if o not in on:
+            on[o] = mod_ws_on(c, uid, o, "sheets", "sheets")
+        return on[o]
+    rows = [r for r in rows if not _off(c, r["org_id"], "sheets") and sh_on(r)]
     rows.sort(key=lambda r: (rcn_at_key(r["updated_at"]), r["id"]), reverse=True)
     return [{"area": "sheets", "id": r["id"], "space": _sp_key(c, uid, r["org_id"], r["owner_id"]), "title": r["title"], "place": "",
              "by": r["updated_by"] or r["created_by"] or r["owner_id"], "at": r["updated_at"]} for r in rows[:limit]]
