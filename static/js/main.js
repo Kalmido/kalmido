@@ -29,10 +29,25 @@ function bootDone() {
   if (cnv) { history.replaceState(null, '', location.pathname); if (await cnv_boot(cnv[1])) { bootDone(); return; } }
   // 2.1033.0 (#5790): the link of the address proof mail: the token leaves the address bar at once and waits in this tab over
   // a sign-in (the login reloads the page); confirmed below once the state of the signed-in account is there (acctset.js epv_link)
-  { const epv = location.hash.match(/^#mailproof\/([A-Za-z0-9_-]{20,100})$/); if (epv) { try { sessionStorage.setItem('kalmido.epv', epv[1]); } catch { /* no storage */ } history.replaceState(null, '', location.pathname); } }
+  const epv = location.hash.match(/^#mailproof\/([A-Za-z0-9_-]{20,100})$/);
+  if (epv) { try { sessionStorage.setItem('kalmido.epv', epv[1]); } catch { /* no storage */ } history.replaceState(null, '', location.pathname); }
   const i18nBoot = i18nLoad(uiLang());  // last used language (localStorage), in parallel with the state
-  try { await outOpen(); await (MW_ON ? mw_bootLoad() : load()); if (!S.lists.length) throw new Error('no state'); } catch (e) { bootDone(); if (e.message === 'auth') return; await i18nBoot; $('#view').innerHTML = botEmpty(navigator.onLine === false ? 'offline' : 'schaut', tr('Server not reachable.'), tr('Reload the page once the server is reachable again.')).replace(/<\/div>$/, `<button type="button" class="btn pri" id="boot-retry">${ic('sync', 's')} ${tr('Try again')}</button></div>`); $('#boot-retry')?.addEventListener('click', () => location.reload()); botStartle(); /* 2.165.0 (#2613) */ return; }
+  // #6366: a plain start of the app draws the state kept on this device at once and syncs behind it (core.js devBoot); the
+  // queue opens while the state is on its way (ld_go). Links (invitation, mail proof, share, actions), /capture and the own
+  // windows (miniwin.js) wait for the server as before
+  const ssHas = k => { try { return !!sessionStorage.getItem(k); } catch { return false; } };  // a link's step still waiting over a sign-in
+  const devFirst = !MW_GUARD && !cnv && !epv && !ssHas('kalmido.epv') && !ssHas('kalmido.cinv') && location.pathname === '/' && !location.search;
+  let sync = null;  // the server's state, still on its way behind a kept one on screen
+  try {
+    if (MW_ON) { await outOpen(); await mw_bootLoad(); }
+    else if (!devFirst) await load();
+    else { const net = load(); net.catch(() => {}); /* said below */ if (await devBoot(net)) sync = net; else await net; }
+    if (!S.lists.length) throw new Error('no state');
+  } catch (e) { bootDone(); if (e.message === 'auth') return; await i18nBoot; $('#view').innerHTML = botEmpty(navigator.onLine === false ? 'offline' : 'schaut', tr('Server not reachable.'), tr('Reload the page once the server is reachable again.')).replace(/<\/div>$/, `<button type="button" class="btn pri" id="boot-retry">${ic('sync', 's')} ${tr('Try again')}</button></div>`); $('#boot-retry')?.addEventListener('click', () => location.reload()); botStartle(); /* 2.165.0 (#2613) */ return; }
   await i18nBoot; await i18nLoad(uiLang()); S.booted = true;
+  // #6366: the server's answer behind the kept state: drawn as a change from elsewhere; a 401 clears the screen (the sign-in
+  // took over); no answer / an error: the chip keeps saying "Syncing" with the state's age, the poll tries again
+  if (sync) sync.then(() => { renderTop(); staleDraw(); td_renderSoon(); }, e => { if (e?.message === 'auth') devWipe(); else { renderTop(); staleDraw(); } });
   // 2.527.0 (#4304 A5 + A6): writes kept from before the sign-in go now; a dialog's kept input waits for the dialog
   setTimeout(fdWriteFlush, 0);
   for (const r of fdList('fdf')) if (Date.now() - (r.at || 0) > FDF_DAYS * 864e5) fdDrop('fdf', r.id);  // 2.577.0 (#4708 8): a dialog never opened again
