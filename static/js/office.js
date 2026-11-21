@@ -265,7 +265,7 @@ function viewOffice() {
   pb_wsFollow();
   if (ofc_wspBad()) return `<div class="dash office">${noAccessState({sub: tr('The office is off for you in this workspace.'), action: ofc_spaces().length ? `<div class="eacts ofcnoarea">${ofc_spaces().map(w => `<a class="btn sm" href="#office/s/${esc(w)}">${/*html-ok*/ wsIcon(w)}<span>${esc(wsName(w))}</span></a>`).join('')}</div>` : ''})}</div>`;  // (#7313): route.wsp not mine / office off there
   if (ofc_objGo()) return loadingHtml('big');  // (#7313 F13)
-  if (ofc_allOvr()) return `<div class="dash office ofcall">${/*html-ok*/ spo_recentHtml('office', sp => 'office/s/' + sp, ofc_rows())}</div>`;  // 2.543.0 (#4606); 2.577.0 (#4638): the area's own address; (#7564): with "Recently edited" like Knowledge and Files
+  if (ofc_allOvr()) return `<div class="dash office ofcall">${/*html-ok*/ spo_recentHtml('office', sp => 'office/s/' + sp, ofc_rows())}</div>`;  // (#4606, #4638): the area's own address; (#7564): with "Recently edited" like Knowledge and Files
   if (!OFC.info && !OFC.infoErr && !OFC.infoLoading) setTimeout(ofcInfo, 0);
   // 2.87.9 (#1917): no tab row any more -- the office menu (areas.js ofm_menuHtml, via mg_wrap) leads to every tab
   if (OFC.info) ofm_admSeen(OFC.info.role === 'admin', OFC.info.rights, OFC.info.used, OFC.info.settings?.menu_off, OFC.info.features);  // (#3039): + used; (#3609): + the points switched off

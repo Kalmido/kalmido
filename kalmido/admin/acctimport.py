@@ -1227,7 +1227,7 @@ def umz_row(c, table, src, fixed, ts):
     """The row to insert: the file's values of the columns this server has (coerced to their type), never ids or columns
     that point at rows, plus the fixed values. None when a required column has no value."""
     cols, fks = umz_cols(c, table)
-    if umz_money_misfit(c, table, src):  # 2.765.0 (#5315): never rounded silently
+    if umz_money_misfit(c, table, src):  # (#5315): never rounded silently
         return umz_left_row(table, "money")
     drop = UMZ_DROP.get(table, ())
     d = {}
