@@ -329,8 +329,8 @@ def clean_setting(k, v):
         from .modcards import mc_clean_own
         return mc_clean_own(v)
     if k == "ws_areas_off":  # 2.409.0 (#3490): my areas switched off per workspace
-        from .wsareas import wsa_clean_own
-        return wsa_clean_own(v)
+        from .wsareas import wsa_clean_own, wsa_drop_defaults
+        return wsa_drop_defaults(db(), me(), wsa_clean_own(v))
     if k == "share_defaults":  # 2.470.0 (#3596): the sharing defaults of my private workspace
         from .sharedefs import sd_clean
         return sd_clean(v)

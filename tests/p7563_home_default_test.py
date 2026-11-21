@@ -66,6 +66,7 @@ o[f"org:{O1}"] = []
 r = A.patch(B + "/api/settings", json={"ws_areas_off": json.dumps(o)})
 check(r.ok, f"#7563: Home switched on in Plain Studio {r.status_code} {r.text[:200]}")
 check(stored().get(f"org:{O1}") == [], f"#7563: the organisation's key with an empty list is kept (= my choice: all on) {stored()}")
+check(f"org:{O2}" not in stored(), f"#7563 F4: the whole map sent back does not freeze another organisation's default into a choice {stored()}")
 check(f"org:{O1}" in ((r.json().get("wsp") or {}).get("travel") or []), f"#7563: the PATCH answer's fresh lists have Travel in Plain Studio {r.json().get('wsp', {}).get('travel')}")
 j = st()
 check(own(j).get(f"org:{O1}") == [] and f"org:{O1}" in j["wsp"]["travel"], f"#7563: after a reload Home stays on in Plain Studio {own(j)} {j['wsp']['travel']}")
@@ -75,6 +76,7 @@ o[f"org:{O1}"] = ["life"]
 A.patch(B + "/api/settings", json={"ws_areas_off": json.dumps(o)})
 j = st()
 check(f"org:{O1}" not in j["wsp"]["travel"], f"#7563: switched off again {j['wsp']['travel']}")
+check(f"org:{O1}" not in stored(), f"#7563 F4: off again equals the default - no own key is kept {stored()}")
 # Private keeps its old form: an empty list of Private is dropped
 o = own(j)
 o["private"] = []
