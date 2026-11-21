@@ -352,6 +352,7 @@ async function histStep(dir, n = 1, only = null) {
   const out = e => { HIST.undo = HIST.undo.filter(x => x !== e); HIST.redo = HIST.redo.filter(x => x !== e); };
   try {
     await flushSaves();
+    await rwIdle();  // #7497: a row action still on its way (core.js rwRows) records its step first
     for (let i = 0; i < n && !stop; i++) {
       let e = only ? only[i] : dir === 'undo' ? null : HIST.redo[HIST.redo.length - 1];
       if (!only && dir === 'undo') {

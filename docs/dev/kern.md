@@ -2035,13 +2035,14 @@ then draw" or its own id swap beside it.
 - **Text editors without rows** use `W.run` / `W.save()` without keys: the same order (one save at a time, the newest text,
   the version of the last answer).
 - **Lists whose rows take actions** (bank bookings, card positions: match, mark, take back, #7497 / #7499) use
-  `W.act(key, put, req)`: an action is a request of its own, not a save of the newest state. `put` = the row's new state at
+  `W.act(key, put, req, take)`: an action is a request of its own, not a save of the newest state. `put` = the row's new state at
   once (looked up again each time, `optSet`), `req()` = the request without a message of its own (`rawFetch`); the actions go
-  in the writer's row one after the other, the row says "Saving…". The answer (one row and its counters) goes to the area: it
-  takes only that row (not while a later action of the same row waits, `W.busy(key)`) and its counters, never a reload of the
+  in the writer's row one after the other, the row says "Saving…". The answer (one row and its counters) goes to the area's
+  `take(j)` before the row is drawn: it takes only that row (not while a later action of the same row waits, `W.busy(key)`) and its counters, never a reload of the
   list; dependent areas are only marked as old. An error puts the row back as it was and it says "Not saved", why, and
   "Try again" (`W.why`, the button carries `data-rwk`: just this action once more; after no answer the very same request,
-  `x.retry`: applied once). History entries are added after the answer, as before.
+  `x.retry`: applied once). History entries are added after the answer, as before; an undo waits until every writer's
+  saves and actions are answered (`rwIdle`, `histStep`), so Ctrl+Z right after a click takes back that click.
 
 First user: the quotation and invoice editor (`office_docs.js`: `ofd_W` (one writer per document), `ofd_rows`, `ofd_add`, `ofd_itemsSend`, `ofd_lite`;
 `#ofd-pos` is the positions' section, `ofd_inChain` = `ofd_W(OFD.doc).run`). The parts and the calculation sheet (#7496), bank, cards,

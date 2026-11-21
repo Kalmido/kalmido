@@ -61,7 +61,7 @@ const bnkAmt = v => `${+v > 0 ? '+' : '−'}${ofcMoney(Math.abs(+v))}`;
 
 // 2.855.0 (#5456): the page links the bank accounts (IBAN, default account: Settings › Company & office › Bank & taxes)
 function bnkHtml() {
-  if (BNK.oid !== OFC.info?.org_id) Object.assign(BNK, {oid: OFC.info?.org_id, data: null, imports: null, err: null, other: null, cand: null, fints: null});  // 2.616.0 (#2473): + fints  // another office area
+  if (BNK.oid !== OFC.info?.org_id) { Object.assign(BNK, {oid: OFC.info?.org_id, data: null, imports: null, err: null, other: null, cand: null, fints: null}); BNK_W?.reset(); }  // #7497: + the rows' marks  // 2.616.0 (#2473): + fints  // another office area
   if (!ofcAdmin()) return ofcLockedHtml();  // 2.356.0 D (#3006): why, and the way to hand in receipts
   if (BNK.err) return ofcFail(BNK.err, () => { BNK.err = null; BNK.data = null; });  // 2.1076.0 (#5450): the reason + "Try again"
   const norc = typeof BNR === 'object' && bnr_route() && BNK.state === 'norc';  // 2.299.0 C (#3192): #office/bank/norc (the reminder task's link)
@@ -104,7 +104,8 @@ function bnkRow(t) {
       <button data-rowmenu="bnkrow" type="button" class="btn sm ghost bnkmore" data-bnk="more" data-id="${t.id}" aria-haspopup="menu">${ic('dots', 's')}<span>${tr('More')}</span></button></div>
       ${BNK.other === t.id ? bnkOtherHtml(t) : ''}`;
   }
-  return `<li class="bnkrow ${t.match ? 'done' : ''}" data-tx="${t.id}">${head}${act}</li>`;
+  const W = bnkW();  // #7497: the row's state ("Saving…" / "Not saved - Try again", the core's mark, escaped there)
+  return `<li class="bnkrow ${t.match ? 'done' : ''}${esc(rwCls(W, t))}" data-tx="${t.id}" data-rwk="${esc(rwKey(t))}">${head}${act}${/*html-ok*/ rwMarkHtml(W, t)}</li>`;
 }
 // 2.809.0 (#5452): the marks of a booking without a receipt / invoice behind "More" (phone: a sheet), each with what it does
 function bnkMoreMenu(anchor, tid) {
@@ -144,27 +145,80 @@ function bnkImpHtml() {
 }
 
 // ---- actions (one undo step each)
-async function bnkMatch(tid, kind, mid, parts) {
-  const req = {kind, ...(mid ? {id: +mid} : {}), ...(parts ? {parts} : {})};  // 2.355.0 B (#2843): parts of a split
-  let j;
-  try { j = await api('POST', `/api/office/bank/tx/${tid}/match`, req); } catch (x) { ofcErr(x); return; }
-  if (typeof brl_learned === 'function') brl_learned(j);  // 2.299.0 B (#3191): "Always like this?" after the second time
-  bnkReload();
-  // 2.355.0 B (#2843): a receipt with another amount than the booking is matched, but said (undo right in the toast)
-  const msg = j?.amount_differs ? tr('Matched, but the receipt says {0} and the booking {1}', ofcMoney(j.amount_differs.receipt), ofcMoney(j.amount_differs.booking))
-    : j?.rule_category ? tr('Matched · category {0} by rule', j.rule_category.category || '') : tr('Matched');
-  offerUndo(msg, histAdd({label: tr('Bank booking matched'),
-    undo: async () => { await api('POST', `/api/office/bank/tx/${tid}/unmatch`); bnkReload(); },
-    redo: async () => { await api('POST', `/api/office/bank/tx/${tid}/match`, req); bnkReload(); }}));
+// #7497 (decision): matching a booking (a suggestion, another receipt / invoice, a split, a mark, "Without receipt", the
+// walk-through) and taking a match back go through the core's "write shows at once" (core.js rwRows, W.act): the row shows its
+// new state at once (in "Open" a match takes it out, in "Matched" an undo; in "All" it stays with its new state; in "Without
+// receipt" a match takes it out - an error puts it back where it was), the request runs
+// behind it (one after the other), the answer (the one booking + the counts, bank.py) takes only this row and the counts -
+// no reload of the list (bnkReload) after a click. The books, the cash flow, the key figures and the start page's counter are
+// only marked as old. An error puts the row back with "Not saved", the reason and "Try again".
+let BNK_W = /** @type {any} */ (null);
+const bnkW = () => BNK_W || (BNK_W = rwRows({name: 'bnk', draw: () => ofcDraw()}));
+const bnkTx = tid => (BNK.data?.items || []).find(x => x.id === tid) || null;
+// the local change of booking tid: match = its new match (null = open again); a row that no longer fits the list's filter
+// leaves it ("Open" / "Matched"; in "Without receipt" a match, its number with it), the way back puts it where it was
+const bnkFits = t => BNK.state === 'all' || (BNK.state === 'open') === !t.match;
+function bnkPut(tid, match) {
+  return () => {
+    const backs = [], t = bnkTx(tid), bd = BNK.data;
+    if (t && bd) {
+      const was = t.match; t.match = match;
+      const i = bnkFits(t) ? -1 : bd.items.indexOf(t); if (i >= 0) bd.items.splice(i, 1);
+      backs.push(() => { t.match = was; const l2 = BNK.data === bd ? bd.items : null; if (i >= 0 && l2 && !l2.some(x => x.id === tid)) l2.splice(Math.min(i, l2.length), 0, t); });
+    }
+    const nd = typeof BNR === 'object' ? BNR.data : null, ls = nd?.items, i = match && ls ? ls.findIndex(x => x.id === tid) : -1;
+    if (i >= 0) {
+      const [r] = ls.splice(i, 1), k = +r.amount < 0 ? 'out' : 'in', n = nd.counts || {};
+      if (n[k] > 0) n[k]--;
+      backs.push(() => { const l2 = BNR.data?.items; if (BNR.data === nd && l2 && !l2.some(x => x.id === tid)) { l2.splice(Math.min(i, l2.length), 0, r); if (nd.counts) nd.counts[k] = (nd.counts[k] || 0) + 1; } });
+    }
+    return backs.length ? () => backs.forEach(f => f()) : null;
+  };
 }
-async function bnkUnmatch(tid) {
-  let j;
-  try { j = await api('POST', `/api/office/bank/tx/${tid}/unmatch`); } catch (x) { ofcErr(x); return; }
-  const was = {kind: j.was.kind, ...(j.was.id ? {id: j.was.id} : {})};
-  bnkReload();
-  offerUndo(tr('Match undone'), histAdd({label: tr('Bank match undone'),
-    undo: async () => { await api('POST', `/api/office/bank/tx/${tid}/match`, was); bnkReload(); },
-    redo: async () => { await api('POST', `/api/office/bank/tx/${tid}/unmatch`); bnkReload(); }}));
+// the answer of one booking (match: the booking itself, unmatch: {item}; both + counts): its row (unless a later action of it
+// waits: that one's answer stands) and the counts; what the row's change touches elsewhere is only marked as old
+function bnkTake(j) {
+  bfbBooksStale(); if (typeof BNR === 'object') BNR.cnt = undefined;  // the start page's counter
+  const t = j?.item || j;
+  if (!t?.id || !t.day) { bnkReload(); return; }  // a short answer (the same request sent again): the list comes again
+  if (BNK.data) {
+    if (j.counts) BNK.data.counts = j.counts;
+    const ls = BNK.data.items || [], i = ls.findIndex(x => x.id === t.id);
+    if (i >= 0) { if (!bnkW().busy(rwKey(ls[i]))) ls[i] = {...t, suggestions: ls[i].suggestions, rule_hint: ls[i].rule_hint}; }
+    else if (bnkFits(t)) BNK.q = '';  // belongs to the list on screen but is not in it (a step of the walk-through in "Matched"): the list comes again when it is drawn (dimmed)
+    // a receipt taken here is no suggestion of another booking any more
+    if (t.match?.kind === 'receipt') for (const x of ls) if (x.id !== t.id && x.suggestions) x.suggestions = x.suggestions.filter(g => !(g.kind === 'receipt' && g.id === t.match.id));
+  }
+  if (!t.match && typeof BNR === 'object' && BNR.data) BNR.q = '';  // open again: "Without receipt" comes again when it is drawn
+}
+// one action on booking tid: match = its state at once, req = the request (no message of its own: the row says it), undo /
+// redo = the history's way back (their answers taken as one), said(j) = the message. -> the history entry, false after an error
+async function bnkAct(tid, match, req, label, undo, redo, said) {
+  let j; try { j = await bnkW().act('i' + tid, bnkPut(tid, match), req, bnkTake); } catch (x) { return false; }
+  const e = histAdd({label, res: j, undo: async () => { bnkTake(await undo()); ofcDraw(); }, redo: async () => { bnkTake(await redo()); ofcDraw(); }});
+  const sug = BNK.ruleSug;
+  offerUndo(said ? said(j) : label, e);
+  if (BNK.ruleSug !== sug) ofcDraw();  // "Always like this?" (brl_learned in said) above the list
+  return e;
+}
+// the match / unmatch request of a booking: the bank's routes are long tasks for rawFetch (NET_LONG: a bank fetch); one booking's
+// write is not: the usual limit, so a request without an answer says so at the row
+const bnkPost = (tid, what, req) => rawFetch('POST', `/api/office/bank/tx/${tid}/${what}`, req, undefined, undefined, undefined, NET_T.w);
+// label: how the row names its match until the answer is there (the suggestion's / candidate's label)
+function bnkMatch(tid, kind, mid, parts, label) {
+  const req = {kind, ...(mid ? {id: +mid} : {}), ...(parts ? {parts} : {})};  // 2.355.0 B (#2843): parts of a split
+  return bnkAct(tid, {kind, id: mid ? +mid : parts?.[0]?.id ?? null, label: label || ''}, () => bnkPost(tid, 'match', req), tr('Bank booking matched'),
+    () => api('POST', `/api/office/bank/tx/${tid}/unmatch`), () => api('POST', `/api/office/bank/tx/${tid}/match`, req), j => {
+      if (typeof brl_learned === 'function') brl_learned(j);  // 2.299.0 B (#3191): "Always like this?" after the second time
+      // 2.355.0 B (#2843): a receipt with another amount than the booking is matched, but said (undo right in the toast)
+      return j?.amount_differs ? tr('Matched, but the receipt says {0} and the booking {1}', ofcMoney(j.amount_differs.receipt), ofcMoney(j.amount_differs.booking))
+        : j?.rule_category ? tr('Matched · category {0} by rule', j.rule_category.category || '') : tr('Matched');
+    });
+}
+function bnkUnmatch(tid) {
+  let was = null;
+  return bnkAct(tid, null, () => bnkPost(tid, 'unmatch').then(j => { if (j?.was) was = {kind: j.was.kind, ...(j.was.id ? {id: j.was.id} : {}), ...(j.was.parts ? {parts: j.was.parts} : {})}; return j; }), tr('Bank match undone'),
+    () => api('POST', `/api/office/bank/tx/${tid}/match`, was), () => api('POST', `/api/office/bank/tx/${tid}/unmatch`), () => tr('Match undone'));
 }
 async function bnkImpUndo(iid) {
   try { await api('POST', `/api/office/bank/imports/${iid}/undo`); } catch (x) { ofcErr(x); return; }
@@ -343,7 +397,7 @@ document.addEventListener('click', e => {
   else if (a === 'state') { BNK.state = b.dataset.v; BNK.other = null; ofcDraw(); }
   else if (a === 'imps') { BNK.showImp = !BNK.showImp; ofcDraw(); }
   else if (a === 'impundo') bnkImpUndo(id);
-  else if (a === 'match') bnkMatch(id, b.dataset.kind, b.dataset.mid);
+  else if (a === 'match') { const t = bnkTx(id), mid = +b.dataset.mid, c = [...(t?.suggestions || []), ...(BNK.other === id ? BNK.cand || [] : [])].find(x => x.id === mid && x.kind === b.dataset.kind); if (BNK.other === id) BNK.other = null; bnkMatch(id, b.dataset.kind, b.dataset.mid, null, c?.label || ''); }
   else if (a === 'unmatch') bnkUnmatch(id);
   else if (a === 'more') bnkMoreMenu(b, id);  // 2.809.0 (#5452)
   else if (a === 'walk') wlk_open('bnk');  // 2.778.0 (#5383): office_walk.js (lazyload.js LD_CALL)
@@ -353,7 +407,10 @@ document.addEventListener('click', e => {
   else if (a === 'splitgo') {
     const parts = Object.entries(BNK.parts || {}).filter(([, v]) => String(v).trim()).map(([k, v]) => ({id: +k, amount: ofcNum(v)}));
     if (!parts.length || parts.some(p => !(p.amount > 0))) { toast(tr('Invalid value: {0}', tr('Amount'))); return; }
-    BNK.split = false; BNK.parts = {}; BNK.other = null; bnkMatch(id, 'invoice', null, parts);
+    // #7497: the typed amounts stay until the answer: an error opens the split again with them
+    const typed = {...BNK.parts}, names = parts.map(p => (BNK.cand || []).find(x => x.id === p.id)?.label).filter(Boolean).join(', ');
+    BNK.split = false; BNK.parts = {}; BNK.other = null;
+    bnkMatch(id, 'invoice', null, parts, names).then(ok => { if (!ok && BNK.other === null) { Object.assign(BNK, {other: id, split: true, parts: typed}); ofcDraw(); if (!BNK.cand) bnkCand(id); } });
   }
   else return;
   e.preventDefault();

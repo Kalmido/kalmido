@@ -65,8 +65,9 @@ const camt = rows => `<?xml version="1.0" encoding="UTF-8"?><Document xmlns="urn
     await shot('p2355-b-split.png');
     await ev(click(`document.querySelector('[data-bnk="splitgo"]')`));
     check(await ready(ev, `document.querySelectorAll('.bnklist .bnkrow').length === 0`, 60), 'assigned: the booking leaves the open list');
-    for (const id of inv) {
-      const d = await call(CA, 'GET', `/api/office/docs/${id}`);
+    for (const id of inv) {  // #7497: the row leaves at once, the payment is booked when the answer is there
+      let d = {};
+      for (let i = 0; i < 60 && d.status !== 'paid'; i++) { d = await call(CA, 'GET', `/api/office/docs/${id}`); if (d.status !== 'paid') await sleep(250); }
       check(d.status === 'paid', `invoice ${id} paid ${d.status}`);
     }
     await ev(click(`document.querySelector('[data-bnk="state"][data-v="matched"]')`));
