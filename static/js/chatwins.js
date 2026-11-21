@@ -191,13 +191,13 @@ function cw_headSync(k) { const s = cw_sec(k), d = s && $('.cwdot', s); if (d &&
 function cw_patch(k) {
   if (cw_isLive(k)) { if (k[0] === 'a') chatPatch(); else tcPatch(); cw_headSync(k); return; }
   const s = cw_sec(k), box = s && $('.chmsgs', s); if (!box) return;
-  const near = chatNear(box);
+  const near = chatNear(box), rows = () => [...box.children].filter(n => n.dataset?.mid), mx = Math.max(0, ...rows().map(cf_idNum));
   patchKids(box, cw_noIds(cw_with(k, k[0] === 'a' ? chatMsgs : tcMsgsHtml)));
   // 2.1211.0 (#6098): the box opens once the window loaded
   if (k[0] === 't') tc_inLock($('[data-cwid="tc-in"]', s), !!cw_stOf(k).room, k);
   else { const st = cw_stOf(k), ta = $('[data-cwid="chat-in"]', s), on = !!agentById(st.aid)?.enabled && ac_ready(st);
     if (ta && ta.disabled === on) { ta.disabled = !on; const b = ta.closest('.chcomp')?.querySelector('[data-act="chat-send"]'); if (b) b.disabled = !on; } }
-  if (near) box.scrollTop = box.scrollHeight;
+  if (near) chatToNew(box, mx ? rows().filter(n => cf_idNum(n) > mx) : []);  // (#7669): a long new answer from its top
   cw_headSync(k);
 }
 

@@ -221,7 +221,7 @@ function tcPatch(bottom) {
   fl_set(box, tcMsgsHtml());  // 2.547.0 (#4500): morphed as msgSecDraw (data-k per message): unchanged messages keep their nodes, no flash
   tc_inLock($('#tc-in'), !!S.tc.room, 't:' + S.tc.rid);  // 2.1211.0 (#6098)
   const added = cf_after(box, 't:' + S.tc.rid);  // 2.46.2 (#1660): new messages fade in; scrolled up -> "New message ↓"
-  if (near) { box.scrollTop = box.scrollHeight; cf_pill('tc-new', false); }
+  if (near) { if (bottom) box.scrollTop = box.scrollHeight; else chatToNew(box, added); cf_pill('tc-new', false); }  // (#7669)
   else if (added.length) cf_pill('tc-new', true);
   cpnSync();  // 2.62.0 (#1848): the bar of pinned messages
   msReMark();
@@ -551,7 +551,7 @@ function tth_patch(bottom) {
   const near = bottom || tcNear(box);
   fl_set(box, tth_msgsHtml());  // 2.547.0 (#4500): morphed, as tcPatch
   const added = cf_after(box, 'h:' + S.tc.th.id);  // answers coming in fade in
-  if (near) { box.scrollTop = box.scrollHeight; cf_pill('tth-new', false); }
+  if (near) { if (bottom) box.scrollTop = box.scrollHeight; else chatToNew(box, added); cf_pill('tth-new', false); }  // (#7669)
   else if (added.length) cf_pill('tth-new', true);  // 2.521.0 (#4393): scrolled up -> "New message ↓" as in the room
 }
 // the thread came / went: the team view again, or the chat panel window it lives in (S.cw.lt = a live team window there)

@@ -104,6 +104,18 @@ function wk_sameEl(el, html) {
   return !!n && !n.nextElementSibling && el.isEqualNode(n);
 }
 const chatNear = box => box.scrollHeight - box.scrollTop - box.clientHeight <= 3 * remPx();
+// (#7669): where a box that stood at its end goes when new messages came in (added = the new rows, cf_after): when the new
+// messages of others after my last own one are taller than the visible part, to the top of the first of them (on a phone a
+// long answer began above the view and had to be scrolled up to); shorter ones, my own and none at all: to the end as before.
+// The same rule in every chat (agent chat, team chat, threads, chat windows). true = stopped at a message's top: the box is
+// no longer at its end, so the caller drops its pin (its keep-at-the-end would pull it down again)
+function chatToNew(box, added) {
+  let nw = [];
+  for (const n of added || []) nw = n.classList.contains('me') ? [] : [...nw, n];
+  const top = nw.length ? nw[0].getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop : 0;
+  if (nw.length && box.scrollHeight - top > box.clientHeight) { box.scrollTop = Math.max(0, top - remPx() / 2); return true; }  // sprung-ok: the box stood at its end, the reader follows the new answer (#7669)
+  box.scrollTop = box.scrollHeight; return false;  // sprung-ok: the box stood at its end and stays there (as the four places before)
+}
 // 2.521.0 (#4393): sending a reply (reply_to set) while not at the end of the box keeps the view where it is (agent chat,
 // team chat, threads); without a reply or at the end the box goes to the end as before. near = the box's own "at the end"
 const chatReplyUp = (rto, box, near) => !!rto && !!box && box.scrollHeight > box.clientHeight && !near(box);

@@ -1171,7 +1171,7 @@ function chatPatch(o = {}) {
   const late = !rs && !o.bottom && !o.keep && !S.chat.unread && S.chat.openSeen != null && Date.now() < (S.chat.openUntil || 0) && !document.hidden && chs_after(S.chat.openSeen);
   if (late) S.chat.unread = late.id;
   patchRows(box, chatRows());  // 2.220.0 B (#2813): unchanged rows keep their nodes
-  cf_after(box, 'a:' + S.chat.aid, o.keep);  // 2.46.2 (#1660): new messages fade in (older pages and the first fill stay quiet)
+  const added = cf_after(box, 'a:' + S.chat.aid, o.keep);  // 2.46.2 (#1660): new messages fade in (older pages and the first fill stay quiet)
   apvPinSync();  // 2.35.0 (#1103)
   acsug_sync();  // 2.233.0 A (#2848)
   cpnSync();  // 2.62.0 (#1848)
@@ -1183,7 +1183,7 @@ function chatPatch(o = {}) {
   if (rs) chs_restore(box);
   else if (late && chs_toLine(box)) { /* the first new one, loaded right after opening */ }
   else if (o.keep) box.scrollTop = top + box.scrollHeight - h;
-  else if (near || o.bottom) { box.scrollTop = box.scrollHeight; chatNewPill(false); S.chat.pin = true; chs_save(box); }
+  else if (near || o.bottom) { const up = o.bottom ? (box.scrollTop = box.scrollHeight, false) : chatToNew(box, added); chatNewPill(false); S.chat.pin = !up; chs_save(box); }  // (#7669): a long answer from its top
   else { if (box.scrollTop !== top) box.scrollTop = top; if (last && nl > last && ms.some(m => m.id > last && m.from === 'agent' && m.kind !== 'notice' && !jcd_hidden(m))) chatNewPill(true); }
   const on = !!a?.enabled && ac_ready(S.chat), ci = $('#chat-in'),  /* 2.1211.0 (#6098): + loaded */  /* 2.754.0 (#5222): an ended job's box stays on, a message wakes it (#1456) */ sb = ci?.closest('.chcomp')?.querySelector('[data-act="chat-send"]') || $('[data-act="chat-send"]');  // paused / resumed: the same box; 2.47.1 (#1720): the live window's button
   if (ci && ci.disabled === on) ci.disabled = !on;
