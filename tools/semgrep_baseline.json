@@ -2258,14 +2258,6 @@
   {
    "rule": "semgrep.kalmido-sql-ident-without-qi",
    "file": "kalmido/office/docs.py",
-   "code": "c.execute(f\"UPDATE office_doc_items SET {','.join(k + '=?' for k in row)} WHERE id=? AND org_id=?\", [*row.values(), iid, oid])",
-   "reason": "Existing SQL text before qi() (#5296): the interpolated name comes from fixed code, a registry or the schema, never from a request; listed, not rewritten (decision 08.11.2026); a touched place moves to qi().",
-   "date": "2026-11-09",
-   "task": 5296
-  },
-  {
-   "rule": "semgrep.kalmido-sql-ident-without-qi",
-   "file": "kalmido/office/docs.py",
    "code": "c.execute(f\"UPDATE office_docs SET {','.join(k + '=?' for k in f)} WHERE id=? AND org_id=?\", [*f.values(), did, oid])",
    "reason": "Existing SQL text before qi() (#5296): the interpolated name comes from fixed code, a registry or the schema, never from a request; listed, not rewritten (decision 08.11.2026); a touched place moves to qi().",
    "date": "2026-11-09",
@@ -2627,14 +2619,6 @@
    "rule": "semgrep.kalmido-sql-ident-without-qi",
    "file": "kalmido/office/owrite.py",
    "code": "raw = c.execute(f\"SELECT * FROM {t} WHERE {where} FOR UPDATE\", args).fetchone()",
-   "reason": "Existing SQL text before qi() (#5296): the interpolated name comes from fixed code, a registry or the schema, never from a request; listed, not rewritten (decision 08.11.2026); a touched place moves to qi().",
-   "date": "2026-11-09",
-   "task": 5296
-  },
-  {
-   "rule": "semgrep.kalmido-sql-ident-without-qi",
-   "file": "kalmido/office/parts.py",
-   "code": "c.execute(f\"UPDATE office_doc_items SET {','.join(k + '=?' for k in row)} WHERE id=? AND org_id=?\", [*row.values(), iid, oid])",
    "reason": "Existing SQL text before qi() (#5296): the interpolated name comes from fixed code, a registry or the schema, never from a request; listed, not rewritten (decision 08.11.2026); a touched place moves to qi().",
    "date": "2026-11-09",
    "task": 5296

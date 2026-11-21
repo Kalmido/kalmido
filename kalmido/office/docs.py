@@ -8,6 +8,7 @@ import os
 import re
 import unicodedata
 from datetime import date, timedelta
+from decimal import Decimal, InvalidOperation
 
 from flask import g, has_request_context, jsonify, request
 
@@ -167,6 +168,63 @@ def doc_items(c, did, oid, part=None):
     psql, pargs = (" AND part_id IS NULL", ()) if part is None else (" AND part_id=?", (part,))
     return [oc_dec_fields(c, oid, "office_doc_items", r)  # 2.42.0 (#828): cost from cost_enc
             for r in c.execute(f"SELECT * FROM office_doc_items WHERE doc_id=? AND org_id=? AND {live_sql()}" + psql + " ORDER BY sort, id", (did, oid, *pargs))]  # 2.1005.0 (#5415): not the trash
+
+
+def ofd_items_read(c, did, oid, part=None):
+    """(#7505): doc_items (the positions, decrypted) read ONCE for a save, and the ids of those whose purchase price is
+    stored encrypted (cost_enc; doc_items drops it): the save compares against these and changes only what differs."""
+    psql, pargs = (" AND part_id IS NULL", ()) if part is None else (" AND part_id=?", (part,))
+    rows, enc = [], set()
+    for r in c.execute(f"SELECT * FROM office_doc_items WHERE doc_id=? AND org_id=? AND {live_sql()}" + psql + " ORDER BY sort, id", (did, oid, *pargs)):
+        if r["cost_enc"] is not None:
+            enc.add(r["id"])
+        rows.append(oc_dec_fields(c, oid, "office_doc_items", r))
+    return rows, enc
+
+
+def _services(c, oid, items):
+    """(#7505): the catalogue's services the positions name, read once for the whole list ({id: row}; was one read each)."""
+    ids = sorted({_iid(it.get("service_id")) for it in items if isinstance(it, dict) and it.get("service_id")} - {0})
+    out = {}
+    for k in range(0, len(ids), 500):
+        q = ids[k:k + 500]
+        out.update({r["id"]: dict(r) for r in c.execute(f"SELECT * FROM office_services WHERE org_id=? AND {live_sql()} AND id IN ({','.join('?' * len(q))})", (oid, *q))})
+    return out
+
+
+def _same_value(a, b):
+    """(#7505): a stored value and the one a save would write are the same (numbers by value: 2 = 2.0000 = "2.00")."""
+    if a is None or b is None:
+        return a is None and b is None
+    if isinstance(a, bool):
+        a = int(a)
+    if isinstance(b, bool):
+        b = int(b)
+    if isinstance(a, (int, float, Decimal)) or isinstance(b, (int, float, Decimal)):
+        try:
+            return Decimal(str(a)) == Decimal(str(b))
+        except InvalidOperation:
+            return False
+    return a == b
+
+
+def ofd_item_write(c, oid, iid, row, prev, enc_prev):
+    """(#7505): writes the kept position iid (row: a cleaned position before encryption) as an UPDATE that sets every column
+    an INSERT would leave at its default (OFD_ITEM_RESET, 2.269.0 A #3012) -- and only when something differs from prev (its
+    stored row, decrypted), incl. the form of its purchase price (plain / encrypted: switching the encryption on still moves
+    it at the next save). True = written."""
+    stored = {**OFD_ITEM_RESET, **oc_item_store(c, oid, row)}
+    if prev is not None and (stored.get("cost_enc") is not None) == enc_prev and _same_value(prev.get("cost"), row.get("cost")) \
+            and all(k in prev and _same_value(prev[k], v) for k, v in stored.items() if k not in ("cost", "cost_enc")):
+        return False
+    c.execute(f"UPDATE office_doc_items SET {','.join(qi(k, OFD_ITEM_COLS) + '=?' for k in stored)} WHERE id=? AND org_id=?", [*stored.values(), iid, oid])
+    return True
+
+
+# (#7505): the columns a save of positions writes (cleaned rows of clean_items / parts.tp_clean_item, OFD_ITEM_RESET)
+OFD_ITEM_COLS = frozenset({"sort", "kind", "service_id", "ref_part_id", "list_id", "title", "detail", "qty", "unit", "rate", "tax", "raw_fee",
+                           "producing", "in_handling", "in_markup", "intext", "cost", "cost_enc", "discountable", "discount_pct", "opt",
+                           "agent_flag", "tax_pct", "net", "tax_amount"})
 
 
 def _texts(c, oid, kind=None):
@@ -574,6 +632,50 @@ def odoc_locked_by_name(c, oid, r, d):
     return (oc_dec_fields(c, oid, "office_doc_log", lg).get("user_name") or "") if lg else ""
 
 
+def _items_public(c, oid, r, admin, d):
+    """The title page's positions of an answer (doc_public, doc_lite): the purchase side only for admins, with the surplus
+    per position (ek_item_margins also sets d["items_margin"]; d = the answer with its parsed totals)."""
+    its = doc_items(c, r["id"], oid)
+    for it in its:
+        it["discountable"] = int(it.get("discountable") or 0)
+        if not admin:
+            it.pop("cost", None)  # 2.47.0 (#1649): members get no purchase at all (was None)
+            it.pop("cost_enc", None)
+    if admin:
+        ek_item_margins(d, its)  # 2.47.0 (#1649): the surplus per position, computed here (never stored in plain)
+    return its
+
+
+def doc_lite(c, oid, r, admin):
+    """(#7505): the short answer of a save of positions when its body asks {lite: true} (the web editor's writer, #7493):
+    only what the server assigns and computes -- id, the version (updated_at), the totals, the positions (their ids and
+    computed values, as doc_public), the parts' totals, what finalising still misses and the language gaps.
+    Everything else of the document (client, recipient, contract, payments, links, ...) was not touched by the save; GET
+    and a save without lite keep the whole document (doc_public). The same values as doc_public, never other ones."""
+    d = oc_dec_fields(c, oid, "office_docs", r)
+    d["totals"] = _j(d.get("totals"), {})
+    if not admin:
+        d["totals"] = {k: v for k, v in d["totals"].items() if k not in ("costs", "margin")}
+    its = _items_public(c, oid, r, admin, d)
+    out = {"id": r["id"], "kind": r["kind"], "lite": True, "updated_at": d["updated_at"], "totals": d["totals"], "items": its}
+    if "items_margin" in d:
+        out["items_margin"] = d["items_margin"]
+    if r["kind"] == "offer":
+        from .parts import tp_parts_lite
+        out["parts"] = tp_parts_lite(c, oid, r, admin)
+    locked = ofx_locked(r)
+    if not locked:
+        out["lang_gaps"] = fd_lang_gaps(c, oid, r, its)
+        if r["status"] == "draft":
+            out["missing"] = inv_missing_public(c, oid, r, its)
+    return out
+
+
+def ofd_wants_lite(b):
+    """(#7505): the body of a save asks for the short answer (doc_lite)."""
+    return isinstance(b, dict) and b.get("lite") is True
+
+
 def doc_public(c, oid, r, admin, items=True):
     d = oc_dec_fields(c, oid, "office_docs", r)  # 2.42.0 (#828)
     for k, dflt in (("recipient", {}), ("rights", {}), ("fields", []), ("totals", {})):
@@ -633,15 +735,7 @@ def doc_public(c, oid, r, admin, items=True):
     if not admin:
         d["totals"] = {k: v for k, v in d["totals"].items() if k not in ("costs", "margin")}
     if items:
-        its = doc_items(c, r["id"], oid)
-        for it in its:
-            it["discountable"] = int(it.get("discountable") or 0)
-            if not admin:
-                it.pop("cost", None)  # 2.47.0 (#1649): members get no purchase at all (was None)
-                it.pop("cost_enc", None)
-        if admin:
-            ek_item_margins(d, its)  # 2.47.0 (#1649): the surplus per position, computed here (never stored in plain)
-        d["items"] = its
+        d["items"] = _items_public(c, oid, r, admin, d)
         if r["kind"] == "offer":  # 2.47.0 (#1215): the parts (purchase side only for admins)
             from .parts import tp_public, tp_shoot_ok
             d["parts"] = tp_public(c, oid, r, admin)
@@ -1089,15 +1183,18 @@ def _same_val(k, a, b):
     return (a or None) == (b or None)
 
 
-def clean_items(c, oid, r, items, admin, part=None):
+def clean_items(c, oid, r, items, admin, part=None, before=None):
     """The whole list of positions: [{kind, service_id, title, detail, qty, unit, rate, tax, raw_fee, producing, intext,
     cost, discountable}]. A service_id fills what the position leaves empty (title in the document's language, rate from
-    the framework contract or the catalogue, tax and flags). cost only by the admin (others keep the stored value)."""
+    the framework contract or the catalogue, tax and flags). cost only by the admin (others keep the stored value).
+    (#7505): before = the stored positions the caller read already (doc_items of the same part), else read here; the
+    catalogue is read once for all positions."""
     if not isinstance(items, list) or len(items) > MAX_ITEMS:
         raise BadInput(tr("Invalid value: {0}", "items"))
     lang = r["lang"]
     ct = _contract(c, oid, r["contract_id"])
-    old = {it["id"]: it for it in doc_items(c, r["id"], oid, part)}  # 2.47.0 (#1215): part = the positions of that part
+    old = {it["id"]: it for it in (doc_items(c, r["id"], oid, part) if before is None else before)}  # 2.47.0 (#1215): part = the positions of that part
+    svcs = _services(c, oid, items)  # (#7505)
     out = []
     for i, it in enumerate(items):
         if not isinstance(it, dict):
@@ -1123,7 +1220,7 @@ def clean_items(c, oid, r, items, admin, part=None):
             if not row["title"]:
                 raise BadInput(tr("Invalid value: {0}", "items.title"))
         elif kind == "service":
-            sv = _service(c, oid, it.get("service_id")) if it.get("service_id") else None
+            sv = svcs.get(_iid(it.get("service_id"))) if it.get("service_id") else None  # (#7505): read once above
             if it.get("service_id") and not sv:
                 raise Denied(404)
             if sv:
@@ -1366,31 +1463,33 @@ def _initials(c, uid):
     return "".join(p[0] for p in name.split() if p)[:4].upper()
 
 
-def _put_items(c, oid, r, items, admin, flags=None, keep=False):
+def _put_items(c, oid, r, items, admin, flags=None, keep=False, before=None):
     """2.51.0 A (#1348): flags = the agent's marks per position (office/agentdocs.py); a person's save keeps the mark of an
     unchanged position and drops it on a changed or confirmed one (item.confirm).
     2.269.0 A (#3012): a position sent with its id keeps it (UPDATE, so purchase price, list and marks are found again), one
     without a known id is new (INSERT), only the saved ones left out are deleted. keep = the save came without a version
     (expect_updated_at): positions billed from receipts (and, for a person, an agent's marked ones) it left out stay at the end.
-    2.370.2 (#3088): -> the ids of those positions, the answer names them (kept_ids)."""
-    rows = clean_items(c, oid, r, items, admin)
+    2.370.2 (#3088): -> the ids of those positions, the answer names them (kept_ids).
+    (#7505): before = ofd_items_read of the title page (the caller's one read), else read here; a kept position that did not
+    change is not written (ofd_item_write)."""
+    rows_before, enc = ofd_items_read(c, r["id"], oid) if before is None else before
+    rows = clean_items(c, oid, r, items, admin, before=rows_before)
     if flags is None:
         from .agentdocs import ofa_keep_flags
         flags = ofa_keep_flags(c, oid, r["id"], items, rows)
     did = r["id"]
-    old = {x["id"]: x for x in c.execute(f"SELECT id, agent_flag FROM office_doc_items WHERE doc_id=? AND org_id=? AND part_id IS NULL AND {live_sql()}", (did, oid))}  # 2.1005.0 (#5415): a trashed part's title page line is neither overwritten nor deleted
+    old = {x["id"]: x for x in rows_before}  # 2.1005.0 (#5415): live ones only -- a trashed part's title page line is neither overwritten nor deleted
     c.execute("DELETE FROM office_doc_items WHERE doc_id=? AND org_id IS NULL", (did,))  # rows of an older version
     seen = set()
     for i, (row, fl) in enumerate(zip(rows, flags)):
         it = items[i] if isinstance(items, list) and i < len(items) and isinstance(items[i], dict) else {}
         iid = _iid(it.get("id"))
         row["agent_flag"] = fl or ""
-        row = oc_item_store(c, oid, row)  # 2.42.0 (#828): the purchase price encrypted at rest
         if iid in old and iid not in seen:
             seen.add(iid)
-            row = {**OFD_ITEM_RESET, **row}  # what an INSERT would leave at its default
-            c.execute(f"UPDATE office_doc_items SET {','.join(k + '=?' for k in row)} WHERE id=? AND org_id=?", [*row.values(), iid, oid])
+            ofd_item_write(c, oid, iid, row, old[iid], iid in enc)  # what an INSERT would leave at its default; (#7505) only a change
             continue
+        row = oc_item_store(c, oid, row)  # 2.42.0 (#828): the purchase price encrypted at rest
         row["doc_id"] = did
         row["org_id"] = oid
         c.execute(f"INSERT INTO office_doc_items({','.join(row)}) VALUES({','.join('?' * len(row))})", list(row.values()))
@@ -1966,9 +2065,10 @@ def odoc_items_put(did):
     ofd_need_current(c, oid, r, b, admin)  # 2.269.0 A (#3012): 409 + the current state when someone saved in between
     oun_pre(c, uid, oid, "doc", did)  # 2.111.0 A (#2233)
     items = b.get("items") if isinstance(b, dict) else b
-    rows_before = doc_items(c, did, oid)
+    rows_before, enc = ofd_items_read(c, did, oid)  # (#7505): read once, for the log, the cleaning and the writing
     before = ofx_items_brief(rows_before)
-    kept = _put_items(c, oid, r, items, admin, keep=False if isinstance(b, dict) and b.get("expect_updated_at") else "person")
+    kept = _put_items(c, oid, r, items, admin, keep=False if isinstance(b, dict) and b.get("expect_updated_at") else "person",
+                      before=(rows_before, enc))
     if isinstance(b, dict) and "parts_known" in b:  # 2.138.0 A (#2239): a list built before a part was added keeps its line
         from .parts import kva_keep_unseen_parts
         kva_keep_unseen_parts(c, oid, r, rows_before, b.get("parts_known"))
@@ -1979,7 +2079,8 @@ def odoc_items_put(did):
     bump(c)
     oun_post(c)
     c.commit()
-    return jsonify({**doc_public(c, oid, doc_row(c, oid, did), admin), "kept_ids": kept})  # 2.370.2 (#3088): positions left out that stayed
+    out = (doc_lite if ofd_wants_lite(b) else doc_public)(c, oid, doc_row(c, oid, did), admin)  # (#7505): the short answer on request
+    return jsonify({**out, "kept_ids": kept})  # 2.370.2 (#3088): positions left out that stayed
 
 
 @app.post("/api/office/docs/<int:did>/number")
