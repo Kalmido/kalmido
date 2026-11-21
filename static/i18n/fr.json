@@ -19706,22 +19706,5 @@
   "documents from templates": "des documents issus de modèles",
   "invoice series": "des séries de factures",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "Le client de ce document n'est plus dans ce bureau (déplacé vers un autre espace de travail). Choisis d'abord un autre client.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Le client de la facture modèle n'est plus dans ce bureau (déplacé vers un autre espace de travail). Choisis une autre facture modèle et réactive la série.",
-  "Data of your account goes out to a new address: please confirm it is you.": "Les données de ton compte partent vers une nouvelle adresse : confirme que c’est bien toi.",
-  "switched off by the new password: switch it on again if it is yours": "désactivé par le nouveau mot de passe : réactive-le s’il est à toi",
-  "Your own webhooks and forwardings (Slack, Matrix, Telegram, Signal) are switched off; switch on again under Connections and Notifications the ones that are yours.": "Tes propres webhooks et canaux (Slack, Matrix, Telegram, Signal) sont désactivés ; réactive dans Connexions et Notifications ceux qui sont à toi.",
-  "These stay too: your push topic (ntfy), the secret e-mail addresses for tasks and documents, the inbound webhooks and Git connections of your projects and your mailbox. Check what you do not know.": "Restent aussi : ton sujet push (ntfy), les adresses e-mail secrètes pour les tâches et les documents, les webhooks entrants et les connexions Git de tes projets et ta boîte mail. Vérifie ce que tu ne reconnais pas.",
-  "Connections…": "Connexions…",
-  "Switching it on signs you out everywhere else, ends your API tokens, app passwords and calendar feed links and switches your own webhooks and forwardings off.": "L’activer te déconnecte partout ailleurs, met fin à tes jetons d’API, mots de passe d’application et liens de flux de calendrier et désactive tes propres webhooks et canaux.",
-  "A new forwarding to the outside": "Un nouvel envoi vers l’extérieur",
-  "Settings: Account": "Réglages : Compte",
-  "Settings: Organisation": "Réglages : Organisation",
-  "Settings: Company & office": "Réglages : Entreprise et bureau",
-  "Settings: Help": "Réglages : Aide",
-  "So is the webhook of your document flows; switch it on again in the list of flows.": "De même pour le webhook de tes flux de documents ; réactive-le dans la liste des flux.",
-  "Your account {0} sends data to “{1}” ({2}) from now on.": "Ton compte {0} envoie désormais des données à « {1} » ({2}).",
-  "A new password switches your own webhooks and forwardings off.": "Un nouveau mot de passe désactive tes propres webhooks et canaux.",
-  "This stays after a new password too: check it under {0}.": "Cela reste actif même après un nouveau mot de passe : vérifie-le sous {0}.",
-  "Settings > Agents": "Paramètres > Agents",
-  "E-mail filing > Mailbox": "Classement des e-mails > Boîte mail"
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Le client de la facture modèle n'est plus dans ce bureau (déplacé vers un autre espace de travail). Choisis une autre facture modèle et réactive la série."
 }
