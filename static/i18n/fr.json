@@ -19706,5 +19706,9 @@
   "documents from templates": "des documents issus de modèles",
   "invoice series": "des séries de factures",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "Le client de ce document n'est plus dans ce bureau (déplacé vers un autre espace de travail). Choisis d'abord un autre client.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Le client de la facture modèle n'est plus dans ce bureau (déplacé vers un autre espace de travail). Choisis une autre facture modèle et réactive la série."
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Le client de la facture modèle n'est plus dans ce bureau (déplacé vers un autre espace de travail). Choisis une autre facture modèle et réactive la série.",
+  "This export comes from Kalmido {0}, this server runs {1}. Update this server to version {0} or newer first, then import the file.": "Cette exportation provient de Kalmido {0}, ce serveur exécute {1}. Mets d'abord ce serveur à jour vers la version {0} ou plus récente, puis importe le fichier.",
+  "This export comes from Kalmido {0}, this server runs {1}. It can be imported here as soon as this server runs {0} or newer.": "Cette exportation provient de Kalmido {0}, ce serveur exécute {1}. Elle pourra être importée ici dès que ce serveur exécutera {0} ou plus récent.",
+  "{1} entries in {0} have no valid value in a required field and were not imported": "{1} entrées dans {0} n'ont pas de valeur valide dans un champ obligatoire et n'ont pas été importées",
+  "{1} entries in {0} have an amount with more than two decimal places or no number and were not imported": "{1} entrées dans {0} ont un montant avec plus de deux décimales ou qui n'est pas un nombre et n'ont pas été importées"
 }
