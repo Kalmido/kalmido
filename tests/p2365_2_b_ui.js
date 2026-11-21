@@ -45,8 +45,8 @@ const closeAll = d => d.querySelectorAll('.modal').forEach(m => m.remove());
   check(!d.querySelector('.modal.dc-smd'), 'no documents dialog besides the settings');
   check(d.querySelectorAll('#s-dcs [data-dcl]').length === (s0.levels ? Object.keys(s0.levels).length : 4) && d.querySelector('#s-dcs #dcs-asn') && d.querySelector('#s-dcs-rules-h') && /Private/.test(pane?.textContent || ''),
     'Settings > Documents: levels, archive number prefix, rules, the own workspace named');
-  check(!d.querySelector('#s-dcs [data-dsc="inbox"]') && !d.querySelector('#s-dcs [data-dcs="inbox"]') && !d.querySelector('#s-dcs .dc-mail') && !d.querySelector('#s-dcs [data-dsc]'), 'Settings > Documents: no inboxes (they are in Integrations)');
-  check(!!d.querySelector('#s-dcs [data-dcs="lists"]') && !!d.querySelector('#s-dcs [data-dcs="go-integr"]'), 'Settings > Documents: links to the lists and to the inboxes');
+  check(await until(() => d.querySelector('#s-dcs #s-scan [data-dsc="inbox"]')) && !d.querySelector('#s-dcs [data-dcs="go-integr"]'), '(#7017) Settings > Documents: the inboxes themselves (they were in Connections)');
+  check(!!d.querySelector('#s-dcs [data-dcs="lists"]'), 'Settings > Documents: the link to the lists');
   // a level: saved at once, one undo step
   const sel = d.querySelector('#s-dcs [data-dcl]'), f = sel.dataset.dcl, from = s0.levels[f];
   const to = [...sel.options].map(o => o.value).find(v => v !== from);
@@ -69,12 +69,12 @@ const closeAll = d => d.querySelectorAll('.modal').forEach(m => m.remove());
   click(w, lm?.querySelector('[data-dcs="go-set"]'));
   check(await until(() => !d.querySelector('.modal.dc-smd') && shown(d, 'docs')), 'the lists dialog links back to Settings > Documents');
   closeAll(d);
-  check(!!d.querySelector('#view [data-dc="lists"]'), 'the documents bar has a button for the lists');
+  check(!d.querySelector('#view [data-dc="lists"]') && d.querySelector('#view [data-dc="settings"]')?.textContent.trim() === 'Settings', '(#7017) the documents bar has one text button "Settings" (the lists from Settings > Documents)');
 
   // ---- Integrations: one block "Documents: inboxes"
   w.eval(`settingsModal('scans')`);
   const box = await until(() => d.querySelector('#s-scan [data-dsc="inbox"]') && d.querySelector('#s-scan'));
-  check(box && shown(d, 'integr') && /Documents: inboxes/.test(d.querySelector('#s-scan-h')?.textContent || ''), 'Integrations: the block "Documents: inboxes"');
+  check(box && shown(d, 'docs') && /Documents: inboxes/.test(d.querySelector('#s-scan-h')?.textContent || ''), '(#7017) Settings > Documents: the block "Documents: inboxes"');
   check(box && /Folder watcher/.test(box.textContent), '… with the folder watcher');
   const ib = d.querySelector('#s-scan [data-dsc="inbox"]'), was = !!s0.inbox;
   const h2 = w.eval('HIST.undo.length');
@@ -89,6 +89,8 @@ const closeAll = d => d.querySelectorAll('.modal').forEach(m => m.remove());
     check(!!(await call('GET', '/api/docs/settings?ws=private')).mail?.address, '… and stored on the server');
   } else check(!d.querySelector('#s-scan [data-dsc="mailnew"]'), 'mail off on this server: no mail buttons');
   check(d.querySelector('.icard[data-jump="#s-scan-h"]') && /Documents: inboxes/.test(d.querySelector('.icard[data-jump="#s-scan-h"]').textContent), 'the card of Integrations names the inboxes');
+  click(w, d.querySelector('.smodal .snav [data-sec="integr"]'));  // (#7017): the inboxes were in Settings > Documents; the rest is Connections
+  await until(() => shown(d, 'integr'));
 
   // ---- Integrations: Karakeep, newsletter, bookmark button, address books, booking page
   for (const [h, what] of [['#s-kk-h', 'Karakeep'], ['#s-nwl-h', 'the newsletter service'], ['#s-bmlet-h', 'the bookmark button'], ['#s-carddav-h', 'the address books for birthdays'], ['#s-apb-h', 'the booking page']])

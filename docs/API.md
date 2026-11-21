@@ -1909,7 +1909,7 @@ pack catalogue, the privacy templates) only for an instance admin's token with `
 *Since 2.207.0.*
 
 A scan inbox is a key with the one scope `docs:upload` ("Only upload documents"), bound to one place: a person's own
-documents or an organisation's, optionally one folder of it. People make and revoke it in Settings > Connections > *Documents: inboxes* >
+documents or an organisation's, optionally one folder of it. People make and revoke it in Settings > Documents > *Documents: inboxes* >
 *Folder watcher* > *New scan inbox* > *Create inbox* (2.1067.0: the path of the interface since 2.353; web session only, never an
 agent: only a person can create one; 2.1048.0, #5821: also from the menu of a folder of the documents, *Scan inbox for this
 folder…*, which opens that form with the folder and its name set, or *Show scan inbox* when the folder has one); it shows in Settings > Connections > API tokens too (revocable there, its permissions

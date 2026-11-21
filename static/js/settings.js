@@ -1064,7 +1064,7 @@ function settingsModal(focus) {
       , intr_row('dav', 'sync', N_('Calendar apps (CalDAV)'), caldavHtml(hint)), intr_row('apw', 'key', N_('App passwords'), apwHtml())  // (#6368): the app passwords were in Account
       , intr_row('share', 'phone', N_('Share from your phone'), shareHtml(hint))])
       + intr_grp('mail', N_('E-mail'), [intr_row('mail', 'send', N_('Tasks by e-mail'), `<h4 id="s-mail-h">${tr('Tasks by e-mail')}</h4><div id="s-mail"></div>`)
-      , intr_row('scan', 'download', N_('Documents: inboxes'), feat('docs') && typeof dsc_integrHtml === 'function' ? dsc_integrHtml(false) : '')])  // (#2773): docscan.js, drawn by dsc_integrDraw
+      , intr_row('scan', 'download', N_('Documents: inboxes'), feat('docs') && typeof dsc_integrHtml === 'function' ? `<div class="row"><span class="muted">${esc(tr('The folder of the file store, the folder watcher, scan inboxes and the e-mail address of the documents are in Settings > Documents.'))}</span><button type="button" class="btn sm" data-jump="#s-scan-h">${ic('gear', 's')} ${esc(tr('Open Documents settings'))}</button></div>` : '')])  // (#7017, audit D9): only a pointer - the inboxes live in Settings > Documents (docscan.js)  // (#2773): docscan.js, drawn by dsc_integrDraw
       + intr_grp('grid', N_('Other programs'), [intr_row('api', 'code', N_('API tokens'), apiHtml()), intr_row('wh', 'plug', N_('Webhooks'), whHtml())  // (#6368): were the tab Access (#2633)
       , intr_row('fetch', 'receipt', N_('Receipt fetcher'), feat('docs') && typeof fx_html === 'function' ? fx_html() : '')  // (#4489): its own row (was inside dsc_integrHtml)
       , intr_row('pl', 'file', N_('Paperless-ngx'), feat('docs') && typeof pl_setHtml === 'function' ? pl_setHtml() : '')
@@ -1136,7 +1136,7 @@ function settingsModal(focus) {
   pane.data += biz_dataHtml();  // (#2789): the office's data (its Peppol access: Connections, #6368)
   pane.help += aboutHtml(chk, hint);
   const secs = SET_SECS.filter(([k]) => pane[k]);
-  let cur = {tabbar: S.me?.kid ? 'look' : 'nav', sidebar: 'look', layout: 'modules', collab: 'modules', focus: 'modules', time: 'modules', templates: 'data', sample: 'data', newskinds: 'notify', agents: 'ai', agentdots: 'ai', usage: 'ai', activity: S.me?.is_admin ? 'org' : 'ai', agentpolicy: 'org', server: 'users', signin: 'users', agentsafe: 'ai', agentsetup: 'ai', assistant: 'ai', share: 'integr', ical: 'integr', calendars: 'integr', webhooks: 'integr', access: 'integr', caldav: 'integr', paperless: 'integr', scans: 'integr', tokens: 'integr', apppw: 'integr', about: 'help', groups: 'org', users: 'org', odata: S.me?.is_admin ? 'users' : 'org', backup: 'users', dayplan: 'general'}[focus] || (INTB_FOCUS[focus] ? 'integr' : focus);  // (#3041): people, groups, agent rules under Organisation; (#4827): backup / old odata of a server admin = Server > Backup
+  let cur = {tabbar: S.me?.kid ? 'look' : 'nav', sidebar: 'look', layout: 'modules', collab: 'modules', focus: 'modules', time: 'modules', templates: 'data', sample: 'data', newskinds: 'notify', agents: 'ai', agentdots: 'ai', usage: 'ai', activity: S.me?.is_admin ? 'org' : 'ai', agentpolicy: 'org', server: 'users', signin: 'users', agentsafe: 'ai', agentsetup: 'ai', assistant: 'ai', share: 'integr', ical: 'integr', calendars: 'integr', webhooks: 'integr', access: 'integr', caldav: 'integr', paperless: 'integr', scans: 'docs', tokens: 'integr', apppw: 'integr', about: 'help', groups: 'org', users: 'org', odata: S.me?.is_admin ? 'users' : 'org', backup: 'users', dayplan: 'general'}[focus] || (INTB_FOCUS[focus] ? 'integr' : focus);  // (#3041): people, groups, agent rules under Organisation; (#4827): backup / old odata of a server admin = Server > Backup
   if (focus === 'codecheck') cur = 'help';  // 2.766.0 (#5220): the hint of the service worker (upbar.js)
   if (focus === 'supportaccess') { cur = 'account'; SGV.jump = true; }  // (#6534): "Allow support access" (supportview.js shows it once drawn)
   if (/^biz-/.test(focus || '')) { S.bizJump = focus.slice(4); cur = 'biz'; }  // 2.365.2 D (#2789): a part of Company & office (office.js biz_jump scrolls there)
@@ -1448,7 +1448,7 @@ function settingsModal(focus) {
     if (b.dataset.m === 'tab-add') { tabAddSheet(id => { tabSet([...tabIds(), id]); $('#s-tabadd', md)?.focus(); }); return; }  // 2.122.2 (#2329)
     if (b.dataset.m === 'sync-now') { b.disabled = true; try { if (OUT.q.length) await flush(); await refreshNow(); } finally { b.disabled = false; const st = $('#s-synced', md); if (st) st.textContent = syncedTxt(); } return; }  // 2.25.0 (UX-56)
     if (b.dataset.m === 'wp-on') { const c = $('#s-wpdev', md); if (c && !c.checked) c.click(); return; }  // 2.25.0 (UX-46)
-    if (b.dataset.jump) { const t = intr_open(md, b.dataset.jump); if (t) { t.scrollIntoView?.({block: 'start'}); t.classList.add('flash'); setTimeout(() => t.classList.remove('flash'), 1600); } return; }  // 2.25.0 (UX-20)
+    if (b.dataset.jump) { const t = intr_open(md, b.dataset.jump), p = t?.closest('.spane'); if (p?.classList.contains('hidden') && md._show) md._show(p.dataset.pane); if (t) { t.scrollIntoView?.({block: 'start'}); t.classList.add('flash'); setTimeout(() => t.classList.remove('flash'), 1600); } return; }  // 2.25.0 (UX-20); (#7017): a place in another tab opens that tab first
     const sg = b.closest('[data-sideg]');
     if (sg && (b.dataset.smove || 'sideEye' in b.dataset)) {  // 2.25.0 (UX-03)
       const p = sidePref(), g = sg.dataset.sideg;
@@ -2076,7 +2076,7 @@ const SS_AREA = [
     on: () => feat('docs') && typeof dcs_paneHtml === 'function', open: () => settingsModal('docs'), root: '#s-dcs',
     secs: [[N_('Sorting automatically'), ['sortieren', 'sorting', 'erkennen', 'recognise'], '#s-dcs-auto-h'], [N_('Archive numbers'), ['archivnummer', 'asn', 'trennblatt', 'separator'], '#s-dcs-asn-h'],
       [N_('Rules'), ['regel', 'rule'], '#s-dcs-rules-h'], [N_('Senders, types and tags'), ['absender', 'sender', 'dokumenttyp', 'schlagwort', 'tags', 'feld', 'felder', 'field', 'fields'], '#s-dcs-lists-h'],
-      [N_('Inboxes'), ['eingang', 'eingänge', 'inbox', 'mail', 'e-mail', 'scanner', 'wächter', 'watcher'], '#s-dcs-in-h']]},
+      [N_('Documents: inboxes'), ['eingang', 'eingänge', 'inbox', 'mail', 'e-mail', 'scanner', 'wächter', 'watcher'], '#s-scan-h']]},
   {src: ['ofcSettingsHtml', 'agbSettingsHtml', 'bp_settingsHtml', 'dun_settingsHtml', 'tpSettingsHtml', 'pep_settingsHtml', 'dx_settingsHtml', 'dv_settingsHtml', 'brl_settingsHtml', 'bka_settingsHtml', 'bnr_settingsHtml',
     'rcm_settingsHtml', 'ocf_settingsHtml', 'oa_settingsHtml', 'rk_settingsHtml', 'bw_settingsHtml', 'cfs_settingsHtml', 'ocm_settingsHtml', 'ccn_settingsHtml', 'pol_settingsHtml'], area: N_('Settings'), name: N_('Company & office'), words: ['büro', 'office', 'firma', 'company'],
     on: () => modOn('office') && ss_ofm('settings'), open: () => settingsModal('biz'), root: '#s-biz #ofc-set',  // 2.365.2 (#2789): Settings > Company & office

@@ -2,12 +2,12 @@
 of the English text it was translated from. **Bold** = the label exactly as the interface shows it.
 Check: python3 tools/check_userhelp.py. -->
 
-<!-- help: files#how-to-set-up-a-scan-inbox src=5124ce3a66 -->
+<!-- help: files#how-to-set-up-a-scan-inbox src=e3875c5bca -->
 ## Configurar una bandeja de escaneo
 
 Una bandeja de escaneo envía los escaneos nuevos de una carpeta de tu ordenador directamente a tus documentos.
 
-1. Abre **Ajustes** > **Conexiones** y busca **Documentos: entradas**.
+1. Abre **Ajustes** > **Documentos** (en Documentos: el botón **Ajustes** de la cabecera) y busca **Documentos: entradas**.
 2. En **Vigilante de carpetas**, descarga el programa para tu ordenador (Mac o Windows).
 3. Abre **Nueva bandeja de escaneo**, escribe un **Nombre**, elige la carpeta en **En la carpeta** y pulsa **Crear bandeja**.
 4. Kalmido muestra el **Código de configuración** solo esta vez. Pulsa **Copiar**, inicia el programa, pega el código y elige

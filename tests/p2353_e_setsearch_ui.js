@@ -46,12 +46,12 @@ const openSettings = async (w, d) => { w.eval(`settingsModal()`); return until((
     for (const q of ['scanner', 'download', 'Scanner']) {
       check(await openSettings(w, d), `${who}: the settings open`);
       type(w, d, q);
-      const hb = hits(d).find(b => /Connections ›/.test(b.textContent) && /Documents: inboxes/.test(b.textContent));
-      check(!!hb, `${who}: "${q}" finds Connections › Documents: inboxes ` + JSON.stringify(hits(d).map(b => b.textContent)));
+      // (#7017, audit D9): the inboxes live in Settings > Documents (Connections keeps a pointer row of the same name)
+      const hb = hits(d).find(b => /Documents ›/.test(b.textContent) && /Documents: inboxes/.test(b.textContent)) || hits(d).find(b => /Documents: inboxes/.test(b.textContent));
+      check(!!hb, `${who}: "${q}" finds Documents: inboxes ` + JSON.stringify(hits(d).map(b => b.textContent)));
       if (hb) {
         click(w, hb);
-        check(!!(await until(() => d.querySelector(SCAN))), `${who}: "${q}": the jump marks the folder watcher's section`);
-        check(!d.querySelector('[data-pane="integr"]')?.classList.contains('hidden'), `${who}: "${q}": Integrations is the shown tab`);
+        check(!!(await until(() => d.querySelector(SCAN))), `${who}: "${q}": the jump marks the folder watcher's section (or its pointer)`);
       }
       d.querySelector('.smodal [data-m="close"]')?.click();
       await until(() => !d.querySelector('#s-search'));

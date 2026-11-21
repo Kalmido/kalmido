@@ -263,24 +263,31 @@ function dcv_actsHtml(d, w) {
 }
 // a link of the menu as a download (no <a> in a menu)
 const dcv_dlGo = url => { const a = document.createElement('a'); a.href = url; a.download = ''; document.body.append(a); a.click(); a.remove(); };
-// 2.1011.0 (#5688): the entries of "Actions": the task (new / link / open) and the star first, then the rarer actions
+// (#5688): the entries of "Actions": the task (new / link / open) and the star first, then the rarer actions.
+// (#7017, audit D10): after the task in the groups of the file menu (ablage.js ab_menuItems) and their order - Open (the star
+// first) / Share / Edit; a document has no folder settings
 function dcv_actItems(d, w, b) {
-  const md = b.closest('.dc-md'), tid = d.task?.id || d.task_id;
-  return [tid ? {label: tr('Open task'), icon: 'check', act: 'dv-taskopen', fn: () => (S.tasks.get(tid) ? openDetail(tid) : go('t/' + tid))}
+  const md = b.closest('.dc-md'), tid = d.task?.id || d.task_id, po = typeof po_actItems === 'function' ? po_actItems(d, w) : [];  // (#4873, #4806): Optimise PDF, the searchable PDF and the original (pdfopt.js)
+  return [{head: tr('Task')},
+  tid ? {label: tr('Open task'), icon: 'check', act: 'dv-taskopen', fn: () => (S.tasks.get(tid) ? openDetail(tid) : go('t/' + tid))}
     : w ? {label: tr('New task'), icon: 'plus', act: 'dv-tasknew', fn: () => dc_newTask(d, md)} : null,
   !tid && w && typeof dsp_pick === 'function' ? {label: tr('Link with a task…'), icon: 'link', act: 'dv-tasklink', fn: () => dsp_pick(d)} : null,
-  ...(typeof fv2_menuRow === 'function' ? fv2_menuRow(fv2_routeKey()) : []), '-',
+  {head: tr('Open')},
+  ...(typeof fv2_menuRow === 'function' ? fv2_menuRow(fv2_routeKey()) : []),
   d.einvoice ? {label: tr('Readable view'), icon: 'receipt', fn: () => window.open(`/api/docs/${d.id}/einvoice`, '_blank', 'noopener')} : null,  // 2.146.0 A (#2451)
-  typeof dsp_actItem === 'function' && !d.file ? dsp_actItem(d, w) : null,  // 2.154.0 A (#1111): split a stack
-  ...(typeof po_actItems === 'function' ? po_actItems(d, w) : []),  // 2.892.0 (#4873, #4806): Optimise PDF, the searchable PDF and the original (pdfopt.js)
   d.parent_id ? {label: tr('Show in the file store'), icon: 'folder', fn: () => go('ablage/' + d.parent_id)} : null,
+  ...po.filter(x => x.icon === 'download'),
+  {head: tr('Share')},
   d.role === 'owner' /* canwrite-ok: sharing is the owner's alone, not a write entry */ && typeof ab_share === 'function' ? {label: tr('Share…'), icon: 'users', fn: async () => { await ab_share(d.id); const dlg = $('.abshdlg'); if (dlg) onRemove(dlg, () => dc_c168Refresh(d.id)); }} : null,
   d.role === 'owner' /* canwrite-ok: the external link is the owner's alone, not a write entry */ && typeof xl_newDlg === 'function' ? {label: tr('Link for external people…'), icon: 'link', fn: () => xl_newDlg(d.id, () => dc_c168Refresh(d.id))} : null,  // 2.210 C (#2761)
+  {head: tr('Edit')},
   // 2.768.0 (#4888): the file store's actions of the node (ablage.js ab_newVersion / ab_moveDlg / ab_rename; a document's title is its field)
   w && typeof ab_newVersion === 'function' ? {label: tr('Upload a new version…'), icon: 'upload', fn: () => dcv_nodeAct('dvnewver', d)} : null,
-  w && typeof ab_moveDlg === 'function' ? {label: tr('Move to…'), icon: 'arrow', next: 1, fn: () => dcv_nodeAct('dvmove', d)} : null,
   w && d.file && typeof ab_rename === 'function' ? {label: tr('Rename…'), icon: 'edit', fn: () => dcv_nodeAct('dvren', d)} : null,
   w && !d.file && !d.asn ? {label: tr('Assign archive number'), icon: 'tag', fn: () => dc_patch(d.id, {asn: 'next'}, tr('Archive number of {0}', d.name))} : null,  // 2.781.0 (#5390)
+  typeof dsp_actItem === 'function' && !d.file ? dsp_actItem(d, w) : null,  // (#1111): split a stack
+  ...po.filter(x => x.icon !== 'download'),
+  w && typeof ab_moveDlg === 'function' ? {label: tr('Move to…'), icon: 'arrow', next: 1, fn: () => dcv_nodeAct('dvmove', d)} : null,
   w && !d.file && smv_can(d.org_id) ? {label: tr('Move to another workspace…'), icon: 'building', fn: async () => { if (await dc_smvMove(new Map([[d.id, d.org_id || null]]), `“${d.name}”`)) md?.remove(); }} : null];
 }
 function dcv_actsMenu(b, d, w) { menu(b, dcv_actItems(d, w, b), null, null, tr('Actions')); }

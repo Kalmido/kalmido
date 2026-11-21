@@ -2,12 +2,12 @@
 of the English text it was translated from. **Bold** = the label exactly as the interface shows it.
 Check: python3 tools/check_userhelp.py. -->
 
-<!-- help: files#how-to-set-up-a-scan-inbox src=5124ce3a66 -->
+<!-- help: files#how-to-set-up-a-scan-inbox src=e3875c5bca -->
 ## Een scan-inbox instellen
 
 Een scan-inbox stuurt nieuwe scans uit een map op je computer meteen naar je documenten.
 
-1. Open **Instellingen** > **Verbindingen** en ga naar **Documenten: inboxen**.
+1. Open **Instellingen** > **Documenten** (in Documenten: de knop **Instellingen** bovenaan) en ga naar **Documenten: inboxen**.
 2. Download onder **Mapbewaker** het programma voor je computer (Mac of Windows).
 3. Open **Nieuwe scan-inbox**, vul een **Naam** in, kies de map bij **In map** en tik op **Inbox maken**.
 4. Kalmido toont de **Installatiecode** alleen deze ene keer. Tik op **Kopiëren**, start het programma, plak de code en kies

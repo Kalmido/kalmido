@@ -36,13 +36,12 @@ const until = (fn, n) => require('./boot').until(fn, {timeout: n ? n * 150 : 150
   await until(() => w.eval('typeof dc_settings === "function" && typeof dsc_integrHtml === "function"'), 60);
   const copied = [];
   Object.defineProperty(w.navigator, 'clipboard', {value: {writeText: async t => { copied.push(t); }}, configurable: true});
-  // 2.365.2 B (#2789): the gear opens Settings > Documents, which points to the one block "Documents: inboxes" in Integrations
-  // (folder of the file store, folder watcher, scan inboxes, mail way); the module has no second copy
-  (await until(() => d.querySelector('#view [data-dc="settings"]')))?.click();
-  const gi = await until(() => d.querySelector('.smodal #s-dcs [data-dcs="go-integr"]'));
-  check(gi && !d.querySelector('#s-dcs .dsc-way') && !d.querySelector('#s-dcs [data-dsc]'), 'Settings > Documents: only the pointer to Integrations');
-  gi?.click();
-  const sm = await until(() => d.querySelector('#s-scan .dc-mail code') && d.querySelector('#s-scan'));
+  // 2.365.2 B (#2789); (#7017, audit D9): the text button "Settings" opens Settings > Documents with the one block "Documents:
+  // inboxes" (folder of the file store, folder watcher, scan inboxes, mail way); Connections only points there
+  const sb = await until(() => d.querySelector('#view [data-dc="settings"]'));
+  check(sb && sb.textContent.trim() === 'Settings' && !d.querySelector('#view [data-dc="lists"]'), '#7017 the documents\' head: one text button "Settings", no two symbols');
+  sb?.click();
+  const sm = await until(() => d.querySelector('.smodal #s-dcs #s-scan .dc-mail code') && d.querySelector('#s-scan'));
   const txt = () => d.querySelector('#s-scan')?.textContent || '';
   check(sm && /Documents: inboxes/.test(d.querySelector('#s-scan-h')?.textContent || '') && /Folder watcher/.test(txt()) && /By e-mail/.test(txt()) && d.querySelector('#s-scan [data-dsc="inbox"]'), 'one block: file store folder, folder watcher, mail way');
 
@@ -58,7 +57,7 @@ const until = (fn, n) => require('./boot').until(fn, {timeout: n ? n * 150 : 150
   // ---- Settings > Integrations: the download and a new inbox (the code once)
   const em = await until(() => d.querySelector('#s-scan .dsc-new'));
   const etxt = () => d.querySelector('#s-scan')?.textContent || '';
-  check(!d.querySelector('[data-pane="integr"]')?.classList.contains('hidden') && /Folder watcher/.test(etxt()), 'the link opens Integrations at the section');
+  check(!d.querySelector('[data-pane="docs"]')?.classList.contains('hidden') && /Folder watcher/.test(etxt()), '(#7017) the button opens Settings > Documents at the inboxes');
   // 2.207.0 (#2763): the image builds the programs (Dockerfile stage folderwatch) -> download buttons instead of the hint
   check((d.querySelector('#s-scan .dsc-dl')?.children.length || 0) >= 3 && !/Not available on this server/.test(etxt()), 'the programs of the image: download buttons, no hint');
   check(em?.open, 'no inbox yet: "New scan inbox" is open');

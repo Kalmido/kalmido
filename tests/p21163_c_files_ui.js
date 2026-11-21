@@ -151,9 +151,9 @@ const upFile = async (parent, name, text) => {
     await ev(`(document.querySelector('.dc-bar [data-abmore]').click(), 1)`);
     check(await wait(`!!document.querySelector('#pop:not(.hidden) [role="menuitem"]')`), '#6111 phone: the documents\' "…" opens');
     const di = await items();
-    check(/Save view/.test(di) && /Settings of the documents/.test(di) && /Scan/.test(di), `#6111 phone: ... with the saved view, the settings, Scan: ${di}`);
+    check(/Save view/.test(di) && di.split('|').includes('Settings') && /Scan/.test(di), `#6111 phone: ... with the saved view, the settings, Scan: ${di}`);
     await shot('p21163c-360-docs-more.png');
-    await ev(`([...document.querySelectorAll('#pop:not(.hidden) [role="menuitem"]')].find(b => /Settings of the documents/.test(b.textContent)).click(), 1)`);
+    await ev(`([...document.querySelectorAll('#pop:not(.hidden) [role="menuitem"]')].find(b => b.textContent.trim() === 'Settings').click(), 1)`);
     check(await wait(`!!document.querySelector('.modal, #settings, .smodal')`), '#6111 phone: ... and the settings open from it');
   }, true);
 

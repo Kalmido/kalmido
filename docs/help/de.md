@@ -2,12 +2,12 @@
 of the English text it was translated from. **Bold** = the label exactly as the German interface shows it.
 Check: python3 tools/check_userhelp.py (prints the current src of a changed English section). -->
 
-<!-- help: files#how-to-set-up-a-scan-inbox src=5124ce3a66 -->
+<!-- help: files#how-to-set-up-a-scan-inbox src=e3875c5bca -->
 ## Scan-Eingang einrichten
 
 Ein Scan-Eingang schickt neue Scans aus einem Ordner auf deinem Computer (oder von deinem Scanner) direkt in deine Dokumente.
 
-1. Öffne **Einstellungen** > **Verbindungen** und scrolle zu **Dokumente: Eingänge**.
+1. Öffne **Einstellungen** > **Dokumente** (in Dokumente: der Knopf **Einstellungen** im Kopf) und scrolle zu **Dokumente: Eingänge**.
 2. Lade unter **Ordner-Wächter** das Programm für deinen Computer herunter (Mac oder Windows).
 3. Öffne **Neuer Scan-Eingang**, gib im Feld **Name** einen Namen ein, wähle den Ordner bei **In Ordner** und tippe auf
    **Scan-Eingang anlegen**.

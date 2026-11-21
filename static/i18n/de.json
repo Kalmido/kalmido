@@ -14081,7 +14081,6 @@
   "Archive numbers": "Archivnummern",
   "Senders, document types, tags and custom fields are kept in Documents.": "Absender, Dokumenttypen, Tags und eigene Felder pflegst du in Dokumente.",
   "Open in Documents": "In Dokumente öffnen",
-  "Inboxes": "Eingänge",
   "Senders, types and fields": "Absender, Typen und Felder",
   "Sorting automatically, archive numbers and rules: Settings > Documents.": "Automatisch einsortieren, Archivnummern und Regeln: Einstellungen > Dokumente.",
   "Documents: inboxes": "Dokumente: Eingänge",
@@ -19706,5 +19705,11 @@
   "documents from templates": "Dokumente aus Vorlagen",
   "invoice series": "Rechnungsserien",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "Der Kunde dieses Dokuments ist nicht mehr in diesem Büro (in einen anderen Arbeitsbereich umgezogen). Wähle zuerst einen anderen Kunden.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Der Kunde der Vorlage-Rechnung ist nicht mehr in diesem Büro (in einen anderen Arbeitsbereich umgezogen). Wähle eine andere Vorlage-Rechnung und schalte die Serie wieder ein."
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Der Kunde der Vorlage-Rechnung ist nicht mehr in diesem Büro (in einen anderen Arbeitsbereich umgezogen). Wähle eine andere Vorlage-Rechnung und schalte die Serie wieder ein.",
+  "Folder settings": "Ordner-Einstellungen",
+  "Open Documents settings": "Dokumente-Einstellungen öffnen",
+  "The folder of the file store, the folder watcher, scan inboxes and the e-mail address of the documents are in Settings > Documents.": "Der Ordner in der Ablage, der Ordner-Wächter, Scan-Eingänge und die E-Mail-Adresse der Dokumente stehen unter Einstellungen > Dokumente.",
+  "Settings: Documents": "Einstellungen: Dokumente",
+  "Manage feeds…": "Nachrichtenquellen verwalten…",
+  "{0} of at most {1} feeds": "{0} von höchstens {1} Quellen"
 }
