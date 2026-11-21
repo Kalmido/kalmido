@@ -9,6 +9,11 @@
 //   (localStorage full: straight into the queue) the same way
 // - D9: navigator.storage.persist() is asked for once the first change waits (once per page), not before
 // - D10: the queue's IndexedDB would not open: the sign says that earlier waiting changes are not shown here
+// - (#7595): with IndexedDB the queue is IndexedDB, localStorage "tasks.outbox" only its feed (one consumer, obxAdopt). A write
+//   that failed puts only ITS entries into the feed. The same entry in both places: the newer one wins (its revision r) - the
+//   feed's newer one (red before: the queue's older one was sent and the feed's dropped), the queue's newer one over an older
+//   feed entry. Zusatz 1: IndexedDB opens in no window - the window sends its feed itself, also after a reload, exactly once;
+//   a second window whose IndexedDB opens adopts the entry and sends it, the first one never sends it again
 const {boot, B, login} = require('./boot');
 const F = []; let ok = 0;
 const check = (c, what) => { if (c) ok++; else { F.push(what); console.log('FAIL:', what); } };
@@ -103,6 +108,76 @@ const lsq = br => { const v = br.shared.store['tasks.outbox']; return v == null 
   check(await until(() => w.eval('OUT.q.length') === 0 && br.ops.size === 0, 20000), 'sent: the queue and the store are empty');
   check((await call('GET', '/api/tasks/' + T[3])).title === 'Fix the fence now' && (await call('GET', '/api/tasks/' + T[0])).title === 'Sow the beans early', 'the changes arrived');
   w.close();
+
+  // a write that failed put only its own entries into the feed (#7595: never the whole queue)
+  {
+    const b1 = browser();
+    const w1 = await boot({user: 'alice', hash: 'l/' + P, shared: b1.shared, setup: b1.setup});
+    w1.__offline = true;
+    w1.eval(`outSave(() => OUT.q.push({method: 'PATCH', url: '/api/tasks/${T[0]}', body: {title: 'One'}, uid: S.me.id, k: 'k7595a'})); 1`);
+    check(await until(() => b1.ops.has('k7595a')), '#7595 setup: one entry in the store');
+    b1.fail = true;
+    w1.eval(`outSave(() => OUT.q.push({method: 'PATCH', url: '/api/tasks/${T[1]}', body: {title: 'Two'}, uid: S.me.id, k: 'k7595b'})); 1`);
+    check(await until(() => (lsq(b1) || []).length > 0), '#7595: the failed write went to the feed');
+    check(JSON.stringify((lsq(b1) || []).map(x => x.k)) === '["k7595b"]', '#7595: only the entry of the failed write is in the feed, not the whole queue ' + JSON.stringify(lsq(b1)));
+    b1.fail = false;
+    w1.eval(`obxSave(() => { OUT.q = OUT.q.filter(x => !['k7595a', 'k7595b'].includes(x.k)); }); 1`);
+    w1.close();
+  }
+
+  // ================= (#7595) the same entry in both places: the newer one wins (its revision r)
+  {
+    const ME = (await call('GET', '/api/me')).id;
+    const b5 = browser();
+    const e = (k, i, title, r, n) => ({k, n, r, method: 'PATCH', url: `/api/tasks/${T[i]}`, body: {title}, uid: ME});
+    b5.ops.set('k7595n', e('k7595n', 0, 'Sow the beans (queue, older)', 1, 1));
+    b5.ops.set('k7595o', e('k7595o', 1, 'Water the beds (queue, newer)', 3, 2));
+    const feed = [e('k7595n', 0, 'Sow the beans (feed, newer)', 2, 1), e('k7595o', 1, 'Water the beds (feed, older)', 2, 2)];
+    const w5 = await boot({user: 'alice', hash: 'l/' + P, shared: b5.shared, setup: b5.setup, ls: {'tasks.outbox': JSON.stringify(feed)}});
+    check(await until(async () => w5.eval('OUT.q.length') === 0 && b5.ops.size === 0 && lsq(b5) === null, 20000), '#7595 both places: sent, the store and the feed are empty');
+    const t0 = (await call('GET', '/api/tasks/' + T[0])).title, t1 = (await call('GET', '/api/tasks/' + T[1])).title;
+    check(t0 === 'Sow the beans (feed, newer)', '#7595 both places, the feed newer: its entry is sent (was: the queue\'s older one) ' + t0);
+    check(t1 === 'Water the beds (queue, newer)', '#7595 both places, the feed older: the queue\'s entry is sent ' + t1);
+    w5.close();
+  }
+
+  // ================= (#7595 Zusatz 1) IndexedDB opens in no window: the window sends its feed itself, also after a reload
+  const nTasks = async title => (await call('GET', '/api/state')).tasks.filter(t => t.title === title).length;
+  {
+    const b3 = browser(); b3.closed = true;
+    let w3 = await boot({user: 'alice', hash: 'l/' + P, shared: b3.shared, setup: b3.setup});
+    check(w3.eval('OBX.on') === false && w3.eval('STORE.closed') === true, 'Zusatz 1 setup: IndexedDB does not open');
+    w3.__offline = true;
+    await w3.eval(`createTask({title: 'Plant the tulips', list_id: ${P}}).catch(() => 0)`);
+    check(await until(() => w3.eval('OUT.q.length') === 1 && (lsq(b3) || []).length === 1), 'Zusatz 1: made offline, it waits in the feed');
+    w3.close();
+    w3 = await boot({user: 'alice', hash: 'l/' + P, shared: b3.shared, setup: b3.setup});  // a reload, online, IndexedDB still closed
+    check(await until(async () => w3.eval('OUT.q.length') === 0 && lsq(b3) === null && await nTasks('Plant the tulips') === 1, 20000), 'Zusatz 1: after the reload the window sends it, the feed is empty');
+    await w3.eval('flush()');
+    check(await nTasks('Plant the tulips') === 1, 'Zusatz 1: it arrived exactly once');
+    w3.close();
+  }
+  // ... and a second window of the browser whose IndexedDB opens: it adopts the entry and sends it, the first never again
+  {
+    const b4 = browser();
+    const shut = x => { b4.setup(x); x.__obxStore = {...b4.store, all: async () => { throw new Error('UnknownError (test): this window\'s IndexedDB does not open'); }}; };
+    const w4 = await boot({user: 'alice', hash: 'l/' + P, shared: b4.shared, setup: shut});
+    check(w4.eval('OBX.on') === false && w4.eval('STORE.closed') === true, 'Zusatz 1 setup: the first window\'s IndexedDB does not open');
+    w4.eval(`(() => { const f = window.fetch; window.__posts = 0; window.fetch = function (u, o) { if (/\\/api\\/tasks$/.test(String(u && u.url || u)) && (o && o.method) === 'POST') window.__posts++; return f.apply(this, arguments); }; })()`);
+    w4.__offline = true;
+    await w4.eval(`createTask({title: 'Rake the leaves', list_id: ${P}}).catch(() => 0)`);
+    check(await until(() => (lsq(b4) || []).length === 1), 'Zusatz 1: made offline in the first window, it waits in the feed');
+    const w5 = await boot({user: 'alice', hash: 'l/' + P, shared: b4.shared, setup: b4.setup});
+    check(w5.eval('OBX.on') === true, 'Zusatz 1 setup: the second window\'s IndexedDB opens');
+    check(await until(async () => w5.eval('OUT.q.length') === 0 && lsq(b4) === null && await nTasks('Rake the leaves') === 1, 20000), 'Zusatz 1: the second window adopted it and sent it');
+    const posts0 = w4.eval('window.__posts');  // its tries while offline
+    w4.__offline = false;
+    w4.dispatchEvent(new w4.Event('online'));
+    check(await until(() => w4.eval('OUT.q.length') === 0), 'Zusatz 1: the first window counts it as sent elsewhere');
+    await w4.eval('flush()');
+    check(w4.eval('window.__posts') === posts0 && await nTasks('Rake the leaves') === 1, `Zusatz 1: the first window never sends it again (its POSTs online: ${w4.eval('window.__posts') - posts0}), it arrived once`);
+    w4.close(); w5.close();
+  }
 
   // ================= D10: the queue's IndexedDB would not open
   const b2 = browser(); b2.closed = true;

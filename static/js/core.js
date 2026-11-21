@@ -3,15 +3,15 @@
 'use strict';
 
 // 2.1384.0 (#6339): the queue counts as kept only once a write really landed. STORE.lost = the kept data whose last write the browser
-// refused (storage full, blocked): 'outbox' (the queue without IndexedDB), 'obx' (an IndexedDB write whose localStorage fallback
-// failed too), 'conflicts', 'idmap', the kept input (fd keys); STORE.closed = the queue's IndexedDB would not open (D10: what an
+// refused (storage full, blocked): 'outbox' (the queue in localStorage: no IndexedDB, or this window's own feed while its
+// IndexedDB does not open), 'obx' (entries of an IndexedDB write that failed whose feed write failed too: only in this window's
+// memory), 'conflicts', 'idmap', the kept input (fd keys); STORE.closed = the queue's IndexedDB would not open (D10: what an
 // earlier visit left there is not visible in this window). Either one = a lasting sign in the top bar (render.js storeSign) until a
 // later write of the same data lands; navigator.storage.persist() is asked for once the first change waits (D9) (declared first: LS.set calls storeLost from the start)
-const STORE = {lost: new Set(), closed: false, asked: false, obx: false};  // obx = the queue runs on IndexedDB (OBX.on)
+const STORE = {lost: new Set(), closed: false, asked: false};
 const STORE_KEYS = new Set(['outbox', 'obx', 'conflicts', 'idmap']);
 function storeLost(k, ok) {
   if (!STORE_KEYS.has(k) && !/^fd/.test(k)) return;
-  if (k === 'outbox' && STORE.obx && !ok) return;  // with IndexedDB localStorage is only the stopgap (outStash writes straight to the queue then)
   const was = STORE.lost.size;
   if (ok) STORE.lost.delete(k); else STORE.lost.add(k);
   if (was !== STORE.lost.size) { try { if (S.booted) renderTop(); } catch { /* before the start (S not there yet) */ } }
@@ -519,10 +519,16 @@ async function authGone() {
   try { outSync(); } catch { /* storage gone */ }
   await devEnd('gone');
 }
-const OUT = {q: LS.get('outbox', []), online: true, flushing: false};
-// 2.126.0 D (#1989): every tab and list window of the browser shares the queue, localStorage is the truth: outSync takes over
-// what the others wrote (an entry keeps its object, known by its key k, so undo steps still find it; one that left the queue
-// elsewhere counts as done), outSave changes the fresh copy and writes it back, and only one tab replays (flush, Web Locks)
+const OUT = {q: [], online: true, flushing: false};  // (#7595): q comes from outOpen (the IndexedDB queue, or localStorage)
+// 2.126.0 D (#1989): every tab and list window of the browser shares the queue, only one tab replays (flush, Web Locks).
+// (#7595): ONE place per mode of the browser. With IndexedDB the queue is "kalmido-outbox" (OBX below) and localStorage
+// "tasks.outbox" is only its feed: entries not in IndexedDB yet (outStash when the page goes, #3024; the entries of a write
+// that failed, #6339; an earlier version's queue; the entries of a window whose IndexedDB does not open), with one consumer,
+// obxAdopt. Without IndexedDB "tasks.outbox" is the queue itself: outSync takes over what the others wrote (an entry keeps its
+// object, known by its key k, so undo steps still find it; one that left the queue elsewhere counts as done), outSave changes
+// the fresh copy and writes it back. A window whose IndexedDB does not open (and any window before outOpen) works the feed the
+// same way and sends it itself, also after a reload; what another window adopts into IndexedDB is that queue's then and
+// counts as done here (sent once: the Idempotency-Key k)
 const outKey = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
 // 2.528.0 (#4305 B1): a write that brings its own idempotency key (body._idem: one per press) sends it online and in the queue
 const oxaKey = b => b && typeof b === 'object' && !(b instanceof FormData) && typeof b._idem === 'string' ? b._idem : undefined;
@@ -561,7 +567,7 @@ window.addEventListener('storage', ev => { if (ev.key === 'tasks.outbox') { outS
 // tells the other tabs on the BroadcastChannel "kalmido-outbox" (put / del by key), the service worker uses the same channel.
 // A queue of an earlier version in localStorage is taken over once at the start (and later, should an old tab still write
 // one). Without IndexedDB (old browser, private mode, jsdom) everything stays in localStorage as before.
-const OBX = {on: false, st: null, ch: null, c: 0, ready: null, fails: 0, redo: false};
+const OBX = {on: false, st: null, ch: null, c: 0, ready: null, miss: new Set()};  // miss: keys whose IndexedDB write AND feed write failed (only in memory)
 // (#6334 A5): the order of the queue is a counter that only rises (above every entry it holds), never the clock: a device
 // clock set back turned entries round (a change before its create = a conflict). Entries of before keep their large numbers,
 // the next one goes after them
@@ -628,36 +634,58 @@ function obxIdb() {
 }
 async function outOpen() {
   return OBX.ready ||= (async () => {
-    const st = globalThis.__obxStore || obxIdb(); if (!st) return;
+    const st = globalThis.__obxStore || obxIdb();
+    if (!st) { outSync(); return; }  // no IndexedDB (an old browser): localStorage is the queue
     let rows;
-    // no IndexedDB (private mode): localStorage as before; 2.1384.0 (#6339 D10): the database is there but would not open = a sign
-    try { rows = await st.all(); } catch (e) { console.warn('outbox: IndexedDB not readable', e); STORE.closed = true; if (S.booted) renderTop(); return; }
-    OBX.st = st; OBX.on = STORE.obx = true;
-    const mine = new Map(OUT.q.map(x => [x.k, x]));
+    // 2.1384.0 (#6339 D10): the database is there but would not open = a sign; (#7595): this window sends its feed itself
+    try { rows = await st.all(); } catch (e) { console.warn('outbox: IndexedDB not readable', e); STORE.closed = true; outSync(); if (S.booted) renderTop(); return; }
+    OBX.st = st; OBX.on = true;
+    const mine = new Map(OUT.q.map(x => [x.k, x])), ks = new Set(rows.map(r => r.k));
+    const extra = OUT.q.filter(x => !ks.has(x.k));  // made before the queue opened (in the feed; its write may have been refused)
     OUT.q = rows.sort((a, b) => a.n - b.n).map(r => mine.has(r.k) ? Object.assign(mine.get(r.k), r) : r);
     obxAdopt();
+    const left = extra.filter(x => !OUT.q.some(y => y.k === x.k));
+    if (left.length) obxSave(() => OUT.q.push(...left));
+    storeLost('outbox', true);  // the feed is no queue of its own now
     try { OBX.ch = new BroadcastChannel('kalmido-outbox'); OBX.ch.onmessage = ev => obxRecv(ev.data || {}); } catch { /* no BroadcastChannel: each tab on its own */ }
     await obxDrain();
   })();
 }
-// entries an earlier version left in localStorage: into IndexedDB (before anything new), then out of localStorage
-// 2.1257.0 (#6286 C3): once written, only the adopted entries leave localStorage - what outStash put there meanwhile (its
-// write still on the way) stays until its own adoption is written. An entry without a key gets it in localStorage first,
-// so a second adoption before the write knows it
+// (#7595): the feed of the IndexedDB queue (localStorage "tasks.outbox"): read and written only here, by obxAdopt / obxWrite /
+// outStash (tools/check_devstore.py). Not through LS.set: a refused feed write is no lost queue (the entries go to IndexedDB
+// then, or into OBX.miss with the sign 'obx'). true = written
+function obxFeed() { try { const v = JSON.parse(localStorage.getItem('tasks.outbox') || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } }
+function obxFeedSet(list) {
+  try {
+    if (list.length) localStorage.setItem('tasks.outbox', JSON.stringify(list, typeof le2eRepl === 'function' ? le2eRepl() : undefined));
+    else localStorage.removeItem('tasks.outbox');
+    return true;
+  } catch { return false; }  // full or private mode
+}
+// the one consumer of the feed: its entries into IndexedDB, then exactly those out of the feed. The newer one of an entry wins
+// (its revision r, counted up by every change obxSave writes): a feed entry over the queue's (a write that failed in another
+// window), the queue's over an older feed entry (its write failed once, a later one landed). Once written, only the entries
+// that are still as they were read leave the feed - what outStash / a failed write put there meanwhile stays for the next
+// adoption (2.1257.0 #6286 C3, 2.1384.0 #6339 D1). An entry without a key gets it in the feed first, so a second adoption
+// before the write knows it
 function obxAdopt() {
-  let old = LS.get('outbox', null);
-  if (!Array.isArray(old) || !old.length) return;
-  if (old.some(x => !x.k)) { old = old.map(x => x.k ? x : {...x, k: outKey()}); LS.set('outbox', old); }
-  const have = new Set(OUT.q.map(x => x.k)), n0 = Math.min(obxSeq(), ...OUT.q.map(x => x.n));
-  const add = old.map((x, i) => ({...x, n: x.n ?? n0 - old.length + i})).filter(x => !have.has(x.k));
+  let old = obxFeed();
+  if (!old.length) return;
+  if (old.some(x => !x.k)) { old = old.map(x => x.k ? x : {...x, k: outKey()}); obxFeedSet(old); }
+  const by = new Map(OUT.q.map(x => [x.k, x])), n0 = Math.min(obxSeq(), ...OUT.q.map(x => x.n));
+  const add = [];
+  old.forEach((x, i) => {
+    const {sending, ...r} = x, o = by.get(x.k);
+    if (!o) { add.push({...r, n: x.n ?? n0 - old.length + i}); return; }
+    if ((+x.r || 0) >= (+o.r || 0) && JSON.stringify(obxRec(o)) !== JSON.stringify(obxRec({...o, ...r}))) Object.assign(o, r, {n: o.n});  // the feed's is as new or newer
+  });
   // 2.359.0 (#3024, review): what outStash put there carries its number (a newer change): after the queue, never before it
   const late = add.filter(x => x.n > n0);
   OUT.q = [...add.filter(x => !late.includes(x)), ...OUT.q, ...late.sort((a, b) => a.n - b.n)];
-  // 2.1384.0 (#6339 D1): what is in localStorage AND in the queue (an IndexedDB write failed: obxWrite put the whole queue there)
-  // is written again too - only what this write put into IndexedDB leaves localStorage (before: filtered out as "there already",
-  // an empty write, the key deleted, the change only in this window's memory). A write that failed since leaves it all there
-  const ks = new Set(old.map(x => x.k)), by = new Map(OUT.q.map(x => [x.k, x])), g = OBX.fails;
-  obxWrite([...ks].map(k => obxRec(by.get(k))), []).then(ok => { if (!ok || OBX.fails !== g) return; const rest = LS.get('outbox', []).filter(x => !ks.has(x.k)); if (rest.length) LS.set('outbox', rest); else LS.del('outbox'); }, () => {});
+  const seen = new Map(old.map(x => [x.k, JSON.stringify(x)])), now = new Map(OUT.q.map(x => [x.k, x]));
+  obxWrite([...seen.keys()].filter(k => now.has(k)).map(k => obxRec(now.get(k))), []).then(ok => {
+    if (ok) obxFeedSet(obxFeed().filter(x => seen.get(x.k) !== JSON.stringify(x)));
+  }, () => {});
 }
 function obxSave(fn) {
   obxAdopt();
@@ -667,24 +695,29 @@ function obxSave(fn) {
   for (const x of OUT.q) {
     if (!x.k) x.k = outKey();
     if (x.n == null) x.n = obxSeq();
-    const r = obxRec(x);
-    if (before.get(x.k) !== JSON.stringify(r)) put.push(r);
+    let r = obxRec(x);
+    if (before.get(x.k) !== JSON.stringify(r)) { x.r = (+x.r || 0) + 1; r = obxRec(x); put.push(r); }  // (#7595): its revision (obxAdopt: the newer one wins)
+    else if (OBX.miss.has(x.k)) put.push(r);  // (#6339 D8): kept nowhere so far: written with the next write
     before.delete(x.k);
   }
-  // 2.1384.0 (#6339): after a failed write (OBX.redo) the next one writes the whole queue, so what missed IndexedDB lands there
-  const full = OBX.redo;
-  if (full) { OBX.redo = false; put.splice(0, put.length, ...OUT.q.map(obxRec)); }
-  if (put.length || before.size) obxWrite(put, [...before.keys()], full);
+  if (put.length || before.size) obxWrite(put, [...before.keys()]);
 }
-function obxWrite(put, del, full) {
-  return OBX.st.write(put, del).then(() => { try { OBX.ch?.postMessage({put, del}); } catch { /* closed */ } if (full) storeLost('obx', true); return true; },
-    e => {
-      console.warn('outbox: IndexedDB write failed', e);
-      // the next start takes it over (2.1257.0 #6286: false = obxAdopt leaves it there); 2.1384.0 (#6339 D8): localStorage full too = a sign
-      OBX.fails++; OBX.redo = true;
-      if (!LS.set('outbox', OUT.q.map(obxRec)) && OUT.q.length) storeLost('obx', false);
-      return false;
-    });
+// a write of the queue. Failed: only ITS entries go to the feed (the next adoption writes them, 2.1257.0 #6286); the feed
+// refused too = they are only in this window's memory (OBX.miss): a sign (#6339 D8) until a later write takes them along
+function obxWrite(put, del) {
+  return OBX.st.write(put, del).then(() => {
+    try { OBX.ch?.postMessage({put, del}); } catch { /* closed */ }
+    for (const r of put) OBX.miss.delete(r.k);
+    for (const k of del) OBX.miss.delete(k);
+    if (OBX.miss.size && !OUT.q.some(x => OBX.miss.has(x.k))) OBX.miss.clear();
+    if (!OBX.miss.size) storeLost('obx', true);
+    return true;
+  }, e => {
+    console.warn('outbox: IndexedDB write failed', e);
+    const ks = new Set(put.map(r => r.k));
+    if (ks.size && !obxFeedSet([...obxFeed().filter(x => !ks.has(x.k)), ...put])) { for (const k of ks) OBX.miss.add(k); storeLost('obx', false); }
+    return false;
+  });
 }
 // what another tab (or the service worker) wrote: the same merge as outSync (an entry keeps its object; gone elsewhere = done)
 function obxRecv(d) {
@@ -740,29 +773,34 @@ function devCopyOk(me = S.me) { const m = LS.get('wko', null); return !!me && me
 function startClr() { S.lpCache = null; }  // the one setter of the start state in memory for the drops (offcache.js too)
 devDrop('kalmido-start', () => { startClr(); return devIdbDel('kalmido-start'); });  // offcache.js brings its own once loaded
 devDrop('kalmido-wiki', () => globalThis.__wkoStore ? globalThis.__wkoStore.clear().catch(() => {}) : devIdbDel('kalmido-wiki'));  // wiki.js brings its own; __wkoStore: a test's stand-in
-// 2.663.0 (#4200): the offline start state (S.lpCache) goes to IndexedDB when the browser is idle (offcache.js, loaded on demand);
-// an own window (miniwin.js) writes none; without IndexedDB or the module localStorage as before
-// (#6340): now = the page is being hidden (liveparts.js lpCacheNow): written at once, not when idle
-// (#6340): another tab signed out / switched account (tasks.uid gone or another): nothing of this one goes back
-const startMine = () => S.me?.id != null && LS.get('uid', null) === S.me.id;
+// 2.663.0 (#4200), (#7595): the offline start state (S.lpCache) has ONE owner per mode of the browser, fixed once: with
+// globalThis.indexedDB it is offcache.js (loaded on demand: the record in "kalmido-start", its gate, schedule and the take-over
+// of the old copy), without it localStorage "tasks.cache" here. startSave only says "the state changed" (now = the page is
+// being hidden, liveparts.js lpCacheNow, #6340); a module that does not load or an IndexedDB that refuses never sends it to
+// localStorage (the fix series of #7515: every such way was one more condition). An own window (miniwin.js) writes none.
+// startMay = THE gate, asked when the write runs: not an own window, and devCopyOk (another tab's sign-out / another account
+// changed the sign-in mark or removed the stamp: nothing of this one goes back, #6340 F1)
+const startMay = () => !!S.lpCache && !(typeof MW_GUARD !== 'undefined' && MW_GUARD) && devCopyOk();
 function startSave(now) {
-  if (!S.lpCache || (typeof MW_GUARD !== 'undefined' && MW_GUARD)) return;  // (#5358): nor the split view's right half
-  if (!startMine() || !devCopyOk()) return;
-  if (typeof loadModule !== 'function' || !globalThis.indexedDB) { LS.set('cache', S.lpCache); return; }
+  if (!globalThis.indexedDB) { if (startMay()) LS.set('cache', S.lpCache); return; }
   if (typeof oc_soon === 'function') { if (now) oc_now(); else oc_soon(); return; }
-  if (now) return;  // the module is not here yet (the first seconds): the planned write below follows
+  if (now || startSave.t || !startMay() || typeof loadModule !== 'function') return;  // the module is not here yet (the first seconds): the planned write below follows
   // the start fetches no module (p265_b): the first write waits for the idle preload (lazyload.js, 5 s), it takes the newest state then
-  const wait = 6000 - performance.now();
-  if (wait > 0) { if (!startSave.t) startSave.t = setTimeout(() => { startSave.t = 0; startSave(); }, wait); return; }
-  loadModule('offcache').then(() => oc_soon(), e => { if (e?.stale) return; /* (#6338): an outdated window, the reload comes */ console.warn('Kalmido: offline start state: module not loaded, localStorage', e); if (S.lpCache) LS.set('cache', S.lpCache); });
+  startSave.t = setTimeout(() => {
+    startSave.t = 0;
+    loadModule('offcache').then(() => oc_soon(), e => { if (!e?.stale) console.warn('Kalmido: offline start state: module not loaded, the next change tries again', e); });  // (#6338): stale = an outdated window, the reload comes
+  }, Math.max(0, 6000 - performance.now()));
 }
 // (#6340): the real age of a start state: when the server last confirmed it (ms; set by load() / the delta / the hidden
 // page, offcache.js fills it for a record of before from its write time); null = unknown (a localStorage copy of before).
 // The offline start shows it (S.syncOk), #6366 needs it at every start
 const startAt = c => (c && +c._at > 0 ? +c._at : null);
+// the stored start state or null. With IndexedDB: offcache.js; a module that does not load gets the old localStorage copy
+// as it is (read only, a browser of before)
 async function startRead() {
-  if (typeof loadModule === 'function' && globalThis.indexedDB) { try { await loadModule('offcache'); return await oc_get(); } catch (e) { console.warn('Kalmido: offline start state: module not loaded, localStorage', e); } }
-  return LS.get('cache', null);
+  if (!globalThis.indexedDB || typeof loadModule !== 'function') return LS.get('cache', null);
+  try { await loadModule('offcache'); } catch (e) { console.warn('Kalmido: offline start state: module not loaded', e); return LS.get('cache', null); }
+  return oc_get();
 }
 // an online state (load, before the outbox is sent): a stamp of another sign-in mark, 14 days old or of the other "Stay signed in"
 // = the copies go (devEnd mark), then the stamp says this sync
@@ -1127,13 +1165,13 @@ function oxbPrev(method, url, body) {
   return {body: {...body, _prev: p}, on: true};
 }
 // 2.359.0 A (#3024): entries that must survive a page going away right now (pagehide, an ended session before the reload):
-// without IndexedDB straight into the queue (localStorage), with it into localStorage first, which the IndexedDB queue takes
-// over (obxAdopt: now, and at the next start should the page be gone before its write)
+// synchronous. Without IndexedDB straight into the queue (localStorage), with it into the feed first, which the IndexedDB queue
+// takes over (obxAdopt: now, and at the next start should the page be gone before its write)
 function outStash(list) {
   if (!list.length) return;
   // 2.359.0 (review): numbered, so they go after what already waits (obxAdopt)
-  // 2.1384.0 (#6339 D8): localStorage full = straight into the IndexedDB queue (before: the entries were gone)
-  if (OBX.on) { const add = list.map(x => ({...x, n: x.n ?? obxSeq()})); if (LS.set('outbox', [...LS.get('outbox', []), ...add])) obxAdopt(); else obxSave(() => OUT.q.push(...add)); outPersist(); } else outSave(() => OUT.q.push(...list));
+  // 2.1384.0 (#6339 D8): the feed full = straight into the IndexedDB queue (before: the entries were gone)
+  if (OBX.on) { const add = list.map(x => ({...x, n: x.n ?? obxSeq()})); if (obxFeedSet([...obxFeed(), ...add])) obxAdopt(); else obxSave(() => OUT.q.push(...add)); outPersist(); } else outSave(() => OUT.q.push(...list));
 }
 // a write that outlives the page: fetch with keepalive (sent after the tab closed; the browser allows about 64 KB per page),
 // the queue entry's key with it: the queued copy sent at the next start gets the server's first answer (never applied twice)
