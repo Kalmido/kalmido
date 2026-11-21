@@ -17,16 +17,18 @@ from .comments import send_pushes
 from .news import notif_ok
 
 INTEG_FAILS = _env_int("KALMIDO_INTEG_FAILS", 5)  # failed polls in a row of a mailbox, a git connection -> told once
-INTEG_BACKOFF_MAX = 6 * 3600  # 2.1333.0 (#6545): the longest wait between two fetches of a mailbox that keeps failing
+INTEG_BACKOFF_MAX = 6 * 3600  # 2.1333.0 (#6545): the longest wait between two fetches of a mailbox whose login is refused
+INTEG_BACKOFF_NET = 15 * 60  # (#6905): the longest wait after any other failure (the network, the server away for a while)
 
 
-def integ_backoff_s(interval, fails):
+def integ_backoff_s(interval, fails, refused=False):
     """2.1333.0 (#6545): seconds until the next fetch of a polled connection (a mailbox) after fails failures in a row: the
-    interval, doubled with every failure (like the calendar subscriptions), at most INTEG_BACKOFF_MAX -- a wrong password
-    was tried every minute."""
+    interval, doubled with every failure (like the calendar subscriptions) -- a wrong password was tried every minute.
+    (#6905): up to INTEG_BACKOFF_MAX only while the server refuses the login (refused); a network failure waits at most
+    INTEG_BACKOFF_NET, so a short outage of the line never leaves a working mailbox unfetched for hours."""
     if not fails:
         return interval
-    return min(interval * 2 ** min(int(fails), 16), max(interval, INTEG_BACKOFF_MAX))
+    return min(interval * 2 ** min(int(fails), 16), max(interval, INTEG_BACKOFF_MAX if refused else INTEG_BACKOFF_NET))
 
 
 INTEG_TEXT = {
@@ -85,7 +87,8 @@ def integ_tell(c, uids, what, name, detail="", click="", more=(), variant="", ma
     The caller commits; never fails its caller's work.
     mail (2.1333.0, #6545): an e-mail too (the background mail queue, only with outgoing mail and a proved address), for
     whoever has the event "integration" on in the News or as a push -- switching the event off stops the mail as well. The
-    caller limits how often (review F1: hub/mailbox.py mailed_at, at most one mail per mailbox in MBX_TELL_AGAIN_S).
+    caller limits how often (review F1, #6905: hub/mailbox.py _mbx_mail_due, one mail per workspace and mailbox address in
+    MBX_TELL_AGAIN_S).
     mail_name (2.1392.0, #6738): what the mail calls the thing instead of name (a text or f(language)): the mail leaves the
     server, so it names no freely set value (a mailbox user name) - the workspace, and the link leads to its settings."""
     pushes, mails = [], []
