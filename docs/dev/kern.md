@@ -2149,6 +2149,16 @@ script cannot empty - a point of its own.
 `admin/dataretention.py` with `expired`, a backup restore). `notify/push.py webpush_user` sends only to subscriptions of a
 living session (`session_hash` '' = bound to none: a proxy login, from before 2.115).
 
+**The start reads the copy first (#6366):** a plain start of the app (`/` without a query, no invitation / mail proof link,
+no own window) draws the start state kept on this device at once and fetches `/api/state` at the same time (`core.js
+devBoot` / `devPeek`, `main.js`); the server's state then replaces it. The read gate is the same `devCopyOk` as the offline
+start's (no second one), plus: no first start (setup, onboarding, tour or a question pending need the server's settings).
+While the kept state is shown, `S.devOld = {at}`: the header's chip says "Syncing" with the state's real age (#6340), writes
+go through the queue as offline, the poll fetches the whole state (never a delta on top of the copy). A 401 of that sync
+ends the session as everywhere (`authGone` -> `devEnd('gone')`) and `devWipe` clears the screen - the moment between drawing
+and the 401 is the accepted rest. The worker answers `/` from its kept page when the network gives no answer within
+`SW_RACE_MS` (2.5 s, `sw.js swShell`). Test: `tests/p6366_a_devstart_ui.js`.
+
 A new store is one line in `DEV_STORES` (and a `devDrop` if it is no key); a new "this must stay" is its class, never a
 list at an event. `tools/check_devstore.py` (CI lint) is red for an `indexedDB.open` / `caches.open` / storage key that no
 entry covers; the places from before are the baseline `tools/devstore_baseline.json` (only shrinks). Tests:

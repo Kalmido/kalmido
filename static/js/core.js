@@ -1003,7 +1003,7 @@ async function api(method, url, body, o) {
     e.shown = true; throw e;
   }
   url = tu;
-  if (queueable(method, url) && !(body instanceof FormData) && OUT.q.length) return enqueue(method, url, body);
+  if (queueable(method, url) && !(body instanceof FormData) && (OUT.q.length || S.devOld)) return enqueue(method, url, body);  // #6366: a kept start state = through the queue, as offline
   if (outNow(method, url, body)) {  // 2.537.0 (#4568)
     // 2.549.0 (#4568, #4305 A9): the base as an online change had it (oxbPrev: a custom field on its own, a value already shown
     // is no base); without one an empty _prev, so the queue adds none of its own (a caller's own _prev stays as it is; offline
@@ -2017,6 +2017,41 @@ function ldAgain() {
   S.wvBusy = true;
   load().then(() => { if (typeof td_renderSoon === 'function') td_renderSoon(); else render(); }).catch(() => {}).finally(() => { S.wvBusy = false; });  // drawn as the live poll does
 }
+// #6366: the start draws the state kept on this device first and fetches the server's at the same time (main.js): its answer
+// replaces the kept one. Shown is only what the offline start shows - the one gate devCopyOk ("Stay signed in", the stamp not
+// older than 14 days, the same sign-in mark); a 401 of the sync clears the screen (devWipe; authGone has ended the copies).
+// S.devOld = {at} while the state shown is the kept one (at: its real age, #6340; null = unknown): the header's chip says
+// "Syncing" with that age (render.js), writes go through the queue as offline (api), the poll fetches the whole state
+// (sessGuard needs its sign-in mark), never a delta on top of the kept state. Not for a first start (setup, onboarding, tour
+// or a question still pending: they need the server's settings), an own window or a link (invitation, sign-in, share, action)
+S.devOld = null;
+let ld_net = false;  // a state of the server was applied in this page: a kept state read later is not drawn over it
+function devShow(c) {  // a kept state on screen: the own changes not sent yet on top, its real age as the time of the last sync (#6340)
+  applyState(c); OUT.q.forEach(applyLocal);
+  const at = startAt(c); if (at) S.syncOk = at;
+}
+function devFresh() { ld_net = true; if (!S.devOld) return; S.devOld = null; if (S.booted) { renderTop(); staleDraw(); } }
+async function devPeek() {
+  const m = LS.get('wko', null); if (devStampOld(m) || m.off) return null;  // no copy can pass the gate: no module fetched (p265_b)
+  const [, c] = await Promise.all([outOpen().catch(() => {}), startRead()]);
+  if (!c || !Array.isArray(c.lists) || !c.lists.length || !devCopyOk(c.me)) return null;
+  const st = c.settings || {};
+  if (c.setup_pending || [st.onboard, st.tour, st.org_ask].includes('pending') || (st.purpose_ask || 'done') !== 'done') return null;
+  return c;
+}
+// net = the boot's load(): true = the kept state is drawn and net still on its way; false = the start waits for net as before
+async function devBoot(net) {
+  const won = await Promise.race([devPeek().then(c => ({c}), () => ({c: null})), net.then(() => ({}), () => ({}))]);
+  if (!won.c || ld_net || S.tasks.size) return false;
+  devShow(won.c); S.devOld = {at: startAt(won.c)};
+  return true;
+}
+// a 401 while the kept state is shown: the session is over (authGone ended the copies), the screen keeps nothing of it either
+function devWipe() {
+  S.devOld = null;
+  for (const s of ['#side', '#view', '#detail', '#top', '#tabs']) { const el = $(s); if (el) el.innerHTML = ''; }
+  const app = $('#app'); if (app) app.hidden = true;  // a boot step still running draws into nothing; the sign-in reloads the page
+}
 async function load(auto, want) {
   if (auto && ld_run) {
     const r = await ld_run.catch(() => {});
@@ -2031,6 +2066,7 @@ async function ld_go(auto) {
     if (typeof lgo_pending === 'function') await lgo_pending();  // 2.743.0 (#4284): a sign-out made offline ends its session first
     const q = 'td=2&' + lzQuery();  // (#3966): + td; (#6023): td=2 = + the points in time without their zone  // (#3136): + the start set
     j = await api('GET', (auto ? '/api/state?auto=1&' : '/api/state?') + q);
+    await outOpen().catch(() => {});  // #6366: the queue opened while the state was on its way (both at once at the start), applied after it
     // (#7150): older than a write of mine already answered: fetched once more - the server holds it now, so that state
     // has it (its v only grows). (Was: up to three tries while a client counter moved.) A repeat is no herd reload (#3109).
     if (j && !j.brake && j.v != null && j.v < (S.wv || 0)) j = await api('GET', '/api/state?' + q);
@@ -2053,16 +2089,15 @@ async function ld_go(auto) {
       if (S.tasks.size) return;  // another load came first meanwhile
       // (#2872, #6500): another sign-in, 14 days without an online sync or no "Stay signed in" (the gate, its me): not shown, it goes
       if (!devCopyOk(c.me)) { devEnd('mark'); throw e; }
-      applyState(c); OUT.q.forEach(applyLocal);
-      const at = startAt(c); if (at) S.syncOk = at;  // (#6340): the age of this state, not the time since the page started
+      devShow(c);
     }
     return;
   }
   if (OUT.q.length) {  // flush() reloads once the queue is through
-    if (!S.tasks.size || j?.me?.id !== S.me?.id) { applyState(j); OUT.q.forEach(applyLocal); }  // (#1992 O5): another user = applyState's switch
+    if (!S.tasks.size || j?.me?.id !== S.me?.id) { applyState(j); OUT.q.forEach(applyLocal); devFresh(); }  // (#1992 O5): another user = applyState's switch
     flush(); return;
   }
-  applyState(j);
+  applyState(j); devFresh();
   if (j?.lva && !S.lpA) S.lpA = j.lva;  // 2.619.0 (#3890): the areas of this state (read before its v): the first poll takes a delta, not the whole state again
   if (S.qfWait && typeof qfSend === 'function') qfSend();  // 2.376.1 CI fix: files of a quick add whose new task was not loaded yet
   j._at = Date.now(); S.lpCache = j; startSave();  // (#6340): _at = startAt  // (#4200): written when idle (IndexedDB); (#1376): the delta keeps the cache current (liveparts.js)
@@ -2137,9 +2172,9 @@ setInterval(async () => {
       const first = S.calSig === undefined; S.calSig = c;
       if (!first && calEvOn()) { calInvalidate(); if (S.route.mod === 'cal' || S.route.key === 'today') viewSafeRender(); }
     }
-    const chg = v !== S.v || (n !== undefined && collab() && n !== S.news?.sig);
+    const chg = !!S.devOld || v !== S.v || (n !== undefined && collab() && n !== S.news?.sig);  // #6366: a kept start state = the whole state
     // 2.41.0 (#1376): only light areas: their parts, the rest bundled; 2.42.0 (#1376): the tasks area: only the changed tasks (delta)
-    if (chg && v !== S.v && !editing() && (lpLive(v, lpCh, n) || await lpDelta(v, lpCh, n))) { /* drawn there */ }
+    if (chg && v !== S.v && !editing() && !S.devOld && (lpLive(v, lpCh, n) || await lpDelta(v, lpCh, n))) { /* drawn there */ }
     else if (chg && !editing()) { S.viewStale = lpHold(); const lpBack = lpFull(); S.lpN.state++; if (await load(true, v) === 'brake') lpBack(); td_renderSoon(); }  // 2.40.0 (#1430): bundled; 2.280.0 F (#3109): braked: the follow-up stays; #3402: a held element keeps the view stale (drawn after letting go)
     else if (v !== S.v && editing() && S.sel > 0 && (cmtOn() || collab()) && S.tl.id === S.sel && S.tlPollV !== v) { S.tlPollV = v; loadTimeline(S.sel); agentPoll(); }  // 1.9.0
     else if (chg && editing() && S.chat.aid && collab() && S.chatPollV !== `${v}/${n}`) { S.chatPollV = `${v}/${n}`; chatLoad(); agentPoll(); }  // 2.12.2 (#451): typing, the chat still updates (patched)
