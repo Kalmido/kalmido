@@ -255,7 +255,7 @@ function lpCacheFold(c) {
 function lpCacheSoon() {
   const c = S.lpCache; if (!c) return;
   lpCacheFold(c);
-  startSave();  // 2.663.0 (#4200): IndexedDB when the browser is idle (core.js)
+  startSave();  // (#4200): IndexedDB when the browser is idle (core.js)
 }
 // (#6340): the page is hidden (app closed, another app in front): the start state takes the newest state now - was: only
 // after the delta + 30 s + an idle moment, so an own change made just before closing was missing at the next offline start.

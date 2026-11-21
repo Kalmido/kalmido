@@ -43,7 +43,7 @@ function bootDone() {
     else if (!devFirst) await load();
     else { const net = load(); net.catch(() => {}); /* said below */ if (await devBoot(net)) sync = net; else await net; }
     if (!S.lists.length) throw new Error('no state');
-  } catch (e) { bootDone(); if (e.message === 'auth') return; await i18nBoot; $('#view').innerHTML = botEmpty(navigator.onLine === false ? 'offline' : 'schaut', tr('Server not reachable.'), tr('Reload the page once the server is reachable again.')).replace(/<\/div>$/, `<button type="button" class="btn pri" id="boot-retry">${ic('sync', 's')} ${tr('Try again')}</button></div>`); $('#boot-retry')?.addEventListener('click', () => location.reload()); botStartle(); /* 2.165.0 (#2613) */ return; }
+  } catch (e) { bootDone(); if (e.message === 'auth') return; await i18nBoot; $('#view').innerHTML = botEmpty(navigator.onLine === false ? 'offline' : 'schaut', tr('Server not reachable.'), tr('Reload the page once the server is reachable again.')).replace(/<\/div>$/, `<button type="button" class="btn pri" id="boot-retry">${ic('sync', 's')} ${tr('Try again')}</button></div>`); $('#boot-retry')?.addEventListener('click', () => location.reload()); botStartle(); /* (#2613) */ return; }
   await i18nBoot; await i18nLoad(uiLang()); S.booted = true;
   // #6366: the server's answer behind the kept state: drawn as a change from elsewhere; a 401 clears the screen (the sign-in
   // took over); no answer / an error: the chip keeps saying "Syncing" with the state's age, the poll tries again

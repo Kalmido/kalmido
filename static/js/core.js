@@ -520,7 +520,7 @@ async function authGone() {
   await devEnd('gone');
 }
 const OUT = {q: [], online: true, flushing: false};  // (#7595): q comes from outOpen (the IndexedDB queue, or localStorage)
-// 2.126.0 D (#1989): every tab and list window of the browser shares the queue, only one tab replays (flush, Web Locks).
+// (#1989): every tab and list window of the browser shares the queue, only one tab replays (flush, Web Locks).
 // (#7595): ONE place per mode of the browser. With IndexedDB the queue is "kalmido-outbox" (OBX below) and localStorage
 // "tasks.outbox" is only its feed: entries not in IndexedDB yet (outStash when the page goes, #3024; the entries of a write
 // that failed, #6339; an earlier version's queue; the entries of a window whose IndexedDB does not open), with one consumer,
@@ -637,7 +637,7 @@ async function outOpen() {
     const st = globalThis.__obxStore || obxIdb();
     if (!st) { outSync(); return; }  // no IndexedDB (an old browser): localStorage is the queue
     let rows;
-    // 2.1384.0 (#6339 D10): the database is there but would not open = a sign; (#7595): this window sends its feed itself
+    // (#6339 D10): the database is there but would not open = a sign; (#7595): this window sends its feed itself
     try { rows = await st.all(); } catch (e) { console.warn('outbox: IndexedDB not readable', e); STORE.closed = true; outSync(); if (S.booted) renderTop(); return; }
     OBX.st = st; OBX.on = true;
     const mine = new Map(OUT.q.map(x => [x.k, x])), ks = new Set(rows.map(r => r.k));
@@ -773,7 +773,7 @@ function devCopyOk(me = S.me) { const m = LS.get('wko', null); return !!me && me
 function startClr() { S.lpCache = null; }  // the one setter of the start state in memory for the drops (offcache.js too)
 devDrop('kalmido-start', () => { startClr(); return devIdbDel('kalmido-start'); });  // offcache.js brings its own once loaded
 devDrop('kalmido-wiki', () => globalThis.__wkoStore ? globalThis.__wkoStore.clear().catch(() => {}) : devIdbDel('kalmido-wiki'));  // wiki.js brings its own; __wkoStore: a test's stand-in
-// 2.663.0 (#4200), (#7595): the offline start state (S.lpCache) has ONE owner per mode of the browser, fixed once: with
+// (#4200), (#7595): the offline start state (S.lpCache) has ONE owner per mode of the browser, fixed once: with
 // globalThis.indexedDB it is offcache.js (loaded on demand: the record in "kalmido-start", its gate, schedule and the take-over
 // of the old copy), without it localStorage "tasks.cache" here. startSave only says "the state changed" (now = the page is
 // being hidden, liveparts.js lpCacheNow, #6340); a module that does not load or an IndexedDB that refuses never sends it to
@@ -1170,7 +1170,7 @@ function oxbPrev(method, url, body) {
 function outStash(list) {
   if (!list.length) return;
   // 2.359.0 (review): numbered, so they go after what already waits (obxAdopt)
-  // 2.1384.0 (#6339 D8): the feed full = straight into the IndexedDB queue (before: the entries were gone)
+  // (#6339 D8): the feed full = straight into the IndexedDB queue (before: the entries were gone)
   if (OBX.on) { const add = list.map(x => ({...x, n: x.n ?? obxSeq()})); if (obxFeedSet([...obxFeed(), ...add])) obxAdopt(); else obxSave(() => OUT.q.push(...add)); outPersist(); } else outSave(() => OUT.q.push(...list));
 }
 // a write that outlives the page: fetch with keepalive (sent after the tab closed; the browser allows about 64 KB per page),

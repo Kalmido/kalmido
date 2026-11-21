@@ -614,7 +614,7 @@ async function swShellNet(req, url) {
   try { r = await fetch(req); } catch { r = null; }
   // 2.149.0 B (#2506): a hashed address is kept only when the server confirmed the hash (immutable), so it never holds other bytes
   const keep = r && r.ok && !r.redirected && r.type === 'basic' && (!hashed || /immutable/.test(r.headers.get('cache-control') || ''));
-  if (keep) { const copy = r.clone(); Object.defineProperty(r, 'put', {value: caches.open(CACHE).then(c => c.put(key, copy)).catch(() => {})}); return r; }  // 2.138.0 A (#2257): a refused put is no uncaught error; #6366: r.put = that write (swShell's race waits for it)
+  if (keep) { const copy = r.clone(); Object.defineProperty(r, 'put', {value: caches.open(CACHE).then(c => c.put(key, copy)).catch(() => {})}); return r; }  // (#2257): a refused put is no uncaught error; #6366: r.put = that write (swShell's race waits for it)
   if (r && r.ok) return r;
   // network error or 5xx (server restarting): any cached copy beats a broken answer; 2.4.0 (#187): the quick capture page is the app shell too
   if (!r || r.status >= 500) {
