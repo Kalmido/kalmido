@@ -98,6 +98,18 @@ def wsa_own(c, uid, st=None):
     return o
 
 
+def wsa_drop_defaults(c, uid, stored):
+    """(#7563, reader F4): the browser sends back all of wsa_own (the defaults of every organisation included) when one switch
+    changes; an organisation's key equal to its default (wsa_own without a key) is no own choice and is dropped, so a default
+    never freezes into "my choice" (Home off stays a default: once the organisation has Home data, Home is on again)."""
+    o = json.loads(stored)
+    for oid in user_orgs(c, uid):
+        k = "org:%d" % oid
+        if k in o and o[k] == [a for a in WSA_ORG_DEFAULT_OFF if not (a == "life" and wsa_org_has_life(c, oid))]:
+            del o[k]
+    return json.dumps(o, separators=(",", ":"))
+
+
 def wsa_own_json(c, uid, st=None):
     """(#7563): wsa_own as the browser's setting ws_areas_off (/api/state, the answer of PATCH /api/settings)."""
     return json.dumps(wsa_own(c, uid, st), separators=(",", ":"))
