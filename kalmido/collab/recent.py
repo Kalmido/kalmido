@@ -45,7 +45,7 @@ from ..files.fslock import fsl_map
 from ..files.fsviews import fsv_drop
 from ..files.store import fs_mail_rows, fs_roles_many, fs_visible_sql_c
 from ..office.books import bk_ws
-from ..office.model import office_role, pb_cl_sql, pb_personal
+from ..office.model import office_cands, office_role, pb_cl_sql, pb_personal
 from ..office.rights import office_can
 from ..sheets.core import sh_index
 from ..wiki.pages import wiki_may_read, wiki_space
@@ -196,11 +196,13 @@ def rcn_reading(c, uid, key, oid, limit):
 
 # ---------------------------------------------------------------- the office (#7662)
 def _office_areas(c, uid, key, oid):
-    """{office area id: workspace key} of the asked workspaces where uid has a role in the office (not a guest): an
-    organisation's office is the organisation, "private" the personal office (only when it exists, never made here)."""
+    """{office area id: workspace key} of the asked workspaces whose office is on for uid (office_cands: the module card's
+    cap, the area switches, "Also private", no guest - the same gate as /api/office/*, reader F1): an organisation's office
+    is the organisation, "private" the personal office (only when it holds data, never made here)."""
+    cands = office_cands(c, uid)
     out = {}
     for o in _spaces(c, uid, key, oid):
-        if _off(c, o, "office"):
+        if o not in cands:
             continue
         ofid = o or pb_personal(c, uid, create=False)
         role = office_role(c, uid, ofid) if ofid else None

@@ -159,6 +159,16 @@ check(("sheets", "", SH_ORG) in k and ("sheets", "", SH_PRIV) not in k, "#7662: 
 check(not k & O_OTHER and ("sheets", "", SH_ORG2) not in k, "#7662: bob: nothing of another organisation")
 check(bool(office(recent(Bo, space=SP))) and all(x["space"] == SP for x in recent(Bo, space=SP)), "#7662: bob ?space=org: only Nordwind")
 
+# ================================================================== the module card's cap (reader F1): the same gate as /api/office/*
+r = A.post(B + "/api/modcards", json={"space": SP, "name": "Tables only", "mods": ["sheets"], "people": [BOB]})
+check(r.status_code == 201, "setup: a card without the office for bob " + r.text[:200])
+check(Bo.get(B + "/api/office/docs", headers={"X-Kalmido-Office-Space": SP}).status_code in (403, 404), "bob: the card takes the office (/api/office/docs refused)")
+it = recent(Bo)
+check(not office(it) & O_ALL, f"#7662 F1: bob with a card without the office sees nothing of Nordwind's office {sorted(office(it))}")
+check(("sheets", "", SH_ORG) in keys(it), "#7662 F1: bob: the table of his card stays")
+check(A.delete(B + f"/api/modcards/{r.json()['card']['id']}").ok, "setup: the card is deleted")
+check(("office", "offer", OFF) in keys(recent(Bo)), "#7662 F1: without the card the office is there again")
+
 # ================================================================== a member without office rights: nothing of the office, the tables stay
 it = recent(Ca)
 check(not office(it), f"#7662: carl (office group 'No office access') sees nothing of the office {sorted(office(it))}")
