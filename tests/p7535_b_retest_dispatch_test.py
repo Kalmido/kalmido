@@ -54,7 +54,7 @@ check(not re.search(r"https?://|\b\d{1,3}(?:\.\d{1,3}){3}\b|@[a-z0-9-]+\.[a-z]{2
 check(not re.search(r"(?im)^\s*(?:export\s+)?NACHTEST_[A-Z_]+\s*=\s*\S", doc) and not re.search(r"(?i)password\s*[:=]\s*\S", doc),
       "the template sets no variable and no password")
 check(all(k in ar.TEXTS and len(ar.TEXTS[k]) == 6 for k in ("dispatch_retest_asked", "dispatch_retest_works", "dispatch_retest_fails",
-      "dispatch_retest_person_ok", "dispatch_retest_none", "dispatch_retest_doc", "dispatch_retest_waiting", "dispatch_retest_not_ready")),
+      "dispatch_retest_person_ok", "dispatch_retest_none", "dispatch_retest_doc", "dispatch_retest_waiting", "dispatch_retest_not_ready", "dispatch_retest_refused")),
       "texts in six languages")
 
 # ---- the verdict: the last line, with its evidence / reason
@@ -145,6 +145,8 @@ class FakeApi:
         if path.endswith("/review") and t:
             if body.get("action") == "request":
                 t.update(review="pending", reviewer_id=body.get("reviewer_id"))
+            elif body.get("action") == "approve" and tid in REFUSE_APPROVE:
+                raise ad.ApiError(403, "the assignee cannot approve")
             elif body.get("action") in ("approve", "changes"):
                 t["review"] = "approved" if body["action"] == "approve" else "changes"
                 t["review_by"] = 55
@@ -161,7 +163,7 @@ class FakeApi:
         return [(m, p, b) for m, p, b in self.bodies if m != "GET" and (tid is None or p.startswith(f"/tasks/{tid}/"))]
 
 
-CHATS, STARTS, READS, JOBS, REFUSE = [], [], [], {}, set()
+CHATS, STARTS, READS, JOBS, REFUSE, REFUSE_APPROVE = [], [], [], {}, set(), set()
 
 
 class Host:
@@ -331,6 +333,55 @@ b = ad.retest_brief(by(206), S[206], "main", "docs/NACHTEST.md", True, True, [])
 check(f"{S[206]}^:docs/NACHTEST.md" in b and "finding" in b, "the brief: the guide from before the commit, the change a finding")
 b = ad.retest_brief(by(206), S[206], "main", "docs/NACHTEST.md", False, False, [])
 check("There is no retest guide" in b and "say so in the evidence" in b, "without a guide: at the checkout, said in the evidence")
+
+# ---- reader F6: a guide changed before a round counts for EVERY task of that round, not only the first one
+commit("chore: the guide once more", "docs/NACHTEST.md", "Log in with NACHTEST_USER; the export is optional.\n")
+TASKS.extend([task(209, 10), task(210, 10)])
+S[209] = commit("#209: one")
+S[210] = commit("#210: two")
+n_chat = len(CHATS)
+d.tick(force=True)
+for tid in (209, 210):
+    check(any(f"#{tid}" in c and "changes the retest guide" in c for c in CHATS[n_chat:]) and d.reg["retest"][str(tid)]["doc"],
+          f"#{tid}: the guide changed before the round is told for this task too {CHATS[n_chat:]}")
+
+# ---- reader F7: a review job says works, but the approval and the closing are refused (the agent is the assignee and the task
+# is done only after approval): the person decides, told once -- no silent retry every round
+TASKS.append(task(211, 9))
+S[211] = commit("#211: an export")
+with open(FLAG, "a") as f:
+    f.write(S[211] + "\n")
+d.tick(force=True)
+check(READS[-1][1] == 211, f"#211: its review job started {READS[-1][:3]}")
+REFUSE_APPROVE.add(211)
+REFUSE.add(211)
+JOBS[str(READS[-1][0])] = {"state": "done", "result": "RETEST: works - the export downloads"}
+n_chat = len(CHATS)
+d.tick(force=True)
+d.tick(force=True)
+rq = [b for m, p, b in h.api.writes(211) if p.endswith("/review") and b.get("action") == "request"]
+check(d.reg["retest"]["211"]["state"] == "person" and rq[-1]["reviewer_id"] == 7 and "the export downloads" in rq[-1]["note"],
+      f"#211: refused -- to the person with the evidence {d.reg['retest']['211']} {rq[-1:]}")
+check(len([c for c in CHATS[n_chat:] if "#211" in c and "refused" in c]) == 1, f"#211: told once {CHATS[n_chat:]}")
+
+# ---- reader F8: "retest by a person" set while the review job runs: its verdict closes nothing, the person decides
+TASKS.append(task(212, 9))
+S[212] = commit("#212: a filter")
+with open(FLAG, "a") as f:
+    f.write(S[212] + "\n")
+d.tick(force=True)
+check(READS[-1][1] == 212 and d.reg["retest"]["212"]["state"] == "job", "#212: its review job runs")
+by(212)["retest_person"] = True
+d.tick(force=True)
+JOBS[str(READS[-1][0])] = {"state": "done", "result": "RETEST: works - the filter keeps its choice"}
+d.tick(force=True)
+check(("POST", "/tasks/212/complete") not in h.api.calls and d.reg["retest"]["212"]["state"] == "person"
+      and [b for m, p, b in h.api.writes(212) if p.endswith("/review")][-1]["reviewer_id"] == 7, "#212: the job's works closes nothing, the person reviews")
+
+# ---- reader F9: the retest register keeps the newest 2000
+d.reg["retest"].update({str(100000 + i): {"sha": "0", "at": i, "state": "passed"} for i in range(2100)})
+d.tick(force=True)
+check(len(d.reg["retest"]) <= 2000 and "212" in d.reg["retest"], f"the register is capped {len(d.reg['retest'])}")
 
 print(f"p7535_b_retest_dispatch_test: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)

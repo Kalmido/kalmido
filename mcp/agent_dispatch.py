@@ -1799,10 +1799,12 @@ class Dispatcher:
         self.reg["tries"][k] = 0
 
     def retest_close(self, t, sha, text, api, cfg, res, w, now, ev, approve=False):
-        """works: the evidence as a comment, the review approved (the agent is the reviewer of a review job), completed."""
+        """works: the evidence as a comment, the review approved (the agent is the reviewer of a review job), completed.
+        (ok, the approval was refused) -- refused: e.g. the agent is the task's assignee and the task is done only after approval."""
         tid = int(t["id"])
+        refused = []
         ok = w(f"retest works #{tid} (commit {sha})", lambda: (  # the steps that can be refused first, the comment once after them
-            approve and self._try(api, "POST", f"/tasks/{tid}/review", {"action": "approve", "note": text[:2000]}),
+            approve and self._try(api, "POST", f"/tasks/{tid}/review", {"action": "approve", "note": text[:2000]}) is None and refused.append(1),
             t.get("locked") and api.req("PATCH", f"/tasks/{tid}", {"locked": False}),
             api.req("POST", f"/tasks/{tid}/complete"),
             api.req("POST", f"/tasks/{tid}/comments", {"body": text})))
@@ -1814,7 +1816,16 @@ class Dispatcher:
                     self.reg["lead"].append([int(now), round(max(0.0, now - at) / 3600, 2)])
                 self.reg["closed"][str(tid)] = str(sha)
                 self.reg["retest"][str(tid)].update(state="passed", done=int(now))
-        return ok
+        return ok, bool(refused)
+
+    def retest_to_person(self, tid, sha, note, key, text, api, res, w, e):
+        """The person decides (review requested with the owner, Waiting for me), told once."""
+        owner = self.owner()
+        if owner and w(f"retest #{tid} to the person", lambda: api.req("POST", f"/tasks/{tid}/review", {
+                "action": "request", "reviewer_id": int(owner), "note": note[:2000]})) and not w.dry:
+            e["state"] = "person"
+        if text:
+            self.finding(res, f"{key}:{tid}:{sha}", text)
 
     @staticmethod
     def _try(api, method, path, body):
@@ -1833,13 +1844,20 @@ class Dispatcher:
         ref = cfg["close_ref"] or "HEAD"
         built = sorted(built, key=lambda t: (ev["built_at"].get(int(t["id"])) or 0, int(t["id"])))
         waiting = []
+        # the guide as it was at the last retest, the same for every task of this round (reader F6): written only after the round.
+        # The very first round: the guide before the oldest built commit
+        before = self.reg.get("retest_guide")
+        if before is None and built:
+            first = str(ev["done"][int(built[0]["id"])])
+            rc, out = git(self.project_dir, "rev-parse", "--verify", "-q", "--end-of-options", f"{first}^:{cfg['retest_doc']}")
+            before = out.strip() if rc == 0 else ""
+        guide_now = None
         for t in built:
             tid, sha = int(t["id"]), str(ev["done"][int(t["id"])])
             mode, e = retest_mode(t, modes), reg.get(str(tid))
             if not e or e.get("sha") != sha or e.get("state") == "passed":  # a new commit: a new retest; the same one: never a second
                 if e and e.get("sha") == sha:
                     continue
-                before = self.reg.get("retest_guide")  # the guide's blob at the last retest (None = no retest yet)
                 have, changed, blob = retest_doc_state(self.project_dir, ref, sha, cfg["retest_doc"], before)
                 if changed and before == "":  # there was no guide before it: test without one, the new guide is the finding
                     have = False
@@ -1851,16 +1869,15 @@ class Dispatcher:
                 if ok and not w.dry:
                     reg[str(tid)] = e = {"sha": sha, "at": int(now), "state": "person" if mode == "person" else "wait", "doc": changed,
                                          "have_doc": have, "doc_before": before or ""}
-                    self.reg["retest_guide"] = blob
+                    guide_now = blob
                 if changed:  # the builder could soften its own retest: the person reads the change
                     self.finding(res, f"retestdoc:{tid}:{sha}", self.say("dispatch_retest_doc", f"#{tid}", sha, cfg["retest_doc"]))
                 if not ok or w.dry or e["state"] == "person":  # the person's answer comes in a later round (t is from before)
                     res["retest"][tid] = "asked"
                     continue
-            if e["state"] == "wait" and mode == "person":  # a person set "retest by a person" meanwhile: no job for it
-                if w(f"retest #{tid} to the person", lambda tid=tid, sha=sha: api.req("POST", f"/tasks/{tid}/review", {
-                        "action": "request", "reviewer_id": int(owner), "note": self.say("dispatch_retest_asked", sha, ref)})) and not w.dry:
-                    e["state"] = "person"
+            if e["state"] in ("wait", "job") and mode == "person":  # a person set "retest by a person" meanwhile: no job for it, a
+                # running job's verdict is not applied (reader F8)
+                self.retest_to_person(tid, sha, self.say("dispatch_retest_asked", sha, ref), "", "", api, res, w, e)
             if e["state"] == "person":
                 rv = t.get("review") or ""
                 by_owner = bool(owner) and str(t.get("review_by") or "") == str(owner)
@@ -1874,7 +1891,7 @@ class Dispatcher:
                     self.retest_failed(e, tid)  # its reason is in the task's history
                     log(f"#{tid}: retest does not work (commit {sha}), built again")
                 res["retest"][tid] = e["state"]
-            elif e["state"] == "job":
+            elif e["state"] == "job" and mode != "person":
                 j = jobs.get(str(e.get("job"))) or {}
                 st = j.get("state") or "running"
                 late = now - float(e.get("started") or now) >= float(cfg["retest_wait_h"]) * 3600 + 600
@@ -1884,7 +1901,10 @@ class Dispatcher:
                 v, text = retest_verdict(j.get("result")) if st == "done" else ("none", "")
                 text = retest_scrub(text)
                 if v == "works":
-                    self.retest_close(t, sha, self.say("dispatch_retest_works", sha, text), api, cfg, res, w, now, ev, approve=True)
+                    ok, refused = self.retest_close(t, sha, self.say("dispatch_retest_works", sha, text), api, cfg, res, w, now, ev, approve=True)
+                    if not ok and refused and not w.dry:  # approval refused, closing refused: the person decides, told once (reader F7)
+                        self.retest_to_person(tid, sha, self.say("dispatch_retest_works", sha, text), "retestrefused",
+                                              self.say("dispatch_retest_refused", f"#{tid}", sha), api, res, w, e)
                 elif v == "fails":
                     if w(f"retest does not work #{tid} (commit {sha})", lambda tid=tid, sha=sha, text=text: (
                             api.req("POST", f"/tasks/{tid}/comments", {"body": self.say("dispatch_retest_fails", sha, text)}),
@@ -1898,6 +1918,11 @@ class Dispatcher:
                 res["retest"][tid] = e["state"]
             elif e["state"] == "wait":
                 waiting.append((t, e))
+        if guide_now is not None and not w.dry:
+            self.reg["retest_guide"] = guide_now
+        if len(reg) > 2000:  # as closed (reader F9): the newest 2000 retests stay
+            for k in sorted(reg, key=lambda k: int(reg[k].get("at") or 0))[:len(reg) - 2000]:
+                reg.pop(k, None)
         # the review jobs: at most retest_max at a time, the others wait in the order of their commits
         running = sum(1 for x in reg.values() if x.get("state") == "job" and (jobs.get(str(x.get("job"))) or {}).get("state", "running") in RUNNING)
         free = int(cfg["retest_max"]) - running
