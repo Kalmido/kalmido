@@ -104,7 +104,7 @@ function ccLine(x, s) {
 // #7499: a position of a confirmed statement: its state (W.act: "Saving…" / "Not saved - Try again" in the row)
 function ccLineAct(x, s, head) {
   const W = ccW(), mk = rwMarkHtml(W, x);  // the core's mark (escaped there)
-  if (x.state === 'matched') return `<li class="bnkrow done${esc(rwCls(W, x))}" data-rwk="${esc(rwKey(x))}">${head}<div class="bnkacts"><span class="rotag bnkm">${ic('check', 's')} ${esc(x.gone ? tr('The receipt was deleted') : x.receipt || tr('Receipt'))}</span>${x.gone ? '' : `<a class="btn sm ghost" href="#docs/${x.node_id}">${tr('Open')}</a>`}<button class="btn sm ghost" data-cc="unmatch" data-id="${x.id}">${ic('undo', 's')}<span>${tr('Undo match')}</span></button>${/*html-ok*/ mk}</div></li>`;
+  if (x.state === 'matched') return `<li class="bnkrow done${esc(rwCls(W, x))}" data-rwk="${esc(rwKey(x))}">${head}<div class="bnkacts"><span class="rotag bnkm">${ic('check', 's')} ${esc(x.gone ? tr('The receipt was deleted') : x.receipt || tr('Receipt'))}</span>${x.gone || !x.node_id /* #7499: an upload on its way has no document yet */ ? '' : `<a class="btn sm ghost" href="#docs/${x.node_id}">${tr('Open')}</a>`}<button class="btn sm ghost" data-cc="unmatch" data-id="${x.id}">${ic('undo', 's')}<span>${tr('Undo match')}</span></button>${/*html-ok*/ mk}</div></li>`;
   if (x.state !== 'open') return `<li class="bnkrow done${esc(rwCls(W, x))}" data-rwk="${esc(rwKey(x))}">${head}<div class="bnkacts"><span class="rotag">${esc(x.state === 'private' ? tr('Private') : tr('No receipt needed'))}</span><button class="btn sm ghost" data-cc="mark" data-id="${x.id}" data-v="open">${ic('undo', 's')}<span>${tr('Needs a receipt')}</span></button>${/*html-ok*/ mk}</div></li>`;
   const sg = x.suggestion;
   return `<li class="bnkrow${esc(rwCls(W, x))}" data-rwk="${esc(rwKey(x))}">${head}
@@ -221,9 +221,8 @@ function ccTake(sid, j) {
 // false after an error
 async function ccAct(id, vals, req, label, undo, redo, then, said) {
   const sid = CC.sid;
-  let j; try { j = await ccW().act('i' + id, optSet(() => CC.sid === sid ? ccLineOf(id) : null, vals), req); } catch (x) { return false; }
-  then?.(j); ccTake(sid, j);
-  const e = histAdd({label, res: j, undo: async () => { const r = await undo(); ccTake(sid, r); }, redo: async () => { const r = await redo(); ccTake(sid, r); }});
+  let j; try { j = await ccW().act('i' + id, optSet(() => CC.sid === sid ? ccLineOf(id) : null, vals), req, x => { then?.(x); ccTake(sid, x); }); } catch (x) { return false; }
+  const e = histAdd({label, res: j, undo: async () => { ccTake(sid, await undo()); ofcDraw(); }, redo: async () => { ccTake(sid, await redo()); ofcDraw(); }});
   offerUndo(said || label, e);
   return e;
 }
