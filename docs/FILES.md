@@ -58,12 +58,12 @@ answers with the summary. Kalmido calls no language model itself; undo removes t
 ## How to: Set up a scan inbox
 <!-- user-help: files -->
 <!-- show: settings.open -->
-<!-- show: settings.integrations -->
+<!-- show: settings.documents -->
 <!-- show: files.scan-inbox -->
 
 A scan inbox sends new scans from a folder on your computer (or from your scanner) straight into your documents.
 
-1. Open **Settings** > **Connections** and scroll to **Documents: inboxes**.
+1. Open **Settings** > **Documents** (in Documents: the button **Settings** in the head) and scroll to **Documents: inboxes**.
 2. Under **Folder watcher**, download the program for your computer (Mac or Windows).
 3. Open **New scan inbox**, give it a **Name**, pick the folder under **Into folder** and select **Create inbox**.
 4. Kalmido shows a **Setup code** only this once. Select **Copy**, start the program, paste the code and choose the folder to watch.

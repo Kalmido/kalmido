@@ -90,6 +90,8 @@ window.__mark = lab => { document.querySelectorAll('[data-t998]').forEach(x => x
     let m = await ev(`__menu()`);
     check(m.labels[0] === 'New task' && m.labels[1] === 'Link with a task…' && m.labels[2] === 'Add to favourites', '#5688: task and star on top ' + JSON.stringify(m.labels));
     check(['Share…', 'Upload a new version…', 'Move to…'].every(x => m.labels.includes(x)), '#5688: the rarer actions stay in it ' + JSON.stringify(m.labels));
+    // (#7017, audit D10): after the task the groups of the file menu - Open (the star first) / Share / Edit
+    check(m.labels.indexOf('Share…') > m.labels.indexOf('Add to favourites') && m.labels.indexOf('Upload a new version…') > m.labels.indexOf('Share…') && m.labels.indexOf('Move to…') > m.labels.indexOf('Upload a new version…'), '#7017: Open, Share, Edit in the order of the file menu ' + JSON.stringify(m.labels));
     check(m.focus && !m.sheet && m.inside, '#5688: the focus on its first entry, a popover inside the window ' + JSON.stringify(m));
     await shot('p21011-a-actions-1440.png');
     await ev(`(() => { document.activeElement.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true})); return 1; })()`);

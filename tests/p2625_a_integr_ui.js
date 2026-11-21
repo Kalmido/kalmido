@@ -45,8 +45,9 @@ const closeAll = d => d.querySelectorAll('.modal').forEach(m => m.remove());
     check(rows.every(x => !x.open), `${who}: every row starts closed`);
     check(rows.every(x => x.querySelector(':scope > summary > svg') && (x.querySelector(':scope > summary > b')?.textContent || '').trim()), `${who}: every row has an icon and a name`);
     check(!pane.querySelector(':scope > h4'), `${who}: no heading of an integration outside its row`);
-    for (const [k, h] of [['cals', '#s-cals-h'], ['ical', '#s-ical-h'], ['kk', '#s-kk-h'], ['nwl', '#s-nwl-h'], ['mail', '#s-mail-h'], ['share', '#s-share-h'], ['bmlet', '#s-bmlet-h'], ['carddav', '#s-carddav-h'], ['scan', '#s-scan-h']])
+    for (const [k, h] of [['cals', '#s-cals-h'], ['ical', '#s-ical-h'], ['kk', '#s-kk-h'], ['nwl', '#s-nwl-h'], ['mail', '#s-mail-h'], ['share', '#s-share-h'], ['bmlet', '#s-bmlet-h'], ['carddav', '#s-carddav-h']])
       check(row(d, k)?.querySelector(`.introw-b ${h}`), `${who}: the row ${k} holds the form (${h})`);
+    check(row(d, 'scan')?.querySelector('.introw-b [data-jump="#s-scan-h"]') && !row(d, 'scan').querySelector('#s-scan-h'), `${who}: (#7017) the row "Documents: inboxes" only points to Settings > Documents`);
     check(/Calendar subscription/.test(row(d, 'ical')?.querySelector('summary')?.textContent || ''), `${who}: the row is named like its section`);
 
     // ---- the state from the data the pane loads

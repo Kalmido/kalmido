@@ -263,7 +263,7 @@ function dc_headHtml(fold) {
       <div class="ctsearch">${ic('search', 's')}<input type="search" id="dc-q" value="${esc(DC.q)}" placeholder="${esc(fold ? tr('Search in this folder…') : tr('Search in the documents…'))}" aria-label="${esc(fold ? tr('Search in this folder') : tr('Search in the documents'))}" autocomplete="off"></div>
       ${seg}
       <button type="button" class="btn sm ${active ? 'on' : ''}" data-dc="more" aria-expanded="${!!DC.more}">${ic('filter', 's')} <span>${tr('Filter')}</span>${active ? ` <span class="dc-count">${dc_fEntries().length}</span>` : ''}</button>${dc_sortBtn()}${/*html-ok*/ typeof dcv_barHtml === 'function' ? dv ? dcv_barHtml() : dc_wide(dcv_barHtml(), tr('Save view'), 'bookmark', '[data-dcv="save"]') : '' /* 2.579.0 (#4802); 2.1163.0 (#6111): an open view keeps its name in the bar on a phone too (which filter is on), only Save view goes into "…" */}${/*html-ok*/ tsOn ? dc_wide(ts_barHtml(), '') + (typeof ab_tsWide === 'function' ? ab_tsWide() : '') : '' /* 2.583.0 (#4812); 2.769.0 (#5340): no card size above the list */}
-      <span class="dc-acts2">${add}${/*html-ok*/ dc_wide(dc_smvBtn(), tr('Select'), 'check')}${/*html-ok*/ dc_wide(`<button type="button" class="iconbtn" data-dc="lists" aria-label="${esc(tr('Senders, types and fields'))}" title="${esc(tr('Senders, types and fields'))}">${ic('list')}</button>`, tr('Senders, types and fields'), 'list')}${/*html-ok*/ dc_wide(`<button type="button" class="iconbtn" data-dc="settings" aria-label="${esc(tr('Settings of the documents'))}" title="${esc(tr('Settings of the documents'))}">${ic('gear')}</button>`, tr('Settings of the documents'), 'gear')}${/*html-ok*/ typeof ab_mbtnHtml === 'function' ? ab_mbtnHtml() : ''}</span>
+      <span class="dc-acts2">${add}${/*html-ok*/ dc_wide(dc_smvBtn(), tr('Select'), 'check')}${/*html-ok*/ dc_wide(`<button type="button" class="btn sm" data-dc="settings" title="${esc(tr('Settings of the documents'))}">${esc(tr('Settings'))}</button>`, tr('Settings'), 'gear') /* (#7017, audit D9): one text button instead of two symbols; the lists open from Settings > Documents */}${/*html-ok*/ typeof ab_mbtnHtml === 'function' ? ab_mbtnHtml() : ''}</span>
     </div>
     ${DC.more && !isMobile() ? `<div class="dc-fpanel dc-flt">${dc_fltHtml()}</div>` : ''}${dc_fbarHtml()}${dc_learnBar() /* 2.607.0 (#4872) */}
     ${DC.waiting ? `<p class="muted dc-wait" role="status">${ic('hourglass', 's')} ${esc(trn('{0} document is being recognised…', '{0} documents are being recognised…', DC.waiting))}</p>` : ''}`;
@@ -939,7 +939,7 @@ const dc_leave = md => new Promise(res => {
 
 // ---- settings of a workspace: level per feature, archive numbers, rules, the lists and custom fields
 // 2.365.2 B (#2789): the settings live in Settings > Documents (dcs_paneHtml / dcs_draw, the workspace shown in the sidebar),
-// the inboxes (folder, folder watcher, mail) in Settings > Integrations (docscan.js); the module keeps the dialog for its
+// with the inboxes (folder, folder watcher, mail; docscan.js, #7017 - Connections only points here); the module keeps the dialog for its
 // lists (senders, types, tags) and custom fields. dc_sDraw draws both, the handlers below serve both.
 async function dc_settings(ws = dc_setWs()) {
   let s; try { s = await api('GET', `/api/docs/settings?ws=${encodeURIComponent(ws)}`); } catch { return; }
@@ -958,8 +958,7 @@ function dcs_paneHtml() {
     <h4 id="s-dcs-rules-h">${tr('Rules')}</h4><div data-dcsp="rules"></div>
     <h4 id="s-dcs-lists-h">${tr('Senders, types and tags')}</h4>
     <div class="row"><span class="muted">${tr('Senders, document types, tags and custom fields are kept in Documents.')}</span><button type="button" class="btn sm" data-dcs="lists">${ic('list', 's')} ${tr('Open in Documents')}</button></div>
-    <h4 id="s-dcs-in-h">${tr('Inboxes')}</h4>
-    <div class="row"><span class="muted">${tr('The folder of the file store, the folder watcher, scan inboxes and the e-mail address: Settings > Connections.')}</span><button type="button" class="btn sm" data-dcs="go-integr">${ic('link', 's')} ${tr('Open Connections')}</button></div>
+    ${/*html-ok*/ typeof dsc_integrHtml === 'function' ? dsc_integrHtml(false) : '' /* docscan.js builds it escaped; (#7017, audit D9): the inboxes (folder, folder watcher, scan inboxes, e-mail) live here, Connections keeps a pointer */}
     <div data-dcsp="pl"></div></div>`;
 }
 async function dcs_draw(md) {
@@ -968,6 +967,7 @@ async function dcs_draw(md) {
   let s; try { s = await api('GET', `/api/docs/settings?ws=${encodeURIComponent(dc_setWs())}`); } catch { $('[data-dcsp="head"]', box).textContent = ''; return; }
   if (!box.isConnected) return;
   DC.set = s; dc_sDraw(box);
+  if (typeof dsc_integrDraw === 'function') dsc_integrDraw(md);  // (#7017): the inboxes of the same workspace (docscan.js)
 }
 function dc_wsName(ws) {
   if (ws === 'private') return tr('Private|workspace');  // 2.582.0 (#4831): same name as in the file store
@@ -1123,7 +1123,7 @@ async function dc_sClick(e) {
   if (a === 'close') { md.remove(); return; }
   // 2.365.2 B (#2789): the ways between Settings > Documents, Integrations and the lists of the module
   if (a === 'go-set') { md.remove(); settingsModal('docs'); return; }
-  if (a === 'lists' || a === 'go-integr') { const sm = md.closest('.modal'); if (sm) modalClose(sm); if (a === 'lists') { go('ablage/docs'); dc_settings(s?.ws); } else settingsModal('scans'); return; }
+  if (a === 'lists') { const sm = md.closest('.modal'); if (sm) modalClose(sm); go('ablage/docs'); dc_settings(s?.ws); return; }
   if (a === 'fadd' || /^f(ren|opt|del):/.test(a)) return dc_cfAct(a, s, md);  // 2.153.0 (#2179)
   if (a.startsWith('redit:') && typeof dfl_edit === 'function') { dfl_edit(md, s, +a.slice(6)); return; }  // 2.635.0 (#4856): edit a flow
   if (a === 'radd' && typeof dfl_save === 'function' && b.closest('.dfl-add')?.dataset.edit) { await dfl_save(md, s, +b.closest('.dfl-add').dataset.edit); return; }

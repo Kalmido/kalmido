@@ -3,7 +3,7 @@
 // the scan inboxes of this workspace, a new inbox shows its setup code once) and the forwarding address with a copy button and
 // the note, shown big once per person, that mail is not end-to-end encrypted.
 const DSCN = {code: '', ws: '', md: null, es: /** @type {any} */ (null), edit: 0, want: /** @type {any} */ (null)};  // edit: the inbox whose edit form is open (#4886)  // the setup code just made: only while this settings dialog is open
-// 2.353.0 B (#2773): the folder watcher lives in Settings > Integrations (dsc_integrDraw)
+// (#2773): the folder watcher (dsc_integrDraw); #7017: drawn in Settings > Documents, Connections only points there
 // 2.365.2 B (#2789): the whole block "Documents: inboxes" is there now (the folder of the file store, the folder watcher with
 // the scan inboxes, the forwarding address); the document settings only point to it
 // Settings > Integrations: the whole part (download, set-up code, inboxes with their last use) for the shown workspace

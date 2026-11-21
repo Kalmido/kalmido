@@ -2,12 +2,12 @@
 of the English text it was translated from. **Bold** = the label exactly as the interface shows it.
 Check: python3 tools/check_userhelp.py. -->
 
-<!-- help: files#how-to-set-up-a-scan-inbox src=5124ce3a66 -->
+<!-- help: files#how-to-set-up-a-scan-inbox src=e3875c5bca -->
 ## Configurare una casella di scansione
 
 Una casella di scansione invia le nuove scansioni da una cartella del tuo computer direttamente nei tuoi documenti.
 
-1. Apri **Impostazioni** > **Connessioni** e vai a **Documenti: ingressi**.
+1. Apri **Impostazioni** > **Documenti** (in Documenti: il pulsante **Impostazioni** in alto) e vai a **Documenti: ingressi**.
 2. In **Osservatore cartelle** scarica il programma per il tuo computer (Mac o Windows).
 3. Apri **Nuova casella di scansione**, scrivi un **Nome**, scegli la cartella in **Nella cartella** e tocca **Crea casella**.
 4. Kalmido mostra il **Codice di configurazione** solo questa volta. Tocca **Copia**, avvia il programma, incolla il codice e

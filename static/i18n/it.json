@@ -14081,7 +14081,6 @@
   "Archive numbers": "Numeri d’archivio",
   "Senders, document types, tags and custom fields are kept in Documents.": "Mittenti, tipi di documento, tag e campi personalizzati si gestiscono in Documenti.",
   "Open in Documents": "Apri in Documenti",
-  "Inboxes": "Ingressi",
   "Senders, types and fields": "Mittenti, tipi e campi",
   "Sorting automatically, archive numbers and rules: Settings > Documents.": "Ordinamento automatico, numeri d’archivio e regole: Impostazioni > Documenti.",
   "Documents: inboxes": "Documenti: ingressi",
@@ -19707,5 +19706,11 @@
   "documents from templates": "documenti da modelli",
   "invoice series": "serie di fatture",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "Il cliente di questo documento non è più in questo ufficio (spostato in un altro spazio di lavoro). Scegli prima un altro cliente.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Il cliente della fattura modello non è più in questo ufficio (spostato in un altro spazio di lavoro). Scegli un'altra fattura modello e riattiva la serie."
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Il cliente della fattura modello non è più in questo ufficio (spostato in un altro spazio di lavoro). Scegli un'altra fattura modello e riattiva la serie.",
+  "Folder settings": "Impostazioni della cartella",
+  "Open Documents settings": "Apri le impostazioni dei documenti",
+  "The folder of the file store, the folder watcher, scan inboxes and the e-mail address of the documents are in Settings > Documents.": "La cartella dell’archivio, l’osservatore cartelle, gli ingressi di scansione e l’indirizzo e-mail dei documenti sono in Impostazioni > Documenti.",
+  "Settings: Documents": "Impostazioni: Documenti",
+  "Manage feeds…": "Gestisci feed…",
+  "{0} of at most {1} feeds": "{0} di al massimo {1} feed"
 }

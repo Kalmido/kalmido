@@ -75,18 +75,22 @@ const DESK = {'(hover:hover) and (pointer:fine)': true};
     await until(() => w.eval('S.booted && typeof dsc_integrDraw === "function"'), 60);
     w.eval(`settingsModal('integr')`);
     const card = await until(() => d.querySelector('.icard[data-jump="#s-scan-h"]'));
-    check(!!card, 'Integrations: a card "Scans from your computer" (one click from the list of cards)');
-    check(await until(() => d.querySelector('#s-scan .dsc-way')), 'Integrations: the section is drawn (folder watcher)');
-    const txt = () => d.querySelector('#s-scan')?.textContent || '';
-    check(/Folder watcher/.test(txt()) && ((d.querySelector('#s-scan .dsc-dl')?.children.length || 0) >= 1 || /Not available on this server/.test(txt())), 'Integrations: the download (or the honest hint) is there');
-    check(!!d.querySelector('#s-scan-h') && !d.querySelector('#s-scan [data-dcs]'), 'Integrations: heading, the buttons are its own (data-dsc)');
+    check(!!card, 'Connections: a card "Documents: inboxes" (one click from the list of cards)');
+    // (#7017, audit D9): the inboxes live in Settings > Documents; Connections keeps only a pointer (no second copy)
+    check(!d.querySelector('[data-pane="integr"] #s-scan') && !!d.querySelector('[data-pane="integr"] [data-intr="scan"] [data-jump="#s-scan-h"]'), '#7017 Connections: only the pointer, the inboxes are not drawn there');
     check(!!d.querySelector('[data-pane="integr"] #s-api-h') && !d.querySelector('[data-pane="integr"] .aczlink'), '(#6368): the API tokens are rows of the same tab (Connections), no link to a tab Access');
-    // the document settings: a pointer, no second copy (2.365.2 B, #2789: Settings > Documents)
-    click(w, d.querySelector('.snav [data-sec="docs"]'));
-    await until(() => d.querySelector('#s-dcs [data-dcs="go-integr"]'));
-    check(!d.querySelector('#s-dcs .dsc-dl') && !d.querySelector('#s-dcs .dsc-new') && !!d.querySelector('#s-dcs [data-dcs="go-integr"]'), 'document settings: only the pointer to Integrations');
-    click(w, d.querySelector('#s-dcs [data-dcs="go-integr"]'));
-    check(await until(() => !d.querySelector('[data-pane="integr"]')?.classList.contains('hidden') && d.querySelector('#s-scan .dsc-way')), 'the pointer opens Integrations at the section (one click)');
+    click(w, card);
+    const shownPane = k => !d.querySelector(`[data-pane="${k}"]`)?.classList.contains('hidden');
+    check(await until(() => shownPane('docs') && d.querySelector('[data-pane="docs"] #s-scan .dsc-way')), '#7017 the card opens Settings > Documents at the inboxes (one click)');
+    const txt = () => d.querySelector('#s-scan')?.textContent || '';
+    check(/Folder watcher/.test(txt()) && ((d.querySelector('#s-scan .dsc-dl')?.children.length || 0) >= 1 || /Not available on this server/.test(txt())), 'Settings > Documents: the download (or the honest hint) is there');
+    check(!!d.querySelector('#s-dcs #s-scan-h') && !d.querySelector('#s-scan [data-dcs]'), 'Settings > Documents: heading, the buttons are its own (data-dsc)');
+    // back: Connections again
+    w.eval(`(() => { let e = document.querySelector('[data-pane="docs"]'); while (e && !e._back) e = e.parentElement; return e ? e._back() : false; })()`);
+    check(await until(() => shownPane('integr')), '#7017 Back: Connections again');
+    // the pointer row does the same
+    click(w, d.querySelector('[data-pane="integr"] [data-intr="scan"] [data-jump="#s-scan-h"]'));
+    check(await until(() => shownPane('docs')), '#7017 the pointer in Connections opens Settings > Documents');
     w.close();
   }
 

@@ -2,12 +2,12 @@
 of the English text it was translated from. **Bold** = the label exactly as the interface shows it.
 Check: python3 tools/check_userhelp.py. -->
 
-<!-- help: files#how-to-set-up-a-scan-inbox src=5124ce3a66 -->
+<!-- help: files#how-to-set-up-a-scan-inbox src=e3875c5bca -->
 ## Configurer une boîte de scans
 
 Une boîte de scans envoie les nouveaux scans d'un dossier de ton ordinateur directement dans tes documents.
 
-1. Ouvre **Paramètres** > **Connexions** et va à **Documents : entrées**.
+1. Ouvre **Paramètres** > **Documents** (dans Documents : le bouton **Paramètres** en haut) et va à **Documents : entrées**.
 2. Sous **Surveillance de dossier**, télécharge le programme pour ton ordinateur (Mac ou Windows).
 3. Ouvre **Nouvelle boîte de scans**, saisis un **Nom**, choisis le dossier sous **Dans le dossier** et touche **Créer la boîte**.
 4. Kalmido affiche le **Code d’installation** une seule fois. Touche **Copier**, lance le programme, colle le code et choisis

@@ -684,28 +684,36 @@ async function ab_newVersionFile(n, f) {
 }
 function ab_menu(anchor, n, pick) { menu(anchor, pick ? [...cm_selHead(n.name, pick), ...ab_menuItems(n)] : ab_menuItems(n), null, null, pick ? '' : n.name); }  // 2.607.0 (#4612): pick = "Select" on top
 // 2.199.0 A (#2742): the items of a node's menu (the row's "…", the tree's right-click / long press); tree: + New folder…
+// (#7017, audit D9/D10): the groups Open / Share / Edit / Folder settings (menuTidy drops an empty one), the trash apart as the
+// last; docview.js dcv_actItems keeps the same order for a document's "Actions"
 function ab_menuItems(n, tree) {
   const w = ab_canWrite(n), own = n.role === 'owner', f = n.kind !== 'folder', ref = n.kind === 'ref';
+  const abd = typeof abd_menuItems === 'function' ? abd_menuItems(n) : [];  // (#2759): Open as document / Recognise / Recognition…
   return [
+    {head: tr('Open')},
     f ? {label: tr('Open'), icon: 'eye', fn: () => n._open ? n._open() : ab_openFile(n)} : null,  // 2.768.0 (#4888): _open = a document card's own way (its list to leaf through)
     ...(f && n._spl && typeof spl_item === 'function' ? spl_item(n._spl) : []),  // 2.742.0 (#4858): a document card: Open on the right
+    ...(f ? abd.filter(x => x.icon === 'file') : []),  // Open as document
     ...(ref ? [] : fv2_menuRow('file:' + n.id)),  // 2.441.0 (#3592)
     f && !ref ? {label: tr('Download'), icon: 'download', fn: () => { if (n._enc && typeof fsl_open === 'function') return fsl_open(n, true); const a = document.createElement('a'); a.href = ab_url(n, true); a.download = attDlName(n.name, n.mime); document.body.appendChild(a); a.click(); a.remove(); }} : null,  // 2.750.0 (#4876): + the ending
-    tree && w && !f ? {label: tr('New folder…'), icon: 'plus', fn: () => ab_newFolder(n.id)} : null,
     n.kind === 'folder' ? {label: tr('Download'), icon: 'download', fn: () => abm_download([n])} : null,  // (#2058)
     {label: tr('History'), icon: 'clock', fn: () => ab_detailsOf(n)},  // (#4888): a file: the document view's tab History
-    w && n.kind === 'folder' && !n.agent_id && !n.locked ? {label: tr('Request files…'), icon: 'upload', fn: () => frq_open(n)} : null,  // 2.122.0 A (#2097)
+    {head: tr('Share')},
     own ? {label: tr('Share…'), icon: 'users', fn: () => ab_share(n.id)} : null,
     typeof xl_menuItem === 'function' && !n.locked ? xl_menuItem(n) : null,  // 2.112.1 B (#2058); 2.353.0 A (#2758): no links for externals
-    typeof fsl_menuItem === 'function' ? fsl_menuItem(n) : null,  // 2.353.0 A (#2758): lock / the lock's dialog
-    ...(typeof abd_menuItems === 'function' ? abd_menuItems(n) : []),  // 2.353.0 D (#2759): Recognise / Recognition…
-    ...(typeof dsc_folderItems === 'function' ? dsc_folderItems(n) : []),  // 2.1048.0 (#5821): Scan inbox for this folder… (docscan.js)
-    '-',
+    w && n.kind === 'folder' && !n.agent_id && !n.locked ? {label: tr('Request files…'), icon: 'upload', fn: () => frq_open(n)} : null,  // (#2097)
+    {head: tr('Edit')},
+    tree && w && !f ? {label: tr('New folder…'), icon: 'plus', fn: () => ab_newFolder(n.id)} : null,
     w && n.kind === 'file' ? {label: tr('Upload a new version…'), icon: 'upload', fn: () => ab_newVersion(n)} : null,
     w && !ref ? {label: tr('Rename…'), icon: 'edit', fn: () => ab_rename(n)} : null,
     w && typeof dt_abEdit === 'function' ? {label: tr('Tags…'), icon: 'tag', fn: () => dt_abEdit(n)} : null,  // 2.122.0 B (#2099)
+    ...(f ? abd.filter(x => x.icon !== 'file') : []),  // Recognise (a file outside a recognising folder)
     w ? {label: tr('Move to…'), icon: 'arrow', fn: () => ab_moveDlg(n)} : null,
     ab_smvOk(n) && !n.locked && smv_can(n.org_id) ? {label: tr('Move to another workspace…'), icon: 'building', fn: () => ab_smvSpace([n])} : null,  // 2.96.0 A (#1941)
+    typeof fsl_menuItem === 'function' ? fsl_menuItem(n) : null,  // (#2758): lock / the lock's dialog
+    {head: tr('Folder settings')},
+    ...(f ? [] : abd),  // Recognition…
+    ...(typeof dsc_folderItems === 'function' ? dsc_folderItems(n) : []),  // (#5821): Scan inbox for this folder… (docscan.js)
     '-',
     w && (n.parent_id || own) ? {label: tr('Move to the trash'), icon: 'trash', cls: 'danger', fn: () => ab_delete(n)} : null];
 }

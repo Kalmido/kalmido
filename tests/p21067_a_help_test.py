@@ -95,8 +95,8 @@ check(h.get("file") == "API.md" and "Scan inboxes: folder watcher" in (h.get("pa
       f"a hit carries file, the headings and a snippet: {h}")
 sec = read(ag, SCAN, lang="de")
 txt = sec.get("text", "") if isinstance(sec, dict) else ""
-check(txt.startswith("## Scan inboxes: folder watcher") and "Settings > Connections > *Documents: inboxes*" in txt,
-      "read: the section with the path of the interface (Settings > Connections > Documents: inboxes, #6368)")
+check(txt.startswith("## Scan inboxes: folder watcher") and "Settings > Documents > *Documents: inboxes*" in txt,
+      "read: the section with the path of the interface (Settings > Documents > Documents: inboxes, #7017)")
 check("never an" in txt and "only a person can create one" in txt, "read: only a person creates a scan inbox, never an agent")
 check("## Help for agents" not in txt and "Web routes of the settings" in txt, "read: up to the next heading of the same rank, not beyond")
 ui = sec.get("ui_terms", {}) if isinstance(sec, dict) else {}
