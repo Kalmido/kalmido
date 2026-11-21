@@ -7,7 +7,7 @@
 // the receipt sheet of office_books.js (bkSheet); after saving the list reloads (rclReload). The filters stay for the
 // session (sessionStorage). Server: kalmido/office/receiptlist.py.
 // 2.420.0 C (#3448): sel = the receipts ticked in the multiple choice (null: not choosing), busy = a check request running
-const RCL = {oid: null, f: null, data: null, rows: [], err: null, seq: 0, key: '', loading: false, open: null, sel: null, busy: false};
+const RCL = {oid: null, f: null, data: null, rows: [], err: null, seq: 0, key: '', rowsQ: '', loading: false, open: null, sel: null, busy: false};
 const RCL_PERIODS = [['year', N_('This year')], ['lastyear', N_('Last year')], ['quarter', N_('This quarter')], ['lastquarter', N_('Last quarter')],
   ['month', N_('This month')], ['lastmonth', N_('Last month')], ['custom', N_('Custom period')]];
 const rclIso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -40,14 +40,20 @@ function rclQuery() {
   return p.toString();
 }
 let rclPend = Infinity;  // 2.299.0 D (#3193): receipts the last request left unchecked
+// #7502: the same filters read again (after a save, an undo) keep every row loaded with "Load more" (was: back to the first 200,
+// the list jumped); pages of at most 500 (the server's ceiling)
 async function rclLoad(more) {
-  const seq = ++RCL.seq, q = rclQuery();
+  const seq = ++RCL.seq, q = rclQuery(), at = more ? RCL.rows.length : 0, want = !more && RCL.rowsQ === q ? Math.max(200, RCL.rows.length) : 200;
   RCL.loading = true;
   try {
-    const j = await api('GET', `/api/office/books/receipts?${q}&limit=200&offset=${more ? RCL.rows.length : 0}`);
-    if (seq !== RCL.seq) return;
-    RCL.rows = more ? RCL.rows.concat(j.rows) : j.rows;
-    Object.assign(RCL, {data: j, err: null, key: q});
+    let j, rows = [];
+    do {
+      j = await api('GET', `/api/office/books/receipts?${q}&limit=${Math.min(500, want - rows.length)}&offset=${at + rows.length}`);
+      if (seq !== RCL.seq) return;
+      rows = rows.concat(j.rows || []);
+    } while (j.more && j.rows?.length && rows.length < want);
+    RCL.rows = more ? RCL.rows.concat(rows) : rows;
+    Object.assign(RCL, {data: j, err: null, key: q, rowsQ: q});
     // 2.299.0 D (#3193): receipts not checked yet -> the next request checks the next ones (only while the number goes down)
     if (!more && j.hints_pending && j.hints_pending < rclPend) { rclPend = j.hints_pending; RCL.key = ''; } else rclPend = Infinity;
   } catch (x) { if (seq === RCL.seq) { RCL.err = ofcErrHere(x); RCL.key = q; } }
@@ -140,9 +146,9 @@ function rclRow(r) {
     return `<li><label class="ofcrow rcl-pick"><input type="checkbox" class="rcl-pickin" data-id="${r.node_id}" ${RCL.sel.has(r.node_id) ? 'checked' : ''}>
       <span class="ofcn"><b>${esc(r.title || tr('Receipt'))}</b><small class="muted">${esc(sub)}</small></span>${chk}<span class="rksum">${ofcMoney(r.amount)}${orig}</span></label></li>`;
   }
-  return `<li><button type="button" class="ofcrow" data-rcl="rc" data-id="${r.node_id}"${RCL.dockId === r.node_id ? ' aria-current="true"' : '' /* 2.557.0 A (#4553) */}><span class="ofcn"><b>${esc(r.title || tr('Receipt'))}</b>
+  return `<li class="${esc(typeof bkRwCls === 'function' ? bkRwCls(r.node_id).trim() : '')}"><button type="button" class="ofcrow" data-rcl="rc" data-id="${r.node_id}"${RCL.dockId === r.node_id ? ' aria-current="true"' : '' /* (#4553) */}><span class="ofcn"><b>${esc(r.title || tr('Receipt'))}</b>
     <small class="muted">${esc(sub)}</small></span>${chk}${r.einvoice ? `<span class="rotag">${tr('E-invoice')}</span>` : ''}${r.dup ? `<span class="rotag bk-dup">${tr('Possible duplicate')}</span>` : ''}${r.hints > (r.dup ? 1 : 0) ? `<span class="rotag rcl-hint">${tr('With hints')}</span>` : ''}${r.paid_at || !RCL.paidMark ? '' : `<span class="rotag rcl-open">${tr('Not paid')}</span>`}${r.submitted_by ? `<span class="rotag rcl-sub">${esc(tr('Handed in by {0}', r.submitted_by))}</span>` : ''}
-    <span class="rksum">${ofcMoney(r.amount)}${orig}</span>${ic('right', 's')}</button></li>`;
+    <span class="rksum">${ofcMoney(r.amount)}${orig}</span>${ic('right', 's')}</button>${/*html-ok*/ typeof bkRwMark === 'function' ? bkRwMark(r.node_id) : '' /* #7502: the core's mark, its texts escaped */}</li>`;
 }
 // 2.420.0 C (#3448): the bar of the multiple choice: "Select" -> {n} selected, Mark as checked, Remove check, Cancel
 // 2.557.0 A (#4553): a content area of 100rem and more (#view.lsdw, render.js lsd_sync): the receipt opens on the right beside

@@ -2074,8 +2074,13 @@ First user: the quotation and invoice editor (`office_docs.js`: `ofd_W` (one wri
   wipes one still on its way), `W.busy(row)`. A refusal (4xx) goes to the change itself (`c.bad`: the dialog back with what was
   typed, a removed row back with the reason); only no answer / a server error marks the rows "Not saved - Try again". The
   answer gives the one row and what the server computes (`o.took`); once `W.last()` the area reads its list again in the
-  background. A row on its way opens once it is saved: `W.run(() => null).then(() => rwFind(rows, key))`. The parts and the calculation sheet (#7496), bank, cards,
-cash book, times, receipts, travel (#7497 - #7503) and the letters' autosave (#7504) follow on it. The `fdWrite` input guard
+  background. A row on its way opens once it is saved: `W.run(() => null).then(() => rwFind(rows, key))`. The positions of an open part and a
+shoot part's calculation sheet (#7496) go through the same writer of their document (one row, one version): `W.scopes` names what
+the next save sends (`'doc'`, a part's id, `'s' + id` for its sheet, `ofd_sendOne`); a scope that failed stays to send. The writer
+hangs on the document's id (`W.doc()`: the open `OFD.doc` of that id, else the last object it saw). The cash book's quick entry
+(#7500, `cb_W`: one writer per cash box, each entry its own `client_ref`), the receipts of the bookkeeping (#7502, `bk_W`: one
+writer per receipt; after a save only what is shown comes again, the list keeps its loaded rows), bank bookings (#7497), card
+positions (#7499), times and travel (#7503) and the letters' autosave (#7504) are on it too. The `fdWrite` input guard
 (#4547) stays under it. Tests hold the answers with `hold(w, re)` of `tests/boot.js` (`w.__go()`, `w.__fail(status)`,
 `w.__drop()`; `slow(w, re)` holds them all at once): `tests/p7493_schreiben_sofort_ui.js`, `tests/p7509_editor_kette_ui.js`.
 

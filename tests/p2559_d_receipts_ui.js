@@ -6,7 +6,7 @@
 // - the box "Checked" of the receipt sheet stays usable, "Checked by Alice" shows before the answer; a refusal (409, locked
 //   month) unticks it, the line goes back, the sheet says why
 // - Save of the receipt sheet: the sheet closes at once, the row shows the new category while the first request is held; a
-//   refusal puts the old category back
+//   refusal keeps it in the row with "Not saved - Try again" and brings the sheet back with it (#7502)
 // - none of these actions fetches the whole state again (no GET /api/state)
 // - 2.1362.0 (#6327): the sheet sends only the changed fields with its version: another device changed the category while
 //   the sheet was open -> a date changed here keeps their category; a VAT rate changed here -> 409, the sheet opens again on
@@ -131,11 +131,10 @@ async function receipt(ck, ws, name, amount, day) {
   check(/Software/.test(rowOf(R2)?.textContent || ''), 'the row shows the new category before the answer');
   check(await catOf(R2) === 'Material', 'the server has the old category still');
   w.__held[0].fail('Refused for the test');
-  check(await until(() => /Material/.test(rowOf(R2)?.textContent || '') && !/Software/.test(rowOf(R2)?.textContent || '')), 'the refusal puts the old category back');
-  // let through: both requests reach the server
-  d.querySelector(`.rcl-list [data-rcl="rc"][data-id="${R2}"]`).click();
-  check(await until(() => d.querySelector('.bk-sheet #bk-cat')), 'the sheet opens again');
-  d.querySelector('.bk-sheet #bk-cat').value = 'Software';
+  // #7502: a refusal keeps the typed value in the row with "Not saved - Try again" and brings the sheet back with it and the reason
+  check(await until(() => rowOf(R2)?.classList.contains('rw-failed') && /Software/.test(rowOf(R2)?.textContent || '') && rowOf(R2).querySelector('[data-rwagain]')), 'the refusal: the row keeps Software with "Not saved - Try again"');
+  check(await until(() => d.querySelector('.bk-sheet #bk-cat')?.value === 'Software' && /Refused for the test/.test(d.querySelector('.bk-sheet .aerr')?.textContent || '')), 'the sheet comes back with the typed category and the reason');
+  // let through from the sheet that came back: the request reaches the server
   d.querySelector('.bk-sheet [data-m="save"]').click();
   check(await until(() => w.__held.length === 2), 'the second Save is held');
   check(!d.querySelector('.bk-sheet') && /Software/.test(rowOf(R2)?.textContent || ''), 'closed and shown at once again');
