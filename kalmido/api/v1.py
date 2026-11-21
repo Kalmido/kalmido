@@ -433,7 +433,7 @@ def v1_task(d):
     return out
 
 
-ORIGIN_EXT = ("mail", "form", "errors", "webhook", "git")  # 2.1269.0 (#6431): where a task's title and notes come from outside Kalmido
+ORIGIN_EXT = ("mail", "form", "errors", "webhook", "git", "review")  # (#7533): review = a task from a customer's comment of a sign-off; 2.1269.0 (#6431): where a task's title and notes come from outside Kalmido
 ORIGIN_TT_GIT = ("github:", "gitlab:")  # 2.1269.0 (#6431): the issue import's own source key (importers.py "<source>:<conn>:<no>")
 
 

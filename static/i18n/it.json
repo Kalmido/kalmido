@@ -19711,5 +19711,6 @@
   "The task could not be created": "Non è stato possibile creare l’attività",
   "From the sign-off “{0}”": "Dall’approvazione «{0}»",
   "Tasks from a sign-off need a project you may write in": "Le attività da un’approvazione richiedono un progetto in cui puoi scrivere",
-  "Sign-off: {0}": "Approvazione: {0}"
+  "Sign-off: {0}": "Approvazione: {0}",
+  "Comment of the client {0} (guest)": "Commento del cliente {0} (ospite)"
 }

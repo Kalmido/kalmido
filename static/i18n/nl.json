@@ -19710,5 +19710,6 @@
   "The task could not be created": "De taak kon niet worden gemaakt",
   "From the sign-off “{0}”": "Uit de goedkeuring ‘{0}’",
   "Tasks from a sign-off need a project you may write in": "Taken uit een goedkeuring hebben een project nodig waarin je mag schrijven",
-  "Sign-off: {0}": "Goedkeuring: {0}"
+  "Sign-off: {0}": "Goedkeuring: {0}",
+  "Comment of the client {0} (guest)": "Opmerking van de klant {0} (gast)"
 }
