@@ -19706,5 +19706,20 @@
   "documents from templates": "documentos de plantillas",
   "invoice series": "series de facturas",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "El cliente de este documento ya no está en esta oficina (movido a otro espacio de trabajo). Elige primero otro cliente.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "El cliente de la factura plantilla ya no está en esta oficina (movido a otro espacio de trabajo). Elige otra factura plantilla y vuelve a activar la serie."
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "El cliente de la factura plantilla ya no está en esta oficina (movido a otro espacio de trabajo). Elige otra factura plantilla y vuelve a activar la serie.",
+  "Retest by the review job": "Nueva prueba por el trabajo de revisión",
+  "Retest by a person": "Nueva prueba por una persona",
+  "Retested by a person": "Una persona la vuelve a probar",
+  "What does not work?": "¿Qué no funciona?",
+  "required, the assignee sees it": "obligatorio, la persona asignada lo ve",
+  "Say what does not work": "Di qué no funciona",
+  "Retest after the build": "Nueva prueba tras la construcción",
+  "By a person": "Por una persona",
+  "By a review job": "Por un trabajo de revisión",
+  "A task the agent built is not closed: it goes into review with its commit. A person approves it or says what does not work; a review job tests it by itself.": "Una tarea que construyó el agente no se cierra: pasa a revisión con su commit. Una persona la aprueba o dice qué no funciona; un trabajo de revisión la prueba por sí mismo.",
+  "{0} handed the retest to a person": "{0} pasó la nueva prueba a una persona",
+  "{0} handed the retest back to the review job": "{0} devolvió la nueva prueba al trabajo de revisión",
+  "Only a person decides who retests a task": "Solo una persona decide quién vuelve a probar una tarea",
+  "Only in a project whose retest is done by a review job": "Solo en un proyecto cuya nueva prueba hace un trabajo de revisión",
+  "Only a person changes the retest of a project": "Solo una persona cambia la nueva prueba de un proyecto"
 }

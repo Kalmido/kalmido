@@ -959,7 +959,9 @@ MCP tool `wait_for_events`), see docs/AGENTS.md *Events* for the data of each:
 - `offer_accepted`: a quotation of your office area was accepted (`doc_id`, `client_id`, `list_id`, sums); only with your office switch on
   (or office groups with offers); `list_id` is null when the project is not shared with you
 - `review_requested`: you are the reviewer of a task that went into review (`review` {state, list_id, url}); check it, then
-  `review_task` approve, or changes with a short note what should change. Never approve a task assigned to you
+  `review_task` approve, or changes with a short note what should change. Never approve a task assigned to you.
+  #7535: a review whose note says *in review for the retest* belongs to the dispatcher's retest: leave it, its read-only
+  review job decides (or the person); you never set *retest by a person* (only a person may; recommend it in a comment)
 - `sprint_started` / `sprint_closed`: a sprint of a project shared with you started / was closed (`sprint`, with `review` when closed: done / moved / added task ids and points). Ticket types: `list_ticket_types` (2.609.0: the built-in and own types; with `list_id` the keys a project offers, use only those as a task's `type`). Sprints: `list_sprints`, `get_sprint` (tasks + burndown), `set_task_sprint` (into a sprint or back to the backlog; people plan and close sprints)
 - `chat_pinned`: the person pinned (`pinned: true`) or unpinned a message of your chat (`message`); information only, nothing to answer
   (the current pins of a conversation: `pins` in `GET /agent/chats?user_id=`)

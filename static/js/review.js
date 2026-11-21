@@ -42,8 +42,12 @@ function rvw_barHtml(t, ro) {
     may && (st === 'pending' || st === 'changes') ? b('approve', `${thumbIc(true)} ${tr('Approve')}`) : '',
     may && (st === 'pending' || st === 'approved') ? b('changes', `${thumbIc(false)} ${tr('Back|review')}`) : '',
     !ro && t.status === 0 && st !== 'pending' && (t.reviewer_id || cfg?.reviewer) ? `<button type="button" class="linkbtn" data-rvw="request" data-id="${t.id}">${tr('Send for review')}</button>` : '',
-    !ro ? `<button type="button" class="linkbtn" data-rvw="pick" data-id="${t.id}">${t.reviewer_id ? tr('Change reviewer') : tr('Select reviewer')}</button>` : ''].join('');
-  return `<div class="apbar rvwbar rvw-${st || 'none'}" role="status">${st === 'approved' ? thumbIc(true) : st === 'changes' ? thumbIc(false) : ic('eye', 's')}<span class="apt">${esc(txt)}</span>${acts ? `<span class="apacts">${acts}</span>` : ''}</div>`;
+    !ro ? `<button type="button" class="linkbtn" data-rvw="pick" data-id="${t.id}">${t.reviewer_id ? tr('Change reviewer') : tr('Select reviewer')}</button>` : '',
+    // (#7535): the project's retest is a review job: a person can hand this one task to a person (only shown then; the server
+    // refuses an agent); with the switch off or on "person" the field has no effect and is not shown
+    cfg?.retest === 'job' && !ro && t.status === 0 && !S.me?.kid ? `<button type="button" class="linkbtn" data-rvw="retest" data-id="${esc(t.id)}" aria-pressed="${t.retest_person ? 'true' : 'false'}">${t.retest_person ? tr('Retest by the review job') : tr('Retest by a person')}</button>` : ''].join('');
+  const rt = cfg?.retest === 'job' && t.retest_person ? ` · ${tr('Retested by a person')}` : '';
+  return `<div class="apbar rvwbar rvw-${st || 'none'}" role="status">${st === 'approved' ? thumbIc(true) : st === 'changes' ? thumbIc(false) : ic('eye', 's')}<span class="apt">${esc(txt + rt)}</span>${acts ? `<span class="apacts">${acts}</span>` : ''}</div>`;
 }
 const rvw_snap = t => ({reviewer_id: t.reviewer_id ?? null, review: t.review || '', section_id: t.section_id ?? null});
 async function rvw_post(id, b) { const r = await api('POST', `/api/tasks/${id}/review`, b); putTask(r); return r; }
@@ -54,7 +58,11 @@ async function rvw_do(id, act, extra = {}) {
   const before = rvw_snap(t);
   let note = '';
   if (act === 'changes') {
-    const v = await askPrompt(tr('What should change?'), '', {body: tr('optional, the assignee sees it'), input: {max: 2000}, ok: tr('Request changes')});
+    // (#7535): in a project with the retest on, "does not work" says why (the server refuses it without)
+    // the dialog stays open until there is one (askDialog submit)
+    const need = !!rvw_cfgOf(listById(t.list_id))?.retest;
+    const v = await askPrompt(need ? tr('What does not work?') : tr('What should change?'), '', {body: need ? tr('required, the assignee sees it') : tr('optional, the assignee sees it'), input: {max: 2000}, ok: tr('Request changes'),
+      submit: x => { if (need && !String(x || '').trim()) { toast(tr('Say what does not work')); return false; } return true; }});
     if (v === null) return;
     note = v;
   }
@@ -80,11 +88,20 @@ function rvw_pick(id) {
     if (b.dataset.m === 'save') rvw_do(id, 'reviewer', {reviewer_id: v ? +v : null});
   });
 }
+// (#7535): this task's retest by a person / back to the review job (one undo step)
+async function rvw_retest(id) {
+  const t = taskById(id); if (!t) return;
+  const on = !t.retest_person, set = async v => { await rvw_post(id, {action: 'retest_person', on: v}); await rvw_after(id); };
+  try { await set(on); } catch { return; }
+  const msg = on ? tr('Retest by a person') : tr('Retest by the review job');
+  offerUndo(msg, histAdd({label: msg, ids: [id], undo: async () => { await set(!on); return {skipped: []}; }, redo: async () => { await set(on); return {skipped: []}; }}));
+}
 document.addEventListener('click', e => {
   const a = e.target.closest?.('[data-rvw]'); if (!a) return;
   e.preventDefault(); e.stopPropagation();
   const id = +a.dataset.id, k = a.dataset.rvw;
   if (k === 'pick') rvw_pick(id);
+  else if (k === 'retest') rvw_retest(id);
   else rvw_do(id, k);
 });
 
@@ -96,13 +113,15 @@ function rvw_rowHtml(l) {
     <div class="lrvwx" ${cfg.on ? '' : 'hidden'}>
     <div class="row"><label for="l-rvw-who">${tr('Default reviewer')}</label><select id="l-rvw-who"><option value="">${tr('None')}</option>${ppl.map(p => `<option value="${p.user_id}" ${p.user_id === cfg.reviewer ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></div>
     <div class="row"><label for="l-rvw-sec">${tr('Review section')}</label><select id="l-rvw-sec"><option value="">${tr('The section named “Review”')}</option>${secs.map(s => `<option value="${s.id}" ${s.id === cfg.section ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select></div>
-    <div class="row"><span></span><label class="chkl"><input type="checkbox" id="l-rvw-gate" ${cfg.gate ? 'checked' : ''}> ${tr('Done only after approval')}</label></div></div>
+    <div class="row"><span></span><label class="chkl"><input type="checkbox" id="l-rvw-gate" ${cfg.gate ? 'checked' : ''}> ${tr('Done only after approval')}</label></div>
+    <div class="row"><label for="l-rvw-ret">${tr('Retest after the build')}</label><select id="l-rvw-ret">${[['', tr('Off')], ['person', tr('By a person')], ['job', tr('By a review job')]].map(([v, n]) => `<option value="${esc(v)}" ${(cfg.retest || '') === v ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
+    <div class="shint lhint">${tr('A task the agent built is not closed: it goes into review with its commit. A person approves it or says what does not work; a review job tests it by itself.')}</div></div>
     <div class="shint lhint">${tr('Moving a task into the review section asks its reviewer for the approval. Pull requests that are merged or approved count too.')}</div>`;
 }
 function rvw_val(md) {
   if (!$('#l-rvw', md)?.checked) return {on: false};
   const w = $('#l-rvw-who', md).value, s = $('#l-rvw-sec', md).value;
-  return {on: true, reviewer: w ? +w : null, section: s ? +s : null, gate: $('#l-rvw-gate', md).checked};
+  return {on: true, reviewer: w ? +w : null, section: s ? +s : null, gate: $('#l-rvw-gate', md).checked, retest: $('#l-rvw-ret', md)?.value || ''};
 }
 function rvw_wire(md, id) {
   if (!$('#l-rvw', md)) return;
@@ -113,12 +132,12 @@ function rvw_wire(md, id) {
     const put = async b => { const j = await api('PUT', `/api/lists/${id}/review`, b); const x = listById(id); if (x) x.review_cfg = j.review_cfg; return j; };
     try { await put(v); } catch { $('#l-rvw', md).checked = !!was.on; $('.lrvwx', md).hidden = !was.on; return; }
     render();
-    const old = was.on ? {on: true, reviewer: was.reviewer ?? null, section: was.section ?? null, gate: !!was.gate} : {on: false};
+    const old = was.on ? {on: true, reviewer: was.reviewer ?? null, section: was.section ?? null, gate: !!was.gate, retest: was.retest || ''} : {on: false};
     offerUndo(v.on ? tr('Review step saved') : tr('Review step off'), histAdd({label: tr('Review step'),
       undo: async () => { await put(old); await load(); render(); return {skipped: []}; },
       redo: async () => { await put(v); await load(); render(); return {skipped: []}; }}));
   };
-  for (const s of ['#l-rvw', '#l-rvw-who', '#l-rvw-sec', '#l-rvw-gate']) $(s, md)?.addEventListener('change', e => { e.stopPropagation(); go(); });
+  for (const s of ['#l-rvw', '#l-rvw-who', '#l-rvw-sec', '#l-rvw-gate', '#l-rvw-ret']) $(s, md)?.addEventListener('change', e => { e.stopPropagation(); go(); });
 }
 
 // ---- the notification row "review" (account.js matrix, dialogs.js owner templates) and the News / activity lines
@@ -135,7 +154,7 @@ function rvw_newsText(it, d, who, q) {
 function rvw_actText(d, who, q, U) {
   if (d.state === 'approved' && d.pr) return tr('A linked pull request approved the review: {0}', q(d.pr));
   const t = {pending: tr('{0} asked {1} for a review', who, q(uname(d.reviewer, U))), approved: tr('{0} approved the review', who),
-    changes: tr('{0} sent the task back from review', who), reviewer: d.reviewer ? tr('{0} made {1} the reviewer', who, q(uname(d.reviewer, U))) : tr('{0} removed the reviewer', who),
+    changes: tr('{0} sent the task back from review', who), retest_person: tr('{0} handed the retest to a person', who), retest_job: tr('{0} handed the retest back to the review job', who), reviewer: d.reviewer ? tr('{0} made {1} the reviewer', who, q(uname(d.reviewer, U))) : tr('{0} removed the reviewer', who),
     '': tr('{0} reset the review', who)}[d.state] || '';
   return t + (d.note ? ': ' + q(d.note) : '');
 }
