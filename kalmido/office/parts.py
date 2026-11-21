@@ -24,7 +24,7 @@ from .homecur import hc_home  # 2.189.0 (#2475)
 from .doclang import doc_txt
 from .model import PARTS_TITLE_FILM, UNITS, office_role, office_settings
 from .packs import office_pack_for
-from .docs import doc_items, _calc_doc, DUP_ITEM_SKIP, doc_public, doc_row, recalc, _iid, clean_items  # 2.369.5 (#2517): pulled up from functions
+from .docs import doc_items, _calc_doc, DUP_ITEM_SKIP, doc_public, doc_row, recalc, _iid, clean_items  # (#2517): pulled up from functions
 from .docs import doc_lite, ofd_item_write, ofd_items_read, ofd_wants_lite  # (#7505)
 from .ledger import ofx_need_editable, ofx_log, ofx_diff, ofx_items_brief  # 2.369.5 (#2517): pulled up from functions
 from .okern import ofk_register, ofk_trash  # 2.1005.0 (#5415): a deleted part into the core's trash
@@ -539,7 +539,7 @@ def _tp_totals_public(p, admin):
     if not admin:
         for k in ("costs", "margin"):
             t.pop(k, None)
-        # 2.47.0 (#1216): defensive -- no purchase, markup or intern / extern per line for members
+        # (#1216): defensive -- no purchase, markup or intern / extern per line for members
         t["lines"] = [{k: v for k, v in ln.items() if k not in NF_INTERNAL} if isinstance(ln, dict) else ln for ln in t.get("lines") or []]
     t.pop("sheet_calc", None)
     return t
@@ -1065,7 +1065,7 @@ def tp_part_items_put(did, pid):
     before = ofx_items_brief(rows_before)
     rows = clean_items(c, oid, r, items, admin, part=pid, before=rows_before)
     # 2.269.0 A (#3012): positions keep their ids (UPDATE), new ones are added, only the left out ones go (as docs._put_items)
-    old = {x["id"]: x for x in rows_before}  # 2.1005.0 (#5415): live ones only -- the trash is neither overwritten nor deleted
+    old = {x["id"]: x for x in rows_before}  # (#5415): live ones only -- the trash is neither overwritten nor deleted
     seen = set()
     for i, row in enumerate(rows):
         iid = _iid(items[i].get("id")) if isinstance(items[i], dict) else 0

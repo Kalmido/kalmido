@@ -96,7 +96,7 @@ function bnr_upload(tid, file) {
   const req = async () => {
     if (!id) {
       const fd = new FormData();
-      fd.append('files', file, file.name || 'receipt.pdf'); fd.append('ws', BNR.data?.upload_ws || (typeof ofcWs === 'function' ? ofcWs() : 'private'));  /* 2.778.0 (#5383): the walk-through uploads without the list loaded */ fd.append('area', 'office');  // 2.522.0 (#4433): the office's own upload
+      fd.append('files', file, file.name || 'receipt.pdf'); fd.append('ws', BNR.data?.upload_ws || (typeof ofcWs === 'function' ? ofcWs() : 'private'));  /* (#5383): the walk-through uploads without the list loaded */ fd.append('area', 'office');  // (#4433): the office's own upload
       const j = await rawFetch('POST', '/api/docs', fd);
       id = (j.ids || [])[0] || (j.dups || [])[0]?.id || 0; fresh = (j.ids || []).length > 0; rc = !fresh;
       if (!id) throw new Error((j.errors || [])[0] || tr('The change could not be saved'));
