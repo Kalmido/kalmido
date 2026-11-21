@@ -1,0 +1,8 @@
+/* Kalmido web client: the styles of the module "voice" (2.1511.0, #4742), loaded with it (static/js/lazyload.js LD_CSS).
+   Moved unchanged from app.css (same order); later than app.css in the cascade. */
+/* 2.1511.0 (#4742): moved unchanged from app.css, only this module draws them (start budget). They stand before the file's own rules, so the cascade stays as it was. Where only part of a section moved, its comment stands in both places. */
+/* 2.139.0 B (#2128): voice messages in the team chat (voice.js): the recording bar over the composer, the player of an audio file */
+.tvcrec{position:absolute;inset:0;z-index:3;display:flex;align-items:center;gap:.5rem;padding:0 .75rem;background:var(--bg);border-top:1px solid var(--line)}
+.tvcdot{width:.625rem;height:.625rem;border-radius:50%;background:var(--danger);flex:none}
+.tvcp .tvct{font-size:var(--fs-xs);color:var(--muted);font-variant-numeric:tabular-nums;min-width:2.25rem;text-align:right}
+/* the rules of this file */
