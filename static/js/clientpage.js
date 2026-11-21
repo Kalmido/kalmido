@@ -159,15 +159,15 @@ function ms_clView() {
   const head = '';  // 2.87.9 (#1917): no "Office › Clients" heading (it looked like a way back); the office menu shows the place, the path only on a client
   const none = !MSC.trash && MSC.items !== null && !MSC.items.length;  // 2.218.0 C (#2804): no clients yet -> only the way to the first one (the empty state below), no filters
   const bar = none ? '' : `<div class="ctbar"><div class="ctsearch">${ic('search', 's')}<input id="mscl-q" type="search" value="${esc(MSC.q)}" placeholder="${esc(tr('Search clients'))}" aria-label="${esc(tr('Search clients'))}" autocomplete="off" enterkeyhint="search"></div>
-    <label class="chkl"><input type="checkbox" id="mscl-arch" ${MSC.arch ? 'checked' : ''}> ${tr('Archived')}</label><label class="chkl"><input type="checkbox" id="mscl-trash" ${MSC.trash ? 'checked' : ''}> ${tr('Trash')}</label>${dsb_clFilter()}<span class="spacer"></span>${typeof hbm_hubBtn === 'function' ? hbm_hubBtn() : ''}
+    ${/*html-ok*/ ms_clChips() /* (#7017, audit D12): Archived / Trash shown while on, built escaped */}${dsb_clFilter()}<span class="spacer"></span>${typeof hbm_hubBtn === 'function' ? hbm_hubBtn() : ''}
     ${(MSC.items || []).length && !MSC.trash ? `<button class="iconbtn ${MSC.pick ? 'on' : ''}" data-mscl="pick" aria-pressed="${!!MSC.pick}" aria-label="${esc(tr(MSC.pick ? 'End selection' : 'Select'))}" title="${esc(tr(MSC.pick ? 'End selection' : 'Select'))}">${ic('select')}</button>` : ''}
-    <button class="btn sm pri" data-act="client-new">${ic('plus', 's')}<span class="cdl">${tr('New client')}</span></button></div>`;
+    <button class="btn sm pri" data-act="client-new">${ic('plus', 's')}<span class="cdl">${tr('New client')}</span></button><button class="iconbtn" data-mscl="more" aria-haspopup="menu" aria-label="${esc(tr('More'))}" title="${esc(tr('More'))}">${ic('dots')}</button></div>`;
   const items = MSC.items === null ? null : ms_clTree(ms_clShown());  // #7292: locations under their main client
   const list = MSC.trash ? ms_clTrashHtml() : items === null ? `<div class="muted ctempty">${tr('Loading…')}</div>`
     : !MSC.items.length ? `<div class="empty nempty eact msclempty">${ic('brief')}<span>${tr('Clients are everyone you write quotations and invoices for: companies or private people.')}</span><button class="btn pri" data-act="client-new">${ic('plus', 's')} ${tr('New client')}</button>${feat('contacts') ? `<a class="btn" href="#contacts">${ic('users', 's')} ${tr('Contacts')}</a>` : ''}${oim_link('master', true)}</div>`
     : !items.length ? `<div class="empty">${ic('brief')}${tr('No client matches.')}</div>`
     : `<ul class="ctlist" role="list" aria-label="${esc(tr('Clients'))}">${items.map(c => `<li><button type="button"${/*html-ok*/ wso_row(c) /* (#6180) */} class="ctrow ${c.id === id ? 'on' : ''} ${MSC.pick?.has(c.id) ? 'picked' : ''} ${c.archived ? 'msarch' : ''} ${c._site ? 'clsite' : ''}" data-clopen="${c.id}" ${MSC.pick ? `aria-pressed="${MSC.pick.has(c.id)}"` : `aria-current="${c.id === id}"`}>${MSC.pick ? `<span class="ctchk ${MSC.pick.has(c.id) ? 'on' : ''}" aria-hidden="true">${MSC.pick.has(c.id) ? ic('check', 's') : ''}</span>` : ''}${ms_clAv(c)}<span class="ctn"><b>${c._site ? `<span class="sr">${esc(tr('Location of {0}:', c._site))} </span>` : ''}${esc(c._site ? ms_clOwn(c) : cdn_label(c))}</b><small class="muted">${esc([cdn_label(c) !== c.name ? c.name : '', c.archived ? tr('archived') : '', c.contact, c.email].filter(Boolean).join(' · '))}</small>${/*html-ok*/ wso_origin(c, 'ctorg') /* (#6180): "All": the origin */}</span>${c.budget && c.budget.level !== 'none' ? `<i class="msbud lv-${c.budget.level}" title="${esc(tr(BUDGET_TXT[c.budget.level]))}"></i>` : ''}</button></li>`).join('')}</ul>`;
-  return MSC.html = `<div class="ctview msclients ${id ? 'withcard' : ''} ${MSC.pick ? 'ctpicking' : ''}">${mob && id ? '' : head}${MSC.pick && !(mob && id) ? ms_clBar() : ''}${mob && id ? '' : bar}<div class="ctcols lsd2 lsdfill">${mob && id ? '' : `<div class="ctlistw lsdl">${list}${MSC.items?.length && !MSC.pick ? oim_link('master') : ''}</div>`}${card}</div></div>`;
+  return MSC.html = `<div class="ctview msclients ${id ? 'withcard' : ''} ${MSC.pick ? 'ctpicking' : ''}">${mob && id ? '' : head}${MSC.pick && !(mob && id) ? ms_clBar() : ''}${mob && id ? '' : bar}<div class="ctcols lsd2 lsdfill">${mob && id ? '' : `<div class="ctlistw lsdl">${list}</div>`}${card}</div></div>`;
 }
 // 2.435.0 A (#3600): the blocks of the client card like the blocks of a list: the office admin switches blocks off for the
 // office (office setting client_blocks_off, sent with the client: blocks_off), each person shows / hides the others for
@@ -367,13 +367,46 @@ document.addEventListener('input', e => {
   if (e.target.id !== 'mscl-q') return;
   MSC.q = e.target.value; clearTimeout(MSC.t); MSC.t = setTimeout(ms_clDraw, 120);
 });
-document.addEventListener('change', e => { if (e.target.id === 'mscl-arch') { MSC.arch = e.target.checked; ms_clDraw(); } else if (e.target.id === 'mscl-trash') { MSC.trash = e.target.checked; MSC.tItems = null; MSC.pick = null; ms_clDraw(); } });
 // 2.607.0 (#4612): a long press (phone) / a right click (computer) on a row opens its menu: the name, "Select" (starts the
-// selection with it), Open; while the selection runs a long press ticks the row (the click after it does nothing)
+// selection with it), then (#7017, audit D12) the client's full menu - the same entries as the "…" of the client card
+// (ms_clItems); while the selection runs a long press ticks the row (the click after it does nothing)
 function ms_clRowMenu(r) {
   const id = +r.dataset.clopen, c = (MSC.items || []).find(x => x.id === id); if (!c || MSC.trash) return false;
-  menu(r, [...cm_selHead(cdn_label(c), () => ms_clClick(id, false)), {label: tr('Open'), icon: 'eye', fn: () => go('client/' + id)}]);
+  menu(r, [...cm_selHead(cdn_label(c), () => ms_clClick(id, false)), ...ms_clItems(c, r, true)]);
   return true;
+}
+// (#7017, audit D12): the area's "…" - Import (office admins, the way of oim_link), the archived ones, the trash; what is on shows
+// as a chip in the bar (a tap takes it off). Export: a task of its own (#7017 rest)
+function ms_clChips() {
+  const chip = (k, n) => `<button type="button" class="btn sm on" data-mscl="${esc(k)}" aria-pressed="true" title="${esc(tr('Hide'))}">${esc(tr(n))} ${ic('x', 's')}</button>`;
+  return (MSC.arch && !MSC.trash ? chip('arch', N_('Archived')) : '') + (MSC.trash ? chip('trash', N_('Trash')) : '');
+}
+function ms_clMore(b) {
+  const imp = !!oim_link('master');  // the same rule as the old button under the list (office admins)
+  menu(b, [imp ? {label: tr('Import…'), icon: 'upload', fn: () => go('office/import/master')} : null, '-',
+    {label: tr('Show archived'), icon: 'archive', on: MSC.arch, fn: () => { MSC.arch = !MSC.arch; ms_clDraw(); }},
+    {label: tr('Trash'), icon: 'trash', on: MSC.trash, fn: () => { MSC.trash = !MSC.trash; MSC.tItems = null; MSC.pick = null; ms_clDraw(); }}], null, null, tr('Clients'));
+}
+// the client's entries: the card's "…" and (row) the row's menu, which also has Open and Edit; Delete = the clients' trash (trashui.js ms_clDel)
+function ms_clItems(c, b, row) {
+  return [row ? {label: tr('Open'), icon: 'eye', fn: () => go('client/' + c.id)} : null,
+    row ? {label: tr('Edit'), icon: 'edit', fn: async () => { let x = c; try { x = await api('GET', `/api/clients/${c.id}`); } catch { return; } clientModal(x); }} : null,
+    {label: c.archived ? tr('Restore') : tr('Archive'), icon: c.archived ? 'undo' : 'archive', fn: async () => {
+      // #7292: a main client asks whether its locations go into the archive too
+      const ids = c.archived ? [c.id] : await ms_clWithSites([c.id], n => trn('Archive its {0} location too?', 'Archive its {0} locations too?', n), tr('Archive them too'), x => !x.archived);
+      let j; try { j = await ms_clSend({action: c.archived ? 'unarchive' : 'archive', ids}); } catch (x) { toast(errText(x, tr('The change could not be saved'))); return; }
+      await ms_clAfter();
+      const msg = c.archived ? trn('{0} client restored', '{0} clients restored', ids.length) : trn('{0} client archived', '{0} clients archived', ids.length);
+      if (j.changed) ms_hist(msg, msg, async () => { await ms_clSend({action: 'restore', items: j.undo}); await ms_clAfter(); }, async () => { await ms_clSend({action: c.archived ? 'unarchive' : 'archive', ids}); await ms_clAfter(); });
+    }},
+    {label: tr('Duplicate'), icon: 'copy', fn: () => ms_clCopy(c, false)},  // #7295
+    {label: tr('Add location'), icon: 'mappin', fn: () => ms_clCopy(c, true)},  // #7295 (#7292): of a location = of its main client
+    ofm_can(c.org_id ?? null) ? {label: tr('Move to another workspace…'), icon: 'brief', fn: () => ofm_clients([c.id])} : null,  // (#2049)
+    typeof tpo_on === 'function' && tpo_on() ? {label: tr('Find a date…'), icon: 'users', fn: () => tpo_forClient(c)} : null,  // (#1953)
+    formsOn() && !S.me?.kid ? {label: tr('Copy questionnaire link for this client'), icon: 'copy', fn: () => fq_clientLink(c, b)} : null,  // (#2201)
+    kp_menuItem(c),  // (#2088)
+    '-',
+    c.can_delete !== false ? {label: tr('Delete'), icon: 'trash', cls: 'danger', fn: async () => { await loadModule('trashui'); await ms_clDel([c.id]); }} : null];  // (#3038): the dialog lives in trashui.js
 }
 const ms_clLp = cm_bind('#view .msclients .ctrow[data-clopen]', ms_clRowMenu, r => { if (!MSC.pick) return false; ms_clClick(+r.dataset.clopen, false); return true; });
 document.addEventListener('click', e => {
@@ -397,23 +430,10 @@ document.addEventListener('click', e => {
     const bk = b.dataset.k; lyOptSet('clients', bk, 'open', !ms_clOpen(bk)); ms_clDraw();
     setTimeout(() => $(`#view [data-mscl="fold"][data-k="${bk}"]`)?.focus({preventScroll: true}), 0);
   }
-  else if (k === 'cmenu' && CLV.data?.id) {
-    const c = CLV.data;
-    menu(b, [{label: c.archived ? tr('Restore') : tr('Archive'), icon: c.archived ? 'undo' : 'archive', fn: async () => {
-      // #7292: a main client asks whether its locations go into the archive too
-      const ids = c.archived ? [c.id] : await ms_clWithSites([c.id], n => trn('Archive its {0} location too?', 'Archive its {0} locations too?', n), tr('Archive them too'), x => !x.archived);
-      let j; try { j = await ms_clSend({action: c.archived ? 'unarchive' : 'archive', ids}); } catch (x) { toast(errText(x, tr('The change could not be saved'))); return; }
-      await ms_clAfter();
-      const msg = c.archived ? trn('{0} client restored', '{0} clients restored', ids.length) : trn('{0} client archived', '{0} clients archived', ids.length);
-      if (j.changed) ms_hist(msg, msg, async () => { await ms_clSend({action: 'restore', items: j.undo}); await ms_clAfter(); }, async () => { await ms_clSend({action: c.archived ? 'unarchive' : 'archive', ids}); await ms_clAfter(); });
-    }},
-    {label: tr('Duplicate'), icon: 'copy', fn: () => ms_clCopy(c, false)},  // #7295
-    {label: tr('Add location'), icon: 'mappin', fn: () => ms_clCopy(c, true)},  // #7295 (#7292): of a location = of its main client
-    ofm_can(c.org_id ?? null) ? {label: tr('Move to another workspace…'), icon: 'brief', fn: () => ofm_clients([c.id])} : null,  // (#2049)
-    typeof tpo_on === 'function' && tpo_on() ? {label: tr('Find a date…'), icon: 'users', fn: () => tpo_forClient(c)} : null,  // 2.98.0 A (#1953)
-    formsOn() && !S.me?.kid ? {label: tr('Copy questionnaire link for this client'), icon: 'copy', fn: () => fq_clientLink(c, b)} : null,  // 2.102.0 C (#2201)
-    kp_menuItem(c)]);  // 2.120.0 B (#2088)
-  }
+  else if (k === 'cmenu' && CLV.data?.id) menu(b, ms_clItems(CLV.data, b, false));  // (#7017): the same entries as the row's menu
+  else if (k === 'more') ms_clMore(b);  // (#7017, audit D12): the area's "…"
+  else if (k === 'arch') { MSC.arch = false; ms_clDraw(); }
+  else if (k === 'trash') { MSC.trash = false; MSC.tItems = null; ms_clDraw(); }
 });
 // #7295: "Duplicate" / "Add location" of the client page: one call (POST /api/clients/<id>/copy: name, address, country, rate,
 // icon, colour, note; the contact persons only when ticked), one undo step (the new client into the trash, redo = back out of
