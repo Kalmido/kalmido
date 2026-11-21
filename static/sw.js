@@ -893,6 +893,9 @@ function swFixIds(body, fix) {
 // devCopyOk, the write gate of the offline copies; the record goes with class copy of static/js/icons.js DEV_STORES)
 // a task the answer brings is put in (a new one, a change), a deleted one goes. Before, the next offline start lacked the tasks
 // made offline (the queue had sent them, the state did not know them; made again = twice). ch: [[id, task | null], ...]
+// (#7595): the same record contract as offcache.js (its owner in the window): one transaction, read and written together; the
+// record's age (v / sat: the server version and when it confirmed the state) stays as it is - the fold is no newer state, so
+// a window's newer state still wins over it and an older one never does. Nothing goes anywhere else (no localStorage)
 async function swStartFold(ch) {
   if (!ch.length || typeof indexedDB === 'undefined') return;
   const db = await new Promise((ok, no) => {
@@ -909,7 +912,7 @@ async function swStartFold(ch) {
     const by = new Map(c.tasks.map(x => [x.id, x]));
     for (const [id, tk] of ch) { if (tk) by.set(tk.id, tk); else by.delete(id); }
     c.tasks = [...by.values()];
-    st.put(rec.o ? {...rec, o: c} : {...rec, s: JSON.stringify(c)}, 'state');
+    st.put(rec.o ? {...rec, o: c} : {...rec, s: JSON.stringify(c)}, 'state');  // ...rec: at, v, sat stay
     await new Promise((ok, no) => { t.oncomplete = ok; t.onerror = t.onabort = () => no(t.error); });
   } finally { db.close(); }
 }
