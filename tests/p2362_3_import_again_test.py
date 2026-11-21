@@ -215,7 +215,7 @@ if FORG:
     # (#6358, reader F1 / F2): the project's copy in the organisation keeps its notepad, playbook and shared view
     COPY = one("SELECT id FROM lists WHERE org_id=? AND name='Umzug Probe'", (FORG,))
     check(one("SELECT COUNT(*) FROM list_notepads WHERE list_id=? AND title='Probe Block'", (COPY,)) == 1, "#6358 F1: the copy has its notepad")
-    check(one("SELECT COUNT(*) FROM obj_versions WHERE kind='playbook' AND ref_id=?", (COPY,)) >= 1, "#6358 F1: the copy has its playbook")
+    check(one("SELECT COUNT(*) FROM playbooks p JOIN obj_versions v ON v.kind='playbook' AND v.ref_id=p.id WHERE p.list_id=?", (COPY,)) >= 1, "#6358 F1: the copy has its playbook")
     check(one("SELECT COUNT(*) FROM filters WHERE list_id=? AND name='Probe Ansicht'", (COPY,)) == 1, "#6358 F2: the copy has its shared view")
     dbxm.connect(DATA).execute("DELETE FROM lists WHERE org_id=?", (FORG,))
 
