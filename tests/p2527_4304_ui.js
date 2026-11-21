@@ -192,7 +192,8 @@ const online = w => { w.__offline = false; w.eval('OUT.retryAt = 0'); w.dispatch
   let wf = await boot(fopt('clients'));
   const fid = wf.eval('S.me.id');
   // review (#4304): a 401 at the start (S.me not there yet) still finds the kept input of this browser's account (uid)
-  check(wf.eval(`(() => { const me = S.me; LS.set('uid', me.id); fdKeep('fdf', 'probe', {x: 1}); S.me = null; const r = fdAny(); S.me = me; fdDrop('fdf', 'probe'); return r; })()`) === true, 'A5: before /api/me answered, the kept input of the account is found (not wiped)');
+  // (#6500): kept input is of class own whoever's it is (icons.js DEV_STORES), so an ended session never wipes it
+  check(wf.eval(`(() => { const me = S.me; LS.set('uid', me.id); S.me = null; const k = FD_KEY('fdf', 'probe'); S.me = me; return devCls('ls', k); })()`) === 'own', 'A5: before /api/me answered, the kept input of the account is of class own (not wiped)');
   wf.eval(`clientModal(${JSON.stringify(await call('GET', '/api/clients/' + CL, null, CF))})`);
   let cmd = await until(() => wf.document.querySelector('.modal.cldlg'));
   const note = cmd?.querySelector('#cl-note');

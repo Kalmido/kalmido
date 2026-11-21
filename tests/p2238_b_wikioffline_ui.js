@@ -3,7 +3,7 @@
 // localStorage (its fallback). One "browser" = one store + one localStorage, shared by its windows.
 // - the copy carries the sign-in mark (me.sgen); a start in the same session keeps it
 // - a start with another sign-in (new session) empties it before anything is read; the records then carry the new mark
-// - 14 days without an online sync: an offline start empties it; a fresh copy is read offline as before
+// - 14 days without an online sync: an offline start empties it and shows no start state either (#6500); a fresh copy is read offline as before
 // - the session gone (401 at /api/state): the copy is emptied, nothing waiting is sent (2.306.0 B, #2889: the outbox itself stays
 //   for the next sign-in of the same account)
 // - the outbox: kept at a new sign-in of the same account (then sent); 2.505 (#4298): an organisation of the account that is gone
@@ -128,8 +128,9 @@ const lsj = (br, k) => { const v = br.shared.store['tasks.' + k]; return v == nu
   br.shared.store['tasks.wko'] = JSON.stringify({...lsj(br, 'wko'), at: new Date(Date.now() - 15 * DAY).toISOString()});
   n1 = br.store.nClear;
   w = await win(br, 'frida', {ck: CK2, offline: true});
-  await until(() => w.eval(`!!S.me && S.lists.length > 0`));
   check(await until(() => br.store.nClear > n1 && br.db.size === 0), `offline start after 15 days without a sync: the copy is gone (${br.db.size} records)`);
+  // (#6500): the start state goes the same way (one stamp for both copies, core.js devCopyOk): nothing of the account is shown
+  check(w.eval(`S.lists.length`) === 0 && !('tasks.cache' in br.shared.store), '#6500: offline start after 15 days: the start state is not shown and gone');
   w.close();
   // online after 15 days (same session): emptied too, then a fresh copy
   w = await win(br, 'frida', {ck: CK2});

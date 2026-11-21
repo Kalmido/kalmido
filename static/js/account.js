@@ -302,7 +302,7 @@ async function inviteScreen(tok) {
   setTimeout(() => $('#inv-pw', el)?.focus(), 50);
 }
 // 2.743.0 (#4284): a sign-out without network could not end the session on the server (HttpOnly cookie): this browser keeps
-// a mark (outside the tasks.* keys clearLocal wipes) and the next load of the state ends that session before anything else,
+// a mark (class device, icons.js DEV_STORES) and the next load of the state ends that session before anything else,
 // so a shared device does not open the account again once it is online. The sign-in screen (= the server knows no session) drops it.
 const LGO_KEY = 'kalmido.logoutPending';
 async function lgo_pending() {
@@ -322,13 +322,13 @@ async function logout() {
       tr('Signing out deletes them from this device, a copy is downloaded as a text file first.'), {ok: tr('Sign out'), danger: true})) return;
     try { cfDownload(null, S.me?.id || LS.get('uid', 0)); } catch (e) { console.warn('conflict copies: download failed', e); }
   }
-  await wpDisable().catch(() => {});  // this device stops getting the pushes of the account that logs out
-  await e2eForget();  // 2.42.0 (#828): keys remembered on this device go
+  // (#6500): everything of the account on this device (icons.js DEV_END logout: the queue, copies, view, remembered keys, the
+  // push subscription, the Cache Storage) - before the server hears it, the page leaves right after
+  await devEnd('logout');
   let gone = false;
   try { gone = (await netRaw('/api/auth/logout', {method: 'POST', headers: {'X-Requested-With': 'kalmido'}})).ok; } catch { /* offline */ }
   if (!gone) try { localStorage.setItem(LGO_KEY, '1'); } catch { /* private mode */ }  // 2.743.0 (#4284): the session still lives on the server: the next load ends it first (lgo_pending)
-  try { for (const k of await caches.keys()) await caches.delete(k); } catch { /* no Cache Storage */ }  // 2.126.0 D (#1992 O4): the app loads again from the server
-  await Promise.race([clearLocal(), new Promise(r => setTimeout(r, 1500))]); location.replace('/');  // 2.143.0 C2 (#2153): the IndexedDB queue is empty before the page goes
+  location.replace('/');
 }
 // 2.306.0 B (#2887): the operator's privacy statement / imprint (Settings > Help and the login page); '' = no link
 const legalLinks = (l, cls) => [['privacy_url', N_('Privacy')], ['imprint_url', N_('Imprint')]].filter(([k]) => /^https?:\/\//i.test(l?.[k] || ''))

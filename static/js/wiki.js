@@ -1370,9 +1370,10 @@ if (typeof sbb_sync === 'function') sbb_sync('wiki');  // 2.152.3 B: loaded late
 // e:<space> = the lock's state of a locked space (wrapped keys only, wikie2e.js wkeInfo), x:<page> = an offline change the server
 // refused (changed elsewhere in the meantime): it waits at the page until mine or theirs is picked. A sync asks only for the texts
 // changed since the newest one here; offline the view reads the copy ("Offline · as of …") and a changed text waits in the outbox
-// (core.js) like a task's. Files stay online-only (2.637.0 #4745: unless the space is "Offline available", wikioff.js). Logout empties the database (icons.js clearLocal); a space this account
+// (core.js) like a task's. Files stay online-only (2.637.0 #4745: unless the space is "Offline available", wikioff.js). Logout empties the database (icons.js devEnd, class copy); a space this account
 // no longer has, and another account's records, go at the next sync (wko_syncAll). 2.238.0 B (#2872): every record carries the
-// sign-in mark (me.sgen); another sign-in, a lost session or 14 days without an online sync empty it (core.js sessGuard).
+// sign-in mark (me.sgen); another sign-in, a lost session, 14 days without an online sync or no "Stay signed in" empty it (core.js sessGuard,
+// devCopyOk: the one write gate of the offline copies, #6500).
 const WKO = {st: null, cf: {}, syncP: null, dead: false, swept: null};
 const wko_rq = r => new Promise((ok, no) => { r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); });
 // the small store over IndexedDB: get(k), put(v), del(k), all(), clear(), close(); tests hand in their own (__wkoStore)
@@ -1393,7 +1394,8 @@ function wko_idb() {
     fdel: async k => wko_rq((await os('readwrite', 'f')).delete(k)), fkeys: async () => wko_rq((await os('readonly', 'f')).getAllKeys()),
     clear: async () => { const t = await h.tx(['c', 'f'], 'readwrite'); await Promise.all(['c', 'f'].map(n => wko_rq(t.objectStore(n).clear()))); }, close: h.close};
 }
-const wko_st = () => WKO.dead ? null : WKO.st ||= globalThis.__wkoStore || wko_idb();  // after logout nothing is written again (a sync still on its way)
+const wko_raw = () => WKO.st ||= globalThis.__wkoStore || wko_idb();  // the drop below empties it past the gate
+const wko_st = () => WKO.dead || !devCopyOk() ? null : wko_raw();  // after logout nothing is written again (a sync still on its way); (#6500): only through the gate
 async function wko_get(k) { try { const r = S.me ? await wko_st()?.get(k) : null; return r && r.uid === S.me.id && (r.g || '') === (S.me.sgen || '') ? r : null; } catch { return null; } }  // private mode: no copy, as before; 2.238.0 B (#2872): only this sign-in's records
 async function wko_put(r) {
   if (!S.me || WKO.dead) return;
@@ -1404,11 +1406,12 @@ async function wko_del(k) { try { await wko_st()?.del(k); } catch { /* gone alre
 async function wko_all() { try { return (await wko_st()?.all()) || []; } catch { return []; } }
 // 2.169.1 (#2672): the records of one kind (x: = waiting conflicts) without reading the whole copy; a store without pre() filters all()
 async function wko_pre(x) { try { const st = wko_st(); return (st?.pre ? await st.pre(x) : (await st?.all() || []).filter(r => r.k.startsWith(x))) || []; } catch { return []; } }
-// 2.238.0 B (#2872): another sign-in or too old (core.js sessGuard): everything out, a new copy may follow
+// (#2872): another sign-in or too old (icons.js devEnd mark): everything out, a new copy may follow
 // 2.1257.0 (#6286): the waiting own texts kept as input of the account (wko_cfPut) stay
-async function wko_reset() { WKO.cf = Object.fromEntries(Object.entries(WKO.cf).filter(([id]) => fdGet('fdx', id))); try { await wko_st()?.clear(); await wko_st()?.fclear?.(); } catch { /* gone */ } }  // 2.637.0 (#4745): clear() empties the files too (fclear: a test's stand-in)
-// logout (icons.js clearLocal): everything out, the database closed (clearLocal deletes it then)
+async function wko_reset() { WKO.cf = Object.fromEntries(Object.entries(WKO.cf).filter(([id]) => fdGet('fdx', id))); try { await wko_raw()?.clear(); await wko_raw()?.fclear?.(); } catch { /* gone */ } }  // (#4745): clear() empties the files too (fclear: a test's stand-in)
+// logout / the session gone (icons.js devEnd): everything out, the database closed (then deleted)
 async function wko_wipe() { const st = WKO.st; WKO.cf = {}; WKO.dead = true; if (typeof WKOF !== 'undefined') WKOF.run?.ac.abort('off'); if (!st) return; try { await st.clear(); await st.fclear?.(); } catch { /* gone */ } try { await st.close?.(); } catch { /* closed */ } WKO.st = null; }
+devDrop('kalmido-wiki', why => why === 'mark' ? wko_reset() : wko_wipe().then(() => devIdbDel('kalmido-wiki')));  // (#6500): the drop of class copy (icons.js DEV_STORES)
 const wko_sig = e => e?.mode ? `${e.mode}:${e.gen || 0}:${e.reenc || 0}` : '';
 const wko_clone = v => JSON.parse(JSON.stringify(v));
 // the index of a space with its texts: from the server (only the texts changed since the copy's newest), the copy kept; offline the copy
@@ -1439,7 +1442,6 @@ async function wko_sync(sp) {
       else for (const p of j.pages) if (!('body' in p)) p.body = old.get(p.id).body;
     }
     await wko_put({k: 's:' + sp, sp, at: new Date().toISOString(), space: j.space, may_write: j.may_write, e2e: j.e2e || null, more: !!j.more, pages: wko_clone(j.pages), folders: wko_clone(j.folders || []), root: j.root || null});  // 2.200.0 A (#2747): + the folders
-    if (!WKO.dead && S.me) LS.set('wko', {g: S.me.sgen || '', at: new Date().toISOString()});  // 2.238.0 B (#2872): the last online sync (core.js sessGuard)
     if (typeof wkoffSync === 'function') wkoffSync(sp).catch(() => {});  // 2.637.0 (#4745): the files of a space kept offline (wikioff.js)
   } catch (e) {
     if ([403, 404].includes(e.status)) { wko_del('s:' + sp); wko_del('e:' + sp); if (typeof wkof_drop === 'function') wkof_drop(sp); }  // no access any more: the copy goes too (2.637.0 #4745: its files too)

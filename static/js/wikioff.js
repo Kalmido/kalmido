@@ -9,7 +9,7 @@
    - Where: IndexedDB "kalmido-wiki" (wiki.js wko_idb), store "f" next to the texts' store "c": one record f:<file id> =
      {blob, sp, v, mime, name, uid, g} -- only this sign-in's records are read (uid + sign-in mark me.sgen, as wko_get). NOT the
      service worker's cache (sw.js keeps only the app shell, #2872). Logout / another sign-in / 14 days without a sync empty
-     the whole database (icons.js clearLocal, core.js wkoDrop -> wko_wipe / wko_reset).
+     the whole database (icons.js devEnd -> wiki.js wko_wipe / wko_reset).
    - The sync (wiki.js wko_sync, at every online opening of the space, at most once a minute; and when the connection is
      back): GET /api/wiki/space-files lists what the space has now -- new / changed files are fetched, files in the trash,
      of pages in the trash or no longer listed go; 403 / 404 (no right any more) removes the whole copy of the space.

@@ -158,7 +158,7 @@ function browser() {
   // ================= 2.169.1 (#949): a phone: the same offline mark and text search in its list
   // 2.1199.0 (#5909): CI red v2.1175.0 (phone offline mark + search, green on the Mac): each boot() is its own sign-in
   // (me.sgen) but both windows share the copy and localStorage. The computer window stayed open and online: its sign-in check
-  // (core.js sessGuard: LS wko.g of the other sign-in -> wkoDrop) or its next sync (the copy with its own mark, which wko_get of
+  // (core.js sessGuard: LS wko.g of the other sign-in -> devEnd mark) or its next sync (the copy with its own mark, which wko_get of
   // the phone refuses) could land between the phone's sync and its offline load - a slower runner hit that window. Real tabs of
   // one browser share one sign-in; here the computer window closes for the phone part and opens again afterwards.
   w.close();
@@ -217,7 +217,7 @@ function browser() {
   // review: my own text sent twice (the first answer got lost) is no conflict
   const twice = await w.eval(`wkoReject({url: '/api/wiki/pages/${P1}', method: 'PATCH', body: {body: 'Same text'}}, {status: 409, data: {page: {id: ${P1}, space: 'private', body: 'Same text', updated_at: '2030-01-01T00:00:00Z'}}})`);
   check(twice === true && !br.db.has('x:' + P1) && !fdx(br, st0.me.id, P1), 'a text sent twice: saved already, no waiting conflict');
-  await w.eval(`clearLocal()`);
+  await w.eval(`devEnd('logout')`);
   check(br.db.size === 0, 'logout: the copy is empty');
   await w.eval(`wko_put({k: 's:private', sp: 'private', pages: [{id: 1, path: 'Late', body: 'late'}]})`);
   check(br.db.size === 0, 'logout: a sync still on its way writes nothing afterwards');

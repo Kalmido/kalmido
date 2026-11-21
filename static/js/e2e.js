@@ -119,14 +119,15 @@ async function e2eBpMark(bp) {
 const e2eIdbPut = async () => { const bp = await e2eBpMark(E2E.st?.bundle_pass); return e2eIdbDo('readwrite', s => s.put({priv: E2E.priv, ckey: E2E.ckey, pub: E2E.own.x, own: E2E.own, g: S.me.sgen || '', bp}, 'u' + S.me.id)); };
 const e2eIdbGet = () => e2eIdbDo('readonly', s => s.get('u' + S.me.id));
 const e2eIdbDel = () => e2eIdbDo('readwrite', s => s.delete('u' + S.me.id)).catch(() => {});
-// logout (account.js): every remembered key of this browser goes
+// logout / the session gone / another account (icons.js devEnd, class secret) and Settings: every remembered key of this browser goes
 async function e2eForget() {
   E2E.priv = E2E.ckey = E2E.own = null; E2E.badPub = false; E2E.dm = {}; E2E.dec = {}; E2E.notes = {};
   if (typeof ln_wipe === 'function') ln_wipe();  // 2.48.0 review (S3): the decrypted locked notes too
   if (typeof le2eWipe === 'function') le2eWipe();  // 2.64.1 (#1817): the texts of locked lists too
   if (typeof wkeWipe === 'function') wkeWipe();  // 2.64.3 B (#1817): the pages of encrypted knowledge spaces too
-  try { await new Promise(res => { const r = indexedDB.deleteDatabase('kalmido-e2e'); r.onsuccess = r.onerror = r.onblocked = () => res(); }); } catch { /* none */ }
+  await devIdbDel('kalmido-e2e');
 }
+devDrop('kalmido-e2e', e2eForget);  // (#6500)
 
 // ------------------------------------------------------------------ loading, unlocking, locking
 async function e2eLoad(force) {
