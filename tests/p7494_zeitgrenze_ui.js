@@ -68,10 +68,12 @@ async function run(user) {
   w.eval('NET_T.w = 400');
   lose(w, 'PUT', new RegExp(`/api/office/docs/${doc.id}/items$`));
   change(w, qty(0), '3');
-  check(await until(() => /no answer/i.test(toastTxt(d)) && toastBtn(d)), '2: the hint with "Try again": ' + toastTxt(d) + tag);
+  // #7493: the editor's positions say it in their row ("Not saved" with "Try again"), not in a toast
+  const row0 = () => qty(0)?.closest('[data-rwk]');
+  check(await until(() => row0()?.classList.contains('rw-failed') && row0().querySelector('[data-rwagain]')), '2: the row says "Not saved" with "Try again"' + tag);
   check(await until(() => w.eval('OFD.saving') === 0), '2: the editor does not hang ("Saving…" ends)' + tag);
-  click(w, toastBtn(d));
-  check(await until(() => /Saved/.test(toastTxt(d))), '2: Try again -> Saved' + tag);
+  click(w, row0().querySelector('[data-rwagain]'));
+  check(await until(() => w.__seen.length === 2 && !row0()?.querySelector('.rwmark')), '2: Try again -> saved, no mark' + tag);
   check(w.__seen.length === 2 && w.__seen[1].key && w.__seen[1].key === w.__seen[0].key, '2: the same key' + tag);
   let s = await call('GET', `/api/office/docs/${doc.id}`);
   check(+s.items?.[0]?.qty === 3 && s.items.length === 2, '2: the quantity on the server, no line twice' + tag);

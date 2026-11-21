@@ -4,7 +4,7 @@
 // running balance (newest first), the day closings and the cash boxes (settings: name, opening balance, archive; autosave).
 // Nothing is deleted: an entry goes back only by a cancellation (a counter entry with a new number). "Close day" is final
 // (confirmation, no undo); every other action is one undo step (toast). Server: kalmido/office/cashbook.py.
-const CB = {oid: null, base: null, list: null, q: '', loading: false, err: null, bid: null, year: String(new Date().getFullYear()), view: 'entries', dir: 'in', links: null, ref: ''};  // 2.269.0 D (#3046): ref = the client_ref of the entry being booked
+const CB = {oid: null, base: null, list: null, q: '', loading: false, err: null, bid: null, year: String(new Date().getFullYear()), view: 'entries', dir: 'in', links: null};  // #7500: each entry of the quick entry carries its own client_ref (cb_W)
 OFC_TABS.splice(OFC_TABS.findIndex(t => t[0] === 'settings'), 0, /** @type {any} */ (['cashbook', 'wallet', N_('Cash book'), 1, () => cbHtml(), 'money']));  // admins only
 
 /** @param {string} s @param {any} [r] @returns {any} */
@@ -15,7 +15,7 @@ async function cbGet(all) {
   const base = all || !CB.base ? await api('GET', '/api/office/cashbooks') : CB.base, act = base.books.filter(b => !b.archived);
   const bid = base.books.some(b => b.id === CB.bid) ? CB.bid : (act[0] || base.books[0])?.id || null, y = CB.year;
   const list = bid ? await api('GET', `/api/office/cashbooks/${bid}/entries?year=${y}`) : null;
-  return () => { CB.base = base; CB.bid = bid; CB.err = null; if (list) { CB.list = list; CB.q = `${bid}:${y}`; } };
+  return () => { CB.base = base; CB.bid = bid; CB.err = null; if (list) { CB.list = list; CB.q = `${bid}:${y}`; cb_keepPend(); } };
 }
 const cbBook = id => (CB.base?.books || []).find(b => b.id === id);
 const cbToday = () => CB.base?.today || today();
@@ -32,7 +32,7 @@ async function cbLoad() {
     const act = CB.base.books.filter(b => !b.archived);
     if (!cbBook(CB.bid)) CB.bid = (act[0] || CB.base.books[0])?.id || null;
     const q = `${CB.bid}:${CB.year}`;
-    if (CB.bid && (!CB.list || CB.q !== q)) { CB.list = await (early && q === q0 ? early : api('GET', `/api/office/cashbooks/${CB.bid}/entries?year=${CB.year}`)); CB.q = q; }
+    if (CB.bid && (!CB.list || CB.q !== q)) { CB.list = await (early && q === q0 ? early : api('GET', `/api/office/cashbooks/${CB.bid}/entries?year=${CB.year}`)); CB.q = q; cb_keepPend(); }
     CB.err = null;
   } catch (x) { CB.err = ofcErrHere(x); }
   CB.loading = false;
@@ -60,7 +60,8 @@ function cbHtml() {
 }
 function cbHeadHtml(b) {
   const l = CB.list;
-  return `<div class="cb-head"><div><span class="muted">${tr('Cash balance')}</span><b class="cb-bal">${ofcMoney(l.balance)}</b>
+  const calc = !!cb_W(CB.bid).calc;  // #7500: an entry on its way: the server computes the new balance
+  return `<div class="cb-head${calc ? ' rwcalc' : ''}"${calc ? ' aria-busy="true"' : ''}><div><span class="muted">${tr('Cash balance')}</span><b class="cb-bal">${ofcMoney(l.balance)}</b>${calc ? `<small class="rwcalcl muted" role="status">${esc(tr('Calculating…'))}</small>` : ''}
     <small class="muted">${esc(l.last_closed ? tr('Closed up to {0}', fmtDateLoc(l.last_closed)) : tr('No day closed yet'))}</small></div>
     <button class="btn" data-cb="close">${ic('check', 's')}<span>${tr('Close day')}</span></button></div>`
     + `<p class="muted ofchint cb-euer">${esc(typeof ebBasisOf === 'function' && ebBasisOf(OFC.info?.settings, new Date().getFullYear()) === 'bank'  /* 2.603.0 (#4927): the strict basis counts the cash book */
@@ -85,14 +86,15 @@ function cbRef(e) {
   return '';
 }
 function cbListHtml() {
-  const es = CB.list.entries;
-  if (!es.length) return emptyState({icon: 'wallet', title: tr('No entries in this year.'), size: 'sec'});  // 2.1076.0 (#5450)
-  return `<ul class="ofclist cb-list" role="list">${es.map(e => `<li><button type="button" class="ofcrow cb-row${e.cancelled_by || e.storno_of ? ' cb-x' : ''}" data-cb="open" data-id="${e.id}">
-    <span class="cb-no">${e.no}</span><span class="ofcn"><b>${esc(e.text)}</b>
+  const es = CB.list.entries, W = cb_W(CB.bid);
+  // #7500: one wrapper whether there are entries or not (the light draw morphs it, the quick entry above stays as typed)
+  if (!es.length) return `<div id="cb-entries">${/*html-ok*/ emptyState({icon: 'wallet', title: tr('No entries in this year.'), size: 'sec'}) /* the shared empty block escapes its texts */}</div>`;  // (#5450)
+  return `<div id="cb-entries"><ul class="ofclist cb-list" role="list">${es.map(e => `<li data-rwk="${esc(rwKey(e))}" class="${esc(rwCls(W, e).trim())}"><button type="button" class="ofcrow cb-row${e.cancelled_by || e.storno_of ? ' cb-x' : ''}" data-cb="open" data-id="${esc(e.id || '')}">
+    <span class="cb-no">${esc(e.no || '…')}</span><span class="ofcn"><b>${esc(e.text)}</b>
     <small class="muted">${esc([fmtDateLoc(e.day), e.category, cbVat(e.vat_pct), e.node ? tr('Receipt') + ': ' + e.node.name : '', e.invoice ? tr('Invoice') + ' ' + e.invoice.number : ''].filter(Boolean).join(' · '))}</small>
     ${cbRef(e) ? `<small class="cb-ref">${esc(cbRef(e))}</small>` : ''}</span>
     ${e.locked ? `<span class="cb-lock" title="${esc(tr('Day closed'))}" aria-label="${esc(tr('Day closed'))}">${ic('lock', 's')}</span>` : ''}
-    <span class="cb-amt"><b class="${e.dir === 'in' ? 'cb-in' : 'cb-out'}">${e.dir === 'in' ? '+' : '−'} ${ofcMoney(e.amount)}</b><small class="muted">${ofcMoney(e.balance)}</small></span></button></li>`).join('')}</ul>`;
+    <span class="cb-amt"><b class="${e.dir === 'in' ? 'cb-in' : 'cb-out'}">${e.dir === 'in' ? '+' : '−'} ${ofcMoney(e.amount)}</b>${e.balance == null ? '' : `<small class="muted">${ofcMoney(e.balance)}</small>`}</span></button>${/*html-ok*/ rwMarkHtml(W, e) /* the core's mark, its texts escaped */}</li>`).join('')}</ul></div>`;
 }
 function cbClosingsHtml() {
   const cs = (CB.list?.closings || []).slice().reverse();
@@ -121,18 +123,83 @@ function cbBooksHtml() {  // the settings of the cash boxes: sections like the g
 }
 
 // ---- actions
-async function cbQuick(f) {
-  const val = id => cb$(id, f)?.value ?? '', err = cb$('#cb-qerr', f);
+// #7500 (decision): the quick entry "writes at once" (core.js rwRows, docs/dev/kern.md "Write shows at once"): the new line stands
+// under the form at once ("Saving…"), the form stays (amount, text and category emptied, the cursor back in the amount) and
+// the next entry can be typed; the answer brings the number, the balance after it and the box's new balance (no reload of
+// boxes and entries). Entries go one after the other, each with its own client_ref (sent again = booked once, #3046).
+// No answer / no connection: the line stays with "Not saved - Try again". A refusal (a closed day, below zero ...): the
+// line goes, its values come back into the form with the reason (when the form is empty; else the reason only).
+const CB_WS = new Map(), CB_Q = /** @type {Map<number, any[]>} */ (new Map());  // a box's writer, its entries not saved yet (in the order typed)
+const cb_q = bid => { cb_W(bid); return CB_Q.get(bid || 0) || []; };
+function cb_W(bid) {
+  let W = CB_WS.get(bid || 0);
+  if (!W) {
+    W = rwRows({name: 'cb' + (bid || 0), whole: true, send: () => cb_send(bid, W), draw: () => cbLite(), fail: x => !!x?.rwShown});
+    CB_WS.set(bid || 0, W); CB_Q.set(bid || 0, []);
+  }
+  return W;
+}
+// the entries not saved yet stay in the list through a reload of it (another year, an undo, a closing)
+function cb_keepPend() {
+  const q = CB_Q.get(CB.bid || 0); if (!q?.length || !CB.list) return;
+  for (const e of q) if (e.day.slice(0, 4) === CB.year && !CB.list.entries.includes(e)) cb_place(e);
+}
+// newest first: before the first entry of the same day or an earlier one
+function cb_place(e) {
+  const es = CB.list.entries, i = es.findIndex(x => x.day <= e.day);
+  es.splice(i < 0 ? es.length : i, 0, e);
+}
+async function cb_send(bid, W) {
+  let late = /** @type {boolean | string} */ (false);
+  const q = cb_q(bid);
+  while (q.length) {
+    const e = q[0];
+    let j;
+    try { j = await rawFetch('POST', `/api/office/cashbooks/${bid}/entries`, {...e._b, client_ref: e._ref}); }
+    catch (x) {
+      if (x instanceof NoAnswer || x instanceof Offline || !x?.status || x.status >= 500) throw x;  // the lines say "Not saved - Try again"
+      q.shift(); cb_unput(e); cb_back(e, x); continue;  // refused: the person changes something, sending it again would not help
+    }
+    q.shift(); e._b = null;
+    Object.assign(e, j);  // its key (_rk) stays: the line is found by it
+    if (CB.bid === bid && CB.list) {
+      CB.list.balance = j.book_balance;
+      const bk = cbBook(bid); if (bk) Object.assign(bk, {balance: j.book_balance, entries: j.book_entries});
+      if (j.day.slice(0, 4) !== CB.year) late = j.day.slice(0, 4);  // booked into another year: that year is shown (as before)
+      else if (!late && CB.list.entries.some(x => x !== e && x.id && x.day > e.day)) late = true;  // booked before later entries: their balances are the server's anew
+    }
+    toast(tr('Booked as no. {0}', j.no), async () => { await api('POST', `/api/office/cash-entries/${j.id}/cancel`, {}); cbReload(true); });
+  }
+  if (late && W.last() && CB.bid === bid) { if (typeof late === 'string') CB.year = late; cbReload(); }
+  return true;
+}
+const cb_unput = e => { const es = CB.list?.entries, i = es ? es.indexOf(e) : -1; if (i >= 0) es.splice(i, 1); };
+// a refused entry: its values back into the form (when nothing new is typed there), the reason at the form
+function cb_back(e, x) {
+  const f = $('#cb-quick'), err = f && cb$('#cb-qerr', f); if (!f) { ofcErr(x); return; }
+  const set = (id, v) => { const el = cb$(id, f); if (el) el.value = v ?? ''; };
+  if (!cb$('#cb-amount', f).value && !cb$('#cb-text', f).value) {
+    CB.dir = e.dir; $$('[data-cb="dir"]').forEach(b => { const on = b.dataset.v === CB.dir; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
+    set('#cb-amount', fmtNum(+e.amount, 2)); set('#cb-text', e.text); set('#cb-day', e.day); set('#cb-vat', e.vat_pct); set('#cb-cat', e.category);
+    if (err) err.textContent = ofcErrHere(x);
+  } else if (err) err.textContent = `${e.text} (${ofcMoney(e.amount)}): ${ofcErrHere(x)}`;
+}
+// the light draw: only the balance and the entries take the new state (the form keeps focus and what is typed)
+function cbLite() {
+  if (S.route.mod !== 'office' || ofcTab() !== 'cashbook' || !CB.list || CB.view !== 'entries') return;
+  if (!rwPatch($('#view'), cbHtml(), ['.cb-head', '#cb-entries'])) ofcDraw();
+}
+function cbQuick(f) {
+  const val = id => cb$(id, f)?.value ?? '', err = cb$('#cb-qerr', f), bid = CB.bid;
   const amount = ofcNum(val('#cb-amount'));
   if (amount == null || amount <= 0) { err.textContent = tr('Invalid value: {0}', tr('Amount')); cb$('#cb-amount', f)?.focus(); return; }
-  const body = {dir: CB.dir, amount: String(amount), text: val('#cb-text'), day: val('#cb-day') || cbToday(), vat_pct: val('#cb-vat'), category: val('#cb-cat')};
-  try {
-    CB.ref = CB.ref || outKey();  // 2.269.0 D (#3046): pressed twice / sent again after an error = one entry
-    const j = await api('POST', `/api/office/cashbooks/${CB.bid}/entries`, {...body, client_ref: CB.ref});
-    CB.ref = '';
-    CB.year = j.day.slice(0, 4); cbReload(true);
-    toast(tr('Booked as no. {0}', j.no), async () => { await api('POST', `/api/office/cash-entries/${j.id}/cancel`, {}); cbReload(true); });
-  } catch (x) { if (err) err.textContent = ofcErrHere(x); }
+  if (!bid || !CB.list) return;
+  const b = {dir: CB.dir, amount: String(amount), text: val('#cb-text'), day: val('#cb-day') || cbToday(), vat_pct: val('#cb-vat'), category: val('#cb-cat')};
+  const W = cb_W(bid), q = cb_q(bid), e = /** @type {any} */ ({...b, vat_pct: b.vat_pct || null, book_id: bid, id: null, no: null, balance: null, _b: b, _ref: outKey()});  // (#3046): its own client_ref
+  err.textContent = '';
+  for (const id of ['#cb-amount', '#cb-text', '#cb-cat']) { const el = cb$(id, f); if (el) el.value = ''; }
+  cb$('#cb-amount', f)?.focus();  // sprung-ok: the person just booked from this form; the next entry starts in its amount
+  W.write(() => { q.push(e); if (b.day.slice(0, 4) === CB.year) cb_place(e); return null; }, [rwKey(e)]).catch(() => null);  // the line says it
 }
 const CB_KEYS = ['day', 'dir', 'amount', 'vat_pct', 'text', 'category', 'node_id', 'invoice_id'];
 async function cbLinks() {

@@ -1381,8 +1381,12 @@ review section, state `pending`, the reviewer gets a News item + push or the age
 only as the reviewer; `changes` returns the task to the section it came from), `{action: restore, reviewer_id, review,
 section_id?}` (undo). Tasks carry `reviewer_id`, `review` (`pending | approved | changes`), `review_at`, `review_by`
 (`null` with `approved` = a linked pull request was merged or approved) and `review_sec` when set.
-`PUT /lists/{id}/review` (`structure`, editors): `{on, reviewer?, section?, gate?}`; projects carry `review_cfg` (json, empty
-= off). With `gate` on, completing a task that has a reviewer and is not approved answers **409** on every way (complete,
+`PUT /lists/{id}/review` (`structure`, editors): `{on, reviewer?, section?, gate?, retest?}`; projects carry `review_cfg` (json, empty
+= off). #7535: `retest` = `"" | person | job`, the retest after the starter's dispatcher built a task (docs/AGENTS.md
+*Retest after the build*); only a person changes it (an agent: 403), a body without it keeps it, `GET /lists` names it as
+`retest`. `{action: retest_person, on}` on `POST /tasks/{id}/review` = this task is retested by a person although the project
+has the review job (people with write access only, an agent: 403; only with `retest: job`, else 400); tasks carry
+`retest_person: true` when set. With the retest on, `changes` needs a `note`. With `gate` on, completing a task that has a reviewer and is not approved answers **409** on every way (complete,
 batch, repeats, git keywords).
 2.63.0 (#1513) customer reports (web app only, no `/api/v1`): `GET /api/tasks/{id}/timeline` carries `ticket` for a task
 that came in through a form with a status link (`name`, `created_at`, `client_id` / `client_name`; for people who may change

@@ -22,12 +22,15 @@ function tpf_view(d, p) {
   return v;
 }
 const tpCur = () => tpView() || OFD.doc;
-function tpPutItems() {
-  const v = tpView();
-  const src = (v.items || []).filter(bfaFilled), items = src.map(it => ({id: it.id, kind: it.kind, service_id: it.service_id, title: it.title, detail: it.detail, qty: it.qty, unit: it.unit, rate: it.rate, tax: it.tax,
+// #7496: the body of a part's positions (the document's writer sends it, office_docs.js ofd_sendOne)
+function tpItemsBody(src) {
+  return src.map(it => ({id: it.id, kind: it.kind, service_id: it.service_id, title: it.title, detail: it.detail, qty: it.qty, unit: it.unit, rate: it.rate, tax: it.tax,
     raw_fee: it.raw_fee, producing: it.producing, in_handling: it.in_handling, in_markup: it.in_markup, intext: it.intext, cost: it.cost, discountable: it.discountable, markup_pct: it.markup_pct, discount_pct: it.discount_pct || 0,
     ...(it.kind !== 'heading' && it.kind !== 'text' ? {opt: it.opt || ''} : {})}));  // 2.113.1 (#2252): + the surcharge flags; 2.1042.0 (#5815): + discount_pct; 2.1041.0 (#5814): + opt
-  return ofdSave('PUT', `/api/office/docs/${OFD.doc.id}/parts/${v.tpPart.id}/items`, {items}, src);  // 2.269.0 A (#3012): + the lines sent (their new ids)
+}
+function tpPutItems() {  // the page going away (ofd_unload) and an agent's mark: the part's positions as they are, in the row
+  const v = tpView(), src = (v.items || []).filter(bfaFilled);
+  return ofdSave('PUT', `/api/office/docs/${OFD.doc.id}/parts/${v.tpPart.id}/items`, {items: tpItemsBody(src)}, src);  // (#3012): + the lines sent (their new ids)
 }
 // a change of the calculation values while a part is open goes to the part's settings, everything else to the document
 function tpPatch(body) {
@@ -103,7 +106,8 @@ function tpPartEditorHtml(d, adm, pid = tpOpenId(d)) {
   const rows = [[t.labels?.net || tr('Net total'), tpMoney(t.net, d)]];
   if (t.net_incl_raw != null) rows.push([t.labels?.net_incl_raw, tpMoney(t.net_incl_raw, d)]);
   if (t.net_excl_raw != null) rows.push([t.labels?.net_excl_raw, tpMoney(t.net_excl_raw, d)]);
-  const sums = `<div class="ofdtotals tptotals"><dl>${rows.map(([k, x], i) => `<div class="ofdtr tr-${i ? 'incl' : 'net'}"><dt>${esc(k)}</dt><dd>${esc(x)}</dd></div>`).join('')}</dl>
+  const calc = typeof ofd_W === 'function' && ofd_W(d).calc;  // #7496: a save of the document waits for the server's sums
+  const sums = `<div class="ofdtotals tptotals${calc ? ' rwcalc' : ''}"${calc ? ' aria-busy="true"' : ''}>${calc ? `<p class="rwcalcl muted" role="status">${esc(tr('Calculating…'))}</p>` : ''}<dl>${rows.map(([k, x], i) => `<div class="ofdtr tr-${i ? 'incl' : 'net'}"><dt>${esc(k)}</dt><dd>${esc(x)}</dd></div>`).join('')}</dl>
     ${adm && t.costs != null ? `<p class="muted ofdint">${ic('eye', 's')} ${trh('Internal: external costs {0}, surplus {1}', tpMoney(t.costs, d), tpMoney(t.margin, d))}</p>` : ''}</div>`;
   // 2.113.0 (#2248): the title page shows the same fields: the part's ids get its own prefix (no double ids)
   return head + tpf_ids(ofdItemsHtml(v, adm) + ofdAutoHtml(v, t), p.id) + sums;
@@ -141,7 +145,7 @@ async function tpClick(a, b) {
   }
   if (!d.can_edit) return;
   if (a === 'tp-add') {
-    for (let n = 0; OFD.saving && n < 50; n++) await new Promise(r => setTimeout(r, 100));  // 2.138.0 A (#2239): a running save of the title page first
+    // (#2239): a running save of the title page first -- #7496: the document's row of saves does that (ofdSave), no waiting loop
     const j = await ofdSave('POST', `/api/office/docs/${d.id}/parts`, {kind: b.dataset.kind || 'items', ...(b.dataset.pack ? {pack: b.dataset.pack} : {})});
     if (j?.part) { tpf_set(d, j.part.id, true); OFD.open.parts = true; ofdDraw(); setTimeout(() => { const el = $(`.tpfbox[data-pid="${j.part.id}"] .tptitle`); el?.focus(); el?.select?.(); }, 0); }  // 2.113.0 (#2248)
     return;
@@ -170,8 +174,9 @@ rowd_attach(document, {kind: 'tp', row: '.tprow', move: (from, to) => { if (OFD.
 async function tpChange(t) {
   const d = OFD.doc, pid = +t.dataset.pid;
   if (!d || !tpPart(d, pid)) return;
-  if (t.dataset.tp === 'print') { await ofdSave('PATCH', `/api/office/docs/${d.id}/parts/${pid}`, {print: t.checked ? 1 : 0}); return; }
-  if (t.dataset.tp === 'title') await ofdSave('PATCH', `/api/office/docs/${d.id}/parts/${pid}`, {title: t.value});
+  const p = tpPart(d, pid);  // #7496: the local state at once (a draw before the answer shows it), saved in the document's row
+  if (t.dataset.tp === 'print') { p.print = t.checked ? 1 : 0; await ofdSave('PATCH', `/api/office/docs/${d.id}/parts/${pid}`, {print: p.print}); return; }
+  if (t.dataset.tp === 'title') { p.title = t.value; await ofdSave('PATCH', `/api/office/docs/${d.id}/parts/${pid}`, {title: t.value}); }
 }
 // the choice in "Add service" on the title page: after the services, the parts
 function tpPickerHtml(d) {
@@ -180,9 +185,8 @@ function tpPickerHtml(d) {
 }
 async function tpPick(pid) {
   const d = OFD.doc, p = tpPart(d, pid); if (!p) return;
-  d.items.push({kind: 'part', ref_part_id: p.id, service_id: null, title: p.title, detail: '', qty: 1, unit: 'piece', rate: p.totals?.net || 0, tax: 'standard', raw_fee: 0, producing: 0, intext: 'intern', cost: 0, discountable: 1});
-  await ofdPutItems();
-  $(`.ofdits [data-i="${d.items.length - 1}"][data-k="qty"]`)?.focus();
+  TP.open = null;  // #7496: a line of the title page, through the document's writer (stands at once, its field has the focus)
+  await ofd_add(d, {kind: 'part', ref_part_id: p.id, service_id: null, title: p.title, detail: '', qty: 1, unit: 'piece', rate: p.totals?.net || 0, tax: 'standard', raw_fee: 0, producing: 0, intext: 'intern', cost: 0, discountable: 1}, '', 'qty');
 }
 // ---- the invoice from a quotation with parts: title page / summary / like the quotation (preset of the office settings)
 function tpInvoiceDialog(d) {

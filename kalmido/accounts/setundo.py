@@ -47,7 +47,7 @@ from ..core.undodiff import ug_diff_add, undo_diff_reg, undo_person
 from ..core.undogroups import ug_device, undo_bundle, undo_label
 from .layouts import LAYOUT_KEYS
 from .layoutsets import lyv_follow, lyv_set_active
-from .settings import RS_EMPTY, RS_ITEMS, RS_KEYS, SET_DELTA_CSV, SETTINGS_SERVER_ONLY, clean_setting, notif_update, rs_done_sync, rs_put
+from .settings import RS_EMPTY, RS_ITEMS, RS_KEYS, SET_DELTA_CSV, SETTINGS_SERVER_ONLY, clean_setting, fv2_clean_items, notif_update, rs_done_sync, rs_put
 
 SU_KIND = "setting"
 SU_AREA = "self"
@@ -187,7 +187,8 @@ def _clean(c, uid, k, v):
             return notif_update({**usettings(c, uid), "notify": ""}, v)["notify"] if v.strip() else ""
         if k == "lang" and v not in LANGS:
             raise BadInput("lang")
-        out = clean_setting(k, v)
+        # (#7525): the favourites' own earlier value may hold keys no longer known: dropped, as a PATCH drops stored ones
+        out = fv2_clean_items(v, v) if k == "fav_items" else clean_setting(k, v)
     except (BadInput, ValueError, TypeError):
         raise Denied(409, tr(SU_INVALID)) from None
     if out is None:  # a number setting's "" = leave unchanged in a PATCH; here: the empty value it held

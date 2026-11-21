@@ -13,7 +13,7 @@ from ..core.db import body, bump, db, iso, now_utc, uset, usettings
 from ..core.pg import write_lock
 from ..core.access import Denied, need_list, vis_sql, list_state_sql
 from ..accounts.session import me
-from ..accounts.settings import FV2_MAX  # 2.369.5 (#2517): pulled up from functions
+from ..accounts.settings import FV2_MAX, fv2_key  # (#2517): pulled up from functions; (#7525): + fv2_key
 from .lists import FOLDER_SEP  # 2.369.5 (#2517): pulled up from functions
 
 VW_FAV_MAX = 500  # the same bound as the other id lists of the settings (clean_setting)
@@ -237,7 +237,9 @@ def fv2_folder_rename(c, uid, old, new):
         return
     def mv(x):
         p = x[7:] if x.startswith("folder:") else None
-        return "folder:" + new + p[len(old):] if p is not None and (p == old or p.startswith(old + FOLDER_SEP)) else x
-    out = json.dumps(list(dict.fromkeys(mv(x) for x in items)), ensure_ascii=False, separators=(",", ":"))
+        # (#7525 F2): a moved key passes the check of a save (fv2_key): a path grown past what a key may hold is dropped
+        # here instead of stored unchecked
+        return fv2_key("folder:" + new + p[len(old):]) if p is not None and (p == old or p.startswith(old + FOLDER_SEP)) else x
+    out = json.dumps(list(dict.fromkeys(k for k in map(mv, items) if k)), ensure_ascii=False, separators=(",", ":"))
     if out != json.dumps(items, ensure_ascii=False, separators=(",", ":")):
         uset(c, uid, "fav_items", out)

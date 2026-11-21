@@ -9,6 +9,9 @@
 // D. a refused save (500): the line stays with "Not saved" and "Try again"; Try again saves it
 // E. no connection (the line drops the request): the same, "Try again" saves it
 // F. a line removed: gone at once; the save refused -> the line is back where it was
+// J-L (F16, F17, F19 of the readers of job/5996): the writer hangs on the document's id, not on an object held over a wait
+// M, N (#7496): the positions of an open part and a shoot part's calculation sheet through the same writer: three quick
+// changes while the answers are held all reach the server, typing during an answer stays, an error says "Not saved - Try again"
 const path = require('path');
 const {execFileSync} = require('child_process');
 const {boot, sleep, B, login, errs, hold} = require('./boot');
@@ -172,6 +175,147 @@ async function run(user) {
   check(+s.items?.[0]?.qty === 7 && +s.items?.[1]?.qty === 8 && s.items?.length === 7, `I: the first document got both its changes (${s.items?.map(x => x.qty).join()})` + tag);
   const s2 = await call('GET', `/api/office/docs/${doc2.id}`);
   check(s2.items?.length === 1 && +s2.items[0].qty === 9 && s2.items[0].title === 'Other', `I: the second document only its own (${s2.items?.map(x => x.title + ':' + x.qty).join()})` + tag);
+  // ================= J (F16). a refused line, the document reloaded, then a save of its head: "Try again" sends from the
+  // document's current object (its version), no false conflict bar
+  w.location.hash = `#office/offers/${doc.id}`;
+  check(await until(() => rows(d).length === 7 && w.eval('OFD.doc?.id') === doc.id), 'J: the first document is open again' + tag);
+  change(w, rows(d)[0].querySelector('[data-k="qty"]'), '3');
+  check(await until(() => w.__q.length === 1), 'J: the quantity\'s save is on its way' + tag);
+  w.__fail(500);
+  check(await until(() => rows(d)[0]?.classList.contains('rw-failed')), 'J: the line says "Not saved"' + tag);
+  await w.eval(`ofdLoadDoc(${doc.id}, true)`);
+  w.eval("ofdPatch({project_title: 'Spot J'})");
+  check(await until(() => w.__q.length === 1), 'J: the head\'s save after the reload is on its way' + tag);
+  w.__go(); check(await until(() => w.eval('OFD.saving') === 0), 'J: the head is saved' + tag);
+  click(w, rows(d)[0].querySelector('[data-rwagain]'));
+  check(await until(() => w.__q.length === 1), 'J: Try again sends it' + tag);
+  w.__go(); check(await idle(), 'J: saved' + tag);
+  check(!d.querySelector('.ofdcf'), 'J: no conflict bar (the writer sent the version of the head\'s answer)' + tag);
+  s = await call('GET', `/api/office/docs/${doc.id}`);
+  check(+s.items?.[0]?.qty === 3 && s.project_title === 'Spot J', `J: both on the server (${s.items?.[0]?.qty}, ${s.project_title})` + tag);
+
+  // ================= K (F17). no answer only after the editor was left: back in it, "Try again" at the line sends it
+  w.eval('NET_T.w = 400');
+  change(w, rows(d)[0].querySelector('[data-k="qty"]'), '4');
+  check(await until(() => w.__q.length === 1), 'K: the quantity\'s save is on its way' + tag);
+  w.location.hash = '#office/offers';
+  check(await until(() => !d.querySelector('#ofd-pos')), 'K: the list is open' + tag);
+  check(await until(() => w.eval(`OFD_WS.get(${doc.id}).failed()`)), 'K: no answer: the line is unsaved' + tag);
+  w.__q.splice(0); w.eval('NET_T.w = 20000');  // the lost request never comes back
+  w.location.hash = `#office/offers/${doc.id}`;
+  check(await until(() => rows(d)[0]?.classList.contains('rw-failed') && w.eval('OFD.doc?.id') === doc.id), 'K: back in the document, the line says "Not saved"' + tag);
+  const n1 = w.__n;
+  click(w, rows(d)[0].querySelector('[data-rwagain]'));
+  check(await until(() => w.__q.length === 1 && w.__n === n1 + 1), 'K: Try again sends it' + tag);
+  w.__go(); check(await idle(), 'K: saved' + tag);
+  check(await until(() => !d.querySelector('#ofd-pos .rwmark')), 'K: no mark after Try again' + tag);
+  s = await call('GET', `/api/office/docs/${doc.id}`);
+  check(+s.items?.[0]?.qty === 4 && !d.querySelector('.ofdcf'), `K: on the server (${s.items?.[0]?.qty}), no conflict bar` + tag);
+
+  // ================= L (F19). the picker waits for the catalogue, an answer replaces the document meanwhile, the catalogue
+  // is empty: the free line goes into the document as it is now (it used to go into the object seen at opening, lost)
+  const nL = rows(d).length;
+  w.eval('OFC.data.services = null; OFC.loading.services = true');
+  click(w, d.querySelector('.ofdeditor [data-ofd="it-svc"]'));
+  check(await until(() => d.querySelector('.ofdpick #ofd-slist')), 'L: the picker waits for the catalogue' + tag);
+  await w.eval(`ofdLoadDoc(${doc.id}, true)`);  // a new object for the open document
+  w.eval('OFC.data.services = []; OFC.loading.services = false');
+  check(await until(() => rows(d).length === nL + 1 && w.eval('OFD.doc.items.length') === nL + 1), `L: the free line stands in the open document (${rows(d).length})` + tag);
+  check(await until(() => w.__q.length === 1), 'L: its save is on its way' + tag);
+  w.__go(); check(await idle(), 'L: saved' + tag);
+  s = await call('GET', `/api/office/docs/${doc.id}`);
+  check(s.items?.length === nL + 1, `L: on the server (${s.items?.length})` + tag);
+  // ================= M (#7496). the positions of an open part: three quick changes, typing during an answer, an error
+  const partOf = j => j?.part || j;
+  const doc3 = await call('POST', '/api/office/docs', {kind: 'offer', lang: 'en', project_title: 'Spot M', items: [svc('Intro', 1, 100)]});
+  const PM = partOf(await call('POST', `/api/office/docs/${doc3.id}/parts`, {kind: 'items', title: 'Modul'}))?.id;
+  check(PM > 0, 'M: a part' + tag);
+  const pi = await call('PUT', `/api/office/docs/${doc3.id}/parts/${PM}/items`, {items: [svc('Eins', 1, 100), svc('Zwei', 1, 200), svc('Drei', 1, 300)]});
+  check(pi.status === 200, 'M: three positions in the part ' + pi.status + tag);
+  w.location.hash = `#office/offers/${doc3.id}`;
+  check(await until(() => w.eval('OFD.doc?.id') === doc3.id && d.querySelector(`.tplist [data-tog][data-pid="${PM}"]`)), 'M: the quotation with its part' + tag);
+  click(w, d.querySelector(`.tplist [data-tog][data-pid="${PM}"]`));
+  const BM = `.tpfbox[data-pid="${PM}"]`, prow = () => [...d.querySelectorAll(`${BM} .ofdits [data-rwk]`)];
+  check(await until(() => prow().length === 3), 'M: the part is open with its three rows' + tag);
+  hold(w, new RegExp(`/api/office/docs/${doc3.id}(/items|/parts/\\d+(/items)?)?$`));
+  const busy3 = () => w.eval('[...OFD_WS.values()].some(W => W.pend)');
+  const idle3 = () => until(() => w.eval('OFD.saving') === 0 && !busy3());
+  const partNow = async () => ((await call('GET', `/api/office/docs/${doc3.id}`)).parts || []).find(p => p.id === PM);
+  const n3 = w.__n;
+  change(w, prow()[0].querySelector('[data-k="qty"]'), '2');
+  change(w, prow()[1].querySelector('[data-k="qty"]'), '3');
+  change(w, prow()[2].querySelector('[data-k="qty"]'), '4');
+  check(prow().map(r => r.querySelector('[data-k="qty"]').value).join() === '2,3,4', 'M: the three values stand at once' + tag);
+  check(prow().every(r => r.classList.contains('rw-saving')), 'M: all three rows say "Saving…"' + tag);
+  check(!!d.querySelector(`${BM} .tptotals.rwcalc .rwcalcl`), 'M: the part\'s sums say "Calculating…"' + tag);
+  check(await until(() => w.__q.length === 1), 'M: the first save is on its way' + tag);
+  const tm = prow()[1].querySelector('[data-k="title"]');
+  tm.focus(); tm.value = 'Zwei lang'; tm.dispatchEvent(new w.Event('input', {bubbles: true}));
+  for (let t = 0; t < 200 && (busy3() || w.__q.length); t++) { if (w.__q.length) w.__go(); await sleep(50); }
+  check(await idle3(), 'M: saved' + tag);
+  check(w.__n - n3 >= 1 && w.__n - n3 <= 2, `M: the changes that waited joined one save (${w.__n - n3} saves for three changes)` + tag);
+  let pm = await partNow();
+  check((pm?.items || []).map(x => +x.qty).join() === '2,3,4', 'M: all three on the server: ' + (pm?.items || []).map(x => x.qty).join() + tag);
+  const tm2 = prow()[1].querySelector('[data-k="title"]');
+  check(d.activeElement === tm2 && tm2.value === 'Zwei lang', `M: the typed text and the focus stay through the answers (${tm2?.value})` + tag);
+  check(!d.querySelector(`${BM} .rwmark`) && !d.querySelector(`${BM} .tptotals.rwcalc`), 'M: no mark, the sums are back' + tag);
+  change(w, tm2, 'Zwei lang');
+  check(await until(() => w.__q.length === 1), 'M: the title\'s save' + tag);
+  w.__go(); check(await idle3(), 'M: the title saved' + tag);
+  change(w, prow()[2].querySelector('[data-k="qty"]'), '9');
+  check(await until(() => w.__q.length === 1), 'M: a save that will fail' + tag);
+  w.__fail(500);
+  check(await until(() => prow()[2]?.classList.contains('rw-failed') && !!prow()[2].querySelector('[data-rwagain]')), 'M: the row says "Not saved" with "Try again"' + tag);
+  check(prow()[2].querySelector('[data-k="qty"]').value === '9', 'M: the value stays' + tag);
+  click(w, prow()[2].querySelector('[data-rwagain]'));
+  check(await until(() => w.__q.length === 1), 'M: Try again sends it' + tag);
+  w.__go(); check(await idle3(), 'M: saved' + tag);
+  pm = await partNow();
+  check(+(pm?.items || [])[2]?.qty === 9 && (pm?.items || [])[1]?.title === 'Zwei lang' && !d.querySelector(`${BM} .rwmark`), `M: on the server (${(pm?.items || []).map(x => x.title + ':' + x.qty).join()}), no mark` + tag);
+  check(!d.querySelector('.ofdcf'), 'M: no conflict bar' + tag);
+
+  // ================= N (#7496). the calculation sheet of a shoot part: three quick changes, typing, an error
+  check((await call('PUT', '/api/office/settings', {industry_packs: ['film']})).status === 200, 'N: the film pack on' + tag);
+  const role = await call('POST', '/api/office/crew', {name_de: 'Kamera', name_en: 'Camera', rate_day: 650, intext: 'intern'});
+  const PN = partOf(await call('POST', `/api/office/docs/${doc3.id}/parts`, {kind: 'shoot', title: 'Dreh'}))?.id;
+  check(PN > 0, 'N: a shoot part' + tag);
+  check((await call('PATCH', `/api/office/docs/${doc3.id}/parts/${PN}`, {sheet: {head: {shoot_days: 1}, staff: [{role_id: role.id, qty: 1, prep: 0}], discount_pct: 0}})).status === 200, 'N: its sheet' + tag);
+  w.__off(); await w.eval(`ofdLoadDoc(${doc3.id}, true)`); w.eval('ofdDraw()');
+  check(await until(() => d.querySelector(`.tplist [data-tog][data-pid="${PN}"]`)), 'N: the part is listed' + tag);
+  click(w, d.querySelector(`.tplist [data-tog][data-pid="${PN}"]`));
+  const SN = () => d.querySelector(`.dksheet[data-pid="${PN}"]`), dk = k => SN()?.querySelector(`[data-dk="${k}"]`);
+  check(await until(() => dk('head.shoot_days') && dk('staff.0.qty')), 'N: the sheet is open' + tag);
+  await sleep(100);  // the editor wires the sheet right after drawing it (office_parts.js: setTimeout 0)
+  hold(w, new RegExp(`/api/office/docs/${doc3.id}(/items|/parts/\\d+(/items)?)?$`));
+  const sheetNow = async () => ((await call('GET', `/api/office/docs/${doc3.id}`)).parts || []).find(p => p.id === PN)?.sheet || {};
+  const n4 = w.__n;
+  change(w, dk('head.shoot_days'), '2');
+  change(w, dk('staff.0.qty'), '3');
+  change(w, dk('discount_pct'), '5');
+  check(dk('head.shoot_days').value === '2' && dk('staff.0.qty').value === '3' && dk('discount_pct').value === '5', 'N: the three values stand at once (no jump back)' + tag);
+  check(SN().classList.contains('rw-saving') && !!SN().querySelector('.dktotals.rwcalc .rwcalcl'), 'N: the sheet says "Saving…", its sums "Calculating…"' + tag);
+  check(await until(() => w.__q.length === 1), 'N: the first save is on its way' + tag);
+  const nt = dk('head.nights');
+  nt.focus(); nt.value = '4'; nt.dispatchEvent(new w.Event('input', {bubbles: true}));
+  for (let t = 0; t < 200 && (busy3() || w.__q.length); t++) { if (w.__q.length) w.__go(); await sleep(50); }
+  check(await idle3(), 'N: saved' + tag);
+  check(w.__n - n4 >= 1 && w.__n - n4 <= 2, `N: the changes that waited joined one save (${w.__n - n4} saves for three changes)` + tag);
+  let sn = await sheetNow();
+  check(+sn.head?.shoot_days === 2 && +sn.staff?.[0]?.qty === 3 && +sn.discount_pct === 5, `N: all three on the server (${sn.head?.shoot_days}, ${sn.staff?.[0]?.qty}, ${sn.discount_pct})` + tag);
+  check(d.activeElement === dk('head.nights') && dk('head.nights').value === '4', `N: the typed value and the focus stay through the answers (${dk('head.nights')?.value})` + tag);
+  check(!SN().classList.contains('rw-saving') && !SN().querySelector('.rwmark') && !SN().querySelector('.dktotals.rwcalc'), 'N: no mark, the sums are back' + tag);
+  check(+w.eval(`tpPart(OFD.doc, ${PN}).calc?.net || 0`) > 0, 'N: the figures from the answer' + tag);
+  change(w, dk('head.nights'), '4');
+  check(await until(() => w.__q.length === 1), 'N: a save that will fail' + tag);
+  w.__fail(500);
+  check(await until(() => SN()?.classList.contains('rw-failed') && !!SN().querySelector('[data-rwagain]')), 'N: the sheet says "Not saved" with "Try again"' + tag);
+  check(dk('head.nights').value === '4', 'N: the value stays' + tag);
+  click(w, SN().querySelector('[data-rwagain]'));
+  check(await until(() => w.__q.length === 1), 'N: Try again sends it' + tag);
+  w.__go(); check(await idle3(), 'N: saved' + tag);
+  sn = await sheetNow();
+  check(+sn.head?.nights === 4 && !SN().querySelector('.rwmark'), `N: on the server (${sn.head?.nights}), no mark` + tag);
+  check(!d.querySelector('.ofdcf'), 'N: no conflict bar' + tag);
   w.__off();
   check(!errs.length, 'no script errors ' + errs.join(' | ') + tag); errs.splice(0);
   w.close();

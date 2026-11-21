@@ -2036,8 +2036,13 @@ then draw" or its own id swap beside it.
   the version of the last answer).
 
 First user: the quotation and invoice editor (`office_docs.js`: `ofd_W` (one writer per document), `ofd_rows`, `ofd_add`, `ofd_itemsSend`, `ofd_lite`;
-`#ofd-pos` is the positions' section, `ofd_inChain` = `ofd_W(OFD.doc).run`). The parts and the calculation sheet (#7496), bank, cards,
-cash book, times, receipts, travel (#7497 - #7503) and the letters' autosave (#7504) follow on it. The `fdWrite` input guard
+`#ofd-pos` is the positions' section, `ofd_inChain` = `ofd_W(OFD.doc).run`). The positions of an open part and a shoot part's
+calculation sheet (#7496) go through the same writer of their document (one row, one version): `W.scopes` names what the next
+save sends (`'doc'`, a part's id, `'s' + id` for its sheet, `ofd_sendOne`); a scope that failed stays to send. The writer hangs on
+the document's id (`W.doc()`: the open `OFD.doc` of that id, else the last object it saw). The cash book's quick entry (#7500,
+`cb_W`: one writer per cash box, each entry its own `client_ref`) and the receipts of the bookkeeping (#7502, `bk_W`: one writer
+per receipt; after a save only what is shown comes again, the list keeps its loaded rows) are on it too. Bank, cards, times,
+travel (#7497 - #7503) and the letters' autosave (#7504) follow. The `fdWrite` input guard
 (#4547) stays under it. Tests hold the answers with `hold(w, re)` of `tests/boot.js` (`w.__go()`, `w.__fail(status)`,
 `w.__drop()`; `slow(w, re)` holds them all at once): `tests/p7493_schreiben_sofort_ui.js`, `tests/p7509_editor_kette_ui.js`.
 
