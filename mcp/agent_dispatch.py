@@ -28,6 +28,8 @@ chosen lists off deterministically -- no model decides what comes next:
      2.1413.0 (#7032, read_pr): before the card a read-only review job (agent_job.py start --audit) reads the pull request;
      the card goes out once it ended (or after read_wait_h) and names its verdict (green / findings / none).
      Merging stays the person's step; the tasks close once their commits are in close_ref,
+     (#7572) KALMIDO_DISPATCH_LAND=local: a project that integrates only locally -- no push, no pull request; the card
+     "Ready to integrate" (kind integrate) names job/<id>, the checked commit and base, the reading reads the branch,
   6. once a day at report_at: a short report into the person's chat.
 
 Switched on in Kalmido: Settings > Agents > (agent) > Runtime > "Work the list off" (GET /api/v1/agent runtime.dispatch:
@@ -93,9 +95,13 @@ DEFAULTS = {
                               # commit, the dispatcher runs it again on the ended job's branch -- exit 0 = green.
                               # Only from the runner's env file: KALMIDO_DISPATCH_CHECK_CMD (EXEC_KEYS)
     "check_timeout_min": 30,  # the dispatcher's check run at most this long (then red)
+    "land": "pr",             # (#7572): how a green job lands -- "pr" = push job/<id> to push_url and open a pull request
+                              # (pr_cmd); "local" = for projects that integrate only locally: no push, no pull request, the card
+                              # "Ready to integrate" (kind integrate) names branch job/<id>, the checked commit and base;
+                              # only from KALMIDO_DISPATCH_LAND
     "push_remote": "origin",  # where the dispatcher pushes the job branch job/<id> (never another branch); a name of
                               # `git remote`; only from KALMIDO_DISPATCH_PUSH_REMOTE
-    "push_url": "",           # required (2.1400.0, #7057): the push address of push_remote, only from KALMIDO_DISPATCH_PUSH_URL;
+    "push_url": "",           # required with land "pr" (2.1400.0, #7057): the push address of push_remote, only from KALMIDO_DISPATCH_PUSH_URL;
                               # the dispatcher pushes only to it and only while `git remote get-url --push` says the same
     "base": "",               # the pull request's target branch ("" = close_ref without its remote, else the current branch);
                               # only from KALMIDO_DISPATCH_BASE
@@ -120,7 +126,9 @@ DEFAULTS = {
 # KALMIDO-DISPATCH.json: the project folder is the agent's working place, a job could write a command there that the
 # dispatcher would then run with the runner's rights. Such a key in the file is not used and keeps the dispatcher idle.
 EXEC_KEYS = {"check_cmd": "KALMIDO_DISPATCH_CHECK_CMD", "pr_cmd": "KALMIDO_DISPATCH_PR_CMD", "approved_cmd": "KALMIDO_DISPATCH_APPROVED_CMD",
-             "push_remote": "KALMIDO_DISPATCH_PUSH_REMOTE", "base": "KALMIDO_DISPATCH_BASE", "push_url": "KALMIDO_DISPATCH_PUSH_URL"}
+             "push_remote": "KALMIDO_DISPATCH_PUSH_REMOTE", "base": "KALMIDO_DISPATCH_BASE", "push_url": "KALMIDO_DISPATCH_PUSH_URL",
+             "land": "KALMIDO_DISPATCH_LAND"}  # (#7572)
+LAND_WAYS = ("pr", "local")
 # the check runs the branch's code: its environment carries no Kalmido variables and no credentials
 SECRET_ENV_RX = re.compile(r"(?i)^(KALMIDO_|GH_|GITHUB_|ANTHROPIC_|OPENAI_|AWS_|SSH_AUTH_SOCK$|GIT_ASKPASS$|SSH_ASKPASS$)"
                            r"|TOKEN|SECRET|PASSW|API_?KEY|CREDENTIAL|PRIVATE_?KEY")
@@ -300,8 +308,11 @@ def load_config(project_dir, state_dir=None):
         return cfg, "close_ref in " + CONFIG_FILE + " is not used: a git ref, not an option and not a job branch (job/...)"
     if not str(cfg["check_cmd"]).strip():  # 2.1368.0 (#7028): no build without the project's check
         return cfg, "no check_cmd (KALMIDO_DISPATCH_CHECK_CMD in the runner's env file; a job ends only after the project's check)"
-    if not str(cfg["push_url"]).strip():  # 2.1400.0 (#7057): the push address is fixed by the person, not by the repository
-        return cfg, "no push_url (KALMIDO_DISPATCH_PUSH_URL in the runner's env file: the address the job branches are pushed to)"
+    if cfg["land"] not in LAND_WAYS:  # (#7572): a typo never lands another way than the person meant
+        return cfg, "KALMIDO_DISPATCH_LAND is pr or local (the runner's env file)"
+    if cfg["land"] == "pr" and not str(cfg["push_url"]).strip():  # 2.1400.0 (#7057): the push address is fixed by the person, not by the repository
+        return cfg, ("no push_url (KALMIDO_DISPATCH_PUSH_URL in the runner's env file: the address the job branches are pushed to; "
+                     "a project that integrates only locally: KALMIDO_DISPATCH_LAND=local)")
     return cfg, ""
 
 
@@ -931,8 +942,12 @@ READ_LINE = {"green": "green - no findings", "findings": "findings - read them b
 
 
 def read_brief(jid, br, sha, base, url, tids, titles):
-    """The brief of the read-only review job of a pull request (2.1413.0, #7032). The task titles are data (fenced)."""
-    lines = [f"(Kalmido dispatcher) Read the pull request {url} before the person is asked to merge it: branch {br} at commit "
+    """The brief of the read-only review job of a pull request (2.1413.0, #7032). The task titles are data (fenced).
+    (#7572): url None = a project that integrates locally: the job reads the branch in the repository, the same rules."""
+    what = (f"the pull request {url} before the person is asked to merge it" if url else
+            f"the branch {br} in the repository (this project integrates locally, there is no pull request) before the person "
+            "is asked to integrate it")
+    lines = [f"(Kalmido dispatcher) Read {what}: branch {br} at commit "
              f"{sha[:12]}, built by job #{jid}, against {base or 'the base branch'}. Read the diff (git diff {base or 'BASE'}...{sha[:12]}, "
              "git show) and judge it: does it do what its tasks ask, is anything broken, unsafe or left out (tests, error paths, "
              "rights, secrets, data of other people)? You only read: no commit, no push, no merge, no comment on the pull request.",
@@ -1038,10 +1053,10 @@ def push_url_ok(cfg, repo):
 
 
 APPROVED_WAIT_D = 30  # (#7562): a card without a decision this many days after it went out is no longer looked at
-APPROVED_RX = re.compile(r"\{(url|number|branch|base|title)\}")
+APPROVED_RX = re.compile(r"\{(url|number|branch|base|title|sha)\}")  # (#7572): + sha, the checked commit
 
 
-def approved_args(cfg, url, branch, base, title, number=None):
+def approved_args(cfg, url, branch, base, title, number=None, sha=""):
     """(#7562): approved_cmd as an argument list (no shell); the placeholders filled in per argument in ONE pass (a title
     that itself contains "{url}" stays text). number: the card's (the server read it from the repository), else the
     address's last digits. ValueError: the command does not split (quotes), or a placeholder it uses is empty (reader F3:
@@ -1049,7 +1064,7 @@ def approved_args(cfg, url, branch, base, title, number=None):
     import shlex
     m = re.search(r"/(\d+)/?$", url or "")
     num = str(number) if isinstance(number, int) and not isinstance(number, bool) and number > 0 else m.group(1) if m else ""
-    vals = {"url": url or "", "number": num, "branch": branch or "", "base": base or "", "title": title or ""}
+    vals = {"url": url or "", "number": num, "branch": branch or "", "base": base or "", "title": title or "", "sha": sha or ""}
     args = shlex.split(cfg["approved_cmd"])
     empty = sorted({k for a in args for k in APPROVED_RX.findall(a) if not vals[k]})
     if empty:
@@ -1059,12 +1074,15 @@ def approved_args(cfg, url, branch, base, title, number=None):
 
 def card_state(api, tid, url):
     """(#7562): (state open / approved / rejected, the card's suggestion) of the agent's card "Ready to merge" for the pull
-    request url on task tid; (None, None) = no such card readable (yet)."""
+    request url on task tid; (None, None) = no such card readable (yet). (#7572): a local landing's card "Ready to integrate"
+    (kind integrate) has url = its source "job/<id>@<commit>"."""
     r = api.req("GET", f"/tasks/{int(tid)}/comments") or {}
     st, card = None, None
     for k in (r.get("data", []) if isinstance(r, dict) else r) or []:
         sug = k.get("suggestion") if isinstance(k, dict) else None
-        if isinstance(sug, dict) and sug.get("kind") == "merge_request" and sug.get("pr_url") == url and (k.get("author") or {}).get("agent"):
+        mine = isinstance(sug, dict) and ((sug.get("kind") == "merge_request" and sug.get("pr_url") == url)
+                                          or (sug.get("kind") == "integrate" and sug.get("source") == url))
+        if mine and (k.get("author") or {}).get("agent"):
             st, card = sug.get("state") or "open", sug
     return st, card
 
@@ -1475,13 +1493,24 @@ class Dispatcher:
         summary = "\n".join([f"- #{t} {by_id.get(str(t), '')}".rstrip() for t in tids] +
                              ["", "Check green.", f"Built by job #{jid} of the Kalmido dispatcher on {br}; "
                               "merging is the person's step."])
+        if cfg["land"] == "local":  # (#7572): no push, no pull request -- the card names the branch, the checked commit and base
+            base = base_of(cfg, repo)
+            e["land"], e["pr"], e["branch"], e["pr_title"], e["sha"], e["base"] = "local", f"{br}@{sha}", br, title[:200], sha, base
+            e["card"] = {"tids": tids, "summary": summary.replace("merging is the person's step", "integrating is the project's step"), "repo": repo}
+            if not cfg["read_pr"]:
+                self.post_card(jid, e, res, w)
+                return
+            e["read"] = {"job": None, "at": time.time(), "task": tids[0], "title": f"Dispatcher: reading {br} (" + " ".join(f"#{t}" for t in tids) + ")",
+                         "brief": read_brief(jid, br, sha, base, None, tids, by_id)}
+            self.start_reading(e, cfg, w)
+            return
         url, why = open_pr(cfg, repo, repo, br, title[:200], summary, sha)
         if not url:
             e["land"] = "no_pr"
             self.finding(res, f"nopr:{jid}", self.say("dispatch_pr_failed", f"#{jid}", br, why))
             return
         e["land"], e["pr"], e["branch"], e["pr_title"] = "pr", url, br, title[:200]  # (#7562): branch / title for approved_cmd
-        e["card"] = {"tids": tids, "summary": summary, "repo": repo}
+        e["card"], e["sha"] = {"tids": tids, "summary": summary, "repo": repo}, sha  # (#7572): {sha} for approved_cmd too
         if not cfg["read_pr"]:
             self.post_card(jid, e, res, w)
             return
@@ -1522,9 +1551,19 @@ class Dispatcher:
             return
         api = self.host.api
         limited = len(getattr(w, "done", ())) >= getattr(w, "limit", float("inf"))  # the round's write limit: no failure of the card
-        if not w(f"approval card for {url} on #{tids[0]}", lambda: api.req("POST", f"/tasks/{int(tids[0])}/comments", {
-                "body": f"Ready to merge: {url}\n\n{summary}",
-                "suggestion": {"kind": "merge_request", "pr_url": url, "summary": summary, **({"details": details} if details else {})}})):
+        local = e.get("land") == "local"
+        if local:  # (#7572): the card "Ready to integrate" (agents/gates.py kind integrate): branch, checked commit, target; it
+            # has no details field: the whole list (details) closes the evidence, within its limit
+            sha, base, br = e.get("sha") or "", e.get("base") or "", e.get("branch") or ""
+            ev_ = (f"The project's check (KALMIDO_DISPATCH_CHECK_CMD) was green on commit {sha} of {br}; "
+                   "a commit made after the check is not part of this approval." + ("\n\n" + details if details else ""))
+            card = {"body": f"Ready to integrate: branch {br} at commit {sha[:12]} into {base}\n\n{summary}",
+                    "suggestion": {"kind": "integrate", "source": url, "target": base, "summary": summary,
+                                   "evidence": ev_ if len(ev_) <= 4000 else ev_[:3999] + "…"}}
+        else:
+            card = {"body": f"Ready to merge: {url}\n\n{summary}",
+                    "suggestion": {"kind": "merge_request", "pr_url": url, "summary": summary, **({"details": details} if details else {})}}
+        if not w(f"approval card for {url} on #{tids[0]}", lambda: api.req("POST", f"/tasks/{int(tids[0])}/comments", card)):
             if not limited:
                 e["card_fail"] = int(e.get("card_fail") or 0) + 1
             if verdict and int(e.get("card_fail") or 0) < CARD_TRIES:  # reader F5 (2.1413): not written -- again next round
@@ -1533,11 +1572,11 @@ class Dispatcher:
             # round for ever: after CARD_TRIES rounds the person learns of the pull request without the card
             e["carded"] = True
             # (#7199, reader F1 of job/5726): the message carries the reading's verdict the card would have carried
-            self.finding(res, f"pr:{jid}", self.say("dispatch_pr_nocard", f"#{jid}", url, " ".join(f"#{t}" for t in tids),
+            self.finding(res, f"pr:{jid}", self.say("dispatch_local_nocard" if local else "dispatch_pr_nocard", f"#{jid}", url, " ".join(f"#{t}" for t in tids),
                                                     READ_LINE.get(verdict, READ_LINE["none"]) if verdict else "not read (reading is off)"))
             return
         e["carded"], e["carded_at"] = True, time.time()
-        self.finding(res, f"pr:{jid}", self.say("dispatch_pr", f"#{jid}", url, " ".join(f"#{t}" for t in tids)))
+        self.finding(res, f"pr:{jid}", self.say("dispatch_local" if local else "dispatch_pr", f"#{jid}", url, " ".join(f"#{t}" for t in tids)))
 
     def after_approval(self, jid, e, cfg, now, res, w):
         """(#7562): the dispatcher reads the state of its own card "Ready to merge". approved: approved_cmd runs exactly once
@@ -1576,12 +1615,14 @@ class Dispatcher:
         repo = ((e.get("card") or {}).get("repo")) or self.project_dir
         # reader F2: the same guards as pr_cmd - the push address the person fixed, nothing in the repository's config that runs
         # a command or redirects (a command that reads its repository from the remotes would else go elsewhere)
-        ok, why = push_url_ok(cfg, repo)
+        local = e.get("land") == "local"  # (#7572): nothing was pushed -- no push address to hold to, the repository's config still
+        ok, why = (True, "") if local else push_url_ok(cfg, repo)
         bad = unsafe_git_config(repo) if ok else []
         why = why or ("the repository's config sets " + ", ".join(bad) if bad else "")
         if not why:
             try:  # reader F4: a command that does not split is a failure told once, never an ended round
-                args = approved_args(cfg, e["pr"], e.get("branch") or f"job/{jid}", base_of(cfg, repo), e.get("pr_title") or "", (card or {}).get("number"))
+                args = approved_args(cfg, "" if local else e["pr"], e.get("branch") or f"job/{jid}", e.get("base") or base_of(cfg, repo),
+                                     e.get("pr_title") or "", (card or {}).get("number"), e.get("sha") or "")
                 p = subprocess.run(args, cwd=repo, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=180, env=pr_env(cfg))
                 why = "" if p.returncode == 0 else f"exit {p.returncode}"
             except ValueError as x:
@@ -1590,7 +1631,7 @@ class Dispatcher:
                 why = type(x).__name__
         e["approved"] = "failed" if why else "done"
         if why:
-            self.finding(res, f"approved:{jid}", self.say("dispatch_approved_failed", f"#{jid}", e["pr"], why))
+            self.finding(res, f"approved:{jid}", self.say("dispatch_local_approved_failed" if local else "dispatch_approved_failed", f"#{jid}", e["pr"], why))
         else:
             log(f"approved_cmd ran for {e['pr']}")
 

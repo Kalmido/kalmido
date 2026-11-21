@@ -284,7 +284,8 @@ function dtUndo(got) {
 
 // ---- sections (D3): drop a task onto a section header or into an empty section, reorder sections by their handle
 // (list view + kanban columns, mouse), long-press on a task = "Move to section…", on a section header = move up / down
-const secHandle = sid => `<span class="shandle" draggable="true" data-sdrag="${sid}" title="${esc(tr('Drag to reorder sections'))}" aria-hidden="true">${ic('grip', 's')}</span>`;
+// (#7518): sk = the adapter of the section (DROP_ADAPTERS sec, dragmulti.js): 'list' a project's, 'mine' an own section of My tasks
+const secHandle = (sid, sk = 'list') => `<span class="shandle" draggable="true" data-sdrag="${sid}"${sk === 'list' ? '' : ` data-sk="${esc(sk)}"`} title="${esc(tr('Drag to reorder sections'))}" aria-hidden="true">${ic('grip', 's')}</span>`;
 const secName = sid => sid ? (S.sections.find(x => x.id === sid)?.name || '') : tr('Unassigned');
 // 2.958.0 (#3911): a completed / rejected task moved into a column of that meaning: the move changed no status (a drag out by hand still undoes)
 function dnd_kindStayed(before, after) {
@@ -411,27 +412,28 @@ function sectionPicker(anchor, id) {
     ...secs.map(x => ({label: x.name, icon: 'folder', on: cur === x.id && !t.parent_id, fn: () => taskToSection(id, x.id)}))] : []),
     ...(add ? [...(secs.length ? ['-'] : []), {label: tr('New section…'), icon: 'plus', fn: () => dgToNewSection([id], t.list_id)}  /* (#667), (#7351): name it, the task lands in it; one step */] : [])]);
 }
-function secHeadMenu(anchor, sid) {
-  const s = S.sections.find(x => x.id === sid); if (!s) return;
-  if (!canEditList(s.list_id)) { roToast(); return; }
+function secHeadMenu(anchor, sid, sk = 'list') {  // (#7518): sk = the section's adapter (an own section of My tasks: 'mine')
+  if (sk === 'list') { const s = S.sections.find(x => x.id === sid); if (!s) return; if (!canEditList(s.list_id)) { roToast(); return; } }
   // 2.1151.0 B (#3835): the head's whole menu at once, its "+" (hidden on the phone) on top; up / down went (the head drags).
   // Was 2.46.1 (#1635): Move section up / down and "Section menu…"
   // the add button's own text; the call itself, not a click on it (the hold redraws the list, the button may be a new one by then)
   const ab = anchor.querySelector('.gadd');
-  sh_menu(anchor, 'list', sid, ab ? [{label: ab.getAttribute('aria-label') || '', icon: 'plus', fn: () => secAddOpen(+ab.dataset.sec || 0, ab.dataset.sk)}, '-'] : []);
+  sh_menu(anchor, sk, sid, ab ? [{label: ab.getAttribute('aria-label') || '', icon: 'plus', fn: () => secAddOpen(+ab.dataset.sec || 0, ab.dataset.sk)}, '-'] : []);
 }
-let secDrag = null;
-const secOf = el => el.classList.contains('kcol') ? el.dataset.kcol : el.dataset.section;
+// (#7518): one drag for every section with a grip - a project's (sk 'list') and an own section of My tasks ('mine'); where it may go
+// and the saving come from its adapter (sec.ids / sec.order, dragmulti.js), secdrag.js measures the spot
+let secDrag = null, secSk = 'list';
+const secOf = el => el.classList.contains('kcol') ? el.dataset.kcol : el.dataset.section ?? el.dataset.sid;
 document.addEventListener('dragstart', e => {
   const h = e.target.closest?.('[data-sdrag]'); if (!h) return;
   e.stopPropagation();
-  secDrag = +h.dataset.sdrag; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'section:' + secDrag);
+  secDrag = +h.dataset.sdrag; secSk = h.dataset.sk || 'list'; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'section:' + secDrag);
   requestAnimationFrame(() => sb_secFold(h, true));  // 2.46.1 (#1635): the section folds while it is dragged
 }, true);
 document.addEventListener('dragover', e => {
   if (secDrag === null) return;
   // 2.46.1 (#1635): anywhere on the sections; past the middle of the last one = the end
-  const sp = sb_secSpot(e.clientX, e.clientY, e.target), ok = !!sb_secOrder(secDrag, sp);
+  const sp = sb_secSpot(e.clientX, e.clientY, e.target, secSk), ok = !!sb_secOrder(secDrag, sp, secSk);
   sb_secMark(ok ? sp : null);
   if (ok) e.preventDefault();
 });
@@ -439,9 +441,9 @@ document.addEventListener('drop', e => {
   if (secDrag === null) return;
   e.preventDefault(); e.stopImmediatePropagation();
   const sid = secDrag; secDrag = null;
-  const o = sb_secOrder(sid, sb_secSpot(e.clientX, e.clientY, e.target));  // 2.46.1 (#1635): before the target ("Unassigned" = first) or at the end (measured while folded)
+  const o = sb_secOrder(sid, sb_secSpot(e.clientX, e.clientY, e.target, secSk), secSk);  // (#1635): before the target ("Unassigned" = first) or at the end (measured while folded)
   $$('#view .dropbefore, #view .dropafter, #view .dragging').forEach(x => x.classList.remove('dropbefore', 'dropafter', 'dragging', 'sb-secfold'));
-  if (o) saveSectionOrder(o.lid, o.ids);
+  if (o) o.save();
 }, true);
 document.addEventListener('dragend', () => { if (secDrag !== null) { secDrag = null; $$('#view .dropbefore, #view .dropafter, #view .dragging').forEach(x => x.classList.remove('dropbefore', 'dropafter', 'dragging', 'sb-secfold')); } });
 // touch: long-press a section header (list view, kanban) = drag it (2.46.1 #1635, secdrag.js); held without moving = move up / down
@@ -451,11 +453,13 @@ let secHold = null, secHeld = false;
 const secLpTake = () => { if (typeof LM_SECHEAD !== 'undefined') ms_lpTake(LM_SECHEAD); };
 // a move past the threshold before the hold ends the row menu's long press by itself (multisel.js pointermove, 10 px)
 document.addEventListener('touchstart', e => {
-  const h = e.target.closest?.('#view .ghead[data-section], #view .khead[data-ksec]');
-  const sid = h && +(h.dataset.section || h.dataset.ksec);
+  const h = e.target.closest?.('#view .ghead[data-section], #view .khead[data-ksec], #view .ghead[data-sk][data-sid]');
+  const sid = h && +(h.dataset.section || h.dataset.ksec || h.dataset.sid), sk = h?.dataset.ksec ? 'list' : h?.dataset.sk || 'list';
   if (!sid || e.target.closest('.iconbtn, .gact')) { secHold = null; return; }
   const p = e.touches[0];
-  secHold = {h, sid, x: p.clientX, y: p.clientY, timer: setTimeout(() => { if (!secHold) return; secHold.fired = true; secLpTake(); if (!canEditList(S.sections.find(x => x.id === secHold.sid)?.list_id)) { secHeadMenu(secHold.h, secHold.sid); return; } sb_secHoldStart(secHold.h, secHold.sid, secHold.x, secHold.y); }, 450)};
+  // (#7518): may it drag? a project's section: the list may be changed; another adapter's: its sec.drag
+  const may = () => { const a = sh_ad(sk), s = a?.sec.byId(sid); return !!s && (sk === 'list' ? canEditList(s.list_id) : a.sec.drag(s)); };
+  secHold = {h, sid, x: p.clientX, y: p.clientY, timer: setTimeout(() => { if (!secHold) return; secHold.fired = true; secLpTake(); if (!may()) { secHeadMenu(secHold.h, secHold.sid, sk); return; } sb_secHoldStart(secHold.h, secHold.sid, secHold.x, secHold.y, sk); }, 450)};
 }, {passive: true});
 document.addEventListener('touchmove', e => { if (secHold && !secHold.fired && Math.hypot(e.touches[0].clientX - secHold.x, e.touches[0].clientY - secHold.y) > 8) { clearTimeout(secHold.timer); secHold = null; } }, {passive: true});
 function secHoldEnd(e) {

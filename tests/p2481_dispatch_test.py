@@ -36,6 +36,8 @@ fake Kalmido API and a real temporary git repository.
  - 2.1413.0 (#7032): before the approval card a review job (--audit) reads the pull request; the card goes out once it ended
    and names its verdict (green / findings, German lines too, the last one counts); not started = again next round, after
    read_wait_h the card without a verdict says why; read_pr only from the state folder's file; a review job keeps its result
+ - (#7572): KALMIDO_DISPATCH_LAND=local (only from the runner's env): no push address needed, nothing pushed, no pull
+   request; the card "Ready to integrate" names branch, the checked commit (a later commit not) and base; approved_cmd gets {sha}
 Pure Python, no container."""
 import importlib.util
 import json
@@ -1101,6 +1103,66 @@ dd = ad.Dispatcher(h, proj)
 dd.reg["lead"] = [[int(time.time()), 2.0], [int(time.time()), 4.0]]
 check(dd.metrics(time.time())[0] == (3.0, 2), "#4061: the median of an even count is the middle of the two")
 
+# ---- (#7572): a project that integrates only locally (KALMIDO_DISPATCH_LAND=local) -- no push address needed, nothing pushed,
+# no pull request; the card "Ready to integrate" names the branch, the CHECKED commit and base; the reading reads the branch;
+# after the yes approved_cmd gets {sha}; without the switch everything as before (the rounds above)
+os.environ["KALMIDO_DISPATCH_CHECK_CMD"] = "exit 0"
+saved_push = os.environ.pop("KALMIDO_DISPATCH_PUSH_URL", None)
+with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
+    json.dump({"lists": ["Backlog"], "report_at": ""}, f)
+cfgL, probL = ad.load_config(proj)
+check(probL and "push_url" in probL and "KALMIDO_DISPATCH_LAND=local" in probL, f"#7572: without the switch the push address stays required: {probL}")
+os.environ["KALMIDO_DISPATCH_LAND"] = "lokal"
+cfgL, probL = ad.load_config(proj)
+check(probL == "KALMIDO_DISPATCH_LAND is pr or local (the runner's env file)", f"#7572: an unknown way keeps the dispatcher idle: {probL}")
+os.environ["KALMIDO_DISPATCH_LAND"] = "local"
+cfgL, probL = ad.load_config(proj)
+check(not probL and cfgL["land"] == "local", f"#7572: local needs no push address: {probL}")
+os.environ.pop("KALMIDO_DISPATCH_LAND")
+with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
+    json.dump({"lists": ["Backlog"], "report_at": "", "land": "local"}, f)
+cfgL, probL = ad.load_config(proj)
+check(probL and "land in " + ad.CONFIG_FILE + " is not used" in probL and "KALMIDO_DISPATCH_LAND" in probL,
+      f"#7572: the way of landing never comes from the project folder (the agent can write it): {probL}")
+with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
+    json.dump({"lists": ["Backlog"], "report_at": ""}, f)
+os.environ["KALMIDO_DISPATCH_LAND"] = "local"
+os.environ["KALMIDO_DISPATCH_APPROVED_CMD"] = f'"{sys.executable}" "{fakeok}" "{okflag}" {{branch}} {{base}} {{sha}} {{title}}'
+npr = len(open(prlog, encoding="utf-8").readlines()) if os.path.exists(prlog) else 0
+READ_RESULT[0] = "VERDICT: green"
+d, h = read_round(631, 331)
+e = d.reg["jobs"]["631"]
+shaL = subprocess.run(["git", "-C", proj, "rev-parse", "job/631"], capture_output=True, text=True).stdout.strip()
+check(e.get("land") == "local" and e.get("sha") == shaL and e.get("pr") == f"job/631@{shaL}", f"#7572: landed locally on the checked commit: {e}")
+check("this project integrates locally" in READS[-1][2] and "https://" not in READS[-1][2] and shaL[:12] in READS[-1][2],
+      f"#7572: the reading reads the branch in the repository, no pull request: {READS[-1][2][:300]}")
+pushed = subprocess.run(["git", "--git-dir", bare, "branch", "--list"], capture_output=True, text=True).stdout.split()
+nprl = len(open(prlog, encoding="utf-8").readlines()) if os.path.exists(prlog) else 0
+check("job/631" not in pushed and nprl == npr, f"#7572: nothing pushed, no pull request opened {pushed} {nprl - npr}")
+gw(JOBS["631"]["worktree"]["path"], "commit", "-q", "--allow-empty", "-m", "#331: a commit after the check")  # not part of the yes
+d.tick(force=True)
+c = cards(h, 331)
+sug = c[0]["suggestion"] if c else {}
+check(len(c) == 1 and sug.get("kind") == "integrate" and sug.get("source") == f"job/631@{shaL}" and sug.get("target") == "main"
+      and shaL in sug.get("evidence", "") and f"branch job/631 at commit {shaL[:12]} into main" in c[0]["body"] and "green - no findings" in sug.get("summary", ""),
+      f"#7572: the card names branch, the checked commit and the target, with the reading's verdict: {c}")
+newhead = subprocess.run(["git", "-C", proj, "rev-parse", "job/631"], capture_output=True, text=True).stdout.strip()
+check(newhead != shaL and newhead not in json.dumps(c), "#7572: a commit after the check does not reach the card")
+told = "\n".join(t for _, t in h.api.chats)
+check(f"job/631@{shaL}" in told and "pull request" not in told.lower(), f"#7572: the person is told without a pull request: {told}")
+n0 = len(okruns())
+COMMENTS[331] = [{"id": 931, "author": {"id": 99, "name": "Bot", "agent": True}, "text": "Ready to integrate",
+                  "suggestion": dict(sug, state="approved")}]
+d.tick(force=True)
+runs = okruns()[n0:]
+check(runs == [[okflag, "job/631", "main", shaL, "#331: Feature 331"]] and e.get("approved") == "done",
+      f"#7572: after the yes approved_cmd runs once with the checked commit (no push address needed): {runs} {e.get('approved')}")
+COMMENTS.pop(331, None)
+os.environ.pop("KALMIDO_DISPATCH_LAND")
+os.environ.pop("KALMIDO_DISPATCH_APPROVED_CMD")
+if saved_push is not None:
+    os.environ["KALMIDO_DISPATCH_PUSH_URL"] = saved_push
+check(all(len(ar.TEXTS[k]) == 6 for k in ("dispatch_local", "dispatch_local_nocard", "dispatch_local_approved_failed")), "#7572: six languages")
 # #7561: the card's summary stays within the server's 2000 characters (it refuses more now): a long one keeps its first lines,
 # the whole text goes into details; a short one is unchanged
 sm, dt = ad.card_text("- #1 short")

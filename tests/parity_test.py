@@ -370,11 +370,12 @@ APP_ONLY = [
      ("=GET /api/trash/lists", "=POST /api/trash/lists/{}/restore", "=DELETE /api/trash/lists/{}")),
     ("2.186.1 (#2732): the download of a kept project of a deleted account stays with its custodian, people only (like the "
      "retention export; an API token / agent 404)", ("=GET /api/trash/lists/{}/export.zip", "=POST /api/trash/lists/{}/export.zip")),
-    ("2.99.1 C (#1959): a video sign-off itself stays with people -- creating, renaming, trash / restore, new versions, the "
+    ("2.99.1 C (#1959): a video sign-off itself stays with people -- creating, renaming, trash / restore, new versions, a task from a comment (#7533), the "
      "customer link and moving it; deleting comments and editing their text; an agent reads it, comments and marks comments done",
      ("=POST /api/videos", "=PATCH /api/videos/{}", "=DELETE /api/videos/{}", "=POST /api/videos/{}/restore", "=POST /api/videos/{}/versions", "=DELETE /api/videos/{}/versions/{}",  # 2.641.0 (#4769): exact (the file of a version is mapped)
       "=DELETE /api/videos/{}/comments/{}", "=POST /api/videos/{}/comments/{}/restore", "=POST /api/videos/{}/signoff",
-      "=POST /api/videos/{}/signoffs/{}/revoke", "=POST /api/videos/{}/move-space")),
+      "=POST /api/videos/{}/signoffs/{}/revoke", "=POST /api/videos/{}/move-space",
+      "=POST /api/videos/{}/comments/{}/task")),  # (#7533): a task from a comment is a person's click; an agent proposes it
     # 2.549.0 (#4536): the video trash list belongs to trash / restore above (people only, agents 404)
     ("2.549.0 (#4536): the video trash of the trash view stays with people, like the restore it lists for (agents 404)",
      ("=GET /api/videos/trash",)),

@@ -3519,18 +3519,37 @@ dispatcher (`core.hooksPath=/dev/null` for push and working copies):
   guard the build agent cannot write (branch protection with a person's review, or a token for `approved_cmd` the job's
   user cannot read).
 
+**Landing locally, without a push and without a pull request (#7572).** A project that integrates only on this computer
+(its own script brings branches into the target branch, a push happens only on the person's word) sets
+`KALMIDO_DISPATCH_LAND=local` in the runner's env file (default `pr` = the way above; any other value keeps the dispatcher
+idle). Then `push_url` and `pr_cmd` are not needed and never used: after the green check nothing is pushed and no pull
+request is opened. The card on the bundle's first task is *Ready to integrate* (kind `integrate`, as
+`request_integration_approval`): its source is `job/<id>@<commit>` - the branch and exactly the commit that was checked -, its
+target is `base` and its evidence says the check was green on that commit. A commit made on the branch after the check is
+not part of the approval: integrate the named commit. The reading job before the card (`read_pr`) reads the branch in the
+repository (`git diff base...commit`) instead of a pull request, with the same rules and the same verdict in the card. Everything
+else stays: the job never integrates, the card is the only approval, the dispatcher never moves the target branch, and after
+the yes at most `approved_cmd` runs (the project integrates there itself; `{branch}` `{base}` `{title}` and `{sha}` = the
+checked commit are filled in, `{url}` and `{number}` are empty, so a command that uses them runs nothing). The tasks show *on a
+branch* until the integrated commits reach `close_ref`; then they are closed as above.
+
+**The base branch of a topic project** is the branch checked out in its project folder: a job's working copy starts from it
+(`git worktree add -b job/<id>` from that branch), the tasks close against `close_ref` (empty = that branch), and the card's
+target is `base` (empty = `close_ref` without its remote, else that branch). Several topic projects of one repository each
+get their own folder with their own branch checked out - no setting of its own is needed for it.
+
 Protect the target branch on the git server as well (only by pull request, the project's CI as the required check), and
 give the token on this computer write access to that one repository only. `KALMIDO_JOB_WORKTREES` (default 2) caps the
 open working copies: with `places` above 2 raise it too.
 
 `KALMIDO-DISPATCH.json` in the project folder (`KALMIDO_DISPATCH_CONFIG` = another path). Without `lists`, without
-`check_cmd` (2.1368.0) or without `push_url` (2.1400.0) the dispatcher stays idle; unknown keys and wrong types are named once in the runner's log and left
+`check_cmd` (2.1368.0) or without `push_url` (2.1400.0; not needed with `KALMIDO_DISPATCH_LAND=local`, #7572) the dispatcher stays idle; unknown keys and wrong types are named once in the runner's log and left
 at the default. `worktree` and `finish_cmd` are retired (2.1368.0): named once in the log, never used.
 
 What the dispatcher runs comes only from the runner's env file, never from the project folder (the agent can write
 there): `KALMIDO_DISPATCH_CHECK_CMD` (`check_cmd`), `KALMIDO_DISPATCH_PR_CMD` (`pr_cmd`), `KALMIDO_DISPATCH_PUSH_REMOTE`
-(`push_remote`), `KALMIDO_DISPATCH_PUSH_URL` (`push_url`, 2.1400.0), `KALMIDO_DISPATCH_BASE` (`base`) and `KALMIDO_DISPATCH_APPROVED_CMD`
-(`approved_cmd`, #7562). One of these keys in
+(`push_remote`), `KALMIDO_DISPATCH_PUSH_URL` (`push_url`, 2.1400.0), `KALMIDO_DISPATCH_BASE` (`base`), `KALMIDO_DISPATCH_APPROVED_CMD`
+(`approved_cmd`, #7562) and `KALMIDO_DISPATCH_LAND` (`land`: `pr` | `local`, #7572). One of these keys in
 `KALMIDO-DISPATCH.json` is not used: the dispatcher stays idle and names it.
 
 How a job lands (2.1400.0): the dispatcher notes the commit at the head of `job/<id>`, checks it out into a fresh temporary
@@ -5734,6 +5753,11 @@ people (the API has no route for it).
 - **Done**: your own comments, or every comment when you may change the task / project.
 - No event of its own: a new customer comment reaches the person who made the link as a push; ask for a summary in the
   task or the chat.
+- **A task from a comment** (*since 2.1501.0, #7533*): in the app a person who may change the sign-off and write in its
+  project turns a comment (point, area, timecode) into a task of that project with one click ("Task from it"); the task's
+  description names the sign-off, the version and the place, and a link of the core joins both (`list_links` on the task
+  shows it with `rel: "review_task"`). An agent does not make it: propose it in an answer to the comment or in the task, the
+  person clicks. The new task reaches the project's listening agents as every new task (`task_added`).
 - **Images and PDFs (2.641.0).** The same sign-off also takes images (JPG, PNG, WebP) and PDFs of the file store. A
   version says its medium: `kind` `video` | `image` | `pdf`; an image / PDF version names its file (`file_id`,
   `file_no` = the file's version shown, `file_name`, `mime`, `content` = its bytes). You see such a sign-off only when

@@ -8,7 +8,7 @@
 // it), a tap on a timecode or a mark on the time line jumps there. The player is driven through its postMessage protocol:
 // no script of Vimeo / YouTube is loaded; messages count only from the player's own frame and origin. Sections: a task's
 // panel (detail.js), a project's overview (projects.js), a client's card (clientpage.js). Every action is one undo step.
-const VDR = {by: {}, busy: {}, cur: null};
+const VDR = {by: {}, busy: {}, cur: null, from: {}};  // (#7533) from: a task's sign-offs it was made from (GET /api/videos?task_id=)
 const VDR_ORIGIN = {youtube: 'https://www.youtube-nocookie.com', vimeo: 'https://player.vimeo.com'};
 const VDR_ST = {open: N_('In review'), approved: N_('Approved|video'), changes: N_('Changes requested')};
 const vdr_p2 = n => String(n).padStart(2, '0');
@@ -24,7 +24,7 @@ const vdr_key = (k, id) => `${k}:${id}`;
 function vdr_rows(k, id, redraw) {
   const key = vdr_key(k, id), c = VDR.by[key];
   if (!c && !VDR.busy[key]) {
-    VDR.busy[key] = api('GET', `/api/videos?${k}=${id}`).then(j => { VDR.by[key] = j.reviews || []; }, () => { VDR.by[key] = []; })
+    VDR.busy[key] = api('GET', `/api/videos?${k}=${id}`).then(j => { VDR.by[key] = j.reviews || []; VDR.from[key] = j.from || []; }, () => { VDR.by[key] = []; })
       .finally(() => { delete VDR.busy[key]; redraw(); });  // #7399: the promise, so a page can wait for it (vdr_load)
   }
   return c || null;
@@ -56,8 +56,11 @@ function vdr_taskHtml(t, ro) {
   if (!t || !(t.id > 0) || t.context) return '';
   const rows = vdr_rows('task_id', t.id, () => vdr_redrawTask(t.id));
   if (!rows) return '';
-  if (ro && !rows.length) return '';
-  return `<div class="dsec vdrsec" id="d-vdr"><h5>${tr('Approval')}</h5>${vdr_listHtml(rows, 'task_id', t.id, !ro)}</div>`;  // 2.623.0 (#4765): ro also = off (detail.js)
+  // (#7533): the sign-off the task was made from (a comment's "Task from it"): one line that opens it
+  const fr = VDR.from[vdr_key('task_id', t.id)] || [];
+  if (ro && !rows.length && !fr.length) return '';
+  const frm = fr.map(x => `<button type="button" class="linkbtn vdrfrom" data-vdr="open" data-id="${esc(x.id)}">${ic('film', 's')}<span>${esc(tr('From the sign-off “{0}”', x.title))}</span></button>`).join('');
+  return `<div class="dsec vdrsec" id="d-vdr"><h5>${tr('Approval')}</h5>${/*html-ok*/ frm /* built above, escaped */}${vdr_listHtml(rows, 'task_id', t.id, !ro)}</div>`;  // (#4765): ro also = off (detail.js)
 }
 const vdr_count = t => (VDR.by[vdr_key('task_id', t.id)] || []).length;  // detail.js: a task with reviews shows the section outside "More details"
 // 2.623.0 (#4765): "Add" only where the approval belongs: the module on and the project's property (props.js pz_on: agency and
@@ -89,7 +92,7 @@ function vdr_cache(r, gone) {
   vdr_redrawView();
   if (VDR.grid?.md.isConnected) vdr_gridDraw();  // (#7532): the overview's counts follow
 }
-const vdr_forget = () => { VDR.by = {}; };
+const vdr_forget = () => { VDR.by = {}; VDR.from = {}; };
 // 2.1002.0 (#5490): deleting / restoring a review is a step of the server (core/undoweb.py): after an undo / redo the shown
 // sections fetch their reviews again (vdr_rows), a review taken back out of the trash shows up again
 histReloader('videos', () => { if (!Object.keys(VDR.by).length) return; vdr_forget(); if (S.sel) vdr_redrawTask(S.sel); vdr_redrawView(); });
@@ -274,10 +277,17 @@ function vdr_cmsDraw(st) {
         ${!reply ? `<button type="button" class="iconbtn" data-vdr="reply" data-id="${c.id}" aria-label="${esc(tr('Reply'))}" title="${esc(tr('Reply'))}">${ic('reply', 's')}</button>` : ''}
         ${!reply && can ? `<button type="button" class="iconbtn vdrdone ${c.done ? 'on' : ''}" data-vdr="done" data-id="${c.id}" aria-pressed="${c.done}" aria-label="${esc(c.done ? tr('Mark as open') : tr('Mark as done'))}" title="${esc(c.done ? tr('Mark as open') : tr('Mark as done'))}">${ic('check', 's')}</button>` : ''}
         ${can ? `<button type="button" class="iconbtn" data-vdr="del" data-id="${c.id}" aria-label="${esc(tr('Delete'))}" title="${esc(tr('Delete'))}">${ic('trash', 's')}</button>` : ''}</div>
-      <div class="vdrcb">${esc(c.body)}</div>${(kids[c.id] || []).length ? `<ul class="vdrre" role="list">${kids[c.id].map(k => one(k, true)).join('')}</ul>` : ''}</li>`;
+      <div class="vdrcb">${esc(c.body)}</div>${/*html-ok*/ reply ? '' : vdr_taskChip(r, c) /* vdr_taskChip escapes */}${(kids[c.id] || []).length ? `<ul class="vdrre" role="list">${kids[c.id].map(k => one(k, true)).join('')}</ul>` : ''}</li>`;
   };
   const top = vdr_top(st);
   $('.vdrcms', st.md).innerHTML = top.length ? top.map(c => one(c)).join('') : `<li class="muted vdrempty">${tr('No comments yet.')}</li>`;
+}
+// (#7533): under a top-level comment its task (title and state, opens it) or "Task from it" for who may make one in the project
+function vdr_taskChip(r, c) {
+  const t = c.task;
+  if (t?.id) return `<div class="vdrtask"><button type="button" class="linkbtn" data-vdr="task" data-id="${esc(t.id)}">${ic(t.done ? 'done' : 'check', 's')}<span>${esc(tr('Task: {0}', t.title))}</span></button><span class="rotag${t.done ? ' ok' : ''}">${esc(t.done ? tr('Done') : tr('Open'))}</span></div>`;
+  if (t?.gone) return `<div class="vdrtask muted">${ic('trash', 's')} ${esc(tr('Task deleted'))}</div>`;
+  return r.can_task ? `<div class="vdrtask"><button type="button" class="btn sm ghost" data-vdr="mktask" data-id="${esc(c.id)}">${ic('plus', 's')}<span>${esc(tr('Task from it'))}</span></button></div>` : '';
 }
 function vdr_sigDraw(st) {
   const r = st.r, el = $('.vdrsig', st.md);
@@ -321,6 +331,19 @@ async function vdr_send(st) {
     redo: async () => { await vdr_after(rid, 'POST', `/api/videos/${rid}/comments/${cid}/restore`); return {skipped: []}; }});
   histToast(tr('Comment added'), h);
 }
+// (#7533): a task from comment cid in the sign-off's project; one step: Undo moves the task into the trash (its link then says
+// "Task deleted"), Redo takes it back
+async function vdr_mkTask(st, cid) {
+  const rid = st.r.id;
+  let j; try { j = await vdr_req(st, 'POST', `/api/videos/${rid}/comments/${cid}/task`, {}); } catch (e) { toast(errText(e, tr('The task could not be created'))); return; }
+  vdr_draw(st, false);
+  const tid = j?.task_id; if (!tid) return;
+  if (typeof load === 'function') load().then(() => typeof render === 'function' && render(), () => {});
+  const h = histAdd({label: tr('Task created'), ids: [], snaps: [], lids: [],
+    undo: async () => { await rawFetch('DELETE', `/api/tasks/${tid}`); await vdr_after(rid, 'GET', `/api/videos/${rid}`); return {skipped: []}; },
+    redo: async () => { await rawFetch('POST', `/api/tasks/${tid}/restore`); await vdr_after(rid, 'GET', `/api/videos/${rid}`); return {skipped: []}; }});
+  histToast(tr('Task created'), h);
+}
 async function vdr_after(rid, method, url, body) {  // an undo / redo step: the open view follows when it shows this review
   const r = await rawFetch(method, url, body);
   if (r && r.versions) { vdr_cache(r); const st = VDR.cur; if (st && st.r.id === rid) { st.r = r; if (!r.versions.some(v => v.id === st.ver)) st.ver = r.versions[r.versions.length - 1].id; vdr_draw(st, !r.versions.some(v => v.id === st.ver)); } }
@@ -351,6 +374,8 @@ async function vdr_click(e, st) {
   if (a === 'pg') { vdr_pageGo(st, st.page + (+b.dataset.d || 0)); return; }
   if (a === 'area') { st.area = !st.area; vdr_cmpDraw(st); vdr_areaSync(st); if (st.area) toast(tr('Drag over the image to mark an area')); return; }  // (#7532)
   if (a === 'cmp') { st.cmp = !st.cmp; vdr_draw(st, true); return; }
+  if (a === 'task') { st.md.remove(); openDetail(id); return; }  // (#7533): the task made from the comment
+  if (a === 'mktask') { vdr_mkTask(st, id); return; }
   try {
     if (a === 'done') {
       const was = !!r.comments.find(c => c.id === id)?.done, set = v => vdr_after(rid, 'PATCH', `/api/videos/${rid}/comments/${id}`, {done: v});

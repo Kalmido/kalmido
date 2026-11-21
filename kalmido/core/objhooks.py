@@ -39,7 +39,8 @@ USER_LOCKED = []  # #6978 F6: f(c, uid) when account uid is locked (accounts/use
 #                   what works in the person's name and must end at once (agents/reqtoken.py req_drop_person: request tokens)
 # 2.1076.0 (#5271, review): the area relations of the links' core (core/objlinks.py olnk_rel registers only these; the boundary
 # check accounts/tenancy.py leaves them to their area's own checks) -- one list, read without importing the links' core
-OLNK_AREA_RELS = ("made", "device", "contact", "answers", "reply")
+OLNK_AREA_RELS = ("made", "device", "contact", "answers", "reply", "review_task")  # (#7533): review_task videos/vdtask.py
+TASK_ADDED = []  # (#7533): f(c, task id, source) after a lower area made a task (agents/core.py: agent_added_events) without an upward import
 UNSHARE = []  # 2.1168.0 (#4782, Fable review F2): core/objects.obj_node_unshare for accounts/orgs.py without an upward import
 GONE = {}  # review 2.578 F2: kind -> table of an area's kind outside OBJ whose rows in obj_revoked / obj_history / obj_undo go
 #            with its objects when an account goes (contacts: contacts/ctfolder.py, cascade over their book)

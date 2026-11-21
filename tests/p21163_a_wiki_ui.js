@@ -4,7 +4,7 @@
 // #6087 rita, read-only member of Alpha: the list has no New page / Today / New folder (computer and phone), the open page reads
 //   with its text and has a "…" with History (opens), Copy link, Copy as [[link]] - and nothing that writes
 // #6089 frida, a person without an organisation (freelancer-matrix: wiki): an open page on a computer has no area bar above it,
-//   one head (path from the workspace's name, title, "…"), and scrolls as a whole (no inner box, the footer after the text);
+//   one head (path from the workspace's name, title, "…"); (#7658, Ersetzt Entscheidung #6089: gedeckt durch #7658) the text scrolls inside the card, the footer stays in sight;
 //   the page's "…" in groups Page / Folder / View on this device, Delete last, "Open items as tasks" in it (no big button
 //   above the text); the phone's list is one row (Find, New page, "…") and its "…" has Today, New folder, Select
 // freelancer-matrix: wiki
@@ -98,14 +98,17 @@ if (!process.env.P21163A_NOSTART) execFileSync('bash', [path.join(__dirname, 'st
         dsc: document.scrollingElement.scrollHeight - innerHeight, foot: Math.round(f.getBoundingClientRect().top), ih: innerHeight, cbbar: !!document.querySelector('.wemcbbar')}; })()`);
     check(pg && !pg.bar && pg.heads === 1 && pg.h2 === 'Long page', '#6089 1280: no area bar above the page, one head with the title ' + JSON.stringify(pg));
     check(pg && /^Private/.test(pg.crumbs || ''), '#6089 1280: the path starts at the workspace\'s name ' + JSON.stringify(pg?.crumbs));
-    check(pg && pg.inner[0] <= pg.inner[1] + 1, '#6089 1280: the text has no scroll box of its own ' + JSON.stringify(pg?.inner));
-    check(pg && (pg.vsc > 100 || pg.dsc > 100) && pg.foot > pg.ih, '#6089 1280: the page scrolls as a whole, the footer after the text ' + JSON.stringify(pg));
+    // Ersetzt Entscheidung #6089: gedeckt durch #7658 (20.11.2026, back to #5376 point 3): on a computer the text scrolls
+    // inside the card, the page itself does not, the footer stays in sight (tests/p2783_a_wiki_layout_ui.js at four widths)
+    check(pg && pg.inner[0] > pg.inner[1] + 10, '#7658 1280: the long text scrolls inside the card ' + JSON.stringify(pg?.inner));
+    check(pg && pg.vsc <= 1 && pg.dsc <= 1 && pg.foot <= pg.ih, '#7658 1280: the page does not scroll as a whole, the footer in sight ' + JSON.stringify(pg));
     check(pg && !pg.cbbar, '#6089 1280: no "Open items as tasks" button above the text');
     await shot('p21163a-page-1280.png');
-    // scrolled to the end: the last line and the footer in sight
-    await ev(`(() => { document.querySelector('#view article.wkpage .ntfoot').scrollIntoView({block: 'end'}); return 1; })()`);
-    check(await until(`(() => { const f = document.querySelector('#view article.wkpage .ntfoot').getBoundingClientRect(); return f.bottom <= innerHeight + 1 && f.top >= 0; })()`), '#6089 1280: scrolled down, the footer is in sight');
-    await ev(`(() => { document.querySelector('#view .wkpage .nthead').scrollIntoView({block: 'start'}); return 1; })()`);
+    // (#7658): the text scrolled to its end - the head stays where it was, the footer in sight
+    const hd0 = await ev(`Math.round(document.querySelector('#view .wkpage .nthead').getBoundingClientRect().top)`);
+    await ev(`(() => { const c = document.querySelector('#wk-cm'); c.scrollTop = c.scrollHeight; return 1; })()`);
+    check(await until(`(() => { const c = document.querySelector('#wk-cm'), f = document.querySelector('#view article.wkpage .ntfoot').getBoundingClientRect(); return c.scrollTop > 100 && f.bottom <= innerHeight + 1 && f.top >= 0 && Math.round(document.querySelector('#view .wkpage .nthead').getBoundingClientRect().top) === ${hd0}; })()`), '#7658 1280: the text scrolled to its end, head and footer in sight');
+    await ev(`(() => { document.querySelector('#wk-cm').scrollTop = 0; return 1; })()`);
     // the page's "…" in groups, Delete last
     const m = await pmenu();
     const at = x => (m || []).indexOf(x);

@@ -258,7 +258,9 @@ by hand. Go through this list before the first run; each line names what goes wr
   the project's git server, `KALMIDO_DISPATCH_APPROVED_CMD` only if the yes on the card should reach the git server and only
   with a token that may label or comment, never merge - its label is a notice, not an approval: the build job could set it
   too, so nothing merges on it without a person's review on the branch; 2.1400.0: the check runs on a fresh copy of the job's commit, exactly that commit is pushed, and
-  a repository config that could run a command or redirect the push stops the landing),
+  a repository config that could run a command or redirect the push stops the landing; #7572: a project that integrates only
+  locally sets `KALMIDO_DISPATCH_LAND=local` instead of the push address - nothing is pushed, the card *Ready to integrate*
+  names the branch and the checked commit),
   `places` 1. The check runs the code of the job's branch with the runner's user: it gets no Kalmido variables and no
   tokens, but anything else that user can read, it can read too - so run the runner as the dedicated user above.
 - [ ] **First a dry run:** *Work the list off* on *Dry run* with one place, and read its day report before switching to

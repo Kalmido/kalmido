@@ -442,6 +442,7 @@ function plPut(ids, w) {
 //   newAt(s, r) -> the new task's fields of its "+" (r = parseQuick of the text; default: the project's list + section),
 //   placed(s, t) -> what follows the creation in the same step (My tasks: into the own section) (#7512)
 //   menu(s, ro) (its "…"), grip(s) / chip(g) (html), pos(s) -> [i, n], rename(s, name), move(s, d), del(s), extra(s, anchor)
+//   ids(s) -> the order of the sections s moves among, order(s, ids) saves a new one (#7518: the grip's drag, dnd.js / secdrag.js)
 //   head(h) / fold(s): an adapter that keeps the folding itself (My tasks: on the server for every device)
 const sh_ad = name => DROP_ADAPTERS.find(a => a.name === (name || 'list') && a.sec);
 function sh_of(g) { for (const a of DROP_ADAPTERS) { const s = a.sec?.of(g); if (s) return {a, s}; } return null; }
@@ -457,7 +458,8 @@ function sh_head(g, v, ro) {
 // a board's column (.khead) moves left / right, a list's head up / down
 function sh_menu(anchor, name, id, head = []) {
   const a = sh_ad(name), s = a?.sec.byId(id); if (!s) return;
-  const c = a.sec, [i, n] = c.pos(s), x = !!anchor?.closest?.('.khead, .kcol'), mv = !(isTouch() && c.drag(s));
+  // (#7518): Move up / down always, also where the head drags (WCAG 2.5.7: the way without dragging; was: hidden on a touch screen)
+  const c = a.sec, [i, n] = c.pos(s), x = !!anchor?.closest?.('.khead, .kcol'), mv = true;
   menu(anchor, [...head,
     {label: tr('Rename'), icon: 'edit', fn: () => sh_rename(a, s)},
     ...(mv && i > 0 ? [{label: x ? tr('Move left') : tr('Move up'), icon: x ? 'left' : 'up', fn: () => c.move(s, -1)}] : []),
@@ -484,6 +486,7 @@ const plSec = {
   drag: () => true, add: (s, v, ro) => !ro && !!v?.list && canAddTo(v.list), menu: (s, ro) => !ro,
   grip: s => secHandle(s.id), chip: g => g.section ? wip_ghead(g) : '',
   pos: s => { const ids = secIds(s.list_id); return [ids.indexOf(s.id), ids.length]; },
+  ids: s => secIds(s.list_id), order: (s, ids) => saveSectionOrder(s.list_id, ids),
   rename: (s, n) => sectionRename(s.id, n), move: (s, d) => moveSection(s.id, d), del: s => sectionDelete(s.id),
   extra: (s, anchor) => [wip_menuItem(s.id) /* (#1510) */, dw_menuItem(s.id) /* (#3515) */, sk_menuItem(s.id, anchor) /* (#3354) */],
 };

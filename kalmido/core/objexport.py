@@ -245,6 +245,8 @@ obj_export("obj_reactions", org=(("comments/reactions.json", "target_kind='comme
 obj_export("obj_links", org=(("books/contact_tasks.json", "src_kind='contact' AND dst_kind='task' AND rel='contact' AND src_id IN (SELECT id FROM contacts WHERE book_id IN (SELECT id FROM books WHERE org_id=?)) AND dst_id IN ({TSQ})"),
                              ("office/letter_links.json", "org_id=? AND {LETTER_LINKS}"),
                              ("hub/mail_links.json", "org_id=? AND src_kind='hub_mail' AND rel='made' AND src_id NOT IN (SELECT id FROM hub_mails WHERE deleted_at IS NOT NULL)"),
+                             # (#7533): the tasks made from comments of sign-offs (core columns + the place in extra; not imported)
+                             ("videos/review_tasks.json", "org_id=? AND src_kind='video_review' AND rel='review_task' AND {LIVE}"),
                              # review F2: both sides objects the archive carries, never a person's own link ({LINKED})
                              ("links.json", "org_id=? AND rel NOT IN {AREA_RELS} AND {LIVE} AND {LINKED}")),
            acct_more=(("private_links", """SELECT id, src_kind, src_id, dst_kind, dst_id, rel, note, extra::text AS extra, created_by, agent_id,
@@ -253,6 +255,8 @@ obj_export("obj_links", org=(("books/contact_tasks.json", "src_kind='contact' AN
                               (SELECT id FROM books WHERE owner_id=? AND owner_org_id IS NULL AND {LIVE})))
                           OR (rel='made' AND src_kind='hub_mail' AND src_id IN (SELECT id FROM hub_mails WHERE owner_id=? AND org_id IS NULL
                               AND {LIVE}))
+                          OR (rel='review_task' AND src_kind='video_review' AND src_id IN (SELECT id FROM video_reviews WHERE owner_id=?
+                              AND org_id IS NULL AND {LIVE}))
                           OR (rel NOT IN {AREA_RELS} AND created_by=?)))
                           OR (owner_id=? AND rel NOT IN {AREA_RELS})) ORDER BY id""", "Links"),),  # review F2: + my own links in an organisation
            # (today no writer sets owner_id and org_id together -- life/devlink.py owner only, obj_link org only; held for a later one)

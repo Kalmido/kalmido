@@ -2,7 +2,7 @@
 // that section (a subtask becomes standalone there), an empty section shows a drop zone only while a task is dragged,
 // sections are reordered by their handle (list view and kanban columns) in one request with one undo, "Move up / down"
 // in the section menu uses the same request, a view-only member gets no handles and a notice, and on a phone a
-// long-press on a task opens "Move to section…" and a long-press on a section header its menu (2.1151.0 #3835: no up / down).
+// long-press on a task opens "Move to section…" and a long-press on a section header its menu (2.1151.0 #3835; #7518: with up / down beside the drag).
 const {boot, errs, sleep, B, login, idle} = require('./boot');
 const F = []; let ok = 0;
 const check = (c, what) => { if (c) ok++; else { F.push(what); console.log('FAIL:', what); } };
@@ -138,11 +138,12 @@ const spy = w => { const calls = []; const of = w.fetch; w.fetch = (u, o = {}) =
   check(await until(() => /In Abschnitt „Later“ verschoben/.test(toastText(d)), 15000), `German toast: ${toastText(d)}`);
   const hb = () => d.querySelector(`#view .ghead[data-section="${Bs}"]`);
   touch(w, hb(), 'touchstart'); await sleep(520);  // wanted: a hold longer than the long-press timer (450 ms, dnd.js)
-  // 2.1151.0 (#3835): held without moving = the head's whole menu, its "+" on top, no up / down (the head drags; was 2.46.1 #1635)
+  // 2.1151.0 (#3835): held without moving = the head's whole menu, its "+" on top; (#7518) up / down stay in it as the way without
+  // dragging (WCAG 2.5.7; 2.1151.0 had taken them away on touch screens)
   const he = touch(w, hb(), 'touchend'); await until(() => /Umbenennen/.test(d.querySelector('#pop:not(.hidden)')?.textContent || ''));
   pop = d.querySelector('#pop:not(.hidden)');
   const hl = pop ? [...pop.querySelectorAll('[role="menuitem"]:not([disabled])')].map(b => b.textContent.trim()) : [];
-  check(he.defaultPrevented && /^Aufgabe zu .* hinzufügen$/.test(hl[0] || '') && hl.includes('Umbenennen') && hl.includes('Abschnitt löschen (Aufgaben bleiben)') && !hl.some(x => /nach oben|nach unten|links|rechts/i.test(x)), 'long-press on a section header: its menu, "+" first, no up / down ' + hl.join(' | '));
+  check(he.defaultPrevented && /^Aufgabe zu .* hinzufügen$/.test(hl[0] || '') && hl.includes('Umbenennen') && hl.includes('Abschnitt löschen (Aufgaben bleiben)') && hl.some(x => /nach oben|nach unten/i.test(x)), 'long-press on a section header: its menu, "+" first, (#7518, WCAG 2.5.7) up / down kept beside the drag ' + hl.join(' | '));
   [...pop.querySelectorAll('[role="menuitem"]')].find(b => /^Aufgabe zu/.test(b.textContent.trim())).click();
   check(await until(() => !!d.querySelector('.qadd.sheet') && w.eval(`S.quickPreset?.section_id === ${Bs}`)), 'the menu\'s "+" opens the add sheet for that section');
   check(!d.querySelector(`#view .ghead[data-section="${A}"]`)?.classList.contains('closed'), 'the long-press did not also collapse the section');

@@ -348,7 +348,10 @@ def vdr_dict(c, r, uid, full=False, signoffs=True):
         cm = vdr_comments(c, r["id"])
         names = user_names(c, [x["author_id"] for x in cm])
         mk = vdm_marks(cm)  # 2.641.0 (#4769)
-        d["comments"] = [vdr_comment_dict(x, names, mk) for x in cm]
+        from .vdtask import vdt_of, vdt_project  # (#7533): the task made from a comment, and whether the reader may make one
+        tk = vdt_of(c, uid, r["id"])
+        d["comments"] = [dict(vdr_comment_dict(x, names, mk), task=tk.get(x["id"])) for x in cm]
+        d["can_task"] = bool(vdt_project(c, uid, r))
         if d["can_write"] and signoffs:
             # 2.122.4 A (#2215 L3): the records keep their review across a move; only those of its current workspace show
             # 2.642.0 (#4772): several live links: the running ones first, then the newest records
@@ -426,7 +429,8 @@ def vdr_list():
     a = {k: request.args.get(k, type=int) for k in ("task_id", "list_id", "client_id")}
     if sum(1 for v in a.values() if v) != 1:
         return err(tr("Invalid value: {0}", "task_id / list_id / client_id"))
-    return jsonify(reviews=[vdr_dict(c, r, uid) for r in vdr_rows(c, uid, **a)])
+    from .vdtask import vdt_from  # (#7533): a task's panel also names the sign-off the task was made from
+    return jsonify(reviews=[vdr_dict(c, r, uid) for r in vdr_rows(c, uid, **a)], **({"from": vdt_from(c, uid, a["task_id"])} if a["task_id"] else {}))
 
 
 @app.post("/api/videos")
