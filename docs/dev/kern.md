@@ -1614,7 +1614,8 @@ the whole gesture as one step of the history (`histGroup`): structure first (a s
 Adapters today: "My tasks" (`mineorder.js` `moWhere` / `moPut`: own order, own sections, "New section"; a task of "Unassigned
 in your projects" is assigned to me, the own order is this device's own part of the Undo step); the board of My tasks
 (`mineorder.js` `mbWhere`, #7354: a column - `data-dropcol` on the container, `dropAt` kind `col` - and a card before / after
-mean what the column means, for one task and a selection, `mineboard.js` `mb_drop` / `mb_dropMany`). Without a pointer the
+mean what the column means, for one task and a selection, `mineboard.js` `mb_drop` / `mb_dropMany`; #7517: columns by own
+section - `mbWhere` answers the list's place `{sid, tid, after}` and the put is `moPut`, the column's "…" is `sh_head` of `mseSec`). Without a pointer the
 keyboard and the menu use the same adapters: `dropTo(ids, dropRowTgt(row, after))` (Alt+arrow and Move up / down,
 `palette.js` `nudgeCore`: the own order of My tasks, not the project's order for everybody); "Move to section…" of the menu
 and the multi panel is `moPut` too (`mseMoveTo`). The project list and board (and every other task list that is not My tasks:

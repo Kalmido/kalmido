@@ -5,6 +5,8 @@
    Kanban cards (taskRow compact), phones swipe the columns like the Kanban board (.kanban). Dropping a card on a column sets
    what the column means: the date (Today = today, This week = tomorrow, Later = the next week's first day, No date = none;
    Overdue takes nothing), the priority or the list (only a list I may write; a subtask there becomes standalone).
+   (#7517) With own sections also by section: a column per own section ("Recently assigned" only while it has tasks, takes none),
+   its "…" as in the list; dropping puts the task into the section through the list's adapter (mineorder.js mbWhere -> moPut).
    Classic script sharing the global scope with the others (load order: index.html, docs/ARCHITECTURE.md). */
 'use strict';
 
@@ -13,6 +15,13 @@ const mb_weekEnd = t0 => addDays(weekStartOf(t0), 6);
 const mb_byDue = (a, b) => (a.due || '9999').localeCompare(b.due || '9999') || (a.due_time || '99').localeCompare(b.due_time || '99') || moCmp(a, b);
 
 function mb_cols(by, tasks) {
+  if (by === 'sec') {  // (#7517): the own sections as in the list (mineorder.js mseGroups): Recently assigned, each own one, Without
+    const x = mseCtx(), of = s => tasks.filter(t => mseOf(t, x) === s).sort(moCmp);
+    const cols = x.own.map(s => ({key: 'ms:' + s.id, name: mseName(s), sec: s, tasks: of(s.id), lock: false, lic: null}));
+    if (x.rec) cols.unshift({key: 'ms:' + x.rec.id, name: mseName(x.rec), sec: x.rec, tasks: of(x.rec.id), lock: true, lic: null});
+    cols.push({key: 'ms:none', name: tr('No section'), sec: null, tasks: of(null), lock: false, lic: null});
+    return cols.filter(c => c.tasks.length || (c.sec && c.sec.kind !== 'recent'));
+  }
   if (by === 'prio') return MB_PRIOS.map(({p, n}) => ({key: 'p' + p, name: tr(n), tasks: tasks.filter(t => (t.priority || 0) === p).sort(mb_byDue), lock: false, lic: null}));
   if (by === 'list') {
     const g = new Map();
@@ -33,7 +42,7 @@ function mb_cols(by, tasks) {
 function mb_view() {
   const by = moBoardBy(), t0 = today(), tasks = moAll().filter(t => mtCounts(t, t0)), cols = mb_cols(by, tasks);
   const card = t => taskRow(t, {compact: true, showList: by !== 'list'});
-  const head = c => `<div class="khead">${c.lic ? licMark(c.lic, 'lsm') : ''}<span class="mbname">${esc(c.name)}</span> <span class="muted mbn">${c.tasks.length}</span>${c.lock && by === 'list' ? `<span class="mblk" title="${esc(tr('Read-only'))}" aria-label="${esc(tr('Read-only'))}">${ic('lock', 's')}</span>` : ''}</div>`;
+  const head = c => `<div class="khead">${c.lic ? licMark(c.lic, 'lsm') : ''}<span class="mbname">${esc(c.name)}</span> <span class="muted mbn">${c.tasks.length}</span>${c.lock && by === 'list' ? `<span class="mblk" title="${esc(tr('Read-only'))}" aria-label="${esc(tr('Read-only'))}">${ic('lock', 's')}</span>` : ''}${/*html-ok*/ c.sec ? sh_head({mosec: c.sec, name: c.name}, {}, false).menu /* (#7517): the "…" of an own section (dragmulti.js sh_head, built escaped; a column moves left / right) */ : ''}</div>`;
   const empty = tasks.length ? '' : emptyState({icon: 'kanban', title: tr('Nothing here'), size: 'sec', cls: 'kempty'});  // 2.891.0 (#5440): the shared block
   return `${moSegHtml()}${empty}<div class="kanban mboard" data-mbby="${by}">${cols.map(c => `
     <div class="kcol mbcol${c.lock ? ' mblock' : ''}" data-mbcol="${esc(c.key)}" data-dropcol="${esc(c.key)}" role="group" aria-label="${esc(c.name)}">
