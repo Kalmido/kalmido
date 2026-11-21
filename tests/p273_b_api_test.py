@@ -235,7 +235,7 @@ check(len(af) == 1 and (os.stat(os.path.join(ad, af[0])).st_mode & 0o777) == 0o6
 z = zipfile.ZipFile(io.BytesIO(EXP))
 names = set(z.namelist())
 man = json.loads(z.read("manifest.json"))
-check(man["format"] == "kalmido-account" and man["v"] == 1 and man["user"]["email"] == "alice@example.com" and man["export_id"], "manifest head")
+check(man["format"] == "kalmido-account" and man["v"] == 2 and man["user"]["email"] == "alice@example.com" and man["export_id"], "manifest head")
 sums = dict(reversed(line.split("  ", 1)) for line in z.read("checksum.sha256").decode().splitlines())
 check(sums.get("manifest.json") == sha(z.read("manifest.json")), "checksum of manifest.json")
 okf = all(sha(z.read(f["path"])) == f["sha256"] and len(z.read(f["path"])) == f["size"] and sums.get(f["path"]) == f["sha256"] for f in man["files"])
