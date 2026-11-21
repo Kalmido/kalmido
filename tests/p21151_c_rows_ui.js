@@ -104,7 +104,7 @@ async function hold(w, el) {
   if (check(bm, 'phone: the bookmark is shown')) {
     check(/Lens guide/.test(bm.querySelector('.bmtitle')?.textContent || ''), 'its title is in the row');
     const got = await hold(w, bm.querySelector('.bmsite') || bm);
-    check(['Mark read', 'Archive', 'Details'].every(t => got.includes(t)), 'a long press opens the menu with the row\'s symbols: ' + got);
+    check(['Mark read', 'Archive', 'Edit', 'Delete'].every(t => got.includes(t)), '(#7017) a long press opens the bookmark\'s menu: ' + got);
     check(!d.querySelector('.bmdlg'), 'the click that ends the press opens no details');
     check(await pick(w, 'Archive'), 'the menu has "Archive"');
     check(await until(async () => (await call('GET', `/api/bookmarks/${BM}`)).state === 'archived', {timeout: 8000}), '"Archive" from the menu archives the bookmark');
@@ -118,7 +118,10 @@ async function hold(w, el) {
   if (check(bm2, 'computer: the bookmark is shown')) {
     check(bm2.querySelector('[data-bm="read"]') && bm2.querySelector('[data-bm="arch"]'), 'computer: the row keeps its symbols');
     bm2.querySelector('.bmsite').dispatchEvent(new w.MouseEvent('contextmenu', {bubbles: true, cancelable: true, button: 2}));
-    check(await until(() => d.querySelector('.bmdlg'), {timeout: 5000}), 'computer: a right click opens the details as before');
+    // (#7017, audit D13): a right click opens the bookmark's menu (as its "…"); "Edit" in it opens the dialog
+    check(await until(() => [...d.querySelectorAll('#pop:not(.hidden) [role="menuitem"]')].some(b => b.textContent.trim() === 'Edit'), {timeout: 5000}) && !d.querySelector('.bmdlg'), 'computer: a right click opens the bookmark\'s menu');
+    [...d.querySelectorAll('#pop:not(.hidden) [role="menuitem"]')].find(b => b.textContent.trim() === 'Edit')?.click();
+    check(await until(() => d.querySelector('.bmdlg'), {timeout: 5000}), 'computer: "Edit" opens the dialog');
   }
   w.close();
 

@@ -84,14 +84,14 @@ function bm_card(x) {
     <div class="bmbody"><a class="bmtitle" href="${esc(u)}" target="_blank" rel="noopener noreferrer" data-bm-link="${x.id}">${esc(x.title)}</a>
     <span class="muted bmsite">${esc(x.site)}${x.state === 'archived' ? ' · ' + esc(tr('Archived')) : ''}</span>${bm_pend(x)}
     ${x.description ? `<p class="bmdesc">${esc(x.description)}</p>` : ''}${x.note ? `<p class="bmnote">${ic('note', 's')} ${esc(x.note)}</p>` : ''}
-    <div class="bmfoot">${bm_tagsHtml(x)}<span class="spacer"></span>${bm_acts(x)}<button data-rowmenu="bmcard" type="button" class="iconbtn" data-bm="open" data-id="${x.id}" title="${esc(tr('Details'))}" aria-label="${esc(tr('Details: {0}', x.title))}">${ic('dots', 's')}</button></div></div></li>`;
+    <div class="bmfoot">${bm_tagsHtml(x)}<span class="spacer"></span>${bm_acts(x)}<button data-rowmenu="bmcard" type="button" class="iconbtn" data-bm="rmenu" data-id="${x.id}" aria-haspopup="menu" title="${esc(tr('More'))}" aria-label="${esc(tr('More') + ': ' + x.title)}">${ic('dots', 's')}</button></div></div></li>`;
 }
 function bm_row(x) {
   const u = bm_href(x.url);
   return `<li class="bmrow st-${x.state}" data-id="${x.id}">${x.image ? `<img class="bmthumb" src="${esc(x.image)}" alt="" loading="lazy" decoding="async">` : `<span class="bmthumb bmnopic" aria-hidden="true">${ic('bookmark', 's')}</span>`}
     <div class="bmbody"><a class="bmtitle" href="${esc(u)}" target="_blank" rel="noopener noreferrer" data-bm-link="${x.id}">${esc(x.title)}</a>
     <span class="muted bmsite">${esc(x.site)}${x.note ? ' · ' + esc(x.note.slice(0, 80)) : ''}</span>${bm_pend(x)}${bm_tagsHtml(x)}</div>
-    ${bm_acts(x)}<button data-rowmenu="bmrow" type="button" class="iconbtn" data-bm="open" data-id="${x.id}" title="${esc(tr('Details'))}" aria-label="${esc(tr('Details: {0}', x.title))}">${ic('dots', 's')}</button></li>`;
+    ${bm_acts(x)}<button data-rowmenu="bmrow" type="button" class="iconbtn" data-bm="rmenu" data-id="${x.id}" aria-haspopup="menu" title="${esc(tr('More'))}" aria-label="${esc(tr('More') + ': ' + x.title)}">${ic('dots', 's')}</button></li>`;
 }
 
 // ---- actions (each one undo step)
@@ -169,6 +169,19 @@ async function bm_move(x) {
     redo: async () => { await req(bm_spOrg(r.space), {}); await bm_reload(); return {skipped: []}; }});
   histToast(tr('Moved to {0}', wsName(r.space)), e);
   return true;
+}
+
+// (#7017, audit D13): the menu of a bookmark (its "…", a long press, a right click): Edit (the dialog below), read /
+// unread, archive, the preview, move, Delete apart as the last - the same actions as the buttons and the dialog (each one undo step)
+function bm_rowMenu(anchor, x) {
+  const ed = x.can_edit && x.id > 0;  // the link itself is the card's title (no window.open: docs/dev/produkt-regeln.md, #4574)
+  menu(anchor, [x.id > 0 ? {label: ed ? tr('Edit') : tr('Details'), icon: ed ? 'edit' : 'info', fn: () => bm_detail(x.id)} : null,
+    ed ? {label: x.state === 'unread' ? tr('Mark read') : tr('Mark unread'), icon: x.state === 'unread' ? 'check' : 'eye', fn: () => bm_patch(x.id, {state: x.state === 'unread' ? 'read' : 'unread'}, x.state === 'unread' ? tr('Marked read: {0}', x.title) : tr('Marked unread: {0}', x.title)).catch(() => {})} : null,
+    ed ? {label: x.state === 'archived' ? tr('Restore') : tr('Archive'), icon: x.state === 'archived' ? 'undo' : 'archive', fn: () => bm_patch(x.id, {state: x.state === 'archived' ? 'read' : 'archived'}, x.state === 'archived' ? tr('Restored from the archive: {0}', x.title) : tr('Archived: {0}', x.title)).catch(() => {})} : null,
+    ed ? {label: tr('Reload preview'), icon: 'sync', fn: async () => { try { await api('POST', `/api/bookmarks/${x.id}/refresh`, {}); } catch { return; } toast(tr('The preview is being loaded again')); BM.polls = 0; await bm_reload(); }} : null,
+    ed && smv_can(bm_spOrg(x.space)) ? {label: tr('Move to another workspace…'), icon: 'brief', fn: () => bm_move(x)} : null,
+    '-',
+    ed ? {label: tr('Delete'), icon: 'trash', cls: 'danger', fn: () => bm_del(x.id, x)} : null], null, null, x.title);
 }
 
 // ---- the details (edit, the reading text, move, delete)
@@ -280,6 +293,7 @@ document.addEventListener('click', async e => {
   // 2.1012.0 (#5690): the "..." menu on the shared menu() (was a <details> of its own); Karakeep: 2.365.2 B (#2789)
   if (k === 'more') { menu(a, [{label: tr('Save button for the browser'), icon: 'bookmark', fn: () => bm_bookmarkletHelp()}, {label: tr('Karakeep…'), icon: 'link', fn: () => settingsModal('karakeep')}], null, null, tr('More')); return; }
   if (k === 'open') { if (id > 0) bm_detail(id); return; }  // 2.559.0 (#4660): a card still on its way has no details yet
+  if (k === 'rmenu') { if (x) bm_rowMenu(a, x); return; }  // (#7017, audit D13): the row's "…" is a menu (was the dialog "Details")
   a.disabled = true;
   try {
     if (k === 'more') await bm_load(true);
@@ -290,4 +304,4 @@ document.addEventListener('click', async e => {
 });
 // 2.695.0 (#4619): a long press (phone) / right click (computer) on a row opens what its "…" opens (multisel.js lm_btnMenu)
 // 2.1151.0 C (#3835): on a phone the symbols are hidden (bookmarks.css): the long press opens the menu of all of them (ms_btnMenu)
-if (typeof lm_btnMenu === 'function') lm_btnMenu('#view .bmcard, #view .bmrow:not(.rlrow)', '.iconbtn[data-bm="open"]', lm_keep, r => ms_btnMenu(r, '.bmacts .iconbtn, .iconbtn[data-bm="open"]', bm_item(+r.dataset.id)?.title));  // the details of a bookmark (card and row)
+if (typeof lm_btnMenu === 'function') lm_btnMenu('#view .bmcard, #view .bmrow:not(.rlrow)', '.iconbtn[data-bm="rmenu"]', lm_keep, r => { const x = bm_item(+r.dataset.id); if (x) bm_rowMenu(r, x); });  // (#7017, audit D13): the bookmark's menu (card and row), on a phone too
