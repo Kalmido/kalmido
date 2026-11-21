@@ -722,7 +722,8 @@ def settings_update():
         if k in USER_DEFAULTS and k not in SETTINGS_SERVER_ONLY:
             if k == "lang" and v not in LANGS:
                 continue
-            v = clean_setting(k, v)  # BadInput: 400, nothing stored
+            # (#7525): fav_items drops the stored keys that are no longer known (fv2_clean_items)
+            v = fv2_clean_items(v, usettings(c, me()).get("fav_items")) if k == "fav_items" else clean_setting(k, v)  # BadInput: 400, nothing stored
             if v is not None:
                 vals[k] = v
     if "ws_areas_off" in vals:  # (#7563, reader F4): a key equal to the organisation's default is no own choice
@@ -761,7 +762,7 @@ def settings_update():
         wsp_drop()
         wsp, wsp_w = wsp_all(c, me())
         return jsonify(ok=True, wsp=wsp, wsp_w=wsp_w, **({"still_running": sr} if sr else {}))
-    return jsonify(ok=True)
+    return jsonify(ok=True, **({"fav_items": vals["fav_items"]} if "fav_items" in vals else {}))  # (#7525): as stored (favtiles.js fv2_save)
 
 
 # ---------------------------------------------------------------- 2.593.0 (#4590): reset the look and comfort settings
@@ -1293,31 +1294,44 @@ FV2_META_RE = re.compile(r"(?:#[0-9a-fA-F]{6})?")
 FV2_ICON_RE = re.compile(r"[a-z0-9]{0,16}")
 
 
-def fv2_clean_items(v):
-    """The stored json of fav_items: a list of known keys (or its json text), doubles dropped; BadInput otherwise."""
+def fv2_key(x):
+    """One key of fav_items as stored, None = not a known key."""
     from ..lists.lists import clean_folder
+    if not isinstance(x, str) or not 2 < len(x) <= 220:
+        return None
+    if x.startswith("folder:"):
+        f = clean_folder(x[7:], False)
+        return "folder:" + f if f else None
+    if x.startswith("tag:"):
+        t = re.sub(r"[\x00-\x1f]", "", x[4:]).strip()
+        return "tag:" + t if t and len(t) <= 100 else None
+    return x if FV2_KEY_RE.fullmatch(x) and not (x.startswith("v:") and x[2:] not in FV2_VIEWS) else None
+
+
+def fv2_clean_items(v, stored=None):
+    """The stored json of fav_items: a list of known keys (or its json text), doubles dropped; BadInput otherwise.
+    (#7525): stored = the json stored now - a key from it that is no longer known (an older app, a folder moved, a key form
+    from before) is dropped instead of refusing the whole list: the client sends the stored keys back with every change, so
+    one such key refused EVERY new favourite but a project's (the star showed and went again). A new unknown key stays 400."""
     bad = BadInput(tr("Invalid value: {0}", "fav_items"))
     try:
         arr = json.loads(v or "[]") if isinstance(v, str) else v
     except ValueError:
         raise bad from None
-    if not isinstance(arr, list) or len(arr) > FV2_MAX:
+    if not isinstance(arr, list):
         raise bad
+    try:
+        old = set(x for x in json.loads(stored or "[]") if isinstance(x, str)) if stored else set()
+    except (ValueError, TypeError):
+        old = set()
     out = []
     for x in arr:
-        if not isinstance(x, str) or not 2 < len(x) <= 220:
+        k = fv2_key(x)
+        if k is None:
+            if isinstance(x, str) and x in old:
+                continue
             raise bad
-        if x.startswith("folder:"):
-            f = clean_folder(x[7:], False)
-            if not f:
-                raise bad
-            x = "folder:" + f
-        elif x.startswith("tag:"):
-            t = re.sub(r"[\x00-\x1f]", "", x[4:]).strip()
-            if not t or len(t) > 100:
-                raise bad
-            x = "tag:" + t
-        elif not FV2_KEY_RE.fullmatch(x) or (x.startswith("v:") and x[2:] not in FV2_VIEWS):
-            raise bad
-        out.append(x)
+        out.append(k)
+    if len(out) > FV2_MAX:
+        raise bad
     return json.dumps(list(dict.fromkeys(out)), ensure_ascii=False, separators=(",", ":"))

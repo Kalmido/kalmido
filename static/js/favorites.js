@@ -17,8 +17,30 @@ const favViewOn = (k = S.route.key) => FAV_VIEWS.includes(k) && (S.settings?.fav
 const favKeep = (t, k = S.route.key) => !favViewOn(k) || favIs(t.list_id);
 
 // 2.638.0 (#5013): the star requests go out one after the other (FAV_Q): a DELETE still on its way can no longer reach the
-// server after the PUT of its Undo and take the list out again; only the answer of the last one sets the stored state
+// server after the PUT of its Undo and take the list out again; only the answer of the last one sets the stored state.
+// (#7525): EVERY favourite write goes this one way (was four - the project star, the row's list, its look, the view switches -
+// each with its own silent reload in its catch, only the project star in line): two quick changes of the row each sent the
+// WHOLE list, the older one arriving last took the newer favourite away again (the star showed and went). The answer's
+// stored lists (fav_lists / fav_items, as the server keeps them) are taken over when no later write went out meanwhile; a
+// refusal says the server's reason (api(); here when it was not said) and the stored state is loaded again. -> the answer, null
 let FAV_Q = Promise.resolve(), FAV_N = 0;
+function favWrite(method, url, body) {
+  const n = ++FAV_N;
+  const p = FAV_Q.then(async () => {
+    try {
+      const r = await api(method, url, body);
+      if (n === FAV_N && r) { let ch = false; for (const k of ['fav_lists', 'fav_items']) if (typeof r[k] === 'string' && r[k] !== S.settings[k]) { S.settings[k] = r[k]; ch = true; } if (ch) render(); }
+      return r || {};
+    } catch (e) {
+      if (!e?.shown && e?.message !== 'auth') toast(errText(e, tr('The change could not be saved')));
+      try { await load(); } catch { /* offline */ }
+      render();
+      return null;
+    }
+  });
+  FAV_Q = p;
+  return p;
+}
 function favSet(id, on) {
   const ids = favIds().filter(x => x !== +id);
   if (on) ids.push(+id);
@@ -26,19 +48,13 @@ function favSet(id, on) {
   fv2_listFollow(id, on);  // 2.57.0 (#1798): its place among the favourite tiles
   render();
   toast(on ? tr('Added to favourites') : tr('Removed from favourites'));
-  const n = ++FAV_N;
-  const p = FAV_Q.then(async () => {
-    try { const r = await api(on ? 'PUT' : 'DELETE', `/api/lists/${+id}/favorite`, on ? {on: true} : undefined); if (n !== FAV_N) return; if (r && typeof r.fav_lists === 'string') S.settings.fav_lists = r.fav_lists; if (r && typeof r.fav_items === 'string') S.settings.fav_items = r.fav_items; }
-    catch { try { await load(); } catch { /* offline */ } render(); }
-  });
-  FAV_Q = p;
-  return p;
+  return favWrite(on ? 'PUT' : 'DELETE', `/api/lists/${+id}/favorite`, on ? {on: true} : undefined);
 }
 // 2.1106.0 (#4976): auto = a save the app makes by itself as a part of another step (no undo step, accounts/settings.py _auto)
 async function favSetting(key, val, auto = false) {
   S.settings[key] = val;
   render();
-  try { await api('PATCH', '/api/settings', {[key]: val, ...(auto ? {_auto: 1} : {})}); } catch { try { await load(); } catch { /* offline */ } render(); }
+  await favWrite('PATCH', '/api/settings', {[key]: val, ...(auto ? {_auto: 1} : {})});
 }
 // the list menu entry (dialogs.js listMenuItems): the header's "…" and the sidebar's context menu (long press on a phone)
 const favMenuItem = l => l && !l.is_inbox && !l.archived ? (favIs(l.id) ? {label: tr('Remove from favourites'), icon: 'star', fn: () => favSet(l.id, false)}
