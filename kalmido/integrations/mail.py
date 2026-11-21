@@ -892,7 +892,12 @@ def mail_poll_once():
     port = IMAP["port"] or (993 if IMAP["ssl"] else 143)
     M = imaplib.IMAP4_SSL(IMAP["host"], port, timeout=60, ssl_context=_admin_tls_ctx()) if IMAP["ssl"] else imaplib.IMAP4(IMAP["host"], port, timeout=60)
     try:
-        M.login(IMAP["user"], IMAP["password"])
+        try:
+            M.login(IMAP["user"], IMAP["password"])
+        except imaplib.IMAP4.error as e:
+            if isinstance(e, imaplib.IMAP4.abort):
+                raise
+            raise MailLoginRefused() from None  # (#6905): the long wait only for this (the server's words may echo the user name)
         return mail_fetch(M, IMAP["folder"], mail_import, box="instance", delete=not IMAP_KEEP, prefetch=True, lost=mail_lost_instance)
     finally:
         try:
@@ -901,25 +906,29 @@ def mail_poll_once():
             pass
 
 
+class MailLoginRefused(imaplib.IMAP4.error):
+    """(#6905): the server refused the instance mailbox's login (mail_loop waits up to 6 h; any other failure at most 15 min)."""
+
+
 _MAIL_WAKE = threading.Event()
 
 
 def mail_loop():
-    fails = 0
+    fails, refused = 0, False
     while True:
         try:
             n = mail_poll_once()
             aa_ok("mail")
-            fails = 0
+            fails, refused = 0, False
             if n:
                 print("mail: imported", n, "task(s)", flush=True)
         except Exception as e:  # noqa: BLE001
             print("mail:", type(e).__name__, flush=True)  # 2.240.0 A (#2883): no message text
             aa_fail("mail", aa_err(e))
-            fails += 1
+            fails, refused = fails + 1, isinstance(e, MailLoginRefused)
         # 2.1333.0 (#6545): a mailbox that keeps failing (a wrong password) is asked less and less often, at most every 6 h;
-        # "Look into the mailbox now" (mail_poll_now) still wakes it at once
-        _MAIL_WAKE.wait(integ_backoff_s(IMAP["interval"], fails))
+        # (#6905) a network failure at most every 15 min; "Look into the mailbox now" (mail_poll_now) still wakes it at once
+        _MAIL_WAKE.wait(integ_backoff_s(IMAP["interval"], fails, refused))
         _MAIL_WAKE.clear()
 
 
