@@ -24,8 +24,10 @@ Rights: every area answers with its OWN check, there is no check of this module 
            as the office's, not a second time as a file
   sheets   (#7662) the tables' own index sheets/core.py sh_index (workspace, projects, folders and shares; sh_space = 404 for a
            workspace the person is not in, every table through sh_may)
-An area the organisation's admins switched off (accounts/wsareas.py wsa_org_off) gives nothing of that organisation, a module
-the person switched off (features) nothing at all. People only: an agent or an API token gets 403 (like Read later and the
+Above the areas' own checks one gate for every reader (#7706, rcn_on): an item of a workspace where the module is off for the
+person (accounts/modcards.py mod_ws_on: the module card, the organisation's area switch, the person's own switches, "Also
+private") is left out -- the office asks the same through office_cands; a module the person switched off (features) gives
+nothing at all. People only: an agent or an API token gets 403 (like Read later and the
 favourites), so the agent API has no such route (docs/AGENTS.md unchanged)."""
 from flask import g, has_request_context, jsonify, request
 
@@ -97,8 +99,23 @@ def _spaces(c, uid, key, oid):
     return [oid]
 
 
-def _off(c, oid, area):
-    return bool(oid) and RCN_WSA[area] in wsa_org_off(c, oid)
+def rcn_on(c, uid, area, org_id, owner_id=None):
+    """(#7706): the ONE question of every reader -- is the area on for uid in the workspace of an item (org_id; owner_id for a
+    private one)? The same as the lists under "All workspaces": mod_ws_on (the module card's cap, the organisation's area
+    switch, my area / module switches, "Also private"). An item shared with uid from a workspace that is not uid's own only
+    asks the owning organisation's area switch (its admins took the area away); uid's switches do not reach there.
+    Asked once per request and workspace (g.rcn_on)."""
+    o = int(org_id) if org_id else None
+    if o is None and owner_id is not None and owner_id != uid:
+        return True  # a private item of another person shared with uid
+    memo = g.setdefault("rcn_on", {}) if has_request_context() else {}
+    k = (uid, area, o)
+    if k not in memo:
+        if o and o not in user_orgs(c, uid):
+            memo[k] = RCN_WSA[area] not in wsa_org_off(c, o)
+        else:
+            memo[k] = mod_ws_on(c, uid, o, RCN_WSA[area], RCN_FEAT[area])
+    return memo[k]
 
 
 def _want(key, sp):
@@ -110,7 +127,7 @@ def _want(key, sp):
 def rcn_wiki(c, uid, key, oid, limit):
     orgs, own = [], False
     for o in _spaces(c, uid, key, oid):
-        if _off(c, o, "wiki"):
+        if not rcn_on(c, uid, "wiki", o, uid):
             continue
         try:
             got = wiki_space(c, uid, "org:%d" % o if o else "private")  # the area's own check of a space (404 / 403)
@@ -133,7 +150,7 @@ def rcn_wiki(c, uid, key, oid, limit):
     own_ids, info, via_share = {r["id"] for r in rows}, {}, set()
     if key == "all":  # pages others shared with uid from spaces uid does not read anyway (the list "Shared with me")
         shared, info = wsh_reach(c, uid)
-        shared = [r for r in shared if not _off(c, r["org_id"], "wiki") and r["id"] not in own_ids]
+        shared = [r for r in shared if rcn_on(c, uid, "wiki", r["org_id"], r["owner_id"]) and r["id"] not in own_ids]
         via_share = {r["id"] for r in shared}
         rows = list(rows) + shared
     out, seen = [], set()
@@ -165,7 +182,7 @@ def rcn_files(c, uid, key, oid, limit):
                      f"ORDER BY updated_at DESC, id DESC LIMIT ?", (*a, limit * 4)).fetchall()
     rows = fsv_drop(c, fs_mail_rows(c, uid, rows))  # like a folder's listing; no file of another area's folders
     lk = fsl_map(c, [r["id"] for r in rows])
-    rows = [r for r in rows if r["id"] not in lk and not _off(c, r["org_id"], "files")][:limit]
+    rows = [r for r in rows if r["id"] not in lk and rcn_on(c, uid, "files", r["org_id"], r["owner_id"])][:limit]
     by = {}
     if rows:
         q = ",".join(str(int(r["id"])) for r in rows)
@@ -179,7 +196,7 @@ def rcn_files(c, uid, key, oid, limit):
 def rcn_reading(c, uid, key, oid, limit):
     lsp = {}
     for o in _spaces(c, uid, key, oid):
-        if _off(c, o, "reading"):
+        if not rcn_on(c, uid, "reading", o, uid):
             continue
         try:
             got = rss_space(c, uid, "org:%d" % o if o else "private")  # the area's own check of a space
@@ -259,18 +276,7 @@ def rcn_sheets(c, uid, key, oid, limit):
         rows = sh_index(c, uid, key)  # the tables' own check (sh_space, sh_may; "all" with the shared ones)
     except (Denied, BadInput):
         return []
-    # the module Tables on for me in the table's workspace (my area / module switches, the card's cap - mod_ws_on, reader F4);
-    # a table someone shared with me privately counts as shared, not as my Private
-    on = {}
-
-    def sh_on(r):
-        o = r["org_id"] or None
-        if o is None and r["owner_id"] != uid:
-            return True
-        if o not in on:
-            on[o] = mod_ws_on(c, uid, o, "sheets", "sheets")
-        return on[o]
-    rows = [r for r in rows if not _off(c, r["org_id"], "sheets") and sh_on(r)]
+    rows = [r for r in rows if rcn_on(c, uid, "sheets", r["org_id"], r["owner_id"])]  # (#7706) the one gate (reader F4 of #7662)
     rows.sort(key=lambda r: (rcn_at_key(r["updated_at"]), r["id"]), reverse=True)
     return [{"area": "sheets", "id": r["id"], "space": _sp_key(c, uid, r["org_id"], r["owner_id"]), "title": r["title"], "place": "",
              "by": r["updated_by"] or r["created_by"] or r["owner_id"], "at": r["updated_at"]} for r in rows[:limit]]
