@@ -2087,8 +2087,9 @@ async function devBoot(net) {
 // a 401 while the kept state is shown: the session is over (authGone ended the copies), the screen keeps nothing of it either
 function devWipe() {
   S.devOld = null;
+  S.tasks.clear(); S.lists = []; S.extra = null;  // a boot step still running draws nothing of the account
   for (const s of ['#side', '#view', '#detail', '#top', '#tabs']) { const el = $(s); if (el) el.innerHTML = ''; }
-  const app = $('#app'); if (app) app.hidden = true;  // a boot step still running draws into nothing; the sign-in reloads the page
+  const app = $('#app'); if (app) app.hidden = true;  // the sign-in on top reloads the page
 }
 async function load(auto, want) {
   if (auto && ld_run) {
