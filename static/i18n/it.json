@@ -19707,12 +19707,5 @@
   "documents from templates": "documenti da modelli",
   "invoice series": "serie di fatture",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "Il cliente di questo documento non è più in questo ufficio (spostato in un altro spazio di lavoro). Scegli prima un altro cliente.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Il cliente della fattura modello non è più in questo ufficio (spostato in un altro spazio di lavoro). Scegli un'altra fattura modello e riattiva la serie.",
-  "{0} joined {1} as an admin": "{0} è entrato in {1} come amministratore",
-  "Change the role of {0}?": "Cambiare il ruolo di {0}?",
-  "{0} owns things in this organisation that this role cannot own. They go to {1}: {2}. {0} stays in them and reads them.": "{0} possiede in questa organizzazione elementi che questo ruolo non può possedere. Passano a {1}: {2}. {0} ne resta parte e può leggerli.",
-  "{0} owns things in this organisation that this role cannot own. They go to {1}: {2}. {0} stays in them and may edit them.": "{0} possiede in questa organizzazione elementi che questo ruolo non può possedere. Passano a {1}: {2}. {0} ne resta parte e può modificarli.",
-  "Change role": "Cambia ruolo",
-  "Invitations you sent to organisations end with a new password; an admin of the organisation can send them again from its members list.": "Gli inviti che hai inviato a organizzazioni terminano con una nuova password; un amministratore dell’organizzazione può inviarli di nuovo dall’elenco dei membri.",
-  "Invitations you sent to organisations end too; an admin of the organisation can send them again from its members list.": "Anche gli inviti che hai inviato a organizzazioni terminano; un amministratore dell’organizzazione può inviarli di nuovo dall’elenco dei membri."
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Il cliente della fattura modello non è più in questo ufficio (spostato in un altro spazio di lavoro). Scegli un'altra fattura modello e riattiva la serie."
 }

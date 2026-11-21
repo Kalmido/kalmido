@@ -19706,12 +19706,5 @@
   "documents from templates": "Dokumente aus Vorlagen",
   "invoice series": "Rechnungsserien",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "Der Kunde dieses Dokuments ist nicht mehr in diesem Büro (in einen anderen Arbeitsbereich umgezogen). Wähle zuerst einen anderen Kunden.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Der Kunde der Vorlage-Rechnung ist nicht mehr in diesem Büro (in einen anderen Arbeitsbereich umgezogen). Wähle eine andere Vorlage-Rechnung und schalte die Serie wieder ein.",
-  "{0} joined {1} as an admin": "{0} ist {1} als Admin beigetreten",
-  "Change the role of {0}?": "Rolle von {0} ändern?",
-  "{0} owns things in this organisation that this role cannot own. They go to {1}: {2}. {0} stays in them and reads them.": "{0} besitzt in dieser Organisation etwas, das diese Rolle nicht besitzen kann. Es geht an {1}: {2}. {0} bleibt dabei und kann es lesen.",
-  "{0} owns things in this organisation that this role cannot own. They go to {1}: {2}. {0} stays in them and may edit them.": "{0} besitzt in dieser Organisation etwas, das diese Rolle nicht besitzen kann. Es geht an {1}: {2}. {0} bleibt dabei und kann es bearbeiten.",
-  "Change role": "Rolle ändern",
-  "Invitations you sent to organisations end with a new password; an admin of the organisation can send them again from its members list.": "Einladungen, die du in Organisationen verschickt hast, enden mit einem neuen Passwort; ein Admin der Organisation kann sie aus der Mitgliederliste erneut senden.",
-  "Invitations you sent to organisations end too; an admin of the organisation can send them again from its members list.": "Einladungen, die du in Organisationen verschickt hast, enden ebenfalls; ein Admin der Organisation kann sie aus der Mitgliederliste erneut senden."
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Der Kunde der Vorlage-Rechnung ist nicht mehr in diesem Büro (in einen anderen Arbeitsbereich umgezogen). Wähle eine andere Vorlage-Rechnung und schalte die Serie wieder ein."
 }
