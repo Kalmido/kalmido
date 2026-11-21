@@ -55,7 +55,6 @@ People and organisations: sign-in, sessions, workspaces, roles, invitations, per
 - `kalmido/accounts/navmenus.py` (`nav`) - The menus of the areas, arranged by each person
 - `kalmido/accounts/oidc.py` (`oidc`) - Login with a generic OpenID Connect provider (authorization code flow with PKCE)
 - `kalmido/accounts/onboarding.py` (`sample`) - Onboarding, the sample project and the app
-- `kalmido/accounts/orgback.py` (`olb`) - Leaving an organisation (or being removed)
 - `kalmido/accounts/orginvite.py` (`ojn`) - An organisation's admins invite people by e-mail
 - `kalmido/accounts/orgleave.py` (`olv`) - What leaving or deleting an organisation means for its members
 - `kalmido/accounts/orglists.py` (`ole`) - Organisation admins manage the lists of their organisation (in the workspace settings)

@@ -109,15 +109,14 @@ function wsPaneWire(md) {
 }
 // 2.538.0 (#4369): the line in the leave dialog when unsent changes of the organisation wait on this device
 const outOrgWarnHtml = n => n ? `<div class="shint keep olvrow warn">${ic('alert', 's')} ${esc(trn('{0} change of this organisation has not been sent yet; it is discarded when you leave.', '{0} changes of this organisation have not been sent yet; they are discarded when you leave.', n))}</div>` : '';
-// 2.361.0 (#2922): the leave / remove dialog lists every area: back to the private space, to an admin, stays, ends
+// (#2922): the leave / remove dialog lists every area: to an admin, stays, ends; (#6840, decision #935) nothing goes back
+// by itself, what the person brought in stays with the organisation too
 function olvLeaveHtml(j, self) {
   const rows = [], th = j.to_heir || {};
-  if ((j.back || []).length) rows.push([false, (self ? tr('Back to your private workspace (you brought them in): {0}', j.back.join(', ')) : tr('Back to the person’s private workspace (brought in by them): {0}', j.back.join(', ')))]);
-  if (j.back_text) rows.push([false, (self ? tr('Back to your private workspace too: {0}', j.back_text) : tr('Back to the person’s private workspace too: {0}', j.back_text))]);  // 2.365.1 (#3395)
-  if (j.kept) rows.push([true, (self ? trn('{0} item you brought in cannot go back by itself and stays. Ask an admin to release it before you leave.', '{0} items you brought in cannot go back by themselves and stay. Ask an admin to release them before you leave.', j.kept) : trn('{0} item the person brought in cannot go back by itself and stays.', '{0} items the person brought in cannot go back by themselves and stay.', j.kept))]);
   const given = [th.lists ? trn('{0} project', '{0} projects', th.lists) : '', th.calendars ? trn('{0} calendar', '{0} calendars', th.calendars) : '', th.books ? trn('{0} address book', '{0} address books', th.books) : ''].filter(Boolean).join(', ');
   if (given) rows.push([false, tr('Goes to {0}: {1}', j.heir || tr('an admin'), given)]);
   if (j.stays_text) rows.push([true, (self ? tr('Stays in the organisation, you no longer see it: {0}', j.stays_text) : tr('Stays in the organisation, the person no longer sees it: {0}', j.stays_text))]);
+  if (self) rows.push([true, tr('What you brought in from your private workspace stays in the organisation too. To take something along, ask an admin to release it before you leave.')]);  // (#6840)
   if (j.assigned) rows.push([false, trn('{0} task of the organisation assigned to them is unassigned.', '{0} tasks of the organisation assigned to them are unassigned.', j.assigned)]);
   rows.push([false, (self ? tr('You leave every project of the organisation; joining again does not bring that back.') : tr('The person leaves every project of the organisation; joining again does not bring that back.'))]);
   return rows.map(([w, t]) => `<div class="shint keep olvrow${w ? ' warn' : ''}">${w ? ic('alert', 's') + ' ' : ''}${esc(t)}</div>`).join('');

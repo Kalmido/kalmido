@@ -1572,19 +1572,6 @@ ALLOW_PURPOSES = ("calendar", "carddav", "webhooks", "mail", "git", "newsletter"
                   "paperless", "karakeep", "servers")
 
 
-def brought_backfill(c):
-    """2.365.1 (#3395): once at the start: the mark brought_by (accounts/orgback.py) of what came in before it existed, from the
-    last move of each thing (space_moves): private -> today's organisation = by_id brought it in. Files have no reliable rows."""
-    n = 0
-    with pg_system_ctx(c):
-        for table, kind in (("sheets", "sheet"), ("wiki_pages", "wiki"), ("video_reviews", "video"), ("sched_polls", "poll"), ("bookmarks", "bookmark")):
-            n += c.execute(f"""UPDATE {table} t SET brought_by=m.by_id FROM
-                               (SELECT DISTINCT ON (obj_id) obj_id, from_org, to_org, by_id FROM space_moves WHERE kind=? ORDER BY obj_id, id DESC) m
-                               WHERE m.obj_id=t.id AND m.from_org IS NULL AND m.to_org=t.org_id AND m.by_id IS NOT NULL AND t.brought_by IS NULL""",
-                           (kind,)).rowcount
-    return n
-
-
 def gsetting(c, key):
     r = c.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
     return r[0] if r else GLOBAL_DEFAULTS.get(key, "")

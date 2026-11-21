@@ -2,11 +2,11 @@
 # kalmido-suite: fresh
 """2.361.0 (#2920 / #2922): leaving and deleting an organisation, seen from its members. Own container in mode workspaces.
  #2922 leaving / being removed:
- - a project the person brought in from the private workspace (PATCH org_id) goes back there, not to an admin; one made in the
-   organisation goes to the admin as before
- - GET /api/orgs/<oid>/leave-info names it (back), what goes to the admin, what stays (a table) and the end of assignments;
-   only the person or an admin of the organisation (404 / 403 else, also for a person without an organisation)
- - the removed person's News item counts the projects that came back
+ - decision #935 (back with #6840): a project the person brought in from the private workspace (PATCH org_id) stays with the
+   organisation and goes to the admin like one made there; only private projects stay the person's
+ - GET /api/orgs/<oid>/leave-info names what goes to the admin, what stays (a table) and the end of assignments, nothing that
+   goes back; only the person or an admin of the organisation (404 / 403 else, also for a person without an organisation)
+ - the removed person's News item names no projects that came back
  #2920 deleting (instance admin):
  - delete-info lists per member what of theirs goes along
  - POST delete-notice: every member gets a News item with the day and their own numbers, the deletion waits (409);
@@ -90,10 +90,10 @@ BORN = r.json()["id"]
 table(Ca, ORG, "Carols table")
 
 j = Ca.get(B + f"/api/orgs/{ORG}/leave-info").json()
-check(j.get("back") == ["Carols own"], f"leave-info: the brought-in project goes back ({j.get('back')})")
-check((j.get("to_heir") or {}).get("lists") == 1 and j.get("heir") == "Bob", f"leave-info: the project made in Alpha goes to Bob ({j.get('to_heir')}, {j.get('heir')})")
+check("back" not in j, f"#6840: leave-info names nothing that goes back ({j.get('back')})")
+check((j.get("to_heir") or {}).get("lists") == 2 and j.get("heir") == "Bob", f"#6840: both projects go to Bob, the brought-in one too ({j.get('to_heir')}, {j.get('heir')})")
 check((j.get("stays") or {}).get("tables") == 1 and "table" in (j.get("stays_text") or ""), f"leave-info: the table stays, named ({j.get('stays')}, {j.get('stays_text')})")
-check(Bo.get(B + f"/api/orgs/{ORG}/leave-info", params={"uid": CAROL}).json().get("back") == ["Carols own"], "leave-info: the admin sees it for a member")
+check((Bo.get(B + f"/api/orgs/{ORG}/leave-info", params={"uid": CAROL}).json().get("to_heir") or {}).get("lists") == 2, "leave-info: the admin sees it for a member")
 check(Da.get(B + f"/api/orgs/{ORG}/leave-info", params={"uid": CAROL}).status_code == 403, "leave-info: another member may not look at carol's")
 check(sess("erin").get(B + f"/api/orgs/{ORG}/leave-info").status_code == 404, "leave-info: 404 for a person not in the organisation")
 # 2.512.0 (#4076): ?to= is checked like the removal: no name of an account from outside the organisation
@@ -110,25 +110,22 @@ check(Fr.get(B + f"/api/orgs/{ORG}/leave-info").status_code == 404, "freelancer:
 check(Fr.post(B + f"/api/admin/orgs/{ORG}/delete-notice", json={}).status_code == 403, "freelancer: no delete notice")
 
 r = Ca.delete(B + f"/api/orgs/{ORG}/members/{CAROL}")
-check(r.ok and r.json().get("transferred") == 1 and r.json().get("back") == 1, f"carol leaves: one project to Bob, one back ({r.text[:120]})")
-mine = lists(Ca)
-check(OWN in mine and not mine[OWN].get("org_id"), f"carol keeps her brought-in project, private now ({mine.get(OWN, {}).get('org_id')})")
-check(BORN not in mine and BORN in lists(Bo), "the project made in Alpha went to Bob")
+check(r.ok and r.json().get("transferred") == 2 and "back" not in r.json(), f"#6840: carol leaves, both projects go to Bob ({r.text[:120]})")
+mine, bobs = lists(Ca), lists(Bo)
+check(OWN not in mine and OWN in bobs and bobs[OWN].get("org_id") == ORG, f"#6840: the brought-in project stays in Alpha, Bob's now ({bobs.get(OWN, {}).get('org_id')})")
+check(BORN not in mine and BORN in bobs, "the project made in Alpha went to Bob")
 mo = [x for x in news(Bo, "orglist") if x["data"].get("action") == "moveout"]
-check(mo and mo[0]["data"].get("name") == "Carols own", f"review: Bob (admin) is told the project left Alpha ({[x['data'] for x in mo]})")
+check(not mo, f"#6840: nothing left Alpha, Bob is told no move out ({[x['data'] for x in mo]})")
 
-# removed by an admin: the person keeps what they brought in, and is told
+# removed by an admin: what they brought in stays with the organisation (#935)
 r = Da.post(B + "/api/lists", json={"name": "Daves own", "org_id": None})
 DOWN = r.json()["id"]
 check(Da.patch(B + f"/api/lists/{DOWN}", json={"org_id": ORG}).ok, "setup: dave brings a project in")
 r = Bo.delete(B + f"/api/orgs/{ORG}/members/{DAVE}")
-check(r.ok and r.json().get("back") == 1 and r.json().get("transferred") == 0, f"bob removes dave: his project goes back ({r.text[:120]})")
-check(DOWN in lists(Da) and DOWN not in lists(Bo), "dave keeps his project")
+check(r.ok and "back" not in r.json() and r.json().get("transferred") == 1, f"#6840: bob removes dave, his brought-in project goes to Bob ({r.text[:120]})")
+check(DOWN not in lists(Da) and DOWN in lists(Bo), "#6840: the project stays in Alpha with Bob")
 un = news(Da, "unshare")
-check(un and un[0]["data"].get("back") == 1, f"dave's News item counts the project that came back ({[x['data'] for x in un]})")
-# moved out and in again by an admin of another organisation path: a project made in an organisation is never "brought in"
-r = Bo.post(B + "/api/lists", json={"name": "Bobs Alpha", "org_id": ORG})
-check(Bo.get(B + f"/api/orgs/{ORG}/leave-info").json().get("back") == [], "a project made in the organisation is not brought in")
+check(un and "back" not in un[0]["data"] and un[0]["data"].get("lists") == 1, f"#6840: dave's News item says one project stayed with Alpha ({[x['data'] for x in un]})")
 
 # ================================================================ #2920 deleting
 KURZ = setup("Kurzorg", ERIN, ("frank",))
