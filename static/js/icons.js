@@ -446,13 +446,20 @@ const kt = (label, keys) => isTouch() ? label : `${label} (${kbText(keys)})`;  /
 //   secret  the remembered keys (kalmido-e2e with the keys in memory, e2e.js) and this browser's push subscription
 //   device  this device's own look and choices (LS_KEEP), the sign-out the server did not hear yet, the reload guards: stay
 // A name ending in '.' or '-' is a prefix; the longest one that fits decides.
+// (#7595) A 4th field = the role of a second place of one store ("<role> of <store>"): the mode of the browser decides which
+// place holds it, once (globalThis.indexedDB there or not), never a window after a failed write. Each such key has ONE owner
+// that writes it (tools/check_devstore.py is red for a write elsewhere; docs/dev/kern.md "Data of the account on this device"):
+//   tasks.outbox  feed of kalmido-outbox: with IndexedDB the entries not in the queue yet, one consumer (core.js obxAdopt);
+//                 without IndexedDB the queue itself (core.js outSync / outSave)
+//   tasks.cache   fallback of kalmido-start: the start state without IndexedDB (core.js startSave); with it the old copy,
+//                 taken over once by offcache.js and removed
 // Not a store of the register: the browser's own HTTP cache (attachments and project files with private max-age) - the app
 // cannot empty it from script; it is a point of its own (audit #6007 b).
 const LS_KEEP = new Set(['tasks.theme', 'tasks.i18n', 'tasks.density', 'tasks.densitySide', 'tasks.densityRows', 'tasks.densSideV', 'tasks.densRowsV', 'tasks.fsize', 'tasks.font', 'tasks.accent', 'tasks.chatHuman', 'tasks.chatAgent', 'tasks.railLabels', 'tasks.accentMig280', 'tasks.pw.det', 'tasks.pw.chat', 'tasks.sideGroups', 'tasks.agband', 'tasks.sideFold', 'tasks.mdOpen', 'tasks.pack', 'tasks.headShow', 'tasks.rings', 'tasks.lookLocal', 'tasks.pwaHint', 'tasks.vmode']);  // (#3270): + the view of this device; (#2153): + the install hint (per device); (#1427): + theme, header pictures, rings
-const DEV_STORES = [  // [kind (ls localStorage | ss sessionStorage | idb IndexedDB | cache Cache Storage | push), name, class]
+const DEV_STORES = [  // [kind (ls localStorage | ss sessionStorage | idb IndexedDB | cache Cache Storage | push), name, class, role (#7595)]
   ['ls', 'tasks.', 'view'], ['ls', 'kalmido.', 'view'], ['ls', 'vdr-name', 'view'],
-  ['ls', 'tasks.outbox', 'own'], ['ls', 'tasks.conflicts', 'own'], ['ls', 'tasks.uid', 'own'], ['ls', 'tasks.idmap', 'own'], ['ls', 'tasks.idmapAt', 'own'],
-  ['ls', 'tasks.cache', 'copy'], ['ls', 'tasks.wko', 'copy'],
+  ['ls', 'tasks.outbox', 'own', 'feed of kalmido-outbox'], ['ls', 'tasks.conflicts', 'own'], ['ls', 'tasks.uid', 'own'], ['ls', 'tasks.idmap', 'own'], ['ls', 'tasks.idmapAt', 'own'],
+  ['ls', 'tasks.cache', 'copy', 'fallback of kalmido-start'], ['ls', 'tasks.wko', 'copy'],
   ...[...LS_KEEP].map(k => ['ls', k, 'device']), ['ls', 'kalmido.logoutPending', 'device'],  // (#4284): account.js lgo_pending
   ['ss', 'rck-stepup', 'view'], ['ss', 'kalmido-tour-', 'view'], ['ss', 'kalmido.rcl.', 'view'],
   ['ss', 'kalmido-reloaded', 'device'], ['ss', 'kalmido.booted', 'device'], ['ss', 'kalmido-mwn', 'device'], ['ss', 'kalmido.epv', 'device'], ['ss', 'kalmido-suimport', 'device'],

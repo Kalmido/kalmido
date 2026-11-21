@@ -9,6 +9,8 @@
 //   copies; the device's own keys stay always. Every store of the register has one of the classes.
 // - (#6500): a sign-in without "Stay signed in" keeps no offline start state (me.remember false); an offline start shows
 //   no state whose last online sync is older than 14 days
+// - (#7595): the register names the two second places (tasks.outbox feed of kalmido-outbox, tasks.cache fallback of
+//   kalmido-start) with the class of their store; without IndexedDB both live in localStorage
 // - the login page shows the operator's privacy / imprint links from the server configuration
 // freelancer-matrix: browser storage (the account here has no organisation)
 const {boot, errs, until, B, login} = require('./boot');
@@ -69,6 +71,14 @@ const call = async (method, url, body, ck) => { const r = await fetch(B + url.re
   const CLS = ['own', 'view', 'copy', 'secret', 'device'];
   check(w.eval(`DEV_STORES.every(([kind, name, c]) => ['ls', 'ss', 'idb', 'cache', 'push'].includes(kind) && name && ${JSON.stringify(CLS)}.includes(c))`), '#6500: every store of the register has a kind and one of the classes');
   check(JSON.stringify(Object.keys(WANT).sort()) === w.eval('JSON.stringify(Object.keys(DEV_END).sort())'), '#6500: the events of the table ' + w.eval('JSON.stringify(Object.keys(DEV_END))'));
+  // (#7595): the second places of one store carry their role - the feed of the queue and the fallback of the start state, of the
+  // same class as their store; no other key has one. jsdom has no IndexedDB: the mode of this browser is localStorage for both
+  const roles = w.eval(`JSON.stringify(DEV_STORES.filter(e => e[3]).map(([kind, name, c, r]) => {
+    const m = /^(feed|fallback) of (.+)$/.exec(r), of = m && DEV_STORES.find(([k2, n2]) => k2 === 'idb' && n2 === m[2]);
+    return [kind, name, r, !!of && of[2] === c];
+  }))`);
+  check(roles === JSON.stringify([['ls', 'tasks.outbox', 'feed of kalmido-outbox', true], ['ls', 'tasks.cache', 'fallback of kalmido-start', true]]), '#7595: the register names the two second places with their role and store ' + roles);
+  check(w.eval(`!globalThis.indexedDB && OBX.on === false`) && await until(() => 'tasks.cache' in w.__store), '#7595: a browser without IndexedDB keeps the start state in its fallback tasks.cache, the queue in tasks.outbox');
   // one key per class in both storages, every store that is no key with a drop that only counts
   const SEED = {ls: {own: ['tasks.outbox', 'tasks.conflicts', 'tasks.uid', 'tasks.idmap', 'tasks.fdf.1.x', 'tasks.fdx.1.2', 'tasks.ltpend.1.3'],
     view: ['tasks.cwins', 'tasks.lastKey', 'kalmido.xd', 'kalmido.dlgsize.a', 'vdr-name'], copy: ['tasks.cache', 'tasks.wko'],

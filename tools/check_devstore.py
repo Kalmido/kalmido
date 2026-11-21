@@ -21,6 +21,13 @@ by the entry 'tasks.'. A name that is not a literal (a variable) is not checked.
 The places that were there before the rule are the baseline (tools/devstore_baseline.json, "kind|name" -> count). It only
 ever shrinks: a NEW place is red (exit 1); --update writes the lower counts (never adds). Pattern of check_drop_core.py.
 
+#7595, the owner of a second place: an entry of DEV_STORES with a 4th field ("feed of kalmido-outbox", "fallback of
+kalmido-start") is the second place of one store; which place holds it is the browser's mode, and only its owner writes
+it (OWNERS below: file -> top-level functions). Red (no baseline): a write of such a key - localStorage.setItem /
+removeItem('<key>', LS.set / LS.del('<key without tasks.>') - outside its owner, and an entry with a role that OWNERS
+does not know (or an owner of a key that has no role in the register). Before, tasks.cache had 3 writers with 3 reasons and
+tasks.outbox 4 roles at once (the fix series of #7515).
+
 usage: python3 tools/check_devstore.py [-v] [--update] [--root DIR]      exit 1 on a new place. Standard library only.
 """
 import argparse
@@ -31,7 +38,13 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-REG_RE = re.compile(r"\[\s*'(ls|ss|idb|cache|push)'\s*,\s*'([^']+)'\s*,\s*'(own|view|copy|secret|device)'\s*\]")
+REG_RE = re.compile(r"\[\s*'(ls|ss|idb|cache|push)'\s*,\s*'([^']+)'\s*,\s*'(own|view|copy|secret|device)'\s*(?:,\s*'([^']+)'\s*)?\]")
+# (#7595): the one owner of each second place (file -> its top-level functions that may write the key)
+OWNERS = {
+    "tasks.outbox": {"static/js/core.js": {"outSync", "outSave", "obxFeedSet"}},
+    "tasks.cache": {"static/js/core.js": {"startSave"}, "static/js/offcache.js": {"oc_lsDrop"}},
+}
+TOP_FN = re.compile(r"^(?:async\s+)?function\s*\*?\s*(\w+)|^(?:const|let|var)\s+(\w+)\s*=")
 Q = r"""(['"`])([^'"`$]*)"""  # a literal up to its end or its first ${
 PATS = [("idb", re.compile(r"\bindexedDB\.open\(\s*" + Q)),
         ("cache", re.compile(r"\bcaches\.open\(\s*" + Q)),
@@ -45,8 +58,8 @@ def files(root):
     return sorted(glob.glob(os.path.join(root, "static", "js", "*.js"))) + [os.path.join(root, "static", "sw.js")]
 
 
-def register(root):
-    """[(kind, name)] of DEV_STORES (static/js/icons.js)."""
+def register(root, full=False):
+    """[(kind, name)] of DEV_STORES (static/js/icons.js); full: [(kind, name, class, role)]."""
     try:
         src = open(os.path.join(root, "static", "js", "icons.js"), encoding="utf-8").read()
     except OSError:
@@ -55,7 +68,38 @@ def register(root):
     if i < 0:
         return []
     j = src.find("];", i)
-    return [(k, n) for k, n, _ in REG_RE.findall(src[i:j])]
+    rows = REG_RE.findall(src[i:j])
+    return rows if full else [(k, n) for k, n, _, _ in rows]
+
+
+def owner_faults(root, owners=None):
+    """#7595: ["file:line: text"] - writes of a second place outside its owner, roles without an owner and back."""
+    owners = OWNERS if owners is None else owners
+    roles = {n for k, n, _, r in register(root, True) if k == "ls" and r}
+    out = [f"static/js/icons.js: '{n}' has a role in DEV_STORES but no owner in tools/check_devstore.py OWNERS" for n in sorted(roles - set(owners))]
+    out += [f"tools/check_devstore.py: OWNERS names '{n}', the register gives it no role" for n in sorted(set(owners) - roles)]
+    pats = []
+    for key in sorted(roles & set(owners)):
+        alts = [r"\blocalStorage\.(?:setItem|removeItem)\(\s*['\"`]" + re.escape(key) + r"['\"`]"]
+        if key.startswith("tasks."):
+            alts.append(r"\bLS\.(?:set|del)\(\s*['\"`]" + re.escape(key[len("tasks."):]) + r"['\"`]")
+        pats.append((key, re.compile("|".join(alts))))
+    for f in files(root):
+        if not os.path.exists(f):
+            continue
+        rel = os.path.relpath(f, root).replace(os.sep, "/")
+        fn = None
+        for n, line in enumerate(open(f, encoding="utf-8"), 1):
+            m = TOP_FN.match(line)
+            if m:
+                fn = m.group(1) or m.group(2)
+            if COMMENT.match(line):
+                continue
+            for key, rx in pats:
+                if rx.search(line) and fn not in owners[key].get(rel, set()):
+                    who = ", ".join(f"{p} {'/'.join(sorted(fs))}" for p, fs in sorted(owners[key].items()))
+                    out.append(f"{rel}:{n}: '{key}' written outside its owner (in {fn or 'the top level'}; owner: {who})")
+    return out
 
 
 def fits(key, name):
@@ -98,6 +142,7 @@ def main():
         return 1
     found = places(a.root)
     new = {k: v for k, v in found.items() if len(v) > base.get(k, 0)}
+    own = owner_faults(a.root)
     if a.v:
         for k, v in sorted(found.items()):
             print(f"  {k}: {len(v)} (baseline {base.get(k, 0)}) " + ", ".join(f"{f}:{n}" for f, n in v))
@@ -109,12 +154,21 @@ def main():
         kind, name = k.split("|", 1)
         for f, n in v:
             print(f"{f}:{n}: a store of the browser without its entry in the register: {kind} '{name}'")
+    for x in own:
+        print(x)
+    if own:
+        print("check_devstore: Why (#7595): a second place of one store (the feed of the queue, the fallback of the start state) "
+              "has ONE writer; every other writer decided again which place holds the store, and the states drifted apart.\n"
+              "check_devstore: Instead: go through the owner (core.js outSave / outStash for the queue, core.js startSave for the "
+              "start state) - or, a new second place, its role in DEV_STORES and its owner in OWNERS.")
     if new:
         print("check_devstore: Why: what the device keeps of an account must go with the right event (sign-out, the session "
               "ended, another sign-in); a store outside the register stays for the next person on a shared computer.\n"
               "check_devstore: Instead: one line in DEV_STORES (static/js/icons.js) with its class (own / view / copy / secret / "
               "device) and, if it is no key, its drop with devDrop(name, fn) where the store lives (docs/dev/kern.md "
               "\"Data of the account on this device\").")
+        return 1
+    if own:
         return 1
     print(f"check_devstore: {len(register(a.root))} entries in the register, {sum(len(v) for v in found.values())} place(s) "
           f"outside it (baseline {sum(base.values())}), 0 new")
