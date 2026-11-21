@@ -1171,7 +1171,7 @@ function chatPatch(o = {}) {
   const late = !rs && !o.bottom && !o.keep && !S.chat.unread && S.chat.openSeen != null && Date.now() < (S.chat.openUntil || 0) && !document.hidden && chs_after(S.chat.openSeen);
   if (late) S.chat.unread = late.id;
   patchRows(box, chatRows());  // 2.220.0 B (#2813): unchanged rows keep their nodes
-  const added = cf_after(box, 'a:' + S.chat.aid, o.keep);  // 2.46.2 (#1660): new messages fade in (older pages and the first fill stay quiet)
+  const added = cf_after(box, 'a:' + S.chat.aid, o.keep);  // (#1660) new messages fade in (older pages and the first fill stay quiet)
   apvPinSync();  // 2.35.0 (#1103)
   acsug_sync();  // 2.233.0 A (#2848)
   cpnSync();  // 2.62.0 (#1848)
