@@ -94,7 +94,13 @@ const FEAT = 'cal,comments,collab,contracts,feeds,reading';
   await until(() => d.querySelector('.rssitem'));
   check(w.eval('S.route.mod') === 'feeds' && w.eval('wsCur()') === SP, '#2677: Feeds stays open in the organisation view (no jump to Private)');
   check(/Team Blog/.test(d.querySelector('.rssview').textContent) && !/My Blog/.test(d.querySelector('.rssview').textContent), '#2677: the organisation view shows only its feeds');
-  check(d.querySelector('#rss-url') && d.querySelector('[data-rss="del"]'), '#2677: the admin manages the sources');
+  // (#7017, audit D13): "Manage feeds" is an entry of the "…" (was a fold at the end of the page)
+  const mngOpen = async () => { click(w, d.querySelector('.rssview [data-rss="omenu"]')); const mi = await until(() => [...d.querySelectorAll('#pop:not(.hidden) [role="menuitem"]')].find(b => b.textContent.trim() === 'Manage feeds…')); click(w, mi); return until(() => d.querySelector('.modal.rssmd')); };
+  check(!d.querySelector('.rssview .rssfeeds') && !d.querySelector('.rssview [data-rss="del"]'), '#7017: no fold "Manage feeds" at the end of the page');
+  let mm = await mngOpen();
+  check(d.querySelector('#rss-url') && mm && /Team Blog/.test(mm.textContent) && mm.querySelector('[data-rss="del"]'), '#2677: the admin manages the sources (#7017: the "…" > Manage feeds…)');
+  click(w, mm.querySelector('[data-m="close"]'));
+  await until(() => !d.querySelector('.modal.rssmd'));
   click(w, d.querySelector('.rssitem [data-rss="later"]'));
   await until(() => d.querySelector('.rssitem [data-rss="later"][aria-pressed="true"]'));
   await until(async () => (await call('GET', '/api/reading?space=' + SP)).count === 1);  // 2.559.0 (#4660): "Saved" shows before the answer: wait for the server
@@ -102,7 +108,8 @@ const FEAT = 'cal,comments,collab,contracts,feeds,reading';
   w = await boot({user: 'bob', hash: 'feeds'}); d = w.document;
   await until(() => d.querySelector('.rssitem'));
   check(/Team Blog/.test(d.querySelector('.rssview').textContent), '#2677: a member reads the organisation feeds');
-  check(!d.querySelector('#rss-url') && !d.querySelector('[data-rss="del"]') && d.querySelector('.rssro'), '#2677: a member who is no admin: no address field, no unfollow, a hint');
+  mm = await mngOpen();
+  check(!d.querySelector('#rss-url') && mm && /Team Blog/.test(mm.textContent) && !d.querySelector('[data-rss="del"]') && d.querySelector('.rssro'), '#2677: a member who is no admin: no address field, no unfollow, a hint');
   w.close();
   w = await boot({user: 'bob', hash: 'reading'}); d = w.document;
   await until(() => d.querySelector('.rlrow'));

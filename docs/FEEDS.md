@@ -14,7 +14,7 @@ sites and read their new articles in one list. Switch it on under *Settings > Mo
   for a password (2.172.0). Feeds are fetched with the sender `Kalmido/<version> (feed reader; +https://kalmido.com)`.
 - Menu **…** > *Import OPML file* takes over the feeds of another reader (at most 100 feeds per person); *Export OPML
   file* downloads yours.
-- *Manage feeds* (below the articles) lists your feeds with the last fetch or the last error; the bin unfollows a feed
+- *Manage feeds…* in the "…" of the page lists your feeds with the last fetch or the last error; the bin unfollows a feed
   (undo brings it back with its articles).
 
 ## Reading

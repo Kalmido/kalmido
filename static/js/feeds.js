@@ -37,6 +37,7 @@ async function rss_load(more) {
   if (seq !== RSS.seq) return;
   RSS.loading = false; RSS.done = true; RSS.at = Date.now();
   rss_draw();
+  if (!more) rss_mngDraw();  // (#7017): the open "Manage feeds" follows
 }
 function rss_draw() {
   if (S.route.mod === 'feeds') { const el = $('#view'); if (el) keepFocus(el, () => setHtml(el, mg_wrap('feeds', viewFeeds()))); }
@@ -84,9 +85,17 @@ function viewFeeds() {
   };
   const list = RSS.items.length ? `<ul class="rsslist">${RSS.items.map(row).join('')}</ul>${RSS.more ? `<button type="button" class="btn rssmore" data-rss="more">${tr('Show more')}</button>` : ''}`
     : `<p class="muted lempty">${RSS.only ? tr('Nothing new to read.') : tr('No articles yet. New ones are fetched about once an hour.')}</p>`;
-  const mng = `<details class="rssfeeds"><summary>${tr('Manage feeds')} <span class="muted">${feeds.length} / ${RSS.max || 100}</span></summary><ul class="rssfl">${feeds.map(f => `<li><span class="rssfn"><b>${esc(f.title)}</b><span class="muted">${esc(f.error ? f.error : f.last_ok ? tr('fetched {0}', rss_when(f.last_ok)) : tr('waiting for the first fetch'))}</span></span>${RSS.manage ? `<button type="button" class="iconbtn" data-rss="del" data-id="${f.id}" aria-label="${esc(tr('Unfollow {0}', f.title))}" title="${esc(tr('Unfollow'))}">${ic('trash', 's')}</button>` : ''}</li>`).join('')}</ul></details>`;
-  return `<div class="rssview">${head}${pick}${list}${mng}</div>`;
+  return `<div class="rssview">${head}${pick}${list}</div>`;  // (#7017, audit D13): "Manage feeds" is an entry of the "…" (rss_manage), no fold at the end
 }
+// (#7017, audit D13): the feeds with their state (and Unfollow for those who manage them) in a dialog from the "…"; it follows
+// every reload (rss_del's Undo too)
+const rss_mngHtml = () => { const feeds = RSS.feeds || []; return `<p class="muted">${esc(tr('{0} of at most {1} feeds', feeds.length, RSS.max || 100))}</p><ul class="rssfl">${feeds.map(f => `<li><span class="rssfn"><b>${esc(f.title)}</b><span class="muted">${esc(f.error ? f.error : f.last_ok ? tr('fetched {0}', rss_when(f.last_ok)) : tr('waiting for the first fetch'))}</span></span>${RSS.manage ? `<button type="button" class="iconbtn" data-rss="del" data-id="${f.id}" aria-label="${esc(tr('Unfollow {0}', f.title))}" title="${esc(tr('Unfollow'))}">${ic('trash', 's')}</button>` : ''}</li>`).join('')}</ul>`; };
+function rss_manage() {
+  const md = modal(`<div class="lhdr"><h3 id="rssm-t">${esc(tr('Manage feeds'))}</h3><span class="spacer"></span><button class="iconbtn" data-m="close" aria-label="${esc(tr('Close'))}">${ic('x')}</button></div><div class="rssmng">${/*html-ok*/ rss_mngHtml() /* built escaped */}</div>`);
+  md.classList.add('rssmd'); md.setAttribute('role', 'dialog'); md.setAttribute('aria-modal', 'true'); md.setAttribute('aria-labelledby', 'rssm-t');
+  md.addEventListener('click', e => { if (e.target.closest('[data-m="close"]')) md.remove(); });
+}
+const rss_mngDraw = () => { const b = $('.rssmd .rssmng'); if (b) b.innerHTML = rss_mngHtml(); };
 
 // ---- actions
 const rss_item = id => RSS.items.find(x => x.id === id);
@@ -205,6 +214,8 @@ function rss_omenu(anchor) {
   menu(anchor, [
     RSS.manage ? {label: tr('Import OPML file'), icon: 'upload', fn: () => $('[data-rss-opml]')?.click()} : null,
     (RSS.feeds || []).length ? {label: tr('Export OPML file'), icon: 'download', fn: () => { const l = document.createElement('a'); l.href = `/api/feeds/opml?space=${encodeURIComponent(rss_sp())}`; l.download = 'kalmido-feeds.opml'; document.body.appendChild(l); l.click(); l.remove(); }} : null,
+    (RSS.feeds || []).length ? '-' : null,
+    (RSS.feeds || []).length ? {label: tr('Manage feeds…'), icon: 'news', fn: () => rss_manage()} : null,  // (#7017, audit D13): was a fold at the end of the page
   ].filter(Boolean), null, null, tr('More'));
 }
 document.addEventListener('click', async e => {
