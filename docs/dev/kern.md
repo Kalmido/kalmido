@@ -2144,10 +2144,44 @@ on. `startSave`, `wiki.js wko_st` and the offline start ask only it. `sw.js swSt
 is there (it goes with class copy). Not in the register: the browser's HTTP cache (files with private max-age), which a
 script cannot empty - a point of its own.
 
+**One place and one writer per store (#7595):** the queue and the start state each have two places in the browser; which
+one holds them is the browser's **mode, fixed once**: `globalThis.indexedDB` there = IndexedDB, else localStorage - never a
+window after a failed open or write. The register names the second place with its role (4th field of `DEV_STORES`):
+
+| store | with IndexedDB | without | second place, its role | its one owner |
+|---|---|---|---|---|
+| queue `kalmido-outbox` | the queue (core.js `OBX`, `OUT.q` comes from `outOpen`) | `tasks.outbox` is the queue | `tasks.outbox` = **feed**: entries not in IndexedDB yet (`outStash` when the page goes #3024, the entries of a write that failed #6339 - only those, an earlier version's queue, a window whose IndexedDB does not open) | consumer `obxAdopt`; writers `obxFeedSet` (feed), `outSync` / `outSave` (queue without IndexedDB) |
+| start state `kalmido-start` | the record (offcache.js: place, gate `startMay` = devCopyOk, schedule, take-over) | `tasks.cache` (core.js `startSave`) | `tasks.cache` = **fallback**; with IndexedDB only an old copy, taken over once and removed | offcache.js / core.js `startSave` |
+
+The **newer one wins**, in the same transaction: the start state's record carries its age beside the state (`v` = server
+version, `sat` = `_at`), a write reads the record first and leaves a newer one (an older window being hidden, the old copy);
+a queue entry carries its revision `r` (counted up by every write of it), `obxAdopt` takes the feed's entry over the queue's
+only when it is as new or newer and then removes exactly the entries it read. **No stand-in place after a failure:** a start
+state write that did not land is said once and the next change opens a fresh connection (no localStorage copy, class copy);
+a queue write that failed puts only its entries into the feed, and where that is refused too they wait in memory (`OBX.miss`,
+the sign) until the next write takes them along. A window whose IndexedDB does not open sends its feed itself, also after a
+reload, and removes only what the server confirmed; what another window adopts into IndexedDB is that queue's (sent once:
+the Idempotency-Key). `sw.js swStartFold` writes the record by the same contract (one transaction, only a record that is
+there, its age kept). `startSave` only says "the state changed", `liveparts.js` only folds the delta into `S.lpCache`.
+`tools/check_devstore.py` is red for a write of `tasks.outbox` / `tasks.cache` outside its owner (`OWNERS`) and for a role
+without an owner. Tests: `tests/p2663_c_offcache_ui.js` (both places older / newer, two windows, refused write, F1),
+`tests/p21384_b_store_ui.js` (feed newer / older, only the failed entries, no window with IndexedDB, a second window with
+it), `tests/p2743_d_sw_outbox.js` (the worker's fold keeps the age), `tests/check_devstore_test.py`.
+
 **The server side:** a session ends in one place, `accounts/sessions.py ses_end` - with the push subscriptions made in it
 (logout, "end the others", a new password, a disabled account, `start_session` for the ones that ran out, the daily clean-up
 `admin/dataretention.py` with `expired`, a backup restore). `notify/push.py webpush_user` sends only to subscriptions of a
 living session (`session_hash` '' = bound to none: a proxy login, from before 2.115).
+
+**The start reads the copy first (#6366):** a plain start of the app (`/` without a query, no invitation / mail proof link,
+no own window) draws the start state kept on this device at once and fetches `/api/state` at the same time (`core.js
+devBoot` / `devPeek`, `main.js`); the server's state then replaces it. The read gate is the same `devCopyOk` as the offline
+start's (no second one), plus: no first start (setup, onboarding, tour or a question pending need the server's settings).
+While the kept state is shown, `S.devOld = {at}`: the header's chip says "Syncing" with the state's real age (#6340), writes
+go through the queue as offline, the poll fetches the whole state (never a delta on top of the copy). A 401 of that sync
+ends the session as everywhere (`authGone` -> `devEnd('gone')`) and `devWipe` clears the screen - the moment between drawing
+and the 401 is the accepted rest. The worker answers `/` from its kept page when the network gives no answer within
+`SW_RACE_MS` (2.5 s, `sw.js swShell`). Test: `tests/p6366_a_devstart_ui.js`.
 
 A new store is one line in `DEV_STORES` (and a `devDrop` if it is no key); a new "this must stay" is its class, never a
 list at an event. `tools/check_devstore.py` (CI lint) is red for an `indexedDB.open` / `caches.open` / storage key that no

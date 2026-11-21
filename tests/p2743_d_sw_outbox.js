@@ -10,7 +10,7 @@
 // - an entry without an owner (made before the sign-in was known) stops the queue (kept, noted for the app)
 // - (#6334): a note's / knowledge page's change stops the queue (for the app: A9/D7); a create answered without its id
 //   stops it too (the mapping is kept for the app); a milestone / a parent in data.items / a _prev are mapped too (A6); what
-//   was sent is in the offline start state (D2a: a new or changed task put in, a deleted one out)
+//   was sent is in the offline start state (D2a: a new or changed task put in, a deleted one out); (#7595) the record keeps its age
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -149,13 +149,15 @@ function sandbox({meUid = ME, uidMeta = ME, answer = () => jres(200, {ok: true})
   {
     const s = sandbox({answer: (u, o) => u === '/api/tasks' && o.method === 'POST' ? jres(200, {id: 42, list_id: 3, title: 'made offline', status: 0, conflicts: []})
       : u === '/api/tasks/1' ? jres(200, {id: 1, list_id: 3, title: 'renamed offline', status: 0, conflicts: []}) : jres(200, {ok: true})});
-    s.idb.s.set('state', {o: {v: 9, tasks: [{id: 1, list_id: 3, title: 'old title', status: 0}, {id: 2, list_id: 3, title: 'deleted offline', status: 0}]}, at: 1});
+    s.idb.s.set('state', {o: {v: 9, _at: 5, tasks: [{id: 1, list_id: 3, title: 'old title', status: 0}, {id: 2, list_id: 3, title: 'deleted offline', status: 0}]}, at: 1, v: 9, sat: 5});
     s.add({k: 'd1', n: 1, method: 'POST', url: '/api/tasks', body: {title: 'made offline'}, uid: ME, tmp: -5},
       {k: 'd2', n: 2, method: 'PATCH', url: '/api/tasks/1', body: {title: 'renamed offline'}, uid: ME},
       {k: 'd3', n: 3, method: 'DELETE', url: '/api/tasks/2', uid: ME});
     await s.run();
     const ts = s.idb.s.get('state')?.o?.tasks || [];
     check(ts.map(t => t.id + ':' + t.title).sort().join() === '1:renamed offline,42:made offline' && !ts.some(t => 'conflicts' in t), 'D2a: the start state holds the new task, the change, not the deleted one ' + JSON.stringify(ts));
+    const rec = s.idb.s.get('state') || {};
+    check(rec.v === 9 && rec.sat === 5 && rec.at === 1 && rec.o?.v === 9 && rec.o?._at === 5, '(#7595): the fold keeps the record\'s age (v / sat / at, the contract of offcache.js): a window\'s newer state still wins ' + JSON.stringify({v: rec.v, sat: rec.sat, at: rec.at}));
     s.idb.s.set('state', {s: JSON.stringify({tasks: [{id: 1, list_id: 3, title: 'old', status: 0}]}), at: 1});
     s.add({k: 'd4', n: 4, method: 'PATCH', url: '/api/tasks/1', body: {title: 'renamed offline'}, uid: ME});
     await s.run();

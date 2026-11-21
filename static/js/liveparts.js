@@ -138,7 +138,6 @@ const LP_DELTA = new Set(['tasks', 'time', ...LP_LIGHT]);
 const LP_TIMEVIEW = new Set(['time', 'workload', 'office', 'clients']);
 const LP_NOTASKS = new Set(['office', 'clients', 'team', 'contacts', 'habits', 'pomo', 'notes', 'news', 'agents']);  // views that show no tasks
 S.lpN.delta = 0;
-let lpCacheT = 0;
 const lpSideCnt = () => JSON.stringify([counts(), (S.lists || []).map(l => l.progress), S.counts]);
 // since: 2.280.0 A (#3109) the follow-up of light changes (lpFollow) asks from the version before them
 async function lpDelta(v, ch, n, since) {
@@ -247,31 +246,24 @@ function lpMorphView() {
   morphRoot = el;
   try { S.viewStale = false; renderView(); } finally { morphRoot = prev; }
 }
-// the offline start cache (the last full state) follows the delta, written at most every 30 s
+// the offline start cache (the last full state) follows the delta. (#7595): liveparts only folds; when and where it is written
+// is the owner's (core.js startSave -> offcache.js: idle, at most every 30 s, the newer record wins)
 function lpCacheFold(c) {
   Object.assign(c, {v: S.v, tasks: [...S.tasks.values()], lists: S.lists, counts: S.counts, _at: S.syncOk || Date.now()});  // (#6340): _at = core.js startAt
   if (S.lz) c.lz = {pending: [...S.lz.pending], counts: S.lz.counts}; else delete c.lz;  // (#3136): the loaded lists stay
 }
 function lpCacheSoon() {
-  if (lpCacheT || !S.lpCache) return;
-  const t = lpCacheT = setTimeout(() => {
-    if (lpCacheT !== t) return;  // lpCacheNow wrote it meanwhile
-    lpCacheT = 0;
-    const c = S.lpCache; if (!c) return;
-    lpCacheFold(c);
-    startSave();  // 2.663.0 (#4200): IndexedDB when the browser is idle (core.js)
-  }, 30000);
+  const c = S.lpCache; if (!c) return;
+  lpCacheFold(c);
+  startSave();  // (#4200): IndexedDB when the browser is idle (core.js)
 }
 // (#6340): the page is hidden (app closed, another app in front): the start state takes the newest state now - was: only
 // after the delta + 30 s + an idle moment, so an own change made just before closing was missing at the next offline start.
-// A change still waiting stays out (the queue applies it at that start again; its provisional task would show twice), and a
-// state unchanged since the last write is written again at most every 10 minutes (its age, _at).
-let lpCacheW = 0;
+// A change still waiting stays out (the queue applies it at that start again; its provisional task would show twice), nor
+// is a state folded while offline (the server confirmed none of it). Whether it is new enough to write: the owner (offcache.js oc_now)
 function lpCacheNow() {
   const c = S.lpCache;
-  if (!c || !S.booted || OUT.q.length || !OUT.online || !startMine()) return;
-  if (!lpCacheT && c.v === S.v && Date.now() - lpCacheW < 600e3) return;
-  lpCacheT = 0; lpCacheW = Date.now();  // a pending lpCacheSoon timer sees it and does nothing
+  if (!c || !S.booted || OUT.q.length || !OUT.online) return;
   lpCacheFold(c);
   startSave(true);
 }

@@ -673,10 +673,12 @@ function renderTop0() {
   const pm = '';  // focus / stopwatch are part of the running indicator (timerPill) now
   // 2.1170.0 (#6132): offline / server not reachable / changes waiting = ONE sign, this chip: a word in the normal font (a phone: symbol +
   // the short word), a click / tap tries again (core.js netRetry); the bar below only while changes wait, no grey dot at the bell
-  const oflab = OUT.online ? trn('{0} change waiting', '{0} changes waiting', OUT.q.length) : OUT.down ? (OUT.maint ? tr('Server in maintenance') : tr('Server not reachable')) : tr('Offline'), ofn = OUT.q.length ? trn('{0} change waiting', '{0} changes waiting', OUT.q.length) : '';
-  const ofst = OUT.online ? '' : stateFrom();  // (#6340): offline, the age of the state shown (an offline start: its real age); in the word once older than an hour
-  const ofw = !isMobile() ? oflab + (ofst && stateOld() ? ' · ' + ofst : '') : OUT.online ? tr('Syncing') : tr('Offline');
-  const off = !OUT.online || OUT.q.length ? `<button type="button" class="offline" title="${esc([oflab, ofst, OUT.online ? '' : ofn, tr('Changes are sent as soon as the server is reachable'), tapTry()].filter(Boolean).join(' · '))}" aria-label="${esc([oflab, ofst, OUT.online ? '' : ofn].filter(Boolean).join(' · '))}">${ic(OUT.online ? 'sync' : 'cloudoff', 's')}<span class="ofl">${esc(ofw)}</span>${OUT.q.length && (!OUT.online || isMobile()) ? `<span class="ofn">${OUT.q.length}</span>` : ''}</button>` : '';
+  // #6366: the state shown is the one kept on this device, the server's is on its way (core.js devBoot): "Syncing" with its age, never "up to date"
+  const dold = OUT.online && !!S.devOld;
+  const oflab = OUT.online ? (OUT.q.length || !dold ? trn('{0} change waiting', '{0} changes waiting', OUT.q.length) : tr('Syncing')) : OUT.down ? (OUT.maint ? tr('Server in maintenance') : tr('Server not reachable')) : tr('Offline'), ofn = OUT.q.length ? trn('{0} change waiting', '{0} changes waiting', OUT.q.length) : '';
+  const ofst = dold ? (S.devOld.at ? stateFrom(S.devOld.at) : '') : OUT.online ? '' : stateFrom();  // (#6340): offline, the age of the state shown (an offline start: its real age); in the word once older than an hour
+  const ofw = !isMobile() ? oflab + (ofst && (dold || stateOld()) ? ' · ' + ofst : '') : OUT.online ? tr('Syncing') : tr('Offline');
+  const off = !OUT.online || OUT.q.length || dold ? `<button type="button" class="offline${dold ? ' devold' : ''}" title="${esc([oflab, ofst, OUT.online ? '' : ofn, tr('Changes are sent as soon as the server is reachable'), tapTry()].filter(Boolean).join(' · '))}" aria-label="${esc([oflab, ofst, OUT.online ? '' : ofn].filter(Boolean).join(' · '))}">${ic(OUT.online ? 'sync' : 'cloudoff', 's')}<span class="ofl">${esc(ofw)}</span>${OUT.q.length && (!OUT.online || isMobile()) ? `<span class="ofn">${OUT.q.length}</span>` : ''}</button>` : '';
   const cf = S.conflicts?.length ? `<button class="cfpill" data-act="conflicts" title="${tr('Review conflicts')}">${ic('alert', 's')}${S.conflicts.length}</button>` : '';
   // 2.1384.0 (#6339): this device could not keep a change (storage full / blocked) or the queue's storage would not open: a lasting
   // sign until a later write lands (core.js STORE); a tap explains it

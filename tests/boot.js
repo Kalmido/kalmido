@@ -284,6 +284,10 @@ exports.boot = async function boot({user = 'alice', mobile = false, hash = '', l
   if (wait === null) {
     const bd = () => { const b = dom.window.document.getElementById('boot'); return !b || b.classList.contains('out'); };
     for (let i = 0; i < 400 && !bd(); i++) await new Promise(r => setTimeout(r, 50));
+    // #6366: a start drawn from the state kept on this device (a shared store: a second window) syncs behind it - awaited too,
+    // the suites see the server's state as before (the 20 s are the cap, an offline start keeps it: OUT.online false ends the wait)
+    const kept = () => { try { return dom.window.eval(`typeof S !== 'undefined' && !!S.devOld && OUT.online !== false`); } catch { return false; } };
+    for (let i = 0; i < 400 && kept(); i++) await new Promise(r => setTimeout(r, 50));
     await new Promise(r => setTimeout(r, 150));
   } else await new Promise(r => setTimeout(r, wait));
   // 2.98.0: a slow place may still be loading the start scripts after `wait` (appearance_ui saw calendar.js not yet run): up to 15 s more until all ran

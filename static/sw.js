@@ -584,7 +584,21 @@ async function swAnyCache(req, opt) {
   }
   return undefined;
 }
-async function swShell(req, url) {
+// #6366: the app page (/) races the network against its kept copy: no answer within SW_RACE_MS = the kept page (the app then
+// draws the state kept on this device and syncs behind it, core.js devBoot); the network's answer still lands in the cache
+// for the next start. Without a kept copy the network as before (a first start has nothing else)
+const SW_RACE_MS = 2500;
+async function swShell(req, url, ev) {
+  if (url.pathname !== '/') return swShellNet(req, url);
+  const net = swShellNet(req, url);
+  const hit = await swAnyCache(req, {ignoreSearch: true}).catch(() => undefined);
+  if (!hit) return net;
+  ev?.waitUntil?.(net.then(r => r?.put).catch(() => {}));  // the copy of a late answer is written before the worker may stop
+  let t = 0;
+  const late = new Promise(res => { t = setTimeout(() => res(hit), SW_RACE_MS); });
+  return Promise.race([net.catch(() => hit), late]).finally(() => clearTimeout(t));
+}
+async function swShellNet(req, url) {
   // 2.53.0 (#1410): modules on demand come with ?v=; 2.149.0 B (#2505): every start script / stylesheet too (a content hash)
   const opt = {ignoreSearch: url.pathname.startsWith('/static/')};
   // 2.190.0 A (#2496): the app page and the quick capture page are kept without their query (a captured page's title and
@@ -600,7 +614,7 @@ async function swShell(req, url) {
   try { r = await fetch(req); } catch { r = null; }
   // 2.149.0 B (#2506): a hashed address is kept only when the server confirmed the hash (immutable), so it never holds other bytes
   const keep = r && r.ok && !r.redirected && r.type === 'basic' && (!hashed || /immutable/.test(r.headers.get('cache-control') || ''));
-  if (keep) { const copy = r.clone(); caches.open(CACHE).then(c => c.put(key, copy)).catch(() => {}); return r; }  // 2.138.0 A (#2257): a refused put is no uncaught error
+  if (keep) { const copy = r.clone(); Object.defineProperty(r, 'put', {value: caches.open(CACHE).then(c => c.put(key, copy)).catch(() => {})}); return r; }  // (#2257): a refused put is no uncaught error; #6366: r.put = that write (swShell's race waits for it)
   if (r && r.ok) return r;
   // network error or 5xx (server restarting): any cached copy beats a broken answer; 2.4.0 (#187): the quick capture page is the app shell too
   if (!r || r.status >= 500) {
@@ -665,7 +679,7 @@ self.addEventListener('fetch', e => {
   // A response that is no JSON (a sign-in page) is never cached for a language file.
   if (url.pathname.startsWith('/static/i18n/') && url.search) { e.respondWith(swI18n(e.request)); return; }
   // network first, fall back to cache (a new deploy shows up immediately when online)
-  e.respondWith(swShell(e.request, url));
+  e.respondWith(swShell(e.request, url, e));
 });
 
 async function swI18n(req) {
@@ -879,6 +893,9 @@ function swFixIds(body, fix) {
 // devCopyOk, the write gate of the offline copies; the record goes with class copy of static/js/icons.js DEV_STORES)
 // a task the answer brings is put in (a new one, a change), a deleted one goes. Before, the next offline start lacked the tasks
 // made offline (the queue had sent them, the state did not know them; made again = twice). ch: [[id, task | null], ...]
+// (#7595): the same record contract as offcache.js (its owner in the window): one transaction, read and written together; the
+// record's age (v / sat: the server version and when it confirmed the state) stays as it is - the fold is no newer state, so
+// a window's newer state still wins over it and an older one never does. Nothing goes anywhere else (no localStorage)
 async function swStartFold(ch) {
   if (!ch.length || typeof indexedDB === 'undefined') return;
   const db = await new Promise((ok, no) => {
@@ -895,7 +912,7 @@ async function swStartFold(ch) {
     const by = new Map(c.tasks.map(x => [x.id, x]));
     for (const [id, tk] of ch) { if (tk) by.set(tk.id, tk); else by.delete(id); }
     c.tasks = [...by.values()];
-    st.put(rec.o ? {...rec, o: c} : {...rec, s: JSON.stringify(c)}, 'state');
+    st.put(rec.o ? {...rec, o: c} : {...rec, s: JSON.stringify(c)}, 'state');  // ...rec: at, v, sat stay
     await new Promise((ok, no) => { t.oncomplete = ok; t.onerror = t.onabort = () => no(t.error); });
   } finally { db.close(); }
 }
