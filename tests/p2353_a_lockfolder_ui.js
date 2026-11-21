@@ -2,7 +2,7 @@
 // 2.353.0 A (#2758): locked folders of the file store -- the browser side (static/js/fslock.js + hooks in ablage.js), own
 // container (start.sh), Firefox (real WebCrypto). A person without an organisation (her private workspace, freelancer-matrix: files):
 // - locks a folder holding a plain file: the server keeps cipher names and KENC files only, the folder view shows the plain
-//   names and the bar of the locked folder, the menu offers "Locked folder…"
+//   names and the bar of the locked folder, the menu offers "Encryption…" (2.1497.0 #7015: was "Locked folder…"; "Lock folder…" is "Encrypt folder…")
 // - uploads a picture: encrypted here, opened here (the viewer shows it from memory, a data: URL)
 // - the name search runs in the browser
 // - unlocks it with her password: plain names and files on the server again
@@ -51,7 +51,7 @@ const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwA
     // ---- lock the folder (the dialog's confirm is the browser's own; the switch itself as the dialog runs it)
     await boot(`#ablage/${BOX}`);
     check(await ev(`(async () => { await e2eLoad(true); if (!e2eUnlocked()) await e2eAdopt(await e2eUnwrapPass(E2E.st.bundle_pass, ${JSON.stringify(PASS)})); return e2eUnlocked(); })()`), 'unlocked again after the page load');
-    check(await waitFor(`typeof fsl_menuItem === 'function' && (ab_menuItems(AB.data?.node || {}) || []).some(x => x && x.label === tr('Lock folder…'))`), 'the folder menu offers "Lock folder…" (fslock.js loaded on demand)');
+    check(await waitFor(`typeof fsl_menuItem === 'function' && (ab_menuItems(AB.data?.node || {}) || []).some(x => x && x.label === tr('Encrypt folder…'))`), 'the folder menu offers "Encrypt folder…" (fslock.js loaded on demand)');
     const r = await ev(`(async () => { const p = []; const r = await fslStart(${BOX}, (d, t) => p.push([d, t])); return {r, p}; })().catch(e => ({err: e.message}))`);
     check(r && r.r === true, 'fslStart: the folder is locked ' + JSON.stringify(r).slice(0, 200));
     const n1 = await names();
@@ -64,7 +64,7 @@ const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwA
     await ev('ab_reload(), 1');
     check(await waitFor(`[...document.querySelectorAll('.abrow .abname')].map(x => x.textContent).includes('hello.txt')`), 'the folder view shows the plain name');
     check(await waitFor(`!!document.querySelector('.fslbar')`), 'the bar of the locked folder');
-    check(await ev(`(ab_menuItems(AB.data.node) || []).some(x => x && x.label === tr('Locked folder…'))`), 'the menu: "Locked folder…"');
+    check(await ev(`(ab_menuItems(AB.data.node) || []).some(x => x && x.label === tr('Encryption…'))`), 'the menu: "Encryption…"');
     await shot('p2353a-locked.png');
 
     // ---- upload a picture: encrypted here, opened here from memory

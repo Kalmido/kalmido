@@ -2,7 +2,9 @@
 // kalmido-suite: fresh
 // Rule (owner decision 14.11.2026): what belongs to an organisation wears its colour - the office badge and the open office page
 // (#main.wsc-on), the entries of the area overview (stripe), a client row (stripe) and the open client card; "All" shows the origin of
-// a client; Private stays neutral; a person without an organisation sees nothing coloured. jsdom, invented people only.
+// a client; a person without an organisation sees nothing coloured. jsdom, invented people only.
+// Ersetzt Entscheidung #6179 ("Private stays neutral"): gedeckt durch #7661 (20.11.2026) - with an organisation Private wears its
+// colour too (the default var(--acc-d) without a choice of my own).
 // freelancer-matrix: Person ohne Organisation in der Datei geprüft (solo)
 const {execFileSync} = require('child_process');
 const path = require('path');
@@ -56,14 +58,14 @@ const FEAT = 'cal,comments,collab,contacts,office,clients,docs';
   w = await boot({hash: 'office'}); d = w.document;
   await until(() => d.querySelector('#view .office'));
   await sleep(800);
-  check(!d.querySelector('.ofcws[data-wsc]') && !d.querySelector('#main').classList.contains('wsc-on'), '#6180 the private office: badge and page neutral');
+  check(!!d.querySelector('.ofcws[data-wsc]') && await until(() => d.querySelector('#main').classList.contains('wsc-on') && d.querySelector('#main').style.getPropertyValue('--wsd') === 'var(--acc-d)'), '#7661 (was #6180 neutral): the private office: badge and page in Private\'s colour');
   w.close();
 
   // ---- area overview under "All": entries with stripe
   w = await boot({hash: 'office'}); d = w.document;
   await call('PATCH', '/api/settings', {workspace: 'all'});
   const ov = w.eval(`(() => { const o = spo_html(sp => 'office/s/' + sp, [['org:${ORG}', 'Studio', ''], ['private', 'Private', '']]); const x = document.createElement('div'); x.innerHTML = o; return [...x.querySelectorAll('.spovr')].map(a => [a.dataset.spov, a.dataset.wso || '', a.dataset.wsc || '']); })()`);
-  check(JSON.stringify(ov) === JSON.stringify([['org:' + ORG, '1', '1'], ['private', '', '']]), '#6180 the overview: the organisation entry has the stripe, Private none ' + JSON.stringify(ov));
+  check(JSON.stringify(ov) === JSON.stringify([['org:' + ORG, '1', '1'], ['private', '1', '1']]), '#6180 / #7661 the overview: the organisation entry and Private have their stripe ' + JSON.stringify(ov));
   w.close();
 
   // ---- clients under "All": stripe, origin, open card
@@ -71,12 +73,12 @@ const FEAT = 'cal,comments,collab,contacts,office,clients,docs';
   check(await until(() => d.querySelector(`.ctrow[data-clopen="${CO}"]`)), 'clients: the list is there');
   const ro = d.querySelector(`.ctrow[data-clopen="${CO}"]`), rp = d.querySelector(`.ctrow[data-clopen="${CP}"]`);
   check(ro?.dataset.wso === '1' && ro.style.getPropertyValue('--wsd') === want.d, '#6180 the client row of the organisation has the stripe');
-  check(rp && !rp.dataset.wsc, '#6180 the private client row is neutral');
+  check(rp && rp.dataset.wsc === '1' && rp.style.getPropertyValue('--wsd') === 'var(--acc-d)', '#7661 (was #6180 neutral): the private client row wears Private\'s colour');
   check(!!ro.querySelector('.wso.ctorg') && /Studio/.test(ro.querySelector('.wso').textContent) && /Private/.test(rp.querySelector('.wso')?.textContent || ''), '#6180 "All": each client shows its origin (Studio / Private)');
   w.eval(`go('client/${CO}')`);
   check(await until(() => d.querySelector('.msclcard[data-wsc]') && main().classList.contains('wsc-on')), '#6180 the open client card is marked (card + #main)');
   w.eval(`go('client/${CP}')`);
-  check(await until(() => d.querySelector('.msclcard') && !d.querySelector('.msclcard[data-wsc]') && !main().classList.contains('wsc-on')), '#6180 the open private client: neutral');
+  check(await until(() => d.querySelector('.msclcard[data-wsc]') && main().classList.contains('wsc-on') && main().style.getPropertyValue('--wsd') === 'var(--acc-d)'), '#7661 (was #6180 neutral): the open private client in Private\'s colour');
   w.close();
 
   // ---- 2.1333.0 (#6697): "All" while office, clients and time tracking are switched off in Private -- the modules belong to the

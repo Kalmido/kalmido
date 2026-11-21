@@ -1,7 +1,7 @@
 // @ts-check
 /* Kalmido web client: "Recently edited" (2.769.0, #5352), loaded on demand (lazyload.js LD_MODS recent).
    Classic script sharing the global scope with the others (load order: index.html, docs/ARCHITECTURE.md).
-   ONE server route (GET /api/recent, kalmido/collab/recent.py) for three places:
+   ONE server route (GET /api/recent, kalmido/collab/recent.py; 2.1497.0, #7662: also the office and Tables) for three places:
    - 2.880.0 (#5561): the overview "All workspaces" of Knowledge, Files and Reading (areas.js spo_recentHtml, called by wiki.js,
      ablage.js and readlater.js) is a calm list of rows of one kind: "Recently edited" (the clock, opens the page below),
      Private, each organisation, Shared with me; the trash set off small at the end. No chips, no list of items on it.
@@ -17,7 +17,11 @@
 const ZLE = {d: {}, busy: {}, more: false, f: {}};  // 2.880.0 (#5561): f = the chosen filter of the page per area
 const ZLE_N = 20, ZLE_HOME_N = 8;
 // area -> [icon, name, the view's route]
-const ZLE_AREA = {wiki: ['note', N_('Knowledge|area')], files: ['file', N_('Files')], reading: ['bookmark', N_('Read later')]};
+const ZLE_AREA = {wiki: ['note', N_('Knowledge|area')], files: ['file', N_('Files')], reading: ['bookmark', N_('Read later')],
+  sheets: ['sheet', N_('Tables')], office: ['brief', N_('Office|area')]};  // (#7662): + Tables and the office
+// (#7662): an office item by its kind: [icon, name]
+const ZLE_KIND = {offer: ['receipt', N_('Quotation')], invoice: ['receipt', N_('Invoice')], credit: ['receipt', N_('Credit note')],
+  client: ['user', N_('Client')], receipt: ['receipt', N_('Receipt')]};
 const zle_key = (sp, n) => sp + '|' + n;
 async function zle_load(sp, n) {
   const k = zle_key(sp, n); if (ZLE.busy[k]) return;
@@ -38,13 +42,15 @@ function zle_data(sp, n) {
 function zle_href(x) {
   if (x.area === 'wiki') return '#wiki/' + x.id;
   if (x.area === 'files') return '#ablage/' + x.id;
+  if (x.area === 'sheets') return '#sheets/' + x.id;  // (#7662)
+  if (x.area === 'office') return x.kind === 'client' ? '#client/' + x.id : x.kind === 'receipt' ? '#docs/' + x.id : '#office/' + (x.kind === 'offer' ? 'offers/' : 'invoices/') + x.id;
   return '#' + (typeof rd_all === 'function' && rd_all() && x.space !== 'shared' ? 'reading/s/' + x.space : 'reading');
 }
 // the chip of the item's workspace (its symbol and name), 'shared' = shared with me from outside
 const zle_chip = sp => `<span class="zlec">${sp === 'shared' ? ic('users', 's') : wsIcon(sp)}<span>${esc(sp === 'shared' ? tr('Shared with me') : wsName(sp))}</span></span>`;
 // 2.880.0 (#5561): who only when it was someone else; o.page = the page "Recently edited": name and when only (no chip, no place)
 function zle_rowHtml(x, chip, o = {}) {
-  const a = ZLE_AREA[x.area] || ZLE_AREA.files, who = x.by_name && x.by !== S.me?.id ? esc(x.by_name) + ' · ' : '';
+  const a = (x.area === 'office' && ZLE_KIND[x.kind]) || ZLE_AREA[x.area] || ZLE_AREA.files, who = x.by_name && x.by !== S.me?.id ? esc(x.by_name) + ' · ' : '';
   return `<li><a href="${esc(zle_href(x))}" class="zler" data-zle="${esc(x.area + ':' + x.id)}" title="${esc(tr(a[1]))}">${ic(a[0], 's')}<span class="zlet"><span class="zlen">${esc(x.title || tr(a[1]))}</span>${x.place && !o.page ? `<small class="muted zlep">${esc(x.place)}</small>` : ''}</span>${chip ? zle_chip(x.space) : ''}<small class="muted zlew">${who}<time datetime="${esc(x.at || '')}">${esc(x.at ? relTime(x.at) : '')}</time></small></a></li>`;
 }
 // the rows, or while loading a placeholder of the same height (n rows), or the empty text
@@ -73,7 +79,7 @@ function zle_emptyHtml(mod) {
 function zle_ovrHtml(mod, to, rows) {
   const row = (href, icon, name, attr, after = '') => `<li><a href="${esc(href)}" class="spovr" ${/*html-ok*/ attr}>${/*html-ok*/ icon}<span class="spovn">${esc(name)}</span>${/*html-ok*/ after}</a></li>`;  // #7481: the name has its own class (the letter tile keeps its size)
   const trash = rows.find(r => r[0] === 'trash');
-  return `<div class="zleov" data-zlemod="${esc(mod)}"><section class="spov zlerows" aria-label="${esc(tr('All workspaces'))}"><ul class="spovl">${/*html-ok*/ row('#' + mod + '/recent', ic('clock', 's'), tr('Recently edited'), 'data-zlego="1"')}${/*html-ok*/ rows.filter(r => r[0] !== 'trash').map(([sp, name, icon, after]) => row(spo_href(to, sp), icon, name, `data-spov="${esc(sp)}"${/*html-ok*/ wso_row(sp) /* 2.1241.0 (#6182): an organisation's row wears its stripe */}`, after || '')).join('')}</ul></section>${trash ? `<p class="zletrash"><a href="${esc(spo_href(to, 'trash'))}" class="linkbtn" data-spov="trash">${/*html-ok*/ trash[2]}<span>${esc(trash[1])}</span></a></p>` : ''}</div>`;
+  return `<div class="zleov" data-zlemod="${esc(mod)}"><section class="spov zlerows" aria-label="${esc(tr('All workspaces'))}"><ul class="spovl">${/*html-ok*/ row('#' + mod + '/recent', ic('clock', 's'), tr('Recently edited'), 'data-zlego="1"')}${/*html-ok*/ rows.filter(r => r[0] !== 'trash').map(r => spo_rowHtml(to, r) /* (#7661): the workspaces' rows of the core (areas.js), Private's stripe included */).join('')}</ul></section>${trash ? `<p class="zletrash"><a href="${esc(spo_href(to, 'trash'))}" class="linkbtn" data-spov="trash">${/*html-ok*/ trash[2]}<span>${esc(trash[1])}</span></a></p>` : ''}</div>`;
 }
 // the page "Recently edited" of an area (#<mod>/recent): the way back, "Pinned", the filter chips, the list. rows as above
 // (the filter offers the workspaces of the overview; 'shared' is filtered here from "All", the server knows no such space)
@@ -90,7 +96,7 @@ function zle_pageHtml(mod, rows) {
 }
 // the start page's block (dashboard.js dashCard): card / slim as there
 function zle_homeHtml(card, slim) {
-  if (!feat('wiki') && !feat('files') && !feat('reading')) return '';  // none of the three areas on: no block
+  if (!['wiki', 'files', 'reading', 'office', 'sheets'].some(f => feat(f))) return '';  // none of the areas on: no block (2.1497.0, #7662: + office, tables)
   const ws = typeof wsCur === 'function' ? wsCur() : 'all', all = ws === 'all' || !wsOn();
   const sp = all ? 'all' : ws, n = !all && ZLE.more ? ZLE_N : ZLE_HOME_N, d = zle_data(sp, n);
   if (d?.items && !d.items.length) return slim(tr('Recently edited: nothing'));

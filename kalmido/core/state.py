@@ -353,7 +353,7 @@ def state():
     from ..lists.public import public_links_on
     from ..collab.notes import notes_brief
     from ..collab.teamchat import tchat_on, tchat_unread_both
-    from ..accounts.orgs import has_workspaces, office_moving, org_peers, workspaces_for, ws_mismatches, ws_places
+    from ..accounts.orgs import has_workspaces, office_moving, org_peers, workspaces_for, ws_areas_own, ws_mismatches, ws_places
     from ..family.family import kids_for
     from ..events.model import cals_for, events_on
     from ..contacts.model import books_for, contacts_on, task_contacts
@@ -431,7 +431,8 @@ def state():
                            f"AND {tvis(c, uid)}", (uid, uid)).fetchone()[0],
             trash=c.execute(f"SELECT COUNT(*) FROM tasks WHERE list_id IN {wr_sql()} AND deleted_at IS NOT NULL",
                             (uid, uid)).fetchone()[0]),
-        settings={k: v for k, v in s.items() if k not in ("digest_sent", "digest_mail_sent", "digest_mail_try", "review_sent", "reset_undo") and not k.startswith("sup_key")},  # 2.74.0 (#338): never the licence key; 2.593.0 (#4590): nor the values kept for undoing a reset
+        settings={**{k: v for k, v in s.items() if k not in ("digest_sent", "digest_mail_sent", "digest_mail_try", "review_sent", "reset_undo") and not k.startswith("sup_key")},
+                  "ws_areas_off": ws_areas_own(c, uid, s)},  # (#7563): the areas as they apply (an organisation's default: Home off); (#338): never the licence key; (#4590): nor the values kept for undoing a reset
         mine_order=vw_mine_order(c, uid),  # 2.40.0 (#1344): the own order of "My tasks" {task id: pos}
         mine_hidden=mt_mine_hidden(c, uid),  # 2.41.0 (#1365): ids of the lists I switched off for "My tasks"
         mine_sections=vw_mine_sections(c, uid),  # 2.569.0 (#4395): my own sections of "My tasks" and the tasks put into them

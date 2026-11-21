@@ -259,8 +259,9 @@ function wsBadge(l) {
 // 2.1437.0 (#7299, variant 1 of 19.11.2026, newer than #2607 variant B "the brand is the switch"): a click on the brand
 // always leads to Start; the workspace is chosen only with the chip in the header (wsChip, always there). The line with the
 // workspace and the arrow under the brand are gone (the chip names it).
+// (#7526, decision of 20.11.2026, newer than #7299): a click on the brand opens the settings (Start: account menu, palette)
 function wsBarHtml() {
-  return `<a href="#home" class="sbbrand" data-go="home" aria-label="${esc(APP_NAME + ' · ' + tr('Start|home'))}" title="${esc(tr('Start|home'))}">${logoSvg(36)}<span class="sbbw">${wordSvg()}</span></a>`;  // (#7616): .sbbw (was .sbbt, the class of the folder-tree rows)
+  return `<button type="button" class="sbbrand" data-act="settings" aria-haspopup="dialog" aria-label="${esc(APP_NAME + ' · ' + tr('Settings'))}" title="${esc(tr('Settings'))}">${logoSvg(36)}<span class="sbbw">${wordSvg()}</span></button>`;  // (#7616): .sbbw (was .sbbt, the class of the folder-tree rows)
 }
 // 2.161.2 A (#2608): the brand's bot blinks now and then (every 20-60 s, by chance), never while something is typed, the
 // page is hidden or a menu is open; no timer at all with reduced motion (the system setting; it can change while open)
@@ -270,7 +271,7 @@ function wsBlinkPlan() {
   clearTimeout(wsBlinkT); wsBlinkT = 0;
   if (wsBlinkCalm()) return;
   wsBlinkT = setTimeout(() => {
-    const b = $('#kbar .kbbrand') || $('#side .sbbrand'), a = document.activeElement;  // (#7299): the brand is its own link  // (#2619): a computer: the head bar
+    const b = $('#kbar .kbbrand') || $('#side .sbbrand'), a = document.activeElement;  // (#7299): the brand is its own button (opens the settings, #7526)  // (#2619): a computer: the head bar
     if (b && !document.hidden && !(a && (/INPUT|TEXTAREA|SELECT/.test(a.tagName) || a.isContentEditable)) && $('#pop')?.classList.contains('hidden') !== false) {
       b.classList.remove('blink'); void b.offsetWidth; b.classList.add('blink');
       setTimeout(() => b.classList.remove('blink'), 600);
@@ -281,7 +282,7 @@ function wsBlinkPlan() {
 try { matchMedia('(prefers-reduced-motion: reduce)').addEventListener?.('change', wsBlinkPlan); } catch { /* old engine */ }
 wsBlinkPlan();
 // the chip in the header (a click opens the switch as a menu)
-// (#7299): always there, "All workspaces" too (its grid symbol): it is the only way to switch now (the brand leads to Start).
+// (#7299): always there, "All workspaces" too (its grid symbol): it is the only way to switch now (the brand opens the settings, #7526).
 // Without an organisation it shows Private like the head bar's switch (#1933 P4: its menu holds "Add an organisation"); not for a
 // child or an agent without one (nothing to switch, nothing to add)
 function wsChip() {

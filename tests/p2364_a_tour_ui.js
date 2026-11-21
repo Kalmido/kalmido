@@ -73,7 +73,7 @@ const toLast = async (w, d) => { for (let i = 0; i < 10 && /Next/.test(d.querySe
   w.eval(`tourGo(TOUR.steps.findIndex(s => s.id === 'org'))`); await sleep(100);
   const h3 = d.querySelector('.tour .tcard h3')?.textContent || '', p = d.querySelector('.tour .tcard p')?.textContent || '';
   check(/You are in Acme/.test(h3) && /team chat/.test(p) && /Acme/.test(p), '#3037: "You are in Acme", projects, team chat, workspace switch: ' + h3 + ' / ' + p);
-  check(d.querySelector('.tour').dataset.sel === '#kbar .kbfirm, [data-act="ws-menu"]', '#3037: the step points at the workspace switch (#7299: the chip, the logo leads to Start)');
+  check(d.querySelector('.tour').dataset.sel === '#kbar .kbfirm, [data-act="ws-menu"]', '#3037: the step points at the workspace switch (#7299: the chip; the logo opens the settings, #7526)');
   await toLast(w, d);
   check(!d.querySelector('.tour #t-sample'), '#3037: no sample project offer for a member');
   check(!d.querySelector('.tour [data-pk2="setup"]'), '#3016: no "Set up with your agent" without an agent');

@@ -8,7 +8,7 @@
 //   for a name, Select starts choosing); the path's "…" goes to a folder further up; the documents' bar: search, Filter,
 //   Sorting, "+", "…" in one row, no second funnel
 // - #6111 computer (1280): the tools as before in their row, no "…" of the phone, the whole path, no heading below it
-// - #6112 words (German): the area is "Dateien", Move to the trash, the tab "Zugriff", malware "Blockiert", no server words in
+// - #6112 words (German): the area is "Dateien", Move to the trash, the tab "Teilen" (#7015, was "Zugriff"), malware "Blockiert", no server words in
 //   the trash note, plurals (1 Blatt / 1 Tag / 1 Seite), "Dateien wählen"
 // freelancer-matrix: files (alice has no organisation: her private workspace)
 const {execFileSync} = require('child_process');
@@ -70,7 +70,8 @@ const upFile = async (parent, name, text) => {
   check(!/Lösch-Läufe|Server/.test(de(`trashNote('x', true)`).replace('diesem Server', '')) && /Papierkorb/.test(de(`trashNote('x', true)`)), '#6112: the trash note without server words ' + de(`trashNote('x', true)`));
   check(de(`trn('+{0} more sheet', '+{0} more sheets', 1)`) === '+1 weiteres Blatt' && de(`trn('+{0} more sheet', '+{0} more sheets', 3)`) === '+3 weitere Blätter', '#6112: one sheet, three sheets');
   check(de(`trn('{0} day after {1}', '{0} days after {1}', 1, 'X')`) === '1 Tag nach X' && de(`trn('{0} page', '{0} pages', 1)`) === '1 Seite', '#6112: 1 Tag, 1 Seite');
-  check(de(`tr('Shares')`) === 'Zugriff', '#6112: the tab of the file view is "Zugriff" ' + de(`tr('Shares')`));
+  // Ersetzt Entscheidung #6112 (Reiter „Zugriff“): gedeckt durch #7015 (ein Wort „Teilen“)
+  check(de(`tr('Sharing')`) === 'Teilen', '#7015: the tab of the file view is "Teilen" ' + de(`tr('Sharing')`));
   check(/Blockiert/.test(de(`upMarkHtml({scan: 'infected', sig: 'X'})`)) && !/Gesperrt/.test(de(`upMarkHtml({scan: 'infected', sig: 'X'})`)), '#6112: malware is "Blockiert"');
   check(de(`tr('Move to the trash')`) === 'In den Papierkorb' && de(`tr('Move “{0}” to the trash', 'a')`) === '„a“ in den Papierkorb', '#6112: "In den Papierkorb"');
   w.eval('AB.selOn = true; ab_draw()');

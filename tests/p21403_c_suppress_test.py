@@ -180,6 +180,17 @@ try:
     rc, out = run(RUL, d)
     check(rc == 1 and "rule dialog-verb: 4, the baseline allows 0" in out and "tr('Create')" in out,
           f"#6373: two questions without their verb, 'Save : Add', 'Erstellen': red with the way ({out[-500:]})")
+    # #7661: the workspace colour is the core's (wso_vars): wso_row / wso_mark with two arguments = no finding, a third (a
+    # caller's own switch, the old priv of #6957) = red; commas inside a template or a call do not count
+    put(d, "static/i18n/de.json", '{"Create": "Anlegen"}\n')
+    put(d, "static/js/w.js", "const wso_row = (w, style = '') => w;\nfunction wso_mark(el, w) {}\n"
+        "const a = `<li${wso_row(sp, `--cc:${f(1, 2)}`)}>`;\nwso_mark(el, x);\n")
+    rc, out = run(RUL, d)
+    check(rc == 0 and "wso-priv" not in out, f"#7661: wso_row / wso_mark with two arguments: no finding ({out[-300:]})")
+    put(d, "static/js/w.js", "const a = `<li${wso_row(sp, '', wsCur() === 'all')}>`;\nwso_mark(el, x, true);\n")
+    rc, out = run(RUL, d)
+    check(rc == 1 and "rule wso-priv: 2, the baseline allows 0" in out and "wso_vars" in out,
+          f"#7661: a third argument to wso_row / wso_mark: red, the core named ({out[-500:]})")
 finally:
     shutil.rmtree(d, ignore_errors=True)
 

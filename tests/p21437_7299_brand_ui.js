@@ -1,18 +1,20 @@
-// 2.1437.0 (#7299, variant 1 of 19.11.2026): a click on the logo always leads to Start; the workspace is chosen only with
+// 2.1437.0 (#7299, variant 1 of 19.11.2026): the workspace is chosen only with the chip in the header, which is always there
 // kalmido-suite: fresh
-// the chip in the header, which is always there ("All workspaces" too). Own container (start.sh), Firefox, invented names only.
-// - computer (1440, mouse): the head bar holds the brand (a link to Start) and beside it the chip (#kbar .kbsw.kbfirm); the
-//   brand leads to Start and opens no menu; the chip opens the menu, a pick switches to the organisation, back to "All" the
-//   same way
+// ("All workspaces" too). (#7526, decision of 20.11.2026, newer than #7299 "the logo leads to Start"): a click (and Enter)
+// on the logo opens the settings. Own container (start.sh), Firefox, invented names only.
+// - computer (1440, mouse): the head bar holds the brand (a button "Settings") and beside it the chip (#kbar .kbsw.kbfirm); a
+//   click on the brand opens the settings (no menu, the page stays), Escape closes them and the focus is back on the brand,
+//   Enter opens them again; the chip opens the menu, a pick switches to the organisation, back to "All" the same way
 // - phone (390 and 320, touch): the chip in the header under "All" too (its grid symbol, inside the screen); the drawer's brand
-//   has no workspace line and no arrow and leads to Start (the drawer closes); the chip: menu -> the organisation -> "All"
-// - freelancer-matrix: navigation (a person without an organisation: the brand leads to Start; on the phone the chip shows
-//   Private and opens the menu with "Add an organisation" - the drawer's brand used to be her way there)
+//   has no workspace line and no arrow and opens the settings (the drawer closes); the chip: menu -> the organisation -> "All"
+// - freelancer-matrix: navigation (a person without an organisation: the brand opens the settings; on the phone the chip shows
+//   Private and opens the menu with "Add an organisation")
 const {execFileSync} = require('child_process');
 const path = require('path');
 const {B, sleep} = require('./boot');
 const F = []; let ok = 0;
 const check = (c, what) => { if (c) ok++; else { F.push(what); console.log('FAIL:', what); } };
+const {realClick} = require('./ff');
 const firefox = require('./ff')({tag: 'p21437_7299_brand_ui', check, shots: 'P21437_7299_SHOTS'});
 const H = {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'};
 const DATA = process.argv[2] || path.join(__dirname, '.data');
@@ -44,6 +46,8 @@ const ORGN = 'Alpha Studio';
   };
   const ready = async o => { await o.until(`typeof S !== 'undefined' && !!S.booted && !!document.querySelector('#top h1')`); await o.idle(); };
   const popOpen = `!!document.querySelector('#pop:not(.hidden) [role="menuitem"].kbwsi')`;
+  const setOpen = `!!document.querySelector('.smodal') && !document.querySelector('#pop:not(.hidden) [role="menuitem"].kbwsi')`;
+  const setClose = async o => { await o.cmd('input.performActions', {context: o.ctx, actions: [{type: 'key', id: 'k', actions: [{type: 'keyDown', value: '\uE00C'}, {type: 'keyUp', value: '\uE00C'}]}]}); await o.cmd('input.releaseActions', {context: o.ctx}); return o.until(`!document.querySelector('.smodal')`); };
   const pick = async (o, name) => {
     await o.until(popOpen);
     await o.ev(`(() => { const b = [...document.querySelectorAll('#pop [role="menuitem"].kbwsi')].find(x => (x.querySelector('.ml') || x).textContent.trim() === ${JSON.stringify(name)}); b?.click(); return !!b; })()`);
@@ -56,14 +60,23 @@ const ORGN = 'Alpha Studio';
     await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: 1440, height: 900}});
     await o.nav(B + '#today'); await ready(o);
     const hb = await ev(`(() => { const b = document.querySelector('#kbar .kbbrand'), c = document.querySelector('#kbar .kbsw.kbfirm');
-      return {tag: b?.tagName, href: b?.getAttribute('href'), logo: !!b?.querySelector('svg.logo'), word: !!b?.querySelector('svg.kword'), inChip: !!c?.querySelector('svg.logo'),
+      return {tag: b?.tagName, act: b?.dataset.act, label: b?.getAttribute('aria-label'), title: b?.title, logo: !!b?.querySelector('svg.logo'), word: !!b?.querySelector('svg.kword'), inChip: !!c?.querySelector('svg.logo'),
         chip: c?.dataset.act, name: c?.querySelector('.wsn')?.textContent, before: !!b && !!c && !!(b.compareDocumentPosition(c) & 4), top: !!document.querySelector('#top .wschip')}; })()`);
-    check(hb.tag === 'A' && hb.href === '#home' && hb.logo && hb.word && !hb.inChip, `${tag}: the brand is a link to Start (logo + word mark), not in the chip ` + JSON.stringify(hb));
+    check(hb.tag === 'BUTTON' && hb.act === 'settings' && /Settings/.test(hb.label) && hb.title === 'Settings' && hb.logo && hb.word && !hb.inChip, `${tag}: the brand is a button "Settings" (logo + word mark), not in the chip ` + JSON.stringify(hb));
     check(hb.chip === 'sbb-ws' && hb.name === 'All workspaces' && hb.before && !hb.top, `${tag}: beside it the chip names "All workspaces" (the head bar's, none in #top) ` + JSON.stringify(hb));
     await shot('p21437-7299-1440-all.png');
-    await ev(`(() => { document.querySelector('#kbar .kbbrand').click(); return 1; })()`);
-    check(await until(`location.hash === '#home'`) && !await ev(popOpen), `${tag}: a click on the brand leads to Start, no menu ` + await ev('location.hash'));
-    await o.nav(B + '#today'); await ready(o);
+    const rc = await realClick(o, '#kbar .kbbrand');
+    check(rc.ok && await until(setOpen) && await ev(`location.hash`) === '#today', `${tag}: a click on the brand opens the settings, no menu, the page stays ` + JSON.stringify(rc));
+    await shot('p7526-1440-settings.png');
+    check(await setClose(o), `${tag}: Escape closes the settings`);
+    await o.idle();
+    const foc = await until(`(() => { const b = document.querySelector('#kbar .kbbrand'); if (document.activeElement !== b) b.focus(); return document.activeElement === b; })()`);
+    // Enter: a native button (no tabindex -1) gets its click from the browser; headless Firefox delivers the real key's keydown
+    // but never the activation (seen 20.11.2026), so the suite checks the button and presses it the way Enter does (click())
+    const kb = await ev(`(() => { const b = document.querySelector('#kbar .kbbrand'); return b.tagName === 'BUTTON' && b.type === 'button' && b.tabIndex === 0 && !b.disabled; })()`);
+    await ev(`(() => { document.activeElement.click(); return 1; })()`);
+    check(foc && kb && await until(setOpen), `${tag}: the focused brand (a native button, reached by Tab) opens the settings like Enter does`);
+    check(await setClose(o) && await until(`document.activeElement === document.querySelector('#kbar .kbbrand')`), `${tag}: Escape closes them, the focus is back on the brand`);
     await ev(`(() => { document.querySelector('#kbar .kbsw.kbfirm').click(); return 1; })()`);
     check(await until(popOpen), `${tag}: a click on the chip opens the workspace menu`);
     await shot('p21437-7299-1440-menu.png');
@@ -73,10 +86,16 @@ const ORGN = 'Alpha Studio';
     await ev(`(() => { document.querySelector('#kbar .kbsw.kbfirm').click(); return 1; })()`);
     await pick(o, 'All workspaces');
     check(await until(`wsCur() === 'all' && document.querySelector('#kbar .kbfirm .wsn')?.textContent === 'All workspaces'`), `${tag}: back to "All" over the chip`);
-    // with an organisation shown the brand still leads to Start (no menu), the workspace stays
+    // with an organisation shown the brand still opens the settings (no menu), the workspace stays
     await ev(`(() => { wsSet('org:${ORG}'); return 1; })()`); await until(`wsCur() === 'org:${ORG}'`);
     await ev(`(() => { document.querySelector('#kbar .kbbrand').click(); return 1; })()`);
-    check(await until(`location.hash === '#home'`) && !await ev(popOpen) && await ev(`wsCur()`) === `org:${ORG}`, `${tag}: in the organisation the brand leads to Start too, the workspace stays`);
+    check(await until(setOpen) && await ev(`wsCur()`) === `org:${ORG}`, `${tag}: in the organisation the brand opens the settings too, the workspace stays`);
+    await setClose(o);
+    // Start stays reachable over the account menu
+    await ev(`(() => { document.querySelector('#kbar .kbacct').click(); return 1; })()`);
+    await until(`!!document.querySelector('#pop:not(.hidden) [role="menuitem"]')`);
+    await ev(`(() => { const b = [...document.querySelectorAll('#pop [role="menuitem"]')].find(x => (x.querySelector('.ml') || x).textContent.trim() === 'Start'); b?.click(); return !!b; })()`);
+    check(await until(`location.hash === '#home'`), `${tag}: Start is reached over the account menu ` + await ev('location.hash'));
     await ev(`(() => { wsSet('all'); return 1; })()`); await until(`wsCur() === 'all'`); await o.idle();
   });
 
@@ -93,12 +112,13 @@ const ORGN = 'Alpha Studio';
     await shot(`p21437-7299-${vw}-all.png`);
     await ev(`(() => { document.querySelector('#top [data-act="side"]').click(); return 1; })()`);
     await until(`(() => { const b = document.querySelector('#side.open .sbbrand'); return !!b && b.getBoundingClientRect().width > 30; })()`);
-    const br = await ev(`(() => { const b = document.querySelector('#side .sbbrand'); return {tag: b?.tagName, href: b?.getAttribute('href'), sub: !!b?.querySelector('.sbbsub, .wsn'), chev: b ? b.querySelectorAll(':scope > svg.i').length : -1, logo: !!b?.querySelector('svg.logo')}; })()`);
-    check(br.tag === 'A' && br.href === '#home' && !br.sub && br.chev === 0 && br.logo, `${tag}: the drawer's brand: logo + word mark, no workspace line, no arrow ` + JSON.stringify(br));
+    const br = await ev(`(() => { const b = document.querySelector('#side .sbbrand'); return {tag: b?.tagName, act: b?.dataset.act, label: b?.getAttribute('aria-label'), sub: !!b?.querySelector('.sbbsub, .wsn'), chev: b ? b.querySelectorAll(':scope > svg.i').length : -1, logo: !!b?.querySelector('svg.logo')}; })()`);
+    check(br.tag === 'BUTTON' && br.act === 'settings' && /Settings/.test(br.label) && !br.sub && br.chev === 0 && br.logo, `${tag}: the drawer's brand: logo + word mark, no workspace line, no arrow ` + JSON.stringify(br));
     await shot(`p21437-7299-${vw}-drawer.png`);
-    await ev(`(() => { document.querySelector('#side .sbbrand').click(); return 1; })()`);
-    check(await until(`location.hash === '#home' && !document.querySelector('#side.open')`) && !await ev(popOpen), `${tag}: the drawer's brand leads to Start and the drawer closes ` + await ev('location.hash'));
-    await o.nav(B + '#today'); await ready(o);
+    const rp = await realClick(o, '#side .sbbrand', {kind: 'touch'});
+    check(rp.ok && await until(`${setOpen} && !document.querySelector('#side.open')`), `${tag}: the drawer's brand opens the settings and the drawer closes ` + JSON.stringify(rp));
+    await shot(`p7526-${vw}-settings.png`);
+    check(await setClose(o) && await ev(`location.hash`) === '#today', `${tag}: closing the settings leads back to the page`);
     await ev(`(() => { document.querySelector('#top .wschip').click(); return 1; })()`);
     check(await until(popOpen), `${tag}: the chip opens the workspace menu`);
     await pick(o, ORGN);
@@ -120,7 +140,8 @@ const ORGN = 'Alpha Studio';
     await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: 1440, height: 900}});
     await o.nav(B + '#today'); await ready(o);
     await ev(`(() => { document.querySelector('#kbar .kbbrand').click(); return 1; })()`);
-    check(await until(`location.hash === '#home'`), `${tag}: the brand leads to Start`);
+    check(await until(setOpen), `${tag}: the brand opens the settings`);
+    await setClose(o);
     check(await ev(`!document.querySelector('#top .wschip') && document.querySelector('#kbar .kbfirm .wsn')?.textContent === 'Private'`), `${tag}: the head bar's chip shows Private (none in #top)`);
   });
   await firefox(async o => {

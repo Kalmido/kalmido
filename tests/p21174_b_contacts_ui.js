@@ -5,7 +5,7 @@
 //   sentence with the button "Create your own address book" (Cancel: nothing created; the button: the book, then the editor);
 //   the card's menu of a contact he may only read has no "Delete", of one he may change "Delete" as its last entry
 // - #6123 Carol (no organisation: freelancer parity) with two address books: the contacts' "..." holds ONE "Import…" and ONE
-//   "Export…"; Export asks for the book, then the format, and hands over the file; an import while a search is active ends with
+//   "Export as…" (2.1497.0 #7015: was "Export…"); Export asks for the book, then the format, and hands over the file; an import while a search is active ends with
 //   "Show imported", which drops the search and shows the new contact; the CSV mapping guesses Work for a work column / a
 //   filled company column (not every e-mail / address as Home)
 // - #6123 Alice's "Address books" dialog: one sentence on books / folders / groups, the book symbol, "shared with ..." in a
@@ -121,8 +121,8 @@ const FEAT = 'comments,collab,contacts';
     await click(ev, '#view [data-ct="menu"]');
     await ready(ev, `${MI}.length > 0`);
     mi = await items(ev);
-    check(mi.filter(x => /^Import/.test(x)).length === 1 && mi.filter(x => /^Export/.test(x)).length === 1 && mi.includes('Import…') && mi.includes('Export…'),
-      '#6123: two books, still ONE "Import…" and ONE "Export…" ' + mi.join('|'));
+    check(mi.filter(x => /^Import/.test(x)).length === 1 && mi.filter(x => /^Export/.test(x)).length === 1 && mi.includes('Import…') && mi.includes('Export as…'),
+      '#6123: two books, still ONE "Import…" and ONE "Export as…" ' + mi.join('|'));
     check(!mi.some(x => /Home book|Work book|\(vCard\)|\(CSV\)/.test(x)), '#6123: no line per address book in the "..." menu');
     await shot('p21174b-head-menu.png');
     await pick(ev, 'Import…');
@@ -133,7 +133,7 @@ const FEAT = 'comments,collab,contacts';
     await ev(`(window.__exp = [], window.ct_expGo = u => window.__exp.push(u), 1)`);
     await click(ev, '#view [data-ct="menu"]');
     await ready(ev, `${MI}.length > 0`);
-    await pick(ev, 'Export…');
+    await pick(ev, 'Export as…');
     check(await ready(ev, `${MI}.some(b => b.textContent.trim() === 'Work book')`), '#6123: "Export…" asks for the address book ' + (await items(ev)).join('|'));
     await pick(ev, 'Work book');
     check(await ready(ev, `${MI}.some(b => b.textContent.trim() === 'vCard (.vcf)') && ${MI}.some(b => b.textContent.trim() === 'CSV (spreadsheet)')`), '#6123: ... then for the format ' + (await items(ev)).join('|'));
@@ -184,7 +184,7 @@ const FEAT = 'comments,collab,contacts';
     await shot('p21174b-books-dialog.png');
     // the book's "..." opens its menu at the button
     await click(ev, `.modal [data-cbmenu="${BE}"]`);
-    check(await ready(ev, `${MI}.some(b => b.textContent.trim() === 'Export…')`), '#6123: the book\'s menu opens');
+    check(await ready(ev, `${MI}.some(b => b.textContent.trim() === 'Export as…')`), '#6123: the book\'s menu opens');
     mi = await items(ev);
     check(mi.filter(x => /^Import/.test(x)).length === 1 && mi.filter(x => /^Export/.test(x)).length === 1, '#6123: the book\'s menu has one Import and one Export ' + mi.join('|'));
     const gap = await ev(`(() => { const b = document.querySelector('.modal [data-cbmenu="${BE}"]').getBoundingClientRect(), p = document.querySelector('#pop').getBoundingClientRect();

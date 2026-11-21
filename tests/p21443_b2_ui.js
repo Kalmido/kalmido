@@ -86,8 +86,9 @@ const upload = async (ck, name, text) => {
   const srow = await until(() => vd.querySelector(`#side .srow.steam[data-aid="${ag.id}"]`), 30);
   if (srow) check(srow.hasAttribute('data-wsc'), 'sidebar entry of an organisation agent carries the stripe');
   const prow = vd.querySelector(`#side .srow.steam[data-aid="${ag2.id}"]`);
-  if (prow) check(!prow.hasAttribute('data-wsc'), 'sidebar entry of a private agent is neutral');
-  check(v.eval(`/data-wsc/.test(acw_of({agent_org_id: ${ORG}})) && acw_of({agent_org_id: null}) === ''`), 'acw_of takes agent_org_id');
+  // Ersetzt Entscheidung #2231 ("Private = my own colour, else neutral"): gedeckt durch #7661 - with an organisation Private wears its default
+  if (prow) check(/--wsd:var\(--acc-d\)/.test(prow.getAttribute('style') || ''), '#7661 sidebar entry of a private agent in Private\'s default');
+  check(v.eval(`/data-wsc/.test(acw_of({agent_org_id: ${ORG}})) && acw_of({agent_org_id: null}).includes('--wsd:var(--acc-d)')`), 'acw_of takes agent_org_id (#7661: a private one Private\'s default)');
   v.eval(`S.settings.ws_colors = JSON.stringify({private: LP_TONES[2][0]})`);
   check(v.eval(`/data-wsc="1"/.test(acw_attr(null))`), 'a private agent takes my own colour of Private');
   v.eval(`S.settings.ws_colors = '{}'`);

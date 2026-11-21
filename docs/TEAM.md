@@ -534,7 +534,7 @@ count instead of sending again. *Files from file requests* in the notification s
 
 In the file store, **Select** (check boxes, also on the phone) and the bar now also offer **Download** and **Move to the
 trash**. Download of one file gives the file itself; several items or a folder become one ZIP that keeps the folder
-structure (a doubled name gets " (2)"). A folder's menu (its row or the open folder's "…") has **Download as ZIP**. The ZIP
+structure (a doubled name gets " (2)"). A folder's menu (its row or the open folder's "…") has **Download** (a ZIP). The ZIP
 holds only what you may see: nothing from the trash, no links to task or project files, no file the virus scanner locked
 or has not checked yet. Moving several items into the trash is one undo step that brings all of them back. On a phone the
 moves of the bar sit in its "…" menu.

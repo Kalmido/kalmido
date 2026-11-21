@@ -1,6 +1,6 @@
 // kalmido-suite: fresh
 // 2.1151.0 D (#5524) UI test, Firefox, own container (start.sh), invented data only. A knowledge page's "…" offers "Download
-// as PDF" and "Download as Word (.docx)"; each starts a download of /api/wiki/pages/<id>/export with the reading style the page
+// as PDF" and "Download as Word (.docx)" (2.1497.0 #7015: now "Download" for the page itself as PDF, "Export as Word (.docx)"); each starts a download of /api/wiki/pages/<id>/export with the reading style the page
 // is shown in, and the file that comes is a PDF / a Word file holding the page's title and text. A read-only member (who has
 // no "Rename…") gets the two entries too. The browser's own Word file of a space with the lock (wkdoc.js, loaded on demand)
 // holds the page's heading, its bold text and its list. P21151D_SHOTS=dir: pictures.
@@ -58,12 +58,12 @@ const MODS = 'wiki,comments';
     check(await ready(ev, `!!document.querySelector('#view .wkpage.wkst-book') && !!document.querySelector('#view [data-wk="pmenu"]')`, 40), 'the page is shown in Book');
     const it = await openMenu(ev);
     await shot('p21151d-menu.png');
-    check(it.includes('Download as PDF') && it.includes('Download as Word (.docx)') && it.includes('Rename…'), 'the page\'s "…" offers PDF and Word ' + JSON.stringify(it));
+    check(it.includes('Download') && it.includes('Export as Word (.docx)') && it.includes('Rename…'), 'the page\'s "…" offers PDF and Word ' + JSON.stringify(it));
     await ev(`(() => { closePop(); return 1; })()`);
-    const pdf = await download(ev, 'Download as PDF');
+    const pdf = await download(ev, 'Download');
     check(pdf.u && pdf.u.includes(`/api/wiki/pages/${PG}/export?format=pdf`) && pdf.u.includes('style=book'), 'PDF: the download asks for the page in the reading style shown (Book) ' + JSON.stringify(pdf.u));
     check(pdf.status === 200 && /application\/pdf/.test(pdf.type || '') && pdf.head.startsWith('%PDF-') && pdf.size > 2000, 'PDF: the file comes ' + JSON.stringify({...pdf, doc: undefined}));
-    const docx = await download(ev, 'Download as Word (.docx)');
+    const docx = await download(ev, 'Export as Word (.docx)');
     check(docx.status === 200 && /wordprocessingml/.test(docx.type || ''), 'Word: the file comes ' + JSON.stringify({...docx, doc: undefined}));
     check(docx.doc.includes('Quote Birchwood') && docx.doc.includes('new plan') && docx.doc.includes('Survey'), 'Word: document.xml holds the page\'s title and text ' + docx.doc.slice(0, 300));
     // the browser's own Word file (a space with the lock): wkdoc.js on demand, made from the page as the app draws it
@@ -84,9 +84,9 @@ const MODS = 'wiki,comments';
     check(await ready(ev, `!!S.booted && !!document.querySelector('#view [data-wk="pmenu"]')`, 80), 'read-only: the page shows its "…"');
     const ri = await openMenu(ev);
     await shot('p21151d-readonly-menu.png');
-    check(ri.includes('Download as PDF') && ri.includes('Download as Word (.docx)') && !ri.includes('Rename…'), 'read-only: only reading entries, the downloads among them ' + JSON.stringify(ri));
+    check(ri.includes('Download') && ri.includes('Export as Word (.docx)') && !ri.includes('Rename…'), 'read-only: only reading entries, the downloads among them ' + JSON.stringify(ri));
     await ev(`(() => { closePop(); return 1; })()`);
-    const rp = await download(ev, 'Download as PDF');
+    const rp = await download(ev, 'Download');
     check(rp.status === 200 && rp.head.startsWith('%PDF-'), 'read-only: the PDF comes ' + JSON.stringify({...rp, doc: undefined}));
   }, true);
 

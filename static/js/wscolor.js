@@ -1,7 +1,8 @@
-/* Kalmido web client: workspace colours (2.53.0, #1474): Private stays neutral, an organisation has a colour (its admins
+/* Kalmido web client: workspace colours (2.53.0, #1474): an organisation has a colour (its admins
    choose, every member sees the same) -- the stripe on top of the sidebar (2.138.2 C, #2389), the frame of the input fields, the
    sign / switch of the workspace, the hint when something moves from Private into an organisation.
-   Classic script sharing the global scope with the others (load order: index.html, docs/ARCHITECTURE.md; after listcolor.js). */
+   Classic script sharing the global scope with the others (load order: index.html, docs/ARCHITECTURE.md; after listcolor.js).
+   (#7661): Private wears its own colour as soon as the person has an organisation (wsp_privTone / wso_vars). */
 'use strict';
 
 // the organisations' own palette (8 tones, [dark-theme value, light-theme value]): a workspace is only
@@ -25,12 +26,18 @@ const wsc_vars = orgId => { const t = wsOn() && wsc_tone(orgId); return t ? `--w
 // the attributes for an element in a workspace's colour: data-wsc + style="--wsd/--wsl" (app.css picks the theme's tone)
 const wsc_attr = orgId => { const v = wsc_vars(orgId); return v ? ` data-wsc="1" style="${v}"` : ''; };
 // ---- 2.57.0 B (#1807): my own colour per workspace (setting ws_colors {"private" | "org:<id>": tone key | "none"}; only I
-// see it). Without a choice: an organisation keeps its admins' colour, Private stays neutral.
+// see it). Without a choice: an organisation keeps its admins' colour, Private its default (WSP_PRIV, #7661).
 const wsp_cols = () => { try { const o = JSON.parse(S.settings?.ws_colors || '{}'); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch { return {}; } };
 // my choice for a workspace: the LP_TONES row, 'none' or undefined (= the default)
 const wsp_own = ws => { const v = wsp_cols()[ws]; return v === 'none' ? 'none' : LP_TONES.find(t => t[0] === v); };
-// the tone [dark, light] of a workspace as shown to me ('all' and a neutral one: null)
-const wsp_tone = ws => { if (!wsOn() || !ws || ws === 'all') return null; if (ws !== 'private') return wsc_tone(wsc_ofWs(ws)); const t = wsp_own('private'); return t && t !== 'none' ? [t[2], t[4]] : null; };
+// (#7661, decision of 20.11.2026, replaces "Private stays neutral" of #6179): as soon as I have an organisation, Private wears a
+// colour too -- my choice, else this fixed default: Kalmido's own accent of the device (--acc-d / --acc-l, not --accent, which a
+// workspace's tone overrides, #4026); the organisations' palette keeps away from it (#6721). Settings > Workspaces shows it as
+// "Default" (pressed while nothing is chosen)
+const WSP_PRIV = ['var(--acc-d)', 'var(--acc-l)'];
+const wsp_privTone = () => { const t = wsp_own('private'); return t && t !== 'none' ? [t[2], t[4]] : WSP_PRIV; };
+// the tone [dark, light] of a workspace as shown to me ('all', an organisation with "No colour" and no organisation: null)
+const wsp_tone = ws => { if (!wsOn() || !ws || ws === 'all') return null; return ws !== 'private' ? wsc_tone(wsc_ofWs(ws)) : wsp_privTone(); };
 const wsp_vars = ws => { const t = wsp_tone(ws); return t ? `--wsd:${t[0]};--wsl:${t[1]}` : ''; };
 // like wsc_attr for a workspace key (the switch, the chip, a list's sign): Private takes my colour too
 const wsp_attr = ws => { const v = wsp_vars(ws); return v ? ` data-wsc="1" style="${v}"` : ''; };
@@ -42,7 +49,7 @@ const wsp_barTone = ws => {
   const glob = () => wac_on() ? ['var(--accent)', 'var(--accent)'] : null;
   if (ws === 'all') return glob();
   if (ws !== 'private') return wsOn() ? wsc_tone(wsc_ofWs(ws)) || glob() : null;
-  const t = wsp_own('private');
+  const t = wsp_own('private');  // the stripe on top keeps the accent of the moment for Private without a choice (#2389, P4)
   return t && t !== 'none' ? [t[2], t[4]] : ['var(--accent)', 'var(--accent)'];
 };
 const wsp_barVars = ws => { const t = wsp_barTone(ws); return t ? `--wsd:${t[0]};--wsl:${t[1]}` : ''; };
@@ -79,7 +86,7 @@ function wac_fit(hex, light) {
 function wac_tone(ws) {
   if (!wac_on()) return null;
   const t = wsp_barTone(ws);
-  if (!t || t[0] === 'var(--accent)') return null;  // Private without a choice, "All", "No colour" (2.504.0, #4222)
+  if (!t || /^var\(/.test(t[0])) return null;  // Private without a choice (#7661: WSP_PRIV), "All", "No colour" (2.504.0, #4222)
   const [d, l] = t, fd = wac_fit(d, false), fl = wac_fit(l, true);
   return fd && fl ? [fd, WAC_INK[0], fl, WAC_INK[1]] : null;
 }
@@ -166,24 +173,29 @@ const wsc_ofWs = ws => String(ws || '').startsWith('org:') ? +ws.slice(4) : 0;
 // with agent_org_id / org_id (the job chats of 2.107) passes the entry: acw_of(entry). Without organisations (wsOn() false): none.
 const acw_attr = orgId => { const v = wsOn() ? wsp_vars(orgId ? 'org:' + +orgId : 'private') : ''; return v ? ` data-wsc="1" style="${v}"` : ''; };
 const acw_of = e => acw_attr(e ? (e.agent_org_id ?? e.org_id) : null);
-const wsc_rowAttr = l => l && !l.is_inbox && l.org_id ? wso_row(l.org_id) : '';  // 2.1205.0 (#6179): the shared row mark
+const wsc_rowAttr = l => l ? wso_row(l) : '';  // (#6179): the shared row mark; (#7661): a private list's too
 // ---- 2.1205.0 (#6179): the organisation's colour as ONE building block of the core (docs/dev/kern.md "Organisation colour").
 // Rule (owner decision 14.11.2026): what belongs to an organisation wears its colour in every area - the entry in an overview /
 // navigation (a stripe on its left edge) and the open object (#main.wsc-on: the frames of
-// the input fields; under "All workspaces" #view wears the tone as its accent, wac-loc). Private stays neutral.
+// the input fields; under "All workspaces" #view wears the tone as its accent, wac-loc).
+// (#7661, decision of 20.11.2026, replaces "Private stays neutral"): as soon as the person has an organisation, Private is a
+// workspace like the others: it wears its colour (wsp_privTone) at the same places. ONE rule here (wso_vars) for wso_row,
+// wso_mark, wso_origin (its dot), wso_sync / wso_scope; no caller chooses (the old third parameter priv of #6957 is gone,
+// tools/check_wso_row.py). Without an organisation everything stays neutral.
 // wso_ws: an organisation's id, 'org:<id>', 'private', a list / an object with org_id -> the workspace key ('' = none)
 const wso_ws = w => w == null || w === '' ? '' : typeof w === 'number' ? (w ? 'org:' + w : 'private') : typeof w === 'object' ? (w.is_inbox || !w.org_id ? 'private' : 'org:' + +w.org_id) : String(w);
 // (1) a row / card / entry of an organisation: data-wso + data-wsc + --wsd / --wsl = the stripe on its left edge (app.css);
 // '' for Private and without organisations (wsOn() false). The sidebar's rows keep their own stripe (#side .srow[data-wsc]).
 // 2.1241.0 (#6181): style = the element's own inline style (e.g. a calendar's --cc), kept in the one style attribute; an
 // entry of Private / without organisations gets it back alone (` style="…"`), so the caller writes no style attribute itself
-// 2.1353.0 (#6957): priv = true (an overview of several workspaces side by side): Private wears my own colour (ws_colors.private) too
-const wso_row = (w, style = '', priv = false) => { const k = wso_ws(w), o = wsc_ofWs(k), v = o ? wsc_vars(o) : priv && k === 'private' ? wsp_vars('private') : '', st = [style, v].filter(Boolean).join(';'); return (v ? ' data-wso="1" data-wsc="1"' : '') + (st ? ` style="${st}"` : ''); };
+// the colour variables of a workspace key ('' = neutral: no organisation, "All", an organisation with "No colour")
+const wso_vars = k => { const o = wsc_ofWs(k); return o ? wsc_vars(o) : k === 'private' ? wsp_vars('private') : ''; };
+const wso_row = (w, style = '') => { const v = wso_vars(wso_ws(w)), st = [style, v].filter(Boolean).join(';'); return (v ? ' data-wso="1" data-wsc="1"' : '') + (st ? ` style="${st}"` : ''); };
 // 2.1241.0 (#6181): the same mark on an element that is already drawn (a dialog whose calendar changes, a popover): sets or
 // clears data-wso / data-wsc and --wsd / --wsl, the element's other inline styles stay
-function wso_mark(el, w, priv = false) {
+function wso_mark(el, w) {
   if (!el) return;
-  const k = wso_ws(w), o = wsc_ofWs(k), v = o ? wsc_vars(o) : priv && k === 'private' ? wsp_vars('private') : '';
+  const v = wso_vars(wso_ws(w));
   lp_put(el, 'wso-m', v, WSC_VARS);
   if (v) { el.dataset.wso = '1'; el.dataset.wsc = '1'; } else { delete el.dataset.wso; delete el.dataset.wsc; }
 }
@@ -217,8 +229,8 @@ function wso_cur() {
 // put the open object's workspace onto #main (wsc-on) and, under "All workspaces", its tone onto #view (wac-loc; an open list's
 // own colour, #main.lp-acc, wins). After every render and every redraw of the view (an area that loaded its object later)
 function wso_sync() {
-  const ws = wso_cur(), o = wsc_ofWs(ws), main = $('#main');
-  lp_put(main, 'wsc-on', o ? wsc_vars(o) : '', WSC_VARS);
+  const ws = wso_cur(), main = $('#main');
+  lp_put(main, 'wsc-on', wso_vars(ws), WSC_VARS);  // (#7661): Private's object too
   lp_put($('#view'), 'wac-loc', main?.classList.contains('lp-acc') ? '' : wso_locVars(ws), WAC_VARS);
   wso_side(ws);  // 2.1333.0 (#6697)
 }
@@ -265,7 +277,7 @@ function wsc_listMoved(id, was, now, e) {
 // ---- after every render: the open list's workspace colour on the list view (header stripe, quick add frame) and the
 // detail's comment field (the task's workspace)
 const WSC_VARS = ['--wsd', '--wsl'];
-const wsc_listVars = l => l && !l.is_inbox && l.org_id ? wsc_vars(l.org_id) : '';
+const wsc_listVars = l => l ? wso_vars(wso_ws(l)) : '';  // (#7661): a private task's detail too
 function wsc_sync() {
   wso_sync();  // 2.1205.0 (#6179): the open object of any area (was: only an open list); 2.504.0 (#4222): + its tone under "All"
   wsc_detail();

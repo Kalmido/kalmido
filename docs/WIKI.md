@@ -219,7 +219,7 @@ See *Exporting encrypted content* in the self-hosting guide for backups, moving 
 
 ## A page as PDF or Word
 
-*Since 2.1151.0 (#5524).* For texts that go out: the page's menu (⋯) has **Download as PDF** and **Download as Word (.docx)**
+*Since 2.1151.0 (#5524).* For texts that go out: the page's menu (⋯) has **Download** (the page as PDF) and **Export as Word (.docx)**
 (also for people who only read the page). The file follows the reading style the page is shown in (Clear, Book, Compact,
 Notepad) and carries the page's name as its title, unless the text starts with the same heading. Understood: headings,
 paragraphs, bold / italic / struck / code, links (web and mail addresses stay clickable, links to other pages become their

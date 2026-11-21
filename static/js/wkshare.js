@@ -50,8 +50,8 @@ async function wsh_shareFolder(p) {
   if (!fid && p.node_id) { try { fid = (await api('GET', `/api/files/nodes/${p.node_id}`)).parent_id; } catch { return; } }
   wkfs_share(fid, {space: p.space, path: wsh_dir(p), folder: true});
 }
-// the button next to the page's title (wiki.js wk_pageHtml)
-const wsh_btnHtml = p => p && !S.me?.kid ? `<button type="button" class="iconbtn" data-wsh-share="${p.id}" title="${esc(tr('Share…|wiki'))}" aria-label="${esc(tr('Share…|wiki'))}">${ic(wsh_lockedSp(p.space) ? 'lock' : 'users')}</button>` : '';
+// the button next to the page's title (wiki.js wk_pageHtml); (#7015): the text button "Share" like every opened object
+const wsh_btnHtml = p => p && !S.me?.kid ? `<button type="button" class="btn sm wshbtn" data-wsh-share="${p.id}" aria-haspopup="dialog" title="${esc(tr('Share…|wiki'))}">${ic(wsh_lockedSp(p.space) ? 'lock' : 'users', 's')} <span>${tr('Share')}</span></button>` : '';
 document.addEventListener('click', ev => {
   const b = /** @type {any} */ (ev.target).closest?.('[data-wsh-share]'); if (!b) return;
   const p = typeof WK !== 'undefined' && WK.pg?.id === +b.dataset.wshShare ? WK.pg : null; if (p) wsh_sharePage(p);

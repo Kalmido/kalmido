@@ -1,7 +1,7 @@
 // 2.112.1 UI tests of part A (#2058, own container, start.sh; P21121A_NOSTART=1: the container runs already). jsdom:
 // - the file store: Select, two rows checked, the bar offers Download and "Move to the trash"; the trash takes both in ONE
 //   request, ONE undo step brings both back
-// - a folder's menu offers "Download as ZIP"
+// - a folder's menu offers "Download" (a ZIP; 2.1497.0 #7015: was "Download as ZIP")
 // - Scan: the button next to Upload opens the dialog; two pictures become two pages (turn, order), "Save as PDF" stores
 //   one PDF in the open space; ONE undo step
 // - the documents offer Scan as well
@@ -68,7 +68,7 @@ const png = (w, h, rgb) => {
   row?.querySelector('[data-ab="menu"]').click();
   await until(() => d.querySelector('#pop [role="menuitem"]'));
   const labels = [...d.querySelectorAll('#pop [role="menuitem"]')].map(b => b.textContent.trim());
-  check(labels.some(t => /Download as ZIP/.test(t)), 'the folder menu offers "Download as ZIP" ' + labels.join('|'));
+  check(labels.some(t => /^Download$/.test(t.trim())), 'the folder menu offers "Download" ' + labels.join('|'));
   d.querySelector('#pop')?.remove();
 
   // ================= Scan: two pictures -> one PDF
@@ -77,7 +77,8 @@ const png = (w, h, rgb) => {
   // file input sits between: the next visible control after Upload is still Scan, and the phone's menu names it
   { const box = scanBtn?.closest('.abwide') || scanBtn; let prev = box?.previousElementSibling;
     while (prev && prev.hidden) prev = prev.previousElementSibling;
-    check(scanBtn && prev?.dataset.ab === 'upload' && (box === scanBtn || box.dataset.mlab === 'Scan'), 'Scan sits next to Upload ' + (prev?.outerHTML || '').slice(0, 80)); }
+    // 2.1497.0: since #6370 Upload is the area's New (the head bar), no button in the tools: Scan follows "New folder" there
+    check(scanBtn && !d.querySelector('#view .abtools [data-ab="upload"]') && prev?.querySelector?.('[data-ab="new-folder"]') && (box === scanBtn || box.dataset.mlab === 'Scan'), 'Scan sits next to New folder (Upload is the head bar\'s New, #6370) ' + (prev?.outerHTML || '').slice(0, 80)); }
   scanBtn?.click();
   const md = await until(() => d.querySelector('.abscandlg'));
   check(md && md.querySelector('[data-abs="save"]').disabled, 'the dialog opens, "Save as PDF" waits for a page');

@@ -478,7 +478,11 @@ const rd_recentHtml = mod => spo_recentHtml(mod, mod, rd_rows(mod));
 // Private, organisations, Shared with me, the trash ...); o.title = the heading (default "All workspaces"), o.label = the
 // list's name for screen readers (default "Workspaces")
 const spo_href = (to, sp) => '#' + (typeof to === 'function' ? to(sp) : to + '/s/' + sp);
-const spo_html = (to, rows, o = {}) => `<section class="spov" aria-label="${esc(o.label || tr('Workspaces'))}"><h3 class="spovt">${esc(o.title || tr('All workspaces'))}</h3><ul class="spovl">${rows.map(([sp, name, icon]) => `<li><a href="${esc(spo_href(to, sp))}" class="spovr" data-spov="${esc(sp)}"${/*html-ok*/ wso_row(sp, '', true) /* (#6180): an organisation's entry wears its stripe; (#6957): Private too, when I chose a colour */}>${icon}<span class="spovn">${esc(name)}</span></a></li>`).join('')}</ul></section>`;
+// (#7661): ONE row of a workspace in an overview (spo_html, and the overview with "Recently edited" of Files / Knowledge / Reading,
+// recent.js zle_ovrHtml): an organisation's and Private's entry wear their stripe, the core decides (wscolor.js wso_vars);
+// "Shared with me" and the trash are no workspaces and stay neutral. row = [space, name, icon html, html after the name]
+const spo_rowHtml = (to, [sp, name, icon, after]) => `<li><a href="${esc(spo_href(to, sp))}" class="spovr" data-spov="${esc(sp)}"${/*html-ok*/ wso_row(sp)}>${/*html-ok*/ icon}<span class="spovn">${esc(name)}</span>${/*html-ok*/ after || ''}</a></li>`;
+const spo_html = (to, rows, o = {}) => `<section class="spov" aria-label="${esc(o.label || tr('Workspaces'))}"><h3 class="spovt">${esc(o.title || tr('All workspaces'))}</h3><ul class="spovl">${/*html-ok*/ rows.map(r => spo_rowHtml(to, r)).join('') /* the rows escape their own values (spo_rowHtml) */}</ul></section>`;
 // the path back above an open space: "All workspaces /" (spo_upHtml, the file store puts its own path after it) + its name
 // 2.769.0 (#5339): a button like the other path links (an anchor is inline: no min-height, other baseline)
 const spo_upHtml = route => `<button type="button" class="linkbtn" data-go="${esc(route)}" data-spovup="1">${esc(tr('All workspaces'))}</button><span class="abcsep" aria-hidden="true">/</span>`;
@@ -855,9 +859,11 @@ function sbb_barHtml() {
   // P4: without an organisation the switch shows the private space (its menu: Private + "Add a company")
   const cur = wsOn() ? wsCur() : 'private', nm = wsName(cur);
   const acct = S.me ? `<button type="button" class="kbacct" data-act="user-menu" aria-haspopup="menu" title="${esc(acctLabel())}" aria-label="${esc(acctLabel())}">${av(S.me.id, S.me.display_name, 'avatar', '', '', true)}${updDot() ? `<span class="kbupd" title="${esc(tr('Update available'))}"></span>` : '' /* 2.1401.0 (#6127): Settings live in the account menu now, so does the update's dot (#3400) */}</button>` : '';
-  // 2.1437.0 (#7299, variant 1 of 19.11.2026): split in two - the brand (kbbrand) is a link to Start, the chip beside it
-  // (kbsw kbfirm) names the workspace and opens its menu (wsMenu); was ONE button opening the menu (#2607 variant B)
-  return `<a href="#home" class="kbbrand" data-go="home" aria-label="${esc(APP_NAME + ' · ' + tr('Start|home'))}" title="${esc(tr('Start|home'))}">${logoSvg(28)}${wordSvg()}</a>`
+  // 2.1437.0 (#7299, variant 1 of 19.11.2026): split in two - the brand (kbbrand) and the chip beside it (kbsw kbfirm), which
+  // names the workspace and opens its menu (wsMenu); was ONE button opening the menu (#2607 variant B).
+  // (#7526, decision of 20.11.2026, newer than #7299 "the brand leads to Start"): the brand opens the settings (the same
+  // dialog as the account menu's Settings); Start stays in the account menu and the palette
+  return `<button type="button" class="kbbrand" data-act="settings" aria-haspopup="dialog" aria-label="${esc(APP_NAME + ' · ' + tr('Settings'))}" title="${esc(tr('Settings'))}">${logoSvg(28)}${wordSvg()}</button>`
     + `<button type="button" class="kbsw kbfirm" data-act="sbb-ws" aria-haspopup="menu" aria-label="${esc(tr('Workspace: {0}', nm))}" title="${esc(tr('Switch to'))}"${wsp_attr(cur)}>${cur === 'all' ? ic('grid', 's') : wsp_dot(cur)}<span class="wsn">${esc(nm)}</span>${ic('chev', 's')}</button>`
     + '<div class="fv2bar" role="group"></div>'  // 2.441.0 (#3592): the favourites, only in the free room (favtiles.js fv2_barDraw)
     + `<button type="button" class="kbsrch" data-act="palette" title="${esc(tr('Search and commands'))} (${kbText('Mod+K')})" aria-label="${esc(tr('Search and commands'))}">${ic('search', 's')}<span>${esc(tr('Search'))}</span></button>`
@@ -1066,7 +1072,7 @@ function sbb_wsoNode(n, one) {
   const bad = SBB_WSO_OWN.filter(p => p in n);
   if (bad.length) { sbb_wsoBad.push(n.k + ': ' + bad.join(',')); console.error('sbb_treeHtml: a workspace node (wso) takes no ' + bad.join(', ') + ' (#7389)', n.k); }
   const ws = wso_ws(n.wso);
-  return {...n, icon: undefined, ichtml: n.lock ? ic('lock') : wsIcon(ws), kids: n.has !== false, open: !!n.here || one, fold: undefined, wsoPriv: true};
+  return {...n, icon: undefined, ichtml: n.lock ? ic('lock') : wsIcon(ws), kids: n.has !== false, open: !!n.here || one, fold: undefined};
 }
 // 2.199.0 A (#2742): a node may also carry ns (the module's handlers, sbb_treeReg), id, par (its parent's key: siblings share
 // it), drag (dragged to move / sort), drop (takes nodes into it), menu (right-click / long press / the context key) and auto
@@ -1084,7 +1090,7 @@ function sbb_treeHtml(nodes, lvl = 0) {
     // has the size of a plain sidebar row's (app.css: one row rule for tree rows and .srow)
     const arrow = n.kids ? `<button type="button" class="sbbtar" ${n.fold ? n.fold.attrs : `data-act="sbb-tree" data-k="${esc(n.k)}" data-open="${open ? 1 : ''}"`} aria-expanded="${open}" aria-label="${esc(tr(open ? 'Collapse' : 'Expand') + ': ' + n.name)}">${ic('chev', 's fcar')}</button>` : '';
     const dn = n.ns && !n.auto ? ` data-sbbns="${esc(n.ns)}" data-sbbid="${esc(String(n.id))}" data-sbbpar="${esc(String(n.par ?? ''))}"${n.drop ? ' data-sbbdrop="1"' : ''}${n.menu ? ' data-sbbmenu="1" aria-haspopup="menu"' : ''}${n.drag && !isTouch() ? ' draggable="true"' : n.drag ? ' data-sbbdrag="1"' : ''}` : '';
-    return `<div class="fhead sbbt ${open ? '' : 'closed'} ${n.on ? 'on' : ''}${n.auto ? ' sbbauto' : ''}${n.wso ? ' sbbws' : ''}${n.cls ? ' ' + n.cls : ''}"${/*html-ok*/ wso_row(n.wso || n.stripe, `--sbbl:${Math.min(lvl, 8)}`, !!n.wsoPriv || !!n.stripeP) /* #7337: n.stripe = a row's own workspace stripe where no workspace node stands above it (the office's documents in one office); (#6182, #7389): a workspace's node wears its stripe, Private its own colour */} ${n.attrs || ''}${dn}><button type="button" class="sbbtn" data-go="${esc(n.go)}"${n.on ? ' aria-current="page"' : ''} ${n.battrs || ''}${n.auto ? ` title="${esc(tr('Automatic group'))}"` : ''}>${n.ichtml ?? ic(n.icon || (n.auto ? 'filter' : 'folder'))}<span class="n">${esc(n.name)}</span></button>${arrow}${n.after || ''}</div>`
+    return `<div class="fhead sbbt ${open ? '' : 'closed'} ${n.on ? 'on' : ''}${n.auto ? ' sbbauto' : ''}${n.wso ? ' sbbws' : ''}${n.cls ? ' ' + n.cls : ''}"${/*html-ok*/ wso_row(n.wso || n.stripe, `--sbbl:${Math.min(lvl, 8)}`) /* #7337: n.stripe = a row's own workspace stripe where no workspace node stands above it (the office's documents in one office); (#6182, #7389): a workspace's node wears its stripe, Private its own colour */} ${n.attrs || ''}${dn}><button type="button" class="sbbtn" data-go="${esc(n.go)}"${n.on ? ' aria-current="page"' : ''} ${n.battrs || ''}${n.auto ? ` title="${esc(tr('Automatic group'))}"` : ''}>${n.ichtml ?? ic(n.icon || (n.auto ? 'filter' : 'folder'))}<span class="n">${esc(n.name)}</span></button>${arrow}${n.after || ''}</div>`
       + (!open ? '' : sub === null ? `<div class="sbbtl muted" style="--sbbl:${Math.min(lvl + 1, 8)}">${esc(tr('Loading…'))}</div>` : sbb_treeHtml(sub, lvl + 1));
   }).join('');
 }
@@ -1377,7 +1383,9 @@ document.addEventListener('change', async e => {
   e.stopPropagation();
   const id = el.dataset.wsa, ws = el.dataset.wsaws, on = el.checked, o = JSON.parse(JSON.stringify(wsa_own())), xs = new Set(o[ws] || []);
   on ? xs.delete(id) : xs.add(id);
-  if (xs.size) o[ws] = WSA_AREAS.filter(x => xs.has(x)); else delete o[ws];
+  // (#7563): an organisation keeps its key also when all is on (= my own choice there); a missing key = the server's default
+  // (Home off without Home data, accounts/wsareas.py wsa_own, handed out as ws_areas_off)
+  if (xs.size || ws !== 'private') o[ws] = WSA_AREAS.filter(x => xs.has(x)); else delete o[ws];
   const n = `${tr(wsa_name(id, ws))} · ${wsName(ws)}`;
   el.closest('[data-wsarow]')?.classList.toggle('off', !on);
   await setApply({ws_areas_off: JSON.stringify(o)}, on ? tr('{0} on', n) : tr('{0} off', n));

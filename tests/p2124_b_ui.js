@@ -5,7 +5,7 @@
 // - link: typed like text, www. gets https://, the arrow opens in a new tab (noopener noreferrer)
 // - file: uploaded into the cell (the name shows, the arrow opens it), Undo empties the cell again
 // - column / row menu "Keep … in view up to here": saved, sticky rules for those rows / columns, released again
-// - the panel: "History of the cell" (who, before -> after), "Recent changes"; "Print / PDF…" builds the print view
+// - the panel: "History of the cell" (who, before -> after), "History" of the table (was "Recent changes", #7015); "Print / PDF…" builds the print view
 const path = require('path');
 const fs = require('fs');
 const {execFileSync} = require('child_process');

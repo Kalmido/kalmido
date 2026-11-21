@@ -88,7 +88,7 @@ const face = (d, id) => card(d, id)?.querySelector('[data-dco], [data-ab="open"]
   await shut(w);
   rclick(w, face(d, SUB));
   it = await until(() => menuIt(d).length > 3 && menuIt(d));
-  check(it && it[1] === 'Select' && it.includes('Move to the trash') && it.includes('Download as ZIP'), 'a right click on a folder card: "Select" on top, the folder\'s items ' + it);
+  check(it && it[1] === 'Select' && it.includes('Move to the trash') && it.includes('Download'), 'a right click on a folder card: "Select" on top, the folder\'s items ' + it);
   // the card's "…" opens the same menu
   await shut(w);
   card(d, D2).querySelector('[data-ab="menu"]')?.click();

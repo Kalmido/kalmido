@@ -56,7 +56,7 @@ async function upload(name, text, parent) {
   const w = await boot({user: 'alice', hash: `ablage/${FID}`}), d = w.document;
   check(await until(() => d.querySelector(`.abrow[data-abid="${NID}"]`) && w.eval('typeof ab_detailsOf === "function"')), 'the folder lists the file');
   const item = (n, label) => w.eval(`ab_menuItems(${JSON.stringify(n)}).filter(Boolean).find(x => x.label === ${JSON.stringify(label)})`);
-  item(w.eval(`ab_item(${NID})`), 'Details and history').fn();
+  item(w.eval(`ab_item(${NID})`), 'History').fn();  // (#7015): was "Details and history"
   const hist = () => d.querySelector('.dv-view #dv-p-hist');
   check(await until(() => w.location.hash === `#ablage/${NID}` && hist() && !hist().hidden && hist().querySelectorAll('.abvrow').length === 2), '"Details and history" of a file: the document view on its tab History ' + w.location.hash);
   check(!d.querySelector('.abdlg') && d.querySelector('.dv-view [data-dvtab="hist"]')?.getAttribute('aria-selected') === 'true', '... no dialog, the tab History selected');

@@ -560,7 +560,7 @@ async function fsl_lockDlg(n) {
   const who = [get.length ? tr('They get the key right away: {0}.', get.map(m => m.name).join(', ')) : '',
     without.length ? tr('Still missing: {0}. They get the key once they have set up encryption in their account.', without.map(m => m.name).join(', ')) : '']
     .filter(Boolean).join(' ') || tr('Only you get the key.');
-  const yes = await askConfirm(tr('Lock “{0}”?', n.name), '', {ok: tr('Lock folder'), danger: true, html:
+  const yes = await askConfirm(tr('Encrypt “{0}”?', n.name), '', {ok: tr('Encrypt folder'), danger: true, html:
     [['fsl-what', tr('The names and files of this folder are encrypted in your browser; only people with the key can open them.')],
       // 2.953 (#3348): tags are plain words the server reads -- they are removed with the lock
       ['fsl-after', tr('After that the server, the operator, agents and connected apps can no longer read them: no preview, no search, no text recognition. Earlier versions of the files are removed.') + (info.tagged ? ' ' + trn('The tags of {0} file or folder in it are removed (the server could read them).', 'The tags of {0} files or folders in it are removed (the server could read them).', info.tagged) : '')],
@@ -599,9 +599,9 @@ async function fsl_infoDlg(n, info) {
 // the menu entry of a folder (the row's "…", the tree)
 function fsl_menuItem(n) {
   if (n.kind !== 'folder' || !fslOk() || S.me?.kind === 'agent') return null;
-  if (n.locked && n.lock_id === n.id) return {label: tr('Locked folder…'), icon: 'lock', fn: () => fsl_lockDlg(n)};
+  if (n.locked && n.lock_id === n.id) return {label: tr('Encryption…'), icon: 'lock', fn: () => fsl_lockDlg(n)};
   if (n.locked || n.role !== 'owner' || n.agent_id) return null;
-  return {label: tr('Lock folder…'), icon: 'lock', fn: () => fsl_lockDlg(n)};
+  return {label: tr('Encrypt folder…'), icon: 'lock', fn: () => fsl_lockDlg(n)};
 }
 // an owner opening a locked folder: an interrupted switch continues; people waiting with encryption set up are shown in the banner
 // (2.353.0 F, #2758 review M1: like the knowledge spaces and lists, the key goes only by the button -- never silently)

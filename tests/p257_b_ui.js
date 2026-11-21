@@ -6,6 +6,8 @@
 //       "All"; a dot in front of each workspace in the switch and its menu; Settings > Workspaces has the swatches (one
 //       Undo step per change); the tint keeps the sidebar's text readable (contrast, both themes); the phone drawer
 //       takes the tint too.
+// Ersetzt Entscheidung #1474 / #1807 / #6179 ("Private stays neutral"): gedeckt durch #7661 (20.11.2026) - with an organisation
+// Private wears its colour too (my choice, else the default var(--acc-d)).
 // 2.138.2 (#2389): no tint any more -- the shown workspace's colour is the stripe on top of the sidebar (--wbd / --wbl on
 //       #app, class wsb-on; Private without a choice, "none" and "All" (2.504.0, #4222) = the accent); the checks below follow.
 const {execFileSync} = require('child_process');
@@ -58,7 +60,7 @@ const mix = (tone, p, base) => rgb(tone).map((v, i) => Math.round(v * p + rgb(ba
   let w = await boot({user: 'alice', hash: 'l/' + W}), d = w.document;
   const side = () => d.querySelector('#app'), bar = () => d.querySelector('#kbar .kbsw'), sign = () => d.querySelector('#top h1 .wsbadge');  // 2.152.3 (#2619): the switch moved from the panel head into the head bar
   await until(() => bar());
-  check(w.eval(`wsc_tone(${ORG})[0]`) === '#ef8a6b' && w.eval(`wsp_tone('private')`) === null, '#1807: no choice: the organisation shows its admins\' colour, Private none');
+  check(w.eval(`wsc_tone(${ORG})[0]`) === '#ef8a6b' && w.eval(`wsp_tone('private').join()`) === 'var(--acc-d),var(--acc-l)', '#1807 / #7661: no choice: the organisation shows its admins\' colour, Private its default');
   check(side().classList.contains('wsb-on') && side().style.getPropertyValue('--wbd') === '#ef8a6b' && !d.querySelector('#side').classList.contains('wsp-on'), '#1807: an organisation shown: the sidebar stripe in its colour, no tint (2.138.2 #2389)');
   check(bar()?.dataset.wsc === '1' && bar().querySelector('.wsp-dot[data-wsc]'), '#1807: the switch carries a coloured dot in front of the name');
   check(d.querySelector(`#side .srow[data-list="${W}"]`)?.style.getPropertyValue('--wsd') === '#ef8a6b', '#1807: no choice: the sidebar stripe as before');
@@ -103,7 +105,7 @@ const mix = (tone, p, base) => rgb(tone).map((v, i) => Math.round(v * p + rgb(ba
   await until(() => side().style.getPropertyValue('--wbd') === '#2dd4bf');
   check(side().classList.contains('wsb-on') && side().style.getPropertyValue('--wbd') === '#2dd4bf', '#1807: Private shown: the stripe in my colour');
   check(sign()?.dataset.wsc === '1', '#1807: a private list\'s sign takes my colour of Private');
-  check(!d.querySelector(`#side .srow[data-list="${P}"]`)?.dataset.wsc, '#1807: private lists keep no stripe');
+  check(d.querySelector(`#side .srow[data-list="${P}"]`)?.style.getPropertyValue('--wsd') === '#2dd4bf', '#7661 (was #1807 none): a private list\'s sidebar stripe in my colour of Private');
   w.eval(`S.settings.workspace = 'all'; render()`);
   check(side().style.getPropertyValue('--wbd') === 'var(--accent)' && !bar().querySelector('.wsp-dot') && !bar().dataset.wsc, '#4222: "All": the stripe in the global accent, the icon instead of a dot');
   w.close();

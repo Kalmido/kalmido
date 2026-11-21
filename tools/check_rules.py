@@ -20,6 +20,7 @@ Rules (RULES below; sharp = a rise is red, otherwise a notice until the task tha
   wording        "chip" in the English texts, the old names of the own workspace in the German ones          (#7262)
   emoji          emoji in the texts of static/i18n other than the thumbs                                     (#7262)
   dialog-verb    a dialog that creates says "Create" (German "Anlegen"), a question dialog names its verb   (#6373)
+  wso-priv       wso_row / wso_mark with a third argument: the workspace colour is the core's (wso_vars)    (#7661)
 The product rules behind the last three stand in docs/dev/produkt-regeln.md.
 Not built here (the right way does not exist yet, so the message could not name it): FOR UPDATE outside the lock helper
 (#7153), IBAN patterns outside core/iban.py (#7154), except Exception around unseal( (#7156: unseal_or); the schema,
@@ -275,6 +276,51 @@ def count_dialog_verb(root):
     return out
 
 
+# (#7661): the workspace colour of a row / an element is decided in the core (static/js/wscolor.js wso_vars): Private wears its
+# colour as soon as there is an organisation. The old third parameter priv of wso_row / wso_mark (#6957) let each caller choose
+# and most left Private neutral; a call with a third argument is a caller deciding again
+WSO_CALL = re.compile(r"(?<![\w$.])wso_(?:row|mark)\(")
+
+
+def _top_args(args):
+    """The number of top-level arguments of a call's text (commas inside brackets, strings and templates do not count)."""
+    if not args.strip():
+        return 0
+    n, d, i = 1, 0, 0
+    while i < len(args):
+        ch = args[i]
+        if ch in "([{":
+            d += 1
+        elif ch in ")]}":
+            d -= 1
+        elif ch in "'\"`":
+            q, i = ch, i + 1
+            while i < len(args) and args[i] != q:
+                i += 2 if args[i] == "\\" else 1
+        elif ch == "," and not d:
+            n += 1
+        i += 1
+    return n
+
+
+def count_wso_priv(root):
+    out = {}
+    for rel in client_js(root):
+        if not rel.startswith("static/js/"):
+            continue
+        src = read(root, rel)
+        n = 0
+        for m in WSO_CALL.finditer(src):
+            head = src[max(0, m.start() - 9):m.start()]
+            if head.endswith("function ") or head.endswith("const "):
+                continue
+            if _top_args(_call_args(src, m.end())) > 2:
+                n += 1
+        if n:
+            out[rel] = n
+    return out
+
+
 # name: (counter, sharp, why, instead)
 RULES = {
     "env": (count_env, True,
@@ -313,6 +359,10 @@ RULES = {
                     "one verb for creating, a question names what it does (docs/dev/glossar.md, decided 16.11.2026, #6373)",
                     "the main button of a dialog that creates: tr('Create') (German 'Anlegen'), editing: tr('Save'), something "
                     "existing joins: tr('Add'); askConfirm / askPrompt / askDialog with ok: tr('<verb>')"),
+    "wso-priv": (count_wso_priv, True,
+                 "the core decides the workspace colour: Private wears its colour as soon as there is an organisation; a caller "
+                 "with its own switch left Private neutral in most areas (#7661, was the parameter priv of #6957)",
+                 "wso_row(w, style) / wso_mark(el, w) with two arguments; the rule itself lives in wso_vars (static/js/wscolor.js)"),
     "emoji": (count_emoji, True,
               "app icons instead of emoji; the thumbs are the only emoji in texts (docs/dev/produkt-regeln.md)",
               "an app icon (ic(...) of static/js/icons.js) beside the text"),

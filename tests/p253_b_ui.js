@@ -6,6 +6,8 @@
 // #1474 workspace colours: an organisation's list carries its colour (header stripe, sign, sidebar stripe, frame of
 //       the input fields); a private list stays neutral; moving a task / list from Private into the organisation says
 //       who sees it now (with Undo); only an admin of the organisation sets its colour (403 for a member).
+// Ersetzt Entscheidung #1474 / #1807 / #6179 ("Private stays neutral"): gedeckt durch #7661 (20.11.2026) - with an organisation
+// Private wears its colour too (my choice, else the default var(--acc-d)).
 const {execFileSync} = require('child_process');
 const path = require('path');
 const {boot, sleep, B, login} = require('./boot');
@@ -116,11 +118,11 @@ const click = (w, el) => el.dispatchEvent(new w.MouseEvent('click', {bubbles: tr
   check(d.querySelector('#main').classList.contains('wsc-on') && /^#[0-9a-f]{6}$/.test(d.querySelector('#main').style.getPropertyValue('--wsd')), '#1474: an organisation list: wsc-on + --wsd on #main (the input frame; 2.138.2 #2389: no header stripe any more)');
   check(sign()?.dataset.wsc === '1' && /--wsd:/.test(sign().getAttribute('style') || ''), '#1474: the sign in the organisation colour');
   check(d.querySelector(`#side .srow[data-list="${W}"]`)?.dataset.wsc === '1', '#1474: the sidebar stripe at the organisation list');
-  check(!d.querySelector(`#side .srow[data-list="${P}"]`)?.dataset.wsc, '#1474: no stripe at a private list');
+  check(d.querySelector(`#side .srow[data-list="${P}"]`)?.style.getPropertyValue('--wsd') === 'var(--acc-d)', '#7661 (was #1474 none): a private list\'s sidebar stripe in Private\'s default');
   check(w.eval(`WSC_TONES.map(t => t[0]).includes(wsc_tone(${ORG})[0])`), '#1474: an organisation without own colour has a default tone');
   check(!w.eval(`WSC_TONES.some(t => LP_TONES.some(x => x[2] === t[0] || x[4] === t[1]))`), '#1474: a palette of its own (no list tone)');
   w.location.hash = '#l/' + P; await until(() => /Private/.test(sign()?.textContent || ''));
-  check(!d.querySelector('#main').classList.contains('wsc-on') && !sign()?.dataset.wsc, '#1474: a private list stays neutral');
+  check(d.querySelector('#main').classList.contains('wsc-on') && d.querySelector('#main').style.getPropertyValue('--wsd') === 'var(--acc-d)' && sign()?.dataset.wsc === '1', '#7661 (was #1474 neutral): a private list: frame and sign in Private\'s colour');
   // the comment field of a task of the organisation
   const T3 = (await call('POST', '/api/tasks', {title: 'Org task', list_id: W})).id;
   await w.eval('load()'); w.location.hash = '#l/' + W; await until(() => d.querySelector(`.trow[data-id="${T3}"]`));

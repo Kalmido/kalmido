@@ -36,7 +36,7 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
   };
   // 2.1437.0 (#7299): the drawer's brand is a link to Start (no workspace line, no arrow); the workspace menu opens from the chip
   const BRAND = `(() => { const b = document.querySelector('#side .sbhead .sbbrand'); if (!b) return null; const r = b.getBoundingClientRect(), s = document.querySelector('#side').getBoundingClientRect();
-    return {first: b === document.querySelector('#side .sbhead :is(a, button)'), go: b.dataset.go, href: b.getAttribute('href'), logo: !!b.querySelector('svg.logo'), word: !!b.querySelector('svg.kword'),
+    return {first: b === document.querySelector('#side .sbhead :is(a, button)'), go: b.dataset.act, href: b.tagName, logo: !!b.querySelector('svg.logo'), word: !!b.querySelector('svg.kword'),
       sub: !!b.querySelector('.sbbsub, .wsn'), top: Math.round(r.top - s.top), h: Math.round(r.height), inside: b.scrollWidth <= b.clientWidth + 1,
       mark: !!document.querySelector('#side .sbmark'), logos: document.querySelectorAll('#side svg.logo').length}; })()`;
   const openMenu = `(() => { document.querySelector('#top .wschip').click(); return new Promise(r => setTimeout(() => r({head: [...document.querySelectorAll('#pop .mgh')].map(x => x.textContent.trim()),
@@ -45,9 +45,9 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
   // 2.152.3 (#2619): on a computer the brand + the workspace sit in the head bar (#kbar .kbsw), its menu only switches
   // (organisations first, then Private, All), adds a company and opens its settings; Start moved to the account menu, hiding
   // the panel to the panel head (.sbbhide). BRAND / openMenu above stay for the phone's drawer
-  // 2.1437.0 (#7299): the brand (.kbbrand) is a link to Start, the chip beside it (.kbsw.kbfirm) the workspace's menu
+  // 2.1437.0 (#7299): the brand (.kbbrand; opens the settings since #7526), the chip beside it (.kbsw.kbfirm) the workspace's menu
   const BRANDK = `(() => { const k = document.querySelector('#kbar .kbbrand'), b = document.querySelector('#kbar .kbsw'); if (!k || !b) return null; const r = k.getBoundingClientRect(), s = document.querySelector('#side').getBoundingClientRect();
-    return {first: k === document.querySelector('#kbar :is(a, button)'), home: k.getAttribute('href') === '#home' && k.tagName === 'A', act: b.dataset.act, pop: b.getAttribute('aria-haspopup'), logo: !!k.querySelector('svg.logo'), word: !!k.querySelector('svg.kword'),
+    return {first: k === document.querySelector('#kbar :is(a, button)'), home: k.dataset.act === 'settings' && k.tagName === 'BUTTON', act: b.dataset.act, pop: b.getAttribute('aria-haspopup'), logo: !!k.querySelector('svg.logo'), word: !!k.querySelector('svg.kword'),
       ws: (b.querySelector('.wsn') || {}).textContent, dot: !!b.querySelector('.wsp-dot, svg.i'), above: Math.round(s.top - r.bottom), inside: b.scrollWidth <= b.clientWidth + 1 && k.scrollWidth <= k.clientWidth + 1,
       mark: !!document.querySelector('#side .sbmark'), side: !!document.querySelector('#side .sbbrand, #side svg.logo'), logos: document.querySelectorAll('#kbar svg.logo').length}; })()`;
   const openMenuK = `(() => { document.querySelector('#kbar .kbsw').click(); return new Promise(r => setTimeout(() => r({head: [...document.querySelectorAll('#pop .mgh')].map(x => x.textContent.trim()),
@@ -66,7 +66,7 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
     check(await ready(ev, `!!document.querySelector('#kbar .kbsw')`, 80), 'the app is up');  // 2.152.3 (#2619): the brand moved into the head bar
     // #2607: the brand on top
     let b = await ev(BRANDK);  // 2.152.3 (#2619): the head bar
-    check(b && b.first && b.home && b.act === 'sbb-ws' && b.pop === 'menu' && b.logo && b.word && b.ws === 'Private' && b.dot && b.inside, '#2607 / #7299: the brand (logo + word mark) leads the head bar as a link to Start, the workspace chip beside it opens the menu: ' + JSON.stringify(b));  // 2.152.3 (#2619): was the first button of the panel head (ws-menu)
+    check(b && b.first && b.home && b.act === 'sbb-ws' && b.pop === 'menu' && b.logo && b.word && b.ws === 'Private' && b.dot && b.inside, '#2607 / #7299: the brand (logo + word mark) leads the head bar and opens the settings (#7526), the workspace chip beside it opens the menu: ' + JSON.stringify(b));  // 2.152.3 (#2619): was the first button of the panel head (ws-menu)
     check(b && b.above >= 0 && !b.mark && !b.side && b.logos === 1, '#2607: the brand over the panel, none left in the panel, the small mark at the bottom is gone: ' + JSON.stringify(b));  // 2.152.3 (#2619): the head bar over the panel
     let m = await ev(openMenuK);
     check(m.head.includes('Switch to') && m.ws.join('|') === 'Alpha|Private|All workspaces' && m.on === 'Private' && !m.add && !m.set && !m.home && !m.side, '#2619: the menu: Switch to (organisations first, Private, All), no Add a company inside an organisation; no Start / Hide the sidebar: ' + JSON.stringify(m));  // 2.152.3 (#2619): the new workspace menu (sbb_wsMenu); 2.1397.0 (#6885): Add a company only without an organisation
@@ -99,7 +99,7 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
     await ready(ev, `!!document.querySelector('#top .menu')`, 60);
     await ev(`(() => { document.querySelector('#top .menu').click(); return 1; })()`); await sleep(600);
     b = await ev(BRAND);
-    check(b && b.first && b.logo && b.go === 'home' && b.href === '#home' && !b.sub && b.inside, '#2607 / #7299: phone: the drawer has the brand on top, a link to Start without the workspace line ' + JSON.stringify(b));
+    check(b && b.first && b.logo && b.go === 'settings' && b.href === 'BUTTON' && !b.sub && b.inside, '#2607 / #7299 / #7526: phone: the drawer has the brand on top, a button to the settings without the workspace line ' + JSON.stringify(b));
     await ev(`(() => { closeSide(); return 1; })()`); await ready(ev, `!document.querySelector('#side.open') && !!document.querySelector('#top .wschip')`);
     await shot('p2152a-drawer-390.png');
     m = await ev(openMenu);
@@ -108,7 +108,8 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
     await ev(`(() => { closePop(); return 1; })()`);
     await ev(`(() => { document.querySelector('#top .menu').click(); return 1; })()`); await ready(ev, `!!document.querySelector('#side.open .sbbrand')`);
     await ev(`(() => { document.querySelector('#side .sbbrand').click(); return 1; })()`);
-    check(await ready(ev, `!document.querySelector('#side.open') && S.route.mod === 'home'`), '#7299: phone: the drawer\'s brand leads to Start and the drawer closes');
+    check(await ready(ev, `!document.querySelector('#side.open') && !!document.querySelector('.smodal')`), '#7526 (was #7299 Start): phone: the drawer\'s brand opens the settings and the drawer closes');
+    await ev(`(() => { document.querySelector('.smodal [data-m="close"]').click(); return 1; })()`); await ready(ev, `!document.querySelector('.smodal')`);
   }, false);
 
   // ===== P4: frida without an organisation
