@@ -19,7 +19,7 @@ Rights: every area answers with its OWN check, there is no check of this module 
   office   (#7662) the office areas of the asked workspaces (an organisation's office, "Private" = the person's personal office,
            pb_personal, never made here), each through office_role (no role / guest: nothing) and office/rights.py office_can,
            the one check of the areas outside /api/office (office groups, else the role's previous access): "offers" for
-           quotations, invoices, credit notes and the office's clients (pb_cl_sql), "receipts" for the receipts of the office's
+           quotations, invoices, credit notes and the office's clients (client_rows: the clients' own gate), "receipts" for the receipts of the office's
            documents space (bk_ws), every receipt then through the file store's own role (fs_roles_many); a receipt is listed
            as the office's, not a second time as a file
   sheets   (#7662) the tables' own index sheets/core.py sh_index (workspace, projects, folders and shares; sh_space = 404 for a
@@ -35,6 +35,7 @@ from ..core.db import db
 from ..core.errors import BadInput
 from ..core.i18n import tr
 from ..accounts.session import me
+from ..accounts.modcards import mod_ws_on
 from ..accounts.orgs import user_orgs
 from ..accounts.wsareas import WSA_KEY_RE, wsa_org_off
 from ..collab.comments import user_names
@@ -45,9 +46,10 @@ from ..files.fslock import fsl_map
 from ..files.fsviews import fsv_drop
 from ..files.store import fs_mail_rows, fs_roles_many, fs_visible_sql_c
 from ..office.books import bk_ws
-from ..office.model import office_cands, office_role, pb_cl_sql, pb_personal
+from ..office.model import office_cands, office_role, pb_personal
 from ..office.rights import office_can
 from ..sheets.core import sh_index
+from ..team.clients import client_rows
 from ..wiki.pages import wiki_may_read, wiki_space
 from ..wiki.wkfolder import wkf_locked
 from ..wiki.wkshare import wsh_reach
@@ -213,6 +215,9 @@ def _office_areas(c, uid, key, oid):
 
 def rcn_office(c, uid, key, oid, limit):
     out = []
+    if (c.execute("SELECT kid FROM users WHERE id=?", (uid,)).fetchone() or [0])[0]:
+        return out  # a child account has no office (office_gate)
+    cl_all = None
     for ofid, sp in _office_areas(c, uid, key, oid).items():
         if office_can(c, uid, ofid, "offers"):  # the area's own check: quotations & invoices (and their clients)
             ph = ",".join("?" * len(RCN_DOC_KINDS))
@@ -222,10 +227,15 @@ def rcn_office(c, uid, key, oid, limit):
                 title = r["number"] or r["project_title"] or ""
                 out.append({"area": "office", "kind": r["kind"], "id": r["id"], "space": sp, "title": title,
                             "place": r["project_title"] if r["number"] else "", "by": r["created_by"], "at": r["updated_at"]})
-            for r in c.execute(f"SELECT id, name, created_by, updated_at FROM clients WHERE {pb_cl_sql(c, ofid)} AND {live_sql()} "
-                               f"ORDER BY updated_at DESC, id DESC LIMIT ?", (limit,)).fetchall():
-                out.append({"area": "office", "kind": "client", "id": r["id"], "space": sp, "title": r["name"], "place": "",
-                            "by": r["created_by"], "at": r["updated_at"]})
+            # the clients through their own gate (reader F5): the module clients on for me (feature, my switches, the card's
+            # cap - mod_ws_on) and the rows client_rows lets me see (no guests / accounting, no child accounts)
+            wo = None if sp == "private" else ofid
+            if feat_on(c, uid, "clients") and mod_ws_on(c, uid, wo, None, "clients"):
+                cl_all = client_rows(c, uid) if cl_all is None else cl_all
+                mine = [r for r in cl_all if (r["org_id"] == wo if wo else (r["org_id"] is None and r["created_by"] == uid))]
+                for r in sorted(mine, key=lambda r: (r["updated_at"] or "", r["id"]), reverse=True)[:limit]:
+                    out.append({"area": "office", "kind": "client", "id": r["id"], "space": sp, "title": r["name"], "place": "",
+                                "by": r["created_by"], "at": r["updated_at"]})
         if office_can(c, uid, ofid, "receipts"):  # the receipts: the office's right, then each file's own role
             rows = c.execute("SELECT n.id, n.name, n.owner_id, n.created_by, n.updated_at FROM rc_receipts r JOIN doc_meta d ON "
                              "d.node_id=r.node_id JOIN fs_nodes n ON n.id=r.node_id WHERE d.ws=? AND n.kind='file' AND "

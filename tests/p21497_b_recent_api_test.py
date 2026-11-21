@@ -169,6 +169,18 @@ check(("sheets", "", SH_ORG) in keys(it), "#7662 F1: bob: the table of his card 
 check(A.delete(B + f"/api/modcards/{r.json()['card']['id']}").ok, "setup: the card is deleted")
 check(("office", "offer", OFF) in keys(recent(Bo)), "#7662 F1: without the card the office is there again")
 
+# ================================================================== the clients through their own gate (reader F5)
+r = A.post(B + "/api/modcards", json={"space": SP, "name": "Office without clients", "mods": ["office", "sheets"], "people": [BOB]})
+check(r.status_code == 201, "setup: a card with the office but without clients for bob " + r.text[:200])
+k = keys(recent(Bo))
+check(("office", "offer", OFF) in k and ("office", "client", CL) not in k, f"#7662 F5: card without clients: the quotation yes, the client no {sorted(office(recent(Bo)))}")
+check(A.delete(B + f"/api/modcards/{r.json()['card']['id']}").ok, "setup: the card is deleted")
+ED, Ed = mkuser("edda", [ORG])
+r = A.put(B + f"/api/orgs/{ORG}/members", json={"email": "edda@example.com", "role": "accounting"})
+check(r.ok, f"setup: edda is the organisation's accounting {r.status_code} {r.text[:200]}")
+k = keys(recent(Ed))
+check(("office", "client", CL) not in k, f"#7662 F5: the role accounting sees no client of the organisation (client_rows) {sorted(office(recent(Ed)))}")
+
 # ================================================================== a member without office rights: nothing of the office, the tables stay
 it = recent(Ca)
 check(not office(it), f"#7662: carl (office group 'No office access') sees nothing of the office {sorted(office(it))}")
