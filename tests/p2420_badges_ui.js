@@ -27,7 +27,8 @@ for (const c of ['tpo-tag', 'abtag', 'orr-tag', 'dc-tag', 'devtag', 'rotag', 'nw
   check(r['min-height'] === '1.125rem' || r.height === '1.125rem', `tag .${c}: height 1.125rem`);
   check(r['border-radius'] === undefined || r['border-radius'] === 'var(--r-s)', `tag .${c}: radius var(--r-s) (${r['border-radius']})`);
 }
-for (const c of ['aichip', 'ppchip', 'evchip', 'bmtag', 'vdrchip', 'cfpill', 'linkchip', 'nchip', 'kz-chip']) {
+// (#4742): .aichip is gone with its dead rules (no code sets it since the agent chips moved); the bases .kz-tag / .kz-chip stay
+for (const c of ['ppchip', 'evchip', 'bmtag', 'vdrchip', 'cfpill', 'linkchip', 'nchip', 'kz-chip']) {
   const r = rule('.' + c);
   check(r['font-size'] === 'var(--fs-s)', `chip .${c}: font-size var(--fs-s) (${r['font-size']})`);
   check(r['border-radius'] === '99rem', `chip .${c}: radius 99rem (${r['border-radius']})`);

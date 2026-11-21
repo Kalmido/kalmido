@@ -112,6 +112,8 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:1.12
 .empty{color:var(--muted);padding:3rem 1rem;text-align:center;font-size:var(--fs-m)}
 .empty.sm{padding:1.5rem 1rem}
 /* 2.420.0 A (#3498): two badge levels; .tag / .chip already exist as context rules, so the bases are .kz-tag / .kz-chip */
+.kz-tag{display:inline-flex;align-items:center;box-sizing:border-box;min-height:1.125rem;padding:0 .375rem;font-size:var(--fs-xs);border-radius:var(--r-s)}
+.kz-chip{display:inline-flex;align-items:center;box-sizing:border-box;min-height:1.5rem;padding:0 .625rem;font-size:var(--fs-s);border-radius:99rem}
 .empty svg{width:2rem;height:2rem;opacity:.55;display:block;margin:0 auto .625rem;stroke-width:1.4}
 
 /* ---------- shell ---------- */
