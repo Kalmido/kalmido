@@ -287,7 +287,8 @@ const ALL = 'cal,timeline,comments,collab,events,contacts';
   w.close();
   // boot while the server answers 502: the cached state instead of the error page
   const st0 = await call('GET', '/api/state');
-  w = await boot({user: 'alice', hash: 'inbox', ls: {'tasks.cache': JSON.stringify(st0), 'tasks.uid': '1'}, setup: win => {
+  // (#6500): an offline copy is shown only with its stamp (core.js devCopyOk: the sign-in mark of the state, the last online sync)
+  w = await boot({user: 'alice', hash: 'inbox', ls: {'tasks.cache': JSON.stringify(st0), 'tasks.uid': '1', 'tasks.wko': JSON.stringify({g: st0.me?.sgen || '', at: new Date().toISOString()})}, setup: win => {
     const f = win.fetch; win.fetch = (u, o) => String(u).includes('/api/') ? Promise.resolve(new Response('bad gateway', {status: 502, headers: {'content-type': 'text/html'}})) : f(u, o);
   }}); d = w.document;
   await sleep(500);
