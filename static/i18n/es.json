@@ -19706,5 +19706,9 @@
   "documents from templates": "documentos de plantillas",
   "invoice series": "series de facturas",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "El cliente de este documento ya no está en esta oficina (movido a otro espacio de trabajo). Elige primero otro cliente.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "El cliente de la factura plantilla ya no está en esta oficina (movido a otro espacio de trabajo). Elige otra factura plantilla y vuelve a activar la serie."
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "El cliente de la factura plantilla ya no está en esta oficina (movido a otro espacio de trabajo). Elige otra factura plantilla y vuelve a activar la serie.",
+  "This export comes from Kalmido {0}, this server runs {1}. Update this server to version {0} or newer first, then import the file.": "Esta exportación procede de Kalmido {0}; este servidor ejecuta {1}. Actualiza primero el servidor a la versión {0} o posterior y luego importa el archivo.",
+  "This export comes from Kalmido {0}, this server runs {1}. It can be imported here as soon as this server runs {0} or newer.": "Esta exportación procede de Kalmido {0}; este servidor ejecuta {1}. Podrá importarse aquí en cuanto este servidor ejecute {0} o posterior.",
+  "{1} entries in {0} have no valid value in a required field and were not imported": "{1} entradas en {0} no tienen un valor válido en un campo obligatorio y no se importaron",
+  "{1} entries in {0} have an amount with more than two decimal places or no number and were not imported": "{1} entradas en {0} tienen un importe con más de dos decimales o que no es un número y no se importaron"
 }
