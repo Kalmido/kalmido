@@ -23,7 +23,7 @@ async function ccSheet() { try { CC.sheet = await api('GET', `/api/office/cards/
 function ccCardShow(id) { CC.card = id; CC.stmts = null; f8d_viewStep('ccc', ccCardClose); ofcDraw(); }
 function ccCardClose() { CC.card = null; f8d_viewDrop('ccc'); ofcDraw(); }
 function ccStmtShow(id) { CC.sid = id; CC.sheet = null; f8d_viewStep('ccs', ccStmtClose); ofcDraw(); }
-function ccStmtClose() { CC.sid = null; CC.sheet = null; CC.sheetErr = null; CC.pick = null; CC.bank = null; CC.stmts = null; f8d_viewDrop('ccs'); ofcDraw(); }
+function ccStmtClose() { const old = CC.old; CC.sid = null; CC.sheet = null; CC.sheetErr = null; CC.pick = null; CC.bank = null; CC.old = false; if (!old) CC.stmts = null; f8d_viewDrop('ccs'); if (old) ccStale(); else ofcDraw(); }  // #7499: positions changed: the card's statements and the cards come again (the old ones stay until then)
 // a write changes the receipts' payment days too: the bookkeeping's loaded figures go
 // #7495: the cards, the card's statements or the statement on screen stay (dimmed) until the fresh ones are there
 const ccStale = () => {
@@ -40,7 +40,7 @@ const ccName = k => `${k.provider_name} ·· ${k.last4}`;
 const ccMon = m => typeof bnr_mon === 'function' ? bnr_mon(m) : m;
 
 function ccHtml() {
-  if (CC.oid !== OFC.info?.org_id) { Object.assign(CC, {oid: OFC.info?.org_id, data: null, err: null, card: null, stmts: null, sid: null, sheet: null, rem: null}); f8d_viewDrop('ccc'); f8d_viewDrop('ccs'); }
+  if (CC.oid !== OFC.info?.org_id) { Object.assign(CC, {oid: OFC.info?.org_id, data: null, err: null, card: null, stmts: null, sid: null, sheet: null, rem: null, old: false}); CC_W?.reset(); f8d_viewDrop('ccc'); f8d_viewDrop('ccs'); }
   if (CC.err) return ofcFail(CC.err, () => { CC.err = null; CC.data = null; });  // 2.1076.0 (#5450)
   if (!CC.data) { setTimeout(ccLoad, 0); return loadingHtml('big'); }
   if (CC.sid) return ccSheetHtml();
@@ -98,15 +98,20 @@ function ccLine(x, s) {
   const sub = [fmtDateLoc(x.day), x.orig_amount ? `${x.orig_amount} ${x.orig_currency}` : '', CC_KIND[x.kind] ? tr(CC_KIND[x.kind]) : ''].filter(Boolean).join(' · ');
   const head = `<div class="bnkhead"><span class="bnkn"><b>${esc(x.merchant)}</b><small class="muted">${esc(sub)}</small></span><span class="bnkamt ${+x.amount < 0 ? 'in' : 'out'}">${ofcMoney(x.amount)}</span></div>`;
   if (s.locked) return `<li class="bnkrow done">${head}</li>`;
-  if (s.state === 'draft') return `<li class="bnkrow">${head}<div class="bnkacts"><button class="btn sm ghost" data-cc="editline" data-id="${x.id}">${tr('Edit')}</button><button class="btn sm ghost" data-cc="delline" data-id="${x.id}">${tr('Delete')}</button></div></li>`;
-  if (x.state === 'matched') return `<li class="bnkrow done">${head}<div class="bnkacts"><span class="rotag bnkm">${ic('check', 's')} ${esc(x.gone ? tr('The receipt was deleted') : x.receipt || tr('Receipt'))}</span>${x.gone ? '' : `<a class="btn sm ghost" href="#docs/${x.node_id}">${tr('Open')}</a>`}<button class="btn sm ghost" data-cc="unmatch" data-id="${x.id}">${ic('undo', 's')}<span>${tr('Undo match')}</span></button></div></li>`;
-  if (x.state !== 'open') return `<li class="bnkrow done">${head}<div class="bnkacts"><span class="rotag">${esc(x.state === 'private' ? tr('Private') : tr('No receipt needed'))}</span><button class="btn sm ghost" data-cc="mark" data-id="${x.id}" data-v="open">${ic('undo', 's')}<span>${tr('Needs a receipt')}</span></button></div></li>`;
+  if (s.state !== 'draft') return ccLineAct(x, s, head);
+  return `<li class="bnkrow">${head}<div class="bnkacts"><button class="btn sm ghost" data-cc="editline" data-id="${x.id}">${tr('Edit')}</button><button class="btn sm ghost" data-cc="delline" data-id="${x.id}">${tr('Delete')}</button></div></li>`;
+}
+// #7499: a position of a confirmed statement: its state (W.act: "Saving…" / "Not saved - Try again" in the row)
+function ccLineAct(x, s, head) {
+  const W = ccW(), mk = rwMarkHtml(W, x);  // the core's mark (escaped there)
+  if (x.state === 'matched') return `<li class="bnkrow done${esc(rwCls(W, x))}" data-rwk="${esc(rwKey(x))}">${head}<div class="bnkacts"><span class="rotag bnkm">${ic('check', 's')} ${esc(x.gone ? tr('The receipt was deleted') : x.receipt || tr('Receipt'))}</span>${x.gone ? '' : `<a class="btn sm ghost" href="#docs/${x.node_id}">${tr('Open')}</a>`}<button class="btn sm ghost" data-cc="unmatch" data-id="${x.id}">${ic('undo', 's')}<span>${tr('Undo match')}</span></button>${/*html-ok*/ mk}</div></li>`;
+  if (x.state !== 'open') return `<li class="bnkrow done${esc(rwCls(W, x))}" data-rwk="${esc(rwKey(x))}">${head}<div class="bnkacts"><span class="rotag">${esc(x.state === 'private' ? tr('Private') : tr('No receipt needed'))}</span><button class="btn sm ghost" data-cc="mark" data-id="${x.id}" data-v="open">${ic('undo', 's')}<span>${tr('Needs a receipt')}</span></button>${/*html-ok*/ mk}</div></li>`;
   const sg = x.suggestion;
-  return `<li class="bnkrow">${head}
+  return `<li class="bnkrow${esc(rwCls(W, x))}" data-rwk="${esc(rwKey(x))}">${head}
     ${sg ? `<div class="ccsug"><small class="muted">${tr('Suggestion')}</small>${/*html-ok*/ ocd_row(ocd_card(sg, {btn: `data-cc="match" data-id="${x.id}" data-node="${sg.id}"`}))}</div>` : ''}
     <div class="bnkacts"><label class="btn sm">${ic('upload', 's')}<span>${tr('Upload receipt')}</span><input type="file" data-cc-rc="${x.id}" accept="${esc(typeof BK_ACCEPT === 'string' ? BK_ACCEPT : 'application/pdf,image/*')}" hidden></label>
     <button class="btn sm" data-cc="pick" data-id="${x.id}" aria-expanded="${CC.pick === x.id}">${ic('search', 's')}<span>${tr('Select receipt…')}</span></button>
-    <button class="btn sm ghost" data-cc="mark" data-id="${x.id}" data-v="noreceipt">${tr('No receipt needed')}</button><button class="btn sm ghost" data-cc="mark" data-id="${x.id}" data-v="private">${tr('Private')}</button></div>
+    <button class="btn sm ghost" data-cc="mark" data-id="${x.id}" data-v="noreceipt">${tr('No receipt needed')}</button><button class="btn sm ghost" data-cc="mark" data-id="${x.id}" data-v="private">${tr('Private')}</button>${/*html-ok*/ mk}</div>
     ${CC.pick === x.id ? ccPickHtml(x) : ''}</li>`;
 }
 function ccPickHtml(x) {
@@ -166,14 +171,14 @@ async function ccUpload(cid, file) {
   if (j.digits_differ) toast(tr('The statement names other digits than this card'));
   else toast(j.read ? (j.total_found ? tr('Statement read: please check the positions') : tr('Statement read, but its total was not found: please enter it')) : tr('This statement could not be read. Enter its positions by hand.'));
 }
-async function ccRcUpload(lid, file) {
+// #7499: the receipt of a position uploaded: the position says "Saving…" with the file's name at once (ccAct)
+function ccRcUpload(lid, file) {
   const fd = new FormData(); fd.append('file', file, file.name || 'receipt.pdf');
-  let j; try { j = await api('POST', `/api/office/cards/lines/${lid}/upload`, fd); } catch (x) { return; }
-  ccStale();
-  const id = j.node_id, fresh = j.fresh;
-  offerUndo(tr('Receipt added'), histAdd({label: tr('Card position matched'),
-    undo: async () => { await api('POST', `/api/office/cards/lines/${lid}/unmatch`); if (fresh) await api('DELETE', `/api/files/nodes/${id}`); ccStale(); },
-    redo: async () => { if (fresh) await api('POST', `/api/files/nodes/${id}/restore`); await api('POST', `/api/office/cards/lines/${lid}/match`, {node_id: id}); ccStale(); }}));
+  let fresh = false, id = 0;
+  return ccAct(lid, {state: 'matched', node_id: null, receipt: file.name || tr('Receipt'), gone: false}, () => rawFetch('POST', `/api/office/cards/lines/${lid}/upload`, fd), tr('Card position matched'),
+    async () => { const r = await api('POST', `/api/office/cards/lines/${lid}/unmatch`); if (fresh) await api('DELETE', `/api/files/nodes/${id}`); return r; },
+    async () => { if (fresh) await api('POST', `/api/files/nodes/${id}/restore`); return api('POST', `/api/office/cards/lines/${lid}/match`, {node_id: id}); },
+    j => { id = j.node_id; fresh = !!j.fresh; }, tr('Receipt added'));
 }
 async function ccConfirm(sid) {
   const s = CC.sheet.statement;
@@ -195,9 +200,41 @@ async function ccBankLink(tid, fits) {
   ccDo(tr('Matched'), () => api('POST', `/api/office/bank/tx/${tid}/match`, {kind: 'card', id: sid, accept_diff: accept}), () => api('POST', `/api/office/bank/tx/${tid}/unmatch`));
 }
 const ccLineOf = id => (CC.sheet?.lines || []).find(x => x.id === id);
+// #7499 (decision): a position matched, marked, taken back or its receipt uploaded goes through the core's "write shows at
+// once" (core.js rwRows, W.act): the position stands in its new state at once, the request runs behind it (one after the
+// other), the answer (position + statement) takes only this position and the statement's figures; the cards, the card's
+// statements and the bookkeeping are only marked as old (they come again when shown: ccStmtClose, bfbBooksStale). An error
+// puts the position back and it says why with "Try again". No reload of cards and statement after a click (was ccStale).
+let CC_W = /** @type {any} */ (null);
+const ccW = () => CC_W || (CC_W = rwRows({name: 'cc', draw: () => ofcDraw()}));
+// the answer of one position: the position (unless a later action of it waits: that one's answer stands) and the statement
+function ccTake(sid, j) {
+  CC.old = true; if (typeof bfbBooksStale === 'function') bfbBooksStale();
+  if (CC.sid !== sid || !CC.sheet) return;
+  if (!j?.line || !j.statement) { ccStale(); return; }  // a short answer (the same request sent again): the statement comes again
+  const ls = CC.sheet.lines || [], i = ls.findIndex(x => x.id === j.line.id);
+  if (i >= 0 && !ccW().busy(rwKey(ls[i]))) ls[i] = {...j.line, suggestion: j.line.state === 'open' ? ls[i].suggestion : undefined};
+  CC.sheet.statement = j.statement;
+}
+// one action on position id: vals = its state at once, req = the request (no message of its own: the row says it), undo /
+// redo = the history's way back (their answers taken as one); then(j) = the caller's part of the answer. -> the history entry,
+// false after an error
+async function ccAct(id, vals, req, label, undo, redo, then, said) {
+  const sid = CC.sid;
+  let j; try { j = await ccW().act('i' + id, optSet(() => CC.sid === sid ? ccLineOf(id) : null, vals), req); } catch (x) { return false; }
+  then?.(j); ccTake(sid, j);
+  const e = histAdd({label, res: j, undo: async () => { const r = await undo(); ccTake(sid, r); }, redo: async () => { const r = await redo(); ccTake(sid, r); }});
+  offerUndo(said || label, e);
+  return e;
+}
 // 2.778.0 (#5383): match / mark one position (the list and the walk-through, office_walk.js) -- one undo step each
-const ccMatchLine = (id, node) => ccDo(tr('Matched'), () => api('POST', `/api/office/cards/lines/${id}/match`, {node_id: node}), () => api('POST', `/api/office/cards/lines/${id}/unmatch`));
-const ccMarkLine = (id, v, was = 'open') => ccDo(tr('Saved'), () => api('PATCH', `/api/office/cards/lines/${id}`, {state: v}), () => api('PATCH', `/api/office/cards/lines/${id}`, {state: was}));
+const ccMatchLine = (id, node, name) => ccAct(id, {state: 'matched', node_id: node, receipt: name || tr('Receipt'), gone: false}, () => rawFetch('POST', `/api/office/cards/lines/${id}/match`, {node_id: node}), tr('Matched'),
+  () => api('POST', `/api/office/cards/lines/${id}/unmatch`), () => api('POST', `/api/office/cards/lines/${id}/match`, {node_id: node}));
+const ccMarkLine = (id, v, was = 'open') => ccAct(id, {state: v}, () => rawFetch('PATCH', `/api/office/cards/lines/${id}`, {state: v}), tr('Saved'),
+  () => api('PATCH', `/api/office/cards/lines/${id}`, {state: was}), () => api('PATCH', `/api/office/cards/lines/${id}`, {state: v}));
+const ccUnmatchLine = id => { const node = ccLineOf(id)?.node_id;
+  return ccAct(id, {state: 'open', node_id: null}, () => rawFetch('POST', `/api/office/cards/lines/${id}/unmatch`), tr('Match undone'),
+    () => api('POST', `/api/office/cards/lines/${id}/match`, {node_id: node}), () => api('POST', `/api/office/cards/lines/${id}/unmatch`)); };
 document.addEventListener('click', async e => {
   // 2.525.0 (#4281): data-cc="pick" / "send" are the choice cards' too (choicecard.js) - only buttons inside the office view
   // count here (one-meaning guard: data-cc)
@@ -229,12 +266,10 @@ document.addEventListener('click', async e => {
       async () => { const r = await (core ? api('POST', `/api/office/cards/lines/${cur}/restore`) : api('POST', `/api/office/cards/statements/${sid}/lines`, req)); cur = r.line.id; return r.note ? {note: r.note} : undefined; });  // 2.560.0 (#4667): the office trash's sentence when something it named is gone for good
   } else if (a === 'mark') {
     ccMarkLine(id, b.dataset.v, ccLineOf(id)?.state || 'open');
-  } else if (a === 'match') ccMatchLine(id, +b.dataset.node);
+  } else if (a === 'match') { const n = +b.dataset.node, d = [...(CC.cand || []), ccLineOf(id)?.suggestion].find(c => c?.id === n); CC.pick = null; CC.cand = null; ccMatchLine(id, n, d?.title || d?.name); }
   else if (a === 'walk') wlk_open('cc');  // 2.778.0 (#5383): office_walk.js (lazyload.js LD_CALL)
-  else if (a === 'unmatch') {
-    const node = ccLineOf(id)?.node_id;
-    ccDo(tr('Match undone'), () => api('POST', `/api/office/cards/lines/${id}/unmatch`), () => api('POST', `/api/office/cards/lines/${id}/match`, {node_id: node}));
-  } else if (a === 'pick') { CC.pick = CC.pick === id ? null : id; CC.cand = null; CC.q = ''; ofcDraw(); if (CC.pick) ccCand(id); }
+  else if (a === 'unmatch') ccUnmatchLine(id);
+  else if (a === 'pick') { CC.pick = CC.pick === id ? null : id; CC.cand = null; CC.q = ''; ofcDraw(); if (CC.pick) ccCand(id); }
   else if (a === 'bank') {
     if (CC.bank) { CC.bank = null; ofcDraw(); return; }
     try { CC.bank = (await api('GET', `/api/office/cards/statements/${sid}/bank`)).items || []; } catch (x) { CC.bank = null; }

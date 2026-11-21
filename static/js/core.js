@@ -1874,7 +1874,30 @@ function rwRows(o) {
     W.save(ks).catch(() => { /* the rows say it */ });
     o.draw();
   };
-  W.reset = () => { W.st.clear(); W.dirty.clear(); W.err = null; W.calc = !!W.wait; };  // another object opens / the stored state is shown
+  // #7497 / #7499: one action on one row of a list (match, mark, take back: a request of its own, not a save of the newest
+  // state). put = the row's new state at once (looked up again each time: optSet), req(key) = the request (no message of its
+  // own: rawFetch); the action goes in the writer's row, the row says "Saving…"; an error puts the row back and it says why
+  // with "Try again" (the same action once more; after no answer the very same request, x.retry: applied once).
+  // -> the answer (the caller takes only this row and its counters from it); throws after an error (the row said it)
+  W.why = new Map(); W.acts = new Map(); W.nk = new Map();  // nk: actions of a row on their way (W.busy(k): a later one waits, its answer stands)
+  W.busy = k => (W.nk.get(k) || 0) > 0;
+  W.act = (k, put, req) => {
+    const go = send => {
+      W.st.set(k, 'saving'); W.why.delete(k); W.acts.delete(k); W.nk.set(k, (W.nk.get(k) || 0) + 1);
+      const dn = () => { const n = W.nk.get(k) - 1; if (n > 0) W.nk.set(k, n); else W.nk.delete(k); return n > 0; };
+      return optWrite(put, () => W.run(send), o.draw, {mod: true}).then(j => { if (!dn() && W.st.get(k) === 'saving') W.st.delete(k); o.draw(); return j; }, x => {
+        dn();
+        if (o.fail?.(x)) W.st.delete(k);
+        else {
+          W.st.set(k, 'failed'); W.why.set(k, x instanceof NoAnswer ? tr('no answer from the server') : errText(x));
+          W.acts.set(k, () => go(x instanceof NoAnswer && x.retry ? x.retry : () => req()).catch(() => { /* the row says it */ }));
+        }
+        o.draw(); throw x;
+      });
+    };
+    return go(() => req());
+  };
+  W.reset = () => { W.st.clear(); W.dirty.clear(); W.why.clear(); W.acts.clear(); W.err = null; W.calc = !!W.wait; };  // another object opens / the stored state is shown
   if (o.name) RW_ALL.set(o.name, W);
   return W;
 }
@@ -1882,7 +1905,8 @@ function rwRows(o) {
 function rwMarkHtml(W, it) {
   const s = W?.state(it);
   if (s === 'saving') return `<span class="rwmark rwsaving sr" role="status">${esc(tr('Saving…'))}</span>`;  // heard, not seen: the row dims its amount (rw-saving), its width never changes
-  if (s === 'failed') return `<span class="rwmark rwfail" role="alert">${ic('info', 's')}<span>${esc(tr('Not saved'))}</span><button type="button" class="linkbtn" data-rwagain="${esc(W.o.name || '')}">${esc(tr('Try again'))}</button></span>`;
+  if (s === 'failed') { const k = rwKey(it), why = W.why.get(k);  // #7497: an action of a list row says why and tries just itself again
+    return `<span class="rwmark rwfail" role="alert">${ic('info', 's')}<span>${esc(tr('Not saved'))}</span>${why ? `<small class="muted">${esc(why)}</small>` : ''}<button type="button" class="linkbtn" data-rwagain="${esc(W.o.name || '')}"${W.acts.has(k) ? ` data-rwk="${esc(k)}"` : ''}>${esc(tr('Try again'))}</button></span>`; }
   return '';
 }
 const rwCls = (W, it) => { const s = W?.state(it); return s ? ' rw-' + s : ''; };
@@ -1899,7 +1923,8 @@ function rwPatch(root, html, sels) {
 document.addEventListener('click', e => {
   const b = /** @type {any} */ (e.target)?.closest?.('[data-rwagain]'); if (!b) return;
   const W = RW_ALL.get(b.dataset.rwagain); if (!W) return;
-  e.preventDefault(); e.stopPropagation(); W.retry();
+  e.preventDefault(); e.stopPropagation();
+  const act = b.dataset.rwk && W.acts.get(b.dataset.rwk); if (act) act(); else W.retry();
 }, true);
 // the usual put: set vals on the object get() finds (looked up again after a reload); the values before are kept once
 function optSet(get, vals) {
