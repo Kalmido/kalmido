@@ -112,13 +112,13 @@ const OFF = `() => { try { if (localStorage.getItem('t2663off') !== '1') return;
       const c = JSON.parse(JSON.stringify(S.lpCache)), v = +c.v || 0, as = t => ({...c, tasks: c.tasks.map(x => x.id === ${T} ? {...x, title: t} : x)});
       localStorage.setItem('tasks.cache', JSON.stringify({...as('From an older copy'), v: v - 1}));
       const a = await oc_get();
-      const older = {title: a?.tasks.find(x => x.id === ${T})?.title, ls: localStorage.getItem('tasks.cache')};
+      const older = {title: a?.tasks.find(x => x.id === ${T})?.title, ls: localStorage.getItem('tasks.cache') !== null};
       localStorage.setItem('tasks.cache', JSON.stringify({...as('From a newer copy'), v: v + 1}));
       const b = await oc_get();
-      return {v, older, newer: {title: b?.tasks.find(x => x.id === ${T})?.title, ls: localStorage.getItem('tasks.cache')}};
+      return {v, older, newer: {title: b?.tasks.find(x => x.id === ${T})?.title, ls: localStorage.getItem('tasks.cache') !== null}};
     })()`);
-    check(both.older.title === 'Water the ferns' && both.older.ls === null, 'both places, the copy older (#7595): the record wins, the copy goes ' + JSON.stringify(both));
-    check(both.newer.title === 'From a newer copy' && both.newer.ls === null, 'both places, the copy newer (#7595): the copy is taken over and goes ' + JSON.stringify(both));
+    check(both.older.title === 'Water the ferns' && both.older.ls === false, 'both places, the copy older (#7595): the record wins, the copy goes ' + JSON.stringify(both));
+    check(both.newer.title === 'From a newer copy' && both.newer.ls === false, 'both places, the copy newer (#7595): the copy is taken over and goes ' + JSON.stringify(both));
     const rb = await ev(REC);
     check(rb && rb.tasks.includes('From a newer copy'), 'both places, the copy newer (#7595): it is the record now ' + JSON.stringify(rb));
     // ---- (#7595): two windows - another window wrote a newer state (a higher version); this older one writes after it
