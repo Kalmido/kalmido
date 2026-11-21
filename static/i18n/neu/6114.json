@@ -1,0 +1,42 @@
+{
+  "de": {
+    "Folder settings": "Ordner-Einstellungen",
+    "Open Documents settings": "Dokumente-Einstellungen öffnen",
+    "The folder of the file store, the folder watcher, scan inboxes and the e-mail address of the documents are in Settings > Documents.": "Der Ordner in der Ablage, der Ordner-Wächter, Scan-Eingänge und die E-Mail-Adresse der Dokumente stehen unter Einstellungen > Dokumente.",
+    "Settings: Documents": "Einstellungen: Dokumente",
+    "Manage feeds…": "Nachrichtenquellen verwalten…",
+    "{0} of at most {1} feeds": "{0} von höchstens {1} Quellen"
+  },
+  "es": {
+    "Folder settings": "Ajustes de la carpeta",
+    "Open Documents settings": "Abrir los ajustes de Documentos",
+    "The folder of the file store, the folder watcher, scan inboxes and the e-mail address of the documents are in Settings > Documents.": "La carpeta del archivo, el vigilante de carpetas, las entradas de escaneo y la dirección de correo de los documentos están en Ajustes > Documentos.",
+    "Settings: Documents": "Ajustes: Documentos",
+    "Manage feeds…": "Gestionar feeds…",
+    "{0} of at most {1} feeds": "{0} de como máximo {1} feeds"
+  },
+  "fr": {
+    "Folder settings": "Paramètres du dossier",
+    "Open Documents settings": "Ouvrir les paramètres des documents",
+    "The folder of the file store, the folder watcher, scan inboxes and the e-mail address of the documents are in Settings > Documents.": "Le dossier du classement, la surveillance de dossier, les entrées de numérisation et l’adresse e-mail des documents se trouvent dans Paramètres > Documents.",
+    "Settings: Documents": "Paramètres : Documents",
+    "Manage feeds…": "Gérer les flux…",
+    "{0} of at most {1} feeds": "{0} sur {1} flux au plus"
+  },
+  "it": {
+    "Folder settings": "Impostazioni della cartella",
+    "Open Documents settings": "Apri le impostazioni dei documenti",
+    "The folder of the file store, the folder watcher, scan inboxes and the e-mail address of the documents are in Settings > Documents.": "La cartella dell’archivio, l’osservatore cartelle, gli ingressi di scansione e l’indirizzo e-mail dei documenti sono in Impostazioni > Documenti.",
+    "Settings: Documents": "Impostazioni: Documenti",
+    "Manage feeds…": "Gestisci feed…",
+    "{0} of at most {1} feeds": "{0} di al massimo {1} feed"
+  },
+  "nl": {
+    "Folder settings": "Mapinstellingen",
+    "Open Documents settings": "Instellingen van Documenten openen",
+    "The folder of the file store, the folder watcher, scan inboxes and the e-mail address of the documents are in Settings > Documents.": "De map in de opslag, de mapbewaker, scan-inboxen en het e-mailadres van de documenten staan onder Instellingen > Documenten.",
+    "Settings: Documents": "Instellingen: Documenten",
+    "Manage feeds…": "Feeds beheren…",
+    "{0} of at most {1} feeds": "{0} van maximaal {1} feeds"
+  }
+}

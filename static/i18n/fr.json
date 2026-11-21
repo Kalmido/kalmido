@@ -19705,11 +19705,5 @@
   "documents from templates": "des documents issus de modèles",
   "invoice series": "des séries de factures",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "Le client de ce document n'est plus dans ce bureau (déplacé vers un autre espace de travail). Choisis d'abord un autre client.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Le client de la facture modèle n'est plus dans ce bureau (déplacé vers un autre espace de travail). Choisis une autre facture modèle et réactive la série.",
-  "Folder settings": "Paramètres du dossier",
-  "Open Documents settings": "Ouvrir les paramètres des documents",
-  "The folder of the file store, the folder watcher, scan inboxes and the e-mail address of the documents are in Settings > Documents.": "Le dossier du classement, la surveillance de dossier, les entrées de numérisation et l’adresse e-mail des documents se trouvent dans Paramètres > Documents.",
-  "Settings: Documents": "Paramètres : Documents",
-  "Manage feeds…": "Gérer les flux…",
-  "{0} of at most {1} feeds": "{0} sur {1} flux au plus"
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Le client de la facture modèle n'est plus dans ce bureau (déplacé vers un autre espace de travail). Choisis une autre facture modèle et réactive la série."
 }
