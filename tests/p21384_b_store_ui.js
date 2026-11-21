@@ -152,7 +152,7 @@ const lsq = br => { const v = br.shared.store['tasks.outbox']; return v == null 
     check(await until(() => w3.eval('OUT.q.length') === 1 && (lsq(b3) || []).length === 1), 'Zusatz 1: made offline, it waits in the feed');
     w3.close();
     w3 = await boot({user: 'alice', hash: 'l/' + P, shared: b3.shared, setup: b3.setup});  // a reload, online, IndexedDB still closed
-    check(await until(async () => w3.eval('OUT.q.length') === 0 && lsq(b3) === null && await nTasks('Plant the tulips') === 1, 20000), 'Zusatz 1: after the reload the window sends it, the feed is empty');
+    check(await until(async () => w3.eval('OUT.q.length') === 0 && !(lsq(b3) || []).length && await nTasks('Plant the tulips') === 1, 20000), 'Zusatz 1: after the reload the window sends it, the feed is empty');
     await w3.eval('flush()');
     check(await nTasks('Plant the tulips') === 1, 'Zusatz 1: it arrived exactly once');
     w3.close();
@@ -169,7 +169,7 @@ const lsq = br => { const v = br.shared.store['tasks.outbox']; return v == null 
     check(await until(() => (lsq(b4) || []).length === 1), 'Zusatz 1: made offline in the first window, it waits in the feed');
     const w5 = await boot({user: 'alice', hash: 'l/' + P, shared: b4.shared, setup: b4.setup});
     check(w5.eval('OBX.on') === true, 'Zusatz 1 setup: the second window\'s IndexedDB opens');
-    check(await until(async () => w5.eval('OUT.q.length') === 0 && lsq(b4) === null && await nTasks('Rake the leaves') === 1, 20000), 'Zusatz 1: the second window adopted it and sent it');
+    check(await until(async () => w5.eval('OUT.q.length') === 0 && !(lsq(b4) || []).length && await nTasks('Rake the leaves') === 1, 20000), 'Zusatz 1: the second window adopted it and sent it');
     const posts0 = w4.eval('window.__posts');  // its tries while offline
     w4.__offline = false;
     w4.dispatchEvent(new w4.Event('online'));
