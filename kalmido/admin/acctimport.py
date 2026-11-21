@@ -1497,7 +1497,8 @@ def umz_have(c, run, uid, rows, mine=False, priv_lists=()):
         cr = json.loads(r["created"] or "{}")
         if same:
             run.oi_done = run.oi_done or bool(cr.get("oi_done"))
-        run.priv_done = run.priv_done or bool(cr.get("oi_done"))  # (#6358): an account export's oi_done = its private parts (umz_private)
+        if r["user_id"] == uid:  # (#6358, reader F7): only my own import put the private parts into MY private space
+            run.priv_done = run.priv_done or bool(cr.get("oi_done"))  # an account export's oi_done = its private parts (umz_private)
         for kind, m in (cr.get("src") or {}).items():
             if kind in UMZ_SRC and isinstance(m, dict):
                 m = {_oid(k): v for k, v in m.items() if _oid(k) and _oid(v)}
@@ -2269,7 +2270,7 @@ def umz_write(c, run, uid, man, zf, files, data, people):
     for r in sorted(data.get("task_decisions", []), key=lambda x: _oid(x.get("id")) or 0):
         run.step()
         tid = run.m("tasks", r.get("task_id"))
-        if not tid or run.there("task_decisions", r.get("id")):
+        if not tid or run.old("tasks", tid) or run.there("task_decisions", r.get("id")):  # (#6358, reader F6): came with its task
             continue
         d = umz_row(c, "task_decisions", r, {"task_id": tid, "by_id": uid if _oid(r.get("by_id")) == me_old else None, "superseded_by": None}, ts)
         nid = umz_insert(c, "task_decisions", d) if d else None

@@ -127,7 +127,8 @@ ok(F.post(B + "/api/contacts", json={"book_id": BK, "fn": "Kim Kontakt"}), "a co
 CAL = ok(F.post(B + "/api/evcals", json={"name": "Mein Kalender"}), "a calendar")["id"]
 ok(F.post(B + "/api/events", json={"cal_id": CAL, "title": "Termin Probe", "start": "2026-11-02T10:00", "end": "2026-11-02T11:00"}), "an event")
 # 2.1235.0 (#6240): a task of the inbox - the inbox of a file always goes into my private inbox, whatever the target
-ok(F.post(B + "/api/tasks", json={"title": "Eingang Probe"}), "an inbox task")
+INB = ok(F.post(B + "/api/tasks", json={"title": "Eingang Probe"}), "an inbox task")["id"]
+ok(F.post(B + f"/api/tasks/{INB}/decisions", json={"text": "Probe Entscheidung"}), "(#6358, reader F6) a decision of the inbox task")
 # (#6358): a Home & life project (stays private whatever the target) with a task, and a private knowledge page (umz_private)
 LIFE = ok(F.post(B + "/api/lists", json={"name": "Vertrag Probe"}), "a Home & life project")["id"]
 dbxm.connect(DATA).execute("UPDATE lists SET life='contracts' WHERE id=?", (LIFE,))
@@ -187,6 +188,8 @@ FORG = one("SELECT org_id FROM org_members WHERE user_id=?", (FID,))
 check(FORG, "#6358 (reader F4): Frida has her own organisation (the second workspace of the import)")
 if FORG:
     inbox_n = one("SELECT COUNT(*) FROM tasks WHERE created_by=? AND title='Eingang Probe' AND deleted_at IS NULL", (FID,))
+    DEC = "SELECT COUNT(*) FROM task_decisions d JOIN tasks t ON t.id=d.task_id WHERE t.created_by=? AND d.text='Probe Entscheidung'"
+    dec0 = one(DEC, (FID,))
     PRIV = ("SELECT (SELECT COUNT(*) FROM lists WHERE owner_id=? AND name='Vertrag Probe' AND deleted_at IS NULL), "
             "(SELECT COUNT(*) FROM tasks WHERE created_by=? AND title='Vertrag Aufgabe' AND deleted_at IS NULL), "
             "(SELECT COUNT(*) FROM wiki_pages WHERE owner_id=? AND org_id IS NULL AND path LIKE '%Privat Seite%' AND deleted_at IS NULL)")
@@ -210,6 +213,7 @@ if FORG:
     check(priv1 == priv0 and not one("SELECT COUNT(*) FROM lists WHERE org_id=? AND name='Vertrag Probe'", (FORG,)),
           f"#6358: the Home & life project (no empty second one), its task and the private knowledge page are not doubled {priv0} -> {priv1}")
     check(not any("could not be imported" in w["text"] for w in res.get("warnings") or []), f"#6358: no warning for the private tasks {res.get('warnings')}")
+    check(one(DEC, (FID,)) == dec0, f"#6358 F6: the decision of the inbox task is not doubled {dec0} -> {one(DEC, (FID,))}")
     check((res.get("stats") or res.get("counts") or {}).get("skipped", 0) > 0 or any("skipped" in w["text"] for w in res.get("warnings") or []),
           f"#6358: they count as skipped {res}")
     # (#6358, reader F1 / F2): the project's copy in the organisation keeps its notepad, playbook and shared view
