@@ -24,6 +24,12 @@ same way. The way through: update to 2.1001.0 (the first release from the limit 
 newer one older than 2.1380 first, start it once, then update to the current version (a backup made there restores here). A new, empty database is not affected. The limit is
 `MIN_FROM` in `kalmido/core/db.py`; a release that raises it says so here.
 
+**How far back, in short (#6616):** directly from 2.1000; from 2.37 on with one stop at 2.1001.0; an install from before
+2.37 (SQLite, `data/tasks.db`) goes through 2.37.0 first - its start says so and names the commands
+([Installs from before 2.37](SELF-HOSTING.md#installs-from-before-237-sqlite)). Tested starting points (the dumps in
+`tests/fixtures/upgrade`, suite `p2192_c_upgrade`): 2.1001.0 and 2.1380.0 are updated and compared, 2.101.0 and 2.941.0 must
+be refused with the way through.
+
 ## Versions that need a step
 
 | Version | What to do | Details |
@@ -41,56 +47,15 @@ newer one older than 2.1380 first, start it once, then update to the current ver
 
 ## Format limits: going back
 
-Going forward never needs one of these. Going **back** below a limit does: from that version on data has a form older
-versions cannot read, so run the step on the newer version first.
+Going forward never needs one of these. Going **back** is the other way round: **from 2.763 on, back only through a backup.**
+Since 2.763 (#5269, the first stage of the shared core) many releases move data one way - into the shared core, into real
+column types, into one search index - and drop the old tables or columns. Each such release raises the database's limit
+(`back_floor` in the table `kalmido_meta`, only ever raised); an older image refuses to start below it and names the limit and
+the reason (emergency only: `KALMIDO_ALLOW_DOWNGRADE=1`, which starts it on data it does not fully know). Its CHANGELOG entry
+names the one-way step. To go back below such a release, restore a backup made before the update; there is no step that turns
+the data back. Going back to the version right before an update (the automatic rollback after a failed update, an operator who
+keeps the previous image) works while that update raised no limit.
 
-| Back to | Run first (`docker compose exec -T kalmido python -m kalmido.admin.orgcrypt_cli …`) |
-|---|---|
-| below 2.42 | `decrypt-all` |
-| below 2.64 | `decrypt-private` |
-| 2.122 or older | `decrypt-wiki` (only after `encrypt-wiki`) |
-| 2.125 or older | `docs-to-server-key` |
-
-**Never go back below 2.149.** Those versions have no start check: on a newer database they start without a word (only a
-note about row security) and do not know what came later, such as the closed periods of the office. Every database keeps
-this limit (`back_floor` in the table `kalmido_meta`), and every version from 2.359.3 on refuses to start below the limit
-of its database and names the step (emergency only: `KALMIDO_ALLOW_DOWNGRADE=1`). A later limit is added to this list and
-to `BACK_LIMITS` in `kalmido/core/db.py` in the same release.
-
-**Column types (2.1095, 2.1101, 2.1111, 2.1115, 2.1118):** these releases turned old text and number columns into real time,
-JSON and yes / no types. Each one sets the database's limit to its own version (the highest is 2.1118). Since 2.1251 a later
-version that changes nothing in the data leaves the limit where it is, so the one step back (also the automatic rollback
-after a failed update) starts again. Before 2.1251 every start raised the limit to the version that started; such a raised
-limit stays (a limit never goes down), from the next update on the step back works.
-
-**Shared core, stage 7 (team chat, calendars, address books):** the first start of the version with this step copies the old
-member rows into the shared core and then deletes the old member tables. From then on the database refuses every older
-version (its limit is the version that deleted them, it names the reason): an older version would create the tables empty
-again and take every member's access. The way back is a newer version or a backup from before the update.
-
-**Never go back before the release with package 2.972** (the CHANGELOG names it): its first start moves the comments of tasks
-into one shared table (`obj_comments`) and the watchers and bells of tasks into `obj_follow`, drops the old tables and raises
-the database's limit to the minor of that release (like stage 7 above). An older version would make the old tables again empty
-and write there what the next start of the newer version could not take over. Go back only by restoring a backup made before
-the update.
-
-**Never go back before the release with package 2.981** (the CHANGELOG names it): its first start moves the bells of projects
-into `obj_follow` and the owners' notification templates of projects and folders into `obj_notif_cap`, drops `list_bell`,
-`list_notif` and `folder_notif`, builds one shared search index (`obj_search`) for tasks, comments, notes, contacts, the names of
-knowledge pages and messages, drops the old search tables (`task_fts`, `cmt_fts`), the trigram indexes and the column
-`contacts.search`, and raises the database's limit to the minor of that release. An older version would make the old tables
-again empty (no project bells, every share back on the default template "Read-only") and write contacts into the dropped column.
-Go back only by restoring a backup made before the update. The first start reads every text once to build the search index (a
-large instance: a few minutes).
-
-The same release's first start also moves the comments of video / picture reviews and
-the notes on documents into the same shared table (`obj_comments`), drops the old tables and raises the database's limit to the
-minor of that release. An older version would make them again empty. Go back only by restoring a backup made before the update. It also moves the kept texts of deleted team chat messages into the comments' trash
-(`obj_comment_trash`, which gets a kind and a new key) and drops `tchat_trash_text`.
-
-**Never go back before the release with package 2.1002** (the CHANGELOG names it): its first start copies the keyed word
-indexes of documents, recognised file texts, knowledge pages and filed mails (`doc_words`, `file_words`, `wiki_words`,
-`hub_words`) into one shared table (`obj_search_words`), drops the four old tables and raises the database's limit to the
-minor of that release. An older version would make them again empty and find nothing in those texts. Go back only by restoring
-a backup made before the update. The search works at once with the copied entries; in the background the server indexes every
-such text once more by the new rules (umlauts with ae / oe / ue, short word starts) - a large instance: some minutes to hours.
+Older releases had steps by hand before going back (`decrypt-all` below 2.42, `decrypt-private` below 2.64, `decrypt-wiki` and
+`docs-to-server-key` to 2.125 or older); from 2.763 or newer, going back that far goes through a backup of that time anyway. **Never go back below 2.149:** those versions have no start check at all and would run on a newer database without a
+word (`BACK_LIMITS` in `kalmido/core/db.py`); every version from 2.359.3 on refuses to start below the limit of its database.

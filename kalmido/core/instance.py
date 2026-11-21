@@ -56,6 +56,16 @@ def semver(v):
     return tuple(int(x) for x in m.groups()) if m else None
 
 
+# (#6616, audit #4817): the one place that says what an update across several versions needs (the oldest version to update
+# from, the steps by hand, the way back); the update hint points there when more than one minor lies between
+UPGRADING_URL = "https://github.com/Kalmido/kalmido/blob/main/docs/UPGRADING.md"
+
+
+def update_jump(latest, cur):
+    """(#6616): True when the release latest is more than one minor (or a major) ahead of cur (both semver tuples)."""
+    return bool(latest and cur and latest > cur and (latest[0] > cur[0] or latest[1] - cur[1] > 1))
+
+
 def update_enabled(c):
     return UPDATE_CHECK_ENV and gsetting(c, "update_check") != "0"
 
@@ -90,6 +100,7 @@ def about_info(c, u):
                  checked_at=info.get("checked_at") or "", latest=info.get("latest") or "", error=info.get("error") or "",
                  url=info.get("url") or "", available=bool(update_enabled(c) and latest and cur and latest > cur),
                  update_action=str(info.get("action") or "") if latest and cur and latest > cur else "",  # 2.622.0 D (#4514)
+                 update_jump=update_jump(latest, cur), upgrading_url=UPGRADING_URL,  # (#6616)
                  cal_on=CAL_ON, cal_allow_hosts=gsetting(c, "cal_allow_hosts"),
                  allow_hosts_by_purpose=allow_by_purpose(c),  # 2.380 G (#3389): one line per purpose in the admin settings
                  cal_allow_env=cal_allow_text(cal_allow_parse(CAL_ALLOW_ENV)[0]),
@@ -190,7 +201,10 @@ def update_check(c, force=False):
             # 2.1179.0 C (#2898): back up first; a release with an "Action needed" section (update_action) needs a step by hand
             aa_now("update", "update:" + new["latest"],
                    N_("Kalmido {0} needs a step by hand (installed: {1}): read the release notes and back up first. Nothing is installed automatically.")
-                   if new.get("action") else N_("Kalmido {0} is available (installed: {1}). Back up first. Nothing is installed automatically."),
+                   if new.get("action") else
+                   # (#6616): more than one minor ahead: the hint names docs/UPGRADING.md (oldest version, steps, the way back)
+                   N_("Kalmido {0} is available (installed: {1}), several versions ahead: read docs/UPGRADING.md. Back up first. Nothing is installed automatically.")
+                   if update_jump(latest, cur) else N_("Kalmido {0} is available (installed: {1}). Back up first. Nothing is installed automatically."),
                    [new["latest"], APP_VERSION], click=new.get("url") or None)
             gset(c, "aa_update_notified", new["latest"])
             c.commit()
