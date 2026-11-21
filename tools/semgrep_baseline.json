@@ -792,14 +792,6 @@
   },
   {
    "rule": "semgrep.kalmido-sql-ident-without-qi",
-   "file": "kalmido/calendars/polls.py",
-   "code": "c.execute(f\"UPDATE sched_polls SET {','.join(k + '=?' for k in sets)} WHERE id=?\", [*sets.values(), r[\"id\"]])",
-   "reason": "Existing SQL text before qi() (#5296): the interpolated name comes from fixed code, a registry or the schema, never from a request; listed, not rewritten (decision 08.11.2026); a touched place moves to qi().",
-   "date": "2026-11-09",
-   "task": 5296
-  },
-  {
-   "rule": "semgrep.kalmido-sql-ident-without-qi",
    "file": "kalmido/calendars/subscriptions.py",
    "code": "c.execute(f\"UPDATE cal_subs SET {', '.join(k + '=?' for k in upd)} WHERE id=? AND user_id=?\", (*upd.values(), sid, me()))",
    "reason": "Existing SQL text before qi() (#5296): the interpolated name comes from fixed code, a registry or the schema, never from a request; listed, not rewritten (decision 08.11.2026); a touched place moves to qi().",
@@ -1029,14 +1021,6 @@
    "rule": "semgrep.kalmido-sql-ident-without-qi",
    "file": "kalmido/core/db.py",
    "code": "for r in c.execute(f\"SELECT {idc}, {', '.join(cols)} FROM {t}\").fetchall(): # (init_db: the columns exist)",
-   "reason": "Existing SQL text before qi() (#5296): the interpolated name comes from fixed code, a registry or the schema, never from a request; listed, not rewritten (decision 08.11.2026); a touched place moves to qi().",
-   "date": "2026-11-09",
-   "task": 5296
-  },
-  {
-   "rule": "semgrep.kalmido-sql-ident-without-qi",
-   "file": "kalmido/core/db.py",
-   "code": "n += c.execute(f\"\"\"UPDATE {table} t SET brought_by=m.by_id FROM",
    "reason": "Existing SQL text before qi() (#5296): the interpolated name comes from fixed code, a registry or the schema, never from a request; listed, not rewritten (decision 08.11.2026); a touched place moves to qi().",
    "date": "2026-11-09",
    "task": 5296

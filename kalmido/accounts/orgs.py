@@ -670,8 +670,6 @@ def list_org_set(c, lid, v):
                                AND grole IS NULL) ORDER BY user_id""", (lid,)).fetchall():
         ws_check_member(c, lid, uid, org_id=oid or 0)
     c.execute("UPDATE lists SET org_id=? WHERE id=?", (oid, lid))
-    # 2.361.0 (#2922): who brought it in from the private space (it goes back there when that person leaves, org_leave)
-    c.execute("UPDATE lists SET brought_by=? WHERE id=?", (me() if oid and not lr["org_id"] else None, lid))
     from ..lists.groups import grp_sync
     grp_sync(c, [lid])  # 2.352.0 A (#2748): its node into the new workspace's projects tree, the old folders' roles end
     boundary = ol_client_fit(c, lid, oid)  # 2.86.0 (N11): a client of another workspace does not travel along (as list_client_set refuses it)
@@ -1756,7 +1754,7 @@ def ol_private(c, lid, uid):
     of the organisation stays behind, the organisation's agents leave it (uid's own agents follow uid), its files get the
     owner's account key after the request."""
     old = c.execute("SELECT org_id FROM lists WHERE id=?", (lid,)).fetchone()[0]
-    c.execute("UPDATE lists SET org_id=NULL, brought_by=NULL WHERE id=?", (lid,))
+    c.execute("UPDATE lists SET org_id=NULL WHERE id=?", (lid,))
     c.execute("DELETE FROM reading_orgs WHERE list_id=?", (lid,))  # 2.172.1 (#2689)
     # 2.86.0 (N11) + 2.401.0 (#2924): as list_org_set, its customer reports and bells go along
     list_space_follow(c, lid, old, ol_client_fit(c, lid, None))
@@ -1768,15 +1766,6 @@ def ol_private(c, lid, uid):
     obj_settle(c, "list", lid)  # 2.568.0 (#4739, review F1): the organisation agents' own rows of the core go with them (restorable)
     from ..admin.orgcrypt_cli import oc_settle_kick
     oc_settle_kick([lid])  # 2.64.0 (#1864): its files get the owner's account key
-
-
-def ol_back_log(c, oid, lr):
-    """2.361.0 (#2922, review): a brought-in list that went back private is in the admins' history (as org_out's moves out)
-    and told to the organisation's admins (News orglist moveout)."""
-    from .orgout import oo_note
-    with system_ctx(c):
-        real = (c.execute("SELECT name FROM orgs WHERE id=?", (oid,)).fetchone() or [""])[0]
-    oo_note(c, oid, real, "list", lr["name"], lr["id"], back=True)
 
 
 def org_agents_out(c, oid, uid, person=False):
@@ -1801,27 +1790,21 @@ def org_agents_out(c, oid, uid, person=False):
     return ags
 
 
-def org_leave(c, oid, uid, heir, back=None):
+def org_leave(c, oid, uid, heir):
     """uid leaves organisation oid: their lists of that workspace go to heir (an organisation admin), uid leaves every list
     of the organisation (members and the agents it owns there stay with the lists), their personal agents of that workspace
-    become private. 2.361.0 (#2922): a list uid brought in from the private space (lists.brought_by) goes back there instead
-    (its id appended to back), 2.365.1 (#3395) and so does what else they brought in (accounts/orgback.py, [kind, id] appended).
-    The caller commits. Returns the number of lists transferred."""
+    become private. Decision #935 (back with #6840): what uid brought in from the private space stays with the organisation
+    too (lists to the heir, tables, files, knowledge pages ... where they are); only private lists stay uid's. The caller
+    commits. Returns the number of lists transferred."""
     from ..lists.ownership import owner_transfer
-    from .orgleave import OLV_AREAS, olv_memo, olv_snap
+    from .orgleave import olv_memo, olv_snap
     if heir and heir != uid:
         ws_check_owner(c, oid, heir)  # 2.538.0 (#4371): every caller's heir is a member / admin of the organisation (409)
     snap = olv_snap(c, oid, uid)  # 2.363.3 (#3133): what the end of the membership takes away, for coming back within a day
     was_admin = c.execute("SELECT 1 FROM org_members WHERE org_id=? AND user_id=? AND role='admin'", (oid, uid)).fetchone()  # 2.539.0 (#4373)
     n, priv = 0, []
     for lr in c.execute("SELECT * FROM lists WHERE owner_id=? AND org_id=? AND NOT is_inbox", (uid, oid)).fetchall():
-        if lr["brought_by"] == uid and not lr["deleted_at"]:
-            ol_private(c, lr["id"], uid)
-            priv.append(lr["id"])
-            ol_back_log(c, oid, lr)
-            if back is not None:
-                back.append(lr["id"])
-        elif heir and heir != uid:
+        if heir and heir != uid:
             owner_transfer(c, lr, heir, force=True)  # 2.64.1 (#1817): a list with the lock too (the heir waits for its key)
             c.execute("DELETE FROM list_members WHERE list_id=? AND user_id=?", (lr["id"], uid))
             from .orglists import _ol_log
@@ -1840,7 +1823,6 @@ def org_leave(c, oid, uid, heir, back=None):
     if priv:  # 2.352.0 F (#2748, review N3): the lists now private leave the organisation's tree, its folders' roles end
         from ..lists.groups import grp_sync
         grp_sync(c, priv)
-    OLV_AREAS["home"](c, oid, uid, back)  # 2.365.1 (#3395): after the lists: what hangs at a project that went back stays attached
     # 2.473.0 (#3357): watching without a membership ends the same way (a list open to the organisation) -- 2.972.0 (#5285):
     # person_revoked 'leave' below takes every row of obj_follow of them and their agents in the organisation
     # 2.83.0 (#1725): tasks assigned without joining (a list everyone in the organisation may edit)
@@ -1924,8 +1906,7 @@ def org_member_remove(oid, uid):
         acx_drop()
         heir = operator
     oname = c.execute("SELECT name FROM orgs WHERE id=?", (oid,)).fetchone()[0]  # 2.37.0 (#1150): before leaving it (then invisible)
-    back = []
-    n = org_leave(c, oid, uid, heir, back=back)  # 2.361.0 (#2922): what the person brought in goes back to their private space
+    n = org_leave(c, oid, uid, heir)  # (#935, #6840): what the person brought in stays with the organisation
     from ..collab.news import news_add
     if operator:
         news_add(c, operator, "share", list_id=None, data={"org": True, "name": oname, "role": "admin", "handover": n, "org_id": oid}, actor=uid)  # 2.540.0 (#4383)
@@ -1933,12 +1914,11 @@ def org_member_remove(oid, uid):
     if uid != me():
         from ..collab.comments import user_names
         # 2.148.1 A (#2480): the person learns that their lists of the organisation stayed with it (and with whom)
-        news_add(c, uid, "unshare", list_id=None, data={"org": True, "name": oname, "org_id": oid, **({"lists": n, "to": user_names(c, [heir]).get(heir, "")} if n else {}),
-                                                        **({"back": len(back)} if back else {})})  # 2.361.0 (#2922)
+        news_add(c, uid, "unshare", list_id=None, data={"org": True, "name": oname, "org_id": oid, **({"lists": n, "to": user_names(c, [heir]).get(heir, "")} if n else {})})
     bump(c)
     c.commit()
     print("organisation", oid, "member", uid, "removed by" if uid != me() else "left,", login_log_who(g.user), "lists transferred:", n, flush=True)
-    return jsonify(ok=True, transferred=n, back=len(back))
+    return jsonify(ok=True, transferred=n)
 
 
 def org_warm(c, uid):

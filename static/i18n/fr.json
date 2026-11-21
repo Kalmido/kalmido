@@ -15188,8 +15188,6 @@
   "Like the workspace ({0})": "Comme l’espace ({0})",
   "Default of the workspace": "Par défaut de l’espace",
   "Only admins of this workspace can decide on holiday requests": "Seuls les admins de cet espace de travail peuvent statuer sur les demandes de congés",
-  "Back to your private workspace (you brought them in): {0}": "Retour dans ton espace privé (apporté par toi) : {0}",
-  "Back to the person’s private workspace (brought in by them): {0}": "Retour dans l’espace privé de la personne (apporté par elle) : {0}",
   "{0} holiday account": ["{0} compte de congés", "{0} comptes de congés"],
   "A helper program on your computer fetches invoices from portals like Amazon and uploads them as PDFs into these documents; they are recognised like any upload. You sign in to the portals only in the helper: Kalmido never stores passwords, cookies or sign-ins.": "Un programme d’aide sur ton ordinateur récupère les factures de portails comme Amazon et les dépose en PDF dans ces documents ; elles sont reconnues comme tout envoi. Tu te connectes aux portails uniquement dans le programme : Kalmido n’enregistre jamais de mots de passe, de cookies ni d’identifiants.",
   "Absences and holiday": "Absences et congés",
@@ -15443,11 +15441,7 @@
   "Work with them": "Travailler avec eux",
   "Give them tasks in your projects or write to them in the chat.": "Confie-leur des tâches dans tes projets ou écris-leur dans le chat.",
   "Show more introductions": "Afficher d’autres présentations",
-  "Back to your private workspace too: {0}": "Retourne aussi dans ton espace privé : {0}",
-  "Back to the person’s private workspace too: {0}": "Retourne aussi dans l’espace privé de la personne : {0}",
   "{0} item you had brought in is back in your private workspace.": ["{0} élément que tu avais apporté est de retour dans ton espace privé.", "{0} éléments que tu avais apportés sont de retour dans ton espace privé."],
-  "{0} item you brought in cannot go back by itself and stays. Ask an admin to release it before you leave.": ["{0} élément apporté ne peut pas revenir seul et reste. Demande à un admin de le libérer avant de partir.", "{0} éléments apportés ne peuvent pas revenir seuls et restent. Demande à un admin de les libérer avant de partir."],
-  "{0} item the person brought in cannot go back by itself and stays.": ["{0} élément apporté par la personne ne peut pas revenir seul et reste.", "{0} éléments apportés par la personne ne peuvent pas revenir seuls et restent."],
   "France": "France",
   "Spain": "Espagne",
   "Italy": "Italie",
@@ -19733,5 +19727,6 @@
   "Off: scripts with a personal token only read focus sessions and their statistics. On: they may also start, pause, resume and stop them. Agents never reach focus sessions.": "Désactivé : les scripts avec un jeton personnel lisent seulement les sessions de focus et leurs statistiques. Activé : ils peuvent aussi les démarrer, les mettre en pause, les reprendre et les arrêter. Les agents n’accèdent jamais aux sessions de focus.",
   "Focus sessions can only be read through the API on this server: an admin can allow starting and stopping them under Settings > Server > Server > Whole server": "Sur ce serveur, les sessions de focus ne peuvent être que lues via l’API : un administrateur peut autoriser leur démarrage et leur arrêt dans Paramètres > Serveur > Serveur > Tout le serveur",
   "{0} line": ["{0} ligne", "{0} lignes"],
-  "The {0} is too long (max. {1} characters): put long text such as SQL or a log into details": "Le champ {0} est trop long (max. {1} caractères) : mets le texte long, comme du SQL ou un journal, dans details"
+  "The {0} is too long (max. {1} characters): put long text such as SQL or a log into details": "Le champ {0} est trop long (max. {1} caractères) : mets le texte long, comme du SQL ou un journal, dans details",
+  "What you brought in from your private workspace stays in the organisation too. To take something along, ask an admin to release it before you leave.": "Ce que tu as apporté de ton espace de travail privé reste aussi dans l’organisation. Pour emporter quelque chose, demande à un administrateur de le libérer avant de partir."
 }

@@ -200,8 +200,8 @@ def wiki_move_space():
     try:
         with c.savepoint():
             for r, n in moves + tmoves:
-                c.execute("UPDATE wiki_pages SET org_id=?, owner_id=?, path=?, updated_by=?, updated_at=?, brought_by=? WHERE id=?",
-                          (to, None if to else uid, n, uid, ts, uid if to and not src else None, r["id"]))  # 2.365.1 (#3395): accounts/orgback.py
+                c.execute("UPDATE wiki_pages SET org_id=?, owner_id=?, path=?, updated_by=?, updated_at=? WHERE id=?",
+                          (to, None if to else uid, n, uid, ts, r["id"]))
     except IntegrityError:
         c.rollback()  # 2.361.2 (#2923, review): nothing of the move stays, also not the used release
         return jsonify(error=tr("A page with this name already exists"), taken=[]), 409
@@ -238,18 +238,6 @@ def wiki_move_space():
                               moved=[{"id": r["id"], "from": r["path"], "to": n} for r, n in moves]))
 
 
-
-def wkm_home_rows(c, oid, uid):
-    """2.365.1 (#3395): (the pages uid brought into organisation oid that go back with them, how many stay): nothing with a lock
-    on either side (the server cannot encrypt them again; that way back is the request, the browser re-encrypts)."""
-    from .wkhist import wsb_body_or
-    rows = c.execute("SELECT * FROM wiki_pages WHERE org_id=? AND brought_by=? AND deleted_at IS NULL ORDER BY id", (oid, uid)).fetchall()
-    if rows and (wke_mode(c, oid, uid)[0] or wke_mode(c, None, uid)[0]):
-        return [], len(rows)
-    go = [r for r in rows if wsb_body_or(c, r, None) is not None][:SMV_MAX]  # a text that cannot be opened stays
-    return go, len(rows) - len(go)
-
-
 def wkm_free(path, taken):
     """path, or "path (2)" ... when taken (lower-case paths; the name found is added)."""
     n, i = path, 1
@@ -279,7 +267,7 @@ def wkm_place(c, oid, owner, uid, rows, new_paths, old_paths, strict=True):
     # UPDATE below and wka_move_files wrote the page, then its files -- the trash (obj_trash) takes the files first
     obj_kids_first(c, WKK_KIND, ids)
     for r, n in moves:
-        c.execute("UPDATE wiki_pages SET org_id=NULL, owner_id=?, path=?, updated_by=?, updated_at=?, brought_by=NULL WHERE id=?", (uid, n, uid, ts, r["id"]))
+        c.execute("UPDATE wiki_pages SET org_id=NULL, owner_id=?, path=?, updated_by=?, updated_at=? WHERE id=?", (uid, n, uid, ts, r["id"]))
     wka_move_files(c, ids, None, uid, new_paths, old_paths, strict=strict)  # 2.528.0 (#4306 B25): strict = a broken file stops it
     wsh_end_moved(c, oid, owner, [r["path"] for r in rows], pids=[r["id"] for r in rows])  # 2.1145.0 (#6062)
     wkh_move(c, rows, None, uid)
@@ -289,18 +277,6 @@ def wkm_place(c, oid, owner, uid, rows, new_paths, old_paths, strict=True):
         wiki_set_links(c, r["id"], nb)  # 2.1284.0 (#6321): only follows
     wkf_drop(c, ids)
     return moves
-
-
-def wkm_home(c, oid, uid, rows, new_paths, old_paths):
-    """2.365.1 (#3395): pages rows (wkm_home_rows) go back into uid's private space: what wiki_move_space does, without the
-    dialog (wkm_place). The caller commits."""
-    from .wkfolder import wkf_sync
-    moves = wkm_place(c, oid, None, uid, rows, new_paths, old_paths)
-    ts = iso_ms(now_utc())
-    for r, n in moves:
-        c.execute("INSERT INTO space_moves(kind,obj_id,from_org,to_org,by_id,at,detail) VALUES('wiki',?,?,NULL,?,?,?)",
-                  (r["id"], oid, uid, ts, json.dumps({"from": r["path"], "to": n}, ensure_ascii=False)))
-    wkf_sync(c, uid, None)
 
 
 # ---------------------------------------------------------------- 2.97.0 D (#2050): moves with a space with the lock
@@ -447,9 +423,8 @@ def wkr_move(c, uid, src, to, b, dry):
             for r in rows:
                 p, t = got[r["id"]]
                 attrs = "{}" if tst["mode"] else json.dumps(wiki_frontmatter(t), ensure_ascii=False)
-                c.execute("UPDATE wiki_pages SET org_id=?, owner_id=?, path=?, body=?, attrs=?, updated_by=?, updated_at=?, brought_by=? WHERE id=?",
-                          (to, None if to else uid, p, t if tst["mode"] else wkh_seal(c, to, None if to else uid, t), attrs, uid, ts,
-                           uid if to and not src else None, r["id"]))  # 2.365.1 (#3395)
+                c.execute("UPDATE wiki_pages SET org_id=?, owner_id=?, path=?, body=?, attrs=?, updated_by=?, updated_at=? WHERE id=?",
+                          (to, None if to else uid, p, t if tst["mode"] else wkh_seal(c, to, None if to else uid, t), attrs, uid, ts, r["id"]))
     except IntegrityError:
         c.rollback()
         return jsonify(error=tr("A page with this name already exists"), taken=[]), 409
