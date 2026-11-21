@@ -1,0 +1,72 @@
+{
+  "de": {
+    "This export comes from Kalmido {0}, this server runs {1}. Update this server to version {0} or newer first, then import the file.": "Dieser Export stammt aus Kalmido {0}, dieser Server läuft mit {1}. Aktualisiere den Server zuerst auf Version {0} oder neuer und importiere die Datei dann.",
+    "This export comes from Kalmido {0}, this server runs {1}. It can be imported here as soon as this server runs {0} or newer.": "Dieser Export stammt aus Kalmido {0}, dieser Server läuft mit {1}. Er lässt sich hier importieren, sobald der Server mit {0} oder neuer läuft.",
+    "{1} entries in {0} have no valid value in a required field and were not imported": "{1} Einträge in {0} haben in einem Pflichtfeld keinen gültigen Wert und wurden nicht importiert",
+    "{1} entries in {0} have an amount with more than two decimal places or no number and were not imported": "{1} Einträge in {0} haben einen Betrag mit mehr als zwei Nachkommastellen oder keine Zahl und wurden nicht importiert",
+    "Whose office? Invoices and clients belong to one workspace each.": "Wessen Büro? Rechnungen und Kunden gehören je zu einem Arbeitsbereich.",
+    "Whose tables? Each table belongs to one workspace.": "Wessen Tabellen? Jede Tabelle gehört zu einem Arbeitsbereich.",
+    "Whose pages? Each knowledge page belongs to one workspace.": "Wessen Seiten? Jede Wissensseite gehört zu einem Arbeitsbereich.",
+    "Whose files? Each file belongs to one workspace.": "Wessen Dateien? Jede Datei gehört zu einem Arbeitsbereich.",
+    "Whose list? Each workspace keeps its own read-later list.": "Wessen Liste? Jeder Arbeitsbereich hat seine eigene Später-lesen-Liste.",
+    "Several versions lie between: read the upgrade guide first (oldest version to update from, steps by hand, the way back).": "Dazwischen liegen mehrere Versionen: lies zuerst die Update-Anleitung (älteste Version für ein Update, Schritte von Hand, der Weg zurück).",
+    "Upgrade guide": "Update-Anleitung",
+    "Kalmido {0} is available (installed: {1}), several versions ahead: read docs/UPGRADING.md. Back up first. Nothing is installed automatically.": "Kalmido {0} ist verfügbar (installiert: {1}), mehrere Versionen weiter: lies docs/UPGRADING.md. Zuerst sichern. Es wird nichts automatisch installiert."
+  },
+  "es": {
+    "This export comes from Kalmido {0}, this server runs {1}. Update this server to version {0} or newer first, then import the file.": "Esta exportación procede de Kalmido {0}; este servidor ejecuta {1}. Actualiza primero el servidor a la versión {0} o posterior y luego importa el archivo.",
+    "This export comes from Kalmido {0}, this server runs {1}. It can be imported here as soon as this server runs {0} or newer.": "Esta exportación procede de Kalmido {0}; este servidor ejecuta {1}. Podrá importarse aquí en cuanto este servidor ejecute {0} o posterior.",
+    "{1} entries in {0} have no valid value in a required field and were not imported": "{1} entradas en {0} no tienen un valor válido en un campo obligatorio y no se importaron",
+    "{1} entries in {0} have an amount with more than two decimal places or no number and were not imported": "{1} entradas en {0} tienen un importe con más de dos decimales o que no es un número y no se importaron",
+    "Whose office? Invoices and clients belong to one workspace each.": "¿De quién es la oficina? Facturas y clientes pertenecen cada uno a un espacio de trabajo.",
+    "Whose tables? Each table belongs to one workspace.": "¿De quién son las tablas? Cada tabla pertenece a un espacio de trabajo.",
+    "Whose pages? Each knowledge page belongs to one workspace.": "¿De quién son las páginas? Cada página de conocimiento pertenece a un espacio de trabajo.",
+    "Whose files? Each file belongs to one workspace.": "¿De quién son los archivos? Cada archivo pertenece a un espacio de trabajo.",
+    "Whose list? Each workspace keeps its own read-later list.": "¿De quién es la lista? Cada espacio de trabajo tiene su propia lista para leer más tarde.",
+    "Several versions lie between: read the upgrade guide first (oldest version to update from, steps by hand, the way back).": "Hay varias versiones de por medio: lee primero la guía de actualización (versión más antigua desde la que actualizar, pasos manuales, cómo volver atrás).",
+    "Upgrade guide": "Guía de actualización",
+    "Kalmido {0} is available (installed: {1}), several versions ahead: read docs/UPGRADING.md. Back up first. Nothing is installed automatically.": "Kalmido {0} está disponible (instalada: {1}), varias versiones por delante: lee docs/UPGRADING.md. Haz primero una copia de seguridad. No se instala nada automáticamente."
+  },
+  "fr": {
+    "This export comes from Kalmido {0}, this server runs {1}. Update this server to version {0} or newer first, then import the file.": "Cette exportation provient de Kalmido {0}, ce serveur exécute {1}. Mets d'abord ce serveur à jour vers la version {0} ou plus récente, puis importe le fichier.",
+    "This export comes from Kalmido {0}, this server runs {1}. It can be imported here as soon as this server runs {0} or newer.": "Cette exportation provient de Kalmido {0}, ce serveur exécute {1}. Elle pourra être importée ici dès que ce serveur exécutera {0} ou plus récent.",
+    "{1} entries in {0} have no valid value in a required field and were not imported": "{1} entrées dans {0} n'ont pas de valeur valide dans un champ obligatoire et n'ont pas été importées",
+    "{1} entries in {0} have an amount with more than two decimal places or no number and were not imported": "{1} entrées dans {0} ont un montant avec plus de deux décimales ou qui n'est pas un nombre et n'ont pas été importées",
+    "Whose office? Invoices and clients belong to one workspace each.": "Quel bureau ? Les factures et les clients appartiennent chacun à un espace de travail.",
+    "Whose tables? Each table belongs to one workspace.": "Quelles tables ? Chaque table appartient à un espace de travail.",
+    "Whose pages? Each knowledge page belongs to one workspace.": "Quelles pages ? Chaque page de connaissances appartient à un espace de travail.",
+    "Whose files? Each file belongs to one workspace.": "Quels fichiers ? Chaque fichier appartient à un espace de travail.",
+    "Whose list? Each workspace keeps its own read-later list.": "Quelle liste ? Chaque espace de travail a sa propre liste à lire plus tard.",
+    "Several versions lie between: read the upgrade guide first (oldest version to update from, steps by hand, the way back).": "Plusieurs versions séparent les deux : lis d'abord le guide de mise à jour (version la plus ancienne depuis laquelle mettre à jour, étapes manuelles, retour en arrière).",
+    "Upgrade guide": "Guide de mise à jour",
+    "Kalmido {0} is available (installed: {1}), several versions ahead: read docs/UPGRADING.md. Back up first. Nothing is installed automatically.": "Kalmido {0} est disponible (installé : {1}), plusieurs versions plus loin : lis docs/UPGRADING.md. Sauvegarde d'abord. Rien n'est installé automatiquement."
+  },
+  "it": {
+    "This export comes from Kalmido {0}, this server runs {1}. Update this server to version {0} or newer first, then import the file.": "Questa esportazione proviene da Kalmido {0}, questo server usa {1}. Aggiorna prima il server alla versione {0} o successiva, poi importa il file.",
+    "This export comes from Kalmido {0}, this server runs {1}. It can be imported here as soon as this server runs {0} or newer.": "Questa esportazione proviene da Kalmido {0}, questo server usa {1}. Potrà essere importata qui non appena il server userà {0} o successiva.",
+    "{1} entries in {0} have no valid value in a required field and were not imported": "{1} voci in {0} non hanno un valore valido in un campo obbligatorio e non sono state importate",
+    "{1} entries in {0} have an amount with more than two decimal places or no number and were not imported": "{1} voci in {0} hanno un importo con più di due decimali o non numerico e non sono state importate",
+    "Whose office? Invoices and clients belong to one workspace each.": "Di chi è l'ufficio? Fatture e clienti appartengono ciascuno a uno spazio di lavoro.",
+    "Whose tables? Each table belongs to one workspace.": "Di chi sono le tabelle? Ogni tabella appartiene a uno spazio di lavoro.",
+    "Whose pages? Each knowledge page belongs to one workspace.": "Di chi sono le pagine? Ogni pagina di conoscenza appartiene a uno spazio di lavoro.",
+    "Whose files? Each file belongs to one workspace.": "Di chi sono i file? Ogni file appartiene a uno spazio di lavoro.",
+    "Whose list? Each workspace keeps its own read-later list.": "Di chi è la lista? Ogni spazio di lavoro ha la sua lista da leggere più tardi.",
+    "Several versions lie between: read the upgrade guide first (oldest version to update from, steps by hand, the way back).": "Ci sono diverse versioni di mezzo: leggi prima la guida all'aggiornamento (versione più vecchia da cui aggiornare, passi manuali, come tornare indietro).",
+    "Upgrade guide": "Guida all'aggiornamento",
+    "Kalmido {0} is available (installed: {1}), several versions ahead: read docs/UPGRADING.md. Back up first. Nothing is installed automatically.": "Kalmido {0} è disponibile (installata: {1}), diverse versioni più avanti: leggi docs/UPGRADING.md. Esegui prima un backup. Nulla viene installato automaticamente."
+  },
+  "nl": {
+    "This export comes from Kalmido {0}, this server runs {1}. Update this server to version {0} or newer first, then import the file.": "Deze export komt uit Kalmido {0}, deze server draait {1}. Werk deze server eerst bij naar versie {0} of nieuwer en importeer het bestand daarna.",
+    "This export comes from Kalmido {0}, this server runs {1}. It can be imported here as soon as this server runs {0} or newer.": "Deze export komt uit Kalmido {0}, deze server draait {1}. Hij kan hier worden geïmporteerd zodra deze server {0} of nieuwer draait.",
+    "{1} entries in {0} have no valid value in a required field and were not imported": "{1} items in {0} hebben geen geldige waarde in een verplicht veld en zijn niet geïmporteerd",
+    "{1} entries in {0} have an amount with more than two decimal places or no number and were not imported": "{1} items in {0} hebben een bedrag met meer dan twee decimalen of geen getal en zijn niet geïmporteerd",
+    "Whose office? Invoices and clients belong to one workspace each.": "Wiens kantoor? Facturen en klanten horen elk bij één werkruimte.",
+    "Whose tables? Each table belongs to one workspace.": "Wiens tabellen? Elke tabel hoort bij één werkruimte.",
+    "Whose pages? Each knowledge page belongs to one workspace.": "Wiens pagina's? Elke kennispagina hoort bij één werkruimte.",
+    "Whose files? Each file belongs to one workspace.": "Wiens bestanden? Elk bestand hoort bij één werkruimte.",
+    "Whose list? Each workspace keeps its own read-later list.": "Wiens lijst? Elke werkruimte heeft een eigen lijst om later te lezen.",
+    "Several versions lie between: read the upgrade guide first (oldest version to update from, steps by hand, the way back).": "Er liggen meerdere versies tussen: lees eerst de upgradehandleiding (oudste versie om vanaf bij te werken, handmatige stappen, de weg terug).",
+    "Upgrade guide": "Upgradehandleiding",
+    "Kalmido {0} is available (installed: {1}), several versions ahead: read docs/UPGRADING.md. Back up first. Nothing is installed automatically.": "Kalmido {0} is beschikbaar (geïnstalleerd: {1}), meerdere versies verder: lees docs/UPGRADING.md. Maak eerst een back-up. Er wordt niets automatisch geïnstalleerd."
+  }
+}

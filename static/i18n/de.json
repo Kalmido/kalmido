@@ -19706,17 +19706,5 @@
   "documents from templates": "Dokumente aus Vorlagen",
   "invoice series": "Rechnungsserien",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "Der Kunde dieses Dokuments ist nicht mehr in diesem Büro (in einen anderen Arbeitsbereich umgezogen). Wähle zuerst einen anderen Kunden.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Der Kunde der Vorlage-Rechnung ist nicht mehr in diesem Büro (in einen anderen Arbeitsbereich umgezogen). Wähle eine andere Vorlage-Rechnung und schalte die Serie wieder ein.",
-  "This export comes from Kalmido {0}, this server runs {1}. Update this server to version {0} or newer first, then import the file.": "Dieser Export stammt aus Kalmido {0}, dieser Server läuft mit {1}. Aktualisiere den Server zuerst auf Version {0} oder neuer und importiere die Datei dann.",
-  "This export comes from Kalmido {0}, this server runs {1}. It can be imported here as soon as this server runs {0} or newer.": "Dieser Export stammt aus Kalmido {0}, dieser Server läuft mit {1}. Er lässt sich hier importieren, sobald der Server mit {0} oder neuer läuft.",
-  "{1} entries in {0} have no valid value in a required field and were not imported": "{1} Einträge in {0} haben in einem Pflichtfeld keinen gültigen Wert und wurden nicht importiert",
-  "{1} entries in {0} have an amount with more than two decimal places or no number and were not imported": "{1} Einträge in {0} haben einen Betrag mit mehr als zwei Nachkommastellen oder keine Zahl und wurden nicht importiert",
-  "Whose office? Invoices and clients belong to one workspace each.": "Wessen Büro? Rechnungen und Kunden gehören je zu einem Arbeitsbereich.",
-  "Whose tables? Each table belongs to one workspace.": "Wessen Tabellen? Jede Tabelle gehört zu einem Arbeitsbereich.",
-  "Whose pages? Each knowledge page belongs to one workspace.": "Wessen Seiten? Jede Wissensseite gehört zu einem Arbeitsbereich.",
-  "Whose files? Each file belongs to one workspace.": "Wessen Dateien? Jede Datei gehört zu einem Arbeitsbereich.",
-  "Whose list? Each workspace keeps its own read-later list.": "Wessen Liste? Jeder Arbeitsbereich hat seine eigene Später-lesen-Liste.",
-  "Several versions lie between: read the upgrade guide first (oldest version to update from, steps by hand, the way back).": "Dazwischen liegen mehrere Versionen: lies zuerst die Update-Anleitung (älteste Version für ein Update, Schritte von Hand, der Weg zurück).",
-  "Upgrade guide": "Update-Anleitung",
-  "Kalmido {0} is available (installed: {1}), several versions ahead: read docs/UPGRADING.md. Back up first. Nothing is installed automatically.": "Kalmido {0} ist verfügbar (installiert: {1}), mehrere Versionen weiter: lies docs/UPGRADING.md. Zuerst sichern. Es wird nichts automatisch installiert."
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Der Kunde der Vorlage-Rechnung ist nicht mehr in diesem Büro (in einen anderen Arbeitsbereich umgezogen). Wähle eine andere Vorlage-Rechnung und schalte die Serie wieder ein."
 }
