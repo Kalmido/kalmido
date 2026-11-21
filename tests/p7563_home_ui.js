@@ -49,8 +49,10 @@ const FEAT = 'cal,comments,collab,contracts,home,care,travel,family,files,wiki';
   sw().click();
   check(await until(() => w.eval(`mod_spaces('life', null).join()`) === `private,${WA}`), '#7563 switched on: Home is on in Alpha too ' + w.eval(`mod_spaces('life', null).join()`));
   check(await until(() => w.eval(`(JSON.parse(S.settings.ws_areas_off)[${JSON.stringify(WA)}] || ['x']).length === 0`)), '#7563 the choice is kept as an empty list for Alpha');
-  const st = await call(CA, 'GET', '/api/state');
-  check(JSON.parse(st.settings.ws_areas_off)[WA]?.length === 0 && st.wsp.travel.includes(WA), '#7563 the server keeps it (a new load: Home on in Alpha)');
+  // the switch saves after the local change: wait for the server's answer, not a fixed time
+  let st = null;
+  check(await until(async () => { st = await call(CA, 'GET', '/api/state'); return JSON.parse(st.settings.ws_areas_off)[WA]?.length === 0 && st.wsp.travel.includes(WA); }),
+        '#7563 the server keeps it (a new load: Home on in Alpha) ' + (st && st.settings.ws_areas_off));
   w.eval(`typeof closeModal === 'function' && closeModal(); 1`);
   for (const m of [...d.querySelectorAll('.smodal')]) m.remove();
   w.location.hash = '#tasks';

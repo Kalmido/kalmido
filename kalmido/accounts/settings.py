@@ -329,8 +329,8 @@ def clean_setting(k, v):
         from .modcards import mc_clean_own
         return mc_clean_own(v)
     if k == "ws_areas_off":  # 2.409.0 (#3490): my areas switched off per workspace
-        from .wsareas import wsa_clean_own, wsa_drop_defaults
-        return wsa_drop_defaults(db(), me(), wsa_clean_own(v))
+        from .wsareas import wsa_clean_own
+        return wsa_clean_own(v)
     if k == "share_defaults":  # 2.470.0 (#3596): the sharing defaults of my private workspace
         from .sharedefs import sd_clean
         return sd_clean(v)
@@ -725,6 +725,9 @@ def settings_update():
             v = clean_setting(k, v)  # BadInput: 400, nothing stored
             if v is not None:
                 vals[k] = v
+    if "ws_areas_off" in vals:  # (#7563, reader F4): a key equal to the organisation's default is no own choice
+        from .wsareas import wsa_drop_defaults
+        vals["ws_areas_off"] = wsa_drop_defaults(c, me(), vals["ws_areas_off"])
     from .setundo import su_mark  # 2.985.0 (#5394): the changed keys are steps of the list "Recent steps" (after this module)
     marked = list(vals)
     # 2.997.0 (#5607 #5615 #5702): the first look of the account ('' = never stored) is the device's own appearance uploaded
