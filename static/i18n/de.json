@@ -19706,22 +19706,5 @@
   "documents from templates": "Dokumente aus Vorlagen",
   "invoice series": "Rechnungsserien",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "Der Kunde dieses Dokuments ist nicht mehr in diesem Büro (in einen anderen Arbeitsbereich umgezogen). Wähle zuerst einen anderen Kunden.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Der Kunde der Vorlage-Rechnung ist nicht mehr in diesem Büro (in einen anderen Arbeitsbereich umgezogen). Wähle eine andere Vorlage-Rechnung und schalte die Serie wieder ein.",
-  "Data of your account goes out to a new address: please confirm it is you.": "Daten deines Kontos gehen an eine neue Adresse: bitte bestätige, dass du es bist.",
-  "switched off by the new password: switch it on again if it is yours": "durch das neue Passwort ausgeschaltet: schalte es wieder ein, wenn es deins ist",
-  "Your own webhooks and forwardings (Slack, Matrix, Telegram, Signal) are switched off; switch on again under Connections and Notifications the ones that are yours.": "Deine eigenen Webhooks und Weiterleitungen (Slack, Matrix, Telegram, Signal) werden ausgeschaltet; schalte unter Verbindungen und Benachrichtigungen die wieder ein, die deine sind.",
-  "These stay too: your push topic (ntfy), the secret e-mail addresses for tasks and documents, the inbound webhooks and Git connections of your projects and your mailbox. Check what you do not know.": "Ebenfalls bleiben: dein Push-Thema (ntfy), die geheimen E-Mail-Adressen für Aufgaben und Dokumente, die eingehenden Webhooks und Git-Verbindungen deiner Projekte und dein Postfach. Prüfe, was du nicht kennst.",
-  "Connections…": "Verbindungen…",
-  "Switching it on signs you out everywhere else, ends your API tokens, app passwords and calendar feed links and switches your own webhooks and forwardings off.": "Beim Einschalten wirst du überall sonst abgemeldet, deine API-Tokens, App-Passwörter und Kalender-Feed-Links enden und deine eigenen Webhooks und Weiterleitungen werden ausgeschaltet.",
-  "A new forwarding to the outside": "Neue Weiterleitung nach außen",
-  "Settings: Account": "Einstellungen: Konto",
-  "Settings: Organisation": "Einstellungen: Organisation",
-  "Settings: Company & office": "Einstellungen: Firma & Büro",
-  "Settings: Help": "Einstellungen: Hilfe",
-  "So is the webhook of your document flows; switch it on again in the list of flows.": "Ebenso der Webhook deiner Dokument-Abläufe; schalte ihn in der Liste der Abläufe wieder ein.",
-  "Your account {0} sends data to “{1}” ({2}) from now on.": "Dein Konto {0} schickt ab jetzt Daten an „{1}“ ({2}).",
-  "A new password switches your own webhooks and forwardings off.": "Ein neues Passwort schaltet deine eigenen Webhooks und Weiterleitungen aus.",
-  "This stays after a new password too: check it under {0}.": "Das bleibt auch nach einem neuen Passwort: prüfe es unter {0}.",
-  "Settings > Agents": "Einstellungen > Agenten",
-  "E-mail filing > Mailbox": "E-Mail-Ablage > Postfach"
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Der Kunde der Vorlage-Rechnung ist nicht mehr in diesem Büro (in einen anderen Arbeitsbereich umgezogen). Wähle eine andere Vorlage-Rechnung und schalte die Serie wieder ein."
 }
