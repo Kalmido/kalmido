@@ -56,7 +56,7 @@ const FEAT = 'cal,comments,collab,wiki,files';
   w.eval(`wsh_sharePage({id: ${PG}, space: 'private', path: 'Docs/Guide', node_id: 1})`);
   check(await until(() => /encrypted in the browser/.test(d.querySelector('#toast')?.textContent || '')), 'locked: the hint instead of the dialog');
   check(!d.querySelector('.abshdlg'), 'locked: no dialog');
-  check(w.eval(`wkeLockHtml = () => 'locked'; WK.idx.private = WK.idx.private || {}; WK.idx.private.pages = WK.idx.private.pages || []; wsh_btnHtml({id: 1, space: 'private'}).includes(ic('lock'))`), 'locked: the button shows the lock');
+  check(w.eval(`wkeLockHtml = () => 'locked'; WK.idx.private = WK.idx.private || {}; WK.idx.private.pages = WK.idx.private.pages || []; wsh_btnHtml({id: 1, space: 'private'}).includes(ic('lock', 's'))`), 'locked: the button shows the lock');  // (#7015): a text button with the small symbol
   w.close();
 
   // ================= an organisation's page: the hint, no "Whole organisation"

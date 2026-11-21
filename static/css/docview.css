@@ -21,6 +21,11 @@
 .dv-hacts{display:flex;flex-wrap:wrap;align-items:center;gap:.375rem}
 .dv-hacts .btn{min-height:2.5rem}
 .dv-hacts .dc-adel{margin-left:0;color:var(--danger);border-color:color-mix(in srgb,var(--danger) 55%,var(--line))}
+.dv-hacts .dc-dots{display:none}  /* (#7015): "Actions" with its word; a phone shows the ⋯ instead (below) */
+/* (#7015): "Share" joined the head; Move to the trash is its red symbol only (its name stays label and title, as on a
+   phone), so the actions keep one line beside the title */
+.dv-hacts .dc-adel>span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);clip-path:inset(50%)}
+.dv-hacts .dc-adel{min-width:2.5rem;justify-content:center}
 /* the three columns */
 .dv-cols{--dv-sw:var(--g-dv-sw,7rem);--dv-mw:var(--g-dv-mw,clamp(20rem,30%,28rem));flex:1;min-height:0;display:grid;grid-template-columns:var(--dv-sw) .75rem var(--dv-mw) .75rem minmax(0,1fr);align-items:stretch}  /* #7315: the widths by the one grip (grip.js: --g-dv-sw / --g-dv-mw on .dv-view, docview.js dcv_grips) */
 .dv-cols.dv-nostrip{grid-template-columns:2.75rem var(--dv-mw) .75rem minmax(0,1fr);column-gap:.75rem}
@@ -103,6 +108,7 @@
   .dv-keys,.dv-strip,.dv-grip{display:none}
   .dv-back>span,.dv-hacts .btn>span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);clip-path:inset(50%)}
   .dv-back,.dv-hacts .btn{min-width:2.75rem;min-height:2.75rem;justify-content:center;padding:0 .5rem}
+  .dv-hacts .dc-dots{display:inline-block}.dv-hacts [data-dc="actsmore"] .dc-chev{display:none}  /* (#7015): the ⋯ of every head; "Share" joined the row */
   .dv-navslot{order:5;flex:1 1 100%;justify-content:center}
   .dv-cols,.dv-cols.dv-nostrip{display:flex;flex-direction:column;gap:.75rem}
   .dv-pv{order:-1;height:62dvh;border-radius:var(--r-s)}
@@ -140,6 +146,9 @@
     .dv-mask{flex:none;overflow:visible}
     /* 2.891.0 (#5358): the head too -- the three columns left the title 0 px beside Back (a document in the split view's right half
        with the side panel open); here: Back + title | the actions, the arrows centred in a row of their own as on a phone */
+    /* (#7015): "Share" joined the head: in a narrow view Download shows its symbol only too (the name stays its title) */
+    .dv-hacts .dv-dl>span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);clip-path:inset(50%)}
+    .dv-hacts .dv-dl{min-width:2.5rem;justify-content:center}
     .dv-head{grid-template-columns:minmax(min(12rem,50%),1fr) auto}  /* 2.1199.0 (#6032): the title keeps 12rem, the actions wrap (#6112's longer "Move to the trash" took the whole row) */
     .dv-hr{grid-row:1;grid-column:2}
     .dv-navslot{grid-row:2;grid-column:1/-1}

@@ -68,10 +68,10 @@ const pb_clOrg = () => OFC.info?.personal ? null : (OFC.info?.org_id || null);  
 const ofcSeg = n => { const p = location.hash.slice(1).split('/'); return p[(p[1] === 's' ? 4 : 2) + n] || ''; };
 const ofcWs = () => pb_clOrg() ? 'org:' + pb_clOrg() : 'private';  // 2.87.9 (#1940): the workspace of the shown office (importTargetConfirm)
 // #7337: a quotation / invoice row, a pipeline card, a document of the panel's tree wears the stripe of its office's workspace (the core's
-// wso_row, no colour of its own): an organisation's always, Private only under "All" in my own Private colour (#6957), neutral without organisations.
+// wso_row, no colour of its own): an organisation's and Private's (#7661, the core decides), neutral without organisations.
 // sp = the office's area when known (the tree under "All"), else the shown office (the area sent with the request, then the loaded info)
 const ofc_rowWs = sp => sp || (typeof ofc_spCur === 'function' && ofc_spCur()) || (OFC.info ? ofcWs() : '');
-const ofc_rowMark = (sp, style = '') => wso_row(ofc_rowWs(sp), style, wsCur() === 'all');
+const ofc_rowMark = (sp, style = '') => wso_row(ofc_rowWs(sp), style);
 // 2.380.0 B (#3409): the documents' two tabs (office_docs.js): quotations and invoices
 const ofcDocTab = t => t === 'offers' || t === 'invoices';
 const ofcTab = () => ofm_menuOff(S.route.tab) ? 'start' : OFC_TABS.some(t => t[0] === S.route.tab && (!t[6] || ofcFeat(t[6]))) ? S.route.tab : S.route.tab === 'import' ? 'settings'

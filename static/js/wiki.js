@@ -1219,7 +1219,7 @@ function wk_docItems(p) {
     const st = typeof wkst_of === 'function' ? wkst_of(p.space) : '';
     const a = document.createElement('a'); a.href = `/api/wiki/pages/${p.id}/export?format=${fmt}&style=${encodeURIComponent(st)}`; a.download = ''; document.body.append(a); a.click(); a.remove();
   };
-  return [{label: tr('Download as PDF'), icon: 'download', fn: get('pdf')}, {label: tr('Download as Word (.docx)'), icon: 'download', fn: get('docx')}];
+  return [{label: tr('Download'), icon: 'download', fn: get('pdf')}, {label: tr('Export as Word (.docx)'), icon: 'download', fn: get('docx')}];  // (#7015): the page itself (PDF) vs. another format
 }
 // the page's "…"; 2.1108.0 (#5965): a phone adds the head bar's entries (it has no "…" of its own on a page)
 function wk_pmenuItems(p) {

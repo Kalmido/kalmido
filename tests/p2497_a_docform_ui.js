@@ -107,7 +107,8 @@ function textPdf(lines) {  // a one-page PDF with a text layer, written by hand
     check(g.last === 'del' && g.cl, 'Delete is the last action ' + JSON.stringify(g));
     check(g.lines <= 1 && g.apart, '2.583.0 (#4835): one line of actions in the head, Delete at its right edge ' + JSON.stringify(g));
     // 2.1011.0 (#5688): "Actions" is the shared menu() (#pop): the rarer actions are its entries, not buttons in the head
-    check(await ev(`!document.querySelector('.dv-hacts [data-dc="share"]')`), 'the rarer actions are folded behind Actions');
+    // (#7015): "Share" is a text button in the head of every opened object (it opens the file store's dialog); the external link stays behind Actions
+    check(await ev(`!!document.querySelector('.dv-hacts [data-dc="share"]') && !document.querySelector('.dv-hacts [data-dc="xlink"]')`), 'the head has "Share", the rarer actions are folded behind Actions');
     await ev(`document.querySelector('[data-dc="actsmore"]')?.click()`);
     check(await ready(ev, `!!([...document.querySelectorAll('#pop:not(.hidden) [role="menuitem"]')].find(b => b.querySelector('.ml')?.firstChild?.textContent === tr('Share…'))) && !!([...document.querySelectorAll('#pop:not(.hidden) [role="menuitem"]')].find(b => b.querySelector('.ml')?.firstChild?.textContent === tr('Link for external people…')))`), 'Actions shows them');
     g = JSON.parse(await ev(acts));

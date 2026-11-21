@@ -1,10 +1,10 @@
-"""2.769.0 (#5352): "Recently edited" over the areas Knowledge, Files and Reading -- ONE route for the overview "All
-workspaces" of these areas and the start page's block "Recently edited" (static/js/recent.js). Read only: it makes nothing,
-stores nothing and changes no area.
+"""(#5352): "Recently edited" over the areas Knowledge, Files, Reading, the office and Tables (#7662) --
+ONE route for the overview "All workspaces" of these areas and the start page's block "Recently edited" (static/js/recent.js).
+Read only: it makes nothing, stores nothing and changes no area.
 
-    GET /api/recent?space=all | private | org:<id>&limit=20&areas=wiki,files,reading
-        -> {space, items: [{area (wiki | files | reading), id, space (private | org:<id> | shared), title, place, by, by_name,
-            at, url (reading: the link)}]}, newest first; limit 1..50 (default 20); space all (default) = every workspace plus
+    GET /api/recent?space=all | private | org:<id>&limit=20&areas=wiki,files,reading,office,sheets
+        -> {space, items: [{area (wiki | files | reading | office | sheets), id, space (private | org:<id> | shared), title,
+            place, by, by_name, at, url (reading: the link), kind (office: offer | invoice | credit | client | receipt)}]}, newest first; limit 1..50 (default 20); space all (default) = every workspace plus
             what others shared with the person, private / org:<id> = only that workspace (an organisation the person is not
             in = 404)
 
@@ -16,6 +16,14 @@ Rights: every area answers with its OWN check, there is no check of this module 
            references), fs_mail_rows like a folder's listing and fsviews.fsv_drop (the folders of other areas, as the file
            store's own views); files of a locked folder (fslock: names are ciphertexts) are left out
   reading  the spaces through life/rss.py rss_space, the projects through reading.rl_lists (vis_sql) -- the view "Read later"
+  office   (#7662) the office areas of the asked workspaces (an organisation's office, "Private" = the person's personal office,
+           pb_personal, never made here), each through office_role (no role / guest: nothing) and office/rights.py office_can,
+           the one check of the areas outside /api/office (office groups, else the role's previous access): "offers" for
+           quotations, invoices, credit notes and the office's clients (pb_cl_sql), "receipts" for the receipts of the office's
+           documents space (bk_ws), every receipt then through the file store's own role (fs_roles_many); a receipt is listed
+           as the office's, not a second time as a file
+  sheets   (#7662) the tables' own index sheets/core.py sh_index (workspace, projects, folders and shares; sh_space = 404 for a
+           workspace the person is not in, every table through sh_may)
 An area the organisation's admins switched off (accounts/wsareas.py wsa_org_off) gives nothing of that organisation, a module
 the person switched off (features) nothing at all. People only: an agent or an API token gets 403 (like Read later and the
 favourites), so the agent API has no such route (docs/AGENTS.md unchanged)."""
@@ -35,15 +43,20 @@ from ..life.reading import rl_lists, rl_site
 from ..life.rss import rss_space
 from ..files.fslock import fsl_map
 from ..files.fsviews import fsv_drop
-from ..files.store import fs_mail_rows, fs_visible_sql_c
+from ..files.store import fs_mail_rows, fs_roles_many, fs_visible_sql_c
+from ..office.books import bk_ws
+from ..office.model import office_role, pb_cl_sql, pb_personal
+from ..office.rights import office_can
+from ..sheets.core import sh_index
 from ..wiki.pages import wiki_may_read, wiki_space
 from ..wiki.wkfolder import wkf_locked
 from ..wiki.wkshare import wsh_reach
 
 RCN_LIMIT, RCN_MAX = 20, 50
-RCN_AREAS = ("wiki", "files", "reading")
-RCN_FEAT = {"wiki": "wiki", "files": "files", "reading": "reading"}  # the module switch of the person (features)
-RCN_WSA = {"wiki": "wiki", "files": "ablage", "reading": "reading"}  # the area id an organisation's admins switch off
+RCN_AREAS = ("wiki", "files", "reading", "office", "sheets")
+RCN_FEAT = {"wiki": "wiki", "files": "files", "reading": "reading", "office": "office", "sheets": "sheets"}  # the module switch of the person (features)
+RCN_WSA = {"wiki": "wiki", "files": "ablage", "reading": "reading", "office": "office", "sheets": "sheets"}  # the area id an organisation's admins switch off
+RCN_DOC_KINDS = ("offer", "invoice", "credit")  # the office documents listed (contacts/history.py CTK_DOC_KINDS)
 
 
 def rcn_person():
@@ -181,7 +194,65 @@ def rcn_reading(c, uid, key, oid, limit):
              "url": r["url"] or "", "by": r["created_by"], "at": r["created_at"]} for r in rows]
 
 
-RCN_GET = {"wiki": rcn_wiki, "files": rcn_files, "reading": rcn_reading}
+# ---------------------------------------------------------------- the office (#7662)
+def _office_areas(c, uid, key, oid):
+    """{office area id: workspace key} of the asked workspaces where uid has a role in the office (not a guest): an
+    organisation's office is the organisation, "private" the personal office (only when it exists, never made here)."""
+    out = {}
+    for o in _spaces(c, uid, key, oid):
+        if _off(c, o, "office"):
+            continue
+        ofid = o or pb_personal(c, uid, create=False)
+        role = office_role(c, uid, ofid) if ofid else None
+        if role and role != "guest":
+            out[ofid] = "org:%d" % o if o else "private"
+    return out
+
+
+def rcn_office(c, uid, key, oid, limit):
+    out = []
+    for ofid, sp in _office_areas(c, uid, key, oid).items():
+        if office_can(c, uid, ofid, "offers"):  # the area's own check: quotations & invoices (and their clients)
+            ph = ",".join("?" * len(RCN_DOC_KINDS))
+            for r in c.execute(f"SELECT id, kind, number, project_title, created_by, updated_at FROM office_docs WHERE org_id=? "
+                               f"AND kind IN ({ph}) AND {live_sql()} ORDER BY updated_at DESC, id DESC LIMIT ?",
+                               (ofid, *RCN_DOC_KINDS, limit)).fetchall():
+                title = r["number"] or r["project_title"] or ""
+                out.append({"area": "office", "kind": r["kind"], "id": r["id"], "space": sp, "title": title,
+                            "place": r["project_title"] if r["number"] else "", "by": r["created_by"], "at": r["updated_at"]})
+            for r in c.execute(f"SELECT id, name, created_by, updated_at FROM clients WHERE {pb_cl_sql(c, ofid)} AND {live_sql()} "
+                               f"ORDER BY updated_at DESC, id DESC LIMIT ?", (limit,)).fetchall():
+                out.append({"area": "office", "kind": "client", "id": r["id"], "space": sp, "title": r["name"], "place": "",
+                            "by": r["created_by"], "at": r["updated_at"]})
+        if office_can(c, uid, ofid, "receipts"):  # the receipts: the office's right, then each file's own role
+            rows = c.execute("SELECT n.id, n.name, n.owner_id, n.created_by, n.updated_at FROM rc_receipts r JOIN doc_meta d ON "
+                             "d.node_id=r.node_id JOIN fs_nodes n ON n.id=r.node_id WHERE d.ws=? AND n.kind='file' AND "
+                             f"{live_sql('n')} ORDER BY n.updated_at DESC, n.id DESC LIMIT ?", (bk_ws(c, ofid), limit * 2)).fetchall()
+            acc = fs_roles_many(c, [r["id"] for r in rows], uid) if rows else {}
+            got = 0
+            for r in rows:
+                gone, role = acc.get(r["id"], (True, None))
+                if gone or not role or got >= limit:
+                    continue
+                got += 1
+                out.append({"area": "office", "kind": "receipt", "id": r["id"], "space": sp, "title": r["name"], "place": "",
+                            "by": r["created_by"] or r["owner_id"], "at": r["updated_at"]})
+    return out
+
+
+# ---------------------------------------------------------------- tables (#7662)
+def rcn_sheets(c, uid, key, oid, limit):
+    try:
+        rows = sh_index(c, uid, key)  # the tables' own check (sh_space, sh_may; "all" with the shared ones)
+    except (Denied, BadInput):
+        return []
+    rows = [r for r in rows if not _off(c, r["org_id"], "sheets")]
+    rows.sort(key=lambda r: (rcn_at_key(r["updated_at"]), r["id"]), reverse=True)
+    return [{"area": "sheets", "id": r["id"], "space": _sp_key(c, uid, r["org_id"], r["owner_id"]), "title": r["title"], "place": "",
+             "by": r["updated_by"] or r["created_by"] or r["owner_id"], "at": r["updated_at"]} for r in rows[:limit]]
+
+
+RCN_GET = {"wiki": rcn_wiki, "files": rcn_files, "reading": rcn_reading, "office": rcn_office, "sheets": rcn_sheets}
 
 
 def rcn_at_key(v):
@@ -197,6 +268,9 @@ def rcn_items(c, uid, space="all", limit=RCN_LIMIT, areas=RCN_AREAS):
     for a in areas:
         if feat_on(c, uid, RCN_FEAT[a]):
             out += [x for x in RCN_GET[a](c, uid, key, oid, limit) if _want(key, x["space"])]
+    rc = {x["id"] for x in out if x.get("kind") == "receipt"}  # (#7662) a receipt once: as the office's, not again as a file
+    if rc:
+        out = [x for x in out if not (x["area"] == "files" and x["id"] in rc)]
     out.sort(key=lambda x: (rcn_at_key(x["at"]), x["area"], x["id"]), reverse=True)
     out = out[:limit]
     names = user_names(c, {x["by"] for x in out})
@@ -207,7 +281,7 @@ def rcn_items(c, uid, space="all", limit=RCN_LIMIT, areas=RCN_AREAS):
 
 @app.get("/api/recent")
 def recent_get():
-    """?space=all|private|org:<id> &limit=1..50 &areas=wiki,files,reading -> {space, items} (module docstring)."""
+    """?space=all|private|org:<id> &limit=1..50 &areas=wiki,files,reading,office,sheets -> {space, items} (module docstring)."""
     rcn_person()
     c, uid = db(), me()
     try:

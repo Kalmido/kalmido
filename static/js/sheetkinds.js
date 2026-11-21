@@ -8,7 +8,7 @@
    - file: a menu (upload, open, remove); the file is uploaded into the cell (POST …/files), Undo puts the cell back
    - "Keep in view up to here" in the column / row menu: the first N columns / rows stay put while scrolling (sticky)
    - "Print / PDF": a plain print view of the shown rows (the browser's print dialog also saves a PDF; header row repeated)
-   - "History": the latest changes of the chosen cell, "Recent changes" of the whole table (who, when, before -> after)
+   - "History": the latest changes of the chosen cell, "History" of the whole table (who, when, before -> after)
    Every change is one Undo step. Classic script sharing the global scope with the others. */
 'use strict';
 
@@ -215,7 +215,7 @@ async function shh_open(cell) {
   const es = j.entries || [];
   const val = v => v === '' || v == null ? `<span class="muted">${tr('(empty)')}</span>` : `<span class="shhv">${esc(v)}</span>`;
   /** @type {any} */
-  const md = modal(`<h3>${cell ? esc(tr('History of cell {0}', cell.addr || '')) : tr('Recent changes')}</h3>
+  const md = modal(`<h3>${cell ? esc(tr('History of cell {0}', cell.addr || '')) : tr('History')}</h3>
     ${es.length ? `<ul class="shhlist">${es.map(x => `<li><div class="shhwho">${x.agent ? ic('bot', 's') : av(x.user_id, x.user_name, 'avatar shkav')}<b>${esc(x.user_name || '')}</b><span class="muted">${esc(relTime(x.at))}</span>${!cell && x.addr ? `<button type="button" class="linkbtn" data-shh-go="${x.row_id}:${x.col_id}">${esc(x.addr)}${x.col_title ? ' · ' + esc(x.col_title) : ''}</button>` : x.what && (!cell || x.col_title) ? `<span class="muted">${esc(x.col_title)}</span>` : !cell ? `<span class="muted">${tr('Cell removed')}</span>` : ''}</div>
       <div class="shhchg">${val(x.old)}<span class="shharr" aria-label="${esc(tr('becomes'))}">→</span>${val(x.new)}</div></li>`).join('')}</ul>` : `<p class="muted mhint">${tr('No changes recorded yet.')}</p>`}
     <div class="foot"><span class="spacer"></span><button type="button" class="btn" data-m="close">${tr('Close')}</button></div>`);
@@ -233,8 +233,8 @@ document.addEventListener('click', e => {
 });
 (SHV_HOOKS.side = SHV_HOOKS.side || []).push(sh => {  // the panel: the cell's history and the table's recent changes
   const c = SHV.cur && sh._col.has(SHV.cur.c) && sh._rowNo.has(SHV.cur.r) ? shvCell(SHV.cur.r, SHV.cur.c, sh) : null;
-  return `<section class="shvsec shhsec">${c ? `<button type="button" class="btn sm" data-shh="cell">${ic('clock', 's')}${tr('History of the cell')}</button>` : ''}<button type="button" class="btn sm" data-shh="sheet">${ic('undo', 's')}${tr('Recent changes')}</button></section>`;
+  return `<section class="shvsec shhsec">${c ? `<button type="button" class="btn sm" data-shh="cell">${ic('clock', 's')}${tr('History of the cell')}</button>` : ''}<button type="button" class="btn sm" data-shh="sheet">${ic('undo', 's')}${tr('History')}</button></section>`;
 });
-SHV_HOOKS.menu.push(sh => [{label: tr('Recent changes'), icon: 'clock', fn: () => shh_open(null)}, {label: tr('Print / PDF…'), icon: 'printer', fn: () => typeof shp_dialog === 'function' ? shp_dialog(sh) : shk_print()},  // 2.578.0 (#3462): the dialog of sheetprint.js
+SHV_HOOKS.menu.push(sh => [{label: tr('History'), icon: 'clock', fn: () => shh_open(null)}, {label: tr('Print / PDF…'), icon: 'printer', fn: () => typeof shp_dialog === 'function' ? shp_dialog(sh) : shk_print()},  // (#3462): the dialog of sheetprint.js
   ...(sh.can_write && (sh.freeze_rows || sh.freeze_cols) ? [{label: tr('Release the kept rows and columns'), icon: 'pin', fn: () => shk_fixSet({rows: 0, cols: 0}, tr('Rows and columns released'))}] : [])]);
 window.addEventListener('dblclick', e => { if (/** @type {any} */ (e.target).closest?.('#shv-scroll [data-shkbox]')) e.stopPropagation(); }, true);  // two clicks on a box = two ticks, no third

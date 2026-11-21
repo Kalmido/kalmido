@@ -73,7 +73,7 @@ function oft_rowHtml(i, on, sp = '') {
   const area = i.key; if (!OFT_AREAS[area]) return '';
   if (sp && sp !== oft_sp()) return sbb_treeHtml([oft_spNode(area, sp, i, on)], 0);
   const r = S.route, here = r.mod === 'office' && r.tab === area ? r.id : null, kp = oft_kp(sp), at = go => oft_at(sp, go);
-  const doc = (x, par) => ({k: `${kp}d:${area}:${x.id}`, name: x.title + (x.sub ? ' · ' + x.sub : ''), icon: OFT_AREAS[area][1], go: at(x.open), on: here === x.id, ...(kp === 'of:' ? {stripe: ofc_rowWs(sp), stripeP: wsCur() === 'all'} : {}),  // #7337: the office's stripe; below an office's entry under "All" none of its own (#7389)
+  const doc = (x, par) => ({k: `${kp}d:${area}:${x.id}`, name: x.title + (x.sub ? ' · ' + x.sub : ''), icon: OFT_AREAS[area][1], go: at(x.open), on: here === x.id, ...(kp === 'of:' ? {stripe: ofc_rowWs(sp)} : {}),  // #7337: the office's stripe; below an office's entry under "All" none of its own (#7389)
     ns: 'oft', id: `d:${area}:${x.id}`, par, drag: true, menu: true, kids: false, attrs: `data-oftdoc="${area}:${x.id}"`});
   const fold = f => ({k: `${kp}f:${f.id}`, name: f.outside ? f.path : f.name, icon: f.shared ? 'users' : 'folder', go: 'ablage/' + f.id, ns: 'oft', id: `f:${area}:${f.id}`,
     par: f.outside || !f.parent_id || f.parent_id === OFT.d[area]?.root ? 'a:' + area : `f:${area}:${f.parent_id}`, drag: oft_canW(f) && !f.outside, drop: oft_canW(f), menu: true,

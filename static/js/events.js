@@ -559,7 +559,7 @@ document.addEventListener('click', async e => {
       // 2.31.0 (#378): the connection as the first line (online = "All saved" from 2.25), offline / waiting: try again now
       {label: n.k === 'on' ? tr('Online') + ' · ' + tr('All saved') : n.label, icon: n.k === 'on' ? 'check' : n.k === 'off' ? 'cloudoff' : 'sync', dis: true, cls: 'mnet n-' + n.k},
       ...(n.k !== 'on' ? [{label: tr('Try again'), icon: 'sync', fn: () => { if (OUT.q.length) flush(); refreshNow().then(staleDraw).catch(() => {}); }}] : []), '-',
-      {label: tr('Start|home'), icon: 'start', fn: () => { closeSide(); go('home'); }},  // 2.138.2 C (#2392): the logo (the way home) left the sidebar
+      {label: tr('Start|home'), icon: 'start', fn: () => { closeSide(); go('home'); }},  // (#2392); (#7526): Start lives here and in the palette (the logo opens the settings)
       {label: tr('Account'), icon: 'user', fn: () => { closeSide(); settingsModal('account'); }},
       {label: tr('Settings'), icon: 'gear', cls: 'um-settings', keys: 'g s', sub: updDot() ? tr('Update available') : '', fn: () => { closeSide(); settingsModal(); }},  // 2.1401.0 (#6127): my settings only here (not in the workspace menu), with the update hint (#3400)
       ...(S.me && S.me.kind !== 'agent' ? [{label: tr('Recent steps'), icon: 'undo', act: 'ul-page', fn: () => { closeSide(); go('steps'); }}] : []),  // 2.773.0 (#5250): the list of the ← button as a page (undolist.js)

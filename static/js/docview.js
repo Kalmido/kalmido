@@ -18,7 +18,7 @@
 
 const DVW = {back: null, tab: 'details', pdf: null, ro: null, he: null, node: null, more: false, notext: null, closed: null, gone: new Set(), sz: null, th: null};  // notext: (#4861); closed: #3506 the id of a view just closed; gone: #5478; sz / th: (#5557) the sizes seen (dcv_phSize)
 // the tabs of the fields; History and Shares come from the file store's node (GET /api/files/nodes/<id>, its rights)
-const DCV_TABS = [['details', N_('Details')], ['text', N_('Content')], ['hist', N_('History')], ['share', N_('Shares')]];
+const DCV_TABS = [['details', N_('Details')], ['text', N_('Content')], ['hist', N_('History')], ['share', N_('Sharing')]];  // (#7015): one word "Teilen" (was "Zugriff")
 const DCV_ZMIN = 0.1, DCV_ZMAX = 8, DCV_CVMAX = 12e6;  // the zoom's limits; the most pixels one page's canvas gets
 // the grips: the key of the one grip (#7315, grip.js: --g-<key> on .dv-view, docview.css maps it to --dv-sw / --dv-mw; kept per
 // device under grip:<key>), the old key of the device (px, taken over once), the smallest width (rem). (#4829): every
@@ -253,10 +253,13 @@ function dcv_headHtml(d, w) {
     <div class="dv-hr"><span class="dv-keys muted" aria-hidden="true">${esc(tr('Arrow keys ← → leaf through, Esc back'))}</span><span class="spacer"></span>
     <span class="dv-saved" role="status" data-fl-fill></span><span class="dv-hacts">${dcv_actsHtml(d, w)}</span></div></header>`;
 }
+// (#7015): "Share" first; "Actions" carries the ⋯ that a phone shows instead of its word (docview.css)
 // 2.497.0 A (#4046) moved to the head: Download, the rarer actions behind "Actions", Delete apart as the last
 // 2.1011.0 (#5688): "Actions" is the shared menu() (a sheet with title and X on a phone) instead of a fold-out of its own
 function dcv_actsHtml(d, w) {
-  return `<a class="btn sm dv-dl" href="${dcv_fileUrl(d, true)}" download title="${esc(tr('Download'))}">${ic('download', 's')} <span>${tr('Download')}</span></a><button type="button" class="btn sm" data-dc="actsmore" aria-haspopup="menu">${tr('Actions')}${ic('chev', 's dc-chev')}</button>${w ? `<button type="button" class="btn sm danger dc-adel" data-dc="del" aria-label="${esc(tr('Move to the trash'))}" title="${esc(tr('Move to the trash'))}">${ic('trash', 's')} <span>${tr('Move to the trash')}</span></button>` : '' /* 2.1163.0 (#6112): it goes to the trash */}`;
+  // (#7015): the text button "Share" in the head of every opened object (the file store's dialog, docs.js dc_mdClick)
+  const sh = d.role === 'owner' /* canwrite-ok: sharing is the owner's alone, not a write entry */ && typeof ab_share === 'function' ? `<button type="button" class="btn sm dv-share" data-dc="share" aria-haspopup="dialog" title="${esc(tr('Share…'))}">${ic('users', 's')} <span>${tr('Share')}</span></button>` : '';
+  return `${/*html-ok*/ sh}<a class="btn sm dv-dl" href="${dcv_fileUrl(d, true)}" download title="${esc(tr('Download'))}">${ic('download', 's')} <span>${tr('Download')}</span></a><button type="button" class="btn sm" data-dc="actsmore" aria-haspopup="menu" title="${esc(tr('Actions'))}">${ic('dots', 's dc-dots')}<span>${tr('Actions')}</span>${ic('chev', 's dc-chev')}</button>${w ? `<button type="button" class="btn sm danger dc-adel" data-dc="del" aria-label="${esc(tr('Move to the trash'))}" title="${esc(tr('Move to the trash'))}">${ic('trash', 's')} <span>${tr('Move to the trash')}</span></button>` : '' /* (#6112): it goes to the trash */}`;
 }
 // a link of the menu as a download (no <a> in a menu)
 const dcv_dlGo = url => { const a = document.createElement('a'); a.href = url; a.download = ''; document.body.append(a); a.click(); a.remove(); };

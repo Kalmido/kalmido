@@ -29,7 +29,7 @@ from ..core.pg import insert_id, write_lock
 from ..core.schema import USER_DEFAULTS
 from .orgs import is_org_admin, user_orgs
 from .session import me
-from .wsareas import WSA_KEY_RE, _req_org, wsa_file_ok, wsa_org_off
+from .wsareas import WSA_KEY_RE, _req_org, wsa_file_ok, wsa_org_off, wsa_own
 
 # the modules a card can hold: every module of Settings > Modules (family/family.py PM_FULL = the client's FEATS, in that
 # order) + the documents. A copy: accounts is a layer below the areas (tools/check_layers.py); tests/p2575_a_api_test.py
@@ -178,7 +178,8 @@ def mod_ws_on(c, uid, oid, area, feat):
         except (ValueError, AttributeError):
             return []
         return v if isinstance(v, list) else []
-    if area and (area in off("ws_areas_off") or (oid and area in wsa_org_off(c, oid))):
+    own = wsa_own(c, uid, st).get(key)  # (#7563): the one reading of ws_areas_off (an organisation's default included)
+    if area and (area in (own if isinstance(own, list) else []) or (oid and area in wsa_org_off(c, oid))):
         return False
     if feat in off("ws_mods_off"):
         return False

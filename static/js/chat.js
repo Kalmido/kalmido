@@ -75,8 +75,9 @@ const roomName = r => r ? (r.kind === 'dm' ? (r.name || '?') : lname(listById(r.
 const roomIcon = r => r.kind === 'dm' ? av(r.user_id, r.name, 'avatar') : tcx_isX(r) ? tcx_icon(r) : `<span class="tcico">${licon(listById(r.list_id), 'licon') || ic('users', 's')}</span>`;
 // 2.1241.0 (#6183): the organisation colour (docs/dev/kern.md): a channel / group of an organisation and a project's chat in an
 // organisation's project wear its stripe (panel, list, the open conversation's head) and, under "All workspaces", where they
-// come from; direct messages and private projects stay neutral ('private'). The open conversation is the open object (wso_open)
-const tc_org = r => !r || r.kind === 'dm' ? 'private' : tcx_isX(r) ? (r.org_id ? 'org:' + +r.org_id : 'private') : listById(r.list_id) || null;
+// come from; private projects wear Private's colour (#7661), a direct message belongs to no workspace and stays neutral ('').
+// The open conversation is the open object (wso_open)
+const tc_org = r => r?.kind === 'dm' ? '' : !r ? 'private' : tcx_isX(r) ? (r.org_id ? 'org:' + +r.org_id : 'private') : listById(r.list_id) || null;
 document.addEventListener('DOMContentLoaded', () => wso_open('team', () => S.route?.mod === 'team' && S.tc.rid ? tc_org((S.tc.rooms || []).find(x => x.id === S.tc.rid) || S.tc.room) : null), {once: true});  // wscolor.js loads after this file
 // 2.479.0 (#2814): the conversations shown (view and the area's panel): only those with messages, plus the open one and
 // channels / groups (2.27.0 #986, 2.113.1 #2059), in the shown workspace (2.28.0 #935)
@@ -1193,7 +1194,7 @@ function pgw_menu(area, id) {
 }
 // the cards alone: typing in the search field re-renders only these (the field keeps the focus)
 function ntCardsHtml(vis, q, cur) {
-  return `${vis.length ? `<ul class="ntcards" aria-label="${esc(tr('Notes'))}">${/*html-ok*/ vis.map(n => `<li><a href="#note/${n.id}" class="ntcard ${cur && cur.id === n.id ? 'on' : ''}" ${cur && cur.id === n.id ? 'aria-current="true"' : ''}${/*html-ok*/ wso_row(listById(n.list_id) || null, '', wsCur() === 'all') /* (#6719); #7393: Private in my colour under "All" */}>
+  return `${vis.length ? `<ul class="ntcards" aria-label="${esc(tr('Notes'))}">${/*html-ok*/ vis.map(n => `<li><a href="#note/${n.id}" class="ntcard ${cur && cur.id === n.id ? 'on' : ''}" ${cur && cur.id === n.id ? 'aria-current="true"' : ''}${/*html-ok*/ wso_row(listById(n.list_id) || 'private') /* (#6719); (#7661): Private in its colour (the core decides) */}>
         <span class="ntt">${n.pinned ? `<span class="ntpin" title="${esc(tr('Pinned'))}">${ic('pin', 's')}</span>` : ''}${esc(n.title)}</span>
         <span class="ntx">${esc((qn_isList(n.list_id) ? n.body.replace(/^\s*[^\n]*\n?/, '') : n.body).replace(/^#{1,6}\s+/gm, '').replace(/[*_\x60>\[\]]/g, '').replace(/\s+/g, ' ').trim().slice(0, 140))}</span>
         <span class="ntm">${n.tags.map(t => `<span class="tag">#${esc(t)}</span>`).join('')}<time title="${esc(fmtWhen(n.updated_at))}">${esc(relTime(n.updated_at))}</time>${n.updated_by_name ? `<span class="muted">· ${esc(n.updated_by_name)}</span>` : ''}</span></a></li>`).join('')}</ul>`

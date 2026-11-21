@@ -1,7 +1,8 @@
 // kalmido-suite: fresh
 // Package 2.1453.0 (#7337) UI test: quotations and invoices wear the colour of their workspace (the core's wso_row, no colour of
 // their own) - the row of the list, the card of the pipeline and the document in the panel's tree. An organisation's office: its
-// stripe; Private: only under "All workspaces" in my own Private colour (#6957), neutral inside the workspace Private.
+// stripe; Private: its colour (my own, else the default var(--acc-d)), also inside the workspace Private.
+// Ersetzt Entscheidung #6957 ("Private only under All"): gedeckt durch #7661 (20.11.2026, Private wears its colour everywhere).
 // Own container (start.sh), jsdom at a computer's width, invented data only. Alice: Private + the organisation Alpha (a colour).
 // freelancer-matrix: n/a - nur Oberfläche, keine neue Route (Person ohne Organisation: wsOn() false, wso_row gibt nichts; p2351_a_officetree_ui)
 const {execFileSync} = require('child_process');
@@ -63,12 +64,12 @@ const LS = {'tasks.ofmAll': 'true', 'tasks.sbbOpen': '["of:a:offers"]'};
   check(stripe(card()) === alpha, '#7337 Alpha: the pipeline card wears Alpha\'s stripe');
   w.close();
 
-  // ================= the workspace Private on top: neutral (nothing is mixed there)
+  // ================= the workspace Private on top: Private's colour like an organisation's inside its own workspace (#7661)
   await call('PATCH', '/api/settings', {workspace: 'private'});
   w = await boot({hash: 'office/offers', allWs: true, ls: LS}); d = w.document; tones();
   check(await until(() => rowOf(d, QP)), 'Private: the quotation is listed');
-  check(stripe(rowOf(d, QP)) === '' && !rowOf(d, QP).style.getPropertyValue('--wsd'), '#7337 Private: the row stays neutral');
-  check(await until(() => treeDoc(d, QP)) && stripe(treeDoc(d, QP)) === '', '#7337 Private: the tree\'s quotation stays neutral');
+  check(stripe(rowOf(d, QP)) === red, '#7661 (was #7337 neutral): Private: the row wears my Private colour ' + stripe(rowOf(d, QP)));
+  check(await until(() => treeDoc(d, QP)) && [red, ''].includes(stripe(treeDoc(d, QP))), '#7337 / #7389 Private: the tree\'s quotation (below the workspace row, which carries the stripe) ' + stripe(treeDoc(d, QP)));
   w.close();
 
   // ================= "All": the Private office open - Private in my colour; Alpha's office open - Alpha's colour

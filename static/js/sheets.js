@@ -246,7 +246,7 @@ function shvSheetHtml(sh) {
   const top = `<div class="shvtop">${back}<h2 class="shvh"><button type="button" class="shvtitle" data-shv="rename" ${w ? '' : 'disabled'} title="${esc(w ? tr('Rename…') : '')}">${esc((sh.book_title ?? sh.title) || tr('Untitled table'))}</button></h2>
     ${w ? '' : `<span class="shvro">${ic('eye', 's')}${tr('Read-only')}</span>`}<span class="spacer"></span>
     ${typeof shg_btnHtml === 'function' ? shg_btnHtml(sh) : ''}${nf ? `<button type="button" class="btn sm" data-shv="unfilter" title="${esc(tr('Reset filters'))}">${ic('filter', 's')}${trn('{0} filter', '{0} filters', nf)}${ic('x', 's')}</button>` : ''}
-    <button type="button" class="btn sm ${SHV.deps ? 'on' : ''}" data-shv="deps" aria-haspopup="menu" aria-pressed="${!!SHV.deps}">${ic('deps', 's')}<span class="shvbk">${tr('Dependencies')}</span></button>${typeof shz_btnsHtml === 'function' ? shz_btnsHtml(sh) : ''}
+    <button type="button" class="btn sm ${SHV.deps ? 'on' : ''}" data-shv="deps" aria-haspopup="menu" aria-pressed="${!!SHV.deps}">${ic('deps', 's')}<span class="shvbk">${tr('Dependencies')}</span></button>${typeof shz_btnsHtml === 'function' ? shz_btnsHtml(sh) : ''}${/*html-ok*/ sh.can_share && S.me?.kind !== 'agent' && typeof shsOpen === 'function' ? `<button type="button" class="btn sm shvshare" data-shv="share" aria-haspopup="dialog" title="${esc(tr('Share…'))}">${ic('users', 's')}<span class="shvbk">${tr('Share')}</span></button>` : '' /* (#7015): the text button "Share" in the head, not only deep in the "…" */}
     <button type="button" class="iconbtn" data-shv="menu" aria-haspopup="menu" title="${esc(tr('More'))}" aria-label="${esc(tr('More'))}">${ic('dots')}</button></div>`;
   const c0 = SHV.cur && sh._col.has(SHV.cur.c) && sh._rowNo.has(SHV.cur.r) ? SHV.cur : null, cc = c0 && shvCell(c0.r, c0.c, sh);
   const bar = `<div class="shvbar"><span class="shvaddr" id="shv-addr" aria-live="polite">${c0 ? esc(cc?.name || shvAddr(c0.r, c0.c, sh)) : ''}</span><span class="shvfx" aria-hidden="true">fx</span>
@@ -1110,6 +1110,7 @@ document.addEventListener('click', async e => {
   else if (!sh) return;
   const bk = sh?.book_id && sh.book_id !== sh.id ? {...sh, id: sh.book_id, title: sh.book_title} : sh;  // 2.124.0 E (#2116): title, list, delete = the whole table
   if (k === 'rename') shvRename(bk.id, bk.title);
+  else if (k === 'share') { if (typeof shsOpen === 'function') shsOpen(sh); }  // (#7015)
   else if (k === 'menu') menu(a, [...(sh.can_write ? [{label: tr('Rename…'), icon: 'edit', fn: () => shvRename(bk.id, bk.title)},
       ...(sh.shared_in ? [] : [{label: sh.list_id ? tr('Attached to {0}…', sh.list_title || '') : tr('Attach to a project…'), icon: 'link', fn: () => shvAttach(bk)}])] : []),  // 2.124.0 C (#2113): not through a share
     ...(sh.list_id ? [{label: tr('Open {0}', sh.list_title || tr('Project')), icon: 'list', fn: () => go('l/' + sh.list_id)}] : []),

@@ -111,6 +111,13 @@ const ablageNames = d => [...d.querySelectorAll('#view .abrow .abname')].map(x =
   check(await until(() => /My long read/.test(d.querySelector('.rlview')?.textContent || '') && !/Team article/.test(d.querySelector('.rlview').textContent)), '#4588: Private: only its entries');
   w.close();
   for (const [h, sel] of [['bookmarks', '#bm-url'], ['feeds', '.rsshead'], ['life', '.dash.life']]) {
+    if (h === 'life') {
+      // (#7563): Home is off in an organisation until someone switches it on there: first directly Private, then switched on
+      w = await boot({user: 'alice', hash: h}); d = w.document;
+      check(await until(() => d.querySelector('#view .dash.life')) && !rows(d).length, '#7563: #life: Home off in the organisation by default - Private directly, no overview');
+      w.close();
+      await call('PATCH', '/api/settings', {ws_areas_off: JSON.stringify({[SP]: []})}, CA);
+    }
     w = await boot({user: 'alice', hash: h}); d = w.document;
     check(await until(() => rows(d).length === 2) && !d.querySelector('#view select[aria-label="Workspace"]'), `#4588: #${h}: the overview, no picker ` + rows(d).join('|'));
     d.querySelector('#view .spov [data-spov="private"]').click();

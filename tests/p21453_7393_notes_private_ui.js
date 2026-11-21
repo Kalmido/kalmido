@@ -1,8 +1,9 @@
 // kalmido-suite: fresh
 // Package 2.1453.0 (#7393) UI test: Notes under "All workspaces" - a private note wears my own Private colour
 // (ws_colors.private) as the stripe of its card and as the tone of the open note, a project's note keeps its organisation's
-// colour; without a chosen Private colour Private stays neutral; inside one workspace nothing changes (nothing is mixed there).
-// The colour comes from the core (wscolor.js wso_row with priv, wso_open / wso_sync, docs/dev/kern.md "Organisation colour").
+// colour; without a chosen Private colour Private wears its default (var(--acc-d)), also inside the workspace Private.
+// Ersetzt Entscheidung #7393 / #6957 ("without a colour neutral", "only under All"): gedeckt durch #7661 (20.11.2026).
+// The colour comes from the core (wscolor.js wso_row / wso_vars, wso_open / wso_sync, docs/dev/kern.md "Organisation colour").
 // freelancer-matrix: n/a - nur Oberfläche (ohne Organisation ist wsOn() false: wso_row und wso_locVars geben nichts, wie vorher)
 // jsdom only.
 const {execFileSync} = require('child_process');
@@ -48,7 +49,7 @@ const until = fn => require('./boot').until(fn, {timeout: 15000, step: 150});
   card('Grocery idea').click();
   check(await until(() => w.eval('S.nt.id') === NP), 'All: a tap opens the private note');
   check(await until(() => tone() === red.wad), '#7393 All: the open private note wears the Private tone ' + tone());
-  check(!d.querySelector('#main').classList.contains('wsc-on'), 'All: the open private note has no organisation frame');
+  check(d.querySelector('#main').classList.contains('wsc-on') && d.querySelector('#main').style.getPropertyValue('--wsd') === red.d, '#7661 All: the open private note\'s frame in my Private colour');
   w.eval(`go('note/${NO}')`);
   check(await until(() => w.eval('S.nt.id') === NO && tone() === org.wad), '#7393 All: the open project note wears the organisation\'s tone');
   w.eval(`history.back()`);
@@ -59,7 +60,7 @@ const until = fn => require('./boot').until(fn, {timeout: 15000, step: 150});
   await call('PATCH', '/api/settings', {ws_colors: '{}'});
   w = await boot({hash: 'notes'}); d = w.document;
   check(await until(() => card('Grocery idea')), 'All, no colour: the private note is listed');
-  check(stripe(card('Grocery idea')) === '' && !card('Grocery idea').style.getPropertyValue('--wsd'), '#7393 All, no colour: the private card stays neutral');
+  check(stripe(card('Grocery idea')) === 'var(--acc-d)', '#7661 (was #7393 neutral) All, no colour: the private card wears Private\'s default');
   check(stripe(card('Shot list')) === org.d, '#7393 All, no colour: the project note keeps its organisation\'s colour');
   card('Grocery idea').click();
   check(await until(() => w.eval('S.nt.id') === NP), 'All, no colour: the private note opens');
@@ -71,7 +72,7 @@ const until = fn => require('./boot').until(fn, {timeout: 15000, step: 150});
   await call('PATCH', '/api/settings', {ws_colors: JSON.stringify({private: 'red'}), workspace: 'private'});
   w = await boot({hash: 'notes'}); d = w.document;
   check(await until(() => card('Grocery idea')), 'Private: the private note is listed');
-  check(stripe(card('Grocery idea')) === '', '#7393 Private: the card has no stripe (as before)');
+  check(stripe(card('Grocery idea')) === red.d, '#7661 (was #7393 no stripe): Private: the card wears my Private colour like an organisation\'s inside its workspace');
   check(!card('Shot list'), 'Private: the organisation\'s note is not shown');
   w.close();
   await call('PATCH', '/api/settings', {workspace: 'all'});

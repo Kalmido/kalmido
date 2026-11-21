@@ -4,6 +4,8 @@
 // Rule (owner decision 14.11.2026): what belongs to an organisation wears its colour - its entry (a stripe) and the open object
 // (#main.wsc-on, under "All workspaces" #view.wac-loc); Private stays neutral. Each area is used as a person does: the entry is
 // seen with its name, opened, and the open object is marked; a private one next to it stays neutral.
+// Ersetzt Entscheidung #6179 ("Private stays neutral"): gedeckt durch #7661 (20.11.2026) - with an organisation Private wears its
+// colour at the same places (here its default, Kalmido's accent: --wsd var(--acc-d)); a direct message stays neutral.
 // freelancer-matrix: n/a - nur Oberfläche (Person ohne Organisation in der Datei geprüft)
 // jsdom only (the stripe as drawn is checked in Firefox by p21205_b_orgcolor_ui).
 const {execFileSync} = require('child_process');
@@ -59,6 +61,9 @@ const now = new Date(), T0 = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${
   const toned = () => view().classList.contains('wac-loc') && view().style.getPropertyValue('--wad') === want.wad;
   const striped = el => !!el && el.dataset.wso === '1' && el.dataset.wsc === '1' && el.style.getPropertyValue('--wsd') === want.d;
   const neutral = el => !!el && !el.dataset.wso && !el.style.getPropertyValue('--wsd');
+  // (#7661): Private's mark (no own choice: the default WSP_PRIV)
+  const privd = el => !!el && el.dataset.wso === '1' && el.dataset.wsc === '1' && el.style.getPropertyValue('--wsd') === 'var(--acc-d)';
+  const privMain = () => main().classList.contains('wsc-on') && main().style.getPropertyValue('--wsd') === 'var(--acc-d)';
 
   // ---- #6181 Calendar
   const evEl = t => [...d.querySelectorAll('#view [data-cev]')].find(e => e.textContent.includes(t));
@@ -66,11 +71,11 @@ const now = new Date(), T0 = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${
   const eo = evEl('Studio meeting'), ep = evEl('Dentist');
   check(striped(eo), '#6181 the event of the organisation\'s calendar: its stripe');
   check(eo.style.getPropertyValue('--cc') !== '', '#6181 ... and its calendar colour stays (--cc kept in the one style attribute)');
-  check(neutral(ep) && ep.style.getPropertyValue('--cc') !== '', '#6181 the private event: no stripe, its calendar colour');
+  check(privd(ep) && ep.style.getPropertyValue('--cc') !== '', '#7661 (was #6181 neutral): the private event: Private\'s stripe, its calendar colour');
   const row = w.eval(`(() => { const e = S.cal.items.find(x => x.title === 'Studio meeting'); return cevRow(e, e.d0); })()`);
   check(/data-wso="1"/.test(row) && /class="wso cevo"/.test(row) && /Studio/.test(row) && /--cc:/.test(row), '#6181 an event row (Today, day list) under "All": stripe + where it comes from ' + row.slice(0, 200));
   const rowP = w.eval(`(() => { const e = S.cal.items.find(x => x.title === 'Dentist'); return cevRow(e, e.d0); })()`);
-  check(!/data-wso/.test(rowP) && /Private/.test(rowP), '#6181 a private event row: no stripe; under "All" its origin says Private (as the task rows)');
+  check(/data-wso="1"/.test(rowP) && /--wsd:var\(--acc-d\)/.test(rowP) && /Private/.test(rowP), '#7661 a private event row: Private\'s stripe; under "All" its origin says Private (as the task rows)');
   eo.click();
   check(await until(() => d.querySelector('#pop .cevpop b')?.textContent.includes('Studio meeting') && d.querySelector('#pop .cevpop .cevact')), '#6181 a click opens the event\'s popover with its title and actions');
   const pop = d.querySelector('#pop .cevpop');
@@ -81,7 +86,7 @@ const now = new Date(), T0 = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${
   ep.click();
   check(await until(() => d.querySelector('#pop .cevpop b')?.textContent.includes('Dentist') && d.querySelector('#pop .cevpop .cevact')), '#6720 the private event\'s popover opens');
   const popP = d.querySelector('#pop .cevpop');
-  check(neutral(popP) && !popP.classList.contains('wac-loc'), '#6720 ... without stripe and without the organisation\'s tone');
+  check(privd(popP) && !popP.classList.contains('wac-loc'), '#7661 ... with Private\'s stripe and without the organisation\'s tone');
   w.eval(`closePop()`);
   // #6720: opened through its address #ev/<id> (a push, News) the event's popover is marked the same way (it had
   // neither stripe nor origin, Edit stayed in Kalmido's accent)
@@ -93,16 +98,20 @@ const now = new Date(), T0 = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${
   check(/Edit/.test(popA.querySelector('[data-evp="edit"]')?.textContent || ''), '#6720 ... and Edit is there to go on');
   w.eval(`closePop()`);
   // #6720: the due task of an organisation's project wears the same stripe as the events next to it, a private one not
-  const tEl = t => [...d.querySelectorAll('#view [data-id]')].find(e => e.textContent.includes(t));
+  const tEls = t => [...d.querySelectorAll('#view [data-id]')].filter(e => e.textContent.includes(t));
+  const tEl = t => tEls(t).find(e => e.dataset.wso) || tEls(t)[0];  // (#7661): the calendar's chip of the task (a plain task row below it carries no stripe)
   check(await until(() => tEl('Deliver the cut') && tEl('Water the plants')), '#6720 the calendar shows both due tasks by name');
   check(striped(tEl('Deliver the cut')), '#6720 the task of the organisation\'s project: the organisation\'s stripe');
-  check(neutral(tEl('Water the plants')), '#6720 the private task: no stripe');
+  // the private task is listed here as a plain task row (no chip of the calendar's grid); its chip's mark comes from the same
+  // core call as the organisation's (calview.js ctOrgAttr -> wso_row): checked on that call
+  const pt = w.eval(`(() => { const t = taskById(+${JSON.stringify(tEls('Water the plants')[0]?.dataset.id || 0)}); return t ? ctOrgAttr(t) : 'no task'; })()`);
+  check(/data-wso="1"/.test(pt) && /--wsd:var\(--acc-d\)/.test(pt), '#7661 (was #6720 neutral): the private task\'s calendar chip: Private\'s stripe ' + pt);
   // the calendar list (view options): an organisation's calendar with its dot + name for every member
   const lst = w.eval(`(() => { const c = S.evcals.find(x => x.name === 'Studio calendar'); return {own: wso_row(c, '--cc:red'), dot: wso_head(wso_ws(c))}; })()`);
   check(/data-wso="1"/.test(lst.own) && /--cc:red;--wsd:/.test(lst.own) && /wsp-dot/.test(lst.dot), '#6181 the calendar list row: stripe next to the calendar colour, the dot with the name');
   // the event dialog: stripe + origin, a change of calendar redraws it
   const dlg = w.eval(`(() => { const md = document.createElement('div'); md.innerHTML = '<div class="card"><span class="evwso"></span></div>'; evDlgWs(md, ${CO.id}); const a = {wso: md.firstChild.dataset.wso, o: md.querySelector('.evwso').textContent}; evDlgWs(md, ${CP.id}); return {...a, wso2: md.firstChild.dataset.wso || '', o2: md.querySelector('.evwso').textContent}; })()`);
-  check(dlg.wso === '1' && /Studio/.test(dlg.o) && dlg.wso2 === '' && !/Studio/.test(dlg.o2), '#6181 the event dialog: stripe + origin for the organisation\'s calendar, gone after switching to the private one ' + JSON.stringify(dlg));
+  check(dlg.wso === '1' && /Studio/.test(dlg.o) && dlg.wso2 === '1' && !/Studio/.test(dlg.o2), '#6181 / #7661 the event dialog: stripe + origin for the organisation\'s calendar, Private\'s after switching to the private one ' + JSON.stringify(dlg));
   w.close();
 
   // ---- #6182 Wiki
@@ -113,12 +122,12 @@ const now = new Date(), T0 = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${
   check(toned(), '#6182 "All": the page\'s view wears the organisation\'s tone');
   w.eval(`go('wiki/${PP}')`);
   check(await until(() => d.querySelector('article.wkpage')?.textContent.includes('Mine.')), '#6182 the private page opens');
-  check(await until(() => !main().classList.contains('wsc-on') && !view().classList.contains('wac-loc')), '#6182 the private page: neutral');
-  check(neutral(d.querySelector('article.wkpage')), '#6182 the private page: no stripe');
+  check(await until(() => privMain() && !view().classList.contains('wac-loc')), '#7661 (was #6182 neutral): the private page: #main in Private\'s colour');
+  check(privd(d.querySelector('article.wkpage')), '#7661 the private page: Private\'s stripe');
   const sp = w.eval(`wk_spacesHtml()`);
-  check(new RegExp(`data-wksp="org:${ORG}" data-wso="1"`).test(sp) && !/data-wksp="private" data-wso/.test(sp), '#6182 the list of spaces: the organisation\'s with its stripe, Private without');
+  check(new RegExp(`data-wksp="org:${ORG}" data-wso="1"`).test(sp) && /data-wksp="private" data-wso/.test(sp), '#6182 / #7661 the list of spaces: the organisation\'s and Private with their stripe');
   const tree = w.eval(`sbb_treeHtml([{k: 't', name: 'Studio', go: 'wiki', wso: 'org:${ORG}'}, {k: 'u', name: 'Private', go: 'wiki', wso: 'private'}])`);
-  check(/data-wso="1" data-wsc="1" style="--sbbl:0;--wsd:/.test(tree) && (tree.match(/data-wso/g) || []).length === 1, '#6182 the panel\'s root node of the organisation\'s space: its stripe (the private one none)');
+  check(/data-wso="1" data-wsc="1" style="--sbbl:0;--wsd:/.test(tree) && (tree.match(/data-wso/g) || []).length === 2 && /--wsd:var\(--acc-d\)/.test(tree), '#6182 / #7661 the panel\'s root nodes: the organisation\'s space and Private each with its stripe');
   w.close();
 
   // ---- #6183 Team chat
@@ -129,7 +138,7 @@ const now = new Date(), T0 = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${
   check(await until(() => marked()), '#6183 the open conversation of the organisation: #main.wsc-on (the input\'s frame)');
   check(!!d.querySelector('#tc-in'), '#6183 ... and its input is there');
   check(w.eval(`wso_row(tc_org({kind: 'dm', user_id: 2, name: 'Bob'}))`) === '', '#6183 a direct message stays neutral');
-  check(/data-wso/.test(w.eval(`wso_row(tc_org({kind: 'channel', org_id: ${ORG}}))`)) && w.eval(`wso_row(tc_org({kind: 'group', org_id: null}))`) === '', '#6183 a group of the organisation: stripe; without an organisation: none');
+  check(/data-wso/.test(w.eval(`wso_row(tc_org({kind: 'channel', org_id: ${ORG}}))`)) && /--wsd:var\(--acc-d\)/.test(w.eval(`wso_row(tc_org({kind: 'group', org_id: null}))`)), '#6183 / #7661 a group of the organisation: its stripe; a private one: Private\'s');
   w.close();
 
   // ---- #6184 Files and documents
@@ -137,14 +146,16 @@ const now = new Date(), T0 = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${
   check(await until(() => marked()), '#6184 the open space of the organisation in Files: #main.wsc-on');
   check(toned(), '#6184 "All": its view wears the organisation\'s tone');
   w.eval(`go('ablage/s/private')`);
-  check(await until(() => !main().classList.contains('wsc-on')), '#6184 the private space: neutral');
+  check(await until(() => privMain()), '#7661 (was #6184 neutral): the private space: #main in Private\'s colour');
   const card = w.eval(`dc_card({id: 7, name: 'Invoice.pdf', org_id: ${ORG}, tags: [], state: 'done'})`), cardP = w.eval(`dc_card({id: 8, name: 'Own.pdf', org_id: null, tags: [], state: 'done'})`);
   check(/data-wso="1"/.test(card) && /class="wso dco"/.test(card) && /Invoice\.pdf/.test(card), '#6184 a document card of the organisation: stripe + where it comes from');
-  check(!/data-wso/.test(cardP) && /Own\.pdf/.test(cardP), '#6184 a private document card: no stripe');
+  check(/data-wso="1"/.test(cardP) && /--wsd:var\(--acc-d\)/.test(cardP) && /Own\.pdf/.test(cardP), '#7661 a private document card: Private\'s stripe');
   w.eval(`window.__dv = document.createElement('div'); wso_mark(__dv, {org_id: ${ORG}})`);
   check(w.eval(`__dv.dataset.wso === '1' && __dv.style.getPropertyValue('--wsd') === ${JSON.stringify(want.d)}`), '#6184 an open document\'s view gets the mark (wso_mark)');
   w.eval(`wso_mark(__dv, 'private')`);
-  check(w.eval(`!__dv.dataset.wso && !__dv.style.getPropertyValue('--wsd')`), '#6184 ... and loses it for a private one');
+  check(w.eval(`__dv.dataset.wso === '1' && __dv.style.getPropertyValue('--wsd') === 'var(--acc-d)'`), '#7661 ... and takes Private\'s for a private one');
+  w.eval(`wso_mark(__dv, null)`);
+  check(w.eval(`!__dv.dataset.wso && !__dv.style.getPropertyValue('--wsd')`), '#6184 ... and loses it for nothing of a workspace');
   w.close();
 
   // ---- #6185 Contacts
@@ -152,14 +163,14 @@ const now = new Date(), T0 = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${
   const ctRow = n => [...d.querySelectorAll('.ctrow')].find(r => r.textContent.includes(n));
   check(await until(() => ctRow('Olga') && ctRow('Paul')), '#6185 the contacts show both people by name');
   check(striped(ctRow('Olga')) && /Studio/.test(ctRow('Olga').querySelector('.cto')?.textContent || ''), '#6185 the contact of the organisation\'s book: stripe + where it comes from');
-  check(neutral(ctRow('Paul')) && !/Studio/.test(ctRow('Paul').textContent), '#6185 the private contact: no stripe, no organisation');
+  check(privd(ctRow('Paul')) && !/Studio/.test(ctRow('Paul').textContent), '#7661 the private contact: Private\'s stripe, no organisation');
   ctRow('Olga').click();
   check(await until(() => d.querySelector('.ctcard #ct-h')?.textContent.includes('Olga')), '#6185 a click opens the card with the name');
   check(striped(d.querySelector('article.ctcard')), '#6185 the open card wears the organisation\'s stripe');
   check(await until(() => marked()), '#6185 the open card of the organisation: #main.wsc-on');
   ctRow('Paul').click();
   check(await until(() => d.querySelector('.ctcard #ct-h')?.textContent.includes('Paul')), '#6185 the private card opens');
-  check(await until(() => !main().classList.contains('wsc-on')) && neutral(d.querySelector('article.ctcard')), '#6185 the private card: neutral');
+  check(await until(() => privMain()) && privd(d.querySelector('article.ctcard')), '#7661 (was #6185 neutral): the private card in Private\'s colour');
   w.close();
 
   // ---- #6719 Notes (2.1327.0): a note follows its project - card with stripe + origin under "All", the open note marked, Private neutral
@@ -172,7 +183,7 @@ const now = new Date(), T0 = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${
   check(await until(() => ntc('Studio minutes')), '#6719 "All notes" lists the note by name');
   check(striped(ntc('Studio minutes')) && /Studio/.test(ntc('Studio minutes').querySelector('.nto')?.textContent || ''), '#6719 the note card of an organisation\'s project: stripe + where it comes from');
   const pc = ntc('Own thoughts');
-  check(!pc || (neutral(pc) && !pc.querySelector('.nto')), '#6719 a private note card: neutral');
+  check(!pc || (privd(pc) && !/Studio/.test(pc.textContent)), '#7661 (was #6719 neutral): a private note card: Private\'s stripe');
   check(/href="#note\/\d+"/.test(ntc('Studio minutes').outerHTML), '#6719 the card links to the note');
   w.eval(`go('note/${NO}')`);  // jsdom does not follow an anchor's href
   check(await until(() => d.querySelector('.ntedit')), '#6719 the note opens');

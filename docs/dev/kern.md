@@ -626,6 +626,16 @@ layout one blue button in the head bar next to the title (`headNew`, arrow = the
 `on` answers for the page drawn now: a flag the view sets while drawing starts false at the top of every draw, so a page
 that returns early (an overview) never keeps the + of the page before (#7611, Files under "All workspaces").
 
+### The head of an opened object: one way in, one word (2.1497.0, #7015)
+
+Every opened object (a knowledge page, a table, a file and a folder, a document, an address book) has the text button
+**Share** in its head, also before its first share, for whoever may share it; it opens the area's existing share dialog (no
+new dialog). The words are the same everywhere: "Share…" (menu) / "Share" (button, the document's tab), **History** for
+the changes of an object (a contact's block of quotations, events and mails is **Activities**, `Activities|contact`),
+**Download** for the thing itself (the PDF of a page, the ZIP of a folder) and **Export as …** for another format, **Encrypt
+folder…** / **Encryption…** for the browser encryption ("Lock" stays for tasks, "Lock now" for notes). A new area uses these
+words and puts its share button in its head.
+
 ## 7. Tests
 
 A new area tests its kind with a suite of its own (the role matrix of tests/obj_core_test.py is the pattern: two
@@ -1674,7 +1684,15 @@ calm jump. A new area does not keep scroll positions itself:
 ## Organisation colour (2.1205.0, #6179)
 
 What belongs to an organisation wears that organisation's colour in every area (owner decision 14.11.2026): its entry in an
-overview or the navigation, and the object while it is open ("you are in the organisation now"). Private stays neutral.
+overview or the navigation, and the object while it is open ("you are in the organisation now").
+**Private (#7661, decision of 20.11.2026, replaces "Private stays neutral"):** as soon as the person has an organisation, all
+workspaces are told apart the same way everywhere: Private wears its colour too, at the same places as an organisation - the
+colour the person chose (`ws_colors.private`), else a fixed default, Kalmido's own accent of the device (`WSP_PRIV` =
+`--acc-d / --acc-l`; the organisations' palette keeps away from it, #6721; Settings > Workspaces shows it as "Default"). Without
+an organisation everything stays neutral. The rule stands ONCE in the core, `wso_vars(ws)` in `wscolor.js`: `wso_row`,
+`wso_mark`, `wso_sync` / `wso_scope` and `wsp_tone` ask it; no caller chooses (the old third parameter `priv` of
+#6957 is gone; `tools/check_rules.py` rule `wso-priv` turns a third argument red). A direct message, "Shared with me" and the
+trash belong to no workspace and stay neutral.
 The colour is the organisation's (its admins choose, `orgs.color`) or the person's own choice per workspace (`ws_colors`);
 an area never picks or stores a colour of its own for this. A calendar's or address book's own colour stays its dot - the
 organisation's mark is the stripe, so the two never read as one.
@@ -1683,7 +1701,7 @@ organisation's mark is the stripe, so the two never read as one.
   `w` is an organisation's id, `'org:<id>'`, `'private'` or an object with `org_id` (`wso_ws(w)` makes the workspace key)
 
 ```js
-// (1) an entry (row, card, tile) of an organisation: a 3 px stripe on its left edge; '' for Private / no organisations
+// (1) an entry (row, card, tile) of a workspace: a 3 px stripe on its left edge (Private too, #7661); '' without organisations
 `<div class="myrow"${wso_row(obj.org_id)}>…</div>`
 // (2) a mixed view under "All workspaces": the workspace's dot + name (phones: its short letters), '' otherwise
 `${wso_origin(obj.org_id, 'mymeta')}`
@@ -1705,13 +1723,14 @@ wso_mark(el, obj);
 A file loaded at start before `wscolor.js` (chat.js, calendar.js ...) registers its `wso_open` on `DOMContentLoaded`; an area that
 redraws `#view` without `renderView` (its own `setHtml`) calls `wso_sync()` after it. A tree node of the shared panel tree
 (`sbb_treeHtml`) with `wso: <workspace>` IS that workspace's row (#7389) and the core draws it the same in every area: the symbol
-(`wsIcon`; `lock: true` = a locked space), the stripe on the row (Private in the colour the person chose), the arrow and the open
+(`wsIcon`; `lock: true` = a locked space), the stripe on the row (Private's too, #7661), the arrow and the open
 state. The area gives only `has` (content: true / false = known empty, no arrow / null = not loaded yet) and `here` (the open
 object lies in it); the only workspace row of a tree starts open, under "All" only the one with the open object, otherwise what
 the person folded by hand (LS `sbbOpen`). `icon`, `ichtml`, `kids`, `open` or `fold` on such a node are refused (`console.error`,
 `sbb_wsoBad`); rows below a workspace wear no stripe of their own. Test: `tests/p7389_wsnode_ui.js` (one test over every area); the overview rows of "All workspaces"
-(`zle_ovrHtml`) carry the stripe of their space. Under "All workspaces" `wso_origin` names Private too (as the task rows do) -
-without a colour.
+(`zle_ovrHtml`, `spo_html`: one row builder `spo_rowHtml` in areas.js) carry the stripe of their space, Private's included (#7661).
+Under "All workspaces" `wso_origin` names Private too (as the task rows do); where Private is named stays as before (#7661 is
+about its colour, not about more labels).
 
 `wso_sync()` runs after every render and every redraw of the view (render.js `render0` via `wsc_sync`, `renderView`): it
 asks the open list of Projects first (`wac_openList`), then the registered areas in order, and puts the answer on the page
@@ -1732,7 +1751,7 @@ needs nothing for this: its module key and `wso_open` are enough.
 Who uses it: the projects (sidebar rows `wsc_rowAttr` -> `wso_row`, the open list -> `wso_sync`, task rows under "All" ->
 `ws_originHtml`). 2.1241.0 (#6181-#6185): the calendar (event chips, rows, week blocks, popover, dialog, calendar list;
 `cevOrg`), the wiki (spaces, panel root, the open page or space), the team chat (channels / groups / project chats; direct
-messages neutral; `tc_org`), files and documents (spaces, panel, document cards, the open space / folder / document) and
+messages neutral, `tc_org` gives ''; a private project's chat wears Private's colour, #7661), files and documents (spaces, panel, document cards, the open space / folder / document) and
 contacts (rows, card, address books, panel spaces). 2.1224.0: tables (#6186: cards, folder cards, group headings, panel, the
 open table via `wso_open('sheets', …)`), time tracking (#6187: entries, report lines, timesheet card), the palette / search
 hits, the trash, news, project group heads and favourite agents (#6188). 2.1401.0 (#6234): the start page - the Projects and
@@ -1767,6 +1786,18 @@ The frame colour of #6697 (`wscolor.js wso_scope`: a page whose module is on in 
 `mod_spaces` too (featKey may be a list: on when one of them is on), so the list and the colour never disagree.
 Do not ask `wsa_wsOn` / `mc_wsOn` in an area for this; build on these two. Test: `tests/p21398_a_modspaces_ui.js`.
 
+### "Recently edited": one route for every area (2.769.0, #5352; office and Tables 2.1497.0, #7662)
+
+`GET /api/recent` (`kalmido/collab/recent.py`) is the one list of what changed lately over the areas, for the overview
+"All workspaces", an area's page "Recently edited" and the start page's block (`static/js/recent.js`: `zle_ovrHtml`,
+`zle_pageHtml`, `zle_homeHtml`). The areas are `RCN_AREAS` (wiki, files, reading, office, sheets); each one answers through
+its OWN check, never a check of this module: the office through `office_role` + `office/rights.py office_can` ("offers" for
+quotations, invoices, credit notes and the office's clients, "receipts" for the receipts, each receipt then through the
+file store's role), Tables through `sheets/core.py sh_index`. An area the organisation switched off (`wsa_org_off`) or the
+person's module switch gives nothing. A new area adds its reader to `RCN_GET` (+ `RCN_FEAT`, `RCN_WSA`) and its icon and
+target to `ZLE_AREA` / `zle_href`; no second "recent" list in an area. Tests: `tests/p2769_d_recent_api_test.py`,
+`tests/p21497_b_recent_api_test.py`.
+
 ### Where does New go (#7309)
 
 ONE place answers for person P and module X two questions, the server and the browser alike: `kalmido/accounts/wsplace.py`.
@@ -1778,6 +1809,11 @@ knew "where is the module on"; new entries landed where the list then hid them.
   `user_orgs`. It checks the main switch (`features`), the organisation's `areas_off`, the card's cap, my own `ws_areas_off`
   / `ws_mods_off` (the single question stays `modcards.mod_ws_on`); `write=True` also the role (member / admin; never guest,
   read-only, accounting) and a support session (`sga_org_foreign`). Alone (no organisation, or no workspaces): `["private"]`.
+- (#7563, decision of 20.11.2026) the default of `ws_areas_off` for an organisation: `accounts/wsareas.py wsa_own(c, uid)` is
+  THE reading of the setting (wsplace, `mod_ws_on`, and `/api/state` hands it out as `settings.ws_areas_off`). An
+  organisation without a key of its own there has Home (`life`) off, unless it has Home data (a Home list: a trip,
+  contracts ...); a key (also an empty list = all on) is the person's own choice and stays. A rule, not a migration: nothing
+  is written or deleted; Private as before. Switched on in Settings > Modules > Areas per workspace, the key stays with `[]`.
 - `wsp_new(c, uid, mod, named=None)` -> an organisation's id or `None` (Private): the workspace the request names wins while
   `mod` is on and writable there; nothing named: the workspace on top (setting `workspace`) while `mod` is on and writable
   there, else exactly ONE workspace of `wsp_spaces(write=True)`; else `SpaceNeeded` = HTTP 400 `{"error", "code":

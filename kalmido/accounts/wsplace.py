@@ -26,7 +26,7 @@ from .modcards import mc_cap, mc_mods
 from .orgroles import FULL_WRITE, org_roles_of
 from .orgs import _org_name, agent_org, has_workspaces, user_orgs
 from .supportgrant import sga_org_foreign
-from .wsareas import wsa_org_off
+from .wsareas import wsa_org_off, wsa_own
 
 # the area (wsareas.WSA_AREAS) a module belongs to -- the server's copy of areas.js MG_AREAS / wsa_areaOfMod; a module
 # without an entry has no area (its own switch and the card only)
@@ -96,7 +96,7 @@ class _Ctx:
         self.agent = _is_agent(c, uid)
         self.alone = not has_workspaces(c)
         self.orgs = [] if self.alone or self.agent else list(user_orgs(c, uid))
-        self.aoff, self.moff = _own(self.st, "ws_areas_off"), _own(self.st, "ws_mods_off")
+        self.aoff, self.moff = wsa_own(c, uid, self.st), _own(self.st, "ws_mods_off")  # (#7563): + the default of an organisation
         self._roles = None
 
     def roles(self):

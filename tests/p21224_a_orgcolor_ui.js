@@ -4,6 +4,9 @@
 // project group heads and the favourite agents. Rule (owner decision 14.11.2026): what belongs to an organisation wears its
 // colour in every area, the entry and the open object; Private stays neutral. Used as a person sees it: the card / row / hit
 // with the organisation's name next to it, the open table marks the page, a private one stays neutral.
+// Ersetzt Entscheidung #6179 / #6957 ("Private stays neutral", "Private only with a colour of my own"): gedeckt durch #7661
+// (20.11.2026) - with an organisation Private wears its colour (my choice, else the default var(--acc-d)) on its entries and the
+// open object; where Private is named (wso_origin) stays as before.
 // freelancer-matrix: n/a - nur Oberfläche (Person ohne Organisation in der Datei geprüft)
 const {execFileSync} = require('child_process');
 const path = require('path');
@@ -54,7 +57,7 @@ const FEAT = 'comments,collab,sheets,time';
   check(co && /Studio budget/.test(co.textContent), '#6186 the overview shows the organisation\'s table');
   check(striped(co, T), '#6186 the organisation\'s table card wears its stripe in its colour');
   const cp = d.querySelector(`.shvcard[data-id="${SP}"]`);
-  check(cp && /Household/.test(cp.textContent) && !cp.dataset.wso, '#6186 the private table card stays neutral');
+  check(cp && /Household/.test(cp.textContent) && cp.dataset.wso === '1' && cp.style.getPropertyValue('--wsd') === 'var(--acc-d)', '#7661 (was #6186 neutral): the private table card wears Private\'s colour');
   const hs = [...d.querySelectorAll('.shvgrp h3')];
   check(hs.some(h => /Studio/.test(h.textContent) && h.querySelector('.wsp-dot[data-wsc]')), '#6186 the organisation\'s group heading carries its dot');
   check(hs.some(h => /Private/.test(h.textContent) && !h.querySelector('.wsp-dot')), '#6186 the private group heading has no dot');
@@ -64,12 +67,12 @@ const FEAT = 'comments,collab,sheets,time';
   check(/Studio budget/.test(d.querySelector('.shvtitle')?.textContent || ''), '#6186 the open table shows its title');
   check(d.querySelector('#view').classList.contains('wac-loc'), '#6186 "All": the open table wears the organisation\'s tone');
   w.eval(`go('sheets/${SP}')`);
-  check(await until(() => /Household/.test(d.querySelector('.shvtitle')?.textContent || '') && !d.querySelector('#main').classList.contains('wsc-on'), {timeout: 20000}), '#6186 the open private table: no organisation mark');
+  check(await until(() => /Household/.test(d.querySelector('.shvtitle')?.textContent || '') && d.querySelector('#main').classList.contains('wsc-on') && d.querySelector('#main').style.getPropertyValue('--wsd') === 'var(--acc-d)', {timeout: 20000}), '#7661 (was #6186 no mark): the open private table: #main in Private\'s colour');
   w.eval(`go('sheets')`);
   check(await until(() => d.querySelector('.shvov') && !d.querySelector('#main').classList.contains('wsc-on')), '#6186 back in the overview: no open object, no mark');
   // #7389: the workspace's row wears the stripe (the core's workspace node), its button and the tables below it none
   const shp = w.eval(`sbb_treeHtml(shf_panelTree(SHV.idx.all.items, shvSpaces(), null))`);
-  check(new RegExp(`class="fhead sbbt[^"]*sbbws[^"]*" data-wso="1"[^>]*data-sbbid="r:org:${ORG}"`).test(shp) && !/class="sbbtn"[^>]*data-wso/.test(shp) && !/data-wso[^>]*data-sbbid="r:private"/.test(shp), '#6186 the panel: the organisation\'s workspace row wears its stripe, Private not, no button');
+  check(new RegExp(`class="fhead sbbt[^"]*sbbws[^"]*" data-wso="1"[^>]*data-sbbid="r:org:${ORG}"`).test(shp) && !/class="sbbtn"[^>]*data-wso/.test(shp) && /data-wso="1"[^>]*data-sbbid="r:private"/.test(shp), '#6186 / #7661 the panel: the organisation\'s and Private\'s workspace rows wear their stripe, no button');
 
   // ================= #6187 time tracking (the page is always mixed); the list of entries opened as a person does
   const openEntries = async () => { const t = await until(() => d.querySelector('[data-act="tv-entries"]'), {timeout: 20000}); if (t && t.querySelector('.closedc')) t.click(); };
@@ -109,7 +112,7 @@ const FEAT = 'comments,collab,sheets,time';
   w.eval(`wsMenu(document.querySelector('#kbar .kbfirm, #kbar button, #side button'))`);  // 2.1401.0 (#6127): the one workspace menu (was sbb_wsMenu)
   let kt = await until(tile);
   check(kt && kt.dataset.wsc === '1' && kt.style.getPropertyValue('--wsd') === T.d, '#6957 the tile of the organisation wears its own colour (workspace "All" open)');
-  check(!d.querySelector('#pop .kbwsi svg[data-wsc]'), '#6957 Private without a colour of its own: the house stays neutral');
+  check(!!d.querySelector('#pop .kbwsi svg[data-wsc]'), '#7661 (was #6957 neutral): Private without a colour of its own: the house wears Private\'s default');
   w.eval(`closePop()`);
   // a second organisation with another colour: each tile has its own, not the open workspace's
   const O2 = (await call('POST', '/api/orgs', {name: 'Zeta'}))?.id;
@@ -124,12 +127,12 @@ const FEAT = 'comments,collab,sheets,time';
   }
   // Private's own colour: the overview "All workspaces" rows and the menu's house wear it; without a choice neutral
   const ovr = () => w.eval(`spo_html('x', [['private', 'Private', ''], ['org:${ORG}', 'Studio', '']])`);
-  check(!/data-wso/.test(ovr().split('</li>')[0]), '#6957 overview: Private without a colour of its own stays neutral');
+  check(/data-wso="1"[^>]*--wsd:var\(--acc-d\)/.test(ovr().split('</li>')[0]), '#7661 (was #6957 neutral): overview: Private without a colour of its own wears its default');
   await call('PATCH', '/api/settings', {ws_colors: JSON.stringify({private: w.eval('LP_TONES[2][0]')})});
   await w.eval(`load().then(render)`);
   const o1 = ovr();
   check(/data-wso="1"[^>]*>[^]*Private/.test(o1.split('</li>')[0]) || /spovr[^>]*data-wso="1"/.test(o1.split('</li>')[0]), '#6957 overview: Private wears the colour I chose ' + o1.slice(0, 300));
-  check(w.eval(`wso_row('private')`) === '', '#6957 other views: wso_row without the overview flag leaves Private neutral');
+  check(w.eval(`wso_row('private')`).includes('--wsd:' + w.eval('LP_TONES[2][2]')), '#7661 (was #6957 neutral): every view: wso_row gives Private the colour I chose (no overview flag any more)');
   w.eval(`wsMenu(document.querySelector('#kbar .kbfirm, #kbar button, #side button'))`);  // 2.1401.0 (#6127): the one workspace menu (was sbb_wsMenu)
   check(await until(() => d.querySelector('#pop .kbwsi svg.i[data-wsc]')), '#6957 the menu: Private\'s house wears the colour I chose');
   w.eval(`closePop()`);

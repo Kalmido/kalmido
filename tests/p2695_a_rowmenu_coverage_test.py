@@ -28,6 +28,8 @@ RM_LEFT = {
     # 2.768.0 (#4888): + the bar above a folder with recognition (ab_foldTools, 2.752.0 #4887) - the count was stale since then
     # 2.1163.0 (#6111): the files' tool row on a phone ends in one "..." (More tools) - a bar, not a row
     ("ablage.js", 'data-abmore="1"'): (1, "the \"More tools\" of the files' tool row on a phone (a bar menu)"),
+    # (#7015): the opened document's "Actions" shows the dots on a phone (head menu of the document, not a row)
+    ("docview.js", 'data-dc="actsmore"'): (1, "the \"Actions\" of an opened document's head (its word on a computer, the ... on a phone): a head menu, not a row"),
     ("ablage.js", 'data-ab="menu"'): (2, "the open folder's menu in the tool bar above the list and above a folder with recognition (page menus)"),
     # 2.1012.0 (#5690): the page menus of bookmarks / budget / feeds are anchor buttons for the shared menu() now (no <details>)
     ("bookmarks.js", 'data-bm="more"'): (1, "the page menu of the bookmarks (import / export)"),

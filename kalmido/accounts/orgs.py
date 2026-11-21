@@ -517,6 +517,13 @@ def ws_places(c, uid):
     return wsp_all(c, uid)
 
 
+def ws_areas_own(c, uid, st=None):
+    """(#7563): the setting ws_areas_off as it applies (an organisation's default included) for /api/state --
+    accounts/wsareas.py wsa_own_json (the core reads it through here)."""
+    from .wsareas import wsa_own_json  # wsareas builds on this module
+    return wsa_own_json(c, uid, st)
+
+
 def _ws_sga(c, oid):
     """2.538.0 (#4365): a support session's new object lands privately, never by default in an organisation without support access."""
     from .supportgrant import sga_org_foreign

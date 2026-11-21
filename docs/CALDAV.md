@@ -150,7 +150,7 @@ Maps; nothing is loaded before the tap). *More › Create as client* (with the m
 contact: its company (else its name), first e-mail, phone and address, and the contact as the client's default contact
 person, linked to the contact when the address book fits the client (an organisation's address book: a client of that
 organisation; your own private address book: a private client; other books: a client of the book's workspace without the
-link). One undo step deletes the client again; a linked contact shows *Open client* instead. *Contact history* lists,
+link). One undo step deletes the client again; a linked contact shows *Open client* instead. *Activities* lists,
 newest first, the filed e-mails from or to the contact's addresses, the quotations, invoices and credit notes of its
 clients (only with the module Office and a role in that office) and its events - only what you may open anyway; *Show
 more* loads older entries, a tap opens the entry. E-mails are looked for among the latest 1000 filed e-mails you may

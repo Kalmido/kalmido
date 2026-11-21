@@ -42,7 +42,9 @@ WSA_OFF_TEXT = N_("This area is switched off in this organisation by its admin."
 
 def wsa_clean_own(v):
     """The user setting ws_areas_off -> stored json {"private" | "org:<id>": [area, ...]}. Strict: an unknown workspace key
-    or area is a 400; empty lists are dropped. A key of an organisation I left stays harmless (nothing reads it)."""
+    or area is a 400; an empty list of Private is dropped. A key of an organisation I left stays harmless (nothing reads it).
+    (#7563): an organisation's key stays also with an empty list - it says "my own choice there" (all on), while a missing
+    key takes the default of wsa_own (Home off without Home data)."""
     bad = BadInput(tr("Invalid value: {0}", "ws_areas_off"))
     try:
         o = json.loads(v or "{}") if isinstance(v, str) else v
@@ -56,9 +58,49 @@ def wsa_clean_own(v):
             raise bad
         if any(x not in WSA_AREAS for x in xs):
             raise bad
-        if xs:
+        if xs or k != "private":
             out[k] = sorted(set(xs), key=WSA_AREAS.index)
     return json.dumps(out, separators=(",", ":"))
+
+
+# (#7563, decision of 20.11.2026): Home (the area "life") is off in every organisation as long as nobody switches it on there:
+# a default of the existing switch ws_areas_off, no second switch, nothing written or deleted. An organisation's key in my
+# ws_areas_off = my own choice there (switched once: on stays on); a missing key = the default: Home off, unless the
+# organisation already has Home data (a list of Home: a trip, contracts ...) - then it keeps Home as before. Private as today.
+WSA_ORG_DEFAULT_OFF = ("life",)
+# the Home lists (lists.life) that count as Home data of an organisation (reading lists belong to the area Reading)
+WSA_LIFE_KINDS = ("contracts", "home", "health", "travel", "budget")
+
+
+def wsa_org_has_life(c, oid):
+    """(#7563): has organisation oid Home data (a list of Home, also archived or in the trash: nothing gets hidden)?"""
+    cache = g.setdefault("wsa_life", {}) if _in_req() else {}
+    if oid not in cache:
+        cache[oid] = bool(c.execute("SELECT 1 FROM lists WHERE org_id=? AND life = ANY(CAST(? AS TEXT[])) LIMIT 1",
+                                    (oid, list(WSA_LIFE_KINDS))).fetchone())
+    return cache[oid]
+
+
+def wsa_own(c, uid, st=None):
+    """(#7563): my areas switched off per workspace as they apply: the stored ws_areas_off plus the default of every
+    organisation I am in without a key of its own (WSA_ORG_DEFAULT_OFF unless it has Home data). THE one reading for the
+    server (accounts/wsplace.py, modcards.mod_ws_on) and the browser (/api/state hands it out as the setting ws_areas_off)."""
+    st = st if st is not None else usettings(c, uid)
+    try:
+        o = json.loads(st.get("ws_areas_off") or "{}")
+    except (ValueError, TypeError):
+        o = {}
+    o = o if isinstance(o, dict) else {}
+    for oid in user_orgs(c, uid):
+        k = "org:%d" % oid
+        if k not in o:
+            o[k] = [a for a in WSA_ORG_DEFAULT_OFF if not (a == "life" and wsa_org_has_life(c, oid))]
+    return o
+
+
+def wsa_own_json(c, uid, st=None):
+    """(#7563): wsa_own as the browser's setting ws_areas_off (/api/state, the answer of PATCH /api/settings)."""
+    return json.dumps(wsa_own(c, uid, st), separators=(",", ":"))
 
 
 def wsa_clean_org(v):

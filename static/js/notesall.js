@@ -31,7 +31,7 @@ function sb_noteCardsHtml() {
   if (!vis.length) return q || S.sbn.lid ? `<div class="empty">${tr('No notes match.')}</div>` : symEmpty('note', tr('No notes yet.'), sb_noteWritable().length ? tr('Meeting notes, briefings, decisions: write them next to the tasks.') : '');
   return `<ul class="ntcards" aria-label="${esc(tr('Notes'))}">${vis.map(n => {
     const l = listById(n.list_id), ex = n.excerpt ?? S.sbn.ex[n.id] ?? '';
-    return `<li><a href="#note/${n.id}" class="ntcard sbncard"${/*html-ok*/ wso_row(l || null, '', wsCur() === 'all') /* (#6719): a note follows its project's organisation; #7393: under "All" a private note wears my Private colour (as #6957) */}>
+    return `<li><a href="#note/${n.id}" class="ntcard sbncard"${/*html-ok*/ wso_row(l || 'private') /* (#6719): a note follows its project's workspace; (#7661): a private note wears Private's colour (the core decides) */}>
       <span class="ntt">${n.pinned ? `<span class="ntpin" title="${esc(tr('Pinned'))}">${ic('pin', 's')}</span>` : ''}${esc(n.title)}</span>
       ${ex ? `<span class="ntx">${esc(ex.slice(0, 140))}</span>` : ''}
       <span class="ntm"><span class="sbnl">${l ? licMark(l, 'sm', true) : ''}${esc(l ? lname(l) : '?')}</span>${/*html-ok*/ l ? wso_origin(l, 'nto') : '' /* 2.1327.0 (#6719): under "All" where it comes from */}${(n.tags || []).map(t => `<span class="tag">#${esc(t)}</span>`).join('')}<time title="${esc(fmtWhen(n.updated_at))}">${esc(relTime(n.updated_at))}</time></span></a></li>`;

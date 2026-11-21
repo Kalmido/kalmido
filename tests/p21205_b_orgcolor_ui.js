@@ -2,7 +2,9 @@
 // Package 2.1205.0 (#6179) UI test: the organisation colour as one building block of the core (wscolor.js wso_row, wso_origin,
 // wso_open, wso_sync; docs/dev/kern.md "Organisation colour"). Rule (owner decision 14.11.2026): what belongs to an organisation wears its
 // colour in every area - its entry (a stripe on the left edge) and the open object (#main.wsc-on, under "All" #view.wac-loc);
-// Private stays neutral. The projects use the block (behaviour as before); an area registers its open object with wso_open and
+// Ersetzt Entscheidung #6179 ("Private stays neutral"): gedeckt durch #7661 (20.11.2026) - with an organisation Private wears
+// its colour too (my choice, else the fixed default WSP_PRIV = Kalmido's accent --acc-d / --acc-l), one rule in the core (wso_vars).
+// The projects use the block (behaviour as before); an area registers its open object with wso_open and
 // gets the same marks, also when it draws the object later (renderView). A person without an organisation: nothing coloured.
 // freelancer-matrix: n/a - nur Oberfläche (Person ohne Organisation in der Datei geprüft)
 // jsdom (classes / variables) + Firefox at 1280 (the stripe as drawn).
@@ -44,12 +46,22 @@ const until = (fn, n) => require('./boot').until(fn, {timeout: n ? n * 150 : 150
   check(toned(), '#6179 "All": its view wears the organisation\'s tone (wac-loc, as before)');
   const srow = d.querySelector(`#side .srow[data-list="${WL}"]`);
   check(srow?.dataset.wsc === '1' && srow?.dataset.wso === '1' && srow.style.getPropertyValue('--wsd') === want.d, '#6179 its sidebar row: the shared row mark (data-wso + data-wsc + the tone)');
-  check(!d.querySelector(`#side .srow[data-list="${PL}"]`)?.dataset.wsc, '#6179 a private project\'s row stays neutral');
+  const prow = d.querySelector(`#side .srow[data-list="${PL}"]`);
+  check(prow?.dataset.wsc === '1' && prow?.style.getPropertyValue('--wsd') === 'var(--acc-d)' && prow?.style.getPropertyValue('--wsl') === 'var(--acc-l)', '#7661 (was #6179 neutral): a private project\'s row wears Private\'s default colour');
   w.eval(`go('l/${PL}')`);
-  check(await until(() => !main().classList.contains('wsc-on')), '#6179 an open private project: no organisation mark');
+  check(await until(() => main().classList.contains('wsc-on') && main().style.getPropertyValue('--wsd') === 'var(--acc-d)'), '#7661 an open private project: #main.wsc-on in Private\'s colour');
+  check(!view().classList.contains('wac-loc'), '#7661 "All": Private\'s default is Kalmido\'s accent, so #view needs no tone of its own');
   // the block's parts
   check(/data-wso="1" data-wsc="1" style="--wsd:/.test(w.eval(`wso_row(${ORG})`)) && w.eval(`wso_row('org:${ORG}')`) === w.eval(`wso_row(${ORG})`) && w.eval(`wso_row({org_id: ${ORG}})`) === w.eval(`wso_row(${ORG})`), '#6179 wso_row: an id, a workspace key and an object give the same mark');
-  check(w.eval(`wso_row('private') + wso_row(null) + wso_row(0) + wso_row({org_id: null})`) === '', '#6179 wso_row: Private / nothing stays neutral');
+  const pr = w.eval(`wso_row('private')`);
+  check(/data-wso="1" data-wsc="1" style="--wsd:var\(--acc-d\);--wsl:var\(--acc-l\)"/.test(pr) && w.eval(`wso_row(0)`) === pr && w.eval(`wso_row({org_id: null})`) === pr, '#7661 wso_row: Private (a key, 0, an object without org_id) wears its default colour ' + pr);
+  check(w.eval(`wso_row(null) + wso_row('') + wso_row('shared') + wso_row('trash')`) === '', '#7661 wso_row: nothing, "Shared with me" and the trash stay neutral');
+  check(w.eval(`wso_row('private', '', true)`) === pr, '#7661 a third argument changes nothing (the core decides; tools/check_rules.py wso-priv)');
+  // my own colour for Private wins over the default (Settings > Workspaces)
+  w.eval(`S.settings.ws_colors = JSON.stringify({private: 'orange'})`);
+  check(w.eval(`wso_row('private')`).includes('--wsd:#fb923c;--wsl:#ad4c07'), '#7661 wso_row: Private in the colour I chose ' + w.eval(`wso_row('private')`));
+  check(/wsp-dot" aria-hidden="true" data-wsc="1" style="--wsd:#fb923c/.test(w.eval(`wso_origin('private', 'mymeta')`)), '#7661 wso_origin under "All": Private is named with its dot in its colour ' + w.eval(`wso_origin('private', 'mymeta')`));
+  w.eval(`S.settings.ws_colors = '{}'`);
   const og = w.eval(`wso_origin(${ORG}, 'mymeta')`);
   check(/class="wso mymeta"/.test(og) && /Studio/.test(og) && /wsp-dot/.test(og) && /Workspace: Studio/.test(og), '#6179 wso_origin under "All": dot + name + the name for screen readers ' + og);
   check(w.eval(`ws_originHtml(listById(${WL}), 'Website', 'lst')`).includes(w.eval(`wso_head('org:${ORG}')`)), '#6179 the task rows\' origin (ws_originHtml) is built from the same head');
@@ -63,7 +75,7 @@ const until = (fn, n) => require('./boot').until(fn, {timeout: n ? n * 150 : 150
   check(await until(() => marked()), '#6179 an area\'s object of the organisation, drawn later: #main.wsc-on (renderView)');
   check(toned(), '#6179 "All": the area\'s view wears the organisation\'s tone');
   w.eval(`window.T6179 = 'private'; renderView()`);
-  check(await until(() => !main().classList.contains('wsc-on') && !view().classList.contains('wac-loc')), '#6179 the area\'s private object: neutral again');
+  check(await until(() => main().classList.contains('wsc-on') && main().style.getPropertyValue('--wsd') === 'var(--acc-d)' && !view().classList.contains('wac-loc')), '#7661 (was #6179 neutral): the area\'s private object: #main in Private\'s colour');
   w.eval(`window.T6179 = null`);
   w.close();
 
@@ -88,7 +100,7 @@ const until = (fn, n) => require('./boot').until(fn, {timeout: n ? n * 150 : 150
       const [a, b] = box.children, s = document.querySelector('#side .srow[data-list="${WL}"]');
       return {org: getComputedStyle(a).boxShadow, prv: getComputedStyle(b).boxShadow, side: getComputedStyle(s).boxShadow, sideBg: getComputedStyle(s).backgroundImage}; })()`);
     check(r && /inset/.test(r.org) && /133, 96, 15/.test(r.org), `#6179 an entry of the organisation: the 3 px stripe in its tone (light) ${JSON.stringify(r)}`);
-    check(r && (r.prv === 'none' || !/inset/.test(r.prv)), '#6179 a private entry: no stripe');
+    check(r && /inset/.test(r.prv) && /24, 115, 129/.test(r.prv), `#7661 (was #6179 no stripe): a private entry: the stripe in Kalmido's accent (light) ${JSON.stringify(r)}`);
     check(r && !/inset/.test(r.side) && /gradient/.test(r.sideBg), '#6179 the sidebar row keeps its own stripe (no second one)');
     await shot('p21205b-rows.png');
   });
@@ -101,7 +113,8 @@ const until = (fn, n) => require('./boot').until(fn, {timeout: n ? n * 150 : 150
   w = await boot({user: 'solo', hash: 'l/' + SL}); d = w.document;
   await until(() => d.querySelector('#side .srow'));
   check(!d.querySelector('#main').classList.contains('wsc-on') && !d.querySelector('#view').classList.contains('wac-loc'), '#6179 without an organisation: the open project neutral');
-  check(w.eval(`wso_row(5) + wso_origin(5)`) === '', '#6179 without an organisation: no row mark, no origin');
+  check(w.eval(`wso_row(5) + wso_origin(5) + wso_row('private') + wso_origin('private', '', true)`) === '', '#6179 / #7661 without an organisation: no row mark, no origin, Private neutral too');
+  check(![...d.querySelectorAll('#side .srow[data-list]')].some(x => x.dataset.wso), '#7661 without an organisation: no project row marked');
   w.close();
 
   console.log(`p21205_b_orgcolor_ui: ${ok} ok, ${F.length} failed`);
