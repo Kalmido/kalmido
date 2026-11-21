@@ -1,0 +1,37 @@
+{
+  "de": {
+    "The task could not be created": "Die Aufgabe konnte nicht erstellt werden",
+    "From the sign-off “{0}”": "Aus der Abnahme „{0}“",
+    "Tasks from a sign-off need a project you may write in": "Aufgaben aus einer Abnahme brauchen ein Projekt, in dem du schreiben darfst",
+    "Sign-off: {0}": "Abnahme: {0}",
+    "Comment of the client {0} (guest)": "Kommentar des Kunden {0} (Gast)"
+  },
+  "es": {
+    "The task could not be created": "No se pudo crear la tarea",
+    "From the sign-off “{0}”": "De la aprobación «{0}»",
+    "Tasks from a sign-off need a project you may write in": "Las tareas de una aprobación necesitan un proyecto en el que puedas escribir",
+    "Sign-off: {0}": "Aprobación: {0}",
+    "Comment of the client {0} (guest)": "Comentario del cliente {0} (invitado)"
+  },
+  "fr": {
+    "The task could not be created": "La tâche n’a pas pu être créée",
+    "From the sign-off “{0}”": "De la validation « {0} »",
+    "Tasks from a sign-off need a project you may write in": "Les tâches issues d’une validation nécessitent un projet dans lequel tu peux écrire",
+    "Sign-off: {0}": "Validation : {0}",
+    "Comment of the client {0} (guest)": "Commentaire du client {0} (invité)"
+  },
+  "it": {
+    "The task could not be created": "Non è stato possibile creare l’attività",
+    "From the sign-off “{0}”": "Dall’approvazione «{0}»",
+    "Tasks from a sign-off need a project you may write in": "Le attività da un’approvazione richiedono un progetto in cui puoi scrivere",
+    "Sign-off: {0}": "Approvazione: {0}",
+    "Comment of the client {0} (guest)": "Commento del cliente {0} (ospite)"
+  },
+  "nl": {
+    "The task could not be created": "De taak kon niet worden gemaakt",
+    "From the sign-off “{0}”": "Uit de goedkeuring ‘{0}’",
+    "Tasks from a sign-off need a project you may write in": "Taken uit een goedkeuring hebben een project nodig waarin je mag schrijven",
+    "Sign-off: {0}": "Goedkeuring: {0}",
+    "Comment of the client {0} (guest)": "Opmerking van de klant {0} (gast)"
+  }
+}
