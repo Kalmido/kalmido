@@ -19719,10 +19719,5 @@
   "documents from templates": "documentos de plantillas",
   "invoice series": "series de facturas",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "El cliente de este documento ya no está en esta oficina (movido a otro espacio de trabajo). Elige primero otro cliente.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "El cliente de la factura plantilla ya no está en esta oficina (movido a otro espacio de trabajo). Elige otra factura plantilla y vuelve a activar la serie.",
-  "The task could not be created": "No se pudo crear la tarea",
-  "From the sign-off “{0}”": "De la aprobación «{0}»",
-  "Tasks from a sign-off need a project you may write in": "Las tareas de una aprobación necesitan un proyecto en el que puedas escribir",
-  "Sign-off: {0}": "Aprobación: {0}",
-  "Comment of the client {0} (guest)": "Comentario del cliente {0} (invitado)"
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "El cliente de la factura plantilla ya no está en esta oficina (movido a otro espacio de trabajo). Elige otra factura plantilla y vuelve a activar la serie."
 }
