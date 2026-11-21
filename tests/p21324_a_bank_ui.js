@@ -12,6 +12,8 @@
 const path = require('path');
 const {execFileSync} = require('child_process');
 const {sleep, B, login} = require('./boot');
+// #7497 / #7499: the walk-through shows the next booking at once and saves behind it: the server's state is waited for
+const poll = async (fn, n = 60) => { for (let i = 0; i < n; i++) { if (await fn()) return true; await sleep(250); } return false; };
 const TC = require('./testclock');
 const F = []; let ok = 0;
 const check = (c, what) => { if (c) ok++; else { F.push(what); console.log('FAIL:', what); } };
@@ -125,7 +127,7 @@ const de = iso => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
     await shot('p21324a-walk-more.png');
     await ev(click(`document.querySelector('#pop [data-act="wlk-private"]')`));
     check(await ready(ev, `!/Bäckerei/.test(${head})`), 'desktop: "Privat" from "Mehr" goes on to the next booking');
-    check(await openTx() === 2, 'the server: one booking marked');
+    check(await poll(async () => await openTx() === 2), 'the server: one booking marked');
     // the booking with its invoice
     for (let i = 0; i < 3 && !/Kunde Eins/.test(await ev(head)); i++) { await ev(click(`${W}.querySelector('[data-wlk="skip"]')`)); await ready(ev, `!!${W}.querySelector('.wlk-acts')`, 20); }
     check(await ready(ev, `/Kunde Eins/.test(${head}) && !!${W}.querySelector('.wlk-cands .ocd.ocd-flat')`), 'desktop: the booking with its invoice as compact card');
@@ -141,7 +143,7 @@ const de = iso => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
     await ready(ev, `!!document.querySelector('#pop:not(.hidden) [data-act="wlk-noreceipt"]')`);
     await ev(click(`document.querySelector('#pop [data-act="wlk-noreceipt"]')`));
     check(await ready(ev, `(() => { const e = ${W}?.querySelector('.wlk-end'); return !!e && e.classList.contains('empty') && !!e.querySelector('svg') && /Jede Buchung ist erledigt/.test(e.textContent); })()`), 'desktop: the end view is the shared empty state with its icon');
-    check(await openTx() === 0, 'the server: no open booking left');
+    check(await poll(async () => await openTx() === 0), 'the server: no open booking left');
     await shot('p21324a-walk-end.png');
   }, false);
 

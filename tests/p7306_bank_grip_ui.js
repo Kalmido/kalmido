@@ -107,7 +107,8 @@ const M = `JSON.stringify((() => {
       row.dispatchEvent(new DragEvent('dragover', {bubbles: true, cancelable: true, dataTransfer: dt}));
       row.dispatchEvent(new DragEvent('drop', {bubbles: true, cancelable: true, dataTransfer: dt})); return 1; })()`);
     check(await until(`document.querySelectorAll('.bnklist .bnkrow').length === 1`, {timeout: 8000}), 'the receipt dropped onto the booking matches it (the row goes)');
-    const mt = await call(CF, 'GET', '/api/office/bank/tx?state=matched');
+    let mt = {};  // #7497: the row goes at once, the match is saved behind it
+    for (let i = 0; i < 60 && !(mt.items || []).some(t => t.id === TX); i++) { mt = await call(CF, 'GET', '/api/office/bank/tx?state=matched'); if (!(mt.items || []).some(t => t.id === TX)) await new Promise(r => setTimeout(r, 250)); }
     check((mt.items || []).some(t => t.id === TX && t.match?.kind === 'receipt'), 'the booking is matched with the receipt');
     // a double click: 18rem again, nothing stored (the column stays while a booking is open: the receipts are gone, the grip too)
     const g5 = await get();

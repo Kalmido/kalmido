@@ -1875,17 +1875,17 @@ function rwRows(o) {
     o.draw();
   };
   // #7497 / #7499: one action on one row of a list (match, mark, take back: a request of its own, not a save of the newest
-  // state). put = the row's new state at once (looked up again each time: optSet), req(key) = the request (no message of its
-  // own: rawFetch); the action goes in the writer's row, the row says "Saving…"; an error puts the row back and it says why
+  // state). put = the row's new state at once (looked up again each time: optSet), req() = the request (no message of its
+  // own: rawFetch), take(j) = the area takes the answer (its row, its counters) before the row is drawn; the action goes in the writer's row, the row says "Saving…"; an error puts the row back and it says why
   // with "Try again" (the same action once more; after no answer the very same request, x.retry: applied once).
   // -> the answer (the caller takes only this row and its counters from it); throws after an error (the row said it)
   W.why = new Map(); W.acts = new Map(); W.nk = new Map();  // nk: actions of a row on their way (W.busy(k): a later one waits, its answer stands)
   W.busy = k => (W.nk.get(k) || 0) > 0;
-  W.act = (k, put, req) => {
+  W.act = (k, put, req, take) => {
     const go = send => {
       W.st.set(k, 'saving'); W.why.delete(k); W.acts.delete(k); W.nk.set(k, (W.nk.get(k) || 0) + 1);
       const dn = () => { const n = W.nk.get(k) - 1; if (n > 0) W.nk.set(k, n); else W.nk.delete(k); return n > 0; };
-      return optWrite(put, () => W.run(send), o.draw, {mod: true}).then(j => { if (!dn() && W.st.get(k) === 'saving') W.st.delete(k); o.draw(); return j; }, x => {
+      return optWrite(put, () => W.run(send), o.draw, {mod: true}).then(j => { if (!dn() && W.st.get(k) === 'saving') W.st.delete(k); take?.(j); o.draw(); return j; }, x => {
         dn();
         if (o.fail?.(x)) W.st.delete(k);
         else {
@@ -1919,6 +1919,15 @@ function rwPatch(root, html, sels) {
   if (pairs.some(([a, b]) => !a !== !b)) return false;
   for (const [a, b] of pairs) if (a && b) { a.className = b.className; for (const n of ['aria-busy']) { if (b.hasAttribute(n)) a.setAttribute(n, b.getAttribute(n)); else a.removeAttribute(n); } keepFocus(a, () => fl_set(a, b.innerHTML)); }
   return true;
+}
+// #7497: until every writer's saves and row actions are answered (and their callers took the answers: one task later); the
+// history waits for it before an undo, so Ctrl+Z right after a click takes back that click, not the step before it
+async function rwIdle() {
+  for (let n = 0; n < 100; n++) {
+    const W = [...RW_ALL.values()].find(x => x.pend > 0); if (!W) break;
+    await W.chain;
+  }
+  await new Promise(r => setTimeout(r, 0));
 }
 document.addEventListener('click', e => {
   const b = /** @type {any} */ (e.target)?.closest?.('[data-rwagain]'); if (!b) return;
