@@ -90,7 +90,8 @@ try:
     rc, out = run(d)
     check(rc == 1 and "static/js/b.js:3: 'tasks.outbox'" in out and "static/js/offcache.js:2: 'tasks.outbox'" in out,
           f"#7595: the feed written outside its owner (a template literal, LS.del): red ({out})")
-    js("b.js", ""); js("offcache.js", "")
+    js("b.js", "")
+    js("offcache.js", "")
     js("icons.js", REG.replace("['ls', 'tasks.cache', 'copy', 'fallback of kalmido-start']", "['ls', 'tasks.cache', 'copy']")
                       .replace("['cache', 'tasks-shell-', 'view']", "['ls', 'tasks.wko', 'copy', 'fallback of kalmido-wiki'], ['cache', 'tasks-shell-', 'view']"))
     rc, out = run(d)
