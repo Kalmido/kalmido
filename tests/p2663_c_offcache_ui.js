@@ -161,7 +161,8 @@ const OFF = `() => { try { if (localStorage.getItem('t2663off') !== '1') return;
     // IndexedDB answers again: back to the record
     await ev(`(localStorage.removeItem('t7549hang'), localStorage.removeItem('tasks.cache'), 1)`);
     await cmd('browsingContext.reload', {context: ctx, wait: 'complete'});
-    check(await pu(`typeof S !== 'undefined' && S.booted && OUT.online && !STORE.closed && document.querySelector('#view .trow[data-id="${T}"]')?.textContent.includes('Water the ferns')`), 'IndexedDB answers again: a normal start');
+    // #6366: the start draws the kept state first - the server's state is there once the sync behind it is through (!S.devOld)
+    check(await pu(`typeof S !== 'undefined' && S.booted && OUT.online && !S.devOld && !STORE.closed && document.querySelector('#view .trow[data-id="${T}"]')?.textContent.includes('Water the ferns')`), 'IndexedDB answers again: a normal start');
 
     // ---- (#6340 D2b): an own change online, then the page is hidden: the start state has it at once (was: only after the
     // delta + 30 s + an idle moment - closed before, the next offline start missed it)

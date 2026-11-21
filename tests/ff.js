@@ -168,6 +168,9 @@ module.exports = ({tag, check, shots, prefs: extra = [], lazy = false, connectS 
       // the late load of the blank page then swallows the suite's next step (the login fetch: no answer within 120 s). Before only
       // p2190_family_ui and p21144_d_ui waited for it themselves (2.161.2 / 2.161.3) - now every suite: until it is really the page
       if (/static\/icon\.svg$/.test(String(url))) for (let i = 0; i < 100 && !await ev(`location.pathname === '/static/icon.svg' && document.readyState === 'complete'`).catch(() => false); i++) await sleep(100);
+      // #6366: a start drawn from the state kept on this device syncs behind it: the suites go on with the server's state as
+      // before (the first drawing, then the sync; an offline start keeps the kept state; at most 20 s, a page without the app at once)
+      else for (let i = 0; i < 200 && !await ev(`(() => { if (typeof S === 'undefined' || typeof OUT === 'undefined') return true; const b = document.getElementById('boot'); return (!b || b.classList.contains('out')) && (!S.devOld || OUT.online === false); })()`).catch(() => true); i++) await sleep(100);
       // 2.501.0 (#4296): a module that does not load is red (the suite's later calls would only fail by chance); a page that
       // went away while it loaded (its own redirect or reload) is no load error. On purpose without the modules: lazy: true
       if (!lazy) {
