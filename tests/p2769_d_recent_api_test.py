@@ -8,6 +8,8 @@ Invented data only.
    (a share: workspace "shared"); ?space=org:<id> of a foreign organisation 404, a bad value 400
  - ?space= narrows to one workspace (the start page inside a workspace): nothing of another one, nothing shared from outside
  - an area the organisation's admins switch off gives nothing of that organisation; the person's own module switch the same
+ - (#7706) the module card: a member whose card leaves out Knowledge, Files or Reading gets no title of it from that
+   organisation; without cards all as before; the person's own "hidden in Private" takes her private items out
  - agents and API tokens: 403 (a view of the app)
  - a person without an organisation gets her own items in Private (freelancer-matrix: wiki)
 tenant-matrix: recent
@@ -155,6 +157,30 @@ check(("wiki", P_ORG) in keys(recent(Bo)), "#5352: on again: there again")
 Bo.patch(B + "/api/settings", json={"features": FEATURES.replace(",wiki", "")})
 check(not any(x["area"] == "wiki" for x in recent(Bo)), "#5352: the person's module Knowledge off: no pages")
 Bo.patch(B + "/api/settings", json={"features": FEATURES})
+
+# ================================================================== (#7706) the module card: the same one question as the lists under "All"
+# a member whose card in the organisation leaves out Knowledge / Files / Reading gets no title of that module there
+F_BOB = upload(Bo, SP, "bob-team.txt")
+check(("files", F_BOB) in keys(recent(Bo)), "setup: bob sees his file of the organisation")
+for mod, item in (("wiki", ("wiki", P_ORG)), ("files", ("files", F_BOB)), ("reading", ("reading", R_ORG))):
+    rest = [m for m in ("wiki", "files", "reading") if m != mod]
+    r = A.post(B + "/api/modcards", json={"space": SP, "name": "Without " + mod, "mods": rest, "people": [BOB]})
+    check(r.status_code == 201, f"setup: a card without {mod} for bob " + r.text[:200])
+    k = keys(recent(Bo))
+    check(item not in k, f"#7706: card without {mod}: no title of it from Nordwind in Recently edited {sorted(k)}")
+    check(not any(x["area"] == mod and x["space"] == SP for x in recent(Bo) or []), f"#7706: card without {mod}: nothing of the area in Nordwind")
+    other = [x for x in ((("wiki", P_ORG), ("files", F_BOB), ("reading", R_ORG))) if x[0] != mod]
+    check(all(x in k for x in other), f"#7706: card without {mod}: the modules of the card stay {sorted(k)}")
+    check(("files", F_SHARED) in k, f"#7706: card without {mod}: what alice shared with him privately stays")
+    check(A.delete(B + f"/api/modcards/{r.json()['card']['id']}").ok, "setup: the card is deleted")
+    check(item in keys(recent(Bo)), f"#7706: without a card {mod} is there again")
+check({("wiki", P_ORG), ("files", F_BOB), ("reading", R_ORG)} <= keys(recent(Bo)), "#7706: no cards in the organisation: everything as before")
+# my own switch: Knowledge hidden in Private ("Also private" / ws_mods_off) takes my private pages out, the organisation's stay
+check(A.patch(B + "/api/settings", json={"ws_mods_off": json.dumps({"private": ["wiki"]})}).ok, "setup: alice hides Knowledge in Private")
+k = keys(recent(A))
+check(("wiki", P_PRIV) not in k and ("wiki", P_ORG) in k, f"#7706: Knowledge off in Private: no private page, the organisation's stay {sorted(k)}")
+check(A.patch(B + "/api/settings", json={"ws_mods_off": "{}"}).ok, "setup: alice shows Knowledge in Private again")
+check(("wiki", P_PRIV) in keys(recent(A)), "#7706: on again: her private page is there again")
 
 # ================================================================== a page deleted is gone
 check(A.delete(B + f"/api/wiki/pages/{P_ORG}").ok, "setup: alice deletes the organisation's page")
