@@ -2144,6 +2144,30 @@ on. `startSave`, `wiki.js wko_st` and the offline start ask only it. `sw.js swSt
 is there (it goes with class copy). Not in the register: the browser's HTTP cache (files with private max-age), which a
 script cannot empty - a point of its own.
 
+**One place and one writer per store (#7595):** the queue and the start state each have two places in the browser; which
+one holds them is the browser's **mode, fixed once**: `globalThis.indexedDB` there = IndexedDB, else localStorage - never a
+window after a failed open or write. The register names the second place with its role (4th field of `DEV_STORES`):
+
+| store | with IndexedDB | without | second place, its role | its one owner |
+|---|---|---|---|---|
+| queue `kalmido-outbox` | the queue (core.js `OBX`, `OUT.q` comes from `outOpen`) | `tasks.outbox` is the queue | `tasks.outbox` = **feed**: entries not in IndexedDB yet (`outStash` when the page goes #3024, the entries of a write that failed #6339 - only those, an earlier version's queue, a window whose IndexedDB does not open) | consumer `obxAdopt`; writers `obxFeedSet` (feed), `outSync` / `outSave` (queue without IndexedDB) |
+| start state `kalmido-start` | the record (offcache.js: place, gate `startMay` = devCopyOk, schedule, take-over) | `tasks.cache` (core.js `startSave`) | `tasks.cache` = **fallback**; with IndexedDB only an old copy, taken over once and removed | offcache.js / core.js `startSave` |
+
+The **newer one wins**, in the same transaction: the start state's record carries its age beside the state (`v` = server
+version, `sat` = `_at`), a write reads the record first and leaves a newer one (an older window being hidden, the old copy);
+a queue entry carries its revision `r` (counted up by every write of it), `obxAdopt` takes the feed's entry over the queue's
+only when it is as new or newer and then removes exactly the entries it read. **No stand-in place after a failure:** a start
+state write that did not land is said once and the next change opens a fresh connection (no localStorage copy, class copy);
+a queue write that failed puts only its entries into the feed, and where that is refused too they wait in memory (`OBX.miss`,
+the sign) until the next write takes them along. A window whose IndexedDB does not open sends its feed itself, also after a
+reload, and removes only what the server confirmed; what another window adopts into IndexedDB is that queue's (sent once:
+the Idempotency-Key). `sw.js swStartFold` writes the record by the same contract (one transaction, only a record that is
+there, its age kept). `startSave` only says "the state changed", `liveparts.js` only folds the delta into `S.lpCache`.
+`tools/check_devstore.py` is red for a write of `tasks.outbox` / `tasks.cache` outside its owner (`OWNERS`) and for a role
+without an owner. Tests: `tests/p2663_c_offcache_ui.js` (both places older / newer, two windows, refused write, F1),
+`tests/p21384_b_store_ui.js` (feed newer / older, only the failed entries, no window with IndexedDB, a second window with
+it), `tests/p2743_d_sw_outbox.js` (the worker's fold keeps the age), `tests/check_devstore_test.py`.
+
 **The server side:** a session ends in one place, `accounts/sessions.py ses_end` - with the push subscriptions made in it
 (logout, "end the others", a new password, a disabled account, `start_session` for the ones that ran out, the daily clean-up
 `admin/dataretention.py` with `expired`, a backup restore). `notify/push.py webpush_user` sends only to subscriptions of a
