@@ -26,8 +26,8 @@
 'use strict';
 
 const OC_DB = 'kalmido-start', OC_KEY = 'state', OC_GAP = 30000, OC_SAME = 600e3;
-/** @type {{h: ReturnType<typeof idbHeld> | null, t: any, warned: boolean, wrote: number, gen: number, last: number, wv: any}} */
-const OC = {h: null, t: 0, warned: false, wrote: 0, gen: 0, last: 0, wv: undefined};  // gen: counted up by oc_drop, a write planned before it is void; t: the planned write; last / wv: when and which version the last write landed
+/** @type {{h: ReturnType<typeof idbHeld> | null, t: any, warned: boolean, wrote: number, gen: number, last: number, wv: any, ww: number}} */
+const OC = {h: null, t: 0, warned: false, wrote: 0, gen: 0, last: 0, wv: undefined, ww: 0};  // gen: counted up by oc_drop, a write planned before it is void; t: the planned write; last / wv / ww: when, which version and which version of my own writes (S.wv) the last write landed
 // 2.1120.0 (#6036): the connection over core.js idbHeld: closed by the browser (a reload on Android) or by another tab's sign-out
 // (versionchange) -> opened again at the next access, a "connection is closing" no longer ends up as a warning on window.onerror
 function oc_held() {
@@ -75,7 +75,11 @@ function oc_putNewer(rec, gen) {
   return oc_tx('readwrite', st => {
     const g = st.get(OC_KEY);
     g.onsuccess = () => {
-      if (gen !== OC.gen || (g.result && oc_newer(oc_recAge(g.result), [rec.v, rec.sat]))) return;
+      const r = g.result;
+      // a record written before the last full state of the server applied here but with a higher version: the server went
+      // back (a restore from a backup; its version only grows otherwise) - the record is older in truth and gives way
+      const back = !!r && typeof ld_full !== 'undefined' && !!ld_full && +r.v > ld_full.v && +r.at < ld_full.at;
+      if (gen !== OC.gen || (r && !back && oc_newer(oc_recAge(r), [rec.v, rec.sat]))) return;
       try { st.put(rec, OC_KEY); put = true; } catch (e) { err = e; try { st.transaction.abort(); } catch { /* ended */ } }  // a DataCloneError / quota thrown by put: its own name, not the abort's
     };
   }).then(() => { if (err) throw err; return put; }, e => { throw err || e; });
@@ -98,9 +102,9 @@ async function oc_write(gen = OC.gen) {
   try {
     await oc_db();
     if (S.lpCache !== c || gen !== OC.gen || !startMay()) return;  // dropped (sign-out, another sign-in) or replaced meanwhile: that one has its own write
-    const v = c.v;
+    const v = c.v, ww = S.wv || 0;
     if (await oc_put(c, gen)) OC.wrote++;
-    OC.last = Date.now(); OC.wv = v;
+    OC.last = Date.now(); OC.wv = v; OC.ww = ww;
     oc_lsDrop(null);  // the old copy: the record holds this state or a newer one now
   } catch (e) { oc_warn('not written, the next change tries again', e); oc_reopen(); }
 }
@@ -113,11 +117,12 @@ function oc_soon() {
   if (wait > 0) setTimeout(idle, wait); else idle();
 }
 // (#6340): core.js startSave(true) when the page is hidden: written now, not when idle (a hidden page may never be idle
-// again, and the next start would miss the last changes); nothing planned and the same version written within 10 minutes = nothing new
+// again, and the next start would miss the last changes); nothing planned, the same version and no own write answered since
+// (S.wv: an own change online moves neither S.v nor plans a write) within 10 minutes = nothing new
 function oc_now() {
   const planned = !!OC.t;
   OC.t = 0;
-  if (!planned && OC.last && S.lpCache?.v === OC.wv && Date.now() - OC.last < OC_SAME) return Promise.resolve();
+  if (!planned && OC.last && S.lpCache?.v === OC.wv && (S.wv || 0) === OC.ww && Date.now() - OC.last < OC_SAME) return Promise.resolve();
   return oc_write(OC.gen);
 }
 // core.js startRead: the record; the old localStorage copy is taken over once in the same transaction when it is newer
@@ -147,5 +152,5 @@ async function oc_get() {
 }
 // icons.js devEnd (class copy): the record goes (the connection stays open: a clear, not a deleteDatabase)
 function oc_del() { return oc_tx('readwrite', st => st.delete(OC_KEY)); }
-function oc_drop() { OC.t = 0; OC.gen++; OC.last = 0; OC.wv = undefined; return oc_del().catch(() => {}); }
+function oc_drop() { OC.t = 0; OC.gen++; OC.last = 0; OC.wv = undefined; OC.ww = 0; return oc_del().catch(() => {}); }
 devDrop('kalmido-start', () => { startClr(); return oc_drop(); });  // (#6500): the drop of class copy (icons.js DEV_STORES)

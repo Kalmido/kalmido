@@ -2064,6 +2064,9 @@ function ldAgain() {
 // or a question still pending: they need the server's settings), an own window or a link (invitation, sign-in, share, action)
 S.devOld = null;
 let ld_net = false;  // a state of the server was applied in this page: a kept state read later is not drawn over it
+// the last full state of the server applied here {v, at}: a start record with a higher version written before it predates a
+// restore of the server (its version counter went back) and gives way to it (offcache.js oc_putNewer)
+let ld_full = null;
 function devShow(c) {  // a kept state on screen: the own changes not sent yet on top, its real age as the time of the last sync (#6340)
   applyState(c); OUT.q.forEach(applyLocal);
   const at = startAt(c); if (at) S.syncOk = at;
@@ -2124,6 +2127,7 @@ async function ld_go(auto) {
   catch (e) {
     if (!(e instanceof Offline)) throw e;
     if (!S.tasks.size) {  // offline start: last cached state + still-queued edits
+      await outOpen().catch(() => {});  // (#6366): the queue is opened after the request now: its edits go on top of the kept state
       const c = await startRead(); if (!c) throw e;  // 2.663.0 (#4200): IndexedDB (offcache.js), the old localStorage copy taken over once
       if (S.tasks.size) return;  // another load came first meanwhile
       // (#2872, #6500): another sign-in, 14 days without an online sync or no "Stay signed in" (the gate, its me): not shown, it goes
@@ -2133,13 +2137,13 @@ async function ld_go(auto) {
     return;
   }
   if (OUT.q.length) {  // flush() reloads once the queue is through
-    if (!S.tasks.size || j?.me?.id !== S.me?.id) { applyState(j); OUT.q.forEach(applyLocal); devFresh(); }  // (#1992 O5): another user = applyState's switch
+    if (!S.tasks.size || S.devOld || j?.me?.id !== S.me?.id) { applyState(j); OUT.q.forEach(applyLocal); devFresh(); }  // (#6366): the kept state on screen gives way at once, the own edits on top  // (#1992 O5): another user = applyState's switch
     flush(); return;
   }
   applyState(j); devFresh();
   if (j?.lva && !S.lpA) S.lpA = j.lva;  // 2.619.0 (#3890): the areas of this state (read before its v): the first poll takes a delta, not the whole state again
   if (S.qfWait && typeof qfSend === 'function') qfSend();  // 2.376.1 CI fix: files of a quick add whose new task was not loaded yet
-  j._at = Date.now(); S.lpCache = j; startSave();  // (#6340): _at = startAt  // (#4200): written when idle (IndexedDB); (#1376): the delta keeps the cache current (liveparts.js)
+  j._at = Date.now(); S.lpCache = j; ld_full = {v: +j.v || 0, at: j._at}; startSave();  // (#6340): _at = startAt  // (#4200): written when idle (IndexedDB); (#1376): the delta keeps the cache current (liveparts.js)
   if (S.extra) await loadExtra().catch(() => {});
   if (S.sel && (cmtOn() || collab()) && S.tl.id === S.sel && S.tl.v !== S.v) loadTimeline(S.sel);
   if (S.sel && timeOn() && S.te.tid === S.sel && S.te.v !== S.v) loadTaskTime(S.sel);
