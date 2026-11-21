@@ -19719,14 +19719,5 @@
   "documents from templates": "Dokumente aus Vorlagen",
   "invoice series": "Rechnungsserien",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "Der Kunde dieses Dokuments ist nicht mehr in diesem Büro (in einen anderen Arbeitsbereich umgezogen). Wähle zuerst einen anderen Kunden.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Der Kunde der Vorlage-Rechnung ist nicht mehr in diesem Büro (in einen anderen Arbeitsbereich umgezogen). Wähle eine andere Vorlage-Rechnung und schalte die Serie wieder ein.",
-  "Hide on Today": "In Heute ausblenden",
-  "“{0}” is hidden on Today": "„{0}“ ist in Heute ausgeblendet",
-  "“{0}” is shown on Today": "„{0}“ wird in Heute angezeigt",
-  "Start and stop focus sessions through the API": "Fokus-Runden über die API starten und beenden",
-  "Off: scripts with a personal token only read focus sessions and their statistics. On: they may also start, pause, resume and stop them. Agents never reach focus sessions.": "Aus: Skripte mit einem persönlichen Token lesen Fokus-Runden und ihre Statistik nur. An: Sie dürfen sie auch starten, pausieren, fortsetzen und beenden. Agenten erreichen Fokus-Runden nie.",
-  "Focus sessions can only be read through the API on this server: an admin can allow starting and stopping them under Settings > Server > Server > Whole server": "Fokus-Runden lassen sich auf diesem Server über die API nur lesen: Ein Admin kann das Starten und Beenden unter Einstellungen > Server > Server > Ganzer Server erlauben",
-  "{0} line": ["{0} Zeile", "{0} Zeilen"],
-  "The {0} is too long (max. {1} characters): put long text such as SQL or a log into details": "Das Feld {0} ist zu lang (max. {1} Zeichen): langen Text wie SQL oder ein Protokoll in details schreiben",
-  "What you brought in from your private workspace stays in the organisation too. To take something along, ask an admin to release it before you leave.": "Was du aus deinem privaten Arbeitsbereich eingebracht hast, bleibt ebenfalls in der Organisation. Willst du etwas mitnehmen, bitte vor dem Austritt einen Admin um Freigabe."
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Der Kunde der Vorlage-Rechnung ist nicht mehr in diesem Büro (in einen anderen Arbeitsbereich umgezogen). Wähle eine andere Vorlage-Rechnung und schalte die Serie wieder ein."
 }
