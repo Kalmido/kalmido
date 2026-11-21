@@ -61,7 +61,7 @@ const bnkAmt = v => `${+v > 0 ? '+' : '−'}${ofcMoney(Math.abs(+v))}`;
 
 // 2.855.0 (#5456): the page links the bank accounts (IBAN, default account: Settings › Company & office › Bank & taxes)
 function bnkHtml() {
-  if (BNK.oid !== OFC.info?.org_id) { Object.assign(BNK, {oid: OFC.info?.org_id, data: null, imports: null, err: null, other: null, cand: null, fints: null}); BNK_W?.reset(); }  // #7497: + the rows' marks  // 2.616.0 (#2473): + fints  // another office area
+  if (BNK.oid !== OFC.info?.org_id) { Object.assign(BNK, {oid: OFC.info?.org_id, data: null, imports: null, err: null, other: null, cand: null, fints: null}); BNK_W?.reset(); }  // #7497: + the rows' marks  // (#2473): + fints  // another office area
   if (!ofcAdmin()) return ofcLockedHtml();  // 2.356.0 D (#3006): why, and the way to hand in receipts
   if (BNK.err) return ofcFail(BNK.err, () => { BNK.err = null; BNK.data = null; });  // 2.1076.0 (#5450): the reason + "Try again"
   const norc = typeof BNR === 'object' && bnr_route() && BNK.state === 'norc';  // 2.299.0 C (#3192): #office/bank/norc (the reminder task's link)
@@ -209,8 +209,8 @@ function bnkMatch(tid, kind, mid, parts, label) {
   const req = {kind, ...(mid ? {id: +mid} : {}), ...(parts ? {parts} : {})};  // 2.355.0 B (#2843): parts of a split
   return bnkAct(tid, {kind, id: mid ? +mid : parts?.[0]?.id ?? null, label: label || ''}, () => bnkPost(tid, 'match', req), tr('Bank booking matched'),
     () => api('POST', `/api/office/bank/tx/${tid}/unmatch`), () => api('POST', `/api/office/bank/tx/${tid}/match`, req), j => {
-      if (typeof brl_learned === 'function') brl_learned(j);  // 2.299.0 B (#3191): "Always like this?" after the second time
-      // 2.355.0 B (#2843): a receipt with another amount than the booking is matched, but said (undo right in the toast)
+      if (typeof brl_learned === 'function') brl_learned(j);  // (#3191): "Always like this?" after the second time
+      // (#2843): a receipt with another amount than the booking is matched, but said (undo right in the toast)
       return j?.amount_differs ? tr('Matched, but the receipt says {0} and the booking {1}', ofcMoney(j.amount_differs.receipt), ofcMoney(j.amount_differs.booking))
         : j?.rule_category ? tr('Matched · category {0} by rule', j.rule_category.category || '') : tr('Matched');
     });
