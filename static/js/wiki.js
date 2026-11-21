@@ -55,11 +55,8 @@ const wk_spDot = sp => sp && sp !== 'private' && wsOn() ? wsp_dot(sp) : '';
 wso_open('wiki', () => S.route?.mod !== 'wiki' ? null : WK.pg && WK.pg.id === S.route.wid ? WK.pg.space || null : wk_open());
 const wk_spIcon = sp => typeof wsIcon === 'function' ? wsIcon(sp) : ic(sp === 'private' ? 'home' : 'brief', 's');
 const wk_locked = sp => typeof wkeLockHtml === 'function' && !!WK.idx[sp]?.pages && !!wkeLockHtml(sp);
-function wk_spacesHtml() {  // the entries per space (phone list, computer overview); 2.200.0 A (#2747, audit B 1): named like the file store's spaces
-  return `<ul class="wktree wkdlist wkspaces" aria-label="${esc(tr('Workspaces'))}">${wk_shown().map(s => `<li><a href="#wiki/s/${esc(s)}" class="wkitem wkdrow" data-wksp="${esc(s)}"${/*html-ok*/ wso_row(s) /* 2.1241.0 (#6182) */}>${wk_locked(s) ? ic('lock', 's') : wk_spIcon(s)}<span>${esc(wk_spaceName(s))}</span>${typeof wkeMark === 'function' ? wkeMark(s) : ''}</a></li>`).join('')}</ul>`;
-}
 // 2.769.0 (#5352): the overview under "All" (areas.js spo_recentHtml). 2.880.0 (#5561): a calm list of rows - "Recently edited"
-// (the page #wiki/recent), then one row per space with its lock mark (as wk_spacesHtml)
+// (the page #wiki/recent), then one row per space with its lock mark ((#7564): the own list of spaces wk_spacesHtml is gone)
 const wk_rows = () => wk_shown().map(s => [s, wk_spaceName(s), wk_locked(s) ? ic('lock', 's') : wk_spIcon(s), typeof wkeMark === 'function' ? wkeMark(s) : '']);
 const wk_recentHtml = () => `<nav id="wk-res" aria-label="${esc(tr('Pages'))}">${/*html-ok*/ spo_recentHtml('wiki', sp => 'wiki/s/' + sp, wk_rows())}</nav>`;  // #wk-res: the search's hits take its place (the input listener)
 // search under "All": the names in every loaded space (locked ones only after unlocking), each hit with its space's name

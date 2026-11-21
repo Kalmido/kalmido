@@ -161,8 +161,13 @@ const off = wss => ({ws_areas_off: JSON.stringify(Object.fromEntries(wss.map(w =
     check(await ev(`(typeof tv_wsLists !== 'function' || tv_wsLists() === null) && wso_scope() === ''`), 'on again: no time filter, the page wears no single colour');
     await go('clients');
     check(await ready(ev, `/Kunde Nord/.test(${txt}) && /Kunde Süd/.test(${txt}) && /Kunde Privat/.test(${txt})`, 60), 'on again: clients lists all three');
-    await go('sheets');
-    check(await ready(ev, `/Tabelle Nord/.test(${txt}) && /Tabelle Süd/.test(${txt}) && /Tabelle Privat/.test(${txt})`, 60), 'on again: Tables lists all three');
+    await go('sheets');  // (#7564): under "All" the overview of the spaces; each space lists its own table
+    const spv = `[...document.querySelectorAll('#view .spov [data-spov]')].map(a => a.dataset.spov).join('|')`;
+    check(await ready(ev, `${spv} === ${JSON.stringify(['private', N, SP.B[0]].join('|'))}`, 60), 'on again: Tables offers all three spaces');
+    for (const k of ['P', 'A', 'B']) {
+      await go('sheets/s/' + SP[k][0]);
+      check(await ready(ev, `/Tabelle ${SP[k][2]}/.test(${txt})`, 60), `on again: Tables of ${SP[k][2]} lists its table`);
+    }
 
     // ================= P4: carol without an organisation
     await ev(`fetch('/api/auth/logout', {method: 'POST', headers: {'X-Requested-With': 'kalmido'}}).then(r => r.status)`).catch(() => 0);

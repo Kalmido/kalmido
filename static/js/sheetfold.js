@@ -59,9 +59,10 @@ function shf_panelTree(items, sps, cur) {
     const loose = shf_tables(items, sp, null).filter(x => !x.list_id);
     const folders = shf_kids(sp, null), at0 = at ? shf_folder(at) : null;
     // #7389: the core's workspace node (sbb_treeHtml wso: symbol, stripe on the row, arrow only with content, open with the open object)
-    return {k: 'sh:s:' + sp, name: shvSpaceName(sp), go: 'sheets', wso: sp, battrs: `data-shsp="${esc(sp)}"`,
+    // (#7564): under "All workspaces" its name opens the space (#sheets/s/<space>, like Files), else the overview
+    return {k: 'sh:s:' + sp, name: shvSpaceName(sp), go: shv_home(sp), on: r.mod === 'sheets' && !r.sh && !r.shl && !r.shf && !!r.wsp && r.wsp === sp, wso: sp, battrs: `data-shsp="${esc(sp)}"`,
       ns: 'sh', id: 'r:' + sp, par: '', drop: !!s?.can_add, menu: !!s?.can_add, has: folders.length + loose.length + auto.length > 0,
-      here: !!cur && items.some(x => x.id === cur && x.space === sp && !x.shared_in) || at0?.space === sp || r.mod === 'sheets' && auto.some(a => a.k === 'sh:l' + r.shl),
+      here: r.mod === 'sheets' && r.wsp === sp || !!cur && items.some(x => x.id === cur && x.space === sp && !x.shared_in) || at0?.space === sp || r.mod === 'sheets' && auto.some(a => a.k === 'sh:l' + r.shl),
       sub: () => [...folders.map(fold), ...loose.map(x => tbl(x, 'r:' + sp, true)), ...auto]};
   });
 }
@@ -180,7 +181,7 @@ function shf_folderView(fid, card) {
   if (!d || d.v !== S.v) shvLoadIdx('all');
   if (!f) return `<div class="shvwrap shvov"><div class="shvtop"><a class="btn sm" href="#sheets" data-navup>${ic('back', 's')}${tr('Tables')}</a></div><p class="muted lempty" role="status">${SHF.d && SHF.v !== -1 ? esc(SHF.err || tr('Not found')) : tr('Loading…')}</p></div>`;
   const up = shf_folder(f.parent_id), w = shf_canW(f);
-  const head = `<div class="shvtop"><a class="btn sm" href="#${up ? 'sheets/f/' + up.id : 'sheets'}" data-navup>${ic('back', 's')}<span class="shvbk">${esc(up ? up.name : shvSpaceName(f.space))}</span></a>
+  const head = `<div class="shvtop"><a class="btn sm" href="#${esc(up ? 'sheets/f/' + up.id : shv_home(f.space) /* (#7564): under "All" its space */)}" data-navup>${ic('back', 's')}<span class="shvbk">${esc(up ? up.name : shvSpaceName(f.space))}</span></a>
     <h2 class="shvh">${ic(f.shared ? 'users' : 'folder', 's')} ${esc(f.name)}</h2><span class="spacer"></span>
     <button type="button" class="iconbtn" data-shf="fmenu" data-id="${f.id}" aria-haspopup="menu" title="${esc(tr('More'))}" aria-label="${esc(tr('More'))}">${ic('dots')}</button>
     ${w ? `<button type="button" class="btn sm pri" data-shf="new" data-id="${f.id}">${ic('plus', 's')}${tr('New table')}</button>` : ''}</div>`;

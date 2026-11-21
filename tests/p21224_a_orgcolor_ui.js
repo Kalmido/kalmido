@@ -53,14 +53,19 @@ const FEAT = 'comments,collab,sheets,time';
   // ================= #6186 tables, "All workspaces"
   let w = await boot({hash: 'sheets'}), d = w.document;
   const T = want(w);
+  // (#7564): under "All workspaces" Tables shows the overview of the spaces (no mixed list with group headings); a space opens
+  // at #sheets/s/<space>, its cards keep their stripe
+  const ro = await until(() => d.querySelector(`#view .spov [data-spov="org:${ORG}"]`), {timeout: 20000});
+  check(ro && striped(ro, T), '#6186 / #7564 the overview\'s row of the organisation wears its stripe in its colour');
+  check(!d.querySelector('.shvgrp h3'), '#7564 no group headings under "All"');
+  w.eval(`go('sheets/s/org:${ORG}')`);
   const co = await until(() => d.querySelector(`.shvcard[data-id="${SO}"]`), {timeout: 20000});
-  check(co && /Studio budget/.test(co.textContent), '#6186 the overview shows the organisation\'s table');
+  check(co && /Studio budget/.test(co.textContent), '#6186 the organisation\'s space shows its table');
   check(striped(co, T), '#6186 the organisation\'s table card wears its stripe in its colour');
-  const cp = d.querySelector(`.shvcard[data-id="${SP}"]`);
+  w.eval(`go('sheets/s/private')`);
+  const cp = await until(() => d.querySelector(`.shvcard[data-id="${SP}"]`), {timeout: 20000});
   check(cp && /Household/.test(cp.textContent) && cp.dataset.wso === '1' && cp.style.getPropertyValue('--wsd') === 'var(--acc-d)', '#7661 (was #6186 neutral): the private table card wears Private\'s colour');
-  const hs = [...d.querySelectorAll('.shvgrp h3')];
-  check(hs.some(h => /Studio/.test(h.textContent) && h.querySelector('.wsp-dot[data-wsc]')), '#6186 the organisation\'s group heading carries its dot');
-  check(hs.some(h => /Private/.test(h.textContent) && !h.querySelector('.wsp-dot')), '#6186 the private group heading has no dot');
+  check(!d.querySelector(`.shvcard[data-id="${SO}"]`), '#7564 the private space shows only its own tables');
   // open the table: the page is marked (the frames, "All": its tone); back and into the private one: neutral
   w.eval(`go('sheets/${SO}')`);
   check(await until(() => d.querySelector('.shvsheet') && d.querySelector('#main').classList.contains('wsc-on') && d.querySelector('#main').style.getPropertyValue('--wsd') === T.d, {timeout: 20000}), '#6186 the open table of the organisation: #main.wsc-on in its colour');
@@ -69,7 +74,7 @@ const FEAT = 'comments,collab,sheets,time';
   w.eval(`go('sheets/${SP}')`);
   check(await until(() => /Household/.test(d.querySelector('.shvtitle')?.textContent || '') && d.querySelector('#main').classList.contains('wsc-on') && d.querySelector('#main').style.getPropertyValue('--wsd') === 'var(--acc-d)', {timeout: 20000}), '#7661 (was #6186 no mark): the open private table: #main in Private\'s colour');
   w.eval(`go('sheets')`);
-  check(await until(() => d.querySelector('.shvov') && !d.querySelector('#main').classList.contains('wsc-on')), '#6186 back in the overview: no open object, no mark');
+  check(await until(() => d.querySelector('.shvov') && d.querySelector('#view .spov') && !d.querySelector('#main').classList.contains('wsc-on')), '#6186 back in the overview: no open object, no mark');
   // #7389: the workspace's row wears the stripe (the core's workspace node), its button and the tables below it none
   const shp = w.eval(`sbb_treeHtml(shf_panelTree(SHV.idx.all.items, shvSpaces(), null))`);
   check(new RegExp(`class="fhead sbbt[^"]*sbbws[^"]*" data-wso="1"[^>]*data-sbbid="r:org:${ORG}"`).test(shp) && !/class="sbbtn"[^>]*data-wso/.test(shp) && /data-wso="1"[^>]*data-sbbid="r:private"/.test(shp), '#6186 / #7661 the panel: the organisation\'s and Private\'s workspace rows wear their stripe, no button');

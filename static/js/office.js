@@ -146,6 +146,7 @@ function ofc_objGo() {
   });
   return true;
 }
+const ofc_rows = () => ofc_spaces().map(w => [w, wsName(w), wsIcon(w)]);  // (#7564): the overview's rows (areas.js spo_rowHtml)
 const ofc_allOvr = () => wsOn() && wsCur() === 'all' && ofc_spaces().length > 1 && !ofc_sp();
 const ofc_allUpHtml = () => wsCur() === 'all' && ofc_sp() && ofc_spaces().length > 1 ? `<a href="#office" class="linkbtn ofcallup" data-ofcall="up">${esc(tr('All workspaces'))}</a><span class="abcsep" aria-hidden="true">/</span>` : '';  // (#6717): not for the only office under "All" (no overview)
 const ofc_wsKey = () => (typeof wsCur === 'function' ? wsCur() : '') + (ofc_sp() ? '>' + ofc_sp() : '') + (biz_sp() ? '#' + biz_sp() : '');  // OFC.ws: the shown office (a workspace, or "All" + an area; #7556: + the settings' office tab)
@@ -257,13 +258,14 @@ const ofr_backHtml = tab => ofr_grp() && ofr_lvOf('settings') === 'none' ? '' : 
 const OFC_PBOX = '<div class="pboffers" data-fl-fill></div>';
 function viewOffice() {
   if (!officeOn()) return `<div class="empty">${setLinkHtml(tr('Office & finance is off (Settings > Modules)'))}</div>`;
+  if (S.route.zle) return `<div class="dash office ofcall">${/*html-ok*/ spo_recentPage('office', ofc_rows())}</div>`;  // (#7564): #office/recent
   const tab = ofcTab();
   if (OFC.tab !== tab) { OFC.tab = tab; OFC.q = ''; }  // the search belongs to one tab
   if (tab === 'start' && ofm_menuOff(S.route.tab)) setTimeout(() => { if (ofm_menuOff(S.route.tab)) location.replace('#office/start'); }, 0);  // 2.440.0 (#3609)
   pb_wsFollow();
   if (ofc_wspBad()) return `<div class="dash office">${noAccessState({sub: tr('The office is off for you in this workspace.'), action: ofc_spaces().length ? `<div class="eacts ofcnoarea">${ofc_spaces().map(w => `<a class="btn sm" href="#office/s/${esc(w)}">${/*html-ok*/ wsIcon(w)}<span>${esc(wsName(w))}</span></a>`).join('')}</div>` : ''})}</div>`;  // (#7313): route.wsp not mine / office off there
   if (ofc_objGo()) return loadingHtml('big');  // (#7313 F13)
-  if (ofc_allOvr()) return `<div class="dash office ofcall">${spo_html(sp => 'office/s/' + sp, ofc_spaces().map(w => [w, wsName(w), wsIcon(w)]))}</div>`;  // 2.543.0 (#4606); 2.577.0 (#4638): the area's own address
+  if (ofc_allOvr()) return `<div class="dash office ofcall">${/*html-ok*/ spo_recentHtml('office', sp => 'office/s/' + sp, ofc_rows())}</div>`;  // 2.543.0 (#4606); 2.577.0 (#4638): the area's own address; (#7564): with "Recently edited" like Knowledge and Files
   if (!OFC.info && !OFC.infoErr && !OFC.infoLoading) setTimeout(ofcInfo, 0);
   // 2.87.9 (#1917): no tab row any more -- the office menu (areas.js ofm_menuHtml, via mg_wrap) leads to every tab
   if (OFC.info) ofm_admSeen(OFC.info.role === 'admin', OFC.info.rights, OFC.info.used, OFC.info.settings?.menu_off, OFC.info.features);  // (#3039): + used; (#3609): + the points switched off
