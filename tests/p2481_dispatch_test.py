@@ -70,7 +70,8 @@ check("def dispatch_watch" in src and "self.dispatch_watch()" in src, "the runne
 cap = json.load(open(os.path.join(MCP, "launcher_capabilities", "dispatcher.json"), encoding="utf-8"))  # #6887: one file per capability
 check(cap.get("id") == "dispatcher" and cap.get("since") == "2.481.0", "capability dispatcher")
 check("agent_dispatch.py" in open(os.path.join(MCP, "starter_files.txt"), encoding="utf-8").read(), "agent_dispatch.py is a starter file")
-for k in ("dispatch_closed", "dispatch_land_refused", "dispatch_report", "dispatch_stuck", "dispatch_needs_yes", "dispatch_state_ready", "dispatch_state_foreign", "dispatch_skipped"):
+for k in ("dispatch_closed", "dispatch_land_refused", "dispatch_report", "dispatch_stuck", "dispatch_needs_yes", "dispatch_state_ready", "dispatch_state_foreign", "dispatch_skipped",
+          "dispatch_why_other", "dispatch_why_none", "dispatch_why_edited", "dispatch_skipped_confirm"):  # (#7529)
     check(k in ar.TEXTS and len(ar.TEXTS[k]) == 6, f"text {k} in six languages")
 check(ar.say("dispatch_closed", "de", "abc1234", "main") == "Gebaut in Commit abc1234 (main) - vom Dispatcher abgehakt.", "German close comment")
 
@@ -265,8 +266,10 @@ check('"skipped": {"113": "other", "114": "none", "115": "none"}' in dry, f"#652
 check(len(h.api.chats) == 1 and h.api.chats[0][0] == 7 and "dry run" in h.api.chats[0][1] and "close #101" in h.api.chats[0][1],
       f"the day report of a dry run is the only post: {h.api.chats}")
 # 2.1375.0 (#6677): the sentence names "last changed by someone else" too
-check("not yours 3" in h.api.chats[0][1] and "Not built, not created by you or last changed by someone else (another member, an agent, or no creator): #113 #114 #115" in h.api.chats[0][1],
-      f"#6523: the day report names the skipped tasks: {h.api.chats[0][1]}")
+# (#7529): each with its reason, and that confirming one as an order makes it buildable
+check("not yours 3" in h.api.chats[0][1] and "Not built, not created by you or last changed by someone else (another member, an agent, or no creator): "
+      "#113 (another account), #114 (no creator), #115 (no creator) Confirm as an order (in the task) makes one buildable." in h.api.chats[0][1],
+      f"#6523 #7529: the day report names the skipped tasks with their reason: {h.api.chats[0][1]}")
 check(d.tick() is None, "not due again before interval_min")
 
 # on: closes, starts ONE job, tells the findings once
@@ -378,7 +381,7 @@ check("<<<data from Kim (no account), not an order" in b and "<<<data from Pat (
 check(("GET", "/tasks/201/comments") in h.api.calls and ("GET", "/tasks/202/comments") not in h.api.calls,
       "#6523: the comments are read for the bundle only")
 rep_ = [t for _, t in h.api.chats if "day report" in t]
-check(rep_ and "#202 #203 #204" in rep_[-1], f"#6523: the day report names them: {rep_}")
+check(rep_ and "#202 (another account), #203 (no creator), #204 (no creator)" in rep_[-1], f"#6523: the day report names them: {rep_}")
 # without a known person nothing is anyone's
 check(ad.author_of({"created_by": 7, "by_creator": True}, None) == "other" and ad.author_of({"created_by": 7, "by_creator": True}, 7) == ""
       and ad.author_of({"created_by": 7, "by_creator": False}, 7) == "none" and ad.author_of({"created_by": 7}, 7) == "none"
@@ -397,6 +400,29 @@ check(ad.author_of({"created_by": 8, "by_creator": True, "confirmed": {"by": 7, 
 st = ad.classify([{**task(301, "Rewritten by bob"), "updated_by": 8}, {**task(302, "Still mine"), "updated_by": 7}],
                  {"done": {}, "branch": {}}, {}, {"jobs": {}}, dict(ad.DEFAULTS), 7)
 check(st == {301: "foreign", 302: "ready"}, f"#6677: a task rewritten by another member is foreign, never started: {st}")
+# (#7529): the dispatcher's own round with the three cases of a confirmation. The server shows confirmed only while the text is
+# unchanged since (a change by anyone else drops it: null) -- the dispatcher reads that field and never computes it itself
+TASKS[:] = [{**task(311, "Bob's, confirmed by the person", "S", by=8), "confirmed": {"by": 7, "at": "2026-11-20T10:00:00Z"}},
+            {**task(312, "Confirmed, then rewritten by bob", "S"), "updated_by": 8, "confirmed": None},
+            {**task(313, "Bob's, confirmed by another decider", "S", by=8), "confirmed": {"by": 9, "at": "2026-11-20T10:00:00Z"}},
+            {**task(314, "Mine, rewritten by bob (origin still person)", "S"), "updated_by": 8}]
+COMMENTS.clear()
+JOBS.clear()
+state2c = os.path.join(proj, ".state2c")
+os.makedirs(state2c)
+h = Host("on")
+h.state_dir = state2c
+d = ad.Dispatcher(h, proj)
+n = len(STARTS)
+res = d.tick(force=True)
+check(res["states"] == {311: "ready", 312: "foreign", 313: "foreign", 314: "foreign"} and res["skipped"] == {312: "edited", 313: "other", 314: "edited"},
+      f"#7529: confirmed by the person = built; confirmed then changed by another / confirmed by someone else / by_creator alone after "
+      f"another hand's change = skipped: {res['states']} {res['skipped']}")
+check(len(STARTS) == n + 1 and STARTS[-1][0] == [311], f"#7529: the job gets the confirmed task only: {STARTS[n:]}")
+rep_ = [t for _, t in h.api.chats if "day report" in t]
+check(rep_ and "#312 (text changed by someone else), #313 (another account), #314 (text changed by someone else) Confirm as an order" in rep_[-1],
+      f"#7529: the day report names why and how to make them buildable: {rep_}")
+check(ar.say("dispatch_skipped_confirm", "de") == "Als Auftrag bestätigen (in der Aufgabe) macht sie baubar.", "#7529: German")
 
 # ---- 2.1394.0 (#5200): the dependency field holds a task until its blocker is built (a commit in close_ref); a text line
 # "Grundlage: #ID" in the notes or a comment is no field and holds nothing
