@@ -73,10 +73,22 @@ const bkRowsPut = (ids, vals) => () => {
   for (const id of ids) for (const r of bkRows(id)) { old.push([r, Object.fromEntries(Object.keys(vals).map(k => [k, r[k]]))]); Object.assign(r, vals); }
   return () => old.forEach(([r, o]) => Object.assign(r, o));
 };
+// #7502: after a save only what is shown comes again, the figures stay on screen meanwhile: the list of all receipts with every
+// row it had loaded (rclReload), the page of the bookkeeping (receipts of the month, income statement, VAT figures) while it is
+// open; else the income statement and the VAT figures are only marked old and come when their page opens (was: five requests
+// after every receipt, the list back to its first 200 rows)
 const bkRefresh = () => {
   if (typeof RSB === 'object') RSB.inRows = null; if (typeof RKF === 'object') RKF.data = null;
   if (typeof rclReload === 'function') rclReload();
-  if (BK.info && S.route?.mod === 'office' && ofcTab() === 'books') bkLoad(); else { BK.info = null; BK.euer = null; ofcDraw(); }
+  const main = S.route?.mod === 'office' && ofcTab() === 'books' && ['', 'ustva'].includes(bkSub() || '');
+  if (!main || !BK.info || !BK.euer) { Object.assign(BK, {info: null, euer: null, ustva: null}); return; }
+  const y = BK.year, q = `year=${BK.pyear}&period=${BK.period}`;
+  ofcRefetch('books', true, async () => {
+    const [info, euer, ustva] = await Promise.all([api('GET', `/api/office/books?year=${y}`), api('GET', `/api/office/books/euer?year=${y}`),
+      ofcFeat('books.vat_return') ? api('GET', `/api/office/books/ustva?${q}`) : {off: true}]);
+    const billed = await bkBilledLoad(info);
+    return () => { if (BK.year !== y) return; Object.assign(BK, {info, euer, ustva, billed, err: null}); bkAcctLines(); };
+  }, () => { BK.info = null; BK.euer = null; });
 };
 
 function bkTabHtml() {
@@ -127,9 +139,9 @@ function bkExportHtml() {
 }
 
 function bkRcRow(r) {
-  return `<li><button type="button" class="ofcrow" data-bk="rc" data-id="${r.node_id}"><span class="ofcn"><b>${esc(r.title || tr('Receipt'))}</b>
+  return `<li class="${esc(bkRwCls(r.node_id).trim())}"><button type="button" class="ofcrow" data-bk="rc" data-id="${r.node_id}"><span class="ofcn"><b>${esc(r.title || tr('Receipt'))}</b>
     <small class="muted">${esc([fmtDateLoc(r.date), r.category, bkVatLabel(r.vat_pct), bkBilledTxt(BK.billed[r.node_id])].filter(Boolean).join(' · '))}</small></span>
-    ${r.vat_pct == null && !BK.info.small_business ? `<span class="rotag bk-miss">${tr('without VAT rate')}</span>` : ''}${r.dup ? `<span class="rotag bk-dup">${tr('Possible duplicate')}</span>` : ''}<span class="rksum">${ofcMoney(r.amount)}</span>${ic('right', 's')}</button></li>`;
+    ${r.vat_pct == null && !BK.info.small_business ? `<span class="rotag bk-miss">${tr('without VAT rate')}</span>` : ''}${r.dup ? `<span class="rotag bk-dup">${tr('Possible duplicate')}</span>` : ''}<span class="rksum">${ofcMoney(r.amount)}</span>${ic('right', 's')}</button>${/*html-ok*/ bkRwMark(r.node_id) /* the core's mark, its texts escaped */}</li>`;
 }
 // 2.237.0 C (#2865): an incoming e-invoice is a suggestion until a person takes it over (one tap; the row opens the sheet)
 function bkEinvHtml(ei) {
@@ -401,6 +413,7 @@ async function bkUpload(files) {
   const fd = new FormData();
   for (const f of files) fd.append('files', f, f.name || 'receipt.jpg');
   fd.append('ws', BK.info?.upload_ws || (OFC.info?.personal ? 'private' : `org:${OFC.info?.org_id}`)); fd.append('unzip', '1'); fd.append('area', 'office');  // 2.276.0 A (#3039): Receipts loads no BK.info
+  /** @type {any} */ (fd).upBar = true;  // #7502: the upload bar (upbar.js) for any size: on a slow line the upload says at once that it runs
   let j; try { j = await api('POST', '/api/docs', fd); } catch (x) { ofcErr(x); return; }
   for (const e of j.errors || []) toast(e);
   const ids = j.ids || [], dups = j.dups || [];
@@ -444,6 +457,7 @@ async function bkSheet(id, fresh, again) {
   if (rc.suggestions?.length || rc.confirmed) loadModule('docs').then(() => { if (typeof rc_bkSlot === 'function') rc_bkSlot(md, id, rc); }).catch(() => 0);
   if (doc.extracted || doc.duplicate_of || doc.checks || doc.role !== 'view') loadModule('docs').then(() => { const el = $('.bk-rx', md); if (el && typeof rx_html === 'function') el.innerHTML = rx_html(doc); }).catch(() => 0);  // 2.299.0 D (#3193) checks, E (#3194): + "Read with an agent"
   const close = fgModal(md), touched = new Set();
+  md.bkSt = {doc, r, touched};  // #7502: what the sheet shows of the server (bkRxAfter takes a new state into the fields)
   md.addEventListener('input', e => { if (e.target.id) touched.add(e.target.id); });
   md.addEventListener('change', e => { if (e.target.id) touched.add(e.target.id); });
   if (wait) bkPoll(id, md, touched, 0);
@@ -462,9 +476,9 @@ async function bkSheet(id, fresh, again) {
     if (v('#bk-amount').trim() && amt == null) { $('.aerr', md).textContent = tr('Invalid value: {0}', tr('Amount')); return; }
     // 2.1362.0 (#6327): the state the sheet opened with (its versions) and the form now; only the fields that differ are sent,
     // each part against its version -- the project has no field here and is never sent
-    const open = {doc: bkDocView(doc), rc: bkRcView(r)};
+    const open = {doc: bkDocView(md.bkSt.doc), rc: bkRcView(md.bkSt.r)};  // #7502: the state the sheet shows now (bkRxAfter)
     const now = {doc: {amount: amt == null ? '' : amt.toFixed(2), date: v('#bk-date')}, rc: {category: v('#bk-cat').trim(), vat_pct: v('#bk-vat') || null, keep: true}};
-    // 2.559.0 (#4659): the sheet closes at once, the rows show the new values; a refusal puts them back
+    // (#4659): the sheet closes at once, the rows show the new values (#7502: with their state)
     md.remove();
     bkSave(id, open, now).catch(() => {});
   });
@@ -477,12 +491,14 @@ const bkDocView = d => ({amount: d.amount ? (+d.amount).toFixed(2) : '', date: d
 const bkRcView = r => ({category: r.category || '', vat_pct: r.vat_pct ?? null, keep: !!r.is_receipt, updated_at: r.updated_at || ''});
 const BK_SHF = {amount: '#bk-amount', date: '#bk-date', category: '#bk-cat', vat_pct: '#bk-vat'};
 const bkShIn = (k, x) => k === 'amount' && x ? fmtNum(+x, 2) : (x ?? '');  // the form's text of a value (the amount as the field shows it)
-function bkAgain(md, {cf, mine}) {
+function bkAgain(md, {cf, mine, err}) {
   for (const [k, x] of Object.entries(mine || {})) {
     const el = BK_SHF[k] && $(BK_SHF[k], md); if (!el) continue;
     el.value = bkShIn(k, x); el.dispatchEvent(new Event('input', {bubbles: true}));
     if (k === 'date' && typeof dpSync === 'function') dpSync(el);
   }
+  if (err) { const a = $('.aerr', md); if (a) a.textContent = err; }  // #7502: not saved: the typed values and why
+  if (!cf) return;
   const cur = Object.fromEntries(Object.entries(cf.cur).map(([k, x]) => [k, bkShIn(k, x)]));
   loadModule('objsave').then(() => objMerge(md, {...cf, cur}, () => {}, {field: k => BK_SHF[k] ? $(BK_SHF[k], md) : null})).catch(() => toast(tr('Changed by someone else in the meantime')));
 }
@@ -558,10 +574,30 @@ async function bkBillModal(pre) {
     } catch (x) { b.disabled = false; const el = $('.aerr', md); if (el) el.textContent = ofcErrHere(x); }
   });
 }
-function bkRxAfter(id) {  // 2.121.0 A (#2092): taken over / undone -> the sheet shows the new values
+// (#2092): taken over / accepted / undone -> the open sheet shows the new values. #7502: in its fields, the sheet
+// stays (was: closed and built anew with two requests, what was typed in other fields gone); a field takes the new value when
+// the person did not type in it or the step changed it
+async function bkRxAfter(id) {
   const md = $(`.bk-sheet[data-rxid="${id}"]`);
-  if (!md) return;
-  md.remove(); bkSheet(id); bkReload();
+  bkRefresh();
+  if (!md?.bkSt) return;
+  let doc, rc;
+  try { [doc, rc] = await Promise.all([api('GET', `/api/docs/${id}`), api('GET', `/api/docs/${id}/receipt`)]); } catch { return; }
+  if (!md.isConnected) return;
+  const st = md.bkSt, r = rc.receipt || {}, was = {doc: bkDocView(st.doc), rc: bkRcView(st.r)}, now = {doc: bkDocView(doc), rc: bkRcView(r)};
+  st.doc = doc; st.r = r;
+  for (const [k, sel] of Object.entries(BK_SHF)) {
+    const el = $(sel, md), part = k === 'amount' || k === 'date' ? 'doc' : 'rc', x = now[part][k];
+    if (!el || (st.touched.has(el.id) && JSON.stringify(was[part][k] ?? null) === JSON.stringify(x ?? null))) continue;
+    el.value = bkShIn(k, x); if (k === 'date' && typeof dpSync === 'function') dpSync(el);
+  }
+  const box = $('#bk-chk', md); if (box) { box.checked = !!r.checked_at; const l = $('.bk-chkby', md); if (l) l.textContent = bkChkTxt(r); }
+  bkAcctLine(md);
+  loadModule('docs').then(() => {
+    if (!md.isConnected) return;
+    if (typeof rc_bkSlot === 'function') rc_bkSlot(md, id, rc);
+    const el = $('.bk-rx', md); if (el && typeof rx_html === 'function') el.innerHTML = rx_html(doc);
+  }).catch(() => 0);
 }
 // 2.420.0 C (#3448): the tick "Checked" of a receipt (who + when, like DATEV; office/receiptlist.py). Only people tick it;
 // in a locked month the server refuses (409) and the box goes back. One undo step.
@@ -582,45 +618,63 @@ async function bkChkSet(md, id, on) {
   const label = on ? tr('Receipt marked as checked') : tr('Check removed');
   histToast(label, histAdd({label, undo: async () => { await bkChkPut(id, !on); return {}; }, redo: async () => { await bkChkPut(id, on); return {}; }}));
 }
-// 2.559.0 (#4659): the rows show the new values at once, both requests run behind it; the lists follow in the background
-// (bkRefresh, also after a refusal: the first request may have gone through)
-// 2.1362.0 (#6327): each part sends only its changed fields with the version the sheet read (objsave.js saveDialog): the
-// document (amount, date) PATCH /api/docs/{id}, the receipt (category, VAT rate, keep) PUT /api/docs/{id}/receipt. Changed on
-// another device meanwhile -> 409, nothing of that part is written, the rows go back and the sheet opens again on the current
-// state with the typed values and the merge bar (the document part is not sent then either). One undo step: each part back
-// through undoStep (core.js), only its changed fields against the version the save left; changed elsewhere since -> said
+// #7502 (decision): saving a receipt "writes at once" (core.js rwRows, one writer per receipt, docs/dev/kern.md "Write shows at
+// once"): the sheet closes, the rows show the new values at once with their state ("Saving…", "Not saved - Try again"); the
+// answer draws only these rows. No answer or a refusal (not 409): the rows keep the typed values with "Try again" and the sheet
+// comes back with them and the reason (when no other sheet is open). 409 (#6327): the rows go back, the sheet opens on
+// the current state with the typed values and the merge bar. Afterwards only what is shown comes again (bkRefresh).
+// Each part sends only its changed fields with the version it builds on (objsave.js saveDialog): the document (amount, date)
+// PATCH /api/docs/{id}, the receipt (category, VAT rate, keep) PUT /api/docs/{id}/receipt; a part that went through is the base
+// of a "Try again" (only the rest goes again, with its new version). One undo step: each part back through undoStep (core.js),
+// only its changed fields against the version the save left; changed elsewhere since -> said
+const BK_WS = new Map(), BK_RK = {_rk: 'rx'};  // one writer per receipt; its rows carry one key
+function bk_W(id) {
+  let W = BK_WS.get(id);
+  if (!W) { W = rwRows({name: 'bk' + id, send: () => bkrw_send(id, W), draw: () => ofcDraw(), fail: x => x?.status === 409}); W.job = null; BK_WS.set(id, W); }
+  return W;
+}
+// the state of a receipt's rows (in the month's list and in all receipts)
+const bkRwCls = id => BK_WS.has(id) ? rwCls(BK_WS.get(id), BK_RK) : '';
+const bkRwMark = id => BK_WS.has(id) ? rwMarkHtml(BK_WS.get(id), BK_RK) : '';
+const bkParts = id => [{url: `/api/docs/${id}`, key: 'doc', k: 'doc', view: bkDocView, ver: x => x?.edited_at},
+  {url: `/api/docs/${id}/receipt`, key: 'receipt', k: 'rc', method: 'PUT', view: x => bkRcView(x.receipt || {}), ver: x => x?.receipt?.updated_at}];
+async function bkrw_send(id, W) {
+  const job = W.job; if (!job) return null;
+  await loadModule('objsave');
+  for (const p of bkParts(id)) {
+    const j = await saveDialog(p.url, job.open[p.k], job.now[p.k], {key: p.key, method: p.method, view: p.view});
+    if (j?.conflict) throw Object.assign(new Error(tr('Changed by someone else in the meantime')), {status: 409, cf: j.conflict});
+    if (j !== job.open[p.k]) { job.done.set(p.k, {...p, open: job.open0[p.k], now: job.now[p.k], at: p.ver(j) || ''}); job.open[p.k] = p.view(j); }
+  }
+  if (W.job === job) W.job = null;
+  return job;
+}
+const bkMine = now => ({...now.doc, category: now.rc.category, vat_pct: now.rc.vat_pct});  // the sheet's fields of a save
 async function bkSave(id, open, now) {
-  const parts = [{url: `/api/docs/${id}`, key: 'doc', view: bkDocView, ver: x => x?.edited_at},
-    {url: `/api/docs/${id}/receipt`, key: 'receipt', method: 'PUT', view: x => bkRcView(x.receipt || {}), ver: x => x?.receipt?.updated_at}]
-    .map((p, i) => ({...p, open: i ? open.rc : open.doc, now: i ? now.rc : now.doc}));
-  const strip = o => { const x = {...o}; delete x.updated_at; return x; };
-  let cf = null;
-  try {
-    await loadModule('objsave');
-    const vals = Object.fromEntries(Object.entries({...objDiff(parts[0].open, parts[0].now), ...objDiff(parts[1].open, parts[1].now)})
-      .filter(([k]) => k !== 'keep').map(([k, x]) => [k, x === '' && k !== 'category' ? null : x]));
-    await optWrite(bkRowsPut([id], vals), async () => {
-      for (const p of parts) {
-        const j = await saveDialog(p.url, p.open, p.now, {key: p.key, method: p.method, view: p.view});
-        if (j?.conflict) { cf = j.conflict; throw Object.assign(new Error(tr('Changed by someone else in the meantime')), {status: 409}); }
-        p.sent = j !== p.open; p.at = p.sent ? p.ver(j) || '' : '';
-      }
-    }, ofcDraw, {mod: true});
-  } catch (x) {
-    if (cf) bkSheet(id, false, {cf, mine: cf.mine});
-    else ofcErr(x);
-    throw x;
-  } finally { bkRefresh(); }  // 2.110.0 B (#2055): the receipts list too (rclReload)
-  const done = parts.filter(p => p.sent);
+  await loadModule('objsave');
+  const W = bk_W(id), job = W.job = {open: {...open}, open0: open, now, done: new Map()};
+  const vals = Object.fromEntries(Object.entries({...objDiff(open.doc, now.doc), ...objDiff(open.rc, now.rc)})
+    .filter(([k]) => k !== 'keep').map(([k, x]) => [k, x === '' && k !== 'category' ? null : x]));
+  let back = null;
+  try { await W.write(() => { back = bkRowsPut([id], vals)(); return null; }, [rwKey(BK_RK)]); }
+  catch (x) {
+    if (x?.cf) { back?.(); ofcDraw(); bkSheet(id, false, {cf: x.cf, mine: x.cf.mine}); }
+    else if (!$('.bk-sheet')) bkSheet(id, false, {mine: bkMine(now), err: ofcErrHere(x)});  // the rows say "Not saved - Try again"
+    return {};
+  }
+  if (W.job) return {};  // a later save of this receipt waits: its answer does the rest
+  bkRefresh();
+  const done = [...job.done.values()];
   if (!done.length) return {};
+  const strip = o => { const x = {...o}; delete x.updated_at; return x; };
   const label = tr('Changed receipt');
-  const step = back => async () => {
+  const step = bk => async () => {
     const skipped = [];
     for (const p of done) {
-      const r = await undoStep(p.url, strip(back ? p.open : p.now), p.at, {now: strip(back ? p.now : p.open), method: p.method, label, then: x => { p.at = p.ver(x) || p.at; }});
+      const r = await undoStep(p.url, strip(bk ? p.open : p.now), p.at, {now: strip(bk ? p.now : p.open), method: p.method, label, then: x => { p.at = p.ver(x) || p.at; }});
       if (r.none) skipped.push(...r.skipped);
     }
-    bkRefresh();
+    bkRxAfter(id);  // + the lists shown (bkRefresh)
     return skipped.length === done.length ? {none: true, skipped} : {};
   };
   histToast(label, histAdd({label, undo: step(true), redo: step(false)}));

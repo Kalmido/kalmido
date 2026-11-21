@@ -144,7 +144,7 @@ function rc_bkSlot(md, id, rc) {
   el.onclick = async e => {
     const b = e.target.closest('[data-rcb]'); if (!b) return;
     const [act, sid] = b.dataset.rcb.split(':');
-    const again = async () => { if (typeof bkReload === 'function') bkReload(); if (md.isConnected) { md.remove(); if (typeof bkSheet === 'function') bkSheet(id); } return {}; };
+    const again = async () => { if (typeof bkRxAfter === 'function') await bkRxAfter(id); return {}; };  // #7502: the open sheet takes the new values, it stays
     const go = a => async () => { await api('POST', `/api/receipt-suggestions/${sid}/${a}`, a === 'accept' ? {} : undefined); return again(); };
     b.disabled = true;
     try { await go(act)(); } catch { b.disabled = false; return; }
@@ -289,8 +289,8 @@ function rck_html(d) {
 async function rck_post(id, act) {
   const j = await api('POST', `/api/docs/${id}/checks`, {do: act});
   if (typeof DC === 'object' && DC.doc?.id === id && j.doc) { DC.doc = j.doc; dc_mdDraw($('.dc-md')); dc_load(); }
-  if (typeof bkRxAfter === 'function') bkRxAfter(id);
-  if (typeof rclReload === 'function') rclReload();
+  if (typeof bkRxAfter === 'function') bkRxAfter(id);  // #7502: + the lists shown (bkRefresh)
+  else if (typeof rclReload === 'function') rclReload();
   return j;
 }
 document.addEventListener('click', async e => {
