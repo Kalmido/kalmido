@@ -89,6 +89,18 @@ j = st()
 check(own(j).get(f"org:{O3}") == ["life"] and f"org:{O3}" not in j["wsp"]["travel"], f"#7563: a new organisation: Home off at once {own(j)}")
 check(f"org:{O3}" not in stored(), "#7563: ... and nothing stored for it")
 
+# ================================================================== stay in touch counts as Home data of the organisation (reader F6)
+O4 = org("Care Club")
+check(own(st()).get(f"org:{O4}") == ["life"], "setup: Care Club without Home data: Home off")
+r = A.post(B + "/api/books", json={"name": "Care Club contacts", "org_id": O4})
+check(r.ok, f"setup: an address book of Care Club {r.status_code} {r.text[:200]}")
+r = A.post(B + "/api/contacts", json={"book_id": r.json().get("id"), "fn": "Person Example"})
+check(r.ok, f"setup: a contact in it {r.status_code} {r.text[:200]}")
+r = A.put(B + f"/api/contacts/{r.json().get('id')}/care", json={"every_days": 14})
+check(r.ok, f"setup: stay in touch with it every 14 days {r.status_code} {r.text[:200]}")
+check(own(st()).get(f"org:{O4}") == [], f"#7563 F6: stay in touch in Care Club keeps Home there (no default off) {own(st())}")
+check(f"org:{O4}" not in stored(), "#7563 F6: ... and nothing stored for it")
+
 # ================================================================== P4: a person without an organisation
 FID, Fr = freelancer(B, A)
 jf = Fr.get(B + "/api/state").json()

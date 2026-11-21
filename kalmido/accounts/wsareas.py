@@ -72,13 +72,22 @@ WSA_ORG_DEFAULT_OFF = ("life",)
 WSA_LIFE_KINDS = ("contracts", "home", "health", "travel", "budget")
 
 
-def wsa_org_has_life(c, oid):
-    """(#7563): has organisation oid Home data (a list of Home, also archived or in the trash: nothing gets hidden)?"""
+def wsa_org_has_life(c, oid, uid=None):
+    """(#7563): has organisation oid Home data (a list of Home, also archived or in the trash: nothing gets hidden), or -
+    for person uid - a contact of its address books uid stays in touch with (contact_care, the other half of Home in an
+    organisation, areas.js O3A_LIFE_ORG; reader F6; the book's workspace as life/model.py care_space)?"""
     cache = g.setdefault("wsa_life", {}) if _in_req() else {}
     if oid not in cache:
         cache[oid] = bool(c.execute("SELECT 1 FROM lists WHERE org_id=? AND life = ANY(CAST(? AS TEXT[])) LIMIT 1",
                                     (oid, list(WSA_LIFE_KINDS))).fetchone())
-    return cache[oid]
+    if cache[oid] or not uid:
+        return cache[oid]
+    ck = (oid, uid)
+    if ck not in cache:
+        cache[ck] = bool(c.execute("SELECT 1 FROM contact_care cc JOIN contacts k ON k.id=cc.contact_id JOIN books b ON "
+                                   "b.id=k.book_id WHERE cc.user_id=? AND cc.every_days>0 AND COALESCE(b.org_id, b.owner_org_id)=? "
+                                   "LIMIT 1", (uid, oid)).fetchone())
+    return cache[ck]
 
 
 def wsa_own(c, uid, st=None):
@@ -94,7 +103,7 @@ def wsa_own(c, uid, st=None):
     for oid in user_orgs(c, uid):
         k = "org:%d" % oid
         if k not in o:
-            o[k] = [a for a in WSA_ORG_DEFAULT_OFF if not (a == "life" and wsa_org_has_life(c, oid))]
+            o[k] = [a for a in WSA_ORG_DEFAULT_OFF if not (a == "life" and wsa_org_has_life(c, oid, uid))]
     return o
 
 
@@ -105,7 +114,7 @@ def wsa_drop_defaults(c, uid, stored):
     o = json.loads(stored)
     for oid in user_orgs(c, uid):
         k = "org:%d" % oid
-        if k in o and o[k] == [a for a in WSA_ORG_DEFAULT_OFF if not (a == "life" and wsa_org_has_life(c, oid))]:
+        if k in o and o[k] == [a for a in WSA_ORG_DEFAULT_OFF if not (a == "life" and wsa_org_has_life(c, oid, uid))]:
             del o[k]
     return json.dumps(o, separators=(",", ":"))
 
