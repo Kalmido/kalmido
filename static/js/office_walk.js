@@ -91,7 +91,8 @@ function wlk_draw() {
     const acts = `<button type="button" class="btn sm${c && !WLK.err && !c.length ? ' pri' : ''}" data-wlk="search" aria-expanded="${esc(String(many))}">${ic('search', 's')}<span>${bank && !out ? tr('Other invoice…') : tr('Search another receipt')}</span></button>
       <button type="button" class="btn sm ghost" data-wlk="more" aria-haspopup="menu">${ic('dots', 's')}<span>${tr('More')}</span></button>
       ${out ? `<input type="file" data-wlk-up accept="${/*html-ok*/ acc}" hidden>` : ''}`;
-    body = `${/*html-ok*/ search}${/*html-ok*/ cards}<div class="bnkacts wlk-acts">${/*html-ok*/ acts}</div>`;
+    const fail = it.fail ? `<p class="rwmark rwfail wlk-fail" role="alert">${ic('info', 's')}<span>${esc(tr('Not saved'))}</span></p>` : '';  // #7497: the step's save failed (the list's row says why)
+    body = `${/*html-ok*/ fail}${/*html-ok*/ search}${/*html-ok*/ cards}<div class="bnkacts wlk-acts">${/*html-ok*/ acts}</div>`;
   }
   card.innerHTML = `${/*html-ok*/ top}<div class="wlk-tx bnkhead">${/*html-ok*/ wlk_head(x)}</div><div class="wlk-body">${/*html-ok*/ body}</div>
     <div class="foot wlk-foot"><button type="button" class="btn ghost" data-wlk="prev" ${WLK.i ? '' : 'disabled'}>${ic('back', 's')}<span>${tr('Back')}</span></button>${/*html-ok*/ undo}
@@ -143,25 +144,23 @@ function wlk_go(d) {
   WLK.search = false; WLK.q = '';
   wlk_load();
 }
-// one step through the list's own action; done = its history entry is the new newest one (an error left none)
-async function wlk_step(what, fn, taken) {
-  if (WLK.busy) return;
+// one step through the list's own action (#7497 / #7499: "write shows at once"): the booking counts as done and the next
+// open one comes at once, the action saves behind it (its row in the list says "Saving…"); fn -> its history entry (false
+// after an error: the booking is open again and says "Not saved", the list's row why, with "Try again"). Nothing waits
+// here, so no tap is ever swallowed (was WLK.busy over the request: a request without an answer kept it for good)
+function wlk_step(what, fn, taken) {
   const it = wlk_cur(); if (!it || it.done) return;
-  WLK.busy = true;
-  const before = wlk_top();
-  try { await fn(); } catch (x) { /* the action showed its message */ }
-  WLK.busy = false;
-  const e = wlk_top();
-  if (!e || e === before) { wlk_draw(); return; }
-  it.done = what; if (taken) WLK.taken.add(taken);
-  WLK.last = {e, i: WLK.i, taken};
+  const i = WLK.i; it.done = what; it.fail = false; if (taken) WLK.taken.add(taken);
   wlk_go(0);
+  Promise.resolve().then(() => /** @type {any} */ (fn())).then(e => { if (!e) throw new Error(''); if (WLK.items[i] === it) WLK.last = {e, i, taken}; })
+    .catch(() => { it.done = ''; it.fail = true; if (taken) WLK.taken.delete(taken); })
+    .finally(() => { if (WLK.md && WLK.items[i] === it) { if (WLK.i === i) wlk_load(); else wlk_draw(); } });
 }
 async function wlk_undo() {
   const l = WLK.last; if (!l || WLK.busy || wlk_top() !== l.e) return;
   WLK.busy = true;
-  await histIdle(); await histStep('undo', 1, [l.e]);  // 2.905.0 (#5255): exactly this step
-  WLK.busy = false;
+  try { await histIdle(); await histStep('undo', 1, [l.e]); }  // 2.905.0 (#5255): exactly this step
+  finally { WLK.busy = false; }
   if (wlk_top() === l.e) { wlk_draw(); return; }  // refused (changed elsewhere): the history said why
   WLK.items[l.i].done = ''; if (l.taken) WLK.taken.delete(l.taken);
   WLK.last = null; WLK.i = l.i; WLK.search = false; WLK.q = '';
@@ -171,7 +170,7 @@ async function wlk_undo() {
 function wlk_take(k) {
   const d = WLK.cands?.[k], it = wlk_cur(); if (!d || !it) return;
   const what = tr('Matched') + ' · ' + (d.label || d.title || '');
-  if (WLK.kind === 'cc') wlk_step(what, () => ccMatchLine(it.x.id, d.id), d.id);
+  if (WLK.kind === 'cc') wlk_step(what, () => ccMatchLine(it.x.id, d.id, d.title), d.id);
   else wlk_step(what, () => bnkMatch(it.x.id, d.kind, d.id), d.kind === 'receipt' ? d.id : null);
 }
 const WLK_MARK = {noreceipt: N_('No receipt needed'), private: N_('Private'), ignored: N_('Ignored'), cash: N_('Cash box transfer')};
@@ -191,7 +190,7 @@ function wlk_change(e) {
   const t = /** @type {any} */ (e.target), it = wlk_cur();
   if (!t.matches?.('[data-wlk-up]') || !t.files?.length || !it) return;
   const f = t.files[0]; t.value = '';
-  wlk_step(tr('Receipt added'), async () => { if (WLK.kind === 'cc') await ccRcUpload(it.x.id, f); else { await bnr_upload(it.x.id, f); bnkReload(); } });
+  wlk_step(tr('Receipt added'), async () => { if (WLK.kind === 'cc') return ccRcUpload(it.x.id, f); else { await bnr_upload(it.x.id, f); bnkReload(); } });
 }
 // the search of another receipt: the list reloads 250 ms after the last key (core.js debounce, tools/perf_budget.py CLEARTIMEOUT_MAX)
 const wlk_qLoad = debounce(async () => { await wlk_load(); const i = /** @type {any} */ ($('[data-wlk-q]', WLK.md)); if (i) { i.focus(); i.setSelectionRange(WLK.q.length, WLK.q.length); } }, 250);
