@@ -77,6 +77,9 @@ const byPos = xs => (xs || []).slice().sort((a, b) => a.pos - b.pos).map(x => x.
   };
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   const waitApi = async (until, ck, id, fn) => until(async () => fn(await st(ck, id)), {timeout: 15000});
+  // #6030: the grid drawn in this order (not only SHV.sh): after an Undo the sheet can be loaded while its draw still waits for a
+  // second load (sheets.js shvLoad, SHV.again); a head measured then belongs to another row once the grid is drawn
+  const drawn = (until, ids) => until(`SHV.sh?.rows?.map(r => r.id).slice(0, ${ids.length}).join() === '${ids.join()}' && [...document.querySelectorAll('#shv-scroll tbody tr[data-id]')].map(x => +x.dataset.id).slice(0, ${ids.length}).join() === '${ids.join()}'`);
 
   // ---- touch (a tablet in landscape)
   await firefox(async o => {
@@ -131,7 +134,7 @@ const byPos = xs => (xs || []).slice().sort((a, b) => a.pos - b.pos).map(x => x.
     await ev(`(async () => { await histIdle(); await histStep('undo'); return 1; })()`);
     check(await waitApi(until, CA, S, s => same(s.cols, C)), 'mouse: Undo: the old column order');
     // two chosen rows (A1:A2) dragged by row 1's number below row 3: both move
-    await until(`SHV.sh?.columns?.[0]?.id === ${C[0]}`);
+    check(await until(`SHV.sh?.columns?.[0]?.id === ${C[0]} && document.querySelector('#shv-scroll thead th.shvch[data-c]')?.dataset.c === '${C[0]}'`), 'mouse: after the Undo the grid shows the old column order');
     await ev(`(() => { shvSelect(${R[0]}, ${C[0]}); shvSelect(${R[1]}, ${C[0]}, true); return 1; })()`);
     await press(o, await head(ev, 'row', R[0]), await head(ev, 'row', R[2], 'low'), 'mouse', 0); await lift(o, 'mouse');
     const w2 = [R[2], R[0], R[1], ...R.slice(3)];
@@ -140,9 +143,11 @@ const byPos = xs => (xs || []).slice().sort((a, b) => a.pos - b.pos).map(x => x.
     await ev(`(async () => { await histIdle(); await histStep('undo'); return 1; })()`);
     check(await waitApi(until, CA, S, s => same(s.rows, R)), 'mouse: Undo of the two rows');
     // the row menu: "Move down" (the first row has no "Move up")
-    await until(`SHV.sh?.rows?.[0]?.id === ${R[0]}`);
+    check(await drawn(until, R), 'mouse: after the Undo the grid shows the old order');
     await ev(`(() => { shvSelect(${R[2]}, ${C[2]}); return 1; })()`);
-    await tap(o, await head(ev, 'row', R[0]), 'mouse');
+    const h1 = await head(ev, 'row', R[0]);
+    check(h1?.hit, 'mouse: the head of row 1 is on screen ' + JSON.stringify(h1));
+    await tap(o, h1, 'mouse');
     check(await until(`!!document.querySelector('#pop:not(.hidden) [data-act="shmv-down"]')`), 'mouse: the row menu has "Move down"');
     check(await ev(`!document.querySelector('#pop:not(.hidden) [data-act="shmv-up"]')`), 'mouse: the first row has no "Move up"');
     await shot('p2631b-mouse-menu.png');
@@ -151,7 +156,7 @@ const byPos = xs => (xs || []).slice().sort((a, b) => a.pos - b.pos).map(x => x.
     await ev(`(async () => { await histIdle(); await histStep('undo'); return 1; })()`);
     check(await waitApi(until, CA, S, s => same(s.rows, R)), 'mouse: Undo of "Move down"');
     // a filtered view: a hint, no move
-    await until(`SHV.sh?.rows?.[0]?.id === ${R[0]}`);
+    check(await drawn(until, R), 'mouse: after the Undo of "Move down" the grid shows the old order');
     await ev(`(() => { SHV.filt[${S}] = {${C[2]}: {min: 1}}; shvRender(); return 1; })()`);
     await until(`!!document.querySelector('[data-shv="unfilter"]')`);
     const fa = await head(ev, 'row', R[0]), fb = await head(ev, 'row', R[1], 'low');
