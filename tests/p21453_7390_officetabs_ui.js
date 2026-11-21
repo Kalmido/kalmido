@@ -5,7 +5,7 @@
 // loads, the head and the tab row stay the same nodes, the scroll position stays, the last tab's rows wait dimmed (.tabheld) and
 // no loading block is in the page; when the list is there it stands alone. Firefox at a tablet's (820 px, the tab button) and a
 // phone's width (390 px, the kind's address as its link in the menu row sets it, and Back). The list's request is held back
-// 1.5 s in the page, so the in-between state can be seen. #7729: the held rows also keep their place on the page (the search /
+// 1.5 s in the page, so the in-between state can be seen. #7785: the held rows also keep their place on the page (the search /
 // button line above them stays the last tab's until the new list is there). Own container (start.sh), invented data only.
 // freelancer-matrix: n/a - nur Oberfläche, keine neue Route (die Person hier hat keine Organisation)
 const {execFileSync} = require('child_process');
@@ -80,9 +80,9 @@ const MID = `(() => { const sc = window.__sc; return {top: sc.scrollTop, big: !!
       check(await fu(`OFD.kind === 'credit' && !!document.querySelector('.office .tabheld')`, {timeout: 5000}), `${tag}: the switch shows the last tab's rows dimmed`);
       const a = await ev(MID);
       check(a && a.top === m.top, `#7390 ${tag}: the scroll position stays while the new list loads ${JSON.stringify(a)}`);
-      // #7729: nothing above the held rows changes height at the switch (the new tab's search / button line had other buttons:
-      // 820 px 148 -> 96 px, the rows moved 52 px under the finger; CI 390 px: the scroll position went 600 -> 666)
-      check(a && a.above && a.before && a.above.row === a.before.row, `#7729 ${tag}: the held rows stay where they were on the page ${JSON.stringify({above: a?.above, before: a?.before, trace: a?.trace})}`);
+      // #7785: nothing above the held rows changes height at the switch (the new tab's search / button line had other buttons:
+      // 820 px 148 -> 96 px, the rows moved 52 px under the finger; the CI case at 390 px, scroll 600 -> 666, is still open in #7729)
+      check(a && a.above && a.before && a.above.row === a.before.row, `#7785 ${tag}: the held rows stay where they were on the page ${JSON.stringify({above: a?.above, before: a?.before, trace: a?.trace})}`);
       check(a && !a.big && a.seenBig === 0, `#7390 ${tag}: no big loading block in the page`);
       check(a && a.held >= 40, `#7390 ${tag}: the rows wait in place (dimmed)`);
       check(a && a.head && (!m.kinds || a.kinds) && (!m.q || a.q), `#7390 ${tag}: head, tab row and search line are the same nodes`);
