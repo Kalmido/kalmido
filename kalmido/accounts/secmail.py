@@ -25,6 +25,7 @@ from ..core.db import uset, usettings
 from ..core.db import db_log_err  # 2.239.0 B (#2888): no values of database errors in the log
 from ..core.i18n import N_, lang, tr
 from ..core.mailframe import mail_html
+from .accessways import ACCESS_WAYS
 from .bgjobs import BGJ_FNS, bgj_add
 
 SEC_DEVICES = 10
@@ -53,7 +54,15 @@ SEC_EVENTS = {
     # #6498: the right password, a wrong second factor (from the 3rd try from an unknown address, and at the day's ceiling)
     "2fa_fail": (N_("Someone knows your password"), N_("Your account {0} was signed in to with the right password but a wrong second factor: {1} wrong tries in 24 hours, the last from address {2}.")),
     "agent_token_new": (N_("A new token for your agent"), N_("A new access token was created for your agent “{1}” (account {0}). The agent works in your name with it.")),
+    # #7633: a way out is a way in - a webhook, a forwarding or the own mailbox's mail server sends the data elsewhere from now on
+    # (the closing sentence comes from the way's row, SEC_OUT_END)
+    "out_new": (N_("A new forwarding to the outside"), N_("Your account {0} sends data to “{1}” ({2}) from now on.")),
 }
+# #7633 F5: the closing sentence of a mail about a way (sec_mail way=, a key of accounts/accessways.py ACCESS_WAYS) follows the
+# row's end: "off" is switched off by a new password, "stays" is not - the mail names the row's place (where) to check it
+SEC_OUT_END = {"off": N_("A new password switches your own webhooks and forwardings off."),
+               "stays": N_("This stays after a new password too: check it under {0}.")}
+SEC_WAYS = {w["key"]: w for w in ACCESS_WAYS}
 SEC_NOT_ME = N_("If that was not you: change your password right away and tell an admin.")
 
 
@@ -67,12 +76,17 @@ def sec_ua_label(ua, lg=None):
     return tr("{0} on {1}", br, osn, lg=lg) if br and osn else br or osn or (ua[:60] if ua else "?")
 
 
-def sec_content(c, uid, ev, args, lg):
-    """(subject, text, html) of event ev for uid in language lg."""
+def sec_content(c, uid, ev, args, lg, way=None):
+    """(subject, text, html) of event ev for uid in language lg; way: the ACCESS_WAYS row it is about (#7633 F5, SEC_OUT_END)."""
     t = lambda s, *a: tr(s, *a, lg=lg)  # noqa: E731
     subj, msg = SEC_EVENTS[ev]
     u = c.execute("SELECT username FROM users WHERE id=?", (uid,)).fetchone()
     line = t(msg, (u["username"] if u else "?"), *args)
+    w = SEC_WAYS.get(way) if way else None
+    if w and w["end"] == "stays" and w.get("where"):
+        line += " " + t(SEC_OUT_END["stays"], t(w["where"]))
+    elif w and w["end"] == "off":
+        line += " " + t(SEC_OUT_END["off"])
     plain = ev in ("approved", "orgjoin")
     link = f"{PUBLIC_URL}/" if plain else f"{PUBLIC_URL}/#settings/account"
     lines = [line] + ([] if plain else [t(SEC_NOT_ME)])
@@ -94,9 +108,10 @@ def sec_mask_ip(ip):
     return f"{ipaddress.ip_network(f'{a}/48', strict=False).network_address}/48"
 
 
-def sec_mail(c, uid, ev, *args, to=None, also=None, agent=None):
+def sec_mail(c, uid, ev, *args, to=None, also=None, agent=None, way=None):
     """Queue the security mail ev to uid's address (to: another one, also: one more, e.g. the new address). agent: the
-    agent's user id - its name is the first argument and uid defaults to its owner (#6354). Never raises."""
+    agent's user id - its name is the first argument and uid defaults to its owner (#6354). way: the key of the ACCESS_WAYS
+    row the mail is about - its end gives the closing sentence (#7633 F5, out_new). Never raises."""
     try:
         if agent is not None:
             r = c.execute("SELECT a.owner_id, COALESCE(NULLIF(u.display_name, ''), u.username) AS name FROM agents a"
@@ -117,7 +132,7 @@ def sec_mail(c, uid, ev, *args, to=None, also=None, agent=None):
                 addrs.append(a)
         if not addrs:
             return False
-        m = sec_content(c, uid, ev, [str(x) for x in args], lang(c, uid))
+        m = sec_content(c, uid, ev, [str(x) for x in args], lang(c, uid), way=way)
         for a in addrs:
             bgj_add("mail:security", a, *m, user_id=uid, delay=1.0)
         return True

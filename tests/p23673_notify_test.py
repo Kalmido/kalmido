@@ -63,8 +63,10 @@ def texts(path):
 
 
 def mails(to):
+    """The mails to `to` about integrations (#7633: the security mail of a new forwarding / webhook is no such mail)."""
     try:
-        return [json.loads(x) for x in open(os.path.join(DATA, "mail", "out.jsonl"), encoding="utf-8") if x.strip() and to in x]
+        return [json.loads(x) for x in open(os.path.join(DATA, "mail", "out.jsonl"), encoding="utf-8")
+                if x.strip() and to in x and "A new forwarding to the outside" not in x]
     except FileNotFoundError:
         return []
 

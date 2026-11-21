@@ -3595,3 +3595,61 @@ matches the invoice.
 
 What happens then: the invoice shows as paid (or partly paid with the amount still open). Only an admin of the organisation
 records payments.
+
+## How to: Set up your office
+<!-- user-help: company -->
+<!-- show: settings.open -->
+<!-- show: settings.office -->
+
+1. Open Settings > Company & office. Under Company enter the name, address and logo of your company.
+2. Under Bank & taxes enter your bank account and tax number and how you pay VAT.
+3. Under Documents & numbers tick **Small business** if you charge no VAT (section 19 UStG), and set how your quotation
+   and invoice numbers look.
+4. Under Texts & templates write the texts above and below your documents; under Packs switch on what your trade needs.
+5. Want to try it first? Switch on **Test mode** under Documents & numbers: documents get a TEST number and the watermark
+   MUSTER. Switch it off before your first real invoice.
+
+What happens then: every new quotation and invoice uses these details. The office lists what is still missing for an
+invoice until everything is there. Who in your company may see and change what is set under "Decide who sees what in the
+office".
+
+## How to: Decide who sees what in the office
+<!-- user-help: company -->
+<!-- show: settings.open -->
+<!-- show: settings.office -->
+
+1. Open Settings > Company & office and select **Rights in the office**.
+2. Under People give each person a group - a template (for example only their own receipts, travel expenses and times) or
+   a group of your own: copy a template under Groups and set each part of the office to what the group may.
+
+What happens then: the person sees only those parts of the office from now on. Admins of the organisation always see
+everything; someone without a group keeps the access of their role in the organisation. Every change is written to the
+log, and everyone sees their own under **My rights**.
+
+## How to: Come from another program
+<!-- user-help: company -->
+<!-- show: settings.open -->
+<!-- show: settings.office -->
+
+1. Continue your numbering: under Settings > Company & office > Documents & numbers enter the next number of each number
+   scheme (the number your old program would have given next).
+2. Bring your clients, services and equipment: under Settings > Company & office > Data select **Import legacy data**,
+   choose your spreadsheet (.xlsx) and check the preview before you confirm. Old invoices and quotations (PDF) are
+   archived as they are.
+
+What happens then: your next invoice continues your numbers without a gap. An import can be undone as long as nothing
+builds on it. Coming from another Kalmido server instead: see "Move the company to another server".
+
+## How to: Send e-invoices
+<!-- user-help: company -->
+<!-- show: settings.open -->
+<!-- show: settings.office -->
+
+1. For most clients there is nothing to do: every invoice is a ZUGFeRD invoice - a normal PDF with the invoice data
+   inside.
+2. A public authority gives you a routing ID (Leitweg-ID): open the client and enter it under
+   **Buyer reference (e.g. routing ID)**. Such a client gets XRechnung (pure XML) proposed.
+3. To choose another format for everybody, open Settings > Company & office > Documents & numbers, **E-invoice format**.
+
+What happens then: the routing ID is printed on the invoice and goes into the e-invoice. Your tax advisor and the
+receiver read the invoice data without typing it again.

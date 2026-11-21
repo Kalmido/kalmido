@@ -7,6 +7,7 @@ import json
 import os
 import re
 from decimal import Decimal, InvalidOperation
+from urllib.parse import urlsplit
 
 from flask import g, jsonify, request
 
@@ -23,6 +24,8 @@ from ..core.pg import IntegrityError, qi, st_ids, write_lock  # 2.525.0 (#4195):
 from ..core.access import Denied, acx_of
 from ..core.orgcrypt import OrgCryptError
 from ..accounts.session import me
+from ..accounts.oidc import creator_reauth  # #7633 F1
+from ..accounts.secmail import sec_mail  # #7633 F1
 from ..accounts.mailtok import mtk_plain  # 2.674.0 (#4382 finding 5)
 from ..accounts.supportgrant import sga_is_support  # review of 2.1254.0 (#6294)
 from ..files.scan import sc_guard  # 2.306.0: pulled up from functions (layers budget)
@@ -1076,6 +1079,14 @@ def _rule_save(c, ws, d, rid=None):
                "share": tr("Invalid value: {0}", "share"),  # 2.635.0 (#4856)
                "share_target": tr("Only people, groups and agents of the same workspace can get a share")}.get(why, tr("Invalid value: {0}", "rule"))
         return None, err(msg)
+    # #7633 F1 (accounts/accessways.py row "flow_hooks"): a flow of the private workspace that gets a webhook address or a new one
+    # is a way out of the account like an own webhook: the sign-in is confirmed once more (creator_reauth, docflows.js asks the
+    # password) and the owner gets the security mail after the commit (_fl_out_mail). An organisation's flows: unchanged.
+    if r.get("webhook") and S.ws_user(ws) is not None and r["webhook"] != (old or {}).get("webhook"):
+        e = creator_reauth(c, d if isinstance(d, dict) else {})
+        if e:
+            return None, e
+        g.fl_out = ((r.get("name") or "").strip() or "Webhook", urlsplit(r["webhook"]).hostname or "")
     # 2.1322.0 (#6560 5): a flow with a webhook holds its secret: sealed always (also with org_encrypt off), never in plain
     data = S._jseal(c, ws, "doc_rules.data", r, always=bool(r.get("hook_secret")))
     if data is None:
@@ -1093,6 +1104,12 @@ def _rule_save(c, ws, d, rid=None):
                      (S.ws_org(ws), ws, pos, data, me(), _now())), None
 
 
+def _fl_out_mail(c):
+    """#7633 F1: the security mail out_new of a private flow's new webhook address (after the commit; _rule_save set g.fl_out)."""
+    if g.get("fl_out"):
+        sec_mail(c, me(), "out_new", *g.fl_out, way="flow_hooks")
+
+
 @app.post("/api/docs/rules")
 def docs_rule_add():
     """{ws, kind: any|all|exact|regex|fuzzy, match, sender?, type?, tags?, folder?} -- 2.581.0 (#4803) + the flow keys of
@@ -1108,6 +1125,7 @@ def docs_rule_add():
     if e:
         return e
     c.commit()
+    _fl_out_mail(c)
     return jsonify(id=rid, rules=_rules_v(c, ws), **({"hook_secret": g.fl_secret} if g.get("fl_secret") else {})), 201
 
 
@@ -1142,6 +1160,7 @@ def docs_rule_edit(rid):
             return e
     bump(c)
     c.commit()
+    _fl_out_mail(c)
     return jsonify(rules=_rules_v(c, ws), **({"hook_secret": g.fl_secret} if g.get("fl_secret") else {}))
 
 

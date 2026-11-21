@@ -78,19 +78,6 @@ function permModal(title, offer, sel, ips, save, extra) {
   });
   return md;
 }
-// #6499 (decision 16.11.2026): a new way into the account (a token or wider rights for one, an app password, an agent or its
-// token, a setup code) confirms the sign-in once more when it is older than a few minutes: the server answers 403
-// password_needed (asked here with the password field) or reauth_needed (no password: sign in again, reauthFresh), then the same
-// request once more. Errors as calReq (a plain Error with the message); cancelled = Error 'Cancelled'.
-async function reauthReq(method, url, b = {}) {
-  const go = async x => { try { return await rawFetch(method, url, x); } catch (e) { if (e.data?.password_needed || e.data?.reauth_needed) throw e; throw new Error(e instanceof Offline ? tr('Only available online.') : e.message); } };
-  try { return await go(b); } catch (x) {
-    if (!x.data) throw x;
-    if (x.data.reauth_needed) { if (!await reauthFresh(x.data)) throw new Error(tr('Cancelled|dialog')); return await go(b); }
-    const p = await pwPrompt(tr('Confirm with your password'), {text: tr('A new way into your account: please confirm it is you.')}); if (!p) throw new Error(tr('Cancelled|dialog'));
-    return await go({...b, password: p.password});
-  }
-}
 // a new token for an agent: with an expiry (never by default)
 async function agTokenModal(a, url) {
   const md = modal(`<h3>${esc(tr('New API token for {0}', a.name))}</h3>
@@ -249,7 +236,7 @@ document.addEventListener('click', e => {
   else ains_setupModal(a, base);  // lazy-ok: the settings dialog (LD_NEED settings -> agentchat bundle with agentsetup.js)
 });
 function whState(w) {
-  if (!w.enabled) return `<span class="calerr" role="alert">${w.disabled_reason === 'failures' ? tr('switched off after failed deliveries') : tr('off')}</span>`;
+  if (!w.enabled) return `<span class="calerr" role="alert">${w.disabled_reason === 'failures' ? tr('switched off after failed deliveries') : w.disabled_reason === 'password' ? tr('switched off by the new password: switch it on again if it is yours') : tr('off')}</span>`;  // #7633
   if (!w.last) return esc(tr('no deliveries yet'));
   return w.last.ok ? esc(tr('last delivery ok {0}', relTime(w.last.at))) : `<span class="calerr" role="alert">${esc(tr('last delivery failed: {0}', w.last.error_text))}</span>`;
 }
@@ -328,7 +315,8 @@ function whModal(w, j, done, base = '/api/me/webhooks') {  // 2.115.0 A (#2061):
     if (!body.events.length) { show(tr('Select at least one event')); return; }
     b.disabled = true; show('');
     try {
-      const r = await calReq(w ? 'PATCH' : 'POST', w ? `${base}/${w.id}` : base, body);
+      const r = base === '/api/me/webhooks' ? await reauthReq(w ? 'PATCH' : 'POST', w ? `${base}/${w.id}` : base, body, tr('Data of your account goes out to a new address: please confirm it is you.'))  // #7633: a way out
+        : await calReq(w ? 'PATCH' : 'POST', w ? `${base}/${w.id}` : base, body);
       md.remove(); done && done();
       if (!w) secretModal(tr('Signing secret'), r.secret, tr('Copy it now into the receiver: it is shown only this once. It signs every delivery (header X-Kalmido-Signature).'));
       else toast(tr('Saved'));
@@ -451,7 +439,7 @@ const CHN_EV = {reminder: N_('Reminders'), assign: N_('Assignments'), comment: N
 const CHN_EV_ORG = {assign: N_('Assignment'), comment: N_('Comment')};
 const chn_evName = (e, org) => tr((org && CHN_EV_ORG[e]) || CHN_EV[e] || e);
 function chn_state(ch) {
-  if (!ch.enabled) return `<span class="calerr" role="alert">${esc(ch.disabled_reason === 'failures' ? tr('switched off after {0} failed sends', ch.fails) : ch.disabled_reason === 'admin' ? tr('switched off: the person who set it up is no admin any more') : ch.disabled_reason === 'disabled' ? tr('switched off: the account of the person who set it up is disabled') : tr('off'))}</span>`;
+  if (!ch.enabled) return `<span class="calerr" role="alert">${esc(ch.disabled_reason === 'failures' ? tr('switched off after {0} failed sends', ch.fails) : ch.disabled_reason === 'admin' ? tr('switched off: the person who set it up is no admin any more') : ch.disabled_reason === 'disabled' ? tr('switched off: the account of the person who set it up is disabled') : ch.disabled_reason === 'password' ? tr('switched off by the new password: switch it on again if it is yours') : tr('off'))}</span>`;  // #7633: 'password'
   if (ch.last_error) return `<span class="calerr" role="alert">${esc(tr('last send failed: {0}', ch.last_error))}</span>`;
   return esc(ch.last_at ? tr('last send ok {0}', relTime(ch.last_at)) : tr('nothing sent yet'));
 }
@@ -585,7 +573,7 @@ function chn_modal(ch, j, base, done, org) {
     if (ch) body.enabled = $('#chn-on', md).checked;
     if (!body.events.length) { show(tr('Select at least one event')); return; }
     b.disabled = true; show('');
-    try { await calReq(ch ? 'PATCH' : 'POST', ch ? `${base}/${ch.id}` : base, body); md.remove(); toast(tr('Saved')); done && done(); }
+    try { await (org ? calReq(ch ? 'PATCH' : 'POST', ch ? `${base}/${ch.id}` : base, body) : reauthReq(ch ? 'PATCH' : 'POST', ch ? `${base}/${ch.id}` : base, body, tr('Data of your account goes out to a new address: please confirm it is you.'))); md.remove(); toast(tr('Saved')); done && done(); }  // #7633: a personal forwarding is a way out
     catch (x) { show(x.message); } finally { b.disabled = false; }
   });
   if (!isTouch()) setTimeout(() => $(ch ? '#chn-name' : '#chn-kind', md)?.focus(), 50);

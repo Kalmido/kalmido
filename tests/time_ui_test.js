@@ -50,7 +50,7 @@ const until = (fn, ms) => require('./boot').until(fn, {timeout: ms || 15000, ste
   const stopBtn = [...w2.document.querySelectorAll('#pop .menu-list button')].find(b => /Stop timer/.test(b.textContent));
   check(stopBtn, 'pill menu: Stop timer'); stopBtn.click();
   check(await until(() => !w2.document.querySelector('#top .tmini')), 'device 2: pill gone after stop');
-  check(/Timer stopped: under 1 minute/.test(w2.document.querySelector('#toast').textContent), 'stop toast: under a minute in words');  // 2.489.0 (#2798): was 0:00
+  check(await until(() => /Timer stopped: under 1 minute/.test(w2.document.querySelector('#toast').textContent)), 'stop toast: under a minute in words');  // 2.489.0 (#2798): was 0:00; #7501: the pill goes at once, the toast follows the answer
   await w.eval('load().then(render)'); await idle(w);
   check(!d.querySelector('#top .tmini'), 'device 1: pill gone after reload');
   let st = await call('GET', '/api/state');
@@ -84,9 +84,11 @@ const until = (fn, ms) => require('./boot').until(fn, {timeout: ms || 15000, ste
   md.querySelector('#te-dur').value = '1:30'; md.querySelector('#te-note').value = 'manual one';
   md.querySelector('[data-m="save"]').click();
   check(await until(() => (d.querySelector('#d-time')?.textContent || '').includes('manual one')), 'manual entry listed in the detail');
-  let ents = (await call('GET', `/api/time/entries?task_id=${t2}`)).entries;
+  let ents = [];  // #7501: the entry stands in the detail at once, the server has it with the answer
+  await until(async () => (ents = (await call('GET', `/api/time/entries?task_id=${t2}`)).entries).some(e => e.note === 'manual one'));
   const man = ents.find(e => e.note === 'manual one');
   check(man && man.seconds === 5400 && man.source === 'manual', 'manual entry 1:30 on the server');
+  await until(() => w.eval(`!!findEntry(${man.id})`));  // #7501: the server may have it before the page took its answer
   w.eval(`entryModal(findEntry(${man.id}))`); await until(() => [...d.querySelectorAll('.modal')].pop()?.querySelector('#te-note')?.value === 'manual one');
   md = [...d.querySelectorAll('.modal')].pop();
   md.querySelector('#te-note').value = 'renamed note'; md.querySelector('[data-m="save"]').click();

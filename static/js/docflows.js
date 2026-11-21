@@ -24,11 +24,12 @@ function dfl_ruleHtml(r, can) {  // one flow in the list: trigger, filters, acti
     r.share?.length && `${tr('Share')}: ${r.share.length}`].filter(Boolean);  // 2.635.0 (#4856)
   // 2.1321.0 (#6555): the webhook's state -- paused (its author is no admin any more), off after failed calls, failures so far
   const hst = r.hook_state === 'admin' ? tr('Paused: the person who set up its webhook is no admin any more')
-    : r.hook_state === 'failures' ? tr('Webhook off after failed calls') : r.hook_fails ? tr('Webhook calls failed in a row: {0}', r.hook_fails) : '';
+    : r.hook_state === 'failures' ? tr('Webhook off after failed calls')
+    : r.hook_state === 'password' ? `${tr('Webhook')}: ${tr('switched off by the new password: switch it on again if it is yours')}` : r.hook_fails ? tr('Webhook calls failed in a row: {0}', r.hook_fails) : '';
   // built from esc() only: marked html-ok where it is put in
   const hook = hst ? `<span class="dfl-hookst">${esc(hst)}${r.hook_error && r.hook_state !== 'admin' ? ` · ${esc(tr('Last error: {0}', r.hook_error))}` : ''}</span>` : '';
   return `<li class="dc-rule${r.off ? ' muted' : ''}"><span>${r.name ? `<b>${esc(r.name)}</b> · ` : ''}<span class="muted">${esc(when)}</span>${ifs.length ? ` · ${ifs.join(' · ')}` : ''} → ${esc(does.join(' · '))}${r.off && r.hook_state !== 'admin' ? ` <span class="muted">(${tr('off')})</span>` : ''}${hook ? ` ${/*html-ok*/ hook}` : ''}</span>${can ? `<span>
-    ${r.hook_state === 'failures' && !r.off ? `<button type="button" class="iconbtn" data-dcs="rhook:${esc(String(r.id))}" aria-label="${esc(tr('Switch webhook on again'))}" title="${esc(tr('Switch webhook on again'))}">${ic('play')}</button>` : ''}
+    ${(r.hook_state === 'failures' || r.hook_state === 'password') && !r.off ? `<button type="button" class="iconbtn" data-dcs="rhook:${esc(String(r.id))}" aria-label="${esc(tr('Switch webhook on again'))}" title="${esc(tr('Switch webhook on again'))}">${ic('play')}</button>` : ''}
     <button type="button" class="iconbtn" data-dcs="redit:${r.id}" aria-label="${esc(tr('Edit flow'))}" title="${esc(tr('Edit flow'))}">${ic('edit')}</button>
     <button type="button" class="iconbtn" data-dcs="rtog:${r.id}" aria-label="${esc(r.off ? tr('Switch on') : tr('Switch off'))}" title="${esc(r.off ? tr('Switch on') : tr('Switch off'))}">${ic(r.off ? 'play' : 'pause')}</button>
     <button type="button" class="iconbtn" data-dcs="rdel:${r.id}" aria-label="${esc(tr('Delete rule'))}">${ic('trash')}</button></span>` : ''}</li>`;
@@ -125,6 +126,12 @@ function dfl_edit(md, s, id) {
   f.open = true; f.scrollIntoView({block: 'nearest'});
   /** @type {HTMLInputElement|null} */ (f.querySelector('#dfl-name'))?.focus();
 }
+// #7633 F1: a flow that gets a webhook address or a new one sends data out: in the private workspace the server asks the
+// password once more (account.js reauthReq); everything else as before through api() (its message, 409 with the list)
+async function dfl_req(method, url, b, old) {
+  if (!b.webhook || b.webhook === (old?.webhook || '') || typeof reauthReq !== 'function') return api(method, url, b);
+  try { return await reauthReq(method, url, b, tr('Data of your account goes out to a new address: please confirm it is you.')); } catch (e) { toast(errText(e, tr('The change could not be saved'))); throw e; }
+}
 async function dfl_save(md, s, id) {  // the filled form -> PATCH /api/docs/rules/<id> with expect_updated_at
   const f = md.querySelector('.dfl-add'), old = s.rules.find(x => x.id === id); if (!f || !old) return;
   const r = dfl_collect(f, s);
@@ -133,14 +140,14 @@ async function dfl_save(md, s, id) {  // the filled form -> PATCH /api/docs/rule
   if (old.task?.to && r.task) r.task.to = old.task.to;
   if (Object.keys(old.fields || {}).length > 1) r.fields = {...old.fields, ...(r.fields || {})};
   let j;
-  try { j = await api('PATCH', `/api/docs/rules/${id}`, {...r, expect_updated_at: f.dataset.ver || undefined}); } catch (e) {
+  try { j = await dfl_req('PATCH', `/api/docs/rules/${id}`, {...r, expect_updated_at: f.dataset.ver || undefined}, old); } catch (e) {
     if (e?.status === 409 && e.data?.rules) { s.rules = e.data.rules; dc_sDraw(md); }  // the message came from api(); the list as it is now
     return;
   }
   s.rules = j.rules; dc_sDraw(md);
   if (j.hook_secret) dfl_secret(j.hook_secret);
   const back = {...old, id: undefined, updated_at: undefined};
-  const put = b => async () => { const x = await api('PATCH', `/api/docs/rules/${id}`, b); if (DC.set) { DC.set.rules = x.rules; dc_sDraw($('.dc-smd')); } return {}; };
+  const put = b => async () => { const x = await dfl_req('PATCH', `/api/docs/rules/${id}`, b, (DC.set?.rules || s.rules).find(y => y.id === id)); if (DC.set) { DC.set.rules = x.rules; dc_sDraw($('.dc-smd')); } return {}; };
   histToast(tr('Flow saved'), histAdd({label: tr('Flow saved'), sett: true, undo: put(back), redo: put(r)}));
 }
 function dfl_secret(sec) {  // a new webhook secret: shown once

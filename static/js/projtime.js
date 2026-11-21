@@ -95,12 +95,12 @@ async function tz_wipe(lid, name) {
     let r;
     try { r = await rawFetch('POST', `/api/lists/${lid}/time/delete-all`, {confirm: inp.value.trim()}); } catch (er) { go_.disabled = false; toast(errText(er, tr('The time entries could not be deleted'))); return; }
     modalClose(md);
-    await timeChanged(r);
+    await timeReloadAll(r);
     const back = r.entries, msg = tr('{0} time entries deleted', r.deleted);
     const x = histAdd({label: msg, res: r, lids: [lid],
       // 2.530.0 B (#4315): Undo takes the server's copy (wipe), the copy in the answer only from an older server
-      undo: async h => { const j = await rawFetch('POST', `/api/lists/${lid}/time/restore`, h.wipe ? {wipe: h.wipe} : {entries: back}); await timeChanged(j); return {q: j?._q || null}; },
-      redo: async h => { const j = await rawFetch('POST', `/api/lists/${lid}/time/delete-all`, {confirm: name}); h.wipe = j?.wipe || null; await timeChanged(j); return {q: j?._q || null}; }});
+      undo: async h => { const j = await rawFetch('POST', `/api/lists/${lid}/time/restore`, h.wipe ? {wipe: h.wipe} : {entries: back}); await timeReloadAll(j); return {q: j?._q || null}; },
+      redo: async h => { const j = await rawFetch('POST', `/api/lists/${lid}/time/delete-all`, {confirm: name}); h.wipe = j?.wipe || null; await timeReloadAll(j); return {q: j?._q || null}; }});
     x.wipe = r.wipe || null;
     offerUndo(msg, x);
   });
@@ -109,7 +109,7 @@ async function tz_wipe(lid, name) {
 async function tz_wipeRestore(lid, wipe) {
   let j;
   try { j = await rawFetch('POST', `/api/lists/${lid}/time/restore`, {wipe}); } catch (e) { toast(errText(e, tr('The time entries could not be restored'))); return; }
-  await timeChanged(j);
+  await timeReloadAll(j);
   toast(tr('{0} time entries restored', j.restored || 0));
 }
 async function tz_wipeUndoAsk(lid, u) {

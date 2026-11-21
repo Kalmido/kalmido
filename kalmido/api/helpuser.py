@@ -22,13 +22,14 @@ from ..core.config import app
 from ..core.errors import BadInput
 from ..core.i18n import lang, md_plain, tr
 from ..core.srchreg import srch_q, srch_register
-from .helpdocs import HELP_AREAS, hlp_index, hlp_search, hlp_user_text
+from .helpdocs import HELP_AREAS, hlp_hosting, hlp_index, hlp_search, hlp_user_text
 from .showme import shw_out, shw_targets
 
 UH_TITLE = re.compile(r"^How to:\s*", re.I)
 # the area's name in the interface (the sidebar's words)
 UH_AREA = {"files": "Files", "agents": "Agents", "office": "Office|area", "tasks": "Tasks", "calendar": "Calendar",
-           "wiki": "Knowledge pages", "sheets": "Tables", "team": "Team chat", "budget": "Budget", "lists": "Lists", "sharing": "Sharing"}  # 2.1090.0 (#5900)
+           "wiki": "Knowledge pages", "sheets": "Tables", "team": "Team chat", "budget": "Budget", "lists": "Lists", "sharing": "Sharing",
+           "org": "Organisation", "company": "Company & office", "account": "Account"}  # (#5900); #6535: the first hour - company, people, account and support
 UH_SNIP = 160
 
 
@@ -41,7 +42,7 @@ def uh_entry(s, lg):
     idx = hlp_index()
     t = idx["tr"].get(lg, {}).get(s["key"])
     text = t["text"] if t else hlp_user_text(idx["files"][s["fkey"]]["lines"], s)
-    return {"key": s["key"], "area": s["user"], "title": t["title"] if t else uh_title(s), "text": text,
+    return {"key": s["key"], "area": s["user"], "title": t["title"] if t else uh_title(s), "text": hlp_hosting(text),  # #6535
             "show": uh_show(s), "lang": lg if t else "en"}
 
 

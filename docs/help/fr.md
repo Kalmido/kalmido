@@ -235,7 +235,7 @@ tu partages a aussi son propre chat.
 Ce qui se passe ensuite : les messages épinglés restent dans la barre au-dessus des messages (cinq au plus par
 conversation) ; un fil montre les réponses à ce message et ses participants sont prévenus.
 
-<!-- help: team#how-to-invite-someone-without-an-account-by-a-link src=0b47d08909 -->
+<!-- help: team#how-to-invite-someone-without-an-account-by-a-link src=45b346e536 -->
 ## Inviter par un lien quelqu'un sans compte
 
 1. Dans Paramètres > Compte, choisis **Trouver une personne …**.
@@ -244,8 +244,10 @@ conversation) ; un fil montre les réponses à ce message et ses participants so
 
 Ce qui se passe ensuite : qui ouvre le lien crée un compte avec son nom et son adresse e-mail et est aussitôt connecté avec
 toi ; tu reçois une notification. Le lien fonctionne une fois et pendant 14 jours et n'est affiché que juste après sa
-création ; **Retirer** met fin aussitôt à un lien ouvert. Qui a déjà un compte l'ouvre connecté et confirme la connexion. Un
-admin du serveur peut désactiver ces liens (Paramètres > Serveur > Connexion).
+création ; **Retirer** met fin aussitôt à un lien ouvert. Qui a déjà un compte l'ouvre connecté et confirme la connexion.
+
+<!-- self-hosted -->
+Un admin du serveur peut désactiver ces liens (Paramètres > Serveur > Connexion).
 
 <!-- help: budget#how-to-start-a-household-budget src=1116c1b0a8 -->
 ## Créer un budget du foyer
@@ -337,3 +339,111 @@ réunies en une, ni une être divisée, sans pertes.
 Sans organisation, avec seulement ton propre bureau : ouvre Paramètres > Entreprise et bureau > Données, choisis
 **Déménager le bureau** et **Lancer le déménagement** ; puis **Exporter le bureau** et **Tout exporter**, et importe les
 deux sur le nouveau serveur. Ton espace privé hors du bureau reste modifiable.
+
+<!-- help: office#how-to-set-up-your-office src=fb04d9cb9f -->
+## Configurer ton bureau
+
+1. Ouvre Paramètres > Entreprise et bureau. Sous Entreprise, saisis le nom, l'adresse et le logo de ton entreprise.
+2. Sous Banque et impôts, saisis ton compte bancaire, ton numéro fiscal et ta façon de payer la TVA.
+3. Sous Documents, coche **Petite entreprise** si tu ne factures pas de TVA (article 19 UStG) et définis l'aspect de tes
+   numéros de devis et de facture.
+4. Sous Textes et modèles, écris les textes au-dessus et en dessous de tes documents ; sous Paquets, active ce dont ton
+   métier a besoin.
+5. Tu veux d'abord essayer ? Active le **Mode test** sous Documents : les documents reçoivent un numéro TEST et le filigrane
+   MUSTER. Désactive-le avant ta première vraie facture.
+
+Ce qui se passe ensuite : chaque nouveau devis et chaque nouvelle facture reprend ces données. Le bureau montre ce qui
+manque encore pour une facture, jusqu'à ce que tout soit là. Qui dans ton entreprise peut voir et modifier quoi se règle
+dans « Décider qui voit quoi dans le bureau ».
+
+<!-- help: office#how-to-decide-who-sees-what-in-the-office src=cd8aa74ee0 -->
+## Décider qui voit quoi dans le bureau
+
+1. Ouvre Paramètres > Entreprise et bureau et choisis **Droits dans le bureau**.
+2. Sous Personnes, donne un groupe à chaque personne : un modèle (par exemple seulement ses propres justificatifs, frais de
+   déplacement et temps) ou un groupe à toi : copie un modèle sous Groupes et règle pour chaque partie du bureau ce que le
+   groupe peut faire.
+
+Ce qui se passe ensuite : la personne ne voit désormais que ces parties du bureau. Les admins de l'organisation voient
+toujours tout ; qui n'a pas de groupe garde l'accès de son rôle dans l'organisation. Chaque modification est notée dans le
+journal, et chacun voit les siens sous **Mes droits**.
+
+<!-- help: office#how-to-come-from-another-program src=df1c3a51e1 -->
+## Venir d'un autre logiciel
+
+1. Continue ta numérotation : sous Paramètres > Entreprise et bureau > Documents, saisis le prochain numéro de chaque
+   série (celui que ton ancien logiciel aurait donné ensuite).
+2. Apporte tes clients, prestations et équipements : sous Paramètres > Entreprise et bureau > Données, choisis
+   **Importer les anciennes données**, choisis ton tableur (.xlsx) et vérifie l'aperçu avant de confirmer. Les anciennes
+   factures et anciens devis (PDF) sont archivés tels quels.
+
+Ce qui se passe ensuite : ta prochaine facture poursuit ta numérotation sans trou. Un import peut être annulé tant que
+rien ne s'appuie dessus. Tu viens d'un autre serveur Kalmido ? Vois « Déménager l'entreprise sur un autre serveur ».
+
+<!-- help: office#how-to-send-e-invoices src=56ef8356c7 -->
+## Envoyer des factures électroniques
+
+1. Pour la plupart des clients, il n'y a rien à faire : chaque facture est une facture ZUGFeRD, un PDF normal qui contient
+   les données de la facture.
+2. Une administration publique te donne un identifiant de routage (Leitweg-ID) : ouvre le client et saisis-le sous
+   **Référence acheteur (p. ex. identifiant de routage)**. XRechnung (XML pur) est alors proposé pour ce client.
+3. Pour choisir un autre format pour tous, ouvre Paramètres > Entreprise et bureau > Documents,
+   **Format de facture électronique**.
+
+Ce qui se passe ensuite : l'identifiant de routage est imprimé sur la facture et entre dans la facture électronique. Ton
+expert-comptable et le destinataire lisent les données de la facture sans les retaper.
+
+<!-- help: team#how-to-create-your-company src=ca851ef163 -->
+## Créer ton entreprise
+
+1. Ouvre Paramètres > Compte et choisis **Ajouter une organisation**.
+2. Saisis le nom de ton entreprise et choisis **Créer**.
+
+Ce qui se passe ensuite : tu es admin de l'organisation de ton entreprise. Ses projets, fichiers et son bureau restent
+séparés de tes affaires privées ; la barre latérale montre l'un des deux à la fois. Invite ensuite tes collègues (vois
+« Inviter des personnes et leur donner un rôle »). Si tu travailles seul, tu n'as pas besoin d'organisation : ton propre
+bureau fonctionne de la même façon dans ton espace privé.
+
+<!-- help: team#how-to-invite-people-and-give-them-a-role src=1c51bbc4ab -->
+## Inviter des personnes et leur donner un rôle
+
+1. Ouvre Paramètres > Organisation > Personnes et choisis **Inviter des personnes**.
+2. Saisis l'adresse e-mail et choisis le **Rôle** : un membre voit et modifie ce que l'organisation partage, un admin gère
+   en plus les personnes, les rôles et les réglages, lecture seule ne fait que lire, comptabilité lit et exporte le bureau,
+   un invité ne voit que ce qui est partagé avec lui personnellement.
+3. Choisis **Inviter**.
+
+Ce qui se passe ensuite : la personne reçoit un e-mail et rejoint avec son propre compte ; qui n'en a pas choisit d'abord
+un mot de passe. Tu changes le rôle plus tard dans la même liste. Ce que chacun peut faire dans le bureau se règle à part
+(vois « Décider qui voit quoi dans le bureau »).
+
+<!-- help: team#how-to-create-an-account-or-get-a-new-password src=9e70b000b7 -->
+## Créer un compte ou obtenir un nouveau mot de passe
+
+1. Pour créer un compte, choisis **Créer le compte** sur la page de connexion, saisis ton nom, ton adresse e-mail et un mot
+   de passe, puis ouvre le lien de l'e-mail que tu reçois.
+2. Mot de passe oublié ? Choisis **Mot de passe oublié ?** sur la page de connexion, saisis ton adresse e-mail et choisis
+   **Envoyer le lien**. Ouvre le lien de l'e-mail et choisis un nouveau mot de passe.
+
+Ce qui se passe ensuite : tu es connecté. Un nouveau mot de passe te déconnecte sur tes autres appareils et met fin aux
+mots de passe d'application et aux jetons d'API ; tes propres webhooks et canaux sont désactivés jusqu'à ce que tu les
+réactives. Pas d'e-mail après quelques minutes ? Regarde dans le dossier des spams.
+
+<!-- self-hosted -->
+**Créer le compte** manque quand, sur le serveur, seuls les admins ajoutent des personnes : demande-leur un compte.
+
+<!-- help: team#how-to-get-help-from-a-person src=00bf17443f -->
+## Obtenir l'aide d'une personne
+
+<!-- hosted -->
+1. Ouvre Paramètres > Aide et choisis **Écrire au support** (sous **L’aide d’une personne**). Une personne répond par
+   e-mail.
+2. S'il doit regarder dans ton compte, ouvre-le pour une durée limitée avec **Autoriser l’accès du support**.
+
+<!-- self-hosted -->
+1. Ton serveur est géré par ton entreprise ou par toi-même : son admin t'aide.
+2. Une erreur dans Kalmido lui-même ? Signale-la avec **Signaler un problème** sous Paramètres > Aide.
+
+<!-- hosted -->
+Ce qui se passe ensuite : personne du support ne peut regarder dans ton compte avant que tu ne l'autorises, et seulement
+jusqu'à l'heure que tu as choisie. Tu y mets fin plus tôt sous Paramètres > Compte > Accès du support.

@@ -1024,7 +1024,7 @@ async function api(method, url, body, o) {
   try { let j = await rawFetch(method, url, body, ik, undefined, undefined, o?.lim); if (ox.on && j?.conflicts?.length && typeof le2eRekeyConflicts === 'function') j = await le2eRekeyConflicts(url, body, j, b2 => rawFetch(method, url, b2));  // (#4632): a key change is no conflict
     if (ox.on && j?.conflicts?.length) addConflicts(j.id || +url.split('/').pop(), j.conflicts, j.title); if (method !== 'GET' && S.sel && new RegExp(`^/api/tasks/${S.sel}(/|$)`).test(url)) savedPing(); return method === 'GET' ? mvResp(url, j) : j; }  // 2.436.0 (#3620)
   catch (e) {
-    if (e instanceof NoAnswer && method !== 'GET') netAgain(e, apiWhat(method, url, body), o?.then);  // #7494: said once, "Try again" = the same key; o.then = the caller's follow-up of a success
+    if (e instanceof NoAnswer && method !== 'GET' && !o?.quiet) netAgain(e, apiWhat(method, url, body), o?.then);  // #7494: said once, "Try again" = the same key; o.then = the caller's follow-up of a success; #7501 o.quiet: the caller's rows say it (rwRows)
     else if (e instanceof Offline) {
       if (queueable(method, url) && !(body instanceof FormData)) return enqueue(method, url, body, ik);  // (#6332): the same key
       if (method !== 'GET') { toast(tr('Only available online.')); e.shown = true; }  // (#5451)
@@ -1177,7 +1177,7 @@ function outOrgDrop(oid) {
 // 'fdc' comment drafts, 'fdw' kept writes), id the record; base = the server's updated_at the input builds on.
 // 2.1257.0 (#6286): 'fdx' = an own knowledge page text waiting at its page (wiki.js wko_cfPut: refused with 409/403/413); kept
 // here, not in the page copy (IndexedDB kalmido-wiki), which a new sign-in, an ended session and 14 days without a sync empty
-const FD_KINDS = ['ltpend', 'fdf', 'fdc', 'fdw', 'fdx'];
+const FD_KINDS = ['ltpend', 'fdf', 'fdc', 'fdw', 'fdx', 'dtpend'];  // #7504 dtpend: the input of a document of "Writing & contracts" until the server has it
 DEV_STORES.push(...FD_KINDS.map(k => ['ls', `tasks.${k}.`, 'own']));  // (#6500): kept input waits like the queue (icons.js devEnd)
 // review (#4304): before /api/me answered (a 401 at the start) the account of this browser (uid)
 // 2.1257.0 (#6286): uid = another account's records (the previous account at a switch, cfDownload)
@@ -1831,19 +1831,19 @@ function rwRows(o) {
     W.mark(keys);
     if (W.wait) return W.wait;
     const p = W.wait = W.run(async () => {
-      W.wait = null;
+      W.wait = null; W.going = true;
       const ks = [...W.dirty]; W.dirty.clear();
       try {
         const j = await o.send();
         for (const k of ks) if (!W.dirty.has(k)) W.st.delete(k);
         if (o.whole) for (const [k, v] of [...W.st]) if (v === 'failed') W.st.delete(k);  // each save sends all rows: the failed ones are saved now too
-        W.err = null; return j;
+        W.err = null; W.saved = true; return j;
       } catch (x) {
         const shown = !!o.fail?.(x);
         for (const k of ks) if (!W.dirty.has(k)) { if (shown) W.st.delete(k); else W.st.set(k, 'failed'); }
         if (!shown) W.err = x;
         throw x;
-      } finally { W.calc = !!W.wait || W.dirty.size > 0; o.draw(); }  // the answer drawn light (optWrite draws only the change and an error)
+      } finally { W.going = false; W.calc = !!W.wait || W.dirty.size > 0; o.draw(); }  // the answer drawn light (optWrite draws only the change and an error)
     });
     return p;
   };
@@ -1867,7 +1867,7 @@ function rwRows(o) {
     if (x instanceof NoAnswer && o.again) {
       for (const k of ks) W.st.set(k, 'saving');
       W.calc = true; o.draw();
-      try { await W.run(() => o.again(x)); for (const k of ks) if (W.st.get(k) === 'saving' && !W.dirty.has(k)) W.st.delete(k); }
+      try { await W.run(() => o.again(x)); W.saved = true; for (const k of ks) if (W.st.get(k) === 'saving' && !W.dirty.has(k)) W.st.delete(k); }
       catch (e) { const shown = !!o.fail?.(e); for (const k of ks) if (shown) W.st.delete(k); else W.st.set(k, 'failed'); if (!shown) W.err = e; W.calc = false; o.draw(); return; }
       if (!W.dirty.size) { W.calc = !!W.wait; o.draw(); return; }
     }
@@ -1901,6 +1901,47 @@ function rwRows(o) {
   if (o.name) RW_ALL.set(o.name, W);
   return W;
 }
+// #7503: "write shows at once" for areas whose rows are saved one request per row (time entries and the timer, the receipts of a
+// trip, the drives of the logbook; docs/dev/kern.md). W.ops = the changes on their way, in their order (a seq -> c: {k: the row's
+// key, e: the row as it shows now (null = removed), isNew, m / url / b: the request or send(): its own, took(j): the answer,
+// bad(x): a refusal (4xx) said by the change itself (the dialog back with the input, a removed row back), gone: a removal}).
+// The writer's save sends each one in order through api(..., {quiet}): no answer / a server error stops there (the rows say
+// "Not saved - Try again", the rest waits behind it), a refusal goes to its change and the next one goes on; queued by the
+// outbox (no connection, time) = c.q: the row stays until a read has it (W.dropQueued). W.show(rows, fits) = the rows the server
+// sent with the changes put over them (a changed row as it is now, a removed one gone, new ones that fit at the end);
+// W.op(k, c, put) = a change (put: what else changes locally, returns how to take it back); W.busy(row) = a change of it on its way.
+// o: {name, draw(), took?(j, c): the area's part of every answer}
+function rwOps(o) {
+  const L = new Map(); let n = 0;
+  const took = (q, c, j) => { c.done = true; if (j?.queued && c.isNew) c.q = true; else if (L.get(q) === c) L.delete(q); o.took?.(j, c); c.took?.(j); };
+  const send = async () => {
+    for (const [q, c] of [...L]) {
+      if (c.done) continue;
+      let j;
+      try { j = c.send ? await c.send() : await api(c.m, c.url, c.b, {quiet: true, key: c.key ||= outKey()}); }  // one key per change: sent again = applied once
+      catch (x) {
+        if (x instanceof NoAnswer && x.retry) x.rwAgain = () => x.retry().then(j2 => took(q, c, j2));
+        if (x?.message === 'auth' || x instanceof NoAnswer || x instanceof Offline || !(x?.status >= 400 && x.status < 500 && x.status !== 408 && x.status !== 429)) { x.rwQuiet = true; throw x; }
+        if (c.gone && x.status === 404) { took(q, c, {ok: true}); continue; }  // removed already (a repeat after a lost answer)
+        if (L.get(q) === c) L.delete(q);
+        x.shown = false; c.bad?.(x); continue;  // quiet above: the change says it now
+      }
+      took(q, c, j);
+    }
+  };
+  const W = rwRows({name: o.name, whole: true, draw: o.draw, send, again: x => x.rwAgain ? x.rwAgain().then(send) : Promise.reject(x)});
+  const last = k => { let c = null; for (const x of L.values()) if (x.k === k) c = x; return c; };
+  W.ops = L;
+  W.op = (k, c, put) => { c.k = k; const q = ++n; return W.write(() => { L.set(q, c); const back = put?.(); return () => { if (L.get(q) === c) L.delete(q); back?.(); }; }, c.e ? [k] : [], {back: !c.e}).catch(() => null); };
+  W.show = (rows, fits) => {
+    const out = (rows || []).flatMap(e => { const c = last(rwKey(e)); return c ? (c.e ? [c.e] : []) : [e]; });
+    for (const c of L.values()) if (c.isNew && c.e && last(c.k) === c && (!fits || fits(c.e)) && !out.some(x => rwKey(x) === c.k)) out.push(c.e);
+    return out;
+  };
+  W.busy = it => { const k = rwKey(it); return [...L.values()].some(c => c.k === k && !c.done); };
+  W.dropQueued = has => { for (const [q, c] of L) if (c.q && !has(c)) L.delete(q); };
+  return W;
+}
 // the state of a row as a mark (in the row): "Saving…" for screen readers (the row's amount dims), "Not saved" with "Try again" (the row stays)
 function rwMarkHtml(W, it) {
   const s = W?.state(it);
@@ -1910,6 +1951,22 @@ function rwMarkHtml(W, it) {
   return '';
 }
 const rwCls = (W, it) => { const s = W?.state(it); return s ? ' rw-' + s : ''; };
+// #7504: the state of a text editor without rows (its writer W) at the editor, calm: "Saving…" while a save of it is on its way,
+// "Not saved" with "Try again" after an error, "Saved" once a save went through; nothing before the first save
+function rwDocHtml(W) {
+  if (!W) return '';
+  if (W.going || W.wait) return `<span class="rwmark rwsaving">${esc(tr('Saving…'))}</span>`;  // a save on its way or waiting for one
+  if (W.err) return `<span class="rwmark rwfail">${ic('info', 's')}<span>${esc(tr('Not saved'))}</span><button type="button" class="linkbtn" data-rwagain="${esc(W.o.name || '')}">${esc(tr('Try again'))}</button></span>`;
+  return W.saved ? `<span class="rwmark">${ic('check', 's')}<span>${esc(tr('Saved'))}</span></span>` : '';
+}
+// #7504: a button that first waits for the object's saves (Back, PDF, Mark as sent, Finish) shows that it waits until they are
+// through and is not pressed twice meanwhile; p = the wait (a Promise) -> its result
+async function rwBusy(b, p) {
+  if (!b || b.getAttribute('aria-busy') === 'true') return p;
+  const dis = 'disabled' in b ? b.disabled : null;
+  b.setAttribute('aria-busy', 'true'); b.classList.add('rwwait'); if (dis !== null) b.disabled = true;
+  try { return await p; } finally { b.removeAttribute('aria-busy'); b.classList.remove('rwwait'); if (dis !== null) b.disabled = dis; }
+}
 // the light draw: only the parts sel of root take the new html (morphed, focus and typed text kept); false = a part is
 // missing on one side (the caller draws the whole view)
 function rwPatch(root, html, sels) {

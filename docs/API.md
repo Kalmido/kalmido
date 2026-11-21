@@ -1084,6 +1084,10 @@ MCP endpoint `/mcp` ([AGENTS.md, Hosted MCP](AGENTS.md#hosted-mcp)). Off, every 
 2.391.0 (#3362): a script can set up what Settings > Connections offers, with the scope `integrations` (people only: an agent's
 token never gets it, also not through the old `write`; agents set up nothing of this on purpose). The routes run the very
 checks of the app (who may manage a webhook, an organisation admin, the project owner / project admins for repositories).
+#7633: a personal webhook is a way out of the account: a new one or a new `url` sends the owner a security mail, and a new
+password (with the tick), a reset and the first second factor switch personal webhooks off (`enabled: false`,
+`disabled_reason: "password"`, the waiting deliveries dropped) - switch them on again with `PATCH {enabled: true}`. The app asks
+the password for a new one; a token asks nothing more (it was confirmed when it was made and ends with a new password).
 
 | Route | Scope | |
 |---|---|---|

@@ -1999,7 +1999,8 @@ a big state is no hang).
 - **Write** without an answer: `NoAnswer` (not `Offline`, not saved). Every write carries an `Idempotency-Key` (the
   caller's, else its own; `kalmido/core/idem.py`), so `e.retry()` sends the very same request with the same key: applied
   once, also when the first try did reach the server. `api()` says it once with `netAgain(e, what, then)`: "Not saved: no
-  answer from the server" with "Try again", then "Saved" (or the caller's `then`). The office's `ofcErr` does the same. A
+  answer from the server" with "Try again", then "Saved" (or the caller's `then`). The office's `ofcErr` does the same.
+  `api(..., {quiet: true})` says nothing (also no `netAgain`): the caller's rows say it ("write shows at once", #7501). A
   repeat may bring the short stored answer (ok, ids, `updated_at`; marked `j._replayed`): the caller reads the object anew.
   The client's own key starts with `n.` (`IDEM_NET`): it keeps only the short answer, also on `IDEM_FULL` (no sealed text in
   `idem_keys`), and `idem_prune` drops it after `IDEM_NET_S` (an hour), so it never crowds the outbox keys out of
@@ -2048,7 +2049,11 @@ then draw" or its own id swap beside it.
 - **Light draw:** `o.draw()` draws only the rows, their marks and the sums, never the whole editor: `rwPatch(root, html, sels)`
   morphs just the parts `sels` (focus, caret and typed text stay); false = a part is missing on one side, then the whole view.
 - **Text editors without rows** use `W.run` / `W.save()` without keys: the same order (one save at a time, the newest text,
-  the version of the last answer).
+  the version of the last answer). Since #7504 the letters (`office_letters.js lt_W`) and the documents of "Writing & contracts"
+  (`office_doctpl.js dt_W`): their `send` takes the newest input (kept in this browser with `fdKeep` until the server has it),
+  `rwDocHtml(W)` is the calm state at the editor ("Saving…" / "Saved" / "Not saved - Try again"), `rwBusy(button, wait)` shows
+  that a button which saves first (Back, PDF, Mark as sent, Finish) waits, and is not pressed twice meanwhile. A preview follows
+  the save (it reads the saved draft) instead of sending the whole text beside it.
 - **Lists whose rows take actions** (bank bookings, card positions: match, mark, take back, #7497 / #7499) use
   `W.act(key, put, req, take)`: an action is a request of its own, not a save of the newest state. `put` = the row's new state at
   once (looked up again each time, `optSet`), `req()` = the request without a message of its own (`rawFetch`); the actions go
@@ -2060,7 +2065,16 @@ then draw" or its own id swap beside it.
   saves and actions are answered (`rwIdle`, `histStep`), so Ctrl+Z right after a click takes back that click.
 
 First user: the quotation and invoice editor (`office_docs.js`: `ofd_W` (one writer per document), `ofd_rows`, `ofd_add`, `ofd_itemsSend`, `ofd_lite`;
-`#ofd-pos` is the positions' section, `ofd_inChain` = `ofd_W(OFD.doc).run`). The parts and the calculation sheet (#7496), bank, cards,
+`#ofd-pos` is the positions' section, `ofd_inChain` = `ofd_W(OFD.doc).run`).
+- **One request per row** (`rwOps(o)`, #7503): areas whose rows are saved each on its own route (time entries and the timer
+  `time.js TE_W`, the receipts of a trip `office_travel.js rk_W`, the drives of the logbook `office_logbook.js LB_W`) keep the
+  changes on their way as the local state (`W.ops`: the row as it shows now and its request, one idempotency key per change)
+  and send them one after the other in their order. `W.op(key, c, put)` = a change, `W.show(rows, fits)` = the rows the server
+  sent with the changes put over them (a new row on its way, a changed one as it is now, a removed one gone - a later read never
+  wipes one still on its way), `W.busy(row)`. A refusal (4xx) goes to the change itself (`c.bad`: the dialog back with what was
+  typed, a removed row back with the reason); only no answer / a server error marks the rows "Not saved - Try again". The
+  answer gives the one row and what the server computes (`o.took`); once `W.last()` the area reads its list again in the
+  background. A row on its way opens once it is saved: `W.run(() => null).then(() => rwFind(rows, key))`. The parts and the calculation sheet (#7496), bank, cards,
 cash book, times, receipts, travel (#7497 - #7503) and the letters' autosave (#7504) follow on it. The `fdWrite` input guard
 (#4547) stays under it. Tests hold the answers with `hold(w, re)` of `tests/boot.js` (`w.__go()`, `w.__fail(status)`,
 `w.__drop()`; `slow(w, re)` holds them all at once): `tests/p7493_schreiben_sofort_ui.js`, `tests/p7509_editor_kette_ui.js`.

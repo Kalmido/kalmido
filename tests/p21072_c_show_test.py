@@ -136,7 +136,12 @@ check(isinstance(sec.get("show"), list) and all(k in TARGETS for k in sec["show"
 
 # ---------------------------------------------------------------- the list itself
 src = open(os.path.join(ROOT, "kalmido", "api", "showme.py"), encoding="utf-8").read()
-de = json.load(open(os.path.join(ROOT, "static", "i18n", "de.json"), encoding="utf-8"))
+# the German texts as the server reads them: the base file + the fragments of static/i18n/neu (core/i18nfrag.py, #6194) - a
+# label whose text the merge queue moved into a fragment (Settings: Connections, job/5871) is translated too
+_fs = importlib.util.spec_from_file_location("i18nfrag_show", os.path.join(ROOT, "kalmido", "core", "i18nfrag.py"))
+_frag = importlib.util.module_from_spec(_fs)
+_fs.loader.exec_module(_frag)
+de = _frag.load_lang(os.path.join(ROOT, "static", "i18n"), "de")
 web = "".join(open(p, encoding="utf-8").read() for p in glob.glob(os.path.join(ROOT, "static", "js", "*.js")) + [os.path.join(ROOT, "static", "index.html")])
 for k, t in TARGETS.items():
     check(re.fullmatch(r"[a-z][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*){1,2}", k) and isinstance(t.get("sel"), str) and t["sel"].strip(), f"{k}: key + selector")

@@ -49,6 +49,7 @@ from ..core.access import Denied, WRITE_ROLES, acx_of, list_role, need_list
 from ..collab.integfail import INTEG_FAILS, integ_backoff_s, integ_org_admins, integ_tell
 from ..notify.alerts import _env_int
 from ..accounts.session import me
+from ..accounts.oidc import creator_reauth  # #7633
 from ..accounts.mailtok import mtk_where  # 2.674.0 (#4382 finding 5)
 from . import hubmail as H
 from ..api.common import hit_limit  # 2.149.0 G (#2517): pulled up from functions
@@ -513,13 +514,14 @@ def _port(d, k, cur):
 @app.put("/api/hubmail/mailbox")
 def mbx_put():
     """{ws, active?, imap_host?, imap_port?, imap_ssl?, imap_user?, imap_password?, imap_folder?, smtp_host?, smtp_port?,
-    smtp_tls?, smtp_user?, smtp_password?, from_addr?, from_name?, check?} -- sets up / changes the mailbox. An empty or
+    smtp_tls?, smtp_user?, smtp_password?, from_addr?, from_name?, check?, password? (#7633: a new server for sending of the
+    private mailbox confirms the sign-in)} -- sets up / changes the mailbox. An empty or
     missing password keeps the stored one (not when the server / port changes). check = then log in to both (nothing sent)."""
     c = db()
     d = body() if isinstance(body(), dict) else {}
     org, ws = _ws(c, d.get("ws"))
     known = {"ws", "active", "imap_host", "imap_port", "imap_ssl", "imap_user", "imap_password", "imap_folder", "smtp_host", "smtp_port",
-             "smtp_tls", "smtp_user", "smtp_password", "from_addr", "from_name", "check"}
+             "smtp_tls", "smtp_user", "smtp_password", "from_addr", "from_name", "check", "password"}  # password: #7633
     unknown = sorted(set(d) - known)
     if unknown:
         return err(tr("Unknown field: {0}", ", ".join(unknown)[:200]))
@@ -568,6 +570,18 @@ def mbx_put():
         return err(tr("Please enter a server for receiving or for sending"))
     # the stored passwords only ever go to the server they were entered for
     old = mbx_secret(c, r) if r else {}
+    # #7633 (accounts/accessways.py, row "mailbox"): the private mailbox sending through a new mail server is a way out (a copy
+    # of every mail sent): the sign-in is confirmed once more (hubmailbox.js asks the password) and the owner gets a mail.
+    # F2: every new target for sending - another server, port or user, and the first password for a server that came in
+    # without this confirmation (the account import, admin/acctimport.py, brings the server without its password). The server
+    # for receiving sends nothing out: no question.
+    out = not org and bool(v["smtp_host"]) and (not r or any(v[k] != (int(r[k] or 0) if k == "smtp_port" else r[k])
+                                                               for k in ("smtp_host", "smtp_port", "smtp_user"))
+                                                or (not old.get("smtp") and bool(d.get("smtp_password"))))
+    if out:
+        e = creator_reauth(c, d)
+        if e:
+            return e
     secret = {}
     for p, host, port in (("imap", "imap_host", "imap_port"), ("smtp", "smtp_host", "smtp_port")):
         same = r and v[host] == r[host] and v[port] == int(r[port] or 0) and (v["imap_ssl"] == int(r["imap_ssl"]) if p == "imap" else v["smtp_tls"] == r["smtp_tls"])
@@ -624,6 +638,9 @@ def mbx_put():
         c.execute(f"INSERT INTO hub_mailboxes(org_id, owner_id, ws, {', '.join(cols)}, secret, created_by, created_at, updated_at) "
                   f"VALUES(?,?,?,{','.join('?' * len(cols))},?,?,?,?)", (org, None if org else me(), ws, *[v[k] for k in cols], sealed, me(), ts, ts))
     c.commit()
+    if out:
+        from ..accounts.secmail import sec_mail
+        sec_mail(c, me(), "out_new", v["from_addr"], v["smtp_host"], way="mailbox")
     r = mbx_row(c, ws)
     chk = None
     if d.get("check") is True:  # 2.1312.0 (#6540): counted above (_conn_limited)

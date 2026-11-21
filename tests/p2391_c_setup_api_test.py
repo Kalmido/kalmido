@@ -129,8 +129,10 @@ check(S2.post("/me/tokens", json={"name": "v6", "allowed_ips": ["::/0"]}).status
 r = S2.post("/me/tokens", json={"name": "ten", "allowed_ips": ["10.0.0.0/8"]})
 check(r.status_code == 201 and r.json()["allowed_ips"] == ["10.0.0.0/8"], f"a narrower network: 201 {r.text[:160]}")
 r = S2.post("/me/tokens", json={"name": "same"})
-check(r.status_code == 201 and r.json()["allowed_ips"] == ["0.0.0.0/1", "128.0.0.0/1"] and r.json()["expires_at"] is None,
-      f"no addresses given = the calling token's; no expiry on both {r.text[:160]}")
+# #6499: a token made in the app ends after 90 days by default - the new one never outlives the calling one
+check(r.status_code == 201 and r.json()["allowed_ips"] == ["0.0.0.0/1", "128.0.0.0/1"] and r.json()["expires_at"]
+      and r.json()["expires_at"] <= T2["expires_at"],
+      f"no addresses given = the calling token's; not longer than the calling token {r.text[:160]}")
 # projects: within the calling token's
 P1 = F.post(B + "/api/lists", json={"name": "App", "kind": "project"}).json()["id"]
 P2 = F.post(B + "/api/lists", json={"name": "Website", "kind": "project"}).json()["id"]

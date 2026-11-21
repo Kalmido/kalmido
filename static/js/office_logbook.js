@@ -21,10 +21,36 @@ const lbClient = id => cdn_label((LB.base?.clients || []).find(c => c.id === id)
 const lbKm = v => v == null || v === '' ? '' : fmtNum(+v, +v % 1 ? 1 : 0);
 const lbRoute = d => [d.start_place, d.dest].filter(Boolean).join(' – ');
 const lbWarn = w => !w ? '' : w.kind === 'gap' ? tr('Gap of {0} km to the previous drive', lbKm(w.km)) : tr('Overlap of {0} km with the previous drive', lbKm(w.km));
-// 2.559.0 (#4660): a drive added / changed / deleted shows at once (optWrite): LB.drives changes before the answer; afterwards
-// the vehicles (last odometer) and the drives (warnings of the neighbours, closed) are fetched in the background and replace
-// the old ones only when they are there (no "Loading…"); a refusal takes the change back (api() says why)
-const LB_PEND = new Map();  // a new drive on its way: its provisional (negative) id -> the promise of the real id
+// #7503 (decision): a drive added / changed / deleted writes through the core's "write shows at once" (core.js rwOps, one writer
+// for the logbook): it stands at once ("Saving…" / "Not saved - Try again"), the answer gives only this drive (its km, its
+// warning), the others stay - also one still on its way; the start odometer of the next drive comes from the local state with the
+// drives on their way (lbLastOdo). Once nothing waits the vehicles (last odometer) and the drives (the neighbours' warnings,
+// closed) are read again in the background (lbRefresh) and replace the old ones only when they are there.
+const LB_W = rwOps({name: 'lb', draw: () => lb_lite(), took: (j, c) => lb_take(j, c)});
+function lb_take(j, c) {
+  const ds = LB.drives;
+  if (ds && c.gone) LB.drives = ds.filter(x => x.id !== c.gone);
+  else if (ds && j?.id) {
+    if (c.isNew) rwIds([c.e], [j]);  // the core's one place of the id swap
+    const i = ds.findIndex(x => x.id === j.id), fits = j.vehicle_id === LB.vid && String(j.day).slice(0, 4) === lbYear();
+    if (i >= 0) { if (fits) ds[i] = {...ds[i], ...j}; else ds.splice(i, 1); }
+    else if (fits) { const k = ds.findIndex(x => x.day < j.day || (x.day === j.day && (+x.odo_start || 0) < (+j.odo_start || 0))); ds.splice(k < 0 ? ds.length : k, 0, j); }
+  }
+  if (LB_W.last()) lbRefresh();
+}
+// the light draw: only the drives' section (rows, marks, the sum line); without it (no drives yet, the report) the page
+function lb_lite() {
+  if (ofcTab() === 'travel' && RK.view === 'logbook' && LB.view === 'drives' && LB.base && rwPatch($('#view'), lbListHtml(), ['#lgb-drives'])) return;
+  ofcDraw();
+}
+// the odometer a new drive of vehicle v starts at: the highest end of the vehicle's drives this page knows, with the ones on
+// their way (the server's last_odo comes only with the next read)
+function lbLastOdo(v) {
+  if (!v) return null;
+  const ends = [v.last_odo, ...LB_W.show(LB.drives || []).filter(d => d.vehicle_id === v.id).map(d => d.odo_end), ...[...LB_W.ops.values()].filter(c => c.e?.vehicle_id === v.id).map(c => c.e.odo_end)]
+    .filter(x => x != null && x !== '' && !isNaN(+x)).map(Number);
+  return ends.length ? Math.max(...ends) : null;
+}
 // (#7507): a refresh whose GETs ran across a write (one on its way, S.wfly, or answered meanwhile, S.wv moved: an at-once
 // change shows its new values, optWrite) is dropped - its answer has the state before the write and put the old values back;
 // the write's own end refreshes again
@@ -40,17 +66,6 @@ async function lbRefresh() {
 // the values of the dialog as they show in the row (km from the odometer, the driver's name) until the server's come
 const lbRowVals = b => ({...b, km: b.km ?? (b.odo_start != null && b.odo_end != null && b.odo_end >= b.odo_start ? Math.round((b.odo_end - b.odo_start) * 10) / 10 : null),
   driver: (LB.base?.people || []).find(x => x.id === b.user_id)?.name || ''});
-// a provisional drive into the shown list (vehicle and year; newest first like the server); idempotent, returns the way back
-const lbRowPut = row => () => {
-  const ds = LB.drives; if (!ds || row.vehicle_id !== LB.vid || String(row.day).slice(0, 4) !== lbYear()) return null;
-  if (!ds.some(x => x.id === row.id)) { const i = ds.findIndex(x => x.day < row.day || (x.day === row.day && (+x.odo_start || 0) < (+row.odo_start || 0))); ds.splice(i < 0 ? ds.length : i, 0, row); }
-  return () => { if (LB.drives) LB.drives = LB.drives.filter(x => x.id !== row.id); };
-};
-const lbRowCut = id => () => {
-  const ds = LB.drives, i = ds ? ds.findIndex(x => x.id === id) : -1; if (i < 0) return null;
-  const row = ds[i]; LB.drives = ds.filter(x => x.id !== id);
-  return () => { const e = LB.drives; if (e && !e.some(x => x.id === id)) e.splice(Math.min(i, e.length), 0, row); };
-};
 
 async function lbLoad() {
   if (LB.loading) return;
@@ -96,15 +111,15 @@ function lbHtml() {
   return bar + (LB.view === 'report' ? lbReportHtml() : lbListHtml()) + note;
 }
 function lbListHtml() {
-  const ds = LB.drives || [], v = lbVeh(LB.vid);
-  if (!ds.length) return emptyState({icon: 'car', title: tr('No drives in this year.')});
-  const sum = ds.reduce((a, d) => a + (+d.km || 0), 0);
-  return `<p class="muted lgb-sum">${esc([v ? (v.kind === 'private' ? tr('Private car used for business') : tr('Company car')) : '', trn('{0} drive', '{0} drives', ds.length), tr('{0} km', lbKm(sum))].filter(Boolean).join(' · '))}</p>
-    <ul class="ofclist lgb-list" role="list">${ds.map(d => `<li><button type="button" class="ofcrow lgb-row" data-lgb="open" data-id="${d.id}"><span class="ofcn"><b>${esc(lbRoute(d) || d.purpose || tr('Drive'))}</b>
+  const ds = LB_W.show(LB.drives || [], d => d.vehicle_id === LB.vid && String(d.day).slice(0, 4) === lbYear()), v = lbVeh(LB.vid);  // #7503: + the drives on their way
+  if (!ds.length) return '<section id="lgb-drives">' + emptyState({icon: 'car', title: tr('No drives in this year.')}) + '</section>';
+  const sum = (LB.drives || []).reduce((a, d) => a + (+d.km || 0), 0);
+  return `<section id="lgb-drives"${LB_W.calc ? ' class="rwcalc" aria-busy="true"' : ''}><p class="muted lgb-sum">${esc([v ? (v.kind === 'private' ? tr('Private car used for business') : tr('Company car')) : '', trn('{0} drive', '{0} drives', ds.length), LB_W.calc ? '' : tr('{0} km', lbKm(sum))].filter(Boolean).join(' · '))}${LB_W.calc ? ` · <span class="rwcalcl" role="status">${esc(tr('Calculating…'))}</span>` : ''}</p>
+    <ul class="ofclist lgb-list" role="list">${ds.map(d => `<li data-rwk="${esc(rwKey(d))}" class="${esc(rwCls(LB_W, d).trim())}"><button type="button" class="ofcrow lgb-row" data-lgb="open" data-id="${esc(String(d.id || -1))}" data-k="${esc(rwKey(d))}"><span class="ofcn"><b>${esc(lbRoute(d) || d.purpose || tr('Drive'))}</b>
     <small class="muted">${esc([fmtDateLoc(d.day), d.purpose, lbClient(d.client_id), d.project, lbKind(d.kind), d.driver].filter(Boolean).join(' · '))}</small>
     ${d.odo_start != null || d.odo_end != null ? `<small class="muted">${esc(tr('Odometer {0} – {1}', lbKm(d.odo_start) || '?', lbKm(d.odo_end) || '?'))}</small>` : ''}
     ${d.warn ? `<small class="lgb-warn">${ic('alert', 's')} ${esc(lbWarn(d.warn))}</small>` : ''}</span>
-    ${d.trip_id ? `<span class="rotag">${tr('In travel expenses')}</span>` : ''}${lbFixTag(d)}<span class="lgb-km">${esc(tr('{0} km', lbKm(d.km)))}</span></button></li>`).join('')}</ul>`;
+    ${d.trip_id ? `<span class="rotag">${tr('In travel expenses')}</span>` : ''}${lbFixTag(d)}<span class="lgb-km">${esc(tr('{0} km', lbKm(d.km)))}</span></button>${/*html-ok*/ rwMarkHtml(LB_W, d) /* the core's row mark, its texts escaped */}</li>`).join('')}</ul></section>`;
 }
 function lbReportHtml() {
   const r = LB.rep, y = lbYear();
@@ -159,11 +174,11 @@ function lbVehModal(v) {
 const lbFixTag = d => d.corrected_by ? `<span class="rotag">${tr('Corrected')}</span>` : d.corrects_id ? `<span class="rotag">${tr('Correction')}</span>` : '';
 const lbLockText = d => d.corrected_by ? tr('Corrected by entry {0}', d.corrected_by) : d.locked === 'month' ? tr('This month is closed in the logbook: correct the drive with a new entry.')
   : tr('This drive is closed (a week after the drive): correct it with a new entry.');
-function lbDriveModal(d, fix) {
+function lbDriveModal(d, fix, pre, err) {  // #7503 pre / err: a refused save, the dialog again with what was typed and why
   // fix = the closed drive a new entry corrects (prefilled with its values; the reason is required)
-  const ro = !!(d && (d.locked || d.corrected_by)), src = d || fix;
+  const ro = !!(d && (d.locked || d.corrected_by)), src = pre ? {...(d || fix || {}), ...pre} : d || fix;
   const base = LB.base, v = lbVeh(src?.vehicle_id ?? LB.vid);
-  const odo0 = src ? src.odo_start : v?.last_odo;
+  const odo0 = src ? src.odo_start : lbLastOdo(v);  // #7503: from the local state with the drives on their way
   const md = modal(`<h3>${fix ? tr('Correct drive') : ro ? tr('Drive') : d ? tr('Edit drive') : tr('New drive')}</h3>
     ${ro ? `<p class="lgb-lock">${ic('lock', 's')}<span>${esc(lbLockText(d))}</span></p>` : ''}
     ${src?.corrects_id && !fix ? `<p class="muted lgb-fixof">${esc(tr('Correction of entry {0}: {1}', src.corrects_id, src.correct_note || ''))}</p>` : ''}
@@ -203,7 +218,8 @@ function lbDriveModal(d, fix) {
   };
   if (d?.warn) $('#lgb-w', md).dataset.t = '1';
   md.addEventListener('input', e => { if (e.target.id === 'lgb-km') kmHand = val('#lgb-km') !== ''; if (e.target.id === 'lgb-o0' || e.target.id === 'lgb-o1') sync(); });
-  md.addEventListener('change', e => { if (e.target.id === 'lgb-veh2' && !d) { const nv = lbVeh(+e.target.value); $('#lgb-o0', md).value = nv?.last_odo != null ? lbKm(nv.last_odo) : ''; sync(); } });
+  md.addEventListener('change', e => { if (e.target.id === 'lgb-veh2' && !d) { const o = lbLastOdo(lbVeh(+e.target.value)); $('#lgb-o0', md).value = o != null ? lbKm(o) : ''; sync(); } });
+  if (err) $('.aerr', md).textContent = ofcErrHere(err);
   md.addEventListener('click', async e => {
     const b = e.target.closest('[data-m]'); if (!b) return;
     if (b.dataset.m === 'close') { close(); return; }
@@ -216,11 +232,10 @@ function lbDriveModal(d, fix) {
         RK.year = (j.trip.date_from || '').slice(0, 4); RK.view = 'trips'; RK.open = j.trip.id; LB.drives = null; rk_reload();
         return;
       }
-      if (b.dataset.m === 'del') {  // 2.559.0 (#4660): at once, the undo after the answer
+      if (b.dataset.m === 'del') {  // #7503: gone at once; no answer / a refusal brings it back; the undo after the answer
         md.remove();
-        try { await optWrite(lbRowCut(d.id), () => api('DELETE', `/api/office/drives/${d.id}`), ofcDraw, {mod: true}); } catch { return; }
-        lbRefresh();
-        toast(tr('Deleted'), async () => { await api('POST', `/api/office/drives/${d.id}/restore`); lbReload(true); });
+        LB_W.op(rwKey(d), {e: null, gone: d.id, m: 'DELETE', url: `/api/office/drives/${d.id}`, bad: x => ofcErr(x),
+          took: () => toast(tr('Deleted'), async () => { await api('POST', `/api/office/drives/${d.id}/restore`); lbReload(true); })});
         return;
       }
       const km = val('#lgb-km').trim();
@@ -230,30 +245,28 @@ function lbDriveModal(d, fix) {
       if (d) {
         const old = {day: d.day, vehicle_id: d.vehicle_id, start_place: d.start_place, dest: d.dest, purpose: d.purpose, odo_start: d.odo_start, odo_end: d.odo_end,
           km: d.km, kind: d.kind, client_id: d.client_id, project: d.project, user_id: d.user_id};
-        // 2.559.0 (#4660): the dialog closes at once, the row shows the new values; the server's hints come as the toast after it
-        // 2.576.0 (#4794): objsave.js - only the changed fields; a 409 puts the row back and opens the dialog again on the saved drive with the input and the merge bar
+        // #7503: the dialog closes at once, the row shows the new values ("Saving…"); the server's hints come as the toast after it
+        // (#4794): objsave.js - only the changed fields; a 409 opens the dialog again on the saved drive with the input and the merge bar
         md.remove();
-        const d0 = ofcBase(md, d);  // before the row shows the new values (optSet changes the row object)
-        let j; try { j = await optWrite(optSet(() => LB.drives?.find(x => x.id === d.id), lbRowVals(body)), () => ofcSave(null, `/api/office/drives/${d.id}`, d0, body), ofcDraw, {mod: true}); }
-        catch (x) { ofcSaveErr(null, x, r => { const m2 = lbDriveModal(r); lbRefresh(); return m2; }); return; }
-        if (!j) { ofcDraw(); return; }
-        const x = LB.drives?.find(y => y.id === d.id); if (x && j?.id === d.id) Object.assign(x, j);
-        ofcDraw(); lbRefresh();
-        // 2.93.0 B (#1928 review): a taken-over drive with other km -> the trip keeps the old km, said once here
-        toast(j.trip_hint || (j.warn ? lbWarn(j.warn) : tr('Saved')), async () => { await undoWrite(`/api/office/drives/${d.id}`, old, j?.updated_at, {now: body}).catch(() => null); lbReload(true); });  // 2.566.0 (#4704): core.js undoWrite - only the keys this save changed, against its version; changed since -> said, kept
+        const d0 = ofcBase(md, d);
+        LB_W.op(rwKey(d), {e: {...d, ...lbRowVals(body)}, send: () => ofcSave(null, `/api/office/drives/${d.id}`, d0, body),
+          bad: x => x?.conflict ? ofcSaveErr(null, x, r => { const m2 = lbDriveModal(r); lbRefresh(); return m2; }) : lbDriveModal(d, null, body, x),
+          took: j => {
+            if (!j) return;  // nothing changed
+            // (#1928 review): a taken-over drive with other km -> the trip keeps the old km, said once here
+            toast(j.trip_hint || (j.warn ? lbWarn(j.warn) : tr('Saved')), async () => { await undoWrite(`/api/office/drives/${d.id}`, old, j?.updated_at, {now: body}).catch(() => null); lbReload(true); });  // (#4704): core.js undoWrite - only the keys this save changed, against its version; changed since -> said, kept
+          }});
       } else {
         if (fix) { body.corrects_id = fix.id; body.correct_note = val('#lgb-fixnote').trim(); if (!body.correct_note) { $('.aerr', md).textContent = tr('A correction needs its reason'); return; } }
-        // 2.559.0 (#4660): the dialog closes at once, a provisional row (negative id) shows in the list; the real one after the answer
+        // #7503: the dialog closes at once, the drive stands in the list ("Saving…"); the next one starts at its end (lbLastOdo)
         md.remove();
-        const tmp = -Date.now(), row = {...lbRowVals(body), id: tmp, warn: null, trip_id: null, locked: false, corrected_by: null};
-        const req = optWrite(lbRowPut(row), () => api('POST', '/api/office/drives', body), ofcDraw, {mod: true});
-        LB_PEND.set(tmp, req.then(r => r.id, () => null));  // a refusal: nothing to open (null), no unhandled rejection
-        let j; try { j = await req; } catch { return; } finally { LB_PEND.delete(tmp); }
-        const other = (j.vehicle_id && j.vehicle_id !== LB.vid) || j.day.slice(0, 4) !== lbYear();
-        LB.vid = j.vehicle_id || LB.vid; RK.year = j.day.slice(0, 4);
-        const x = LB.drives?.find(y => y.id === tmp); if (x) Object.assign(x, j);
-        if (other) lbReload(true); else { ofcDraw(); lbRefresh(); }
-        toast(j.warn ? lbWarn(j.warn) : tr('Added'), async () => { await api('DELETE', `/api/office/drives/${j.id}`); lbReload(true); });
+        const row = {...lbRowVals(body), id: null, warn: null, trip_id: null, locked: false, corrected_by: null};
+        LB_W.op(rwKey(row), {e: row, isNew: true, m: 'POST', url: '/api/office/drives', b: body, bad: x => lbDriveModal(null, fix, body, x),
+          took: j => {
+            if (!j?.id) return;
+            if ((j.vehicle_id && j.vehicle_id !== LB.vid) || j.day.slice(0, 4) !== lbYear()) { LB.vid = j.vehicle_id || LB.vid; RK.year = j.day.slice(0, 4); lbReload(true); }
+            toast(j.warn ? lbWarn(j.warn) : tr('Added'), async () => { await api('DELETE', `/api/office/drives/${j.id}`); lbReload(true); });
+          }});
       }
     } catch (x) { const el = $('.aerr', md); if (el) el.textContent = ofcErrHere(x); }
   });
@@ -319,7 +332,7 @@ document.addEventListener('click', e => {
   const b = e.target.closest?.('[data-lgb]'); if (!b || b.tagName === 'INPUT') return;
   const a = b.dataset.lgb;
   if (a === 'new') lbDriveModal(null);
-  else if (a === 'open' && +b.dataset.id < 0) { const p = LB_PEND.get(+b.dataset.id); if (p) p.then(rid => { const d = (LB.drives || []).find(x => x.id === rid); if (d) lbDriveModal(d); }, () => {}); }  // 2.559.0 (#4660): a new drive on its way opens once it has its id
+  else if (a === 'open' && +b.dataset.id < 0) { const k = b.dataset.k; LB_W.run(() => null).then(() => { const d = rwFind(LB.drives, k); if (d?.id) lbDriveModal(d); }); }  // #7503: a new drive on its way opens once it is saved (the writer's row of saves, its key)
   else if (a === 'open') { const d = (LB.drives || []).find(x => x.id === +b.dataset.id); if (d) lbDriveModal(d); }
   else if (a === 'vnew') lbVehModal(null);
   else if (a === 'vedit') { const v = lbVeh(LB.vid); if (v) lbVehModal(v); }

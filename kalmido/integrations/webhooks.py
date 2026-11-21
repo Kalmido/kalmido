@@ -23,6 +23,7 @@ from ..core.i18n import N_, tr
 from ..core.db import body, connect, db, err, inbox_default, iso, iso_ms, local_day, local_now, now_utc, usettings
 from ..accounts.session import _rate_blocked, _rate_fail, GATE, me
 from ..accounts.login import seal, unseal
+from ..accounts.oidc import creator_reauth  # #7633
 from ..accounts.orgs import is_org_admin, may_see  # may_see: 2.574.0 (#3376, review F4)
 from ..core.access import Denied, list_role, live_sql, reading_sql, task_visible
 from ..collab.comments import collab_on, comment_plain, user_names
@@ -679,26 +680,52 @@ def wh_list_do(oid=None):
     return jsonify(enabled=WH_ON, events=list(WH_EVENTS), backoff=WH_BACKOFF, hooks=[wh_public(c, r) for r in wh_scope_rows(c, oid)])
 
 
-def wh_create_do(oid=None):
+def wh_out_ask(c, b):
+    """#7633 (accounts/accessways.py, row "webhooks"): a personal webhook is a way out of the account like a token is a way in:
+    made or pointed elsewhere from the web app it confirms the sign-in once more (creator_reauth, the client asks the password,
+    integrations.js reauthReq). The API (/api/v1/me/webhooks) does not ask: its token was made with that confirmation and ends
+    with a new password, like a token made through the API (v1setup.py v1s_token_create). An error response or None."""
+    return creator_reauth(c, b)
+
+
+def wh_out_mail(c, w):
+    """#7633: the security mail of a personal webhook made or pointed elsewhere (name and host of the address; after the commit)."""
+    from ..accounts.secmail import sec_mail
+    sec_mail(c, me(), "out_new", w["name"] or "Webhook", wh_host(w["url"]), way="webhooks")
+
+
+def wh_create_do(oid=None, ask=False):
     need_wh()
     c = db()
     f = wh_fields(c, body())
     if len(wh_scope_rows(c, oid)) >= WH_MAX:
         return err(tr("At most {0} webhooks", WH_MAX), 409)
+    if oid is None and ask:
+        e = wh_out_ask(c, body())
+        if e:
+            return e
     ts, secret = iso(now_utc()), "whsec_" + secrets.token_urlsafe(32)
     wid = insert_id(c, "INSERT INTO webhooks(user_id,name,url,events,secret,enabled,created_at,updated_at,org_id) VALUES(?,?,?,?,'',?,?,?,?)",
                     (me(), f["name"], f["url"], f["events"], f.get("enabled", 1), ts, ts, oid))
     c.execute("UPDATE webhooks SET secret=? WHERE id=?", (seal(c, f"webhook:{wid}", secret), wid))
     c.commit()
     g.idem_no_body = True  # 2.391.0 (#3362 review B1): the secret is shown once, never kept with an idempotency key
-    return jsonify({**wh_public(c, need_webhook(c, wid, oid)), "secret": secret}), 201
+    w = need_webhook(c, wid, oid)
+    if oid is None:
+        wh_out_mail(c, w)  # #7633
+    return jsonify({**wh_public(c, w), "secret": secret}), 201
 
 
-def wh_update_do(wid, oid=None):
+def wh_update_do(wid, oid=None, ask=False):
     need_wh()
     c = db()
-    need_webhook(c, wid, oid)
+    w0 = need_webhook(c, wid, oid)
     f = wh_fields(c, body(), old=True)
+    moved = oid is None and "url" in f and f["url"] != w0["url"]  # #7633: a personal webhook pointed elsewhere
+    if moved and ask:
+        e = wh_out_ask(c, body())
+        if e:
+            return e
     if f:
         f["updated_at"] = iso(now_utc())
         if oid and f.get("enabled") == 1:
@@ -707,7 +734,10 @@ def wh_update_do(wid, oid=None):
         if f.get("enabled") == 0:
             c.execute("DELETE FROM webhook_queue WHERE webhook_id=?", (wid,))
         c.commit()
-    return jsonify(wh_public(c, need_webhook(c, wid, oid)))
+    w = need_webhook(c, wid, oid)
+    if moved:
+        wh_out_mail(c, w)
+    return jsonify(wh_public(c, w))
 
 
 def wh_delete_do(wid, oid=None):
@@ -763,13 +793,15 @@ def webhooks_list():
 
 @app.post("/api/me/webhooks")
 def webhook_create():
-    """{name, url, events: [...]} -> the webhook + its signing secret (shown this once)."""
-    return wh_create_do()
+    """{name, url, events: [...], password?} -> the webhook + its signing secret (shown this once). #7633: confirms the sign-in
+    once more (403 password_needed / reauth_needed) and tells the owner by a security mail."""
+    return wh_create_do(ask=True)
 
 
 @app.patch("/api/me/webhooks/<int:wid>")
 def webhook_update(wid):
-    return wh_update_do(wid)
+    """#7633: a new address confirms the sign-in once more (password?) and is told by a security mail."""
+    return wh_update_do(wid, ask=True)
 
 
 @app.delete("/api/me/webhooks/<int:wid>")

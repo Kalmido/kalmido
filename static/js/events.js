@@ -831,7 +831,7 @@ document.addEventListener('click', async e => {
     case 'q-ins': qInsert($('#' + a.dataset.q), a.dataset.ins); break;  // 2.32.0 (#1059)
     case 'timer-pill': timerMenu(a); break;
     case 'run-pop': runPop(a); break;
-    case 'timer-toggle': timerToggle(id); break;
+    case 'timer-toggle': timerToggle(id, e.detail); break;  // #7501: a double click starts one timer
     case 'te-add': entryModal(null, id ? {task_id: id} : {}); break;
     case 'te-edit': { const en = findEntry(+a.dataset.eid); if (en) entryModal(en); break; }
     case 'te-del': teDelete(+a.dataset.eid); break;

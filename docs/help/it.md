@@ -232,7 +232,7 @@ anche una propria chat.
 Cosa succede dopo: i messaggi fissati restano nella barra sopra i messaggi (al massimo cinque per conversazione); un
 thread mostra le risposte a quel messaggio e i suoi partecipanti vengono avvisati.
 
-<!-- help: team#how-to-invite-someone-without-an-account-by-a-link src=0b47d08909 -->
+<!-- help: team#how-to-invite-someone-without-an-account-by-a-link src=45b346e536 -->
 ## Invitare con un link qualcuno senza account
 
 1. In Impostazioni > Account scegli **Trova una persona …**.
@@ -241,8 +241,10 @@ thread mostra le risposte a quel messaggio e i suoi partecipanti vengono avvisat
 
 Cosa succede poi: chi apre il link crea un account con nome e indirizzo e-mail ed è subito collegato con te; ricevi una
 notifica. Il link funziona una volta e per 14 giorni e viene mostrato solo subito dopo averlo creato; **Ritira** chiude
-subito un link aperto. Chi ha già un account lo apre dopo aver effettuato l'accesso e conferma il collegamento. Un admin del
-server può disattivare questi link (Impostazioni > Server > Accesso).
+subito un link aperto. Chi ha già un account lo apre dopo aver effettuato l'accesso e conferma il collegamento.
+
+<!-- self-hosted -->
+Un admin del server può disattivare questi link (Impostazioni > Server > Accesso).
 
 <!-- help: budget#how-to-start-a-household-budget src=1116c1b0a8 -->
 ## Creare un budget domestico
@@ -334,3 +336,109 @@ perdite.
 Senza organizzazione, solo con il tuo ufficio: apri Impostazioni > Azienda e ufficio > Dati, scegli **Trasferire l’ufficio**
 e **Avvia il trasloco**; poi **Esporta l’ufficio** e **Esporta tutto**, e importa entrambi sul nuovo server. La tua area
 privata fuori dall'ufficio resta modificabile.
+
+<!-- help: office#how-to-set-up-your-office src=fb04d9cb9f -->
+## Configurare il tuo ufficio
+
+1. Apri Impostazioni > Azienda e ufficio. In Azienda inserisci nome, indirizzo e logo della tua azienda.
+2. In Banca e imposte inserisci il tuo conto bancario, il tuo codice fiscale e come paghi l'IVA.
+3. In Documenti spunta **Piccola impresa** se non addebiti l'IVA (articolo 19 UStG) e stabilisci come appaiono i numeri
+   di preventivi e fatture.
+4. In Testi e modelli scrivi i testi sopra e sotto i tuoi documenti; in Pacchetti attiva ciò che serve al tuo mestiere.
+5. Vuoi provare prima? Attiva la **Modalità di prova** in Documenti: i documenti ricevono un numero TEST e la filigrana
+   MUSTER. Disattivala prima della tua prima fattura vera.
+
+Cosa succede poi: ogni nuovo preventivo e ogni nuova fattura usa questi dati. L'ufficio mostra cosa manca ancora per una
+fattura finché c'è tutto. Chi nella tua azienda può vedere e cambiare cosa lo stabilisci in «Decidere chi vede cosa
+nell'ufficio».
+
+<!-- help: office#how-to-decide-who-sees-what-in-the-office src=cd8aa74ee0 -->
+## Decidere chi vede cosa nell'ufficio
+
+1. Apri Impostazioni > Azienda e ufficio e scegli **Diritti nell’ufficio**.
+2. In Persone dai a ogni persona un gruppo: un modello (per esempio solo le proprie ricevute, spese di viaggio e tempi) o
+   un gruppo tuo: copia un modello in Gruppi e imposta per ogni parte dell'ufficio cosa può fare il gruppo.
+
+Cosa succede poi: da ora la persona vede solo quelle parti dell'ufficio. Gli admin dell'organizzazione vedono sempre
+tutto; chi non ha un gruppo mantiene l'accesso del suo ruolo nell'organizzazione. Ogni modifica finisce nel registro, e
+ognuno vede i propri in **I miei permessi**.
+
+<!-- help: office#how-to-come-from-another-program src=df1c3a51e1 -->
+## Arrivare da un altro programma
+
+1. Continua la tua numerazione: in Impostazioni > Azienda e ufficio > Documenti inserisci il numero successivo di ogni
+   serie (quello che il tuo vecchio programma avrebbe dato dopo).
+2. Porta con te clienti, servizi e attrezzature: in Impostazioni > Azienda e ufficio > Dati scegli
+   **Importa dati precedenti**, scegli il tuo foglio di calcolo (.xlsx) e controlla l'anteprima prima di confermare. Le
+   vecchie fatture e i vecchi preventivi (PDF) vengono archiviati così come sono.
+
+Cosa succede poi: la tua prossima fattura continua la tua numerazione senza buchi. Un'importazione si può annullare
+finché niente si basa su di essa. Arrivi da un altro server Kalmido? Vedi «Trasferire l'azienda su un altro server».
+
+<!-- help: office#how-to-send-e-invoices src=56ef8356c7 -->
+## Inviare fatture elettroniche
+
+1. Per la maggior parte dei clienti non c'è niente da fare: ogni fattura è una fattura ZUGFeRD, un normale PDF con dentro
+   i dati della fattura.
+2. Un ente pubblico ti dà un codice di instradamento (Leitweg-ID): apri il cliente e inseriscilo in
+   **Riferimento acquirente (es. codice di instradamento)**. A quel cliente viene proposta XRechnung (XML puro).
+3. Per scegliere un altro formato per tutti, apri Impostazioni > Azienda e ufficio > Documenti,
+   **Formato fattura elettronica**.
+
+Cosa succede poi: il codice di instradamento è stampato sulla fattura e va nella fattura elettronica. Il tuo
+commercialista e il destinatario leggono i dati della fattura senza ribatterli.
+
+<!-- help: team#how-to-create-your-company src=ca851ef163 -->
+## Creare la tua azienda
+
+1. Apri Impostazioni > Account e scegli **Aggiungi un’organizzazione**.
+2. Inserisci il nome della tua azienda e scegli **Crea**.
+
+Cosa succede poi: sei admin dell'organizzazione della tua azienda. I suoi progetti, file e il suo ufficio restano separati
+dalle tue cose private; la barra laterale ne mostra una alla volta. Poi invita i tuoi colleghi (vedi «Invitare persone e
+dare loro un ruolo»). Se lavori da solo non ti serve un'organizzazione: il tuo ufficio funziona allo stesso modo nella tua
+area privata.
+
+<!-- help: team#how-to-invite-people-and-give-them-a-role src=1c51bbc4ab -->
+## Invitare persone e dare loro un ruolo
+
+1. Apri Impostazioni > Organizzazione > Persone e scegli **Invita persone**.
+2. Inserisci l'indirizzo e-mail e scegli il **Ruolo**: un membro vede e cambia ciò che l'organizzazione condivide, un
+   admin gestisce anche persone, ruoli e impostazioni, sola lettura legge soltanto, contabilità legge ed esporta
+   l'ufficio, un ospite vede solo ciò che è condiviso con lui personalmente.
+3. Scegli **Invita**.
+
+Cosa succede poi: la persona riceve un'e-mail ed entra con il proprio account; chi non ne ha uno sceglie prima una
+password. Il ruolo lo cambi più tardi nella stessa lista. Cosa può fare ognuno nell'ufficio si stabilisce a parte (vedi
+«Decidere chi vede cosa nell'ufficio»).
+
+<!-- help: team#how-to-create-an-account-or-get-a-new-password src=9e70b000b7 -->
+## Creare un account o ottenere una nuova password
+
+1. Per creare un account scegli **Crea account** nella pagina di accesso, inserisci nome, indirizzo e-mail e una password
+   e apri il link nell'e-mail che ricevi.
+2. Password dimenticata? Scegli **Password dimenticata?** nella pagina di accesso, inserisci il tuo indirizzo e-mail e
+   scegli **Invia il link**. Apri il link nell'e-mail e scegli una nuova password.
+
+Cosa succede poi: hai effettuato l'accesso. Una nuova password ti disconnette sugli altri dispositivi e chiude le password
+per app e i token API; i tuoi webhook e canali vengono disattivati finché non li riattivi. Nessuna e-mail dopo qualche
+minuto? Guarda nella cartella spam.
+
+<!-- self-hosted -->
+**Crea account** manca quando sul server solo gli admin aggiungono persone: chiedi loro un account.
+
+<!-- help: team#how-to-get-help-from-a-person src=00bf17443f -->
+## Ricevere aiuto da una persona
+
+<!-- hosted -->
+1. Apri Impostazioni > Aiuto e scegli **Scrivi al supporto** (in **Aiuto da una persona**). Una persona risponde per
+   e-mail.
+2. Se devono guardare nel tuo account, aprilo per un tempo limitato con **Consenti l’accesso al supporto**.
+
+<!-- self-hosted -->
+1. Il tuo server è gestito dalla tua azienda o da te: il suo admin ti aiuta.
+2. Un errore in Kalmido stesso? Segnalalo con **Segnala un problema** in Impostazioni > Aiuto.
+
+<!-- hosted -->
+Cosa succede poi: nessuno del supporto può guardare nel tuo account prima che tu lo consenta, e solo fino all'ora che hai
+scelto. Lo chiudi prima in Impostazioni > Account > Accesso del supporto.

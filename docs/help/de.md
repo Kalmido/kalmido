@@ -254,7 +254,7 @@ Projekt, das du teilst, hat außerdem einen eigenen Chat.
 Was dann passiert: Angeheftete Nachrichten bleiben in der Leiste über den Nachrichten (höchstens fünf je Gespräch); ein
 Thread zeigt die Antworten auf diese eine Nachricht, und seine Beteiligten werden benachrichtigt.
 
-<!-- help: team#how-to-invite-someone-without-an-account-by-a-link src=0b47d08909 -->
+<!-- help: team#how-to-invite-someone-without-an-account-by-a-link src=45b346e536 -->
 ## Jemanden ohne Konto per Link einladen
 
 1. Wähle unter Einstellungen > Konto **Person finden…**.
@@ -264,7 +264,10 @@ Thread zeigt die Antworten auf diese eine Nachricht, und seine Beteiligten werde
 Was dann passiert: Wer den Link öffnet, legt mit Name und E-Mail-Adresse ein Konto an und ist sofort mit dir verbunden; du
 bekommst eine Benachrichtigung. Der Link funktioniert einmal und 14 Tage lang und wird nur direkt nach dem Erstellen
 angezeigt; **Zurückziehen** beendet einen offenen Link sofort. Wer schon ein Konto hat, öffnet ihn angemeldet und bestätigt
-die Verbindung. Ein Admin des Servers kann diese Links ausschalten (Einstellungen > Server > Anmeldung).
+die Verbindung.
+
+<!-- self-hosted -->
+Ein Admin des Servers kann diese Links ausschalten (Einstellungen > Server > Anmeldung).
 
 <!-- help: budget#how-to-start-a-household-budget src=1116c1b0a8 -->
 ## Ein Haushaltsbudget anlegen
@@ -356,3 +359,110 @@ Organisation zu löschen; **Umzug beenden** nur, wenn du doch dort bleibst. Für
 Ohne Organisation, nur mit deinem eigenen Büro: Öffne Einstellungen > Firma & Büro > Daten, wähle **Büro umziehen** und
 **Umzug starten**; dann **Büro exportieren** und **Alles exportieren**, und übernimm beides auf dem neuen Server. Dein
 privater Bereich außerhalb des Büros bleibt beschreibbar.
+
+<!-- help: office#how-to-set-up-your-office src=fb04d9cb9f -->
+## Dein Büro einrichten
+
+1. Öffne Einstellungen > Firma & Büro. Trag unter Firma Name, Adresse und Logo deiner Firma ein.
+2. Trag unter Bank & Steuern dein Bankkonto und deine Steuernummer ein und wie du die Umsatzsteuer zahlst.
+3. Hake unter Belege & Nummern **Kleinunternehmer** an, wenn du keine Umsatzsteuer berechnest (§ 19 UStG), und lege fest,
+   wie deine Angebots- und Rechnungsnummern aussehen.
+4. Schreib unter Texte & Vorlagen die Texte über und unter deinen Belegen; schalte unter Pakete ein, was dein Gewerk braucht.
+5. Erst ausprobieren? Schalte unter Belege & Nummern den **Testmodus** ein: Belege bekommen eine TEST-Nummer und das
+   Wasserzeichen MUSTER. Schalte ihn vor deiner ersten echten Rechnung wieder aus.
+
+Was dann passiert: Jedes neue Angebot und jede neue Rechnung nimmt diese Angaben. Das Büro zeigt, was für eine Rechnung
+noch fehlt, bis alles da ist. Wer in deiner Firma was sehen und ändern darf, legst du unter „Festlegen, wer was im Büro
+sieht“ fest.
+
+<!-- help: office#how-to-decide-who-sees-what-in-the-office src=cd8aa74ee0 -->
+## Festlegen, wer was im Büro sieht
+
+1. Öffne Einstellungen > Firma & Büro und wähle **Rechte im Büro**.
+2. Gib unter Personen jeder Person eine Gruppe - eine Vorlage (zum Beispiel nur die eigenen Belege, Reisekosten und
+   Zeiten) oder eine eigene Gruppe: kopiere unter Gruppen eine Vorlage und stell für jeden Teil des Büros ein, was die
+   Gruppe darf.
+
+Was dann passiert: Die Person sieht ab jetzt nur diese Teile des Büros. Admins der Organisation sehen immer alles; wer
+keine Gruppe hat, behält den Zugriff seiner Rolle in der Organisation. Jede Änderung steht im Protokoll, und jede Person
+sieht ihre eigenen Rechte unter **Meine Rechte**.
+
+<!-- help: office#how-to-come-from-another-program src=df1c3a51e1 -->
+## Von einem anderen Programm kommen
+
+1. Zähl deine Nummern weiter: Trag unter Einstellungen > Firma & Büro > Belege & Nummern bei jedem Nummernkreis die
+   nächste Nummer ein (die Nummer, die dein altes Programm als nächste vergeben hätte).
+2. Nimm Kunden, Leistungen und Geräte mit: Wähle unter Einstellungen > Firma & Büro > Daten **Altdaten importieren**,
+   wähle deine Tabelle (.xlsx) und prüf die Vorschau, bevor du bestätigst. Alte Rechnungen und Angebote (PDF) werden
+   unverändert archiviert.
+
+Was dann passiert: Deine nächste Rechnung zählt deine Nummern ohne Lücke weiter. Ein Import lässt sich rückgängig machen,
+solange nichts darauf aufbaut. Du kommst von einem anderen Kalmido-Server? Siehe „Mit der Firma auf einen anderen Server
+umziehen“.
+
+<!-- help: office#how-to-send-e-invoices src=56ef8356c7 -->
+## E-Rechnungen schicken
+
+1. Für die meisten Kunden musst du nichts tun: Jede Rechnung ist eine ZUGFeRD-Rechnung - ein normales PDF mit den
+   Rechnungsdaten darin.
+2. Eine Behörde gibt dir eine Leitweg-ID: Öffne den Kunden und trag sie unter
+   **Käuferreferenz (z. B. Leitweg-ID)** ein. Für so einen Kunden schlägt Kalmido XRechnung (reines XML) vor.
+3. Ein anderes Format für alle wählst du unter Einstellungen > Firma & Büro > Belege & Nummern, **E-Rechnungsformat**.
+
+Was dann passiert: Die Leitweg-ID steht auf der Rechnung und geht in die E-Rechnung. Dein Steuerbüro und der Empfänger
+lesen die Rechnungsdaten, ohne sie abzutippen.
+
+<!-- help: team#how-to-create-your-company src=ca851ef163 -->
+## Deine Firma anlegen
+
+1. Öffne Einstellungen > Konto und wähle **Organisation hinzufügen**.
+2. Gib den Namen deiner Firma ein und wähle **Anlegen**.
+
+Was dann passiert: Du bist Admin der Organisation deiner Firma. Ihre Projekte, Dateien und ihr Büro bleiben getrennt von
+deinen privaten Sachen; die Seitenleiste zeigt immer eins von beiden. Lade als Nächstes deine Kollegen ein (siehe
+„Personen einladen und ihnen eine Rolle geben“). Arbeitest du allein, brauchst du keine Organisation: Dein eigenes Büro
+funktioniert in deinem privaten Bereich genauso.
+
+<!-- help: team#how-to-invite-people-and-give-them-a-role src=1c51bbc4ab -->
+## Personen einladen und ihnen eine Rolle geben
+
+1. Öffne Einstellungen > Organisation > Personen und wähle **Personen einladen**.
+2. Gib die E-Mail-Adresse ein und wähle die **Rolle**: Ein Mitglied sieht und ändert, was die Organisation teilt, ein
+   Admin verwaltet zusätzlich Personen, Rollen und Einstellungen, „Nur lesen“ liest nur, Buchhaltung liest und exportiert
+   das Büro, ein Gast sieht nur, was persönlich mit ihm geteilt ist.
+3. Wähle **Einladen**.
+
+Was dann passiert: Die Person bekommt eine E-Mail und kommt mit ihrem eigenen Konto dazu; wer noch keins hat, wählt
+zuerst ein Passwort. Die Rolle änderst du später in derselben Liste. Was jede Person im Büro darf, legst du extra fest
+(siehe „Festlegen, wer was im Büro sieht“).
+
+<!-- help: team#how-to-create-an-account-or-get-a-new-password src=9e70b000b7 -->
+## Ein Konto anlegen oder ein neues Passwort bekommen
+
+1. Für ein neues Konto wählst du auf der Anmeldeseite **Konto anlegen**, gibst Namen, E-Mail-Adresse und ein Passwort ein
+   und öffnest den Link in der E-Mail, die du bekommst.
+2. Passwort vergessen? Wähle auf der Anmeldeseite **Passwort vergessen?**, gib deine E-Mail-Adresse ein und wähle
+   **Link schicken**. Öffne den Link in der E-Mail und wähle ein neues Passwort.
+
+Was dann passiert: Du bist angemeldet. Ein neues Passwort meldet dich auf deinen anderen Geräten ab und beendet
+App-Passwörter und API-Tokens; deine eigenen Webhooks und Weiterleitungen sind ausgeschaltet, bis du sie wieder
+einschaltest. Nach ein paar Minuten keine E-Mail? Schau im Spam-Ordner nach.
+
+<!-- self-hosted -->
+**Konto anlegen** fehlt, wenn auf dem Server nur die Admins Personen hinzufügen: Frag sie nach einem Konto.
+
+<!-- help: team#how-to-get-help-from-a-person src=00bf17443f -->
+## Hilfe von einem Menschen bekommen
+
+<!-- hosted -->
+1. Öffne Einstellungen > Hilfe und wähle **Dem Support schreiben** (unter **Hilfe von einem Menschen**). Ein Mensch
+   antwortet per E-Mail.
+2. Muss der Support in dein Konto schauen, öffne es mit **Support-Zugriff erlauben** für eine begrenzte Zeit.
+
+<!-- self-hosted -->
+1. Deinen Server betreibt deine Firma oder du selbst: Sein Admin hilft dir.
+2. Ein Fehler in Kalmido selbst? Melde ihn mit **Problem melden** unter Einstellungen > Hilfe.
+
+<!-- hosted -->
+Was dann passiert: Niemand vom Support kann in dein Konto schauen, bevor du es erlaubst, und nur bis zu der Zeit, die du
+gewählt hast. Früher beendest du es unter Einstellungen > Konto > Support-Zugriff.

@@ -31,6 +31,7 @@ from ..core.config import app, APP_DIR, APP_VERSION
 from ..core.errors import BadInput, Denied
 from ..core.i18n import lang, LANGS, md_plain, tr
 from ..core.srchreg import srch_q, srch_register
+from ..core.support import HOSTED  # #6535: hlp_hosting
 from .common import v1_args, v1_view
 from .showme import shw_keys_in, shw_list  # 2.1086.0 (#5860)
 
@@ -60,10 +61,13 @@ _WORD = re.compile(r"[a-z0-9]+")
 # (optional <!-- show: <target> --> = a named place of docs/help-targets.json); its translations in docs/help/<lang>.md, one
 # block per section: <!-- help: <key> src=<hlp_src of the English text> --> + "## <title>" + the text
 HELP_TR_DIR = os.path.join(HELP_DIR, "help")
-HELP_AREAS = ("files", "agents", "office", "tasks", "calendar", "wiki", "sheets", "team", "budget", "lists", "sharing")  # 2.1090.0 (#5900): six more; the order of the help view; a new area joins here
+HELP_AREAS = ("files", "agents", "office", "tasks", "calendar", "wiki", "sheets", "team", "budget", "lists", "sharing", "org", "company", "account")  # (#5900): six more; the order of the help view; a new area joins here; #6535: org, company, account
 _UH = re.compile(r"^<!--\s*user-help:\s*([a-z-]+)\s*-->\s*$")
 _SHOW = re.compile(r"^<!--\s*show:\s*([a-z0-9.-]+)\s*-->\s*$")
 _TRB = re.compile(r"^<!--\s*help:\s*(\S+)\s+src=([0-9a-f]+)\s*-->\s*$")
+# #6535: <!-- hosted --> / <!-- self-hosted --> on its own line: the paragraph below it (up to the next blank line) only on a
+# server run as a service for others (KALMIDO_HOSTED) / only on every other server - hlp_hosting, for the person and the agent
+_HOSTING = re.compile(r"^<!--\s*(hosted|self-hosted)\s*-->\s*$")
 
 
 def hlp_fold(s):
@@ -141,6 +145,26 @@ def hlp_user_text(lines, s):
     """The text of a user's section without its heading and its marker comments (Markdown)."""
     body = [ln for ln in lines[s["start"] + 1:s["own_end"]] if not (_UH.match(ln.strip()) or _SHOW.match(ln.strip()))]
     return "\n".join(body).strip("\n")
+
+
+def hlp_hosting(text, hosted=None):
+    """#6535: a section's text for this server: a paragraph marked <!-- hosted --> stays only on a hosted server, one marked
+    <!-- self-hosted --> only on every other one (the marker line goes either way). hosted None = this server (core/support.py)."""
+    if "<!--" not in text:
+        return text
+    if hosted is None:
+        hosted = HOSTED
+    out, drop = [], False
+    for ln in text.split("\n"):
+        m = _HOSTING.match(ln.strip())
+        if m:
+            drop = (m.group(1) == "hosted") != bool(hosted)
+            continue
+        if not ln.strip():
+            drop = False
+        if not drop:
+            out.append(ln)
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip("\n")
 
 
 def hlp_src(lines, s):
@@ -326,14 +350,14 @@ def hlp_section(key, admin=False, lg="en"):
         text += ln + "\n"
     parts = [{"key": x["key"], "title": x["title"]} for x in idx["files"][s["fkey"]]["sections"]
              if s["start"] < x["start"] < s["end"] and x["level"] == s["level"] + 1] if cut else []
-    out = {"key": s["key"], "file": s["file"], "title": s["title"], "path": s["path"], "text": text.rstrip("\n"),
+    out = {"key": s["key"], "file": s["file"], "title": s["title"], "path": s["path"], "text": hlp_hosting(text.rstrip("\n")),  # #6535
            "truncated": cut, "parts": parts, "ui_terms": hlp_ui_terms(text, lg),
            "show": shw_keys_in(text)}  # 2.1086.0 (#5860): the places this section marks (<!-- show: key -->) for send_chat show
     if s.get("user"):  # 2.1086.0 (#5820): a user's section: its area and the same text in the person's language
         out["user"] = s["user"]
         t = idx["tr"].get(lg, {}).get(s["key"])
         if t:
-            out["translated"] = {"lang": lg, "title": t["title"], "text": t["text"]}
+            out["translated"] = {"lang": lg, "title": t["title"], "text": hlp_hosting(t["text"])}
     return out
 
 

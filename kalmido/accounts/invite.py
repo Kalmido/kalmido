@@ -255,7 +255,8 @@ def invite_accept():
     from ..accounts.sessions import ses_end  # 2.190.0 A (#1991): sessions end with their push subscriptions
     ses_end(c, u["id"])
     # (#2496): a reset also revokes the app passwords (CalDAV/CardDAV) and the person's own API tokens; (#6354) and
-    # the scan keys, feed links and the upload token - one place (sessions.py ses_access_end)
+    # the scan keys, feed links and the upload token, (#7633) the own webhooks and forwardings - one place (sessions.py
+    # ses_access_end, the list accounts/accessways.py)
     from ..accounts.sessions import ses_access_end
     ses_access_end(c, u["id"])
     if r["kind"] == "signup":  # 2.23.0 (#711): the address is confirmed; with "admin approval" the account waits now

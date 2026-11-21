@@ -1130,12 +1130,13 @@ async function dc_sClick(e) {
   if (a === 'radd') {
     const v = id => ($(`#${id}`, md)?.value || '').trim();
     const r = typeof dfl_collect === 'function' ? dfl_collect(md, s) : {ws: s.ws, kind: v('dcr-kind'), match: v('dcr-match'), sender: v('dcr-sender'), type: v('dcr-type'), tags: v('dcr-tags'), folder: v('dcr-folder')};  // 2.581.0 (#4803)
-    let j; try { j = await api('POST', '/api/docs/rules', r); } catch { return; }
+    const add = typeof dfl_req === 'function' ? b => dfl_req('POST', '/api/docs/rules', b) : b => api('POST', '/api/docs/rules', b);  // #7633 F1
+    let j; try { j = await add(r); } catch { return; }
     s.rules = j.rules; dc_sDraw(md);
     if (j.hook_secret && typeof dfl_secret === 'function') dfl_secret(j.hook_secret);  // 2.581.0 (#4803): shown once
     histToast(tr('Rule added'), histAdd({label: tr('Rule added'), sett: true,
       undo: async () => { const x = await api('DELETE', `/api/docs/rules/${j.id}`); if (DC.set) { DC.set.rules = x.rules; dc_sDraw($('.dc-smd')); } return {}; },
-      redo: async () => { const x = await api('POST', '/api/docs/rules', r); j.id = x.id; if (DC.set) { DC.set.rules = x.rules; dc_sDraw($('.dc-smd')); } return {}; }}));
+      redo: async () => { const x = await add(r); j.id = x.id; if (DC.set) { DC.set.rules = x.rules; dc_sDraw($('.dc-smd')); } return {}; }}));
     return;
   }
   if (a.startsWith('rtog:')) {  // 2.581.0 (#4803): a flow off / on again
@@ -1163,7 +1164,7 @@ async function dc_sClick(e) {
     let j; try { j = await api('DELETE', `/api/docs/rules/${id}`); } catch { return; }
     s.rules = j.rules; dc_sDraw(md);
     if (r) histToast(tr('Rule deleted'), histAdd({label: tr('Rule deleted'), sett: true,
-      undo: async () => { const x = await api('POST', '/api/docs/rules', {...r, ws: s.ws}); r.id = x.id; if (DC.set) { DC.set.rules = x.rules; dc_sDraw($('.dc-smd')); } return {}; },
+      undo: async () => { const x = await (typeof dfl_req === 'function' ? dfl_req : api)('POST', '/api/docs/rules', {...r, ws: s.ws}); r.id = x.id; if (DC.set) { DC.set.rules = x.rules; dc_sDraw($('.dc-smd')); } return {}; },
       redo: async () => { const x = await api('DELETE', `/api/docs/rules/${r.id}`); if (DC.set) { DC.set.rules = x.rules; dc_sDraw($('.dc-smd')); } return {}; }}));
     return;
   }

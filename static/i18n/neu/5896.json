@@ -1,7 +1,6 @@
 {
   "de": {
     "Width of the name column": "Breite der Namensspalte",
-    "Switching it on signs you out everywhere else and ends your API tokens, app passwords and calendar feed links.": "Das Einschalten meldet dich überall sonst ab und beendet deine API-Tokens, App-Passwörter und Kalender-Feed-Links.",
     "A new way into your account: please confirm it is you.": "Ein neuer Zugang zu deinem Konto: bitte bestätige, dass du es bist.",
     "Someone knows your password": "Jemand kennt dein Passwort",
     "Your account {0} was signed in to with the right password but a wrong second factor: {1} wrong tries in 24 hours, the last from address {2}.": "Bei deinem Konto {0} wurde mit dem richtigen Passwort, aber einem falschen zweiten Faktor angemeldet: {1} Fehlversuche in 24 Stunden, der letzte von Adresse {2}.",
@@ -9,7 +8,6 @@
   },
   "es": {
     "Width of the name column": "Ancho de la columna de nombres",
-    "Switching it on signs you out everywhere else and ends your API tokens, app passwords and calendar feed links.": "Al activarlo se cierra tu sesión en todos los demás sitios y se revocan tus tokens de API, contraseñas de aplicación y enlaces de calendario.",
     "A new way into your account: please confirm it is you.": "Un nuevo acceso a tu cuenta: confirma que eres tú.",
     "Someone knows your password": "Alguien conoce tu contraseña",
     "Your account {0} was signed in to with the right password but a wrong second factor: {1} wrong tries in 24 hours, the last from address {2}.": "Se intentó iniciar sesión en tu cuenta {0} con la contraseña correcta pero un segundo factor incorrecto: {1} intentos fallidos en 24 horas, el último desde la dirección {2}.",
@@ -17,7 +15,6 @@
   },
   "fr": {
     "Width of the name column": "Largeur de la colonne des noms",
-    "Switching it on signs you out everywhere else and ends your API tokens, app passwords and calendar feed links.": "L’activation te déconnecte partout ailleurs et révoque tes jetons d’API, mots de passe d’application et liens d’abonnement aux calendriers.",
     "A new way into your account: please confirm it is you.": "Un nouvel accès à ton compte : confirme que c’est bien toi.",
     "Someone knows your password": "Quelqu’un connaît ton mot de passe",
     "Your account {0} was signed in to with the right password but a wrong second factor: {1} wrong tries in 24 hours, the last from address {2}.": "Quelqu’un s’est connecté à ton compte {0} avec le bon mot de passe mais un second facteur erroné : {1} essais ratés en 24 heures, le dernier depuis l’adresse {2}.",
@@ -25,7 +22,6 @@
   },
   "it": {
     "Width of the name column": "Larghezza della colonna dei nomi",
-    "Switching it on signs you out everywhere else and ends your API tokens, app passwords and calendar feed links.": "Attivandola esci da tutte le altre sessioni e i tuoi token API, password per app e link dei feed di calendario smettono di funzionare.",
     "A new way into your account: please confirm it is you.": "Un nuovo accesso al tuo account: conferma che sei tu.",
     "Someone knows your password": "Qualcuno conosce la tua password",
     "Your account {0} was signed in to with the right password but a wrong second factor: {1} wrong tries in 24 hours, the last from address {2}.": "Qualcuno ha effettuato l’accesso al tuo account {0} con la password giusta ma un secondo fattore sbagliato: {1} tentativi falliti in 24 ore, l’ultimo dall’indirizzo {2}.",
@@ -33,7 +29,6 @@
   },
   "nl": {
     "Width of the name column": "Breedte van de naamkolom",
-    "Switching it on signs you out everywhere else and ends your API tokens, app passwords and calendar feed links.": "Inschakelen meldt je overal elders af en beëindigt je API-tokens, app-wachtwoorden en agenda-feedlinks.",
     "A new way into your account: please confirm it is you.": "Een nieuwe toegang tot je account: bevestig dat jij het bent.",
     "Someone knows your password": "Iemand kent je wachtwoord",
     "Your account {0} was signed in to with the right password but a wrong second factor: {1} wrong tries in 24 hours, the last from address {2}.": "Er is op je account {0} ingelogd met het juiste wachtwoord maar een verkeerde tweede factor: {1} mislukte pogingen in 24 uur, de laatste vanaf adres {2}.",

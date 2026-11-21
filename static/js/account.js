@@ -571,6 +571,21 @@ async function reauthFresh(d) {
     return true;
   } catch (x) { toast(x instanceof Error && x.j ? errText(x, tr('Signing in again did not work. Try again.')) : pkErr(x)); return false; }
 }
+// #6499 (decision 16.11.2026): a new way into the account (a token or wider rights for one, an app password, an agent or its
+// token, a setup code) confirms the sign-in once more when it is older than a few minutes: the server answers 403
+// password_needed (asked here with the password field) or reauth_needed (no password: sign in again, reauthFresh), then the same
+// request once more. Errors as calReq (a plain Error with the message); cancelled = Error 'Cancelled'. #7633: here next to
+// reauthFresh (was integrations.js) - a way out (a webhook, a forwarding, the mailbox's server, hubmailbox.js) asks the same;
+// text = the line of the password prompt.
+async function reauthReq(method, url, b = {}, text = tr('A new way into your account: please confirm it is you.')) {
+  const go = async x => { try { return await rawFetch(method, url, x); } catch (e) { if (e.data?.password_needed || e.data?.reauth_needed) throw e; throw new Error(e instanceof Offline ? tr('Only available online.') : e.message); } };
+  try { return await go(b); } catch (x) {
+    if (!x.data) throw x;
+    if (x.data.reauth_needed) { if (!await reauthFresh(x.data)) throw new Error(tr('Cancelled|dialog')); return await go(b); }
+    const p = await pwPrompt(tr('Confirm with your password'), {text}); if (!p) throw new Error(tr('Cancelled|dialog'));
+    return await go({...b, password: p.password});
+  }
+}
 document.addEventListener('change', async e => {
   const id = e.target.id; if (id !== 's-signup' && id !== 's-sdom' && id !== 's-oinv' && id !== 's-spriv' && id !== 's-cinv') return;
   try {

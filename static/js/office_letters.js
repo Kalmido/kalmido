@@ -121,7 +121,7 @@ function ltEditHtml(d) {
     ${ltRow('followup_days', tr('Follow-up after days'), ltIn('followup_days', d.followup_days || '', {max: 3, num: 1, ph: '14'}), tr('0 or empty = no follow-up'))}
     <div class="aerr" role="alert" id="lt-err"></div>${d.agent_id && d.status === 'draft' && typeof aiphHtml === 'function' && !(d.body || '').includes(aiphLine()) ? aiphHtml('letter', d.id) : ''/* 2.482.0 (#3530): an agent's draft before it goes out */}
     <div class="foot dtp-acts"><button class="btn danger ghost" data-lt="arch">${ic('archive', 's')}<span>${tr('Delete')}</span></button><span class="spacer"></span>
-      ${ltHooks('actions', d)}<button class="btn" data-lt="save">${tr('Save')}</button><button class="btn pri" data-lt="sent">${ic('send', 's')}<span>${tr('Mark as sent')}</span></button></div>
+      <span class="lt-st muted" id="lt-st" role="status" aria-live="polite">${/*html-ok*/ rwDocHtml(LT_WS.get(d.id)) /* the core's state of the editor, its texts escaped */}</span>${ltHooks('actions', d)}<button class="btn" data-lt="save">${tr('Save')}</button><button class="btn pri" data-lt="sent">${ic('send', 's')}<span>${tr('Mark as sent')}</span></button></div>
   </div>${ltHooks('sections', d)}`;
 }
 function ltViewHtml(d) {
@@ -174,33 +174,61 @@ function ltForm() {
   return b;
 }
 const ltSnap = d => Object.fromEntries([...LT_FIELDS, 'client_id', 'contact_id', 'sign_image'].map(k => [k, d[k] ?? (k === 'followup_days' ? 0 : k.endsWith('_id') ? null : '')]));
+// #7504 (decision): the autosave of a letter goes through the core's order of "write shows at once" (core.js rwRows, a text editor
+// without rows: W.save() without keys, one writer per letter): one save of the letter at a time, the next one waits for its
+// answer and carries the version of that answer (no 409 against the own first save), and it sends the newest input (LT.pend,
+// kept in this browser until the server has it). The editor says calmly "Saving…" / "Saved" / "Not saved - Try again"
+// (#lt-st, rwDocHtml); the buttons that save first show that they wait (rwBusy).
+const LT_WS = new Map();
+function lt_W(d) {
+  let W = LT_WS.get(d.id);
+  if (!W) {
+    W = rwRows({name: 'lt' + d.id, send: () => lt_send(W), draw: () => lt_stDraw(d.id), fail: x => !!x?.rwShown,
+      again: x => x.retry ? x.retry().then(j => { lt_took(W, j); return j; }) : Promise.reject(x)});  // #7494: the same request (key, version)
+    LT_WS.set(d.id, W);
+  }
+  W.doc = d; return W;
+}
+const lt_same = (b, t) => Object.keys(b).every(k => String(b[k] ?? '') === String(t[k] ?? ''));
+// one save of the letter: the input as it is now against the version of the last answer; only the fields that differ
+// (2.576.0 #4794: objsave.js saveDialog); saved elsewhere meanwhile -> the merge bar (no "Not saved")
+async function lt_send(W) {
+  const t = W.doc;
+  if (LT.cur?.id === t.id && $('#lt-body')) ltPend(LT.cur);
+  const p = LT.pend?.d.id === t.id ? LT.pend : null;
+  if (!p) return null;
+  LT.pend = null;
+  if (lt_same(p.b, t)) { lt_keepDrop(t.id); return null; }
+  await loadModule('objsave');
+  let j;
+  try { j = await saveDialog(`/api/office/letters/${t.id}`, t, p.b); }
+  catch (x) {
+    if (!LT.pend) LT.pend = p;  // the input waits (and stays in this browser) for the next try
+    const el = $('#lt-err'); if (el && LT.cur?.id === t.id && x.message !== 'auth' && !(x instanceof NoAnswer)) el.textContent = ofcErrHere(x);
+    throw x;
+  }
+  if (j.conflict) { lt_conflict(t, j.conflict); throw Object.assign(new Error(''), {rwShown: true}); }
+  lt_took(W, j);
+  return j;
+}
+function lt_took(W, j) {
+  const t = W.doc; if (!j || j.id !== t.id) return;
+  Object.assign(t, j);  // its version: the next save carries it
+  if (LT.pend?.d.id !== t.id) lt_keepDrop(t.id);
+  const el = $('#lt-err'); if (el && LT.cur?.id === t.id) el.textContent = '';
+}
+function lt_stDraw(id) { const el = $('#lt-st'); if (el && LT.cur?.id === id) el.innerHTML = rwDocHtml(LT_WS.get(id)); }
+// "Save" at once with an undo step back to the state the letter was opened with; quiet: the autosave. -> false when not saved
 async function ltSave(d, quiet) {
-  // 2.269.0 C (#3017): sends the form as typed (LT.pend: also after the editor is gone -- another letter, the list, the tab
-  // hidden) with expect_updated_at; saved elsewhere meanwhile -> a bar with "Reload" instead of overwriting
   if (d.status !== 'draft') return true;
   clearTimeout(ltSaveTimer);
   if ($('#lt-body') && LT.cur === d) ltPend(d);
-  const p = LT.pend, t = p ? p.d : d;
-  LT.pend = null;
-  const b = p ? p.b : null, old = LT.undo && LT.undo.id === t.id ? LT.undo.v : ltSnap(t);
-  const same = !b || Object.keys(b).every(k => String(b[k] ?? '') === String(t[k] ?? ''));
-  try {
-    if (!same) {  // 2.576.0 (#4794): objsave.js - only the fields that differ from the saved letter; a conflict -> the merge bar
-      await loadModule('objsave');
-      const j = await saveDialog(`/api/office/letters/${t.id}`, t, b);
-      if (j.conflict) { lt_conflict(t, j.conflict); return false; }
-      Object.assign(t, j);
-    }
-    lt_keepDrop(t.id);
-    if (!quiet) { LT.undo = null; const now = ltSnap(t), at = t.updated_at; toast(tr('Saved'), async () => { await undoWrite(`/api/office/letters/${t.id}`, old, at, {now, label: t.subject || tr('Letter')}); LT.cur = null; LT.data = null; ofcDraw(); }); }  // 2.566.0 (#4704): only the changed keys, against the own save's version
-    else if (!same && !(LT.undo && LT.undo.id === t.id)) LT.undo = {id: t.id, v: old};
-    const el = $('#lt-err'); if (el) el.textContent = '';
-    return true;
-  } catch (x) {
-    if (!LT.pend && p) LT.pend = p;  // offline / signed out: it waits (and stays in this browser, lt_keep) for the next try
-    const el = $('#lt-err'); if (el && x.message !== 'auth') el.textContent = ofcErrHere(x);
-    return false;
-  }
+  const W = lt_W(d), old = LT.undo && LT.undo.id === d.id ? LT.undo.v : ltSnap(d), ch = LT.pend?.d.id === d.id && !lt_same(LT.pend.b, d);
+  const pr = W.save(); lt_stDraw(d.id);
+  try { await pr; } catch { return false; } finally { lt_stDraw(d.id); }  // the state once the save is through (the writer's own draw comes while it still counts)
+  if (!quiet) { LT.undo = null; const now = ltSnap(d), at = d.updated_at; toast(tr('Saved'), async () => { await undoWrite(`/api/office/letters/${d.id}`, old, at, {now, label: d.subject || tr('Letter')}); LT.cur = null; LT.data = null; ofcDraw(); }); }  // (#4704): only the changed keys, against the own save's version
+  else if (ch && !(LT.undo && LT.undo.id === d.id)) LT.undo = {id: d.id, v: old};
+  return true;
 }
 let ltSaveTimer = null;
 const ltSaveSoon = () => { if (LT.cur) ltPend(LT.cur); clearTimeout(ltSaveTimer); ltSaveTimer = setTimeout(() => { const d = LT.pend?.d; if (d) ltSave(d, true); }, 1500); };
@@ -437,7 +465,7 @@ document.addEventListener('click', async e => {
   const a = b.dataset.lt, d = S.route.tab === 'letters' && S.route.id && LT.cur?.id === S.route.id ? LT.cur : null;
   if (a === 'pdf') {  // a draft is saved first, then the PDF opens (the viewer when there is one)
     e.preventDefault();
-    if (d && d.status === 'draft' && !await ltSave(d, true)) return;
+    if (d && d.status === 'draft' && !await rwBusy(b, ltSave(d, true))) return;  // #7504: the link shows that it waits for the save
     const u = b.getAttribute('href'), name = (d?.subject || 'letter') + '.pdf';
     if (typeof pdfView === 'function') pdfView({url: u, name, dlUrl: u + '?dl=1'}); else window.open(ofc_spUrl(u), '_blank', 'noopener');
     return;
@@ -446,13 +474,13 @@ document.addEventListener('click', async e => {
   if (a === 'new') ltNewModal();
   else if (a === 'profile') ltProfileModal();
   else if (a === 'open') { LT.cur = null; LT.undo = null; go(`office/letters/${b.dataset.id}`); }
-  else if (a === 'back') { if (d && d.status === 'draft') { clearTimeout(ltSaveTimer); await ltSave(d, true); } LT.data = null; navUp('office/letters'); }  // 2.743.0 (#5235)
+  else if (a === 'back') { if (d && d.status === 'draft') { clearTimeout(ltSaveTimer); await rwBusy(b, ltSave(d, true)); } LT.data = null; navUp('office/letters'); }  // (#5235); #7504: waits visibly
   else if (a === 'rc') { const x = LT.rc[+b.dataset.i]; if (x) ltRcPick(x); }
   else if (a === 'rcretry') ltRcLoad(/** @type {any} */ ($('#lt-rsearch'))?.value.trim() || '');  // (#7507): the failed search again
-  else if (a === 'save' && d) ltSave(d);
+  else if (a === 'save' && d) rwBusy(b, ltSave(d));  // #7504: busy until saved (a second click is no second request)
   else if (a === 'sent' && d) {
     clearTimeout(ltSaveTimer);
-    if (!await ltSave(d, true)) return;
+    if (!await rwBusy(b, ltSave(d, true))) return;  // #7504: waits visibly
     // 2.296.0 C (#3165): what the template could not fill is named once more before the letter is fixed
     if (LT.miss[d.id] && !await askConfirm(tr('Mark as sent'), tr('Missing details (left out in the PDF): {0}', LT.miss[d.id].join(', ')), {ok: tr('Continue'), cancel: tr('Back')})) return;
     ltSentModal(d);

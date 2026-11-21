@@ -1400,6 +1400,8 @@ the replies to that one message and its people get notified.
 What happens then: whoever opens the link creates an account with their name and e-mail address and is connected with
 you at once; you get a notification. The link works once and for 14 days and is shown only right after you made it;
 **Withdraw** ends an open link at once. Someone who already has an account opens it signed in and confirms the connection.
+
+<!-- self-hosted -->
 An admin of the server can switch these links off (Settings > Server > Sign-in).
 
 ## How to: Move the company to another server
@@ -1442,3 +1444,64 @@ it again at once. A project you share alone works the same way from its own menu
 
 What happens then: anyone with the link can read the project - no login, read only, without comments, assignees or
 files. **Switch off** ends the link at once.
+
+## How to: Create your company
+<!-- user-help: org -->
+<!-- show: settings.open -->
+<!-- show: settings.account -->
+<!-- show: org.add -->
+
+1. Open Settings > Account and select **Add an organisation**.
+2. Enter the name of your company and select **Create**.
+
+What happens then: you are the admin of your company's organisation. Its projects, files and office stay apart from your
+private things; the sidebar shows one of them at a time. Next, invite your colleagues (see "Invite people and give them a
+role"). Working on your own, you need no organisation: your own office works in your private area just the same.
+
+## How to: Invite people and give them a role
+<!-- user-help: org -->
+<!-- show: settings.open -->
+<!-- show: settings.org -->
+<!-- show: org.invite -->
+
+1. Open Settings > Organisation > People and select **Invite people**.
+2. Enter the e-mail address and choose the **Role**: a member sees and changes what the organisation shares, an admin
+   also manages people, roles and settings, read-only only reads, accounting reads and exports the office, a guest sees
+   only what is shared with them personally.
+3. Select **Invite**.
+
+What happens then: the person gets an e-mail and joins with their own account; someone without one first chooses a
+password. You change a role later in the same list. What each person may do in the office is set separately (see "Decide
+who sees what in the office").
+
+## How to: Create an account or get a new password
+<!-- user-help: account -->
+
+1. To create an account, select **Create account** on the sign-in page, enter your name, e-mail address and a password,
+   and open the link in the e-mail you get.
+2. Forgot your password? Select **Forgot your password?** on the sign-in page, enter your e-mail address and select
+   **Send the link**. Open the link in the e-mail and choose a new password.
+
+What happens then: you are signed in. A new password signs you out on your other devices and ends app passwords and API
+tokens; your own webhooks and forwardings are switched off until you switch them on again. No e-mail after a few minutes?
+Look in the spam folder.
+
+<!-- self-hosted -->
+**Create account** is missing when the server lets only its admins add people: ask them for an account.
+
+## How to: Get help from a person
+<!-- user-help: account -->
+<!-- show: settings.open -->
+<!-- show: settings.help -->
+
+<!-- hosted -->
+1. Open Settings > Help and select **Write to support** under **Help from a person**. A person answers by e-mail.
+2. If they need to look into your account, open it for a limited time with **Allow support access**.
+
+<!-- self-hosted -->
+1. Your server is run by your company or by yourself: its admin helps you.
+2. A problem in Kalmido itself? Report it with **Report a problem** under Settings > Help.
+
+<!-- hosted -->
+What happens then: nobody from support can look into your account until you allow it, and only until the time you chose.
+You end it earlier under Settings > Account > Support access.

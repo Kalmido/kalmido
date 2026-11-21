@@ -28,7 +28,9 @@ SHOW_LABELS = (N_("Open the settings"), N_("Settings: Connections"), N_("Setting
                N_("Add an agent"), N_("Settings of the agent"), N_("New quotation"), N_("New invoice"), N_("Add a task"),
                N_("New event"), N_("Upload files"),
                N_("Add documents"),  # 2.1090.0 (#5899)
-               N_("New page"), N_("New table"), N_("New message"), N_("Create a budget"))  # 2.1090.0 (#5900)
+               N_("New page"), N_("New table"), N_("New message"), N_("Create a budget"),  # (#5900)
+               N_("Settings: Account"), N_("Settings: Organisation"), N_("Settings: Company & office"), N_("Settings: Help"),
+               N_("Add an organisation"), N_("Invite people"), N_("Import legacy data"))  # #6535: the first hour
 _SHW = {"t": None}
 _SHW_LOCK = threading.Lock()
 

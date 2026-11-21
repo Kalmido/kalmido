@@ -322,6 +322,16 @@ def time_totals(c, uid, task_ids=None):
     return out
 
 
+def te_totals(c, uid, *tids):
+    """#7501: the totals of the tasks a write of time touched ({task_id: [everyone I see, mine]}, [0, 0] = nothing left): the
+    answer brings them, so the client loads no whole state after a write (time.js TE_W)."""
+    ids = sorted({int(t) for t in tids if t})
+    if not ids:
+        return {}
+    got = time_totals(c, uid, ids)
+    return {str(t): got.get(t, [0, 0]) for t in ids}
+
+
 def clean_day_hours(v):
     """2.7.0 (#407): hours per day / shift: None for '' / None (= the instance's value), False if invalid."""
     if v in (None, ""):
@@ -470,7 +480,7 @@ def time_start():
     if cid:  # replayed (outbox) or sent twice: the first one counts
         r = c.execute("SELECT id FROM time_entries WHERE user_id=? AND client_id=?", (uid, cid)).fetchone()
         if r:
-            return jsonify(entry=one_entry(c, r["id"]), stopped=None, timer=time_running(c, uid))
+            return jsonify(entry=one_entry(c, r["id"]), stopped=None, timer=time_running(c, uid), totals={})
     tid, lid, title = time_target(c, b)
     at = time_at(b.get("at"), ref)
     note = str(b.get("note") or "").strip()[:500]
@@ -494,7 +504,8 @@ def time_start():
     bw_check(c, ([(run["list_id"], run["task_id"])] if stopped else []) + ([(lid, tid)] if end else []))  # 2.555.0 (#4570)
     bump(c)
     c.commit()
-    return jsonify(entry=one_entry(c, eid), stopped=stopped, timer=time_running(c, uid))
+    return jsonify(entry=one_entry(c, eid), stopped=stopped, timer=time_running(c, uid),
+                   totals=te_totals(c, uid, stopped and stopped["task_id"], end and tid))
 
 
 @app.post("/api/time/stop")
@@ -532,7 +543,7 @@ def time_stop():
         bw_check(c, [(r["list_id"], r["task_id"])])  # 2.555.0 (#4570): 80 / 100 % of the budget, once per threshold
     bump(c)
     c.commit()
-    return jsonify(entry=one_entry(c, r["id"]), timer=time_running(c, uid), discarded=sec == 0)
+    return jsonify(entry=one_entry(c, r["id"]), timer=time_running(c, uid), discarded=sec == 0, totals=te_totals(c, uid, r["task_id"]))
 
 
 def entry_times(b, start, end, sec, tz=None):
@@ -579,7 +590,8 @@ def time_create():
     if cid:
         r = c.execute("SELECT id FROM time_entries WHERE user_id=? AND client_id=?", (uid, cid)).fetchone()
         if r:
-            return jsonify(one_entry(c, r["id"]))
+            e = one_entry(c, r["id"])
+            return jsonify({**e, "totals": te_totals(c, uid, e and e["task_id"])})
     tid, lid, title = time_target(c, b)
     from .timesheet import tsl_check, tz_of
     start, end, sec = entry_times(b, None, None, 0, tz_of(c, uid))
@@ -597,14 +609,14 @@ def time_create():
         r = c.execute("SELECT id FROM time_entries WHERE user_id=? AND client_id=?", (uid, cid)).fetchone() if cid else None
         if not r:
             raise
-        return jsonify(one_entry(c, r["id"]))
+        return jsonify({**one_entry(c, r["id"]), "totals": te_totals(c, uid, tid)})
     from ..integrations.webhooks import who_note
     who_note("time.created", "time", eid)  # 2.115.0 A (#2061): a manual entry
     from .budgetwarn import bw_check
     bw_check(c, [(lid, tid)])  # 2.555.0 (#4570)
     bump(c)
     c.commit()
-    return jsonify(one_entry(c, eid))
+    return jsonify({**one_entry(c, eid), "totals": te_totals(c, uid, tid)})
 
 
 OXB_TIME_KEYS = ("start", "end", "minutes", "note", "task_id", "list_id", "billable")
@@ -725,7 +737,8 @@ def time_update(eid):
         ug = teu_post(c)
         bump(c)
         c.commit()
-    return jsonify({**one_entry(c, eid), **({"undo_group": ug} if ug else {})})
+    tt = te_totals(c, me(), r["task_id"], ("task_id" in b or "list_id" in b) and tid)  # #7501: the old and the new task
+    return jsonify({**one_entry(c, eid), **({"undo_group": ug} if ug else {}), "totals": tt})
 
 
 @app.delete("/api/time/entries/<int:eid>")
@@ -748,7 +761,7 @@ def time_delete(eid):
     ug = teu_deleted(c, me(), r)
     bump(c)
     c.commit()
-    return jsonify(ok=True, entry=old, **({"undo_group": ug} if ug else {}))
+    return jsonify(ok=True, entry=old, **({"undo_group": ug} if ug else {}), totals=te_totals(c, me(), r["task_id"]))
 
 
 def focus_to_entry(c, pid):

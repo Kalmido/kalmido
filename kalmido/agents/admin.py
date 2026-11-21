@@ -17,6 +17,7 @@ from ..accounts.colors import ac_assign
 from ..accounts.orgs import has_workspaces, is_org_admin  # 2.361.4 (#2928)
 from ..accounts.login import seal, unseal
 from ..accounts.oidc import creator_reauth  # #6499
+from ..accounts.secmail import sec_mail  # #7633 F3
 from ..core.access import Denied, joined_lists_sql, otr_live
 from ..core.serializers import unlink_files
 from ..core.state import visible_lists
@@ -32,7 +33,7 @@ from ..accounts.orgs import _operator_apart, op_apart_deny, op_foreign_account, 
 from ..agents.workstyle import WS_NEW
 from ..agents.control import ctl_new  # 2.235.0 A (#2891): a new agent asks before every change
 from ..api.v1 import API_ON, need_api, SCOPES, SCOPES_AGENT_DEFAULT, SCOPES_AGENT_NEVER, token_public, WH_ON
-from ..integrations.webhooks import need_wh, wh_allow, wh_err_text, wh_log, wh_public, wh_send, wh_url_check
+from ..integrations.webhooks import need_wh, wh_allow, wh_err_text, wh_host, wh_log, wh_public, wh_send, wh_url_check  # wh_host: #7633 F3
 from ..agents.core import (
     agent_active, agent_emit, AGENT_EVENTS, AGENT_ROW_SQL, AGENT_NOTE_MAX, agent_public, agent_row, agent_runtime, is_agent, need_person,
     perm_user_ok, runtime_clean, RUNTIME_DEFAULTS, runtime_derived,
@@ -306,6 +307,18 @@ def admin_agent_update(aid):
         a0 = need_agent_admin(c, aid, kill=isinstance(b, dict) and set(b) <= {"enabled"})  # 2.399.0 (#2687): hosted, a client's agent: pause only
         if set(b) - AGENT_SUPPORT_KEYS and op_support_only(c, uid=aid):  # 2.1317.0 (#6496): through support access pause / resume only
             op_support_deny()
+        # #7633 F3 (accounts/accessways.py row "agents"): a new address of the agent's webhook sends its events elsewhere: the
+        # admin confirms the sign-in once more (agentchat.js reauthReq) and gets the security mail out_new after the commit; the
+        # webhook stays with a new password of a person (it belongs to the agent's account)
+        hook_to = str(b.get("webhook_url") or "").strip() if isinstance(b, dict) and "webhook_url" in b else ""
+        if hook_to:
+            w0 = c.execute("SELECT url FROM webhooks WHERE id=?", (a0["webhook_id"],)).fetchone() if a0["webhook_id"] else None
+            hook_to = "" if w0 and w0[0] == hook_to else hook_to
+        if hook_to:
+            e = creator_reauth(c, b)
+            if e:
+                c.rollback()
+                return e
         secret = None
         if "username" in b:
             username = str(b["username"] or "").strip().lower()
@@ -413,7 +426,10 @@ def admin_agent_update(aid):
         c.commit()
         if old_avatar and old_avatar != c.execute("SELECT avatar FROM users WHERE id=?", (aid,)).fetchone()[0]:
             avatar_drop_file(aid, old_avatar)
-        return jsonify({**agent_admin_dict(c, agent_row(c, aid)), "webhook_secret": secret})
+        a1 = agent_row(c, aid)
+        if hook_to:  # #7633 F3: to the admin who changed it (name of the agent, host of the address)
+            sec_mail(c, me(), "out_new", a1["display_name"] or a1["username"], wh_host(hook_to), way="agents")
+        return jsonify({**agent_admin_dict(c, a1), "webhook_secret": secret})
 
 
 @app.post("/api/admin/agents/<int:aid>/reset")

@@ -47,6 +47,7 @@ from ..collab.integfail import integ_org_admins, integ_tell  # 2.369.5 (#2517): 
 from ..collab.comments import comment_plain, user_names  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.orgs import _need_org_admin  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.login import seal, unseal  # 2.369.5 (#2517): pulled up from functions; 2.547.0 (#4516): + unseal
+from ..accounts.oidc import creator_reauth  # #7633
 from ..accounts.session import _rate_blocked, _rate_fail  # 2.369.5 (#2517): pulled up from functions
 from ..notify.push import _wd_fail  # 2.369.5 (#2517): pulled up from functions
 from ..calendars.apptbook import apb_mail_line  # 2.369.5 (#2517): pulled up from functions
@@ -707,17 +708,36 @@ def chn_list_do(oid=None):
     return jsonify(out)
 
 
+def chn_out(c, oid, name, hint, kind, b=None):
+    """#7633 (accounts/accessways.py, row "channels"): a personal forwarding is a way out of the account. With b (before the
+    write): the sign-in is confirmed once more (creator_reauth; the client asks the password, integrations.js reauthReq) - an
+    error response or None; without b (after the commit): the owner's security mail with the name and the shortened target.
+    An organisation's forwarding is neither (its admins, checked per event)."""
+    if oid is not None:
+        return None
+    if b is not None:
+        return creator_reauth(c, b)
+    from ..accounts.secmail import sec_mail
+    sec_mail(c, me(), "out_new", name or CH_KINDS_TXT.get(kind, kind), f"{CH_KINDS_TXT.get(kind, kind)} {hint}".strip(),
+             way="channels")
+    return None
+
+
 def chn_create_do(oid=None):
     chn_need_on()
     c = db()
     f = chn_fields(c, body(), oid)
     if len(chn_rows(c, oid)) >= CH_MAX:
         return err(tr("At most {0} forwardings", CH_MAX), 409)
+    e = chn_out(c, oid, f["name"], f["hint"], f["kind"], body())
+    if e:
+        return e
     ts = iso(now_utc())
     chid = insert_id(c, """INSERT INTO notify_channels(user_id,org_id,kind,name,target,hint,events,enabled,created_at,updated_at)
                            VALUES(?,?,?,?,'',?,?,?,?,?)""", (me(), oid, f["kind"], f["name"], f["hint"], f["events"], f.get("enabled", 1), ts, ts))
     chn_seal(c, chid, f["_target"])
     c.commit()
+    chn_out(c, oid, f["name"], f["hint"], f["kind"])  # #7633
     return jsonify(chn_public(chn_need(c, chid, oid))), 201
 
 
@@ -727,6 +747,10 @@ def chn_update_do(chid, oid=None):
     old = chn_need(c, chid, oid)
     f = chn_fields(c, body(), oid, old=old)
     t = f.pop("_target", None)
+    if t:  # #7633: a new target
+        e = chn_out(c, oid, f.get("name", old["name"]), f["hint"], old["kind"], body())
+        if e:
+            return e
     if f or t:
         f["updated_at"] = iso(now_utc())
         if oid and f.get("enabled") == 1:
@@ -739,6 +763,8 @@ def chn_update_do(chid, oid=None):
         if f.get("enabled") == 0:
             c.execute("DELETE FROM notify_channel_queue WHERE channel_id=?", (chid,))
         c.commit()
+        if t:
+            chn_out(c, oid, f.get("name", old["name"]), f["hint"], old["kind"])
     return jsonify(chn_public(chn_need(c, chid, oid)))
 
 

@@ -38,6 +38,7 @@ one-per-task migration fragments in `kalmido/core/migrations.d/`, and every `sta
 
 People and organisations: sign-in, sessions, workspaces, roles, invitations, per-person settings and layouts.
 
+- `kalmido/accounts/accessways.py` - #7633 (decision 20.11.2026, audit #6007 F1): THE list of every way into an account and every way that sends its data out
 - `kalmido/accounts/bgjobs.py` (`bgj`) - The short background work a request starts (mails right after an action, "Back up now", the organisation keys' passes after a move)
 - `kalmido/accounts/cinvite.py` (`cinv`) - Invitation links: a person invites someone without an account by a link or QR code
 - `kalmido/accounts/colors.py` (`ac`) - A fixed colour per account (agents and people)
