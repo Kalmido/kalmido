@@ -19723,5 +19723,6 @@
   "The task could not be created": "No se pudo crear la tarea",
   "From the sign-off “{0}”": "De la aprobación «{0}»",
   "Tasks from a sign-off need a project you may write in": "Las tareas de una aprobación necesitan un proyecto en el que puedas escribir",
-  "Sign-off: {0}": "Aprobación: {0}"
+  "Sign-off: {0}": "Aprobación: {0}",
+  "Comment of the client {0} (guest)": "Comentario del cliente {0} (invitado)"
 }

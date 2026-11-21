@@ -11,9 +11,12 @@ freelancer-matrix: videos (a person without an organisation: a task from a comme
  - an answer (not a top-level comment) 400; a review only at a client (no project): can_task false, the route 403
  - a member who may only read the project: can_task false, 403; another organisation 404; an agent 404 (people only)
  - the task in the trash: the comment says "gone"
+ - reader F1 / F2: a task from a customer's comment is marked as outside text (origin review) and names the guest; a
+   customer's decision gives "Changes requested: <reason>", never its stored form
 usage: p21501_b_review_task_test.py <datadir>"""
 import json
 import os
+import re
 import sys
 
 import requests
@@ -101,6 +104,32 @@ check(rb.ok and rb.json().get("can_task") is False and Bo.post(f"{V}/{VID}/comme
 check(Ca.post(f"{V}/{VID}/comments/{CID2}/task", json={}).status_code == 404, "another organisation: 404")  # tenant: POST /api/videos/{}/comments/{}/task
 check(requests.post(f"{V}/{VID}/comments/{CID2}/task", json={}, headers=AGH).status_code in (401, 403, 404), "an agent: not through the app (people only)")
 check(not dbx("SELECT 1 FROM obj_links WHERE rel='review_task' AND extra->>'comment_id'=?", (str(CID2),)), "none of them made a task")
+
+# ---------------------------------------------------------------- reader F1 / F2: a customer's comment and decision
+def keys(html):
+    return re.findall(r'name="f" value="([0-9a-f]+)"', html), re.findall(r'name="v" value="(\d+)"', html)
+
+
+def ppost(path, **d):
+    return requests.post(B + path, data=d, allow_redirects=False, headers={"User-Agent": "TestBrowser/1.0", "Accept-Language": "en"})
+
+
+TOK = A.post(f"{V}/{VID}/signoff", json={"expires": None}).json()["url"].split("/s/q/")[1]
+fk, vk = keys(requests.get(B + "/s/q/" + TOK, headers={"Accept-Language": "en"}).text)
+check(ppost(f"/s/q/{TOK}/comments", f=fk[0], v=vk[0], name="Erika Example", text="Swap the music", at="00:10").status_code == 303, "a customer's comment")
+check(ppost("/s/q/" + TOK, f=fk[1], v=vk[0], do="decline", name="Erika Example", reason="Shorter intro").status_code == 303, "the customer asks for changes")
+R = A.get(f"{V}/{VID}").json()
+cc = next(c for c in R["comments"] if c["customer"] and c["body"] == "Swap the music")
+cd = next(c for c in R["comments"] if c["customer"] and "Shorter intro" in c["body"])
+t1 = A.post(f"{V}/{VID}/comments/{cc['id']}/task", json={}).json().get("task_id")
+t2 = A.post(f"{V}/{VID}/comments/{cd['id']}/task", json={}).json().get("task_id")
+row1 = dbx("SELECT title, content, tt_id FROM tasks WHERE id=?", (t1,))[0]
+row2 = dbx("SELECT title, content, tt_id FROM tasks WHERE id=?", (t2,))[0]
+check((row1[2] or "").startswith("origin:review:") and "Comment of the client Erika Example (guest)" in (row1[1] or ""),
+      f"F1: a task from a customer's comment is marked as text from outside (origin review) and names the guest {row1}")
+check(not (dbx("SELECT tt_id FROM tasks WHERE id=?", (TID,))[0][0] or ""), "F1: a task from the team's own comment carries no outside mark")
+check(row2[0] == "Changes requested: Shorter intro" and "\x1e" not in (row2[1] or "") and "dec:" not in (row2[1] or "") + row2[0],
+      f"F2: a customer's decision in words, never its stored form {row2[:2]}")
 
 # ---------------------------------------------------------------- a review at a task; the task in the trash
 RT = A.post(V, json={"task_id": T, "title": "Still", "url": "https://vimeo.com/33333333"}).json()

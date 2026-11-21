@@ -19723,5 +19723,6 @@
   "The task could not be created": "La tâche n’a pas pu être créée",
   "From the sign-off “{0}”": "De la validation « {0} »",
   "Tasks from a sign-off need a project you may write in": "Les tâches issues d’une validation nécessitent un projet dans lequel tu peux écrire",
-  "Sign-off: {0}": "Validation : {0}"
+  "Sign-off: {0}": "Validation : {0}",
+  "Comment of the client {0} (guest)": "Commentaire du client {0} (invité)"
 }

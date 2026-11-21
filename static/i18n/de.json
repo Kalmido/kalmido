@@ -19723,5 +19723,6 @@
   "The task could not be created": "Die Aufgabe konnte nicht erstellt werden",
   "From the sign-off “{0}”": "Aus der Abnahme „{0}“",
   "Tasks from a sign-off need a project you may write in": "Aufgaben aus einer Abnahme brauchen ein Projekt, in dem du schreiben darfst",
-  "Sign-off: {0}": "Abnahme: {0}"
+  "Sign-off: {0}": "Abnahme: {0}",
+  "Comment of the client {0} (guest)": "Kommentar des Kunden {0} (Gast)"
 }

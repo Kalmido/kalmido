@@ -24,7 +24,7 @@ from ..accounts.session import me
 from ..collab.liste2eguard import le2b_list_locked
 from ..tasks.repo import task_insert
 from ..tasks.validation import log_act
-from .review import VDR_KIND, vdr_comment_row, vdr_comments, vdr_dict, vdr_may, vdr_need, vdr_reload, vdr_tc, vdr_versions
+from .review import VDR_KIND, rg4_dec_text, vdr_comment_row, vdr_comments, vdr_dict, vdr_may, vdr_need, vdr_reload, vdr_tc, vdr_versions
 from .vdmedia import vdm_marks, vdm_pos_text
 
 VDT_REL = "review_task"  # obj_links video_review -> task (core/objhooks.py OLNK_AREA_RELS)
@@ -113,17 +113,20 @@ def vdt_make(vid, cid):
     if vdt_of(c, uid, vid).get(cid, {}).get("id"):
         return jsonify(vdr_dict(c, vdr_reload(c, vid), uid, full=True))  # made already: the same answer, no second task
     b = body() if isinstance(body(), dict) else {}
-    text = " ".join((x["body"] or "").split())
+    plain = rg4_dec_text(x["body"] or "")  # reader F2: a customer's decision in words, never its stored form ("\x1edec:...")
+    text = " ".join(plain.split())
     title = b.get("title")
     if title is not None and not isinstance(title, str):
         raise BadInput(tr("Invalid value: {0}", "title"))
     title = (" ".join((title or "").split()) or text or tr("Sign-off: {0}", r["title"]))[:VDT_TITLE_MAX]
     where, mark, ns = _place(c, r, x)
-    desc = f"{x['body'] or ''}\n\n{tr('From the sign-off “{0}”', r['title'])}: {where}"
+    guest = bool(x["ext_name"])  # reader F1: a customer's comment is text from outside Kalmido -- named, and marked for agents
+    desc = (f"{plain}\n\n{tr('From the sign-off “{0}”', r['title'])}: {where}"
+            + (f"\n{tr('Comment of the client {0} (guest)', x['ext_name'])}" if guest else ""))
     tid = task_insert(c, uid, lid, title=title, content=desc, ts=iso(now_utc()))
     log_act(c, tid, "created", uid=uid)
     for f in TASK_ADDED:  # a normal task for the project's agents (agents/core.py agent_added_events)
-        f(c, tid, "review")
+        f(c, tid, "review" if guest else None)  # origin review + untrusted for a customer's text (api/v1.py ORIGIN_EXT)
     extra = {"comment_id": cid, "version": ns.get(x["version_id"])}
     if x["at_sec"] is not None:
         extra["at"] = x["at_sec"]
