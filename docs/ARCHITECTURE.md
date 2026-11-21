@@ -782,7 +782,7 @@ desktop switch of the chat, the pop-up button, reaction rows, `patchKids`, the t
   (the mailbox dialog), `msvview.css`, `listmodal.css` (the project dialog), `formq.css`, `clientpage.css`, `propcards.css`,
   `habitdlg.css`, `tagsview.css`, `folderprops.css`. A rule two modules draw stays in `app.css` (each stylesheet belongs to
   one `LD_CSS` entry).
-  2.1511.0 (#4742): the same move for `recent.css` ("Recently edited"), `voice.css`, `meetprop.css`, `sprints.css` and
+  (#4742): the same move for `recent.css` ("Recently edited"), `voice.css`, `meetprop.css`, `sprints.css` and
   `flow.css`; it also takes rules out of the start files `start-recent-5352.css` and `start-flow.css` (checked against
   every later rule of `app.css`, the start files and the module stylesheets). The placeholder rows of "Recently edited"
   that the start scripts draw (`.zleov`, `.zleph`) stay in the start file. A module whose moved rules would make a
