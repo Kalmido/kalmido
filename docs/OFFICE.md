@@ -1992,7 +1992,10 @@ Routes (members of the organisation; deleting needs its admin; costs and surplus
 `GET /api/office/docs?kind=offer&status=&q=&limit=&before=` (2.369.0: a page of `limit` rows, 1-500, default 500; `next_cursor` in the answer, null on the last page, is the `before` of the next page; the list loads 100 and has *Load more*; `status=open&client_id=` = the open invoices of one client, from the whole list), `POST /api/office/docs` (a new draft from the settings; the number of the
 scheme is reserved at once), `GET/PATCH/DELETE /api/office/docs/<id>` (PATCH changes the head and returns the totals;
 choosing a framework contract presets raw data, rights and closing unless `apply_contract: false`),
-`PUT /api/office/docs/<id>/items` (the whole list of positions; a `service_id` fills title, rate, tax and flags),
+`PUT /api/office/docs/<id>/items` (the whole list of positions; a `service_id` fills title, rate, tax and flags; since
+2.1504.0 only positions that changed are written, and `{lite: true}` in the body - also for `PUT .../parts/<pid>/items` and
+`PATCH .../parts/<pid>` - answers short: `id`, `updated_at`, `totals`, `items`, the parts' `totals`, `missing`, `lang_gaps`
+(and `part` / `doc_totals` for a part); without it the whole document as before),
 `POST /api/office/docs/<id>/number` (`{number}` by hand, unique per organisation, or the next one of the scheme;
 `expect_updated_at` recommended, see finalize),
 `POST /api/office/docs/<id>/status`, `POST /api/office/docs/<id>/duplicate`, `GET /api/office/docs/<id>/render` (the
