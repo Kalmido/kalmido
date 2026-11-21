@@ -1803,8 +1803,13 @@ Do not ask `wsa_wsOn` / `mc_wsOn` in an area for this; build on these two. Test:
 `zle_pageHtml`, `zle_homeHtml`). The areas are `RCN_AREAS` (wiki, files, reading, office, sheets); each one answers through
 its OWN check, never a check of this module: the office through `office_role` + `office/rights.py office_can` ("offers" for
 quotations, invoices, credit notes and the office's clients, "receipts" for the receipts, each receipt then through the
-file store's role), Tables through `sheets/core.py sh_index`. An area the organisation switched off (`wsa_org_off`) or the
-person's module switch gives nothing. A new area adds its reader to `RCN_GET` (+ `RCN_FEAT`, `RCN_WSA`) and its icon and
+file store's role), Tables through `sheets/core.py sh_index`. Above these checks every reader asks ONE gate per workspace
+(#7706, `rcn_on`): `accounts/modcards.py mod_ws_on` (module card, the organisation's area switch, the person's own switches,
+"Also private"), the same question as the lists under "All workspaces"; the office asks it through `office_cands`. The
+person's module switch (`features`) gives nothing at all. (#7564) The overview "All workspaces" of every area whose content
+is separated per workspace (Knowledge, Files, Reading, office, Tables) is `areas.js spo_recentHtml(mod, to, rows)` plus the
+page `#<mod>/recent`, with the one muted line on top (`SPO_HINT` / `spo_hintHtml`); no area builds its own overview (Tables
+opens a space at `#sheets/s/<space>`). A new area adds its reader to `RCN_GET` (+ `RCN_FEAT`, `RCN_WSA`) and its icon and
 target to `ZLE_AREA` / `zle_href`; no second "recent" list in an area. Tests: `tests/p2769_d_recent_api_test.py`,
 `tests/p21497_b_recent_api_test.py`.
 
