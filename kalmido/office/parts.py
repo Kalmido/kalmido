@@ -24,7 +24,8 @@ from .homecur import hc_home  # 2.189.0 (#2475)
 from .doclang import doc_txt
 from .model import PARTS_TITLE_FILM, UNITS, office_role, office_settings
 from .packs import office_pack_for
-from .docs import doc_items, _calc_doc, DUP_ITEM_SKIP, doc_public, doc_row, recalc, OFD_ITEM_RESET, _iid, clean_items  # 2.369.5 (#2517): pulled up from functions
+from .docs import doc_items, _calc_doc, DUP_ITEM_SKIP, doc_public, doc_row, recalc, _iid, clean_items  # 2.369.5 (#2517): pulled up from functions
+from .docs import doc_lite, ofd_item_write, ofd_items_read, ofd_wants_lite  # (#7505)
 from .ledger import ofx_need_editable, ofx_log, ofx_diff, ofx_items_brief  # 2.369.5 (#2517): pulled up from functions
 from .okern import ofk_register, ofk_trash  # 2.1005.0 (#5415): a deleted part into the core's trash
 from .docs import _ctx as _opart_ctx, _ofr_may  # 2.1005.0 (#5415)
@@ -523,6 +524,33 @@ def kva_keep_unseen_parts(c, oid, r, before, known):
 
 
 # ---------------------------------------------------------------- the API answer
+def tp_items_public(c, oid, did, pid, admin):
+    """The positions of part pid for an answer (tp_public; #7505 the short answer)."""
+    its = _part_items(c, oid, did, pid)
+    for it in its:
+        it["discountable"] = int(it.get("discountable") or 0)
+        if not admin:
+            it.pop("cost", None)  # members never get the purchase price (as the title page, part D)
+    return its
+
+
+def _tp_totals_public(p, admin):
+    t = dict(p["totals"])
+    if not admin:
+        for k in ("costs", "margin"):
+            t.pop(k, None)
+        # 2.47.0 (#1216): defensive -- no purchase, markup or intern / extern per line for members
+        t["lines"] = [{k: v for k, v in ln.items() if k not in NF_INTERNAL} if isinstance(ln, dict) else ln for ln in t.get("lines") or []]
+    t.pop("sheet_calc", None)
+    return t
+
+
+def tp_parts_lite(c, oid, r, admin):
+    """(#7505): the parts in the short answer of a save (docs.doc_lite): [{id, kind, totals}], the totals as tp_public gives
+    them (purchase side only for admins); no positions, no sheet."""
+    return [{"id": p["id"], "kind": p["kind"], "totals": _tp_totals_public(p, admin)} for p in tp_parts(c, oid, r["id"])]
+
+
 def tp_public(c, oid, r, admin, totals=None):
     """parts: [{id, kind, title, print, sort, settings, items, totals, used, sheet?, calc?}] -- costs / margin / position
     costs only for admins."""
@@ -533,22 +561,11 @@ def tp_public(c, oid, r, admin, totals=None):
         used[row["ref_part_id"]] = used.get(row["ref_part_id"], 0) + 1
     out = []
     for p in parts:
-        t = dict(p["totals"])
-        if not admin:
-            for k in ("costs", "margin"):
-                t.pop(k, None)
-            # 2.47.0 (#1216): defensive -- no purchase, markup or intern / extern per line for members
-            t["lines"] = [{k: v for k, v in ln.items() if k not in NF_INTERNAL} if isinstance(ln, dict) else ln for ln in t.get("lines") or []]
-        t.pop("sheet_calc", None)
+        t = _tp_totals_public(p, admin)
         q = {"id": p["id"], "kind": p["kind"], "title": p["title"], "print": p["print"], "sort": p["sort"], "settings": p["settings"],
              "totals": t, "used": used.get(p["id"], 0)}
         if p["kind"] == "items":
-            its = _part_items(c, oid, r["id"], p["id"])
-            for it in its:
-                it["discountable"] = int(it.get("discountable") or 0)
-                if not admin:
-                    it.pop("cost", None)  # members never get the purchase price (as the title page, part D)
-            q["items"] = its
+            q["items"] = tp_items_public(c, oid, r["id"], p["id"], admin)
         else:
             q["items"] = []
             pub = _dk("dk_sheet_public")
@@ -878,6 +895,14 @@ def _ctx_doc(did):
 
 
 def _answer(c, oid, did, admin, part=None):
+    if ofd_wants_lite(body()):  # (#7505): the short answer on request: the document's doc_lite + the part's positions
+        out = doc_lite(c, oid, doc_row(c, oid, did), admin)
+        if part is not None:
+            out["part"] = next((p for p in out.get("parts") or [] if p["id"] == part), None)
+            if out["part"] is not None and out["part"]["kind"] == "items":
+                out["part"] = {**out["part"], "items": tp_items_public(c, oid, did, part, admin)}
+            out["doc_totals"] = out.get("totals")
+        return out
     out = doc_public(c, oid, doc_row(c, oid, did), admin)
     if part is not None:
         out["part"] = next((p for p in out.get("parts") or [] if p["id"] == part), None)
@@ -1036,19 +1061,19 @@ def tp_part_items_put(did, pid):
         raise BadInput(tr("Invalid value: {0}", "items"))
     b = body()
     items = b.get("items") if isinstance(b, dict) else b
-    before = ofx_items_brief(_part_items(c, oid, did, pid))
-    rows = clean_items(c, oid, r, items, admin, part=pid)
+    rows_before, enc = ofd_items_read(c, did, oid, pid)  # (#7505): read once, for the log, the cleaning and the writing
+    before = ofx_items_brief(rows_before)
+    rows = clean_items(c, oid, r, items, admin, part=pid, before=rows_before)
     # 2.269.0 A (#3012): positions keep their ids (UPDATE), new ones are added, only the left out ones go (as docs._put_items)
-    old = {x["id"] for x in c.execute(f"SELECT id FROM office_doc_items WHERE doc_id=? AND org_id=? AND part_id=? AND {live_sql()}", (did, oid, pid))}  # 2.1005.0 (#5415): the trash is neither overwritten nor deleted
+    old = {x["id"]: x for x in rows_before}  # 2.1005.0 (#5415): live ones only -- the trash is neither overwritten nor deleted
     seen = set()
     for i, row in enumerate(rows):
         iid = _iid(items[i].get("id")) if isinstance(items[i], dict) else 0
-        row = oc_item_store(c, oid, row)
         if iid in old and iid not in seen:
             seen.add(iid)
-            row = {**OFD_ITEM_RESET, **row}
-            c.execute(f"UPDATE office_doc_items SET {','.join(k + '=?' for k in row)} WHERE id=? AND org_id=?", [*row.values(), iid, oid])
+            ofd_item_write(c, oid, iid, row, old[iid], iid in enc)  # (#7505): only a position that changed is written
             continue
+        row = oc_item_store(c, oid, row)
         row.update(doc_id=did, org_id=oid, part_id=pid)
         c.execute(f"INSERT INTO office_doc_items({','.join(row)}) VALUES({','.join('?' * len(row))})", list(row.values()))
     gone = [x for x in old if x not in seen]

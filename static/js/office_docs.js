@@ -987,7 +987,7 @@ async function ofd_itemsSend(W) {
   const d = W.dobj; if (!d) throw Object.assign(new Error(''), {rwShown: true});
   const src = (d.items || []).filter(bfaFilled);
   OFD_SAVEX = null;
-  const j = await ofd_save1('PUT', ofd_viaUrl(`/api/office/docs/${d.id}/items`), {items: ofdItemsBody(d), ...(d.kind === 'offer' ? {parts_known: (d.parts || []).map(p => p.id)} : {})}, src, undefined, d);
+  const j = await ofd_save1('PUT', ofd_viaUrl(`/api/office/docs/${d.id}/items`), {items: ofdItemsBody(d), ...(d.kind === 'offer' ? {parts_known: (d.parts || []).map(p => p.id)} : {}), lite: true}, src, undefined, d);  // #7505: the short answer (ofd_take)
   if (!j) throw OFD_SAVEX || Object.assign(new Error(''), {rwShown: true});  // a conflict (the bar), another document open now
   return j;
 }
@@ -1029,7 +1029,18 @@ function ofd_local(method, url, body) {
 // one waits, the answer gives only what the server assigns and computes (the version, the sums, parts it added; the ids of
 // new lines come through src, rwIds) and the local positions and fields stay - the waiting save sends them. #7493: "waits" =
 // the document's writer (ofd_W(doc).last(): a save queued, a change of rows not sent yet, an unsaved row).
+// #7505: a short answer (j.lite: a save of the writer) carries only what the server computes: with nothing waiting its positions
+// replace the local ones (as the whole document did), the parts keep everything but their totals
 function ofd_take(j) {
+  if (j.lite) {
+    const d = OFD.doc, sp = new Map((j.parts || []).map(p => [p.id, p]));
+    if (ofd_W(d).last() && Array.isArray(j.items)) Object.assign(d, {items: j.items, items_margin: j.items_margin, ...(j.lang_gaps ? {lang_gaps: j.lang_gaps} : {})});
+    if (j.updated_at) d.updated_at = j.updated_at;
+    if (j.totals) d.totals = j.totals;
+    if (Array.isArray(j.missing)) d.missing = j.missing;
+    (d.parts || []).forEach(p => { const x = sp.get(p.id); if (x) p.totals = x.totals; });
+    return;
+  }
   if (ofd_W(OFD.doc).last()) { OFD.doc = ofd_keepVia(j.items ? j : {...OFD.doc, ...j}); return; }  /* the status answer has no positions */
   const d = OFD.doc, ps = d.parts || [], sp = new Map((j.parts || []).map(p => [p.id, p]));
   if (j.updated_at) d.updated_at = j.updated_at;
