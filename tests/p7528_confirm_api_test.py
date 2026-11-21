@@ -14,6 +14,8 @@ freelancer-matrix: tasks
    a closed task can be neither confirmed nor rejected (409); an agent's task (locked from the start) is unlocked by the no
  - the template hint: a bug ticket whose sections are empty names them in the timeline (tpl_empty), a filled one none
  - the one-way yes stands on the same block: still only a decider, a new reason ends it
+ - (#7529) frida's own task rewritten by gert: by_creator stays, updated_by names gert, her confirmation is gone (the
+   starter's dispatcher builds it only on a new confirmation)
 usage: p7528_confirm_api_test.py <datadir>"""
 import os
 import sys
@@ -219,4 +221,18 @@ r = F.post(B + f"/api/tasks/{T3}/irreversible-yes")
 check(r.ok and r.json()["irreversible"]["yes_by"] == FU, "frida gives it " + r.text[:120])
 requests.patch(V + f"/tasks/{T3}", headers=AH, json={"irreversible": {"reason": "Drops two columns"}})
 check(requests.get(V + f"/tasks/{T3}", headers=AH).json()["irreversible"]["yes_at"] is None, "a new reason ends it")
+
+# ================================================================== (#7529): what the starter's dispatcher reads after another hand's change
+# frida's own task (written in the app: by_creator) keeps by_creator after gert rewrites it -- the API shows that change in
+# updated_by, and a confirmation frida gave before ends with it (confirmed null): by_creator alone is never "hers" again
+r = F.post(B + "/api/tasks", json={"title": "Frida's order", "list_id": L, "content": "Build X"})
+check(r.ok, "setup: frida writes a task in the app " + r.text[:120])
+T7 = r.json()["id"]
+v = requests.get(V + f"/tasks/{T7}", headers=AH).json()
+check(v["by_creator"] is True and v["updated_by"] == FU and v["confirmed"] is None, f"#7529: frida's own task: by_creator, updated_by frida {v}")
+check(yes(F, T7).ok and conf(T7, AH), "#7529: frida confirms it")
+check(G.patch(B + f"/api/tasks/{T7}", json={"content": "Build Y instead"}).ok, "setup: gert rewrites the description")
+v = requests.get(V + f"/tasks/{T7}", headers=AH).json()
+check(v["by_creator"] is True and v["updated_by"] == GU and v["confirmed"] is None,
+      f"#7529: by_creator stays, but updated_by names gert and the confirmation is gone {v.get('by_creator')} {v.get('updated_by')} {v.get('confirmed')}")
 sys.exit(done("p7528_confirm_api"))

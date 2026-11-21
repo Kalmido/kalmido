@@ -3461,7 +3461,9 @@ work. So the dispatcher builds **only tasks the person wrote themselves**: `crea
 `by_creator` is true (written in the app or with the person's own token). A task of another member, a task without a
 creator and a task another hand wrote although it carries the person as creator (an incoming webhook, a mail to the
 list's address or the inbox, a form, an import, a synced git issue, and every task from before 2.1308.0) is *not yours*: never
-started, named once in the runner's log and in every day report ("Not built, not created by you"), and listed under
+started, named once in the runner's log and in every day report ("Not built, not created by you"; since 2.1504.0 each with its
+reason - *another account*, *no creator*, *text changed by someone else* - and the hint that *Confirm as an order* makes one
+buildable, see below), and listed under
 `skipped` in the dry log and the `--dry-run` output. Since 2.1375.0 the same holds when the person created the task but
 someone else wrote its title or description last: the task's `updated_by` must be the person too, else
 it is *not yours* with the reason `edited` (another member with write access, an agent, a webhook, a public link, the git
@@ -3486,7 +3488,10 @@ project admins and admins, never an agent, a token, a child account or a support
 `confirmed: {by, at}`; it is bound to the text: once anyone but the confirmer changes the title or the description, the
 server drops it (the history says who changed the text) and `confirmed` is `null` again. The dispatcher builds a task whose
 `confirmed.by` is its person as the person's own, whatever `created_by` / `updated_by` say; a confirmation by another decider
-does not count for it. The MCP server keeps a confirmed task's title and description unfenced when `confirmed.by` is one of
+does not count for it. The dispatcher only reads `confirmed`; it never computes the text state itself, and a server
+without the field is judged as before. The person's own task that another hand rewrote keeps `by_creator` (it only says who
+created it), so `by_creator` alone never makes it theirs again: `updated_by` names the other hand and the confirmation is gone
+until the person confirms the new text. The MCP server keeps a confirmed task's title and description unfenced when `confirmed.by` is one of
 the trusted accounts; its comments and files stay data as before. *Reject* closes the task as won't do with the decider's
 reason in its history (the reason is required); an agent can do neither, and no card can bring either about.
 
