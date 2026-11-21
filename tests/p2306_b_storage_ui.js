@@ -97,6 +97,13 @@ const call = async (method, url, body, ck) => { const r = await fetch(B + url.re
   w.close();
   w = await boot({});
   check(await until(() => 'tasks.cache' in w.__store) && w.eval('S.me.remember') === true, '#6500: with "Stay signed in" (the default) the state is kept as before');
+  // audit #6007 a: a delta carries no sign-in mark, so it never moves the copies' stamp on (an account removed from an
+  // organisation with the tab open keeps its 14 days from the last full state); a full state does, with the fresh mark
+  const at13 = new Date(Date.now() - 13 * 864e5).toISOString();
+  w.eval(`LS.set('wko', {...LS.get('wko', {}), at: '${at13}'}); lpCacheFold({}); 1`);
+  check(JSON.parse(w.__store['tasks.wko']).at === at13, '#6500 (audit #6007 a): a delta leaves the stamp as it was ' + w.__store['tasks.wko']);
+  await w.eval('load().then(() => 1, () => 0)');
+  check(Date.now() - Date.parse(JSON.parse(w.__store['tasks.wko']).at) < 60e3, '#6500: a full state moves the stamp to now ' + w.__store['tasks.wko']);
   w.close();
 
   // ================= (#6500): an offline start shows no state whose last online sync is older than 14 days
