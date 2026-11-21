@@ -55,6 +55,7 @@ RM_LEFT = {
     ("contacts.js", 'data-ct="menu"'): (1, "the tool bar of the contacts (import, export)"),
     ("contacts.js", 'data-ct="cmenu"'): (1, "the head of an open contact (the rows: cm_bind #view .ctrow)"),
     ("clientpage.js", 'data-mscl="cmenu"'): (1, "the head of an open client (the rows: cm_bind .msclients .ctrow)"),
+    ("clientpage.js", 'data-mscl="more"'): (1, "#7017: the area menu of the clients (import, archived, trash) - a bar, not a row"),
     # 2.1324.0 (#6136): two now - the reader's head got its own "…" (Copy link, Print, History) beside the owner's
     ("detail.js", 'data-act="task-menu"'): (2, "the head of the task's details, for the owner and for a reader (the task rows: dnd.js long press selects, its bar has the menu)"),
     ("hubmail.js", 'data-hbma="menu"'): (1, "the head of an open mailbox (its address); the address rows are marked"),
