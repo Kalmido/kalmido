@@ -1711,7 +1711,8 @@ columns: the setting `view_cols` is a json list of keys in their order (`due`, `
 `deps`, `created`, `delivery`, `list` = the task's project), `""` = the default; anything else is `400`.
 
 2.156.0 C (#2072): "My tasks" as a board: `mine_board` is `0` (the project, default) or `1`; `mine_board_by` names its columns:
-`due` (Overdue / Today / This week / Later / No date, default), `prio` or `list`. Dropping a card on a column is a plain task
+`due` (Overdue / Today / This week / Later / No date, default), `prio`, `list` or (#7517) `sec` (a column per own section of
+`/api/mine-sections`; without own sections the app shows `due`). Dropping a card on a column is a plain task
 change (date, priority or project). 2.156.0 C (#2071): a project's `view` may also be `calendar` (the calendar with only that project's
 tasks; owner for everyone, a member for themself, like `kanban`). 2.156.0 C (#2073): `sections_closed` is a JSON list of the
 section ids the person folded in list views (at most 2000; all devices).

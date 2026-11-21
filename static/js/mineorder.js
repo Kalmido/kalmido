@@ -81,7 +81,7 @@ async function moBack(s) { await moSave(s.ids, s.secs); return {}; }
 function moFlat(put, w) {
   const mv = new Set(put), keep = w.tid != null && mv.has(w.tid) ? w.tid : null, base = moAll().filter(y => !mv.has(y.id) || y.id === keep);
   let flat = base.map(y => y.id);
-  if (mseOn()) {  // own sections: the shown ones in their order ("Recently assigned" keeps no place)
+  if (mseUse()) {  // own sections: the shown ones in their order ("Recently assigned" keeps no place)
     const x = mseCtx(); flat = [];
     for (const o of x.own) flat.push(...base.filter(y => mseOf(y, x) === o.id).map(y => y.id));
     flat.push(...base.filter(y => mseOf(y, x) === null).map(y => y.id));
@@ -133,7 +133,7 @@ async function moPut(ids, w) {
       for (const i of kept) if (put.includes(i)) put.splice(put.indexOf(i), 1);
     }
     const was = moSnap(put);
-    await moSave(moFlat(put, w), w.sid !== undefined && mseOn() ? Object.fromEntries(put.map(id => [id, w.sid])) : null);
+    await moSave(moFlat(put, w), w.sid !== undefined && mseUse() ? Object.fromEntries(put.map(id => [id, w.sid])) : null);
     const now = moSnap(put), e = histAdd({label: lab, undo: () => moBack(was), redo: () => moBack(now)});
     const msg = [lab, mes ? tr('Assigned to me') : '', subs ? trn('{0} subtask is now standalone', '{0} subtasks are now standalone', subs) : '',
       fail ? trn('{0} task not changed', '{0} tasks not changed', fail) : '', ro.length ? trn('{0} task skipped (read-only)', '{0} tasks skipped (read-only)', ro.length) : '',
@@ -169,9 +169,22 @@ if (typeof DROP_ADAPTERS !== 'undefined') DROP_ADAPTERS.push({name: 'mine', on: 
 // (#7354, step 2 of the drop core): the board of My tasks as an adapter - a column, and a card (before / after it; its middle stays
 // "make subtasks", before the core) mean what the column means (date / priority / list) for one task and for a selection alike
 // (mineboard.js mb_drop / mb_dropMany: one step with Undo). Was: a selection onto a card was put into the project's order
-const mbWhere = tgt => { const col = (tgt.kind === 'row' ? tgt.row : tgt.kind === 'col' ? tgt.el : null)?.closest?.('#view .mboard .mbcol'); return col ? {col} : null; };
+// (#7517): columns by own sections - a column is an own section and a card a place in the own order, so the place is the list's
+// (moWhere's {sid, tid, after}) and the drop is moPut: one step of the history, no way of the board's own
+function mbWhere(tgt, ids = []) {
+  const col = (tgt.kind === 'row' ? tgt.row : tgt.kind === 'col' ? tgt.el : null)?.closest?.('#view .mboard .mbcol');
+  if (!col) return null;
+  if (!mbSecs()) return {col};
+  const k = col.dataset.mbcol || '', s = k.startsWith('ms:') && k !== 'ms:none' ? mseList().find(x => x.id === +k.slice(3)) : null;
+  if (k !== 'ms:none' && !s) return {no: true};
+  if (s?.kind === 'recent') return {no: tr(MO_RECENT)};
+  const sid = s ? s.id : null;
+  if (tgt.kind !== 'row') return {sid};
+  if (ids.length === 1 && ids[0] === tgt.tid) return {no: true};  // onto itself
+  return {sid, tid: tgt.tid, after: tgt.after};
+}
 if (typeof DROP_ADAPTERS !== 'undefined') DROP_ADAPTERS.unshift({name: 'mineboard', on: () => moActive() && moBoard(), where: mbWhere,
-  put: async (ids, w) => { await loadModule('mineboard'); const t = ids.length === 1 && S.tasks.get(ids[0]); return t ? canEdit(t) ? mb_drop(t, w.col) : roToast() : mb_dropMany(ids, w.col); }});
+  put: async (ids, w) => { if (!w.col) return moPut(ids, w); await loadModule('mineboard'); const t = ids.length === 1 && S.tasks.get(ids[0]); return t ? canEdit(t) ? mb_drop(t, w.col) : roToast() : mb_dropMany(ids, w.col); }});
 // the grey subtitle "List › Section" (render.js taskRow, own order only)
 function moSubHtml(t) {
   const l = listById(t.list_id); if (!l) return '';
@@ -235,9 +248,12 @@ document.addEventListener('click', e => {
 
 // ---- 2.156.0 C (#2072): "My tasks" as a board (mineboard.js, module mineboard, loaded on demand): the switch List / Board
 // and the board's columns (by due date, priority or list) at the top of the view; settings mine_board (0 | 1) and
-// mine_board_by (due | prio | list), per person on every device
+// mine_board_by (due | prio | list | sec, #7517), per person on every device
 const moBoard = () => S.settings?.mine_board === '1';
-const moBoardBy = () => ['prio', 'list'].includes(S.settings?.mine_board_by) ? S.settings.mine_board_by : 'due';
+// (#7517): + 'sec' = a column per own section (only while the person has own sections; else the default)
+const moBoardBy = () => { const b = S.settings?.mine_board_by; return ['prio', 'list'].includes(b) || (b === 'sec' && mseList().length) ? b : 'due'; };
+const mbSecs = () => moActive() && moBoard() && moBoardBy() === 'sec';
+const mseUse = () => mseOn() || mbSecs();  // the own sections place the tasks: the list's own order or the board's columns
 function moSetPref(k, v) {
   if (!S.settings || S.settings[k] === v) return;
   S.settings[k] = v; render();
@@ -247,7 +263,7 @@ function moSegHtml() {
   if (!moActive()) return '';
   const b = moBoard(), btn = (act, k, on, ico, label) => `<button type="button" class="${on ? 'on' : ''}" data-act="${act}"${k ? ` data-k="${k}"` : ''} aria-pressed="${on}" title="${esc(label)}">${ico ? ic(ico, 's') : ''}<span>${esc(label)}</span></button>`;
   let h = `<div class="mobar"><div class="seg mbseg" role="group" aria-label="${esc(tr('View'))}">${btn('mo-view', 'list', !b, 'list', tr('List'))}${btn('mo-view', 'board', b, 'kanban', tr('Kanban'))}</div>`;  // 2.365.0 (#3010): "Kanban" as in a project
-  if (b) h += `<div class="seg mbby" role="group" aria-label="${esc(tr('Columns by'))}">${[['due', N_('Due')], ['prio', N_('Priority')], ['list', N_('Project')]].map(([k, n]) => btn('mo-by', k, moBoardBy() === k, '', tr(n))).join('')}</div>`;
+  if (b) h += `<div class="seg mbby" role="group" aria-label="${esc(tr('Columns by'))}">${/*html-ok*/ /* btn() escapes its label and key */ [['due', N_('Due')], ['prio', N_('Priority')], ['list', N_('Project')], ...(mseList().length ? [['sec', N_('Sections')]] : [])].map(([k, n]) => btn('mo-by', k, moBoardBy() === k, '', tr(n))).join('')}</div>`;
   return h + '</div>';
 }
 // dnd.js dropTask0: a drop inside the board -> true when handled there (mineboard.js mb_drop)

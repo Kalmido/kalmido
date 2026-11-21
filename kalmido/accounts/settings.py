@@ -280,7 +280,7 @@ def clean_setting(k, v):
             raise bad
         return sv
     if k == "mine_board_by":  # 2.156.0 C (#2072): the board's columns
-        if sv not in ("due", "prio", "list"):
+        if sv not in ("due", "prio", "list", "sec"):  # (#7517): + the own sections
             raise bad
         return sv
     if k == "sections_closed":  # 2.156.0 C (#2073): folded sections (ids; the client drops ids of sections that are gone)
