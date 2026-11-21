@@ -317,7 +317,7 @@ function ctCardHtml(c) {
 // default (as before). No office switch: contacts are no office module
 const LY_CT_BLOCKS = [['details', N_('Details'), 'user', 'full'], ['people', N_('People'), 'users', 'full'], ['note', N_('Note'), 'edit', 'full'], ['care', N_('Stay in touch'), 'heart', 'full'],
   ['clients', N_('Contact person at'), 'brief', 'full'], ['tasks', N_('Tasks'), 'list', 'full'], ['events', N_('Events'), 'cal', 'full'],
-  ['history', N_('Activities|contact'), 'clock', 'full'], ['merges', N_('Merge history'), 'undo', 'full']];
+  ['history', N_('Interactions|contact'), 'clock', 'full'], ['merges', N_('Merge history'), 'undo', 'full']];
 LY.contacts = {key: 'view_contacts', title: () => tr('Customise the contact card'), blocks: () => LY_CT_BLOCKS.filter(b => b[0] !== 'care' || feat('care'))};
 const ct_open = k => !!lyOpt('contacts', k, 'open', true);
 function ct_foldAll(c, parts) {
@@ -377,7 +377,7 @@ function ctk_histHtml(c) {
   const title = x => x.title || (x.kind === 'mail' ? tr('(no subject)') : x.kind === 'event' ? '?' : tr('Draft'));
   const open = x => x.kind === 'event' ? `<button type="button" class="linkbtn" data-evopen="${x.id}">` : x.kind === 'mail' ? `<button type="button" class="linkbtn" data-ctkmail="${x.id}">`
     : `<a class="linkbtn" href="#office/offers/${x.id}">`;
-  return `<div class="ctsec ctkhist" data-ctkh><h4>${tr('Activities|contact')}</h4><ul class="ctlinks">${CTK.items.map(x => `<li>${open(x)}${ic(icon[x.kind] || 'file', 's')} ${esc(title(x))}${x.kind === 'event' || x.kind === 'mail' ? '</button>' : '</a>'}<span class="muted"> · ${esc([word[x.kind], x.sub, when(x)].filter(Boolean).join(' · '))}</span></li>`).join('')}</ul>
+  return `<div class="ctsec ctkhist" data-ctkh><h4>${tr('Interactions|contact')}</h4><ul class="ctlinks">${CTK.items.map(x => `<li>${open(x)}${ic(icon[x.kind] || 'file', 's')} ${esc(title(x))}${x.kind === 'event' || x.kind === 'mail' ? '</button>' : '</a>'}<span class="muted"> · ${esc([word[x.kind], x.sub, when(x)].filter(Boolean).join(' · '))}</span></li>`).join('')}</ul>
     ${CTK.more ? `<button type="button" class="linkbtn" data-ctkmore ${CTK.loading ? 'disabled' : ''}>${tr('Show more')}</button>` : ''}</div>`;
 }
 async function ctk_histLoad(c, offset) {

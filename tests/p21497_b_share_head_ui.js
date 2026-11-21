@@ -95,11 +95,11 @@ async function closeDlg(w, sel) {
   b?.click();
   check(await until(() => /Customers/.test(txt(d.querySelector('.modal h3')))), 'contacts: it opens the address book\'s share dialog');
   check(await closeDlg(w, '.modal') && d.querySelector('#view .ctbar'), 'contacts: the dialog closes, the contacts stay');
-  check(w.eval(`tr('Activities|contact')`) === 'Activities', '#7015 contacts: the card\'s block is "Activities"');
+  check(w.eval(`tr('Interactions|contact')`) === 'Interactions', '#7015 contacts: the card\'s block is "Interactions"');
 
   // ================= German words
   const DE = await (await fetch(B + 'static/i18n/de.json')).json();
-  check(DE['Sharing'] === 'Teilen' && DE['Activities|contact'] === 'Vorgänge' && DE['Encrypt folder…'] === 'Ordner verschlüsseln…' && DE['Export as CSV'] === 'Exportieren als CSV' && DE['History'] === 'Verlauf',
+  check(DE['Sharing'] === 'Teilen' && DE['Interactions|contact'] === 'Vorgänge' && DE['Encrypt folder…'] === 'Ordner verschlüsseln…' && DE['Export as CSV'] === 'Exportieren als CSV' && DE['History'] === 'Verlauf',
     '#7015 German: Teilen, Vorgänge, Ordner verschlüsseln…, Exportieren als CSV, Verlauf');
   check(!('Shares' in DE) && !('Lock folder…' in DE) && !('Recent changes' in DE), '#7015 German: the old words are gone');
 

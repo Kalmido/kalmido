@@ -631,7 +631,7 @@ that returns early (an overview) never keeps the + of the page before (#7611, Fi
 Every opened object (a knowledge page, a table, a file and a folder, a document, an address book) has the text button
 **Share** in its head, also before its first share, for whoever may share it; it opens the area's existing share dialog (no
 new dialog). The words are the same everywhere: "Share…" (menu) / "Share" (button, the document's tab), **History** for
-the changes of an object (a contact's block of quotations, events and mails is **Activities**, `Activities|contact`),
+the changes of an object (a contact's block of quotations, events and mails is **Interactions** (German Vorgänge), `Interactions|contact`),
 **Download** for the thing itself (the PDF of a page, the ZIP of a folder) and **Export as …** for another format, **Encrypt
 folder…** / **Encryption…** for the browser encryption ("Lock" stays for tasks, "Lock now" for notes). A new area uses these
 words and puts its share button in its head.
