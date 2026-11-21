@@ -2301,7 +2301,9 @@ def umz_write(c, run, uid, man, zf, files, data, people):
                                     ("event_calendars", "ev_cals", "ev_cals", {"owner_id": uid, "org_id": org if org_kind else None})):
         for r in data.get(src, []):
             run.step()
-            if run.there(kind, r.get("id")):  # 2.362.3 (#3098)
+            # (#6358, reader F2): a shared view of a project this run creates comes with that copy, never "there" from another target
+            if not (table == "filters" and r.get("list_id") and run.m("lists", r["list_id"]) in run.created["lists"]) \
+                    and run.there(kind, r.get("id")):  # (#3098)
                 continue
             if table == "books" and org_kind and _oid(r.get("owner_org_id")):
                 fixed = {**fixed, "owner_org_id": org}  # an address book of the organisation itself (2.52.0 C, #1438)
@@ -2449,7 +2451,8 @@ UMZ_PRIVATE_MORE = (("video_reviews", "videos/reviews.json"), ("video_versions",
                     # 2.995.0 (#5602): my own ticket types and field schema, into my private space as the organisation import does
                     # (admin/oi_team.py _ttype / _ofield; a type or field with the same key here stays and the project fields link to it)
                     ("ticket_types", "lists/ticket_types.json"), ("org_fields", "lists/org_fields.json"))
-UMZ_SCHEMA_OI = ("lists/ticket_types.json", "lists/org_fields.json")  # 2.995.0 (#5602): idempotent by key, also on a second run
+UMZ_SCHEMA_OI = ("lists/ticket_types.json", "lists/org_fields.json")
+UMZ_LIST_OI = ("lists/notepads.json", "lists/playbooks.json")  # (#6358): parts of a project of the file (list_id)  # 2.995.0 (#5602): idempotent by key, also on a second run
 
 
 def umz_mails_oi(data, nodes, me_old):
@@ -2598,9 +2601,12 @@ def umz_private(c, run, uid, man, zf, files, data, who):
     if again:  # (#3098): an earlier import of this file brought them already (#6358: into any target, they are private)
         run.warning(N_("Your files, knowledge pages and tables are here already from an earlier import: they were skipped."))
         # 2.995.0 (#5602, review F1): the own ticket types and field schema still go through (one with the same key here stays,
-        # a new one comes), so the projects this run creates find their types and link their fields
-        oi = {k: v for k, v in oi.items() if k in UMZ_SCHEMA_OI}
-        if not oi:
+        # a new one comes), so the projects this run creates find their types and link their fields; (#6358, reader F1) so do
+        # the notepads and playbooks of a project this run creates (the copy in another workspace), never of one that is there
+        new = set(run.created["lists"])
+        oi = {k: v for k, v in ((k, v if k in UMZ_SCHEMA_OI else [r for r in v if run.m("lists", r.get("list_id")) in new])
+                                for k, v in oi.items() if k in UMZ_SCHEMA_OI or k in UMZ_LIST_OI) if v}
+        if not oi and not new:
             return
     here = umz_sheets_here(c, uid, data) if oi.get("time_sheets.json") else set()  # 2.765.0 (review N4): after the oi_done check
     if here:  # 2.765.0 (#3965): a month I have here already keeps the one here
@@ -2620,11 +2626,13 @@ def umz_private(c, run, uid, man, zf, files, data, who):
         if oi:
             # 2.995.0 (#5602): + the project fields, so oi_team._schema_links links them to my own field schema again
             oi_write(c, run, uid, man, zf, files, {"oi": oi, "people": data.get("people") or [], "list_fields": data.get("list_fields") or []}, who)
-        if not again:
-            umz_more_write(c, run, uid, me_old, data, umz_salt(man))  # 2.363.4 (#3127): bookmarks, focus sessions, arrangements, bells ... (2.531.0 #4317: + salt)
+        # (#3127): bookmarks, focus sessions, arrangements, bells ... (#4317: + salt); (#6358, reader F1) a second run only
+        # what hangs on the projects it creates (budgets, the project's arrangement, bells)
+        umz_more_write(c, run, uid, me_old, data, umz_salt(man), lists_only=again)
     finally:
         run.org = org
-    run.created["oi_done"] = True
+    if not again:  # (#6358, reader F3): only a run that brought the private parts marks them (a skipping run would hide an undo)
+        run.created["oi_done"] = True
 
 
 def umz_share(c, run, uid, data, picks, can_invite, salt=None):

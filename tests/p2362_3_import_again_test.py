@@ -133,6 +133,10 @@ LIFE = ok(F.post(B + "/api/lists", json={"name": "Vertrag Probe"}), "a Home & li
 dbxm.connect(DATA).execute("UPDATE lists SET life='contracts' WHERE id=?", (LIFE,))
 ok(F.post(B + "/api/tasks", json={"title": "Vertrag Aufgabe", "list_id": LIFE}), "a task of the Home & life project")
 ok(F.post(B + "/api/wiki/pages", json={"space": "private", "path": "Privat Seite", "body": "Nur meins"}), "a private knowledge page")
+# (#6358, reader F1 / F2): what hangs on the project and must reach its copy in another workspace
+ok(F.post(B + f"/api/lists/{LID}/notepads", json={"title": "Probe Block", "body": "- fix"}), "a notepad of the project")
+ok(F.put(B + f"/api/lists/{LID}/playbook", json={"text": "Probe Ablauf: erst schneiden."}), "the project's playbook")
+ok(F.post(B + "/api/filters", json={"name": "Probe Ansicht", "list_id": LID, "rules": {"prios": [5]}}), "a shared view of the project")
 FILE1 = export(F)
 base = counts(FID)
 check(all(v == 1 for v in base.values()), f"the data as it starts {base}")
@@ -180,6 +184,7 @@ check(now == first, f"a row deleted since comes back, nothing else {now}")
 # another target: a copy is wanted
 F.post(B + "/api/orgs", json={"name": "Frida Studio"})
 FORG = one("SELECT org_id FROM org_members WHERE user_id=?", (FID,))
+check(FORG, "#6358 (reader F4): Frida has her own organisation (the second workspace of the import)")
 if FORG:
     inbox_n = one("SELECT COUNT(*) FROM tasks WHERE created_by=? AND title='Eingang Probe' AND deleted_at IS NULL", (FID,))
     PRIV = ("SELECT (SELECT COUNT(*) FROM lists WHERE owner_id=? AND name='Vertrag Probe' AND deleted_at IS NULL), "
@@ -207,7 +212,57 @@ if FORG:
     check(not any("could not be imported" in w["text"] for w in res.get("warnings") or []), f"#6358: no warning for the private tasks {res.get('warnings')}")
     check((res.get("stats") or res.get("counts") or {}).get("skipped", 0) > 0 or any("skipped" in w["text"] for w in res.get("warnings") or []),
           f"#6358: they count as skipped {res}")
+    # (#6358, reader F1 / F2): the project's copy in the organisation keeps its notepad, playbook and shared view
+    COPY = one("SELECT id FROM lists WHERE org_id=? AND name='Umzug Probe'", (FORG,))
+    check(one("SELECT COUNT(*) FROM list_notepads WHERE list_id=? AND title='Probe Block'", (COPY,)) == 1, "#6358 F1: the copy has its notepad")
+    check(one("SELECT COUNT(*) FROM obj_versions WHERE kind='playbook' AND ref_id=?", (COPY,)) >= 1, "#6358 F1: the copy has its playbook")
+    check(one("SELECT COUNT(*) FROM filters WHERE list_id=? AND name='Probe Ansicht'", (COPY,)) == 1, "#6358 F2: the copy has its shared view")
     dbxm.connect(DATA).execute("DELETE FROM lists WHERE org_id=?", (FORG,))
+
+# (#6358, reader F4): the other way round - first into the own organisation, then into the private space: nothing private twice;
+# (reader F3) a run that only skipped the private parts does not mark them: after the undo of the import that brought them, a
+# private import brings them again
+GID, G = freelancer(B, A, "greta")
+ok(G.post(B + "/api/habits", json={"name": "Lesen", "goal": 1}), "greta: a habit")
+GBK = ok(G.post(B + "/api/books", json={"name": "Gretas Kontakte"}), "greta: an address book")["id"]
+ok(G.post(B + "/api/contacts", json={"book_id": GBK, "fn": "Gil Kontakt"}), "greta: a contact")
+ok(G.post(B + "/api/filters", json={"name": "Greta Filter", "rules": {"prios": [5]}}), "greta: a private filter")
+fd = {"file": ("greta-notiz.txt", b"Gretas Datei"), "space": (None, "private")}
+check(G.post(B + "/api/files/upload", files=fd).ok, "greta: a private file")
+GFILE = export(G)
+G.post(B + "/api/orgs", json={"name": "Greta Studio"})
+GORG = one("SELECT org_id FROM org_members WHERE user_id=?", (GID,))
+check(GORG, "#6358 F4: Greta has her own organisation")
+GQ = {"habits": "SELECT COUNT(*) FROM habits WHERE user_id=? AND name='Lesen'",
+      "contacts": "SELECT COUNT(*) FROM contacts c JOIN books b ON b.id=c.book_id WHERE b.owner_id=? AND c.fn='Gil Kontakt'",
+      "filters": "SELECT COUNT(*) FROM filters WHERE user_id=? AND name='Greta Filter'",
+      "files": "SELECT COUNT(*) FROM fs_nodes WHERE owner_id=? AND org_id IS NULL AND name LIKE 'greta-notiz%' AND deleted_at IS NULL"}
+
+
+def gc():
+    return {k: one(q, (GID,)) for k, q in GQ.items()}
+
+
+g0 = gc()
+if GORG:
+    iid, j = upload(G, GFILE)
+    j = run(G, iid, target=GORG, again=False)
+    check(j.get("state") == "done", f"greta: into her organisation first {j.get('state')}")
+    GIMP = (j.get("result") or {}).get("import_id")
+    g1 = gc()
+    check(all(g1[k] == g0[k] + 1 for k in g1), f"#6358: the private parts came once, into her private space {g0} -> {g1}")
+    iid, j = upload(G, GFILE)
+    j = run(G, iid, again=False)  # another target: no confirmation asked
+    res = j.get("result") or {}
+    check(j.get("state") == "done" and gc() == g1, f"#6358 F4: then into the private space: nothing private twice {g1} -> {gc()}")
+    check(not any("could not be imported" in w["text"] for w in res.get("warnings") or []), f"#6358 F4: no false alarm {res.get('warnings')}")
+    ok(G.post(B + f"/api/imports/{GIMP}/undo"), "greta: the import into the organisation is undone", codes=(200, 201, 202, 204))
+    g2 = gc()
+    check(g2["files"] == g0["files"], f"the undo took its private file away {g2}")
+    iid, j = upload(G, GFILE)
+    j = run(G, iid)
+    check(j.get("state") == "done" and gc()["files"] == g0["files"] + 1,
+          f"#6358 F3: the skipping run did not mark the private parts: after the undo they come again {gc()}")
 
 # review: the imported project went to somebody else: nothing more is written into it; a project in the trash is not there
 ok(F.post(B + f"/api/tasks/{TID}/comments", json={"body": "Spaeter"}), "a later comment")
