@@ -639,10 +639,10 @@ def _items_public(c, oid, r, admin, d):
     for it in its:
         it["discountable"] = int(it.get("discountable") or 0)
         if not admin:
-            it.pop("cost", None)  # 2.47.0 (#1649): members get no purchase at all (was None)
+            it.pop("cost", None)  # (#1649): members get no purchase at all (was None)
             it.pop("cost_enc", None)
     if admin:
-        ek_item_margins(d, its)  # 2.47.0 (#1649): the surplus per position, computed here (never stored in plain)
+        ek_item_margins(d, its)  # (#1649): the surplus per position, computed here (never stored in plain)
     return its
 
 
@@ -1193,7 +1193,7 @@ def clean_items(c, oid, r, items, admin, part=None, before=None):
         raise BadInput(tr("Invalid value: {0}", "items"))
     lang = r["lang"]
     ct = _contract(c, oid, r["contract_id"])
-    old = {it["id"]: it for it in (doc_items(c, r["id"], oid, part) if before is None else before)}  # 2.47.0 (#1215): part = the positions of that part
+    old = {it["id"]: it for it in (doc_items(c, r["id"], oid, part) if before is None else before)}  # (#1215): part = the positions of that part
     svcs = _services(c, oid, items)  # (#7505)
     out = []
     for i, it in enumerate(items):
@@ -1469,7 +1469,7 @@ def _put_items(c, oid, r, items, admin, flags=None, keep=False, before=None):
     2.269.0 A (#3012): a position sent with its id keeps it (UPDATE, so purchase price, list and marks are found again), one
     without a known id is new (INSERT), only the saved ones left out are deleted. keep = the save came without a version
     (expect_updated_at): positions billed from receipts (and, for a person, an agent's marked ones) it left out stay at the end.
-    2.370.2 (#3088): -> the ids of those positions, the answer names them (kept_ids).
+    (#3088): -> the ids of those positions, the answer names them (kept_ids).
     (#7505): before = ofd_items_read of the title page (the caller's one read), else read here; a kept position that did not
     change is not written (ofd_item_write)."""
     rows_before, enc = ofd_items_read(c, r["id"], oid) if before is None else before
@@ -1478,7 +1478,7 @@ def _put_items(c, oid, r, items, admin, flags=None, keep=False, before=None):
         from .agentdocs import ofa_keep_flags
         flags = ofa_keep_flags(c, oid, r["id"], items, rows)
     did = r["id"]
-    old = {x["id"]: x for x in rows_before}  # 2.1005.0 (#5415): live ones only -- a trashed part's title page line is neither overwritten nor deleted
+    old = {x["id"]: x for x in rows_before}  # (#5415): live ones only -- a trashed part's title page line is neither overwritten nor deleted
     c.execute("DELETE FROM office_doc_items WHERE doc_id=? AND org_id IS NULL", (did,))  # rows of an older version
     seen = set()
     for i, (row, fl) in enumerate(zip(rows, flags)):
@@ -1489,7 +1489,7 @@ def _put_items(c, oid, r, items, admin, flags=None, keep=False, before=None):
             seen.add(iid)
             ofd_item_write(c, oid, iid, row, old[iid], iid in enc)  # what an INSERT would leave at its default; (#7505) only a change
             continue
-        row = oc_item_store(c, oid, row)  # 2.42.0 (#828): the purchase price encrypted at rest
+        row = oc_item_store(c, oid, row)  # (#828): the purchase price encrypted at rest
         row["doc_id"] = did
         row["org_id"] = oid
         c.execute(f"INSERT INTO office_doc_items({','.join(row)}) VALUES({','.join('?' * len(row))})", list(row.values()))
@@ -2080,7 +2080,7 @@ def odoc_items_put(did):
     oun_post(c)
     c.commit()
     out = (doc_lite if ofd_wants_lite(b) else doc_public)(c, oid, doc_row(c, oid, did), admin)  # (#7505): the short answer on request
-    return jsonify({**out, "kept_ids": kept})  # 2.370.2 (#3088): positions left out that stayed
+    return jsonify({**out, "kept_ids": kept})  # (#3088): positions left out that stayed
 
 
 @app.post("/api/office/docs/<int:did>/number")

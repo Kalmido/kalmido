@@ -159,7 +159,7 @@ function wlk_step(what, fn, taken) {
 async function wlk_undo() {
   const l = WLK.last; if (!l || WLK.busy || wlk_top() !== l.e) return;
   WLK.busy = true;
-  try { await histIdle(); await histStep('undo', 1, [l.e]); }  // 2.905.0 (#5255): exactly this step
+  try { await histIdle(); await histStep('undo', 1, [l.e]); }  // (#5255): exactly this step
   finally { WLK.busy = false; }
   if (wlk_top() === l.e) { wlk_draw(); return; }  // refused (changed elsewhere): the history said why
   WLK.items[l.i].done = ''; if (l.taken) WLK.taken.delete(l.taken);

@@ -17,7 +17,7 @@ from .comments import send_pushes
 from .news import notif_ok
 
 INTEG_FAILS = _env_int("KALMIDO_INTEG_FAILS", 5)  # failed polls in a row of a mailbox, a git connection -> told once
-INTEG_BACKOFF_MAX = 6 * 3600  # 2.1333.0 (#6545): the longest wait between two fetches of a mailbox whose login is refused
+INTEG_BACKOFF_MAX = 6 * 3600  # (#6545): the longest wait between two fetches of a mailbox whose login is refused
 INTEG_BACKOFF_NET = 15 * 60  # (#6905): the longest wait after any other failure (the network, the server away for a while)
 
 

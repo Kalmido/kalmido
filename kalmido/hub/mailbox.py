@@ -880,7 +880,7 @@ def _mbx_age_s(v, now):
 
 
 def mbx_due(box, now, interval):
-    """2.1333.0 (#6545): a mailbox that keeps failing waits longer each time (collab/integfail.py integ_backoff_s): (#6905) at
+    """(#6545): a mailbox that keeps failing waits longer each time (collab/integfail.py integ_backoff_s): (#6905) at
     most 6 h while its login is refused, at most 15 min after a network failure."""
     if not box["fails"]:
         return True
