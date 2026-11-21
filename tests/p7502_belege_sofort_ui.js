@@ -63,7 +63,10 @@ async function run(user, many, ws) {
   const nRows = () => d.querySelectorAll('.rcl-list > li').length;
   check(await until(() => nRows() === Math.min(200, ids.length), 30000), `the list shows ${Math.min(200, ids.length)} rows (${nRows()})` + tag);
   if (many) {
-    click(w, d.querySelector('[data-rcl="more"]'));
+    // a read still under way (a re-read of the hints) draws the button disabled: the click waits for it (red once under load)
+    const moreBtn = () => { const b = d.querySelector('[data-rcl="more"]'); return b && !b.disabled ? b : null; };
+    check(!!await until(moreBtn, 30000), '"Load more" can be clicked' + tag);
+    click(w, moreBtn());
     check(await until(() => nRows() === 205, 30000), `"Load more": 205 rows (${nRows()})` + tag);
   }
   const R = [...d.querySelectorAll('.rcl-list [data-rcl="rc"]')].map(b => +b.dataset.id);
