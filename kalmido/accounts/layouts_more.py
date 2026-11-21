@@ -14,7 +14,7 @@ LYX_BLOCKS = {
     # 2.666.0 D (#3624): the contact card
     "view_contacts": [("details", "Details", 6, False), ("note", "Note", 6, False), ("care", "Stay in touch", 6, False),
                       ("clients", "Contact person at", 6, False), ("tasks", "Tasks", 6, False), ("events", "Events", 6, False),
-                      ("history", "Contact history", 6, False), ("merges", N_("Merge history"), 6, False)],
+                      ("history", "Interactions", 6, False), ("merges", N_("Merge history"), 6, False)],
     "view_family": [("occ", "Birthdays & anniversaries", 3, False), ("rot", "Whose turn", 3, False), ("meals", "Meal plan", 3, False),
                     ("shop", "Shopping", 3, False), ("dl", "Deadlines", 3, False), ("kids", "Kids", 3, False), ("pack", "Packing lists", 3, False)],
 }
