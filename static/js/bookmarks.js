@@ -174,6 +174,7 @@ async function bm_move(x) {
 // (#7017, audit D13): the menu of a bookmark (its "…", a long press, a right click): Edit (the dialog below), read /
 // unread, archive, the preview, move, Delete apart as the last - the same actions as the buttons and the dialog (each one undo step)
 function bm_rowMenu(anchor, x) {
+  if (!(x?.id > 0)) return;  // a bookmark still on its way has nothing to offer yet (no empty menu)
   const ed = x.can_edit && x.id > 0;  // the link itself is the card's title (no window.open: docs/dev/produkt-regeln.md, #4574)
   menu(anchor, [x.id > 0 ? {label: ed ? tr('Edit') : tr('Details'), icon: ed ? 'edit' : 'info', fn: () => bm_detail(x.id)} : null,
     ed ? {label: x.state === 'unread' ? tr('Mark read') : tr('Mark unread'), icon: x.state === 'unread' ? 'check' : 'eye', fn: () => bm_patch(x.id, {state: x.state === 'unread' ? 'read' : 'unread'}, x.state === 'unread' ? tr('Marked read: {0}', x.title) : tr('Marked unread: {0}', x.title)).catch(() => {})} : null,
