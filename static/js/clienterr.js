@@ -25,8 +25,49 @@ function cer_path(u) {
   return m ? m[0] : '';
 }
 
+// (#7531): what "Report a problem" (report.js) may send as its context block: the last errors of this page load and the
+// last failed requests, kept here whether or not the server takes error reports; never texts (cer_clean), never a query part
+/** @type {{msg: string, place: string}[]} */
+const CER_LAST = [];
+/** @type {{method: string, path: string, status: number, ms: number}[]} */
+const CER_REQ = [];
+/** A message without data of a person (as the server's cer_text): addresses, quoted texts, long numbers cut. @param {string} s */
+function cer_clean(s) {
+  return String(s || '').replace(/[\x00-\x1f\x7f]+/g, ' ').replace(/\S+@\S+/g, '<mail>').replace(/\b(?:https?|blob|data|file):\S*/gi, u => cer_path(u) || '<url>')
+    .replace(/(['"`])(.*?)\1/g, (m, q, x) => /^[\w$.#-]{1,40}$/.test(x) ? m : q + '…' + q).replace(/\b[0-9a-fA-F-]{16,}\b|\d{4,}/g, '<n>').trim().slice(0, 300);
+}
+/** A request's path as the dialog "What goes along" SHOWS it (#7531 F8): /api/<area> and numbers only, every other part "_".
+ *  Only for the eye, never for sending (F11): CER_REQ keeps the real path, the server keeps only the pattern of its route
+ *  (meldung.py rpt_req_route, e.g. /api/account/export); a masked path would find no route there and fall away.
+ *  @param {string} p */
+const cer_reqPath = p => p.split('/').map((x, i) => i < 3 || /^\d{1,12}$/.test(x) ? x : '_').join('/').slice(0, 160);
+/** A failed request (core.js rawFetch0): method, path without origin and query (the real one: the server cuts it to its
+ *  route's pattern, #7531 F11), status (0 = no answer), duration. */
+function cer_req(/** @type {string} */ method, /** @type {string} */ url, /** @type {number} */ status, /** @type {number} */ t0) {
+  const p = String(url || '').replace(/^[a-z][\w+.-]*:\/\/[^/]+/i, '').split(/[?#]/)[0];
+  if (!p.startsWith('/api/')) return;
+  CER_REQ.push({method: String(method || 'GET').toUpperCase(), path: p.slice(0, 160), status: status || 0, ms: Math.max(0, Math.round(performance.now() - t0))});
+  if (CER_REQ.length > 8) CER_REQ.shift();
+}
+/** The page as a path: the address part after # without its query - its first part (the view) and numbers only, every other
+ *  part "_" (a tag, a search or a name in the address never goes along, #7531; the server's rpt_route does the same). */
+function cer_route() {
+  const h = String(location.hash || '').split('?')[0].replace(/^#/, '');
+  return '#' + h.split('/').map((x, i) => (i === 0 ? /^[a-z][\w-]{0,30}$/ : /^\d{1,12}$/).test(x) ? x : '_').join('/').slice(0, 150);
+}
+/** The context block of a report (#7531): page, version, device, the last errors and failed requests - no contents. */
+function cer_ctx() {
+  const ua = navigator.userAgent || '', br = /(Firefox|Edg|OPR|SamsungBrowser|Chrome|Version)\/(\d+)/.exec(ua);
+  const plat = /** @type {any} */ (navigator).userAgentData?.platform || (/(Android|iPhone|iPad|Macintosh|Windows|Linux)/.exec(ua) || [])[1] || '';
+  return {route: cer_route(), version: typeof APP_VER === 'string' ? APP_VER : '',
+    device: {platform: String(plat).slice(0, 40), browser: br ? (br[1] === 'Version' ? 'Safari' : br[1] === 'Edg' ? 'Edge' : br[1]) + ' ' + br[2] : '',
+      touch: matchMedia('(pointer: coarse)').matches, width: innerWidth, height: innerHeight, dpr: Math.round((window.devicePixelRatio || 1) * 100) / 100},
+    errors: CER_LAST.slice(), requests: CER_REQ.slice()};
+}
+
 /** @param {{msg: string, src?: string, line?: number, col?: number, stack?: string, kind: string}} e */
 function cer_send(e) {
+  CER_LAST.push({msg: cer_clean(e.msg), place: cer_path(e.src || '') + (e.line ? ':' + e.line : '')}); if (CER_LAST.length > 5) CER_LAST.shift();  // (#7531)
   const on = typeof S !== 'undefined' && S.about ? !!S.about.client_errors : null;
   if (on === null) { if (CER_WAIT.length < 5) CER_WAIT.push(e); return; }  // before the first state: kept for cer_flush
   if (!on || cer_sent >= CER_MAX) return;

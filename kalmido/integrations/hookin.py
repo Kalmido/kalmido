@@ -23,6 +23,7 @@ from ..api.v1 import PRIO_VALUES
 from ..api.common import hit_limit
 from ..collab.comments import user_names  # 2.369.5 (#2517): pulled up from functions
 from ..tasks.tasks import task_create  # 2.369.5 (#2517): pulled up from functions
+from .meldung import rpt_ctx_attach, rpt_ctx_clean  # (#7531): the context block of the shared intake
 
 
 # ---------------------------------------------------------------- 2.115.0 A (#2061): inbound webhook per list
@@ -38,6 +39,8 @@ from ..tasks.tasks import task_create  # 2.369.5 (#2517): pulled up from functio
 # keys, list tags the list does not have and fields of other lists are IGNORED (never created, never stored) and named in
 # the answer ("ignored"), so a flow keeps running when the list changes; invalid values (date, priority, a field value)
 # are a 400. Limits: WHI_MAX_BYTES per body, WHI_PER_MIN / WHI_PER_DAY requests per webhook, WHI_LIST_MAX per list.
+# (#7531): context? = the context block of the shared intake (integrations/meldung.py: page, version, device, the last
+# browser errors, failed requests; only those keys and shapes are kept) -> the task's own attachment kalmido-context.json.
 # 2.380 G (#2289): the token may also come as the header X-Kalmido-Hook-Token on POST /api/hooks/in (no token in the path,
 # so it never lands in reverse-proxy logs); the settings and the docs show this variant first, the path token stays valid.
 WHI_MAX_BYTES = 64 * 1024
@@ -51,7 +54,7 @@ WHI_PAUSE = {  # paused_reason -> the text the settings show
     "creator": N_("the person who set it up has no access to the project any more"),
     "role": N_("the person who set it up can no longer change the project"),
 }
-WHI_KEYS = ("title", "notes", "due", "priority", "tags", "fields")
+WHI_KEYS = ("title", "notes", "due", "priority", "tags", "fields", "context")  # (#7531): + the context block (integrations/meldung.py)
 
 
 def whi_hash(tok):
@@ -347,7 +350,9 @@ def whi_in(token):
     why = whi_list_ok(c, r["list_id"])
     if why or r["archived"]:
         return err(why or tr("The project is archived"), 409)
-    tb, ignored = whi_task_body(c, r["list_id"], whi_parse())
+    pb = whi_parse()
+    tb, ignored = whi_task_body(c, r["list_id"], pb)
+    ctx = rpt_ctx_clean(pb.get("context"))  # (#7531): the block of the shared intake, checked before the task exists (400)
     g.body = tb
     try:
         res = task_create()
@@ -356,6 +361,8 @@ def whi_in(token):
     if isinstance(res, tuple):
         return res
     tid = res.get_json()["id"]
+    if ctx:
+        rpt_ctx_attach(c, tid, ctx, anon=True)  # its own attachment of the task, never in the notes; anyone with the URL fills it
     c.execute("UPDATE hook_in SET uses=uses+1, last_used_at=? WHERE id=?", (iso(now_utc()), r["id"]))
     c.commit()
     print("hook in: task", tid, "list", r["list_id"], "hook", r["id"], flush=True)

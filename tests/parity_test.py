@@ -912,6 +912,10 @@ APP_ONLY = [
     ("2.1394.0 (#6887): the agent rules block is the text the web app's setup guide shows a person; agents get the same "
      "block in their CLAUDE.md from mcp/CLAUDE.template.md at setup",
      ("=GET /api/agent-rules",)),
+    ("(#7531): Report a problem is a person's dialog in the web app (sending a report with the browser's context block, the "
+     "reporter's own reports at a place with their state); agents never report through it (setcore.js rptOn) - they create "
+     "tasks through /api/v1 or send the same context block through the incoming webhook /api/hooks/in",
+     ("=GET /api/reports", "=POST /api/reports")),
 ]
 
 

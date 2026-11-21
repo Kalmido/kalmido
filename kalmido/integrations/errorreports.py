@@ -225,7 +225,9 @@ def errhook_in(lid, token):
 def err_take(c, lid, r, rep, new_ok=True):
     """A parsed report into list lid (r: its issue_hooks row + owner_id, tickets, archived): a new bug ticket, or a count on
     the open ticket of the same error. 2.102.0 E (#1999): the browser's error reports (cer_report) take the same way.
-    new_ok False = only counted when it would be a new ticket (2.360.0: the reporting person's budget is used up)."""
+    new_ok False = only counted when it would be a new ticket (2.360.0: the reporting person's budget is used up).
+    (#7531): the shared intake (integrations/meldung.py) passes rep content (the notes as they are), ttype (the
+    ticket type) and quiet (no "New error" News item, a wish)."""
     now = iso(now_utc())
     c.execute("UPDATE issue_hooks SET last_at=?, received=received+1 WHERE list_id=?", (now, lid))
     old = c.execute("SELECT * FROM issue_reports WHERE list_id=? AND fp=?", (lid, rep["fp"])).fetchone()
@@ -248,11 +250,11 @@ def err_take(c, lid, r, rep, new_ok=True):
     hour = iso(now_utc() - timedelta(hours=1))
     # tickets made from reports in the last hour (a fingerprint can have made several, one after the other was closed)
     # 2.360.0 C (#2496): the browser's reports (source client) and the other senders count apart, so the people of the
-    # instance cannot use up the hourly tickets of the error tracker
+    # instance cannot use up the hourly tickets of the error tracker; the reports of people (source person, #7531) a third group
     made = c.execute("""SELECT COUNT(*) FROM tasks t WHERE t.list_id=? AND t.created_at>? AND t.created_by IS NULL AND EXISTS
                         (SELECT 1 FROM activity a WHERE a.task_id=t.id AND a.kind='created' AND a.data::text ILIKE '%"report":%'
-                         AND (COALESCE(a.data->>'report', '')='client')=?)""",
-                     (lid, hour, rep["source"] == "client")).fetchone()[0]
+                         AND (CASE WHEN COALESCE(a.data->>'report', '') IN ('client', 'person') THEN a.data->>'report' ELSE '' END)=?)""",
+                     (lid, hour, rep["source"] if rep["source"] in ("client", "person") else "")).fetchone()[0]
     from ..collab.liste2eguard import le2b_list_locked
     # 2.64.1 B (#1817): a list with the lock gets no plain-text tickets (only counted)
     if not new_ok or made >= ERR_NEW_PER_HOUR or r["archived"] or le2b_list_locked(c, lid):  # only counted
@@ -262,10 +264,10 @@ def err_take(c, lid, r, rep, new_ok=True):
         return jsonify(ok=True, limited=True), 202
     lg = lang(c, r["owner_id"])
     sec = c.execute("SELECT id FROM sections WHERE list_id=? ORDER BY sort, id LIMIT 1", (lid,)).fetchone()
-    content = err_content(c, lid, rep, lg)[:CONTENT_MAX]
+    content = (rep.get("content") or err_content(c, lid, rep, lg))[:CONTENT_MAX]
     # 2.1358.0 (#6825): on top (sort TOP); no creator - the report comes from the app of anyone
     tid = task_insert(c, None, lid, section_id=sec[0] if sec else None, title=rep["title"][:300], content=content, ts=now,
-                      url=rep["url"] or None, ttype="bug" if r["tickets"] else "")
+                      url=rep["url"] or None, ttype=(rep.get("ttype") or "bug") if r["tickets"] else "")
     c.execute("""INSERT INTO issue_reports(list_id,fp,task_id,count,first_at,last_at) VALUES(?,?,?,1,?,?)
                  ON CONFLICT(list_id,fp) DO UPDATE SET task_id=excluded.task_id, count=1, first_at=excluded.first_at,
                  last_at=excluded.last_at""", (lid, rep["fp"], tid, now, now))
@@ -276,7 +278,7 @@ def err_take(c, lid, r, rep, new_ok=True):
         task_mark_origin(c, tid, "errors")  # 2.1269.0 (#6431): text from outside, on the task before the tidy / added events
         agent_tidy_events(c, tid)
         agent_added_events(c, tid, source="errors")  # 2.23.0 (#795)
-        if not old:  # 2.18.0 (owner decision): a NEW error -> exactly one News item + push; repeats, re-opened errors, counts stay quiet
+        if not old and not rep.get("quiet"):  # 2.18.0 (owner decision): a NEW error -> exactly one News item + push; repeats, re-opened errors, counts stay quiet
             errreport_events(c, tid, lid, rep)
     finally:
         g.user = None
@@ -453,11 +455,15 @@ def cer_list(c):
     return (int(v), r) if r else (None, None)
 
 
+CER_TEXT_IN = 2000  # characters of a browser text read at all (cer_text), before any pattern
+
+
 def cer_text(s, n, names=()):
     """A text of the browser without data of a person: quoted texts that are no plain names, e-mail addresses, links and
     long numbers / ids become a placeholder; control characters go. 2.306.0 C (#2889): names = the reporting person's display
     name / login (3+ characters): they become <name> too."""
-    s = re.sub(r"[\x00-\x1f\x7f]+", " ", str(s or "")).strip()
+    # (#7531 F7): cut first - the patterns below (\S+@\S+) run square on a long word: 60 KB took 35 s of a web process
+    s = re.sub(r"[\x00-\x1f\x7f]+", " ", str(s or "")[:CER_TEXT_IN]).strip()
     for nm in sorted({str(x).strip() for x in names if len(str(x or "").strip()) >= 3}, key=len, reverse=True):
         s = re.sub((r"\b%s\b" if re.fullmatch(r"\w+", nm) else "%s") % re.escape(nm), "<name>", s, flags=re.I)  # 2.306.0 (#2875 review N16)
     s = re.sub(r"\S+@\S+", "<mail>", s)

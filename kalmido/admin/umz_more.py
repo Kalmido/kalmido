@@ -117,14 +117,17 @@ def _care(c, run, uid, data, ts):
             _more(run, "contact_care", {"contact_id": cid})
 
 
-def _layouts(c, run, uid, data, ts):
-    """Saved arrangements (a project page under its new id) through lyv_save, the current arrangement of my projects' pages."""
+def _layouts(c, run, uid, data, ts, lists_only=False):
+    """Saved arrangements (a project page under its new id) through lyv_save, the current arrangement of my projects' pages.
+    lists_only (#6358): only the arrangements of a project page this run creates."""
     for r in data.get("view_layouts") or []:
         run.step()
         key = r.get("view_key") if isinstance(r, dict) and isinstance(r.get("view_key"), str) else ""
+        lid = run.m("lists", key[5:]) if key.startswith("list:") else None
         if key.startswith("list:"):
-            lid = run.m("lists", key[5:])
             key = f"list:{lid}" if lid else ""
+        if lists_only and (not lid or run.old("lists", lid)):
+            continue
         if not lyv_key_ok(key):
             continue
         try:
@@ -324,17 +327,21 @@ def _folder_pbs(c, run, uid, me_old, data):
         run.warning(N_("Folders that have a playbook here already keep it: {0}"), ", ".join(here[:UMZ_NAMES_MAX]))
 
 
-def umz_more_write(c, run, uid, me_old, data, salt=None):
-    """Inside the run's transaction (the caller commits). salt: the export's people_salt (2.531.0 #4317)."""
+def umz_more_write(c, run, uid, me_old, data, salt=None, lists_only=False):
+    """Inside the run's transaction (the caller commits). salt: the export's people_salt (2.531.0 #4317). lists_only (#6358):
+    an earlier import of mine brought the private parts already - only what hangs on a project or task this run creates
+    (budgets, a project's arrangements, bells; each skips the rows of an earlier import itself, run.old)."""
     ts = iso(now_utc())
     _budgets(c, run, uid, data)  # 2.765.0 (#3965)
-    _folder_pbs(c, run, uid, me_old, data)
-    _bookmarks(c, run, uid, data, ts)
-    _pomos(c, run, uid, data, ts)
-    _care(c, run, uid, data, ts)
-    _layouts(c, run, uid, data, ts)
+    if not lists_only:
+        _folder_pbs(c, run, uid, me_old, data)
+        _bookmarks(c, run, uid, data, ts)
+        _pomos(c, run, uid, data, ts)
+        _care(c, run, uid, data, ts)
+    _layouts(c, run, uid, data, ts, lists_only)
     _bells(c, run, uid, me_old, data, ts)
-    _family(c, run, uid, data, ts, salt)
+    if not lists_only:
+        _family(c, run, uid, data, ts, salt)
 
 
 # what the undo removes: always only the importing person's row

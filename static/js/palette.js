@@ -308,8 +308,8 @@ function palAll() {
   else add('a:sample', 'action', tr('Create sample project'), 'plus', () => sampleCreate());
   add('a:website', 'action', tr('Open website'), 'link', () => openExt(ABOUT_LINKS[0][0]));
   // (#6534): hosted, a problem goes to the support (a person), not to the public issue tracker; "Contact support" next to it
-  if (hostedOn()) { add('a:support', 'action', tr('Contact support'), 'send', () => supContact(false)); add('a:issue', 'action', tr('Report a problem'), 'alert', () => supContact(true)); }
-  else add('a:issue', 'action', tr('Report a problem'), 'alert', () => openExt(ABOUT_LINKS[2][0]));
+  if (hostedOn()) { add('a:support', 'action', tr('Contact support'), 'send', () => supContact(false)); add('a:issue', 'action', tr('Report a problem'), 'alert', () => rptOpen()); }
+  else add('a:issue', 'action', tr('Report a problem'), 'alert', () => rptOpen());  // (#7531): the report dialog when the server takes reports
   if (doneToggleView()) add('a:showdone', 'action', `${showDone() ? tr('Hide completed') : tr('Show completed')}: ${titleFor(S.route.key)}`, 'eye', () => setShowDone(!showDone()));
   else if (S.route.mod === 'cal' && S.calMode !== 'timeline') add('a:showdone', 'action', `${showDoneCal() ? tr('Hide completed') : tr('Show completed')}: ${tr('Calendar')}`, 'eye', () => setShowDone(!showDoneCal(), 'cal'));
   // views

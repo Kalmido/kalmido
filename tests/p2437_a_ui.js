@@ -116,7 +116,7 @@ const until = (fn, n) => require('./boot').until(fn, {timeout: n ? n * 150 : 150
       await o.nav(B + '#agents/' + AG);
       check(await o.until(`!!document.querySelector('#chat-msgs .cmsg.me') && !!document.querySelector('#chat-typing')`, {timeout: 20000}), `${tag}: the agent chat is up ` + await ev(`JSON.stringify({h: location.hash, ag: (window.S?.agents || []).map(a => a.id + ':' + a.name), v: (document.querySelector('#view')?.innerText || '').slice(0, 200), me: document.querySelectorAll('#chat-msgs .cmsg').length})`));
       await sleep(600);
-      const geo = `(() => { ${rect} const q = s => document.querySelector(s), t = q('#chat-typing'), m = q('#chat-msgs'), c = q('.chcomp'); return {t: R(t), m: R(m), c: R(c), bt: t && getComputedStyle(t).borderTopWidth, hid: t && getComputedStyle(t).display, kids: t ? t.childElementCount : -1, bot: !!q('#chat-typing svg.bot')}; })()`;
+      const geo = `(() => { ${rect} const q = s => document.querySelector(s), t = q('#chat-typing'), m = q('#chat-msgs'), c = q('.chcomp'); return {t: R(t), m: R(m), c: R(c), bt: t && getComputedStyle(t.closest('.actysug') || t).borderTopWidth /* (#7672): the rule sits on the shared row */, hid: t && getComputedStyle(t).display, kids: t ? t.childElementCount : -1, bot: !!q('#chat-typing svg.bot')}; })()`;
       const g0 = await ev(geo);
       check(g0.t && g0.hid !== 'none' && g0.kids === 0, `${tag} #3737: the typing row is there while nobody writes ` + JSON.stringify(g0));
       check(g0.t && g0.t.h >= 32 && g0.bt === '1px', `${tag} #3737: fixed height and a rule on top ` + JSON.stringify(g0));

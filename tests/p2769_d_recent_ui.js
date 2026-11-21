@@ -69,24 +69,23 @@ const spaceRows = d => [...d.querySelectorAll('#view .spov [data-spov], #view .w
   check(!rowsOf(d).length && !d.querySelector('#view .zlechips, #view .zlefs, #view .zlepin'), '#5561: no items, no chips, no tiles on the overview');
   check(d.querySelector('#side [data-wksp]'), 'the panel keeps the workspaces');
   ovRows(d)[0].click();
-  check(await until(() => w.location.hash === '#wiki/recent' && rowsOf(d).length >= 5), '#5561: the page "Recently edited" with the items ' + w.location.hash + ' ' + titles(d));
+  check(await until(() => w.location.hash === '#wiki/recent' && rowsOf(d).length === 3), '#5561/#7664: the page "Recently edited" with the three pages ' + w.location.hash + ' ' + titles(d));
   check(/Recently edited/.test(d.querySelector('#view .zlehead h2')?.textContent || ''), '#5561: its heading');
   check(titles(d)[0] === 'Checklist' && rowsOf(d)[0].getAttribute('href') === '#wiki/' + PB, '#5352: newest first, a tap opens the page ' + titles(d));
   check(/Bob/.test(rowsOf(d)[0].querySelector('.zlew')?.textContent || ''), '#5561: someone else: his name');
   check(!rowsOf(d).some(a => /Alice/.test(a.textContent)), '#5561: her own items without her name');
   check(!d.querySelector('#view .zler .zlec') && !d.querySelector('#view .zler .zlep'), '#5561: no chip of the workspace, no place in the rows');
   check(rowsOf(d).some(a => a.getAttribute('href') === '#wiki/' + P1), '#5352: the private page');
-  check(rowsOf(d).some(a => /mine\.txt/.test(a.textContent) && /^#ablage\/\d+$/.test(a.getAttribute('href'))), '#5352: the file opens in the file store');
-  check(rowsOf(d).some(a => /Team article/.test(a.textContent) && a.getAttribute('href') === '#reading/s/' + SP), '#5352: the read-later entry opens its workspace\'s list');
+  check(!rowsOf(d).some(a => /mine\.txt|Team article/.test(a.textContent)) && rowsOf(d).every(a => /^#wiki\/\d+$/.test(a.getAttribute('href'))), '#7664: Knowledge shows only pages, no file, no read-later entry ' + titles(d));
   const fchips = () => [...d.querySelectorAll('#view .zlefs [data-zlef]')];
   check(fchips().map(b => b.textContent).join() === 'All,Private,Alpha' && fchips()[0].getAttribute('aria-pressed') === 'true', '#5561: the filter chips All / Private / Alpha, All on ' + fchips().map(b => b.textContent));
   fchips()[2].click();
-  check(await until(() => rowsOf(d).length === 3 && fchips()[2].getAttribute('aria-pressed') === 'true'), '#5561: filter Alpha: its three items ' + titles(d));
-  check(titles(d).sort().join() === ['Checklist', 'Process', 'Team article'].join(), '#5561: only Alpha ' + titles(d));
+  check(await until(() => rowsOf(d).length === 2 && fchips()[2].getAttribute('aria-pressed') === 'true'), '#5561/#7664: filter Alpha: its two pages ' + titles(d));
+  check(titles(d).sort().join() === ['Checklist', 'Process'].join(), '#5561/#7664: only Alpha, only pages ' + titles(d));
   fchips()[1].click();
-  check(await until(() => titles(d).sort().join() === ['Monday', 'mine.txt'].join()), '#5561: filter Private ' + titles(d));
+  check(await until(() => titles(d).sort().join() === ['Monday'].join()), '#5561/#7664: filter Private: its page, not the file ' + titles(d));
   fchips()[0].click();
-  check(await until(() => rowsOf(d).length >= 5), '#5561: All again');
+  check(await until(() => rowsOf(d).length === 3), '#5561: All again');
   d.querySelector('#view .zlehead [data-navup]').click();
   check(await until(() => w.location.hash === '#wiki' && ovRows(d).length === 3), '#5561: the arrow back leads to the overview ' + w.location.hash);
   check(!d.querySelector('#view .zlepin'), '#5352: no favourites: no "Pinned"');
@@ -105,7 +104,7 @@ const spaceRows = d => [...d.querySelectorAll('#view .spov [data-spov], #view .w
   check(await until(() => ovKeys(d).join() === ['recent', 'private', SP].join()) && !rowsOf(d).length, '#5561: the phone: the same rows ' + ovKeys(d));
   check(d.querySelector('#view #wk-q'), '#5561: the search on top');
   ovRows(d)[0].click();
-  check(await until(() => rowsOf(d).length >= 5), '#5561: the phone: the page "Recently edited"');
+  check(await until(() => rowsOf(d).length === 3), '#5561: the phone: the page "Recently edited"');
   w.history.back();
   check(await until(() => w.location.hash === '#wiki' && ovRows(d).length === 3), '#5561: the phone\'s Back returns to the overview ' + w.location.hash);
   w.close();
@@ -115,7 +114,8 @@ const spaceRows = d => [...d.querySelectorAll('#view .spov [data-spov], #view .w
   check(await until(() => ovKeys(d).join() === ['recent', 'private', SP, 'shared'].join()) && !rowsOf(d).length, '#5561: Files: Recently edited, Private, Alpha, Shared with me ' + ovKeys(d));
   check(d.querySelector('#view .zletrash [data-spov="trash"]')?.getAttribute('href') === '#ablage/s/trash' && !d.querySelector('#view .spovl [data-spov="trash"]'), '#5561: the trash small at the end, not a row');
   ovRows(d)[0].click();
-  check(await until(() => w.location.hash === '#ablage/recent' && rowsOf(d).length >= 5), '#5561: Files: the page "Recently edited" ' + titles(d));
+  check(await until(() => w.location.hash === '#ablage/recent' && titles(d).join() === 'mine.txt'), '#5561/#7664: Files: the page "Recently edited" shows only the file ' + titles(d));
+  check(/^#ablage\/\d+$/.test(rowsOf(d)[0].getAttribute('href')), '#5352: the file opens in the file store');
   check([...d.querySelectorAll('#view .zlefs [data-zlef]')].map(b => b.textContent).join() === 'All,Private,Alpha,Shared with me', '#5561: Files: the filter has Shared with me too');
   d.querySelector('#view .zlefs [data-zlef="shared"]').click();
   check(await until(() => /Nothing edited here yet/.test(d.querySelector('#view .zlesec')?.textContent || '')), '#5561: Shared with me: nothing shared yet');
@@ -125,9 +125,14 @@ const spaceRows = d => [...d.querySelectorAll('#view .spov [data-spov], #view .w
   check(ovRows(d)[0].getAttribute('href') === '#reading/recent', '#5561: Reading: its page');
   w.close();
   w = await boot({user: 'alice', hash: 'reading/recent'}); d = w.document;
-  check(await until(() => rowsOf(d).length >= 5 && d.querySelector('#view .zlehead [data-navup]')?.getAttribute('href') === '#reading'), '#5561: Reading: the page opens from its address, the way back to the overview');
+  check(await until(() => titles(d).join() === 'Team article' && d.querySelector('#view .zlehead [data-navup]')?.getAttribute('href') === '#reading'), '#5561/#7664: Reading: the page opens from its address with only the read-later entry, the way back to the overview ' + titles(d));
+  check(rowsOf(d)[0].getAttribute('href') === '#reading/s/' + SP, '#5352: the read-later entry opens its workspace\'s list');
   w.close();
 
+  // (#7664): mixed over all areas stays the start page's block alone: the page, the file and the read-later entry together
+  w = await boot({user: 'alice', hash: 'home'}); d = w.document;
+  check(await until(() => ['Monday', 'mine.txt', 'Team article'].every(t => titles(d, '#view .dc-recent').includes(t))), '#7664: Start: page, file and read-later entry in one block ' + titles(d, '#view .dc-recent'));
+  w.close();
   // ================= Start: the block, 8 entries, "More"
   for (let i = 1; i <= 8; i++) await pg(SP, 'Many/Page ' + i);
   w = await boot({user: 'alice', hash: 'home'}); d = w.document;
