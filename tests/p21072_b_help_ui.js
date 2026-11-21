@@ -85,15 +85,15 @@ const USCAN = 'files#how-to-set-up-a-scan-inbox';
   // ---- back to the list, a topic, the browser's Back
   d.querySelector('#view [data-hvback]').click();
   const areaNames = () => [...d.querySelectorAll('#view .hvarea h3')].map(x => x.textContent);
-  check(await until(() => areaNames().length === 11), `2.1090.0 (#5900): eleven areas; "Alle Hilfethemen": the list (${areaNames()})`);
-  check(areaNames().join() === 'Dateien,Agenten,Büro,Aufgaben,Kalender,Wissen,Tabellen,Team-Chat,Budget,Projekte,Teilen', `the areas in the sidebar's words: ${areaNames()}`);
+  check(await until(() => areaNames().length === 14), `2.1090.0 (#5900), #6535: fourteen areas; "Alle Hilfethemen": the list (${areaNames()})`);
+  check(areaNames().join() === 'Dateien,Agenten,Büro,Aufgaben,Kalender,Wissen,Tabellen,Team-Chat,Budget,Projekte,Teilen,Organisation,Firma & Büro,Konto', `the areas in the sidebar's words (#6535: + Organisation, Firma & Büro, Konto): ${areaNames()}`);
   const pay = [...d.querySelectorAll('#view .hvtopic')].find(x => x.textContent === 'Eine Zahlung erfassen');
   check(pay, 'the topic "Eine Zahlung erfassen" is listed');
   pay.click();
   check(await until(() => h2() === 'Eine Zahlung erfassen'), 'a topic of the list opens');
   check(!d.querySelector('#view .hvsec [data-hvshow]') && !d.querySelector('#view .hvsec[data-show]'), '2.1090.0 (#5899): a topic without named places has no "Zeig mir"');
   w.history.back();
-  check(await until(() => areaNames().length === 11 && !d.querySelector('#view .hvsec')), `the browser's Back returns to the list (${w.location.hash})`);
+  check(await until(() => areaNames().length === 14 && !d.querySelector('#view .hvsec')), `the browser's Back returns to the list (${w.location.hash})`);
 
   // 2.1090.0 (#5900): a topic of a new area opens in German with its steps and a "Zeig mir" (wiki.new)
   const wk = [...d.querySelectorAll('#view .hvtopic')].find(x => x.textContent === 'Eine Seite unter Wissen schreiben');
@@ -102,7 +102,7 @@ const USCAN = 'files#how-to-set-up-a-scan-inbox';
   check(await until(() => h2() === 'Eine Seite unter Wissen schreiben'), 'the wiki topic opens');
   check(/\bWissen\b/.test(d.querySelector('#view .hvsec')?.textContent || '') && /Neue Seite/.test(d.querySelector('#view .hvsec')?.textContent || ''), 'its steps name the German labels (Wissen, Neue Seite)'  /* 2.1168.0 (#6091) */);
   w.history.back();
-  check(await until(() => areaNames().length === 11 && !d.querySelector('#view .hvsec')), 'Back returns to the list');
+  check(await until(() => areaNames().length === 14 && !d.querySelector('#view .hvsec')), 'Back returns to the list');
 
   // ---- the help's own search
   const q = d.querySelector('#hv-q');
@@ -113,7 +113,7 @@ const USCAN = 'files#how-to-set-up-a-scan-inbox';
   q.value = 'frobnicate'; q.dispatchEvent(new w.Event('input', {bubbles: true}));
   check(await until(() => /Nichts in der Hilfe gefunden/.test(d.querySelector('#view .hvbody')?.textContent || '')), 'nothing found says so');
   q.value = ''; q.dispatchEvent(new w.Event('input', {bubbles: true}));
-  check(await until(() => areaNames().length === 11), 'an empty search shows the topics again');
+  check(await until(() => areaNames().length === 14), 'an empty search shows the topics again');
 
   // ---- an unknown topic
   w.location.hash = '#help/' + encodeURIComponent('files#gibt-es-nicht');
@@ -125,7 +125,20 @@ const USCAN = 'files#how-to-set-up-a-scan-inbox';
   const sb = await until(() => [...d.querySelectorAll('.modal [data-hlp]')].find(b => /Hilfe: So geht's/.test(b.textContent)));
   check(sb, 'Settings > Help: "Hilfe: So geht\'s"');
   sb.click();
-  check(await until(() => !d.querySelector('.modal') && areaNames().length === 11 && w.location.hash === '#help'), 'it closes the settings and opens the help');
+  check(await until(() => !d.querySelector('.modal') && areaNames().length === 14 && w.location.hash === '#help'), 'it closes the settings and opens the help');
+
+  // ---- #6535: Settings > Organisation: "So geht's" -> the area Organisation first (and back into the app with the browser)
+  w.eval("settingsModal('users')");
+  const ol = await until(() => d.querySelector('.modal #sp-org:not(.hidden) [data-hlp="area:org"]'));
+  check(ol && /So geht's/.test(ol.textContent), `Settings > Organisation offers "So geht's" (${ol?.textContent}; section ${d.querySelector('.modal .snav [data-sec].on')?.dataset.sec}, ${(d.querySelector('.modal #sp-org')?.innerHTML || 'no pane').slice(0, 160)})`);
+  ol?.click();
+  check(await until(() => !d.querySelector('.modal') && d.querySelector('#view .hvarea.hvcur h3')?.textContent === 'Organisation' && areaNames()[0] === 'Organisation'),
+    `the area Organisation first (${areaNames()})`);
+  check(decodeURIComponent(w.location.hash) === '#help/area:org', `its address (${w.location.hash})`);
+  const ot = await until(() => [...d.querySelectorAll('#view .hvcur .hvtopic')].find(a => /Deine Firma anlegen/.test(a.textContent)));
+  check(ot, 'its first topic: "Deine Firma anlegen"');
+  ot?.click();
+  check(await until(() => d.querySelector('#view .hvsec h2')?.textContent === 'Deine Firma anlegen' && d.querySelector('#view [data-hvshow]')), 'the topic opens with "Zeig es mir"');
 
   // ---- the empty project: "So geht's" -> the area Aufgaben first
   w.location.hash = '#l/' + L.id;

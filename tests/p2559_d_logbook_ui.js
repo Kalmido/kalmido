@@ -65,9 +65,11 @@ async function round(who, ck) {
   check(!dlg() && rowOf(/Lübeck/) && +rowOf(/Lübeck/).dataset.id < 0 && /50 km/.test(rowOf(/Lübeck/).textContent), `${who}: the dialog closed and the row (provisional id, 50 km) shows before the answer`);
   check(!loading() && rowOf(/Kiel.*Dreh|Hamburg/), `${who}: the other drive stays, no "Loading…"`);
   check(!(await onServer()).some(x => x.dest === 'Lübeck'), `${who}: the server has no drive yet`);
-  w.__held[0].fail('Refused for the test', 500);
+  w.__held[0].fail('Refused for the test', 400);  // #7503: a refusal brings the dialog back with the input (a 500 keeps the row with "Try again": p7503_reisen_sofort_ui)
   check(await until(() => !rowOf(/Lübeck/)), `${who}: the refusal takes the row away`);
-  check(await until(() => toastHas(/Refused for the test/)), `${who}: with the server's message`);
+  check(await until(() => dlg()?.querySelector('#lgb-dest')?.value === 'Lübeck' && /Refused for the test/.test(dlg().querySelector('.aerr')?.textContent || '')), `${who}: the dialog is back with the input and the server's message`);
+  for (const m of d.querySelectorAll('.modal.ofcdlg')) m.remove();
+  await until(() => !dlg());
   await add();
   check(await until(() => w.__held.length === 2), `${who}: the second New drive is held`);
   check(!dlg() && rowOf(/Lübeck/) && !toastHas(/Gap of/), `${who}: shown at once again, no warning before the answer`);
@@ -89,7 +91,9 @@ async function round(who, ck) {
   check(!dlg() && /Kiel Hafen/.test(rowOf(/Hamburg/)?.textContent || '') && !loading(), `${who}: the dialog closed, the row shows the new destination before the answer`);
   w.__held[0].fail('Refused for the test');
   check(await until(() => rowOf(/Hamburg/) && !/Kiel Hafen/.test(rowOf(/Hamburg/).textContent)), `${who}: the refusal puts the old destination back`);
-  check(await until(() => toastHas(/Refused for the test/)), `${who}: with the server's message`);
+  check(await until(() => dlg()?.querySelector('#lgb-dest')?.value === 'Kiel Hafen' && /Refused for the test/.test(dlg().querySelector('.aerr')?.textContent || '')), `${who}: #7503: the dialog is back with the input and the server's message`);
+  for (const m of d.querySelectorAll('.modal.ofcdlg')) m.remove();
+  await until(() => !dlg());
   await edit();
   check(await until(() => w.__held.length === 2), `${who}: the second Save is held`);
   w.__held[1].go();

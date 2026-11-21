@@ -102,6 +102,7 @@ function dtDocHtml(d) {
   if (draft) {
     const pv = DT.pv && DT.pv.id === d.id ? DT.pv : null;
     if (!pv) setTimeout(() => dtPreview(d.id), 0);
+    dt_keepRestore(d);  // #7504
     return head + `<div class="dtp-edit">
       <div class="dtp-form">${ofcRowF('dt-title', tr('Title'), ofcIn('dt-title', d.title, {max: 300}))}
         ${dtRefsHtml(d.client_id, d.list_id, d.doc_id)}
@@ -110,7 +111,7 @@ function dtDocHtml(d) {
         <label for="dt-body" class="dtp-lab">${tr('Text')}</label>${dtVarBar('dt-body')}<textarea id="dt-body" class="dtp-ta" rows="16" maxlength="60000" spellcheck="true">${esc(d.body || '')}</textarea>${dtHint()}
         <div class="aerr" role="alert" id="dt-err"></div>
         <div class="foot dtp-acts"><button class="btn danger ghost" data-dt="arch" data-id="${d.id}">${ic('archive', 's')}<span>${tr('Archive')}</span></button><span class="spacer"></span>
-          <button class="btn" data-dt="save" data-id="${d.id}">${tr('Save')}</button><button class="btn pri" data-dt="final" data-id="${d.id}">${ic('check', 's')}<span>${tr('Finish')}</span></button></div></div>
+          <span class="dt-st muted" id="dt-st" role="status" aria-live="polite">${/*html-ok*/ rwDocHtml(DT_WS.get(d.id)) /* the core's state of the editor, its texts escaped */}</span><button class="btn" data-dt="save" data-id="${d.id}">${tr('Save')}</button><button class="btn pri" data-dt="final" data-id="${d.id}">${ic('check', 's')}<span>${tr('Finish')}</span></button></div></div>
       <section class="dtp-pv" aria-label="${esc(tr('Preview'))}"><h4 class="muted">${tr('Preview')}</h4>${dtPvBtn(d.id)}${pv ? `${pv.missing.length ? `<p class="dtp-warn" role="status">${esc(tr('Missing details (left out in the PDF): {0}', (pv.missing_labels || pv.missing).join(', ')))}</p>` : ''}<div class="dtp-doc">${dtBlocksHtml(pv.blocks)}</div>` : `${/*html-ok*/ loadingHtml('row')}`}</section></div>`;
   }
   const sg = d.sign && d.status !== 'draft' ? dtSigHtml(d) : '';
@@ -124,24 +125,21 @@ function dtRefsHtml(cid, lid, did) {
     ${ofcRowF('dt-list', tr('Project'), ofcSel('dt-list', lid || '', (d.lists || []).map(l => [l.id, l.name]), tr('none')))}
     ${ofcRowF('dt-offer', tr('Quotation'), ofcSel('dt-offer', did || '', offers.map(o => [o.id, [o.number || tr('Draft'), o.project_title].filter(Boolean).join(' · ')]), tr('none')))}`;
 }
-async function dtPreview(id, bodyText) {
+// #7504: the preview of the saved draft (it follows each save, dtSave; no request with the whole text beside the save)
+async function dtPreview(id) {
   const seq = ++DT.pvSeq, d = dtDoc(id); if (!d) return;
-  const v = sel => $(sel)?.value;
   const b = {gen_doc_id: id};
-  if (bodyText != null) Object.assign(b, {body: bodyText, client_id: +v('#dt-client') || null, list_id: +v('#dt-list') || null, doc_id: +v('#dt-offer') || null});
   try {
     const j = await api('POST', '/api/office/gen-docs/preview', b);
     if (seq !== DT.pvSeq) return;
     DT.pv = {id, ...j};
   } catch (x) { if (seq === DT.pvSeq) DT.pv = {id, missing: [], blocks: [['p', ofcErrHere(x)]]}; }
   const box = $('.dtp-pv');
-  if (box && bodyText != null) {  // only the preview pane (the text field keeps focus and cursor)
+  if (box) {  // only the preview pane (the text field keeps focus and cursor)
     const pv = DT.pv;
     box.innerHTML = `<h4 class="muted">${tr('Preview')}</h4>${dtPvBtn(id)}${pv.missing.length ? `<p class="dtp-warn" role="status">${esc(tr('Missing details (left out in the PDF): {0}', (pv.missing_labels || pv.missing).join(', ')))}</p>` : ''}<div class="dtp-doc">${dtBlocksHtml(pv.blocks)}</div>`;
   } else ofcDraw();
 }
-let dtPvTimer = null;
-const dtPvSoon = id => { clearTimeout(dtPvTimer); dtPvTimer = setTimeout(() => dtPreview(id, $('#dt-body')?.value ?? ''), 500); };
 
 // 2.357.0 C (#3158): "With my signature": without a picture yet the setup opens first (office_letters.js ltProfileModal)
 async function dtSignImage(x) {
@@ -290,33 +288,88 @@ const dtDraftBody = () => ({title: $('#dt-title')?.value ?? '', body: $('#dt-bod
   doc_id: +$('#dt-offer')?.value || null, sign: $('#dt-sign')?.checked ? 1 : 0, ...($('#dt-sign_image') ? {sign_image: $('#dt-sign_image').checked ? 1 : 0} : {})});
 // a draft saves itself shortly after typing (quiet: the text field stays as it is; a redraw then shows the saved text);
 // "Save" saves at once with an undo step back to the state the document was opened with
-async function dtSave(d, quiet) {
-  if (!$('#dt-body')) return true;
-  const body = dtDraftBody(), old = DT.undo && DT.undo.id === d.id ? DT.undo.v : {title: d.title, body: d.body, client_id: d.client_id, list_id: d.list_id, doc_id: d.doc_id, sign: d.sign, sign_image: d.sign_mine ? 1 : 0};
-  if (body.sign_image === (d.sign_mine ? 1 : 0)) delete body.sign_image;  // 2.357.0 C (#3158): sent only when this person changed it
-  if (!('sign_image' in body)) delete old.sign_image;  // the undo only takes back this person's own change
-  const same = ['title', 'body', 'client_id', 'list_id', 'doc_id', 'sign'].every(k => (body[k] ?? null) === (d[k] ?? null)) && !('sign_image' in body);
-  try {
-    // 2.560.0 C (#4700): with the updated_at this tab has (the answer brings the new one, so the own next autosave passes);
-    // a second tab saved meanwhile -> 409 and the bar with "Reload" instead of overwriting each other
-    if (!same) {  // 2.576.0 (#4794): objsave.js - only the fields that differ from the saved document; a conflict -> the merge bar
-      await loadModule('objsave');
-      const j = await saveDialog(`/api/office/gen-docs/${d.id}`, d, body);
-      if (j.conflict) { dtConflict(d, j.conflict); return false; }
-      Object.assign(d, j);
-    }
-    if (!quiet) {
-      DT.undo = null;
-      const back = dtChangedKeys(old, d);  // the undo writes back only what this save changed, with the version check
-      if (Object.keys(back).length) toast(tr('Saved'), async () => { await undoWrite(`/api/office/gen-docs/${d.id}`, back, d.updated_at, {label: d.title}).catch(() => null); dtReload(); });  // 2.566.0 (#4704): core.js undoWrite
-      else toast(tr('Saved'));
-    } else if (!same && !(DT.undo && DT.undo.id === d.id)) DT.undo = {id: d.id, v: old};
-    const el = $('#dt-err'); if (el) el.textContent = '';
-    return true;
-  } catch (x) {
-    const el = $('#dt-err'); if (el && x.message !== 'auth') el.textContent = ofcErrHere(x);
-    return false;
+// #7504 (decision): like the letters, through the core's order of "write shows at once" (core.js rwRows, a text editor without
+// rows, one writer per document): one save at a time, the next one waits for its answer and carries its version; it sends the
+// newest input (DT.pend), kept in this browser until the server has it (core.js fdKeep, kind dtpend - like the letter); the
+// editor says "Saving…" / "Saved" / "Not saved - Try again" (#dt-st); the preview is drawn from the saved draft after the save
+// (no request of its own with the whole text beside it); the buttons that save first show that they wait (rwBusy)
+const DT_WS = new Map();
+function dt_W(d) {
+  let W = DT_WS.get(d.id);
+  if (!W) {
+    W = rwRows({name: 'dt' + d.id, send: () => dt_send(W), draw: () => dt_stDraw(d.id), fail: x => !!x?.rwShown,
+      again: x => x.retry ? x.retry().then(j => { dt_took(W, j); return j; }) : Promise.reject(x)});  // #7494: the same request (key, version)
+    DT_WS.set(d.id, W);
   }
+  W.doc = d; return W;
+}
+const dt_same = (b, d) => ['title', 'body', 'client_id', 'list_id', 'doc_id', 'sign'].every(k => (b[k] ?? null) === (d[k] ?? null)) && !('sign_image' in b);
+// the input of the open draft d as it is now; kept in this browser until the server has it
+function dtPend(d) {
+  if (!$('#dt-body') || S.route.id !== d.id || d.status !== 'draft') return;
+  const b = dtDraftBody();
+  if (b.sign_image === (d.sign_mine ? 1 : 0)) delete b.sign_image;  // (#3158): sent only when this person changed it
+  DT.pend = {id: d.id, b};
+  fdKeep('dtpend', d.id, b, d.updated_at || '');
+}
+async function dt_send(W) {
+  const d = W.doc;
+  dtPend(d);
+  const p = DT.pend?.id === d.id ? DT.pend : null;
+  if (!p) return null;
+  DT.pend = null;
+  if (dt_same(p.b, d)) { fdDrop('dtpend', d.id); return null; }
+  // (#4700): with the updated_at of the last answer; a second tab saved meanwhile -> 409 and the merge bar
+  await loadModule('objsave');  // (#4794): objsave.js - only the fields that differ from the saved document
+  let j;
+  try { j = await saveDialog(`/api/office/gen-docs/${d.id}`, d, p.b); }
+  catch (x) {
+    if (!DT.pend) DT.pend = p;  // the input waits (and stays in this browser) for the next try
+    const el = $('#dt-err'); if (el && S.route.id === d.id && x.message !== 'auth' && !(x instanceof NoAnswer)) el.textContent = ofcErrHere(x);
+    throw x;
+  }
+  if (j.conflict) { dtConflict(d, j.conflict); throw Object.assign(new Error(''), {rwShown: true}); }
+  dt_took(W, j);
+  return j;
+}
+function dt_took(W, j) {
+  const d = W.doc; if (!j || j.id !== d.id) return;
+  Object.assign(d, j);  // its version: the next save carries it
+  if (DT.pend?.id !== d.id) fdDrop('dtpend', d.id);
+  const el = $('#dt-err'); if (el && S.route.id === d.id) el.textContent = '';
+}
+function dt_stDraw(id) { const el = $('#dt-st'); if (el && S.route.id === id) el.innerHTML = rwDocHtml(DT_WS.get(id)); }
+// a draft opened again: input kept from before (a closed tab, the sign-in page) comes back into the form and is saved (saved
+// elsewhere since: fdTake drops it with the hint "Changed in the meantime")
+function dt_keepRestore(d) {
+  if (DT.kr === d.id) return;
+  DT.kr = d.id;
+  const b = fdTake('dtpend', d.id, d, d.updated_at || ''); if (!b) return;
+  setTimeout(() => {
+    if (S.route.id !== d.id || !$('#dt-body')) return;
+    for (const [k, id] of [['title', 'dt-title'], ['body', 'dt-body'], ['client_id', 'dt-client'], ['list_id', 'dt-list'], ['doc_id', 'dt-offer']]) { const el = $('#' + id); if (el && k in b) el.value = b[k] ?? ''; }
+    for (const [k, id] of [['sign', 'dt-sign'], ['sign_image', 'dt-sign_image']]) { const el = $('#' + id); if (el && k in b) el.checked = !!b[k]; }
+    dtSave(d, true).then(ok => { if (ok) toast(tr('Saved')); });
+  }, 0);
+}
+async function dtSave(d, quiet) {
+  if (d.status !== 'draft') return true;
+  clearTimeout(dtSaveTimer);
+  dtPend(d);
+  const p = DT.pend?.id === d.id ? DT.pend : null;
+  if (!p && !$('#dt-body') && !dt_W(d).pend) return true;
+  const old = DT.undo && DT.undo.id === d.id ? DT.undo.v : {title: d.title, body: d.body, client_id: d.client_id, list_id: d.list_id, doc_id: d.doc_id, sign: d.sign, sign_image: d.sign_mine ? 1 : 0};
+  if (!p || !('sign_image' in p.b)) delete old.sign_image;  // the undo only takes back this person's own change
+  const ch = !!p && !dt_same(p.b, d), W = dt_W(d), pr = W.save(); dt_stDraw(d.id);
+  try { await pr; } catch { return false; } finally { dt_stDraw(d.id); }  // the state once the save is through (the writer's own draw comes while it still counts)
+  if (ch && S.route.id === d.id) dtPreview(d.id);  // the preview of the saved draft, after its save
+  if (!quiet) {
+    DT.undo = null;
+    const back = dtChangedKeys(old, d);  // the undo writes back only what this save changed, with the version check
+    if (Object.keys(back).length) toast(tr('Saved'), async () => { await undoWrite(`/api/office/gen-docs/${d.id}`, back, d.updated_at, {label: d.title}).catch(() => null); dtReload(); });  // (#4704): core.js undoWrite
+    else toast(tr('Saved'));
+  } else if (ch && !(DT.undo && DT.undo.id === d.id)) DT.undo = {id: d.id, v: old};
+  return true;
 }
 // 2.560.0 C (#4700): the keys of an undo state that differ from the saved document now (sign_image: the own signature, as sent)
 const dtChangedKeys = (old, d) => Object.fromEntries(Object.entries(old).filter(([k, v]) => k === 'sign_image' ? v !== (d.sign_mine ? 1 : 0) : (v ?? null) !== (d[k] ?? null)));
@@ -340,16 +393,16 @@ document.addEventListener('click', async e => {
   e.preventDefault();
   if (a === 'view') { DT.view = b.dataset.v; if (S.route.id) go('office/gendocs'); else ofcDraw(); }
   else if (a === 'new') dtNewModal();
-  else if (a === 'open') { DT.pv = null; DT.sg = null; DT.undo = null; go(`office/gendocs/${b.dataset.id}`); }
-  else if (a === 'back') { if (d && d.status === 'draft') { clearTimeout(dtSaveTimer); await dtSave(d, true); } navUp('office/gendocs'); }  // 2.743.0 (#5235)
+  else if (a === 'open') { DT.pv = null; DT.sg = null; DT.undo = null; DT.kr = null; go(`office/gendocs/${b.dataset.id}`); }
+  else if (a === 'back') { if (d && d.status === 'draft') { clearTimeout(dtSaveTimer); await rwBusy(b, dtSave(d, true)); } DT.kr = null; navUp('office/gendocs'); }  // (#5235); #7504: waits visibly
   else if (a === 'tnew') dtTplModal(null);
   else if (a === 'topen') { const t = dtTpl(+b.dataset.id); if (t) dtTplModal(t); }
   else if (a === 'starters') dtStartersModal();
   else if (a === 'var') dtInsertVar(b);
-  else if (a === 'pvpdf' && d) dtPdfPreview(d);
-  else if (a === 'save' && d) dtSave(d);
+  else if (a === 'pvpdf' && d) rwBusy(b, dtPdfPreview(d));  // #7504: the buttons that save first wait visibly
+  else if (a === 'save' && d) rwBusy(b, dtSave(d));
   else if (a === 'final' && d) {
-    if (!await dtSave(d, true)) return;
+    if (!await rwBusy(b, dtSave(d, true))) return;
     // 2.114.4 C (#2281): empty variables are named before the text is frozen (the server preview of the saved draft)
     let miss = [];  // 2.296.0 C (#3165): by name ("Quotation date")
     try { const pv = await api('POST', '/api/office/gen-docs/preview', {gen_doc_id: d.id}); miss = pv.missing_labels || pv.missing || []; } catch {}
@@ -389,14 +442,13 @@ document.addEventListener('change', e => {
   else if (id === 'dt-fs') { DT.fStatus = x.value; ofcDraw(); }
   else if (S.route.mod === 'office' && S.route.tab === 'gendocs' && S.route.id && ['dt-client', 'dt-list', 'dt-offer'].includes(id) && !x.closest('.modal')) {
     if (id === 'dt-client') { const box = $('#dt-offer'); const offers = (DT.data?.offers || []).filter(o => o.client_id === +x.value); if (box) box.innerHTML = `<option value="">${esc(tr('none'))}</option>` + offers.map(o => `<option value="${o.id}">${esc([o.number || tr('Draft'), o.project_title].filter(Boolean).join(' · '))}</option>`).join(''); }
-    dtPvSoon(S.route.id); dtSaveSoon(S.route.id);
+    dtSaveSoon(S.route.id);  // #7504: the preview follows the save
   } else if (S.route.mod === 'office' && S.route.tab === 'gendocs' && S.route.id && id === 'dt-sign') dtSaveSoon(S.route.id);
   else if (S.route.mod === 'office' && S.route.tab === 'gendocs' && S.route.id && id === 'dt-sign_image') dtSignImage(x);
 });
 document.addEventListener('input', e => {
   if (!['dt-body', 'dt-title'].includes(e.target.id) || S.route.mod !== 'office' || S.route.tab !== 'gendocs' || !S.route.id || e.target.closest('.modal')) return;
-  if (e.target.id === 'dt-body') dtPvSoon(S.route.id);
-  dtSaveSoon(S.route.id);
+  dtSaveSoon(S.route.id);  // #7504: the preview follows the save
 });
 
 // ---- 2.154.0 C (#2192): data protection sheets of a client (office/privacy.py): the dialog of the client card's button

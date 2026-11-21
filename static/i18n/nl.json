@@ -19706,5 +19706,22 @@
   "documents from templates": "documenten uit sjablonen",
   "invoice series": "factuurreeksen",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "De klant van dit document staat niet meer in dit kantoor (naar een andere werkruimte verplaatst). Kies eerst een andere klant.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "De klant van de sjabloonfactuur staat niet meer in dit kantoor (naar een andere werkruimte verplaatst). Kies een andere sjabloonfactuur en zet de reeks weer aan."
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "De klant van de sjabloonfactuur staat niet meer in dit kantoor (naar een andere werkruimte verplaatst). Kies een andere sjabloonfactuur en zet de reeks weer aan.",
+  "Data of your account goes out to a new address: please confirm it is you.": "Gegevens van je account gaan naar een nieuw adres: bevestig dat jij het bent.",
+  "switched off by the new password: switch it on again if it is yours": "uitgeschakeld door het nieuwe wachtwoord: zet het weer aan als het van jou is",
+  "Your own webhooks and forwardings (Slack, Matrix, Telegram, Signal) are switched off; switch on again under Connections and Notifications the ones that are yours.": "Je eigen webhooks en kanalen (Slack, Matrix, Telegram, Signal) worden uitgeschakeld; zet onder Verbindingen en Meldingen weer aan wat van jou is.",
+  "These stay too: your push topic (ntfy), the secret e-mail addresses for tasks and documents, the inbound webhooks and Git connections of your projects and your mailbox. Check what you do not know.": "Ook blijven: je push-onderwerp (ntfy), de geheime e-mailadressen voor taken en documenten, de inkomende webhooks en Git-koppelingen van je projecten en je mailbox. Controleer wat je niet kent.",
+  "Connections…": "Verbindingen…",
+  "Switching it on signs you out everywhere else, ends your API tokens, app passwords and calendar feed links and switches your own webhooks and forwardings off.": "Inschakelen meldt je overal elders af, beëindigt je API-tokens, app-wachtwoorden en agendafeedlinks en schakelt je eigen webhooks en kanalen uit.",
+  "A new forwarding to the outside": "Een nieuwe doorsturing naar buiten",
+  "Settings: Account": "Instellingen: Account",
+  "Settings: Organisation": "Instellingen: Organisatie",
+  "Settings: Company & office": "Instellingen: Bedrijf & kantoor",
+  "Settings: Help": "Instellingen: Help",
+  "So is the webhook of your document flows; switch it on again in the list of flows.": "Net als de webhook van je documentstromen; zet die weer aan in de lijst met stromen.",
+  "Your account {0} sends data to “{1}” ({2}) from now on.": "Je account {0} stuurt vanaf nu gegevens naar “{1}” ({2}).",
+  "A new password switches your own webhooks and forwardings off.": "Een nieuw wachtwoord schakelt je eigen webhooks en kanalen uit.",
+  "This stays after a new password too: check it under {0}.": "Dit blijft ook na een nieuw wachtwoord: controleer het onder {0}.",
+  "Settings > Agents": "Instellingen > Agents",
+  "E-mail filing > Mailbox": "E-mailarchief > Mailbox"
 }

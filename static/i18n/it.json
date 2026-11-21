@@ -19707,5 +19707,22 @@
   "documents from templates": "documenti da modelli",
   "invoice series": "serie di fatture",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "Il cliente di questo documento non è più in questo ufficio (spostato in un altro spazio di lavoro). Scegli prima un altro cliente.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Il cliente della fattura modello non è più in questo ufficio (spostato in un altro spazio di lavoro). Scegli un'altra fattura modello e riattiva la serie."
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Il cliente della fattura modello non è più in questo ufficio (spostato in un altro spazio di lavoro). Scegli un'altra fattura modello e riattiva la serie.",
+  "Data of your account goes out to a new address: please confirm it is you.": "I dati del tuo account vanno a un nuovo indirizzo: conferma che sei tu.",
+  "switched off by the new password: switch it on again if it is yours": "disattivato dalla nuova password: riattivalo se è tuo",
+  "Your own webhooks and forwardings (Slack, Matrix, Telegram, Signal) are switched off; switch on again under Connections and Notifications the ones that are yours.": "I tuoi webhook e canali (Slack, Matrix, Telegram, Signal) vengono disattivati; riattiva in Connessioni e Notifiche quelli che sono tuoi.",
+  "These stay too: your push topic (ntfy), the secret e-mail addresses for tasks and documents, the inbound webhooks and Git connections of your projects and your mailbox. Check what you do not know.": "Restano anche: il tuo argomento push (ntfy), gli indirizzi e-mail segreti per attività e documenti, i webhook in entrata e le connessioni Git dei tuoi progetti e la tua casella di posta. Controlla ciò che non riconosci.",
+  "Connections…": "Connessioni…",
+  "Switching it on signs you out everywhere else, ends your API tokens, app passwords and calendar feed links and switches your own webhooks and forwardings off.": "Attivandolo esci ovunque altrove, terminano i tuoi token API, le password per app e i link dei feed del calendario e i tuoi webhook e canali vengono disattivati.",
+  "A new forwarding to the outside": "Un nuovo inoltro verso l’esterno",
+  "Settings: Account": "Impostazioni: Account",
+  "Settings: Organisation": "Impostazioni: Organizzazione",
+  "Settings: Company & office": "Impostazioni: Azienda e ufficio",
+  "Settings: Help": "Impostazioni: Aiuto",
+  "So is the webhook of your document flows; switch it on again in the list of flows.": "Lo stesso vale per il webhook dei tuoi flussi di documenti; riattivalo nell'elenco dei flussi.",
+  "Your account {0} sends data to “{1}” ({2}) from now on.": "Il tuo account {0} invia dati a “{1}” ({2}) da ora in poi.",
+  "A new password switches your own webhooks and forwardings off.": "Una nuova password disattiva i tuoi webhook e canali.",
+  "This stays after a new password too: check it under {0}.": "Resta attivo anche dopo una nuova password: controllalo in {0}.",
+  "Settings > Agents": "Impostazioni > Agenti",
+  "E-mail filing > Mailbox": "Archiviazione e-mail > Casella di posta"
 }

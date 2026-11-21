@@ -231,7 +231,7 @@ heeft bovendien een eigen chat.
 Wat er dan gebeurt: vastgezette berichten blijven in de balk boven de berichten (hoogstens vijf per gesprek); een thread
 toont de antwoorden op dat ene bericht en de betrokkenen krijgen een melding.
 
-<!-- help: team#how-to-invite-someone-without-an-account-by-a-link src=0b47d08909 -->
+<!-- help: team#how-to-invite-someone-without-an-account-by-a-link src=45b346e536 -->
 ## Iemand zonder account uitnodigen via een link
 
 1. Kies onder Instellingen > Account **Persoon zoeken …**.
@@ -240,8 +240,10 @@ toont de antwoorden op dat ene bericht en de betrokkenen krijgen een melding.
 
 Wat er dan gebeurt: wie de link opent, maakt een account aan met naam en e-mailadres en is meteen met je verbonden; je krijgt
 een melding. De link werkt één keer en 14 dagen lang en wordt alleen direct na het aanmaken getoond; **Intrekken** beëindigt
-een openstaande link meteen. Wie al een account heeft, opent hem ingelogd en bevestigt de verbinding. Een beheerder van de
-server kan deze links uitschakelen (Instellingen > Server > Inloggen).
+een openstaande link meteen. Wie al een account heeft, opent hem ingelogd en bevestigt de verbinding.
+
+<!-- self-hosted -->
+Een beheerder van de server kan deze links uitschakelen (Instellingen > Server > Inloggen).
 
 <!-- help: budget#how-to-start-a-household-budget src=1116c1b0a8 -->
 ## Een huishoudbudget starten
@@ -332,3 +334,108 @@ geen verhuizing nodig - wijzig de naam. Twee bedrijven kun je niet zonder verlie
 Zonder organisatie, alleen met je eigen kantoor: open Instellingen > Bedrijf & kantoor > Gegevens, kies
 **Kantoor verhuizen** en **Verhuizing starten**; daarna **Kantoor exporteren** en **Alles exporteren**, en importeer
 beide op de nieuwe server. Je privégebied buiten het kantoor blijft bewerkbaar.
+
+<!-- help: office#how-to-set-up-your-office src=fb04d9cb9f -->
+## Je kantoor inrichten
+
+1. Open Instellingen > Bedrijf & kantoor. Vul onder Bedrijf de naam, het adres en het logo van je bedrijf in.
+2. Vul onder Bank & belastingen je bankrekening en je fiscale nummer in en hoe je de btw betaalt.
+3. Vink onder Documenten **Kleineondernemer** aan als je geen btw rekent (artikel 19 UStG), en leg vast hoe je offerte- en
+   factuurnummers eruitzien.
+4. Schrijf onder Teksten en sjablonen de teksten boven en onder je documenten; zet onder Pakketten aan wat je vak nodig
+   heeft.
+5. Eerst uitproberen? Zet onder Documenten de **Testmodus** aan: documenten krijgen een TEST-nummer en het watermerk
+   MUSTER. Zet hem uit voor je eerste echte factuur.
+
+Wat er dan gebeurt: elke nieuwe offerte en factuur gebruikt deze gegevens. Het kantoor laat zien wat er voor een factuur
+nog ontbreekt, tot alles er is. Wie in je bedrijf wat mag zien en wijzigen, leg je vast onder „Bepalen wie wat in het
+kantoor ziet”.
+
+<!-- help: office#how-to-decide-who-sees-what-in-the-office src=cd8aa74ee0 -->
+## Bepalen wie wat in het kantoor ziet
+
+1. Open Instellingen > Bedrijf & kantoor en kies **Rechten in het kantoor**.
+2. Geef onder Personen elke persoon een groep: een sjabloon (bijvoorbeeld alleen de eigen bonnen, reiskosten en tijden)
+   of een eigen groep: kopieer onder Groepen een sjabloon en stel voor elk deel van het kantoor in wat de groep mag.
+
+Wat er dan gebeurt: de persoon ziet vanaf nu alleen die delen van het kantoor. Beheerders van de organisatie zien altijd
+alles; wie geen groep heeft, houdt de toegang van zijn rol in de organisatie. Elke wijziging komt in het logboek, en
+iedereen ziet de eigen rechten onder **Mijn rechten**.
+
+<!-- help: office#how-to-come-from-another-program src=df1c3a51e1 -->
+## Van een ander programma komen
+
+1. Nummer verder: vul onder Instellingen > Bedrijf & kantoor > Documenten bij elke nummerreeks het volgende nummer in (het
+   nummer dat je oude programma als volgende had gegeven).
+2. Neem je klanten, diensten en apparatuur mee: kies onder Instellingen > Bedrijf & kantoor > Gegevens
+   **Oude gegevens importeren**, kies je spreadsheet (.xlsx) en controleer het voorbeeld voordat je bevestigt. Oude
+   facturen en offertes (pdf) worden ongewijzigd gearchiveerd.
+
+Wat er dan gebeurt: je volgende factuur nummert zonder gat verder. Een import kun je ongedaan maken zolang er niets op
+voortbouwt. Kom je van een andere Kalmido-server? Zie „Met het bedrijf naar een andere server verhuizen”.
+
+<!-- help: office#how-to-send-e-invoices src=56ef8356c7 -->
+## E-facturen versturen
+
+1. Voor de meeste klanten hoef je niets te doen: elke factuur is een ZUGFeRD-factuur, een gewone pdf met de
+   factuurgegevens erin.
+2. Een overheid geeft je een routerings-ID (Leitweg-ID): open de klant en vul het in onder
+   **Kopersreferentie (bijv. routerings-ID)**. Voor zo'n klant wordt XRechnung (puur XML) voorgesteld.
+3. Een ander formaat voor iedereen kies je onder Instellingen > Bedrijf & kantoor > Documenten, **E-factuurformaat**.
+
+Wat er dan gebeurt: het routerings-ID staat op de factuur en gaat mee in de e-factuur. Je boekhouder en de ontvanger lezen
+de factuurgegevens zonder ze over te typen.
+
+<!-- help: team#how-to-create-your-company src=ca851ef163 -->
+## Je bedrijf aanmaken
+
+1. Open Instellingen > Account en kies **Organisatie toevoegen**.
+2. Vul de naam van je bedrijf in en kies **Aanmaken**.
+
+Wat er dan gebeurt: je bent beheerder van de organisatie van je bedrijf. Haar projecten, bestanden en kantoor blijven
+gescheiden van je privézaken; de zijbalk toont er steeds één van. Nodig daarna je collega's uit (zie „Personen uitnodigen
+en ze een rol geven”). Werk je alleen, dan heb je geen organisatie nodig: je eigen kantoor werkt in je privégedeelte net
+zo.
+
+<!-- help: team#how-to-invite-people-and-give-them-a-role src=1c51bbc4ab -->
+## Personen uitnodigen en ze een rol geven
+
+1. Open Instellingen > Organisatie > Personen en kies **Personen uitnodigen**.
+2. Vul het e-mailadres in en kies de **Rol**: een lid ziet en wijzigt wat de organisatie deelt, een beheerder beheert
+   daarnaast personen, rollen en instellingen, alleen-lezen leest alleen, boekhouding leest en exporteert het kantoor, een
+   gast ziet alleen wat persoonlijk met hem gedeeld is.
+3. Kies **Uitnodigen**.
+
+Wat er dan gebeurt: de persoon krijgt een e-mail en komt erbij met een eigen account; wie er geen heeft, kiest eerst een
+wachtwoord. De rol wijzig je later in dezelfde lijst. Wat iemand in het kantoor mag, leg je apart vast (zie „Bepalen wie
+wat in het kantoor ziet”).
+
+<!-- help: team#how-to-create-an-account-or-get-a-new-password src=9e70b000b7 -->
+## Een account aanmaken of een nieuw wachtwoord krijgen
+
+1. Voor een nieuw account kies je op de inlogpagina **Account aanmaken**, vul je naam, e-mailadres en een wachtwoord in en
+   open je de link in de e-mail die je krijgt.
+2. Wachtwoord vergeten? Kies op de inlogpagina **Wachtwoord vergeten?**, vul je e-mailadres in en kies **Link sturen**.
+   Open de link in de e-mail en kies een nieuw wachtwoord.
+
+Wat er dan gebeurt: je bent ingelogd. Een nieuw wachtwoord meldt je op je andere apparaten af en beëindigt
+app-wachtwoorden en API-tokens; je eigen webhooks en kanalen staan uit tot je ze weer aanzet. Na een paar minuten geen
+e-mail? Kijk in de spammap.
+
+<!-- self-hosted -->
+**Account aanmaken** ontbreekt als op de server alleen de beheerders personen toevoegen: vraag hun om een account.
+
+<!-- help: team#how-to-get-help-from-a-person src=00bf17443f -->
+## Hulp van een mens krijgen
+
+<!-- hosted -->
+1. Open Instellingen > Help en kies **Support schrijven** (onder **Hulp van een mens**). Een mens antwoordt per e-mail.
+2. Moeten ze in je account kijken, open het dan voor een beperkte tijd met **Toegang voor support toestaan**.
+
+<!-- self-hosted -->
+1. Je server wordt beheerd door je bedrijf of door jezelf: de beheerder helpt je.
+2. Een fout in Kalmido zelf? Meld hem met **Een probleem melden** onder Instellingen > Help.
+
+<!-- hosted -->
+Wat er dan gebeurt: niemand van de support kan in je account kijken voordat jij het toestaat, en alleen tot de tijd die je
+koos. Eerder beëindig je het onder Instellingen > Account > Toegang voor support.

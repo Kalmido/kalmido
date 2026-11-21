@@ -111,7 +111,7 @@ async function hmb_dialog(ws) {
     const d = hmb_body(md, ws, false); errEl.textContent = '';
     if (typeof d === 'string') { errEl.textContent = d; return; }
     let r;
-    try { r = await rawFetch('PUT', '/api/hubmail/mailbox', d); }
+    try { r = await hmb_put(d); }
     catch (x) { errEl.textContent = tr('Not saved yet: {0}', x.message || tr('Error')); return; }
     took(r); toast(tr('Saved'));
   });
@@ -134,12 +134,15 @@ async function hmb_dialog(ws) {
     if (typeof d === 'string') { errEl.textContent = d; return; }
     b.disabled = true; b.classList.add('busy');
     let r;
-    try { r = await rawFetch('PUT', '/api/hubmail/mailbox', d); }
+    try { r = await hmb_put(d); }
     catch (x) { errEl.textContent = x.message || tr('Error'); return; }
     finally { b.disabled = false; b.classList.remove('busy'); }
     took(r);
   });
 }
+// #7633: saving the mailbox; a new server for sending of the private mailbox is a way out: the server asks the password once
+// more (account.js reauthReq), an organisation's mailbox answers at once
+const hmb_put = d => reauthReq('PUT', '/api/hubmail/mailbox', d, tr('Data of your account goes out to a new address: please confirm it is you.'));
 // 2.1312.0 (#6540): with a server for sending its user name and password are required (the server refuses it otherwise)
 function hmb_req(md) {
   const on = !!hmb_v(md, 'hmb-sh');

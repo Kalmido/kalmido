@@ -354,6 +354,7 @@ ORDER = (
     "integrations.exporters",  # 2.142.0 C (#2148)
     "integrations.mailproof",  # 2.1033.0 (#5790): a person proves the own e-mail address (a mailed one-time link)
     "accounts.invite",
+    "accounts.accessways",  # #7633: the one list of every way into and out of an account (pure data, sessions.py reads it)
     "accounts.sessions",  # 2.115.0 B (#2062): active sessions
     "accounts.supportgrant",  # 2.485.0 (#3939): support access the client grants (hosted)
     "accounts.orginvite",  # 2.115.0 B (#2062): organisation admins invite accounts by e-mail

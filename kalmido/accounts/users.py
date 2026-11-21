@@ -455,7 +455,7 @@ def user_update(uid):
             return err(tr("Password: at least {0} characters", MIN_PASSWORD))
         c.execute("UPDATE users SET password_hash=? WHERE id=?", (generate_password_hash(pw) if pw else None, uid))
         ses_end(c, uid)  # 2.190.0 A (#1991)
-        from .sessions import ses_access_end  # (#6354): app passwords, own API tokens, feed links, upload token
+        from .sessions import ses_access_end  # (#6354, #7633): every way of accounts/accessways.py
         ses_access_end(c, uid)
     if "ntfy_topic" in b:
         topic = str(b["ntfy_topic"] or "").strip()
@@ -818,7 +818,8 @@ def me_update():
         tok = request.cookies.get(COOKIE)  # other sessions end, this one stays
         ses_end(c, u["id"], keep=_token_hash(tok) if tok else None)  # 2.190.0 A (#1991): with their push subscriptions
         # (#4375): the dialog's tick "end all app passwords and API tokens" (set by default); without the field
-        # (API) they end too - the safe default. (#6354): the tick ends the feed links and the upload token too
+        # (API) they end too - the safe default. (#6354): the tick ends the feed links and the upload token too; (#7633) and
+        # switches the own webhooks and forwardings off (accounts/accessways.py)
         from .sessions import ses_access_end
         ses_access_end(c, u["id"], tokens=b.get("revoke_tokens", True) is not False)
     bump(c)

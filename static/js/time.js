@@ -45,11 +45,53 @@ function timeLocal(e) {  // applyLocal part of the outbox (start / stop / entrie
   }
   return {ok: true, queued: true};
 }
-async function timeChanged(j) {
-  if (!j || !j.queued) await load().catch(() => {});
+// #7501: only the project's bulk delete / restore of all its times (projtime.js) loads the whole state again (the totals of many
+// tasks at once); an entry and the timer go through TE_W below and never load the state
+async function timeReloadAll() {
+  await load().catch(() => {});
   render();
   if (S.sel) { renderDetail(); loadTaskTime(S.sel); }
 }
+// #7501 (decision): time entries and the timer write through the core's "write shows at once" (core.js rwRows, docs/dev/kern.md):
+// an entry added, changed or removed and the timer started / stopped stand at once, the dialog closes at once; each new or
+// changed entry says "Saving…" / "Not saved - Try again", the sums "Calculating…". The answer brings only this entry and the
+// totals of its task (no load of the whole state); the report reads its sums again (the server is the only one that computes).
+// One writer for the person's time (core.js rwOps: one request per entry, in order; a second start waits for the first); its
+// changes on their way are put over the lists the server sent (TE_W.show). A refusal brings the dialog back with the input (or
+// the entry / timer as it was).
+const TE_W = rwOps({name: 'time', draw: () => te_draw(), took: (j, c) => teAnswer(j, c)});
+let TE_N = 0;
+function teAnswer(j, c) {
+  if (!j) return;
+  for (const [id, v] of Object.entries(j.totals || {})) { if (v?.[0] || v?.[1]) (S.timeTotals ||= {})[id] = v; else if (S.timeTotals) delete S.timeTotals[id]; }
+  const e = j.queued ? null : j.entry !== undefined ? j.entry : j.id ? j : null, gone = c?.gone || (j.ok && j.entry?.id);
+  if (S.te.items) {
+    if (gone) S.te.items = S.te.items.filter(x => x.id !== gone);
+    if (e?.id) {
+      const i = S.te.items.findIndex(x => x.id === e.id), mine = e.task_id === S.te.tid;
+      if (c?.isNew) rwIds([c.e], [e]);  // the core's one place of the id swap; the list takes the server's entry (its key: its id)
+      if (i >= 0) { if (mine) S.te.items[i] = e; else S.te.items.splice(i, 1); }
+      else if (mine && !gone) { S.te.items.unshift(e); S.te.items.sort((a, b) => a.start < b.start ? 1 : a.start > b.start ? -1 : 0); }
+    }
+  }
+  if ('timer' in j && !j.queued && TE_W.last() && ![...TE_W.ops.values()].some(x => x.tm && !x.done)) S.timer = j.timer;
+  te_after();
+}
+// after an answer, once nothing else waits: the report (its sums) and a task's budget are read again - one narrow read each
+function te_after() {
+  if (!TE_W.last()) return;
+  if (S.route.mod === 'time') { S.tv.recalc = true; S.tv.key = ''; if (S.tv.loading) S.tv.again = true; else loadTime(); }
+  if (S.te.tid && S.te.budget?.h > 0 && S.sel === S.te.tid) loadTaskTime(S.te.tid);
+}
+// the light draw of the writer: the open task's time section, the time page, the top bar - never a load
+function te_draw() {
+  drawTaskTime();
+  if (S.route.mod === 'time') renderView();
+  renderTop();
+}
+const te_calc = () => TE_W.calc || !!S.tv.recalc;
+// a list read anew: a new entry the outbox has sent meanwhile is in it now
+const te_dropQueued = () => TE_W.dropQueued(c => OUT.q.some(x => x.body?.client_id === c.b?.client_id));
 // 2.538.0 (#4372): a time entry's note is never encrypted: none in a project with the lock (the server refuses it, 409)
 function te_locked(target) {
   const lid = target?.task_id ? taskById(target.task_id)?.list_id : target?.list_id;
@@ -57,20 +99,32 @@ function te_locked(target) {
 }
 async function timerStart(target, note = '') {
   if (te_locked(target)) note = '';  // 2.538.0 (#4372)
-  let j;
-  try { j = await api('POST', '/api/time/start', {...target, note, at: new Date().toISOString(), client_id: newCid()}); } catch { return; }
-  if (j.timer !== undefined) S.timer = j.timer;
-  if (j.stopped) toast(tr('Previous timer stopped ({0})', tv_durText(j.stopped.seconds)));
-  else if (j.queued) toast(tr('Timer started (offline, will be sent later)'));
-  await timeChanged(j);
+  // #7501: a second start of the same timer while the first is on its way does nothing (one timer, not two)
+  const run = S.timer, cur = run && [...TE_W.ops.values()].find(x => x.tm === 'start' && !x.done && x.b.client_id === run.client_id);
+  if (cur && (target.task_id ? run.task_id === target.task_id : !run.task_id && run.list_id === target.list_id)) return;
+  const at = new Date().toISOString(), b = {...target, note, at, client_id: newCid()}, t = target.task_id ? S.tasks.get(target.task_id) : null;
+  const c = {tm: 'start', m: 'POST', url: '/api/time/start', b, took: j => {
+    if (j.stopped) toast(tr('Previous timer stopped ({0})', tv_durText(j.stopped.seconds)));
+    else if (j.queued) toast(tr('Timer started (offline, will be sent later)'));
+  }};
+  const p = TE_W.op('tm' + (++TE_N), c, () => {
+    const prev = S.timer;
+    S.timer = {id: null, client_id: b.client_id, task_id: b.task_id || null, list_id: t ? t.list_id : b.list_id || null, title: t ? t.title : '', start: at, end: null, note,
+      running: true, mine: true, source: 'timer', seconds: 0};
+    return () => { S.timer = prev; };
+  });
+  render();
+  return p;
 }
 async function timerStop() {
   const r = S.timer; if (!r) return;
-  let j;
-  try { j = await api('POST', '/api/time/stop', {...(r.id ? {id: r.id} : {}), ...(r.client_id ? {client_id: r.client_id} : {}), at: new Date().toISOString()}); } catch { return; }
-  S.timer = j.timer ?? null;
-  toast(j.discarded ? tr('Timer discarded (shorter than a second)') : tr('Timer stopped: {0}', tv_durText(j.entry ? j.entry.seconds : timerElapsed())));
-  await timeChanged(j);
+  const at = new Date().toISOString(), sec = timerElapsed();
+  const c = {tm: 'stop', m: 'POST', url: '/api/time/stop', b: {...(r.id ? {id: r.id} : {}), ...(r.client_id ? {client_id: r.client_id} : {}), at}, took: j => {
+    toast(j.discarded ? tr('Timer discarded (shorter than a second)') : tr('Timer stopped: {0}', tv_durText(j.entry ? j.entry.seconds : sec)));
+  }};
+  const p = TE_W.op('tm' + (++TE_N), c, () => { S.timer = null; return () => { S.timer = r; }; });
+  render();
+  return p;
 }
 // 2.489.0 (#2798): a stopped timer under a minute said "0:00"; now "under 1 minute"
 const tv_durText = sec => sec < 60 ? tr('under 1 minute') : hmm(sec);
@@ -119,7 +173,8 @@ function tv_exportMenu(a) {
     {label: tr('Excel (XLSX)'), icon: 'download', act: 'tvx-xlsx', fn: () => dl(`/api/time/export.xlsx?${q}`, '')},
     {label: tr('Timesheet'), icon: 'file', act: 'tvx-sheet', dis: !j, fn: () => timesheet()}], null, null, tr('Export'));
 }
-const timerToggle = tid => S.timer && S.timer.task_id === tid ? timerStop() : timerStart({task_id: tid});
+// #7501: the second click of a double click (detail 2) does nothing: the first one started (or stopped) the timer already
+const timerToggle = (tid, n) => n > 1 ? null : S.timer && S.timer.task_id === tid ? timerStop() : timerStart({task_id: tid});
 // 1.2: one running indicator for everything that runs: the time-tracking timer, a focus session / break, the
 // stopwatch. Its own icon per kind, the time, the task; a click opens a popover with the task and Pause / Stop.
 // Top bar on every view (also on the phone), and in the Settings header.
@@ -185,16 +240,16 @@ async function loadTaskTime(id) {
   if (!tFor(taskById(id)) || !(id > 0) || taskById(id)?.context) return;
   const v = S.v;
   if (S.te.tid !== id) S.te = {tid: id, items: null, budget: null, v: -1, all: false, err: null};
-  try { const j = await rawFetch('GET', `/api/time/entries?task_id=${id}`); if (S.te.tid === id) Object.assign(S.te, {items: j.entries, budget: j.budget || null, v, err: null}); }
+  try { const j = await rawFetch('GET', `/api/time/entries?task_id=${id}`); if (S.te.tid === id) { Object.assign(S.te, {items: j.entries, budget: j.budget || null, v, err: null}); te_dropQueued(); } }
   catch (e) { if (S.te.tid === id) Object.assign(S.te, {v, err: e instanceof Offline ? 'offline' : e.message}); }
   drawTaskTime();
 }
 function drawTaskTime() { const el = $('#d-time'), t = taskById(S.sel); if (el && t && S.te.tid === t.id) el.innerHTML = taskTimeHtml(t); }
 function taskTimeHtml(t) {
   const [all, mine] = taskTime(t.id), run = S.timer && S.timer.task_id === t.id;
-  const items = S.te.tid === t.id ? S.te.items : null;
+  const items = S.te.tid === t.id && S.te.items ? TE_W.show(S.te.items, x => x.task_id === t.id) : null, calc = TE_W.calc;  // #7501: the changes on their way
   // 2.627.0 (#4503): + the estimate (duration) next to the tracked time, also with nothing tracked yet
-  let h = `<h5>${tr('Time|tracked')}${all >= 60 || tEstMin(t) ? ` <span class="muted h5note" data-ist-est="${t.id}">${all - mine >= 60 ? trh('{0} in total, {1} by you', fmtDur(all), fmtDur(mine)) + (tEstMin(t) ? ` / ${fmtH(tEstMin(t))}` : '') : tIstEst(all, t)}</span>` : ''}</h5>
+  let h = `<h5${calc ? ' class="rwcalc" aria-busy="true"' : ''}>${tr('Time|tracked')}${calc ? ` <span class="rwcalcl muted" role="status">${esc(tr('Calculating…'))}</span>` : all >= 60 || tEstMin(t) ? ` <span class="muted h5note" data-ist-est="${t.id}">${all - mine >= 60 ? trh('{0} in total, {1} by you', fmtDur(all), fmtDur(mine)) + (tEstMin(t) ? ` / ${fmtH(tEstMin(t))}` : '') : tIstEst(all, t)}</span>` : ''}</h5>
     <div class="tebtns"><button class="btn sm ${run ? 'recon' : ''}" data-act="timer-toggle" data-id="${t.id}">${run ? `${ic('stop', 's')} ${tr('Stop')} <span data-timer-live>${fmtT(timerElapsed())}</span>` : `${ic('play', 's')} ${tr('Start timer')}`}</button><button class="btn sm" data-act="te-add" data-id="${t.id}">${ic('plus', 's')} ${tr('Add time')}</button></div>`;
   h += te_budgetHtml(t);
   if (items === null) return h + (S.te.err === 'offline' ? `<div class="muted mhint">${tr('Time entries are only available online.')}</div>` : '');
@@ -223,8 +278,9 @@ function teRow(e, {task = true, day = true} = {}) {
   const who = e.mine ? '' : avBtn(e.user_id, e.user_name, 'who', `title="${esc(e.user_name)}"`);
   const title = task ? `<span class="tett" ${e.task_id ? `data-act="te-open" data-id="${e.task_id}"` : ''}>${esc((e.e2e && typeof le2eTitle === 'function' ? le2eTitle(e.task_id, e.title) : e.title) || tr('No task'))}</span>` : '';  // 2.64.1 (#1817): a locked list's title from this page
   const bill = tbill_tag(e);  // 2.144.6 A (#2053)
-  const acts = e.locked ? tsl_lockMark() : e.mine ? `<span class="teacts">${!e.running && (e.task_id || e.list_id) ? `<button class="iconbtn" data-act="te-resume" data-eid="${e.id}" title="${tr('Continue (same task and note)')}">${ic('play', 's')}</button>` : ''}<button class="iconbtn ms-phsr" data-act="te-edit" data-eid="${e.id}" title="${tr('Edit')}">${ic('edit', 's')}</button>${e.billed ? '' : `<button class="iconbtn danger ms-phsr" data-act="te-del" data-eid="${e.id}" title="${tr('Delete')}">${ic('trash', 's')}</button>`}</span>` : '';  // 2.125.0 B (#2119): a closed month: a lock instead
-  return `<div class="terow ${e.running ? 'live' : ''}${e.mine && !e.locked ? ' temine' : ''}">${day ? `<span class="ted">${esc(dayLabel(ds(s)))}</span>` : ''}<span class="tet">${fmtTimeAt(s)}–${en ? fmtTimeAt(en) : tr('now')}</span>${/*html-ok*/ te_org(e.list_id)}${title}<span class="ten">${esc(e.note)}</span>${bill}${src}${who}<b class="tedur" ${e.running ? 'data-timer-live' : ''}>${e.running ? fmtT(timerElapsed()) : hmm(e.seconds)}</b>${acts}</div>`;
+  const k = rwKey(e), mk = rwMarkHtml(TE_W, e), busy = TE_W.busy(e) || !e.id;  // #7501: a change on its way: its mark, no actions yet
+  const acts = busy ? mk : e.locked ? tsl_lockMark() : e.mine ? `<span class="teacts">${!e.running && (e.task_id || e.list_id) ? `<button class="iconbtn" data-act="te-resume" data-eid="${e.id}" title="${tr('Continue (same task and note)')}">${ic('play', 's')}</button>` : ''}<button class="iconbtn ms-phsr" data-act="te-edit" data-eid="${e.id}" title="${tr('Edit')}">${ic('edit', 's')}</button>${e.billed ? '' : `<button class="iconbtn danger ms-phsr" data-act="te-del" data-eid="${e.id}" title="${tr('Delete')}">${ic('trash', 's')}</button>`}</span>` : '';  // (#2119): a closed month: a lock instead
+  return `<div data-rwk="${esc(k)}" class="terow ${e.running ? 'live' : ''}${e.mine && !e.locked && !busy ? ' temine' : ''}${esc(rwCls(TE_W, e))}">${day ? `<span class="ted">${esc(dayLabel(ds(s)))}</span>` : ''}<span class="tet">${fmtTimeAt(s)}–${en ? fmtTimeAt(en) : tr('now')}</span>${/*html-ok*/ te_org(e.list_id)}${title}<span class="ten">${esc(e.note)}</span>${bill}${src}${who}<b class="tedur" ${e.running ? 'data-timer-live' : ''}>${e.running ? fmtT(timerElapsed()) : hmm(e.seconds)}</b>${acts}</div>`;
 }
 // 2.1151.0 C (#3835): on a phone only "Continue" stays in an own entry's row; a long press opens the menu with all its actions
 domReady(() => ms_rowMenu('.terow.temine', r => ms_btnMenu(r, '.teacts .iconbtn', (r.querySelector('.tett')?.textContent || r.querySelector('.tet')?.textContent || '').trim())));  // multisel.js loads after this file
@@ -282,6 +338,7 @@ function entryModal(e, preset = {}, cf) {
   const raw = cf ? cf.raw : e; if (cf) e = teOver(cf.raw, cf.mine || {});
   const run = !!(e && e.running), s = e ? new Date(e.start) : null, en = e && e.end ? new Date(e.end) : null;
   const tid = e ? e.task_id : preset.task_id || null, lid = e ? e.list_id : preset.list_id || (tid ? taskById(tid)?.list_id : null) || (mtTime(routeList()?.id) ? routeList().id : null) || S.lists.find(l => mtTime(l.id) && !l.archived)?.id;  // 2.41.0 (#1471)
+  const cid = newCid();  // #7501: one client id per dialog, not per click
   const md = modal(`<h3>${run ? tr('Running timer') : e ? tr('Edit time entry') : tr('Add time')}</h3>
     <div class="row"><label for="te-target">${tr('Task')}</label><select id="te-target">${targetOptions(tid, lid)}</select></div>
     <div class="row"><label>${tr('Date')}</label>${dateIn('te-date', s ? ds(s) : preset.date || ds(new Date()), {max: today(), label: tr('Date'), clear: false})}</div>
@@ -293,6 +350,8 @@ function entryModal(e, preset = {}, cf) {
     ${run ? '' : `<div class="shint">${tr('An end before the start means the next day. Only a duration: the entry ends now (today) or starts at 9:00.')}</div>`}
     <div class="foot">${e && !run && !e.billed ? `<button class="btn danger" data-m="del">${tr('Delete')}</button>` : ''}<span class="spacer"></span><button class="btn" data-m="close">${tr('Cancel')}</button><button class="btn pri" data-m="save">${tr('Save')}</button></div>`);
   if (e?.billed) $$('#te-target, #te-date, #te-from, #te-to, #te-dur', md).forEach(x => { x.disabled = true; });  // 2.144.6 A (#2053)
+  const pv = preset.v;  // #7501: a refused new entry: the dialog again with what was typed
+  if (pv) { $('#te-target', md).value = pv.target; $('#te-date', md).value = pv.date; $('#te-from', md).value = pv.from; if ($('#te-to', md)) $('#te-to', md).value = pv.to; if ($('#te-dur', md)) $('#te-dur', md).value = pv.dur; $('#te-note', md).value = pv.note; $('#te-bill', md).checked = pv.bill; }
   const noteSync = () => {  // 2.538.0 (#4372): no note field for a project with the lock (follows the chosen task / project)
     const [k, v] = $('#te-target', md).value.split(':');
     $('#te-noterow', md).hidden = te_locked(k === 't' ? {task_id: +v} : {list_id: +v});
@@ -333,26 +392,34 @@ function entryModal(e, preset = {}, cf) {
     // 2.576.0 (#4764): a change goes through objsave.js saveDialog (only the changed fields, _prev = what the dialog showed): changed
     // elsewhere meanwhile = 409, the dialog comes again with the saved entry, the own input over it, the other's fields marked
     if (e && typeof saveDialog !== 'function') await loadModule('objsave').catch(() => { /* offline without the copy: saved as before */ });
-    if (e && typeof saveDialog === 'function') {  // lazy-ok-begin: objsave.js is loaded just above
-      const now = form(), d = objDiff(base, now), url = `/api/time/entries/${e.id || 0}`;
-      let j;
-      try { j = await saveDialog(url, teView(raw), now, {key: 'entry', base, view: teView, send: x => api('PATCH', url, teSrv(x, now, raw))}); } catch { return; }  // api() said it
-      if (j?.conflict) { md.remove(); entryModal(j.conflict.raw, {}, j.conflict); return; }
-      md.remove();
-      if (!Object.keys(d).length) return;  // nothing changed: no request
-      toast(j.queued ? tr('Will be sent as soon as the server is reachable') : tr('Saved'));
-      await timeChanged(j);
-      if ('billable' in d) teBillStep(e, j, bill);
+    if (md._sent) return;  // #7501: a second click on Save while the dialog folds away
+    // #7501: the dialog closes at once, the entry stands in its lists as it is now ("Saving…"); a refusal brings the dialog back
+    // with the input; a new entry carries the dialog's one client_id (cid: sent twice = one entry)
+    const now = e ? form() : null, d = e ? objDiff(base, now) : null;
+    if (e && !Object.keys(d).length) { md.remove(); return; }  // nothing changed: no request
+    md._sent = true; md.remove();
+    const tk = k === 't' ? taskById(+v) : null, loc = {...(e || {id: null, mine: true, source: 'manual', seconds: 0}), task_id: tk ? tk.id : null, list_id: tk ? tk.list_id : +v,
+      title: tk ? tk.title : '', note: body.note, billable: bill, start: iso(tm.start), ...(run ? {} : {end: iso(tm.end), seconds: Math.round((tm.end - tm.start) / 1000)}), day: ds(tm.start)};
+    const vals = {target: $('#te-target', md).value, date: $('#te-date', md).value, from: $('#te-from', md).value, to: $('#te-to', md)?.value || '', dur: $('#te-dur', md)?.value || '', note: $('#te-note', md).value, bill};
+    const again = x => {  // a refusal: the dialog again with what was typed, the reason said
+      if (e) entryModal(raw, {}, {raw, cur: teView(raw), theirs: [], mine: d, both: []}); else entryModal(null, {...preset, v: vals});
+      toast(errText(x, tr('The change could not be saved')));
+    };
+    if (e) {
+      const url = `/api/time/entries/${e.id || 0}`;
+      if (typeof saveDialog !== 'function') body._prev = Object.fromEntries(Object.keys(body).map(k => [k, k === 'billable' ? e.billable !== false : e[k] ?? null]));
+      const send = typeof saveDialog === 'function' ? () => saveDialog(url, teView(raw), now, {key: 'entry', base, view: teView, send: x => api('PATCH', url, teSrv(x, now, raw), {quiet: true})})  // lazy-ok: objsave.js is loaded just above
+        : () => api('PATCH', url, body, {quiet: true});
+      const tmr = run && S.timer?.id === e.id ? S.timer : null;
+      TE_W.op(rwKey(e), {e: loc, send, bad: again, took: j => {
+        if (j?.conflict) { entryModal(j.conflict.raw, {}, j.conflict); return; }
+        if (j?.queued) toast(tr('Will be sent as soon as the server is reachable'));
+        if ('billable' in d) teBillStep(e, j, bill);
+      }}, () => { if (!tmr) return null; S.timer = {...tmr, ...loc}; return () => { S.timer = tmr; }; });
       return;
-    }  // lazy-ok-end
-    if (e) body._prev = Object.fromEntries(Object.keys(body).map(k => [k, k === 'billable' ? e.billable !== false : e[k] ?? null]));
-    let j;
-    try { j = e ? await api('PATCH', `/api/time/entries/${e.id || 0}`, body) : await api('POST', '/api/time/entries', {...target, ...body, client_id: newCid()}); }  // 2.143.0 C (#2153): sent again from the outbox = one entry
-    catch { return; }  // api() said it (a 409 without objsave.js: the dialog stays with its input)
-    md.remove();
-    toast(j.queued ? tr('Will be sent as soon as the server is reachable') : e ? tr('Saved') : tr('Time added: {0}', hmm(j.seconds)));
-    await timeChanged(j);
-    if (e && 'billable' in body) teBillStep(e, j, bill);
+    }
+    TE_W.op(rwKey(loc), {e: loc, isNew: true, m: 'POST', url: '/api/time/entries', b: {...target, ...body, client_id: cid}, bad: again,  // (#2153): sent again from the outbox = one entry
+      took: j => toast(j.queued ? tr('Will be sent as soon as the server is reachable') : tr('Time added: {0}', hmm(j.seconds)))});
   });
   // 2.576.0 (#4764): what the dialog would save now (teView's keys); the form as it opened (fields typed before a conflict always
   // count as changed); the version watch and the marks of a conflict once objsave.js is in
@@ -374,25 +441,28 @@ function entryModal(e, preset = {}, cf) {
 }
 // 2.144.6 A (#2053): the billable switch of a saved change is one undo step
 function teBillStep(e, j, bill) {
-  const set = async v => { const r = await api('PATCH', `/api/time/entries/${e.id}`, {billable: v}); await timeChanged(r); return {q: r?._q || null}; };
+  const set = async v => { const r = await api('PATCH', `/api/time/entries/${e.id}`, {billable: v}); teAnswer(r); te_draw(); return {q: r?._q || null}; };  // #7501: the answer, no load
   histAdd({label: bill ? tr('Time marked billable') : tr('Time marked not billable'), res: j, lids: e.list_id ? [e.list_id] : [], ...(j?.undo_group ? {srv: true} : {}),  // 2.809.0 (#5476): the server lists the step
     undo: () => set(!bill), redo: () => set(bill)});
 }
 // 2.576.0 (#4764): oxbTeStale (the bar "Reload" = own input dropped) is gone: entryModal goes through objsave.js saveDialog
+// #7501: the entry is gone at once (a running timer too); no answer / a server error brings it back with "Try again" (core.js
+// W.write {back}), a refusal (billed, a closed month) brings it back with the reason; Undo follows the answer
 async function teDelete(id) {
   const e = findEntry(id); if (!e) return;
-  let r;
-  try { r = await api('DELETE', `/api/time/entries/${id}`); } catch { return; }
-  if (S.timer && S.timer.id === id) S.timer = null;
   const back = {...(e.task_id ? {task_id: e.task_id} : {list_id: e.list_id}), start: e.start, end: e.end, seconds: e.seconds, note: e.note, source: e.source, billable: e.billable !== false};
-  await timeChanged(r);
-  if (e.end) {
+  const took = r => {
+    if (r?.queued) return;
+    if (!e.end) { toast(tr('Timer discarded')); return; }
     const x = histAdd({label: tr('Time entry deleted ({0})', hmm(e.seconds)), res: r, lids: e.list_id ? [e.list_id] : [], ...(r?.undo_group ? {srv: true} : {}),  // 2.809.0 (#5476)
-      undo: async h => { const j = await api('POST', '/api/time/entries', {...back, client_id: newCid()}); h.eid = j?.id; await timeChanged(j); return {q: j?._q || null}; },
-      redo: async h => { if (!h.eid) return {skipped: [tr('Time entry')], none: true}; const j = await api('DELETE', `/api/time/entries/${h.eid}`); await timeChanged(j); return {q: j?._q || null}; }});
+      undo: async h => { const j = await api('POST', '/api/time/entries', {...back, client_id: newCid()}); h.eid = j?.id; teAnswer(j); te_draw(); return {q: j?._q || null}; },
+      redo: async h => { if (!h.eid) return {skipped: [tr('Time entry')], none: true}; const j = await api('DELETE', `/api/time/entries/${h.eid}`); teAnswer(j, {gone: h.eid}); te_draw(); return {q: j?._q || null}; }});
     offerUndo(tr('Time entry deleted ({0})', hmm(e.seconds)), x);
-  }
-  else toast(tr('Timer discarded'));
+  };
+  const tmr = S.timer && S.timer.id === id ? S.timer : null;
+  TE_W.op(rwKey(e), {e: null, gone: id, m: 'DELETE', url: `/api/time/entries/${id}`, took, bad: x => toast(errText(x, tr('The change could not be saved')))},
+    () => { if (!tmr) return null; S.timer = null; return () => { S.timer = tmr; }; });
+  if (tmr) render();
 }
 
 // ---- reports view (#time)
@@ -430,9 +500,10 @@ async function loadTime() {
   if (S.tv.loading) return;
   S.tv.loading = true;
   const q = timeQuery(), key = q + '|' + S.v;
-  try { S.tv.data = await rawFetch('GET', '/api/time/report?' + q); S.tv.data._q = q; S.tv.err = null; }
+  try { S.tv.data = await rawFetch('GET', '/api/time/report?' + q); S.tv.data._q = q; S.tv.err = null; te_dropQueued(); }
   catch (e) { if (e.message !== 'auth') S.tv.err = e instanceof Offline ? 'offline' : e.message; }
-  finally { S.tv.loading = false; S.tv.key = key; }
+  finally { S.tv.loading = false; S.tv.key = key; S.tv.recalc = false; }
+  if (S.tv.again) { S.tv.again = false; S.tv.recalc = true; S.tv.key = ''; loadTime(); return; }  // #7501: an answer came while this read ran: its sums once more
   if (S.route.mod === 'time') renderView();
   if (S.tv.sheetNext && S.tv.data && S.route.mod === 'time') { S.tv.sheetNext = false; timesheet(); }  // 2.23.0: from a client's page
 }
@@ -504,7 +575,8 @@ function viewTime() {
   if (!(f === t && f === today())) tiles.push([hmm(jt.today.seconds), tr('today'), tgt ? tr('{0}% of the daily target ({1} h)', Math.round(100 * jt.today.seconds / 3600 / tgt), fmtNum(tgt, 2)) : tr('your time')]);
   else if (tgt) tiles[0][2] += ' · ' + tr('{0}% of the daily target ({1} h)', Math.round(100 * jt.today.seconds / 3600 / tgt), fmtNum(tgt, 2));
   if (hasAmt) tiles.push([money(tot.amount, j.currency), tr('amount'), tr('hourly rates of the projects')]);
-  P.tiles = lyo_note(jt.lyoLabel) + `<div class="sttiles">${tiles.map(([v, l, s]) => `<div><b>${esc(v)}</b><span>${esc(l)}</span><small>${esc(s)}</small></div>`).join('')}</div>`;
+  const calc = te_calc();  // #7501: a write of time waits for its answer / the report reads its sums again: "Calculating…" (the server computes)
+  P.tiles = lyo_note(jt.lyoLabel) + (calc ? `<p class="rwcalcl muted" role="status">${esc(tr('Calculating…'))}</p>` : '') + `<div class="sttiles${calc ? ' rwcalc" aria-busy="true' : ''}">${tiles.map(([v, l, s]) => `<div><b>${esc(v)}</b><span>${esc(l)}</span><small>${esc(s)}</small></div>`).join('')}</div>`;
   // per day (per week for long ranges)
   const days = []; for (let d = f; d <= t && days.length < 400; d = addDays(d, 1)) days.push(d);
   const per = Object.fromEntries(jc.days.map(x => [x.date, x.seconds / 60]));
@@ -516,15 +588,15 @@ function viewTime() {
       ? lineChart(vals.map(v => Math.round(v / 6) / 10), labs, {tip, label: tr('Tracked time')})  // 2.55.0 (#1065): hours with one decimal
       : barChart(vals, labs, {fmt: v => fmtH(Math.round(v)), tip, label: tr('Tracked time')})}</section>`;
   }
-  if (!j.lists.length) return h + tabh_keep('time', lyHtml('time', P) + `<div class="empty">${ic('clock')}${tr('No time tracked in this period.')}</div>`) + '</div>';
+  if (!j.lists.length && !TE_W.ops.size) return h + tabh_keep('time', lyHtml('time', P) + `<div class="empty">${ic('clock')}${tr('No time tracked in this period.')}</div>`) + '</div>';
   tot = jl.total; hasAmt = jl.lists.some(l => l.rate);
   const all = j.scope === 'all', ppl = us => all && us.length ? `<small class="muted">${esc(us.map(([n, s]) => `${n} ${hmm(s)}`).join(', '))}</small>` : '';
   P.lists = `<section class="stcard"><div class="sthead"><h3>${tr('By project and task')}</h3>${jl.lyoLabel ? `<span class="muted">${esc(tr('Only: {0}', jl.lyoLabel))}</span>` : ''}${rm ? `<span class="muted">${trh('rounded up to {0} min per entry', rm)}</span>` : ''}<p class="muted shint stnote">${j.split ? tr('An entry over midnight counts on each day with its share. Rounding and the hourly rate (project settings) only apply to the report, CSV and timesheet; the tracked times stay exact.') : tr('An entry counts on the day it starts. Rounding and the hourly rate (project settings) only apply to the report, CSV and timesheet; the tracked times stay exact.')}</p></div>
-    <table class="ttable"><thead><tr><th>${tr('Project / task')}</th><th class="n">${tr('Time|tracked')}</th>${rm ? `<th class="n">${tr('Rounded')}</th>` : ''}${hasAmt ? `<th class="n">${tr('Amount')}</th>` : ''}</tr></thead><tbody>
+    <table class="ttable${calc ? ' rwcalc' : ''}"><thead><tr><th>${tr('Project / task')}</th><th class="n">${tr('Time|tracked')}</th>${rm ? `<th class="n">${tr('Rounded')}</th>` : ''}${hasAmt ? `<th class="n">${tr('Amount')}</th>` : ''}</tr></thead><tbody>
     ${jl.lists.map(l => { const closed = S.collapsed.has('tvl:' + l.id); return `<tr class="tvl ${closed ? 'closed' : ''}" data-act="tv-toggle" data-key="tvl:${l.id}"><td>${ic('chev', 's')}${/*html-ok*/ te_org(l.id)}<span>${esc(tvListName(l))}</span>${ppl(l.users)}</td><td class="n">${hmm(l.seconds)}</td>${rm ? `<td class="n">${hmm(l.rounded)}</td>` : ''}${hasAmt ? `<td class="n">${l.rate ? money(l.amount, j.currency) : ''}</td>` : ''}</tr>` +
       (closed ? '' : l.tasks.map(x => `<tr class="tvt" ${x.id ? `data-act="te-open" data-id="${x.id}"` : ''}><td><span>${esc((x.e2e && typeof le2eTitle === 'function' ? le2eTitle(x.id, x.title) : x.title) || tr('No task'))}</span>${ppl(x.users)}</td><td class="n">${hmm(x.seconds)}</td>${rm ? `<td class="n">${hmm(x.rounded)}</td>` : ''}${hasAmt ? `<td class="n">${l.rate ? money(x.amount, j.currency) : ''}</td>` : ''}</tr>`).join('')); }).join('')}
     <tr class="tvsum"><td>${tr('Total')}</td><td class="n">${hmm(tot.seconds)}</td>${rm ? `<td class="n">${hmm(tot.rounded)}</td>` : ''}${hasAmt ? `<td class="n">${money(tot.amount, j.currency)}</td>` : ''}</tr></tbody></table></section>`;
-  const byDay = {}; for (const e of je.entries) (byDay[e.day] ||= []).push(e);
+  const tl = tvLists(), byDay = {}; for (const e of TE_W.show(je.entries, x => x.day >= f && x.day <= t && (!tl.length || tl.includes(x.list_id || 0)))) (byDay[e.day] ||= []).push(e);  // #7501: + the changes on their way
   P.entries = `<section class="stcard"><div class="sthead tvtoggle" data-act="tv-entries"><h3>${ic('chev', 's' + (tv.entries ? '' : ' closedc'))} ${tr('Entries')}</h3>${je.lyoLabel ? `<span class="muted">${esc(tr('Only: {0}', je.lyoLabel))}</span>` : ''}<span class="muted">${je.total.count}</span></div>
     ${tv.entries ? Object.keys(byDay).sort().reverse().map(d => `<div class="teday"><span>${esc(dayLabel(d))}</span><b>${hmm(byDay[d].reduce((n, e) => n + e.seconds, 0))}</b></div>${byDay[d].slice().reverse().map(e => teRow(e, {day: false})).join('')}`).join('') : ''}</section>`;
   // 2.125.0 B (#2120): entries over midnight count on each day with their share (setting, default on)

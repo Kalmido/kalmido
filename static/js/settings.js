@@ -719,7 +719,7 @@ function agSetupWire(md) {
         const un = $('#myag-user', md).value.trim().toLowerCase(); if (!un) { need($('#myag-user', md)); return; }
         if (userNameBad(un)) { toast(userNameBad(un)); need($('#myag-user', md)); return; }  // 2.28.0 (#926)
         b.disabled = true;
-        let r; try { r = await reauthReq('POST', '/api/my/agents', {username: un, display_name: $('#myag-name', md).value.trim(), provider: $('#myag-prov', md)?.value.trim() || ''}); } catch (x) { toast(errText(x, tr('The change could not be saved'))); throw x; }  // #6499 (integrations.js)
+        let r; try { r = await reauthReq('POST', '/api/my/agents', {username: un, display_name: $('#myag-name', md).value.trim(), provider: $('#myag-prov', md)?.value.trim() || ''}); } catch (x) { toast(errText(x, tr('The change could not be saved'))); throw x; }  // #6499 (account.js)
         av_setupOffer(r, `/api/my/agents/${r.id}`, r.token);  // 2.46.6 (#1709): set it up now; the token only on request
         await load(); render();
       }
@@ -819,6 +819,9 @@ const ad_subSec = k => (ADM_SUBS.find(x => x[0] === k) || [])[3];
 const ad_admFocus = f => ({users: 'users', odata: S.me?.is_admin ? 'backup' : 'odata', backup: 'backup', groups: 'users', activity: 'agents', agentpolicy: 'agents', server: 'server', signin: 'signin'})[f];  // settingsModal(focus) -> sub-tab
 const ad_subKey = sec => sec === 'org' ? 'orgSub' : 'admSub';  // remembered per device and area
 function admSubCur(sec, ks, want) { const k = (want && ad_subSec(want) === sec ? want : '') || LS.get(ad_subKey(sec), ks[0]); return ks.includes(k) ? k : ks[0]; }
+// #6535: Settings > Organisation leads to its help ("How it works": the help area org - company, people and roles), like the
+// empty states of the areas (palette.js hlp_linkHtml)
+const hlp_orgWrap = h => h && typeof hlp_linkHtml === 'function' ? `<div class="row shlprow">${/*html-ok*/ hlp_linkHtml('org')/* escapes inside */}</div>${/*html-ok*/ h/* the pane's own HTML (admSubsHtml) */}` : h;
 function admSubsHtml(sec, parts, want) {
   const subs = ADM_SUBS.filter(([k, , , s]) => s === sec && parts[k]); if (!subs.length) return '';
   const cur = admSubCur(sec, subs.map(x => x[0]), want);
@@ -946,10 +949,10 @@ function settingsModal(focus) {
   const pane = {
     account: S.me ? accountHtml() : '',
     // 2.39.1 (#1188): Settings > Organisation; 2.364.0 C (#3041): + the server admins' People, Agents and Data (was Administration)
-    org: S.me && (lmOrgPaneOn() || S.me.is_admin) ? admSubsHtml('org', {
+    org: S.me && (lmOrgPaneOn() || S.me.is_admin) ? hlp_orgWrap(admSubsHtml('org', {
       users: (lmOrgPaneOn() ? wsPaneHtml(hint) : '') + (S.me.is_admin ? usersHtml() + grpHtml() + orphHtml() + orgsHtml() + actHtml() : ''),
       agents: S.me.is_admin ? ad_agentsHtml(hint) : '',  // 2.46.6 (#1710); 2.555.0 C (#4664): one switch for user_agents (s-uag), no second one
-      odata: (lmOrgPaneOn() && (S.me.workspaces || []).some(w => w.role === 'admin') ? wsDataHtml(hint) : '') + (S.me.is_admin ? ocAdminHtml(hint, !(lmOrgPaneOn() && (S.me.workspaces || []).some(w => w.role === 'admin'))) : '')}, ad_admFocus(focus)) : '',  // 2.582.0 (#4827): backups + storage check under Server > Backup
+      odata: (lmOrgPaneOn() && (S.me.workspaces || []).some(w => w.role === 'admin') ? wsDataHtml(hint) : '') + (S.me.is_admin ? ocAdminHtml(hint, !(lmOrgPaneOn() && (S.me.workspaces || []).some(w => w.role === 'admin'))) : '')}, ad_admFocus(focus))) : '',  // (#4827): backups + storage check under Server > Backup; #6535: hlp_orgWrap
     // 2.418.0 (#3560): the editor of every area's menu and the tab bar (navmenu.js nav_pageDraw)
     nav: S.me?.kid ? '' : `<h4 id="s-nav-h">${tr('Menus and bottom bar')}</h4>${hint(tr('The order and the points of each menu, for you on every device. Minus hides a point (the search still finds it), Plus brings it back, drag by the grip.'))}<div id="s-navmenus"><div class="muted mhint">${tr('Loading…')}</div></div>
       <div class="row" style="margin-top:.5rem"><button type="button" class="btn sm tabaddb" id="s-tabadd" data-m="tab-add" style="flex:1" aria-haspopup="dialog">${tr('+ Add tab …')}</button><button class="btn sm" data-m="tab-reset">${tr('Default')}</button></div>`,  // 2.1297.0 (#6129): the bottom bar is edited here only (Appearance links here; children keep it there, they have no Navigation tab)

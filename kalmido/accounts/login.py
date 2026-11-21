@@ -608,9 +608,10 @@ def _user(c, uid):
 
 # #6498 (audit #4800 F3, decision 16.11.2026): every password step gives a fresh ticket with PEND_TRIES tries, so the second factor
 # needs its own count per account over a day: TWOFA_FAIL_DAY wrong tries, then the second step only from an address the account
-# signed in from before (login_known; a reset link that came by mail makes its address known, invite.py) - an attacker with the
-# password neither guesses on nor locks the owner out on a known device. The owner hears of it by mail (SEC_EVENT 2fa_fail): from
-# the TWOFA_FAIL_MAIL-th wrong try from an unknown address and at the ceiling, each once a day.
+# signed in from before (login_known: a whole sign-in made it known) - an attacker with the password neither guesses on nor locks
+# the owner out on a known device. The second step after a reset link that came by mail (invite.py, ticket with reset) has its
+# own day count instead (twofa_fails reset, twofa_locked): only the mailbox reaches it (#7446 F8). The owner hears of it by mail
+# (SEC_EVENT 2fa_fail): from the TWOFA_FAIL_MAIL-th wrong try from an unknown address and at the ceiling, each once a day.
 TWOFA_FAIL_DAY, TWOFA_FAIL_MAIL, TWOFA_WINDOW = 20, 3, 86400
 
 
@@ -881,6 +882,14 @@ def auth_2fa_pk():
 
 
 # ---- login: enrolment forced by the admin policy (ticket kind "enrol")
+def _enrol_end(c, uid):
+    """#7633 (#7446 F6): the enrolment forced at sign-in is the first second factor too: like _end_other_sessions every older
+    session and the ways of accounts/accessways.py end (sessions.py ses_access_end) before this sign-in's session is made."""
+    from ..accounts.sessions import ses_access_end, ses_end
+    ses_end(c, uid)
+    ses_access_end(c, uid)
+
+
 @app.post("/api/auth/enrol/totp")
 def auth_enrol_totp():
     g.idem_no_body = True  # (#6558): the authenticator secret is shown once, never kept with an idempotency key
@@ -905,6 +914,7 @@ def auth_enrol_totp_confirm():
     c.execute("UPDATE users SET totp_secret=?, totp_step=? WHERE id=?", (seal(c, f"totp:{u['id']}", p["totp"]), st, u["id"]))
     codes = rc_new(c, u["id"])
     pend_drop()
+    _enrol_end(c, u["id"])
     r = finish_login(c, u, p.get("remember", True), "2fa", {"recovery_codes": codes})
     _sec_new(c, u["id"], "2fa_on")  # (#6354)
     return r
@@ -938,6 +948,7 @@ def auth_enrol_pk():
         return err(str(x), 400)
     codes = rc_new(c, u["id"])
     pend_drop()
+    _enrol_end(c, u["id"])
     r = finish_login(c, u, p.get("remember", True), "2fa", {"recovery_codes": codes})
     _sec_new(c, u["id"], "passkey_new", pid)  # (#6354)
     return r
@@ -1033,7 +1044,8 @@ def _end_other_sessions(c, uid):
     """A second factor was just turned on: sessions elsewhere (possibly opened with a leaked password) end. #6499 (decision
     16.11.2026): so do the person's own API tokens (scan inbox keys too) and app passwords - a way in made from such a session
     must not outlive it (an agent's tokens belong to the agent's account and stay; the dialog names it, acctset.js). The same
-    shared place as a new password (scan inbox keys and receipt fetchers, sessions.py ses_access_end: feed links, upload token)."""
+    shared place as a new password (sessions.py ses_access_end, every way of accounts/accessways.py: feed links, upload token,
+    scan inbox keys; #7633: the own webhooks and forwardings are switched off)."""
     tok = request.cookies.get(COOKIE)
     from ..accounts.sessions import ses_access_end, ses_end  # (#1991) sessions end with the push subscriptions made in them
     ses_end(c, uid, keep=_token_hash(tok) if tok else None)

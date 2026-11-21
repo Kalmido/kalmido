@@ -231,7 +231,7 @@ tiene además su propio chat.
 Qué pasa entonces: los mensajes fijados permanecen en la barra sobre los mensajes (como máximo cinco por conversación); un
 hilo muestra las respuestas a ese mensaje y sus participantes reciben aviso.
 
-<!-- help: team#how-to-invite-someone-without-an-account-by-a-link src=0b47d08909 -->
+<!-- help: team#how-to-invite-someone-without-an-account-by-a-link src=45b346e536 -->
 ## Invitar con un enlace a alguien sin cuenta
 
 1. En Ajustes > Cuenta elige **Buscar a una persona …**.
@@ -241,7 +241,10 @@ hilo muestra las respuestas a ese mensaje y sus participantes reciben aviso.
 Qué pasa después: quien abre el enlace crea una cuenta con su nombre y su dirección de correo y queda conectado contigo al
 instante; recibes una notificación. El enlace funciona una vez y durante 14 días y solo se muestra justo después de crearlo;
 **Retirar** termina un enlace abierto al instante. Quien ya tiene cuenta lo abre con la sesión iniciada y confirma la
-conexión. Un administrador del servidor puede desactivar estos enlaces (Ajustes > Servidor > Inicio de sesión).
+conexión.
+
+<!-- self-hosted -->
+Un administrador del servidor puede desactivar estos enlaces (Ajustes > Servidor > Inicio de sesión).
 
 <!-- help: budget#how-to-start-a-household-budget src=1116c1b0a8 -->
 ## Crear un presupuesto doméstico
@@ -333,3 +336,108 @@ empresa no necesita mudanza: cambia el nombre. Dos empresas no se pueden unir en
 Sin organización, solo con tu propia oficina: abre Ajustes > Empresa y oficina > Datos, elige **Mudar la oficina** y
 **Empezar la mudanza**; después **Exportar la oficina** y **Exportar todo**, e importa ambos en el servidor nuevo. Tu
 área privada fuera de la oficina se puede seguir editando.
+
+<!-- help: office#how-to-set-up-your-office src=fb04d9cb9f -->
+## Configurar tu oficina
+
+1. Abre Ajustes > Empresa y oficina. En Empresa escribe el nombre, la dirección y el logotipo de tu empresa.
+2. En Banco e impuestos escribe tu cuenta bancaria, tu número fiscal y cómo pagas el IVA.
+3. En Documentos marca **Pequeña empresa** si no cobras IVA (artículo 19 UStG) y define cómo son tus números de
+   presupuesto y de factura.
+4. En Textos y plantillas escribe los textos de encima y debajo de tus documentos; en Paquetes activa lo que necesita tu
+   oficio.
+5. ¿Quieres probar primero? Activa el **Modo de prueba** en Documentos: los documentos reciben un número TEST y la marca de
+   agua MUSTER. Desactívalo antes de tu primera factura real.
+
+Qué pasa entonces: cada presupuesto y cada factura nueva usa estos datos. La oficina muestra lo que aún falta para una
+factura hasta que todo está. Quién de tu empresa puede ver y cambiar qué lo decides en «Decidir quién ve qué en la
+oficina».
+
+<!-- help: office#how-to-decide-who-sees-what-in-the-office src=cd8aa74ee0 -->
+## Decidir quién ve qué en la oficina
+
+1. Abre Ajustes > Empresa y oficina y elige **Derechos en la oficina**.
+2. En Personas da a cada persona un grupo: una plantilla (por ejemplo solo sus propios recibos, gastos de viaje y tiempos)
+   o un grupo propio: copia una plantilla en Grupos y ajusta para cada parte de la oficina lo que puede el grupo.
+
+Qué pasa entonces: desde ahora la persona solo ve esas partes de la oficina. Los administradores de la organización
+siempre lo ven todo; quien no tiene grupo conserva el acceso de su rol en la organización. Cada cambio queda en el
+registro, y cada persona ve los suyos en **Mis permisos**.
+
+<!-- help: office#how-to-come-from-another-program src=df1c3a51e1 -->
+## Venir de otro programa
+
+1. Sigue tu numeración: en Ajustes > Empresa y oficina > Documentos escribe el siguiente número de cada serie (el número
+   que tu programa anterior habría dado a continuación).
+2. Trae tus clientes, servicios y equipos: en Ajustes > Empresa y oficina > Datos elige **Importar datos antiguos**,
+   elige tu hoja de cálculo (.xlsx) y revisa la vista previa antes de confirmar. Las facturas y presupuestos antiguos
+   (PDF) se archivan tal cual.
+
+Qué pasa entonces: tu siguiente factura sigue tu numeración sin huecos. Una importación se puede deshacer mientras nada
+se base en ella. ¿Vienes de otro servidor Kalmido? Mira «Mudar la empresa a otro servidor».
+
+<!-- help: office#how-to-send-e-invoices src=56ef8356c7 -->
+## Enviar facturas electrónicas
+
+1. Para la mayoría de los clientes no hay nada que hacer: cada factura es una factura ZUGFeRD, un PDF normal con los datos
+   de la factura dentro.
+2. Una administración pública te da un ID de enrutamiento (Leitweg-ID): abre el cliente y escríbelo en
+   **Referencia del comprador (p. ej. ID de enrutamiento)**. A ese cliente se le propone XRechnung (XML puro).
+3. Para elegir otro formato para todos, abre Ajustes > Empresa y oficina > Documentos, **Formato de factura electrónica**.
+
+Qué pasa entonces: el ID de enrutamiento se imprime en la factura y va dentro de la factura electrónica. Tu asesor fiscal
+y el receptor leen los datos de la factura sin teclearlos de nuevo.
+
+<!-- help: team#how-to-create-your-company src=ca851ef163 -->
+## Crear tu empresa
+
+1. Abre Ajustes > Cuenta y elige **Añadir una organización**.
+2. Escribe el nombre de tu empresa y elige **Crear**.
+
+Qué pasa entonces: eres administrador de la organización de tu empresa. Sus proyectos, archivos y oficina quedan
+separados de tus cosas privadas; la barra lateral muestra una de las dos cada vez. Después invita a tus compañeros (mira
+«Invitar personas y darles un rol»). Si trabajas solo no necesitas organización: tu propia oficina funciona igual en tu
+área privada.
+
+<!-- help: team#how-to-invite-people-and-give-them-a-role src=1c51bbc4ab -->
+## Invitar personas y darles un rol
+
+1. Abre Ajustes > Organización > Personas y elige **Invitar personas**.
+2. Escribe la dirección de correo y elige el **Rol**: un miembro ve y cambia lo que la organización comparte, un
+   administrador además gestiona personas, roles y ajustes, solo lectura solo lee, contabilidad lee y exporta la oficina,
+   un invitado solo ve lo que se comparte con él personalmente.
+3. Elige **Invitar**.
+
+Qué pasa entonces: la persona recibe un correo y se une con su propia cuenta; quien no tiene una elige primero una
+contraseña. El rol lo cambias después en la misma lista. Lo que cada persona puede hacer en la oficina se decide aparte
+(mira «Decidir quién ve qué en la oficina»).
+
+<!-- help: team#how-to-create-an-account-or-get-a-new-password src=9e70b000b7 -->
+## Crear una cuenta o conseguir una contraseña nueva
+
+1. Para crear una cuenta, elige **Crear cuenta** en la página de inicio de sesión, escribe tu nombre, tu correo y una
+   contraseña, y abre el enlace del correo que recibes.
+2. ¿Has olvidado la contraseña? Elige **¿Has olvidado la contraseña?** en la página de inicio de sesión, escribe tu correo
+   y elige **Enviar el enlace**. Abre el enlace del correo y elige una contraseña nueva.
+
+Qué pasa entonces: has iniciado sesión. Una contraseña nueva cierra tu sesión en tus otros dispositivos y termina las
+contraseñas de aplicación y los tokens de API; tus propios webhooks y canales quedan desactivados hasta que los vuelvas a
+activar. ¿Ningún correo tras unos minutos? Mira en la carpeta de spam.
+
+<!-- self-hosted -->
+**Crear cuenta** falta cuando en el servidor solo los administradores añaden personas: pídeles una cuenta.
+
+<!-- help: team#how-to-get-help-from-a-person src=00bf17443f -->
+## Conseguir ayuda de una persona
+
+<!-- hosted -->
+1. Abre Ajustes > Ayuda y elige **Escribir al soporte** (en **Ayuda de una persona**). Una persona responde por correo.
+2. Si necesitan mirar tu cuenta, ábrela por un tiempo limitado con **Permitir el acceso del soporte**.
+
+<!-- self-hosted -->
+1. Tu servidor lo gestiona tu empresa o tú mismo: su administrador te ayuda.
+2. ¿Un fallo en el propio Kalmido? Infórmalo con **Informar de un problema** en Ajustes > Ayuda.
+
+<!-- hosted -->
+Qué pasa entonces: nadie del soporte puede mirar tu cuenta hasta que lo permitas, y solo hasta la hora que elegiste. Lo
+terminas antes en Ajustes > Cuenta > Acceso del soporte.

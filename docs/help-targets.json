@@ -16,6 +16,13 @@
     "wiki.new": {"route": "#wiki", "sel": "#top [data-wk=\"new\"], #fab", "label_en": "New page"},
     "sheets.new": {"route": "#sheets", "sel": "#top [data-shv=\"new\"], #fab", "label_en": "New table"},
     "team.new": {"route": "#team", "sel": "#view [data-act=\"tc-new\"]", "label_en": "New message"},
-    "budget.create": {"route": "#budget", "sel": "#view [data-bg=\"create\"]", "label_en": "Create a budget"}
+    "budget.create": {"route": "#budget", "sel": "#view [data-bg=\"create\"]", "label_en": "Create a budget"},
+    "settings.account": {"route": null, "sel": ".modal .snav [data-sec=\"account\"]", "label_en": "Settings: Account"},
+    "settings.org": {"route": null, "sel": ".modal .snav [data-sec=\"org\"]", "label_en": "Settings: Organisation"},
+    "settings.office": {"route": null, "sel": ".modal .snav [data-sec=\"biz\"]", "label_en": "Settings: Company & office"},
+    "settings.help": {"route": null, "sel": ".modal .snav [data-sec=\"help\"]", "label_en": "Settings: Help"},
+    "org.add": {"route": null, "sel": ".modal [data-wsorgadd]", "label_en": "Add an organisation"},
+    "org.invite": {"route": null, "sel": ".modal [data-oinv=\"new\"]", "label_en": "Invite people"},
+    "office.import": {"route": "#office/import", "sel": "#view #oim-master", "label_en": "Import legacy data"}
   }
 }

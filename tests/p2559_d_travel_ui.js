@@ -106,10 +106,13 @@ async function round(who, ck) {
   hold(w, /^POST \/api\/office\/trips\/\d+\/items$/);
   await addIt();
   check(await until(() => w.__held.length === 1), `${who}: Add receipt: the request is held`);
-  check(!dlg() && d.querySelectorAll('.rkits .rkit').length === 2 && /Taxi/.test(d.querySelector('.rkits').textContent) && /60[.,]00/.test(sum()),
-    `${who}: the receipt and the sum 60.00 show before the answer: ` + sum());
-  w.__held[0].fail('Refused for the test', 500);
+  check(!dlg() && d.querySelectorAll('.rkits .rkit').length === 2 && /Taxi/.test(d.querySelector('.rkits').textContent) && /Calculating/.test(sum()),
+    `${who}: the receipt shows before the answer, the sum says "Calculating…" (#7503: the server computes it): ` + sum());
+  w.__held[0].fail('Refused for the test', 400);  // #7503: a refusal brings the dialog back with the input (a 500 keeps the row with "Try again": p7503_reisen_sofort_ui)
   check(await until(() => d.querySelectorAll('.rkits .rkit').length === 1 && /40[.,]00/.test(sum())), `${who}: the refusal takes it away, the sum is back`);
+  check(await until(() => dlg()?.querySelector('#rk-text')?.value === 'Taxi' && /Refused for the test/.test(dlg().querySelector('.aerr')?.textContent || '')), `${who}: the dialog is back with the input and the server's message`);
+  for (const m of d.querySelectorAll('.modal.ofcdlg')) m.remove();
+  await until(() => !dlg());
   await addIt();
   check(await until(() => w.__held.length === 2), `${who}: the second Add receipt is held`);
   w.__held[1].go();

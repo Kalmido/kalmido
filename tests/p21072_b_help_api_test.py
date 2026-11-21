@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # kalmido-suite: fresh
 """2.1086.0 part B (#5820): the help for people in the app, from the same source as the agents' help (#5819). Invented names only.
- - GET /api/help (signed in): the "How to" sections per area (files, agents, office, tasks, calendar) in the person's language,
+ - GET /api/help (signed in): the "How to" sections per area (files, agents, office, tasks, calendar ... #6535: org, company, account) in the person's language,
    the area names in the words of the sidebar; GET /api/help/section: one section in German (the translation of
    docs/help/de.md, numbered steps with the screen's labels), English for an English person; only a user's section (a
    developer section, an operator file, an invented key, a path: 404); signed out: 401
@@ -51,11 +51,12 @@ def de_block(key):
 r = A.get(B + "/api/help")
 j = r.json() if r.ok else {}
 areas = [a["area"] for a in j.get("areas", [])]
-check(r.ok and j.get("lang") == "de" and areas == ["files", "agents", "office", "tasks", "calendar", "wiki", "sheets", "team", "budget", "lists", "sharing"], f"GET /api/help: 2.1090.0 (#5900): the eleven areas in order ({r.status_code} {areas})")
+check(r.ok and j.get("lang") == "de" and areas == ["files", "agents", "office", "tasks", "calendar", "wiki", "sheets", "team", "budget", "lists", "sharing", "org", "company", "account"], f"GET /api/help: 2.1090.0 (#5900): the areas in order; #6535: + org, company, account ({r.status_code} {areas})")
 titles = {a["area"]: a["title"] for a in j.get("areas", [])}
 check(titles == {"files": "Dateien", "agents": "Agenten", "office": "Büro", "tasks": "Aufgaben", "calendar": "Kalender",
                     "wiki": "Wissen",  # 2.1168.0 (#6091)
-                    "sheets": "Tabellen", "team": "Team-Chat", "budget": "Budget", "lists": "Projekte", "sharing": "Teilen"}, f"the areas in the sidebar's words: {titles}")
+                    "sheets": "Tabellen", "team": "Team-Chat", "budget": "Budget", "lists": "Projekte", "sharing": "Teilen",
+                    "org": "Organisation", "company": "Firma & Büro", "account": "Konto"}, f"the areas in the sidebar's words: {titles}")  # #6535
 files = next((a for a in j.get("areas", []) if a["area"] == "files"), {"sections": []})
 # 2.1090.0 (#5899): show = the section's named places in order (a list; one <!-- show: --> line per step)
 SCAN_SHOW = ["settings.open", "settings.integrations", "files.scan-inbox"]

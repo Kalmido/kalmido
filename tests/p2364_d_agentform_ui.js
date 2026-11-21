@@ -50,7 +50,8 @@ const lastModal = d => [...d.querySelectorAll('.modal')].pop();
   check(heads.length === 1, '"Permissions" is a heading once ' + heads.length);
   check(md.querySelector('label[for="ag-pm"]')?.textContent === 'Approvals', 'the runtime choice is called "Approvals"');
   // the values sent without opening "Advanced": exactly the old defaults
-  w.eval(`window.__sent = null; { const o = calReq; calReq = (m, u, b) => { if (m === 'POST' && u === '/api/admin/agents') window.__sent = JSON.parse(JSON.stringify(b)); return o(m, u, b); }; }`);
+  // #6499: a new agent goes through reauthReq (account.js), which sends with rawFetch - the request is read there (#7633)
+  w.eval(`window.__sent = null; { const o = rawFetch; rawFetch = (m, u, b, ...x) => { if (m === 'POST' && u === '/api/admin/agents' && !window.__sent) window.__sent = JSON.parse(JSON.stringify(b)); return o(m, u, b, ...x); }; }`);
   const nm = md.querySelector('#ag-name'); nm.value = 'Robo'; nm.dispatchEvent(new w.Event('input', {bubbles: true}));
   check(md.querySelector('#ag-user').value === 'robo', 'the username follows the name (folded)');
   click(w, md.querySelector('[data-m="ok"]'));

@@ -29,17 +29,40 @@ function rk_itemLocal(b) {  // a receipt body -> the fields the list shows (amou
   const a = +b.amount || 0, fx = +b.fx_rate || 0, home = !b.currency || b.currency === rk_home();
   return {...b, amount: a.toFixed(2), amount_home: (home || !fx ? a : a / fx).toFixed(2), datev: b.datev ?? 0};
 }
-// put for the receipts of trip tid: fn(items) changes them; the trip's sum and count "not in DATEV" (and the badge) follow.
-// Idempotent: fn must find its row by id (insert only when missing, remove by filter).
-const rk_itemsPut = (tid, fn) => () => {
-  const t = rk_trip(tid); if (!t) return null;
-  const was = {items: t.items, total: t.total, missing: t.missing}, gm = RK.data.missing;
-  t.items = fn((t.items || []).map(i => ({...i})));
-  const miss = t.items.filter(i => !i.datev).length;
-  t.total = t.items.reduce((s, i) => s + (+i.amount_home || 0), 0).toFixed(2);
-  RK.data.missing = (gm || 0) + miss - (was.missing || 0); t.missing = miss;
-  return () => { const x = rk_trip(tid); if (x) Object.assign(x, was); if (RK.data) RK.data.missing = gm; };
-};
+// #7503 (decision): the receipts of a trip write through the core's "write shows at once" (core.js rwOps, one writer per trip):
+// a receipt added, changed, removed or ticked "in DATEV" stands at once with "Saving…" / "Not saved - Try again"; the answer
+// gives only this receipt and what the server computes of the trip (sum, count "not in DATEV", per diem, version), the other
+// receipts stay as they are (one still on its way never vanishes); the trip's sum says "Calculating…" until then (the server
+// is the only one that computes). Once nothing waits the list is read again in the background (badge, evaluation).
+const RK_WS = new Map();
+function rk_W(tid) {
+  let W = RK_WS.get(tid);
+  if (!W) { W = rwOps({name: 'rk' + tid, draw: () => rk_lite(tid), took: (j, c) => rk_take(tid, j, c)}); RK_WS.set(tid, W); }
+  return W;
+}
+function rk_take(tid, j, c) {
+  const t = rk_trip(tid), tj = j?.trip || j;
+  if (t && tj && tj.id === tid) {
+    const {items, ...head} = tj, id = c.gone || (c.isNew ? j.item_id : c.e?.id), got = id ? (items || []).find(x => x.id === id) : null;
+    Object.assign(t, head);  // the trip's own values and what the server computed of it; its receipts stay
+    if (c.isNew && got) rwIds([c.e], [got]);  // the core's one place of the id swap
+    if (c.gone) t.items = (t.items || []).filter(x => x.id !== c.gone);
+    if (got) { const ix = (t.items ||= []).findIndex(x => x.id === got.id); if (ix >= 0) t.items[ix] = got; else t.items.push(got); }
+  }
+  if (rk_W(tid).last()) rk_refresh();  // the list (badge, evaluation) once nothing waits; the rows stay until it is there
+}
+// the light draw of a trip's writer: only its receipts' section (rows, marks, the sum) when the trip is open, else the page
+function rk_lite(tid) {
+  if (ofcTab() === 'travel' && RK.open === tid && rk_trip(tid) && rwPatch($('#view'), rk_tripHtml(rk_trip(tid)), ['#rk-its'])) return;
+  ofcDraw();
+}
+// a receipt body -> the dialog's fields again (a refused save: the dialog comes back with what was typed)
+function rk_itemFill(md, b) {
+  const set = (id, v) => { const el = $(id, md); if (el && v != null) { if (el.type === 'checkbox') el.checked = !!v; else el.value = v; } };
+  set('#rk-date', b.date); set('#rk-cat', b.category); set('#rk-amt', b.amount != null ? fmtNum(+b.amount, 2) : ''); set('#rk-cur', b.currency); set('#rk-fx', b.fx_rate ? fmtNum(+b.fx_rate, 4) : '');
+  set('#rk-vat', b.vat_pct || ''); set('#rk-text', b.text); set('#rk-datev', b.datev); set('#rk-dno', b.datev_no);
+  md.dispatchEvent(new Event('input'));
+}
 // put that takes trip id out of the list (idempotent), back puts it where it was
 const rk_tripOut = id => () => {
   const ts = RK.data?.trips, k = ts ? ts.findIndex(x => x.id === id) : -1; if (k < 0) return null;
@@ -128,23 +151,23 @@ function rk_listHtml() {
     ${t.missing && rk_dv() ? `<span class="rotag rkmiss">${esc(trn('{0} not in DATEV', '{0} not in DATEV', t.missing))}</span>` : ''}${rk_vmaCols(t, rec)}</button>${rk_rowBtn(t)}</li>`).join('')}</ul>`;
 }
 function rk_tripHtml(t) {
-  const its = RK.filter === 'missing' ? t.items.filter(i => !i.datev) : t.items, ro = !!t.own_ro;  // 2.187.1 B (#2735): entered by somebody else for me: read only
+  const W = rk_W(t.id), all = W.show(t.items), its = RK.filter === 'missing' ? all.filter(i => !i.datev) : all, ro = !!t.own_ro;  // #7503: + the changes on their way  // (#2735): entered by somebody else for me: read only
   const own = ofr_lvOf('travel') === 'own';  // 2.545.0 (#4592): level "own" neither bills nor ticks "in DATEV" (the server ignores / refuses it)
   const head = `<div class="ofcbar"><button class="btn sm ghost" data-rk="back">${ic('back', 's')}<span>${tr('All trips')}</span></button><span class="spacer"></span>
     ${ro ? '' : `<button class="btn sm" data-rk="edit" data-id="${t.id}">${ic('edit', 's')}<span>${tr('Edit trip')}</span></button>`}</div>
     ${ro ? `<p class="muted ofchint">${ic('lock', 's')} ${esc(tr('This trip was entered by somebody else: you can read it, but not change it.'))}</p>` : ''}
     <div class="rkhead"><h3>${esc(t.dest || tr('Trip'))}</h3><p class="muted">${esc([rk_span(t), t.overnight ? tr('with overnight stay') : '', rk_purpose(t)].filter(Boolean).join(' · '))}</p>
     ${(t.people || []).length ? `<p class="muted">${esc(tr('Participants'))}: ${esc(t.people.map(p => p.name).join(', '))}</p>` : ''}${t.km ? `<p class="muted">${esc(tr('{0} km', fmtNum(+t.km, 0)))}</p>` : ''}${t.note ? `<p class="rknote">${esc(t.note)}</p>` : ''}</div>`;
-  const rows = its.map(i => `<li class="rkit">${ro || own ? '' : `<label class="rksel"><input type="checkbox" data-rk="sel" data-id="${i.id}" ${RK.sel.has(i.id) ? 'checked' : ''} ${i.billed ? 'disabled' : ''} aria-label="${esc(tr('Select'))}"></label>`}
-    <button type="button" class="ofcrow" ${ro ? 'disabled' : ''} data-rk="item" data-id="${i.id}"><span class="ofcn"><b>${esc(rk_cat(i.category))}${i.text ? ` · ${esc(i.text)}` : ''}</b><small class="muted">${esc([fmtDateLoc(i.date), i.currency !== rk_home() ? `${fmtNum(+i.amount, 2)} ${i.currency}` : '', i.datev_no ? tr('DATEV receipt no. {0}', i.datev_no) : ''].filter(Boolean).join(' · '))}</small></span>
+  const rows = its.map(i => `<li data-rwk="${esc(rwKey(i))}" class="rkit${esc(rwCls(W, i))}">${ro || own ? '' : `<label class="rksel"><input type="checkbox" data-rk="sel" data-id="${esc(String(i.id || -1))}" ${RK.sel.has(i.id) ? 'checked' : ''} ${i.billed || !i.id ? 'disabled' : ''} aria-label="${esc(tr('Select'))}"></label>`}
+    <button type="button" class="ofcrow" ${ro ? 'disabled' : ''} data-rk="item" data-id="${esc(String(i.id || -1))}"><span class="ofcn"><b>${esc(rk_cat(i.category))}${i.text ? ` · ${esc(i.text)}` : ''}</b><small class="muted">${esc([fmtDateLoc(i.date), i.currency !== rk_home() ? `${fmtNum(+i.amount, 2)} ${i.currency}` : '', i.datev_no ? tr('DATEV receipt no. {0}', i.datev_no) : ''].filter(Boolean).join(' · '))}</small></span>
     ${i.billed ? `<span class="rotag">${esc(tr('Billed on {0}', i.billed.number || tr('Draft')))}</span>` : ''}<span class="rksum">${ofcMoney(i.amount_home)}</span></button>
-    ${rk_dv() && !ro && !own ? `<label class="chkl rkdatev"><input type="checkbox" data-rk="datev" data-id="${i.id}" ${i.datev ? 'checked' : ''}> ${tr('in DATEV')}</label>` : ''}</li>`).join('');
+    ${rk_dv() && !ro && !own ? `<label class="chkl rkdatev"><input type="checkbox" data-rk="datev" data-id="${esc(String(i.id || -1))}" ${i.datev ? 'checked' : ''}> ${tr('in DATEV')}</label>` : ''}${/*html-ok*/ rwMarkHtml(W, i) /* the core's row mark, its texts escaped */}</li>`).join('');
   const nsel = t.items.filter(i => RK.sel.has(i.id) && !i.billed).length;
-  return head + rk_vmaCard(t) + `<div class="ofcbar"><b>${tr('Receipts')}</b><span class="muted">${ofcMoney(t.total)}</span><span class="spacer"></span>
+  return head + rk_vmaCard(t) + `<section id="rk-its"${W.calc ? ' class="rwcalc" aria-busy="true"' : ''}><div class="ofcbar"><b>${tr('Receipts')}</b><span class="muted rksum0">${/*html-ok*/ W.calc ? `<span class="rwcalcl" role="status">${esc(tr('Calculating…'))}</span>` : ofcMoney(t.total) /* the core's "Calculating…" or the money text */}</span><span class="spacer"></span>
     ${ro ? '' : `<button class="btn sm pri" data-rk="add" data-id="${t.id}">${ic('plus', 's')}<span>${tr('Add receipt')}</span></button>`}</div>`
     + (rows ? `<ul class="ofclist rkits" role="list">${rows}</ul>${rk_dv() ? `<div class="shint">${tr('Receipts themselves stay in DATEV; tick them here once they are uploaded there.')}</div>` : ''}` : emptyState({icon: 'receipt', title: tr('No receipts yet.'), size: 'sec'}))
     // 2.428.0 A (#3581): the chosen receipts in the shared floating bar (multisel.js ms_barHtml): Bill on, All, X / Esc
-    + (nsel ? ms_barHtml('rk-sbar', 'rk', nsel, '', [['all', 'all', nsel === t.items.filter(i => !i.billed).length ? tr('Select none') : tr('All')], ['bill', 'receipt', tr('Bill on')]]) : '');
+    + (nsel ? ms_barHtml('rk-sbar', 'rk', nsel, '', [['all', 'all', nsel === t.items.filter(i => !i.billed).length ? tr('Select none') : tr('All')], ['bill', 'receipt', tr('Bill on')]]) : '') + '</section>';
 }
 function rk_reportHtml() {
   const q = `by=${RK.by}` + (RK.year ? `&from=${RK.year}-01-01&to=${RK.year}-12-31` : '') + (RK.filter === 'missing' ? '&missing=1' : '') + rk_pq();
@@ -339,7 +362,7 @@ function rk_tripModal(t) {
   });
   return md;
 }
-function rk_itemModal(t, i) {
+function rk_itemModal(t, i, pre, err) {  // #7503 pre / err: a refused save, the dialog again with what was typed and why
   const home = rk_home(), cur = i?.currency || home;
   const md = modal(`<h3>${i ? tr('Edit receipt') : tr('Add receipt')}</h3>
     <div class="row"><label id="rk-dl">${tr('Date')}</label>${dateIn('rk-date', i?.date || t.date_from || '', {label: tr('Date'), empty: tr('optional')})}</div>
@@ -362,39 +385,44 @@ function rk_itemModal(t, i) {
     $('.rkfxout', md).textContent = !box.hidden && a != null && r ? tr('= {0} in {1}', fmtNum(a / r, 2), home) : '';
   };
   md.addEventListener('input', fx); fx();
+  if (pre) rk_itemFill(md, pre);
+  if (err) $('.aerr', md).textContent = ofcErrHere(err);
+  const W = rk_W(t.id), url = i ? `/api/office/trips/${t.id}/items/${i.id}` : `/api/office/trips/${t.id}/items`;
   md.addEventListener('click', async e => {
     const b = e.target.closest('[data-m]'); if (!b) return;
     if (b.dataset.m === 'close') { close(); return; }
     try {
-      if (b.dataset.m === 'del') {  // 2.559.0 (#4660): gone at once, a refusal brings it back
+      if (b.dataset.m === 'del') {  // #7503: gone at once; no answer / a refusal brings it back
         md.remove();
-        let j; try { j = await optWrite(rk_itemsPut(t.id, its => its.filter(x => x.id !== i.id)), () => api('DELETE', `/api/office/trips/${t.id}/items/${i.id}`), ofcDraw, {mod: true}); } catch { return; }
-        rk_tripSet(j.trip); rk_refresh();
-        const o = j.item; toast(j.trash ? tr('Moved to the trash') : tr('Deleted') /* 2.947.0 (#5454): says where it went */, async () => { if (j.trash) { await api('POST', `/api/office/trips/${t.id}/items/${o.id}/restore`); rk_refresh(); return; } /* 2.1005.0 (#5415): out of the core's trash */ await api('POST', `/api/office/trips/${t.id}/items`, {date: o.date, category: o.category, amount: o.amount, currency: o.currency, fx_rate: o.fx_rate, amount_home: o.amount_home, text: o.text, datev: o.datev, datev_no: o.datev_no, vat_pct: o.vat_pct ?? null}); rk_refresh(); });
+        W.op(rwKey(i), {e: null, gone: i.id, m: 'DELETE', url, bad: x => ofcErr(x), took: j => {
+          const o = j.item; if (!o) return;
+          toast(j.trash ? tr('Moved to the trash') : tr('Deleted') /* (#5454): says where it went */, async () => { if (j.trash) { await api('POST', `/api/office/trips/${t.id}/items/${o.id}/restore`); rk_refresh(); return; } /* (#5415): out of the core's trash */ await api('POST', `/api/office/trips/${t.id}/items`, {date: o.date, category: o.category, amount: o.amount, currency: o.currency, fx_rate: o.fx_rate, amount_home: o.amount_home, text: o.text, datev: o.datev, datev_no: o.datev_no, vat_pct: o.vat_pct ?? null}); rk_refresh(); });
+        }});
         return;
       }
       const v = id => $(id, md)?.value ?? '';
       const c = v('#rk-cur').trim().toUpperCase() || home;
       const body = {date: v('#rk-date'), category: v('#rk-cat'), amount: ofcNum(v('#rk-amt')), currency: c, text: v('#rk-text'), vat_pct: v('#rk-vat') || null, ...($('#rk-datev', md) ? {datev: $('#rk-datev', md).checked ? 1 : 0, datev_no: v('#rk-dno')} : {})};  // 2.147.0 (#2460): DATEV off = its marks stay as saved
       if (c !== home) body.fx_rate = ofcNum(v('#rk-fx'), true);
-      // 2.559.0 (#4660): the dialog closes at once, the receipt shows (a new one: provisional, negative id); the answer's
-      // trip replaces the local one (amount in the office currency, sum), a refusal puts the receipts before back
+      // #7503: the dialog closes at once, the receipt stands in the trip ("Saving…"); the answer gives this receipt and the trip's
+      // sums; a refusal brings the dialog back with what was typed (a 409: the saved receipt with the merge bar)
       const loc = rk_itemLocal({datev: i?.datev ?? 0, ...body, currency: c});
       md.remove();
       if (i) {
         const old = {date: i.date, category: i.category, amount: i.amount, currency: i.currency, fx_rate: i.fx_rate, amount_home: i.amount_home, text: i.text, datev: i.datev, datev_no: i.datev_no, vat_pct: i.vat_pct ?? null};  // 2.545.0 (#4387): + VAT rate
-        // 2.560.0 D (#4700) kept: the save checks the version (409: row back, the saved receipt opens)
+        // (#4700) kept: the save checks the version (409: the saved receipt opens with the merge bar)
         const i0 = ofcBase(md, i);
-        let j; try { j = await optWrite(rk_itemsPut(t.id, its => its.map(x => x.id === i.id ? {...x, ...loc} : x)), () => ofcSave(null, `/api/office/trips/${t.id}/items/${i.id}`, i0, body), ofcDraw, {mod: true}); } catch (x) { ofcSaveErr(null, x, r => { const m2 = rk_itemModal(t, r); rk_refresh(); return m2; }); return; }  // 2.576.0 (#4794)
-        if (!j) { rk_refresh(); return; }
-        rk_tripSet(j); rk_refresh();
-        const now = j?.items?.find(x => x.id === i.id);
-        toast(tr('Saved'), async () => { const r = await undoWrite(`/api/office/trips/${t.id}/items/${i.id}`, old, now?.updated_at, {now: body}).catch(() => null); if (r?.id) rk_tripSet(r); rk_refresh(); });  // 2.566.0 (#4704): core.js undoWrite - only the keys this save changed, against its version; changed since -> said, kept
+        W.op(rwKey(i), {e: {...i, ...loc}, send: () => ofcSave(null, url, i0, body),  // (#4794)
+          bad: x => x?.conflict ? ofcSaveErr(null, x, r => rk_itemModal(t, r)) : rk_itemModal(t, i, body, x),
+          took: j => {
+            if (!j) return;  // nothing changed
+            const now = j.items?.find(x => x.id === i.id);
+            toast(tr('Saved'), async () => { const r = await undoWrite(url, old, now?.updated_at, {now: body}).catch(() => null); if (r?.id) rk_refresh(); });  // (#4704): core.js undoWrite - only the keys this save changed, against its version; changed since -> said, kept
+          }});
       } else {
-        const tmp = -Date.now();
-        let j; try { j = await optWrite(rk_itemsPut(t.id, its => its.some(x => x.id === tmp) ? its : [...its, {...loc, id: tmp, trip_id: t.id, billed: null}]), () => api('POST', `/api/office/trips/${t.id}/items`, body), ofcDraw, {mod: true}); } catch { return; }
-        rk_tripSet(j); rk_refresh();
-        toast(tr('Added'), async () => { rk_tripSet(await api('DELETE', `/api/office/trips/${t.id}/items/${j.item_id}`).then(x => x.trip)); rk_refresh(); });
+        const row = {...loc, id: null, trip_id: t.id, billed: null};
+        W.op(rwKey(row), {e: row, isNew: true, m: 'POST', url, b: body, bad: x => rk_itemModal(t, null, body, x),
+          took: j => toast(tr('Added'), async () => { await api('DELETE', `/api/office/trips/${t.id}/items/${j.item_id}`); rk_refresh(); })});
       }
     } catch (x) { const el = $('.aerr', md); if (el) el.textContent = ofcErrHere(x); }
   });
@@ -402,6 +430,10 @@ function rk_itemModal(t, i) {
 }
 async function rk_billModal(t) {
   const ids = t.items.filter(i => RK.sel.has(i.id) && !i.billed && i.id > 0).map(i => i.id); if (!ids.length) return;  // 2.559.0 (#4660): not the provisional ones
+  if (rk_billModal.busy) return;  // #7503: a second click while the drafts load opens no second dialog
+  rk_billModal.busy = true; try { await rk_billOpen(t, ids); } finally { rk_billModal.busy = false; }
+}
+async function rk_billOpen(t, ids) {
   let docs = [];
   try { docs = (await api('GET', `/api/office/trips/bill-docs${t.client_id ? `?client_id=${t.client_id}` : ''}`)).docs || []; } catch (x) { ofcErr(x); return; }
   const kind = d => d.kind === 'invoice' ? tr('Invoice') : tr('Quotation');
@@ -418,7 +450,8 @@ async function rk_billModal(t) {
     const b = e.target.closest('[data-m]'); if (!b) return;
     if (b.dataset.m === 'close') { md.remove(); return; }
     try {
-      const j = await dlgCreate(md, '/api/office/trips/bill', {doc_id: +$('#rk-doc', md).value, item_ids: ids, markup_pct: ofcNum($('#rk-mk', md).value), one: $('#rk-one', md)?.checked ? 1 : 0});
+      const bb = {doc_id: +$('#rk-doc', md).value, item_ids: ids, markup_pct: ofcNum($('#rk-mk', md).value), one: $('#rk-one', md)?.checked ? 1 : 0};
+      const j = await rk_W(t.id).run(() => dlgCreate(md, '/api/office/trips/bill', bb));  // #7503: after the trip's saves on their way (its row of saves)
       md.remove(); RK.sel.clear(); rk_reload();
       toast(tr('Billed on {0}', j.number || tr('Draft')), j.items ? async () => { await api('POST', '/api/office/trips/unbill', {item_ids: j.items, positions: j.positions}); rk_reload(); } : undefined);  // (#7507): busy + the dialog's id (billed once); a repeat's short answer has no undo
     } catch (x) { const el = $('.aerr', md); if (el) el.textContent = ofcErrHere(x); }
@@ -436,7 +469,7 @@ document.addEventListener('click', e => {
   else if (a === 'back') { if (!f8d_viewBack('rkt')) rk_tripClose(); }  // 2.963.0 (#5233): the ‹ = Back
   else if (a === 'edit' && t) { if (!rk_wait(t.id)) rk_tripModal(t); }  // 2.559.0 (#4660): not on a provisional trip / receipt
   else if (a === 'add' && t) { if (!rk_wait(t.id)) rk_itemModal(t, null); }
-  else if (a === 'item' && t) { const i = t.items.find(x => x.id === +b.dataset.id); if (i && !rk_wait(i.id)) rk_itemModal(t, i); }
+  else if (a === 'item' && t) { if (rk_wait(b.dataset.id)) return; const i = t.items.find(x => x.id === +b.dataset.id); if (i) rk_itemModal(t, i); }  // #7503: a receipt on its way (-1): "Still syncing"
   else if (a === 'bill' && t) rk_billModal(t);
   else if (a === 'close') { RK.sel.clear(); ofcDraw(); }  // 2.428.0 A (#3581)
   else if (a === 'all' && t) { const op = t.items.filter(i => !i.billed), on = op.every(i => RK.sel.has(i.id)); RK.sel.clear(); if (!on) op.forEach(i => RK.sel.add(i.id)); ofcDraw(); }
@@ -455,11 +488,9 @@ document.addEventListener('change', async e => {
   if (x.dataset?.rk !== 'datev' || !RK.open) return;
   const tid = RK.open, iid = +x.dataset.id, on = x.checked ? 1 : 0;
   if (rk_wait(iid)) { x.checked = !on; return; }
-  // 2.559.0 (#4660): the tick, the count "not in DATEV" and the badge show at once; a refusal unticks it (api() says why)
-  const tick = v => rk_itemsPut(tid, its => its.map(i => i.id === iid ? {...i, datev: v} : i));
-  let j; try { j = await optWrite(tick(on), () => api('PATCH', `/api/office/trips/${tid}/items/${iid}`, {datev: on}), ofcDraw, {mod: true}); } catch { return; }
-  rk_tripSet(j); rk_refresh();
-  toast(on ? tr('Ticked as in DATEV') : tr('Tick removed'), async () => { rk_tripSet(await optWrite(tick(on ? 0 : 1), () => api('PATCH', `/api/office/trips/${tid}/items/${iid}`, {datev: on ? 0 : 1}), ofcDraw, {mod: true})); rk_refresh(); });
+  // #7503: the tick stands at once ("Saving…"), the trip's count "not in DATEV" follows the answer; a refusal unticks it
+  const tick = v => { const it = rk_trip(tid)?.items?.find(i => i.id === iid); if (it) rk_W(tid).op(rwKey(it), {e: {...it, datev: v}, m: 'PATCH', url: `/api/office/trips/${tid}/items/${iid}`, b: {datev: v}, bad: y => ofcErr(y), took: () => { if (v === on) toast(on ? tr('Ticked as in DATEV') : tr('Tick removed'), () => tick(on ? 0 : 1)); }}); };
+  tick(on);
 });
 
 // ---- 2.95.0 A (#1932): the per diem (Verpflegungsmehraufwand) of a trip and its report (part A fills this block; server
