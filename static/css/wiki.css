@@ -285,8 +285,9 @@ a.wemlink{display:inline-flex;align-items:center;gap:.25rem}
    text scrolls inside, "Files" / "Linked from" and the footer stay in sight; replaces only the "scrolls as a whole" of #6089 (its
    one head, the list's own area bar and the grouped menu stay). "Files" and "Linked from" are one folded line each below the text
    (wkfold, wiki.js: counter, opened on demand), so they no longer take a third of the height. A phone still scrolls as a whole.
-   Without the height chain (e.g. inside a split pane) the card just grows. */
-@media (min-width:768px){
+   Without the height chain (e.g. inside a split pane) the card just grows. A low window (under 560 px, a phone held sideways)
+   scrolls the whole page as on a phone, so the text never shrinks to a few lines (reader F3). */
+@media (min-width:768px) and (min-height:560px){
   #view:has(> .wkdesk.wkpgo){display:flex;flex-direction:column;padding-bottom:.75rem}
   #view > .wkdesk.wkpgo{flex:1 1 auto;min-height:0}
   .wkdesk.wkpgo > :not(.ntedit){flex:none}
