@@ -511,13 +511,13 @@ function netAgain(e, what, then, again) {
 }
 const ML_WAITS = N_('The task was moved meanwhile: it is shown in that project again if it moves back within 24 hours.');  // 2.363.3 (#3133): POST .../links answers link_waits
 const MO_KEPT = N_('Your order of My tasks was changed on another device: that order stays, this change was not applied.');  // 2.363.3 (#3133): PUT /api/tasks/mine-order answers order_kept
-// 2.306.0 B (#2889): the session ended (401 / the login proxy's page): the stored state of the account (cache, tabs, chat
-// windows, session keys) goes like at logout, so the next person on this browser does not find it. Changes still waiting
-// to be sent (outbox, conflicts) keep everything as before: they go out after the next login of the same account.
+// (#2889, #6500): the session ended (401 on any route / the login proxy's page): what this device keeps of the account goes
+// (icons.js DEV_END gone: its copies, view and secrets - the remembered keys, the push subscription), so the next person on
+// this browser finds nothing; the own changes not sent yet (class own) wait for the next sign-in of the same account.
+// outSync first: the queue other tabs wrote is taken over, so it counts as own too.
 async function authGone() {
   try { outSync(); } catch { /* storage gone */ }
-  if (OUT.q.length || (S.conflicts || []).length || fdAny()) return;  // 2.527.0 (#4304 A5): + input kept for after the sign-in
-  await Promise.race([clearLocal(), new Promise(ok => setTimeout(ok, 1500))]);
+  await devEnd('gone');
 }
 const OUT = {q: LS.get('outbox', []), online: true, flushing: false};
 // 2.126.0 D (#1989): every tab and list window of the browser shares the queue, localStorage is the truth: outSync takes over
@@ -722,31 +722,32 @@ async function obxDrain() {
   if (map && Object.keys(map).length && typeof qfSend === 'function') qfSend();  // 2.359.0 A (#3023): files of a quick add made offline
 }
 const obxMeta = (k, v) => { if (OBX.on) OBX.st.setMeta(k, v).catch(() => {}); };
-// logout / another user in this browser (clearLocal): the queue goes with the rest of the local data
-function obxClear() { if (!OBX.on) return Promise.resolve(); for (const o of OUT.q) o.done = true; OUT.q = []; return OBX.st.clear().then(() => { try { OBX.ch?.postMessage({clear: true}); } catch { /* closed */ } }, () => {}); }  // 2.143.0 C2 (#2153): a Promise (awaited before leaving the page)
+// the drop of the queue (class own, icons.js devEnd: logout / another account / restore), in memory and in IndexedDB
+function obxClear() { for (const o of OUT.q) o.done = true; OUT.q = []; if (!OBX.on) return devIdbDel('kalmido-outbox'); return OBX.st.clear().then(() => { try { OBX.ch?.postMessage({clear: true}); } catch { /* closed */ } }, () => {}); }  // (#2153): a Promise (awaited before leaving the page)
 // Background Sync: the service worker sends the queue once the device is online again (it leaves it to an open tab)
-// 2.238.0 B (#2872): the offline copies belong to one sign-in. The knowledge pages' copy (wiki.js, IndexedDB "kalmido-wiki")
-// carries the server's sign-in mark (me.sgen: session, password state, organisations); LS "wko" = {g, at} = that mark and the last
-// online sync. Online with another mark, or 14 days without an online sync (also at an offline start), the copy goes. The outbox
-// (own changes not sent yet) stays at a new sign-in of the same account (the server checks every entry when it is sent); it goes
-// with the copy when the session is gone (401 / account disabled). 2.505 (#4298): an organisation of the account that is gone
-// empties it no more: it goes out as usual, the private entries arrive, what the server refuses waits in the conflicts dialog.
+devDrop('kalmido-outbox', obxClear);
+// (#2872, #6500): the offline copies (class copy, icons.js DEV_STORES: the start state, the knowledge pages' copy) belong to one
+// sign-in with "Stay signed in". ONE stamp for both, LS "wko" = {g, at, off}: the server's sign-in mark (me.sgen: session,
+// password state, organisations, shares), the last online sync, off = a sign-in without "Stay signed in" (me.remember false,
+// accounts/session.py session_remember). devCopyOk is THE write gate: startSave, wiki.js wko_st and the offline start ask only
+// it; sw.js swStartFold writes only into a record that is there. Another mark, 14 days without an online sync or no "Stay
+// signed in": the copies go (devEnd mark); the own changes not sent yet stay (the server checks every entry when it is sent).
+// Only a full state moves the stamp on (sessGuard, with the fresh mark): a delta or the knowledge pages' sync carry no sign-in
+// mark, so an account removed from an organisation while the tab was open never stretches the copies' 14 days (audit #6007 a).
 const WKO_MAX_AGE = 14 * 864e5;
-function wkoDrop() {
-  LS.del('wko');
-  if (typeof wko_reset === 'function') return wko_reset();
-  if (globalThis.__wkoStore) return globalThis.__wkoStore.clear().catch(() => {});  // tests: the stand-in for IndexedDB
-  return new Promise(ok => { try { const r = indexedDB.deleteDatabase('kalmido-wiki'); r.onsuccess = r.onerror = r.onblocked = () => ok(); } catch { ok(); } });
-}
-function startDrop() { LS.del('cache'); S.lpCache = null; if (typeof oc_drop === 'function') oc_drop(); else if (globalThis.indexedDB) { try { indexedDB.deleteDatabase('kalmido-start'); } catch { /* none */ } } }  // 2.663.0 (#4200): + its IndexedDB record
+const devStampOld = m => !m || !(Date.now() - Date.parse(m.at) < WKO_MAX_AGE);
+function devCopyOk(me = S.me) { const m = LS.get('wko', null); return !!me && me.remember !== false && !devStampOld(m) && !m.off && m.g === (me.sgen || ''); }
+function startClr() { S.lpCache = null; }  // the one setter of the start state in memory for the drops (offcache.js too)
+devDrop('kalmido-start', () => { startClr(); return devIdbDel('kalmido-start'); });  // offcache.js brings its own once loaded
+devDrop('kalmido-wiki', () => globalThis.__wkoStore ? globalThis.__wkoStore.clear().catch(() => {}) : devIdbDel('kalmido-wiki'));  // wiki.js brings its own; __wkoStore: a test's stand-in
 // 2.663.0 (#4200): the offline start state (S.lpCache) goes to IndexedDB when the browser is idle (offcache.js, loaded on demand);
 // an own window (miniwin.js) writes none; without IndexedDB or the module localStorage as before
 // (#6340): now = the page is being hidden (liveparts.js lpCacheNow): written at once, not when idle
 // (#6340): another tab signed out / switched account (tasks.uid gone or another): nothing of this one goes back
 const startMine = () => S.me?.id != null && LS.get('uid', null) === S.me.id;
 function startSave(now) {
-  if (!S.lpCache || (typeof MW_GUARD !== 'undefined' && MW_GUARD)) return;  // 2.891.0 (#5358): nor the split view's right half
-  if (!startMine()) return;
+  if (!S.lpCache || (typeof MW_GUARD !== 'undefined' && MW_GUARD)) return;  // (#5358): nor the split view's right half
+  if (!startMine() || !devCopyOk()) return;
   if (typeof loadModule !== 'function' || !globalThis.indexedDB) { LS.set('cache', S.lpCache); return; }
   if (typeof oc_soon === 'function') { if (now) oc_now(); else oc_soon(); return; }
   if (now) return;  // the module is not here yet (the first seconds): the planned write below follows
@@ -763,16 +764,14 @@ async function startRead() {
   if (typeof loadModule === 'function' && globalThis.indexedDB) { try { await loadModule('offcache'); return await oc_get(); } catch (e) { console.warn('Kalmido: offline start state: module not loaded, localStorage', e); } }
   return LS.get('cache', null);
 }
-const wkoOld = m => !m || !(Date.now() - Date.parse(m.at) < WKO_MAX_AGE);
+// an online state (load, before the outbox is sent): a stamp of another sign-in mark, 14 days old or of the other "Stay signed in"
+// = the copies go (devEnd mark), then the stamp says this sync
 function sessGuard(me) {
   if (!me) return;
-  const m = LS.get('wko', null);
-  if (wkoOld(m) || m.g !== (me.sgen || '')) { wkoDrop(); startDrop(); LS.set('wko', {g: me.sgen || '', at: new Date().toISOString()}); }
+  const m = LS.get('wko', null), off = me.remember === false;
+  if (devStampOld(m) || m.g !== (me.sgen || '') || !!m.off !== off) devEnd('mark');
+  LS.set('wko', {g: me.sgen || '', at: new Date().toISOString(), ...(off ? {off: true} : {})});
 }
-// the session is gone (401 / account disabled at /api/state): the knowledge pages' copy goes before the sign-in page.
-// 2.306.0 B (#2889): the outbox stays (authGone keeps what waits; it goes out after the next login of the same account)
-// 2.360.2 (#3226): the offline start state (LS "cache", S.lpCache: all tasks of the last load) goes the same way; load() writes it anew
-function sessGone() { startDrop(); return Promise.race([wkoDrop(), new Promise(ok => setTimeout(ok, 3000))]); }
 function obxSyncReg() { if (OBX.on && navigator.serviceWorker?.ready) navigator.serviceWorker.ready.then(r => r.sync?.register('kalmido-outbox')).catch(() => {}); }
 if (globalThis.navigator?.serviceWorker) navigator.serviceWorker.addEventListener('message', e => { if (e.data?.type === 'outbox-flush' && OUT.q.length) flush(); });
 // 2.21.0 (#673): before the first render there is no top bar to update (renderTop on an empty state threw, so a start while
@@ -911,7 +910,6 @@ async function rawFetch0(method, url, body, key, osp, oq, lim) {
   let j; try { j = await Promise.race([r.json().catch(() => ({})), tb.p]); } catch (e) { throw noAns(e); } finally { tb.stop(); }
   if (!globalThis.document) return new Promise(() => {});  // 2.655.0 (#5045): the page went while the body was read
   if (ik && r.headers.get('Idempotent-Replayed') && j && typeof j === 'object') Object.defineProperty(j, '_replayed', {value: true, configurable: true});  // #7494: the stored (short) answer of a write sent again: the caller reads the object anew
-  if (String(url).split('?')[0] === '/api/state' && (r.status === 401 || (r.status === 403 && j.auth))) await sessGone();  // 2.238.0 B (#2872); 2.369.2 (#3136): with its query (lz, auto)
   if ((r.status === 401 || r.status === 403) && j.auth) { keepW(); await authGone(); authScreen(j); throw new Error('auth'); }  // built-in login
   if (r.status === 401) { keepW(); await authGone(); location.reload(); throw new Error('auth'); }
   if (!r.ok) { const e = new Error(j.error || httpErrText(r.status)); e.status = r.status; e.data = j;
@@ -1180,7 +1178,8 @@ function outOrgDrop(oid) {
 // 2.1257.0 (#6286): 'fdx' = an own knowledge page text waiting at its page (wiki.js wko_cfPut: refused with 409/403/413); kept
 // here, not in the page copy (IndexedDB kalmido-wiki), which a new sign-in, an ended session and 14 days without a sync empty
 const FD_KINDS = ['ltpend', 'fdf', 'fdc', 'fdw', 'fdx'];
-// review (#4304): before /api/me answered (a 401 at the start) the account of this browser (uid), else authGone found nothing and wiped
+DEV_STORES.push(...FD_KINDS.map(k => ['ls', `tasks.${k}.`, 'own']));  // (#6500): kept input waits like the queue (icons.js devEnd)
+// review (#4304): before /api/me answered (a 401 at the start) the account of this browser (uid)
 // 2.1257.0 (#6286): uid = another account's records (the previous account at a switch, cfDownload)
 const FD_KEY = (kind, id, uid) => `tasks.${kind}.${uid || S.me?.id || LS.get('uid', 0) || 0}.${id}`;
 function fdKeep(kind, id, b, base = '') { const k = FD_KEY(kind, id); let ok = true; try { localStorage.setItem(k, JSON.stringify({base: base || '', b, at: Date.now()})); } catch { ok = false; /* full or private mode */ } storeLost(k.slice(6), ok); }  // 2.1384.0 (#6339 D8): refused = a sign
@@ -1192,7 +1191,6 @@ function fdList(kind, uid) {
   try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k?.startsWith(pre)) { const r = fdGet(kind, k.slice(pre.length), uid); if (r) out.push({...r, id: k.slice(pre.length)}); } } } catch { /* no storage */ }
   return out;
 }
-const fdAny = () => FD_KINDS.some(k => fdList(k).length > 0);
 // the kept input while it is still news: none when the server has it already (cur: every kept field equal) or the record
 // was saved elsewhere since (base differs: dropped, with the hint "Changed in the meantime")
 function fdTake(kind, id, cur, base) {
@@ -1682,13 +1680,10 @@ function cfDownload(uid, prev) {
   return true;
 }
 // another user than last time in this browser: drop everything local of the previous one, then the app loads again
+// (icons.js DEV_END switch: with the previous person's push subscription, remembered keys and Cache Storage)
 function userSwitch(id) {
-  clearLocal(); LS.set('uid', id);
-  // 2.126.0 C (#1991): the previous person's push subscription and remembered keys in this browser go too
-  const gone = Promise.allSettled([typeof wpDisable === 'function' && wpDisable(), typeof e2eForget === 'function' && e2eForget(),
-    // 2.190.0 A (#2496): and the Cache Storage like at the logout (shared files waiting, kept pages); the app loads again
-    (async () => { if (typeof caches !== 'undefined') for (const k of await caches.keys()) await caches.delete(k); })()]);
-  Promise.race([gone, new Promise(r => setTimeout(r, 3000))]).finally(() => location.reload());
+  const gone = devEnd('switch'); LS.set('uid', id);
+  gone.finally(() => location.reload());
 }
 // 2.489.0 C (#2656): public links of this kind may be made (the instance switch and the kind's switch; the server checks too)
 const pubOn = kind => !!S.publicLinks && !(S.publicLinksOff || []).includes(kind);
@@ -1965,7 +1960,8 @@ async function ld_go(auto) {
     if (!S.tasks.size) {  // offline start: last cached state + still-queued edits
       const c = await startRead(); if (!c) throw e;  // 2.663.0 (#4200): IndexedDB (offcache.js), the old localStorage copy taken over once
       if (S.tasks.size) return;  // another load came first meanwhile
-      if (wkoOld(LS.get('wko', null))) wkoDrop();  // 2.238.0 B (#2872): 14 days without an online sync
+      // (#2872, #6500): another sign-in, 14 days without an online sync or no "Stay signed in" (the gate, its me): not shown, it goes
+      if (!devCopyOk(c.me)) { devEnd('mark'); throw e; }
       applyState(c); OUT.q.forEach(applyLocal);
       const at = startAt(c); if (at) S.syncOk = at;  // (#6340): the age of this state, not the time since the page started
     }

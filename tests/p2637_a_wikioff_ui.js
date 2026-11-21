@@ -197,8 +197,8 @@ async function menuPick(w) {
   check(br.fs.size === 0 && br.db.size === 0, 'another sign-in (wko_reset): texts and files gone');
   await w.eval(`(WKO.dead = false, WKOF.m = {}, wko_put({k: 'o:private', sp: 'private', on: true, st: 'ok', list: [], have: {}}))`);
   br.fs.set('f:1', {k: 'f:1', blob: new Blob(['x']), uid: ME.id, g: ME.sgen || ''});
-  await w.eval('clearLocal()');
-  check(await until(() => br.fs.size === 0 && br.db.size === 0), 'logout (clearLocal): texts and files gone');
+  await w.eval("devEnd('logout')");
+  check(await until(() => br.fs.size === 0 && br.db.size === 0), 'logout (devEnd): texts and files gone');
   w.close();
 
   console.log(`\n${ok} ok, ${F.length} failed`);

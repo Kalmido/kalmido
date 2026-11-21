@@ -34,7 +34,7 @@ const FV2_REF = {office_doc: ['receipt', 'office'], office_letter: ['file', 'off
 const FV2_ICONS = [['star', N_('Star')], ['flag', N_('Flag')], ['pin', N_('Pin')], ['zap', N_('Flash')], ['tag', N_('Tag')], ['book', N_('Book')], ['folder', N_('Folder')], ['file', N_('Document')],
   ['receipt', N_('Receipt')], ['sheet', N_('Table')], ['user', N_('Person')], ['home', N_('Home')], ['brief', N_('Briefcase')], ['cal', N_('Calendar')], ['chart', N_('Chart')], ['note', N_('Note')]];
 // 2.1265.0 (#6382): names and kinds of the object favourites are kept on this device (tasks.favres, wiped with the rest at logout /
-// another user: icons.js clearLocal), drawn at once; the server's answer only reconciles. Old or broken JSON = empty.
+// another user: icons.js devEnd), drawn at once; the server's answer only reconciles. Old or broken JSON = empty.
 function fv2_resLoad() {
   if (FV2.lsDone || !S.me) return;
   FV2.lsDone = true;

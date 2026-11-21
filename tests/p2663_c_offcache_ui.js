@@ -12,7 +12,7 @@
 // - (#7549): an indexedDB.open that never answers (WebKit at a start): the app starts all the same - offline without a copy
 //   "Server not reachable" with Try again, offline with the old localStorage copy that copy, online the server's state;
 //   the hang is reported once (clienterr), never a blank page
-// - sign-out (clearLocal): the record goes
+// - sign-out (devEnd logout): the record goes
 // - an open table polled with nothing changed: {unchanged}, the same sheet object, nothing drawn again; a cell changed on the
 //   server: the poll loads it and draws
 // The network is cut for the app's requests (/api/) by a preload script (the page and its scripts still load).
@@ -171,10 +171,10 @@ const OFF = `() => { try { if (localStorage.getItem('t2663off') !== '1') return;
     // a write planned before the sign-out (idle) must not bring the record back afterwards
     await ev(`(oc_soon(), 1)`);
     check(!!(await ev(REC)), 'setup: a record before the sign-out');
-    await ev(`clearLocal().then(() => 1)`);
+    await ev(`devEnd('logout').then(() => 1)`);
     await ev(`new Promise(r => (globalThis.requestIdleCallback || setTimeout)(() => setTimeout(() => r(1), 50), {timeout: 2000}))`);  // the idle callback planned above has run (a state of the page)
     const r4 = await ev(REC);
-    check(r4 == null && (await ev(`S.lpCache === null`)), 'sign-out (clearLocal): the record is gone and stays gone (a planned write is void) ' + JSON.stringify(r4));
+    check(r4 == null && (await ev(`S.lpCache === null`)), 'sign-out (devEnd logout): the record is gone and stays gone (a planned write is void) ' + JSON.stringify(r4));
 
     // ---- the open table: polled unchanged = nothing drawn again; changed = loaded and drawn
     await nav(B + `#sheets/${SID}`);

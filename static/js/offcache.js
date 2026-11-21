@@ -108,6 +108,7 @@ async function oc_get() {
   if (c && typeof c === 'object' && !c._at && rec.at) c._at = rec.at;  // (#6340): a record of before carries only its write time
   return c;
 }
-// core.js startDrop / icons.js clearLocal: the record goes (the connection stays open: a clear, not a deleteDatabase)
+// icons.js devEnd (class copy): the record goes (the connection stays open: a clear, not a deleteDatabase)
 function oc_del() { return oc_tx('readwrite', st => st.delete(OC_KEY)); }
 function oc_drop() { OC.t = 0; OC.gen++; return oc_del().catch(() => {}); }
+devDrop('kalmido-start', () => { startClr(); return oc_drop(); });  // (#6500): the drop of class copy (icons.js DEV_STORES)

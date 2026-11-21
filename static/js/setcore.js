@@ -52,6 +52,9 @@ async function wpEnable() {
   S.webpush.devices = (S.webpush.devices || 0) + 1;
   return true;
 }
+// (#6500) icons.js devEnd (class secret): this browser's subscription ends in the browser only - the server answers an ended
+// session with 401, and its row goes with that session (accounts/sessions.py ses_end; the send skips it, notify/push.py)
+devDrop('subscription', async () => { const sub = await wpSub(); await sub?.unsubscribe(); });
 async function wpDisable() {
   const sub = await wpSub();
   LS.del('wpUser'); LS.del('wpEp');

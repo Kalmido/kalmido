@@ -11,7 +11,7 @@
 //   loaded (stats) loads from the cache, a new task and a rename wait in the queue (IndexedDB "ops") and nothing reaches the server
 // - network back: the queue goes out by itself, the server has the new task exactly once and the new title; the queue is empty;
 //   a new start (which reads the queue again) sends nothing twice
-// - clearLocal (sign-out / another person) empties "ops" in IndexedDB too (read with an own open() of the database)
+// - devEnd logout (sign-out / another person) empties "ops" in IndexedDB too (read with an own open() of the database)
 // The waits are on states (the relay's port refusing, the page's queue, the server's rows), never on a fixed time.
 // P2579D_SHOTS=<dir> = screenshots.
 const net = require('net');
@@ -158,22 +158,22 @@ const refused = port => new Promise(res => {
     tasks = await state();
     check(tasks.filter(t => t.title === NEW).length === 1, 'a new start online: still exactly one new task (nothing sent twice)');
 
-    // ---- clearLocal empties the queue in IndexedDB (sign-out / another person on this device)
+    // ---- devEnd logout empties the queue in IndexedDB (sign-out / another person on this device)
     await R.close();
-    check(await refused(R.port), 'clearLocal: the network gone again');
+    check(await refused(R.port), 'devEnd logout: the network gone again');
     const q = await ev(`api('PATCH', '/api/tasks/${T}', {title: ${JSON.stringify(GONE)}}).then(() => 'ok', e => 'failed: ' + e.message)`);
-    check(q === 'ok' && await pu(`OBX.st.all().then(r => r.length === 1)`), 'clearLocal: a change waits in IndexedDB "ops" ' + q);
-    const cl = await ev(`clearLocal().then(() => new Promise((ok, no) => {
+    check(q === 'ok' && await pu(`OBX.st.all().then(r => r.length === 1)`), 'devEnd logout: a change waits in IndexedDB "ops" ' + q);
+    const cl = await ev(`devEnd('logout').then(() => new Promise((ok, no) => {
       const r = indexedDB.open('kalmido-outbox');
       r.onsuccess = () => { const d = r.result; if (!d.objectStoreNames.contains('ops')) { d.close(); return ok({ops: 'no store'}); }
         const g = d.transaction('ops').objectStore('ops').count(); g.onsuccess = () => { d.close(); ok({ops: g.result, q: OUT.q.length}); }; g.onerror = () => no(g.error); };
       r.onerror = () => no(r.error);
     })).catch(e => ({err: String(e && e.message || e)}))`);
-    check(cl.ops === 0 && cl.q === 0, 'clearLocal: IndexedDB "ops" is empty (read with an own open() of the database), the queue in memory too ' + JSON.stringify(cl));
+    check(cl.ops === 0 && cl.q === 0, 'devEnd logout: IndexedDB "ops" is empty (read with an own open() of the database), the queue in memory too ' + JSON.stringify(cl));
     await R.open();
-    check(await pu(`fetch('/api/state', {headers: {'X-Requested-With': 'kalmido'}}).then(r => r.ok)`), 'clearLocal: online again');
+    check(await pu(`fetch('/api/state', {headers: {'X-Requested-With': 'kalmido'}}).then(r => r.ok)`), 'devEnd logout: online again');
     tasks = await state();
-    check(tasks.find(t => t.id === T)?.title === REN && !tasks.some(t => t.title === GONE), 'clearLocal: the cleared change never reaches the server');
+    check(tasks.find(t => t.id === T)?.title === REN && !tasks.some(t => t.title === GONE), 'devEnd logout: the cleared change never reaches the server');
   }, false);
   await R.close();
 
