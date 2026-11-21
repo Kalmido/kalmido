@@ -33,6 +33,7 @@ from ..core.i18n import N_, lang, tr
 from ..core.pages import save_attachment_bytes
 from ..core.pg import system_ctx
 from ..core.access import acx_anon_bind
+from ..accounts.orgs import user_orgs
 from ..tasks.validation import CONTENT_MAX
 from .errorreports import cer_list, cer_place, cer_text, err_rate_ok, err_take
 
@@ -253,12 +254,15 @@ def rpt_list():
     c = db()
     lid, r = cer_list(c)
     place = rpt_route(request.args.get("place"))
+    # my organisations as the request has them (accounts/orgs.py user_orgs: narrowed for an agent / a support session, #6977),
+    # never a membership lookup of its own inside system_ctx (p6977_support_roles_src)
+    orgs = [int(o) for o in user_orgs(c, u["id"])] or [0]
     with system_ctx(c):  # the tasks lie in the chosen project (another organisation in the hosting): only state + own title
-        rows = c.execute("""SELECT r.kind, r.title, r.place, r.created_at, r.reporter_id, t.status, t.assignee_id, t.deleted_at
+        rows = c.execute(f"""SELECT r.kind, r.title, r.place, r.created_at, r.reporter_id, t.status, t.assignee_id, t.deleted_at
                             FROM task_reports r JOIN tasks t ON t.id=r.task_id
                             WHERE r.reporter_id=? OR (r.place=? AND r.place<>'' AND r.reporter_id IN
-                              (SELECT m2.user_id FROM org_members m1 JOIN org_members m2 ON m2.org_id=m1.org_id WHERE m1.user_id=?))
-                            ORDER BY r.created_at DESC LIMIT 200""", (u["id"], place, u["id"])).fetchall()
+                              (SELECT m.user_id FROM org_members m WHERE m.org_id IN ({",".join("?" * len(orgs))})))
+                            ORDER BY r.created_at DESC LIMIT 200""", (u["id"], place, *orgs)).fetchall()
     # (#7531 F1): the title (the reporter's own first line) only for the reporter - people who share an organisation see
     # kind, state and time at this place, never the words of a report from another workspace
     items = [{"kind": x["kind"], "title": x["title"] if x["reporter_id"] == u["id"] else "", "place": x["place"], "created_at": x["created_at"],
