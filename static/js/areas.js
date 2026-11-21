@@ -467,12 +467,12 @@ const rd_crumb = mod => rd_open() ? spo_crumbHtml(mod, wsName(rd_open())) : '';
 // 2.769.0 (#5352): the overview "All workspaces" of Knowledge, Files and Reading (recent.js zle_ovrHtml, loaded on demand); until it
 // is here a placeholder of the same height. 2.880.0 (#5561): a calm list of rows ("Recently edited", the workspaces, the trash small);
 // spo_recentPage = the page "Recently edited" (#<mod>/recent, recent.js zle_pageHtml) with the same rows as its filter
-const spo_recentHtml = (mod, to, rows) => typeof zle_ovrHtml === 'function' ? zle_ovrHtml(mod, to, rows) : (ld_later('recent'), `<div class="zleov"><div class="zleph" style="--zlen:${/*html-ok*/ rows.length + 1}" aria-busy="true"></div></div>`);
+const spo_recentHtml = (mod, to, rows, o = {}) => typeof zle_ovrHtml === 'function' ? zle_ovrHtml(mod, to, rows, o) : (ld_later('recent'), `<div class="zleov"><div class="zleph" style="--zlen:${/*html-ok*/ rows.length + 1}" aria-busy="true"></div></div>`);
 const spo_recentPage = (mod, rows) => typeof zle_pageHtml === 'function' ? zle_pageHtml(mod, rows) : (ld_later('recent'), '<div class="zleov zlepage"><div class="zleph" style="--zlen:8" aria-busy="true"></div></div>');
 const rd_rows = mod => rd_spaces(mod).map(w => [w, wsName(w), wsIcon(w)]);
 const rd_recentHtml = mod => spo_recentHtml(mod, mod, rd_rows(mod));
 // ---- 2.540.0 (#4575 #4588): the overview of the spaces under "All workspaces", shared by the file store (ablage.js),
-// the views of Reading and later other areas (as Knowledge does it, wiki.js wk_spacesHtml): one row per space, a tap opens
+// the views of Reading and later other areas (as Knowledge does it, wiki.js wk_rows): one row per space, a tap opens
 // it, the address carries it, the path above an open space leads back (spo_crumbHtml). to = where a tap leads: a route
 // ('ablage' -> #ablage/s/<space>) or a function space -> hash without '#'; rows = [[space, name, icon html]] (any spaces:
 // Private, organisations, Shared with me, the trash ...); o.title = the heading (default "All workspaces"), o.label = the
@@ -482,7 +482,13 @@ const spo_href = (to, sp) => '#' + (typeof to === 'function' ? to(sp) : to + '/s
 // recent.js zle_ovrHtml): an organisation's and Private's entry wear their stripe, the core decides (wscolor.js wso_vars);
 // "Shared with me" and the trash are no workspaces and stay neutral. row = [space, name, icon html, html after the name]
 const spo_rowHtml = (to, [sp, name, icon, after]) => `<li><a href="${esc(spo_href(to, sp))}" class="spovr" data-spov="${esc(sp)}"${/*html-ok*/ wso_row(sp)}>${/*html-ok*/ icon}<span class="spovn">${esc(name)}</span>${/*html-ok*/ after || ''}</a></li>`;
-const spo_html = (to, rows, o = {}) => `<section class="spov" aria-label="${esc(o.label || tr('Workspaces'))}"><h3 class="spovt">${esc(o.title || tr('All workspaces'))}</h3><ul class="spovl">${/*html-ok*/ rows.map(r => spo_rowHtml(to, r)).join('') /* the rows escape their own values (spo_rowHtml) */}</ul></section>`;
+// (#7564): the one muted line on top of an overview that says what the choice means (a blind usability run: the person did not
+// understand the office's overview and guessed the company); one per area of the pattern, o.hint (an N_ text) overrides it
+const SPO_HINT = {office: N_('Whose office? Invoices and clients belong to one workspace each.'), sheets: N_('Whose tables? Each table belongs to one workspace.'),
+  wiki: N_('Whose pages? Each knowledge page belongs to one workspace.'), ablage: N_('Whose files? Each file belongs to one workspace.'),
+  reading: N_('Whose list? Each workspace keeps its own read-later list.')};
+const spo_hintHtml = (mod, o = {}) => { const t = o.hint ?? SPO_HINT[mod]; return t ? `<p class="muted spovh">${esc(tr(t))}</p>` : ''; };
+const spo_html = (to, rows, o = {}) => `<section class="spov" aria-label="${esc(o.label || tr('Workspaces'))}"><h3 class="spovt">${esc(o.title || tr('All workspaces'))}</h3>${/*html-ok*/ spo_hintHtml('', o)}<ul class="spovl">${/*html-ok*/ rows.map(r => spo_rowHtml(to, r)).join('') /* the rows escape their own values (spo_rowHtml) */}</ul></section>`;
 // the path back above an open space: "All workspaces /" (spo_upHtml, the file store puts its own path after it) + its name
 // 2.769.0 (#5339): a button like the other path links (an anchor is inline: no min-height, other baseline)
 const spo_upHtml = route => `<button type="button" class="linkbtn" data-go="${esc(route)}" data-spovup="1">${esc(tr('All workspaces'))}</button><span class="abcsep" aria-hidden="true">/</span>`;

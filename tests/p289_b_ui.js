@@ -52,7 +52,7 @@ const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y
   check(/prefers-reduced-motion: reduce/.test(css), 'reduced motion respected');
 
   // ---- the area and the overview
-  let w = await boot({user: 'alice', hash: 'sheets'}), d = w.document;
+  let w = await boot({user: 'alice', hash: 'sheets/s/org:' + ORG}), d = w.document;  // (#7564): under "All" the space opens at its own address (#sheets = the overview of the spaces)
   check(d.querySelector('#srail [data-sbb="sheets"].on[aria-current="page"]'), 'sidebar: "Tables" among the areas');  // 2.152.2 (#2622): the area icon in the bar
   check(await until(() => /No tables yet/.test(d.querySelector('#view').textContent)), 'overview: the empty state ' + d.querySelector('#view').textContent.slice(0, 120));  // 2.308.0 (#3260): wait for the overview instead of a fixed time
   w.prompt = () => 'Quote shoot';

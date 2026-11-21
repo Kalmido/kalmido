@@ -53,13 +53,16 @@ const FEAT = 'collab,comments,sheets';
   await w.eval(`histStep('redo')`);
   check(await until(async () => (await call('GET', `/api/sheets/${S.id}/shares`)).shares?.[0]?.role === 'read'), 'Redo: shared again');
   d.querySelector('.shsdlg [data-m="close"]')?.click();
-  w.location.hash = 'sheets'; await sleep(300);
+  w.location.hash = 'sheets/s/private'; await sleep(300);  // (#7564): under "All" the private space (#sheets = the overview of the spaces)
   check(await until(() => d.querySelector(`#view .shvcard[data-id="${S.id}"] .shs-mark`)), 'the overview marks the table "Shared"');
   w.close();
 
   // ================= bob: "Shared with me", read only, no Share / Delete, Mod+K
   w = await boot({user: 'bob', hash: 'sheets'}); d = w.document;
-  const grp = await until(() => [...d.querySelectorAll('#view .shvgrp')].find(g => /Shared with me/.test(g.querySelector('h3')?.textContent || '')));
+  // (#7564): under "All workspaces" (bob: Private + Alpha) the overview of the spaces first, "Shared with me" is a row of it
+  const shRow = await until(() => d.querySelector('#view .spov [data-spov="shared"]') || d.querySelector('#view .shvgrp'));
+  if (shRow?.dataset?.spov) { check(shRow.getAttribute('href') === '#sheets/s/shared', '#7564: the row "Shared with me" opens its space'); shRow.click(); }
+  const grp = await until(() => [...d.querySelectorAll('#view .shvgrp')].find(g => g.getAttribute('aria-label') === 'Shared with me'));
   check(grp && grp.querySelector(`.shvcard[data-id="${S.id}"]`), 'bob sees the table in "Shared with me"');
   check(!/Not for bob/.test(d.querySelector('#view')?.textContent || ''), 'not alice\'s other table');
   grp?.querySelector(`[data-shv="cmenu"]`)?.click();

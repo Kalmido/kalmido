@@ -3,9 +3,9 @@
    Classic script sharing the global scope with the others (load order: index.html, docs/ARCHITECTURE.md).
    ONE server route (GET /api/recent, kalmido/collab/recent.py; 2.1497.0, #7662: also the office and Tables) for three places:
    - 2.880.0 (#5561): the overview "All workspaces" of Knowledge, Files and Reading (areas.js spo_recentHtml, called by wiki.js,
-     ablage.js and readlater.js) is a calm list of rows of one kind: "Recently edited" (the clock, opens the page below),
+     ablage.js and readlater.js; (#7564): also office.js and sheets.js, with the line on top that says what the choice means) is a calm list of rows of one kind: "Recently edited" (the clock, opens the page below),
      Private, each organisation, Shared with me; the trash set off small at the end. No chips, no list of items on it.
-   - the page "Recently edited" of each of the three (#wiki/recent, #ablage/recent, #reading/recent, zle_pageHtml): the arrow
+   - the page "Recently edited" of each (#wiki/recent, #ablage/recent, #reading/recent, #office/recent, #sheets/recent, zle_pageHtml): the arrow
      back to the overview (the address carries the page: the phone's Back returns there too), "Pinned" (the person's
      favourites of the area), chips to filter by workspace (All / Private / an organisation ...), then the last 20 pages, files
      and read-later entries, newest first, each only name and when (+ who, when it was not the person herself)
@@ -30,7 +30,7 @@ async function zle_load(sp, n) {
   try { const j = await api('GET', `/api/recent?space=${encodeURIComponent(sp)}&limit=${n}`); ZLE.d[k] = {items: j.items || [], v: v0, err: ''}; }
   catch (e) { if (e.message === 'auth') { ZLE.busy[k] = false; return; } ZLE.d[k] = {items: ZLE.d[k]?.items || null, v: v0, err: e instanceof Offline ? tr('Only available online.') : e.message || tr('unknown')}; }
   ZLE.busy[k] = false;
-  if (['home', 'wiki', 'ablage', 'reading'].includes(S.route.mod)) viewSafeRender();
+  if (['home', 'wiki', 'ablage', 'reading', 'office', 'sheets'].includes(S.route.mod)) viewSafeRender();  // (#7564): + the office, Tables
 }
 // the items of a workspace key ('all' | 'private' | 'org:<id>'), loaded again after a change (S.v)
 function zle_data(sp, n) {
@@ -60,7 +60,7 @@ function zle_listHtml(d, n, chip, empty, o = {}) {
   return `<ul class="zlel" aria-label="${esc(tr('Recently edited'))}">${/*html-ok*/ d.items.slice(0, n).map(x => zle_rowHtml(x, chip, o)).join('')}</ul>`;
 }
 // the person's favourites of the area as tiles (favtiles.js): knowledge pages, files and documents
-const ZLE_PIN = {wiki: k => k.startsWith('r:wiki:'), ablage: k => k.startsWith('file:') || k.startsWith('doc:'), reading: () => false};
+const ZLE_PIN = {wiki: k => k.startsWith('r:wiki:'), ablage: k => k.startsWith('file:') || k.startsWith('doc:'), reading: () => false};  // (#7564): the office and Tables: none (as Reading)
 function zle_pinHtml(mod) {
   if (typeof fv2_tiles !== 'function') return '';
   const ts = fv2_tiles().filter(t => !t.sep && (ZLE_PIN[mod] || ZLE_PIN.reading)(t.key));
@@ -75,11 +75,12 @@ function zle_emptyHtml(mod) {
 // 2.880.0 (#5561): the overview "All workspaces" of an area: mod 'wiki' | 'ablage' | 'reading'; to / rows as areas.js spo_html
 // (rows [[space, name, icon html, html after the name]]: Private, the organisations, Shared with me, the trash). One list of
 // rows of one kind: "Recently edited" first (opens #<mod>/recent), then the workspaces; the trash small below it
-/** @param {string} mod @param {any} to @param {any[]} rows */
-function zle_ovrHtml(mod, to, rows) {
+// (#7564): + the office and Tables; o.hint as areas.js spo_html (the line on top that says what the choice means, spo_hintHtml)
+/** @param {string} mod @param {any} to @param {any[]} rows @param {any} [o] */
+function zle_ovrHtml(mod, to, rows, o = {}) {
   const row = (href, icon, name, attr, after = '') => `<li><a href="${esc(href)}" class="spovr" ${/*html-ok*/ attr}>${/*html-ok*/ icon}<span class="spovn">${esc(name)}</span>${/*html-ok*/ after}</a></li>`;  // #7481: the name has its own class (the letter tile keeps its size)
   const trash = rows.find(r => r[0] === 'trash');
-  return `<div class="zleov" data-zlemod="${esc(mod)}"><section class="spov zlerows" aria-label="${esc(tr('All workspaces'))}"><ul class="spovl">${/*html-ok*/ row('#' + mod + '/recent', ic('clock', 's'), tr('Recently edited'), 'data-zlego="1"')}${/*html-ok*/ rows.filter(r => r[0] !== 'trash').map(r => spo_rowHtml(to, r) /* (#7661): the workspaces' rows of the core (areas.js), Private's stripe included */).join('')}</ul></section>${trash ? `<p class="zletrash"><a href="${esc(spo_href(to, 'trash'))}" class="linkbtn" data-spov="trash">${/*html-ok*/ trash[2]}<span>${esc(trash[1])}</span></a></p>` : ''}</div>`;
+  return `<div class="zleov" data-zlemod="${esc(mod)}">${/*html-ok*/ spo_hintHtml(mod, o)}<section class="spov zlerows" aria-label="${esc(tr('All workspaces'))}"><ul class="spovl">${/*html-ok*/ row('#' + mod + '/recent', ic('clock', 's'), tr('Recently edited'), 'data-zlego="1"')}${/*html-ok*/ rows.filter(r => r[0] !== 'trash').map(r => spo_rowHtml(to, r) /* (#7661): the workspaces' rows of the core (areas.js), Private's stripe included */).join('')}</ul></section>${trash ? `<p class="zletrash"><a href="${esc(spo_href(to, 'trash'))}" class="linkbtn" data-spov="trash">${/*html-ok*/ trash[2]}<span>${esc(trash[1])}</span></a></p>` : ''}</div>`;
 }
 // the page "Recently edited" of an area (#<mod>/recent): the way back, "Pinned", the filter chips, the list. rows as above
 // (the filter offers the workspaces of the overview; 'shared' is filtered here from "All", the server knows no such space)
@@ -100,7 +101,7 @@ function zle_homeHtml(card, slim) {
   const ws = typeof wsCur === 'function' ? wsCur() : 'all', all = ws === 'all' || !wsOn();
   const sp = all ? 'all' : ws, n = !all && ZLE.more ? ZLE_N : ZLE_HOME_N, d = zle_data(sp, n);
   if (d?.items && !d.items.length) return slim(tr('Recently edited: nothing'));
-  const ovr = ['wiki', 'ablage', 'reading'].find(m => m === 'wiki' ? feat('wiki') : m === 'ablage' ? typeof ab_on === 'function' && ab_on() : feat('reading'));
+  const ovr = ['wiki', 'ablage', 'reading', 'sheets', 'office'].find(m => m === 'wiki' ? feat('wiki') : m === 'ablage' ? typeof ab_on === 'function' && ab_on() : m === 'office' ? officeOn() : feat(m));  // (#7564): + Tables, the office
   // 2.1249.0 (#6125): "More" is the link in the card's head, as every card of the start page (was below the list)
   const more = d?.items?.length >= ZLE_HOME_N ? (all ? (ovr ? `<a class="linkbtn zlemore" href="#${ovr}/recent">${esc(tr('More'))}</a>` : '') : !ZLE.more ? `<button type="button" class="linkbtn zlemore" data-act="zle-more">${esc(tr('More'))}</button>` : '') : '';
   return card(zle_listHtml(d, n, all && wsOn(), ''), more);

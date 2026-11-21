@@ -33,11 +33,19 @@ const shvSpaces = () => ['private', ...(S.me?.workspaces || []).map(w => 'org:' 
 // 2.1398.0 (#6722): the spaces the overview and the panel show -- under "All workspaces" only those where Tables is on for me
 // (areas.js mod_spaces); shvSpaces stays every space (the trash, an opened table)
 const shvShown = () => { const a = shvSpaces(); if (!wsOn() || wsCur() !== 'all') return a; const on = mod_spaces('sheets'), b = a.filter(w => on.includes(w)); return b.length ? b : a; };
+// (#7564): "All workspaces" with more than one space: the top of Tables is the overview of the spaces (areas.js spo_recentHtml, like
+// Files and Knowledge), the open one is in the address (#sheets/s/<space>, shv_home); "Shared with me" is a row of its own once
+// something is shared with me. A person with one space (no organisation) never sees it
+const shv_all = () => typeof wsCur === 'function' && wsOn() && wsCur() === 'all' && shvShown().length > 1;
+const shv_open = () => { const w = S.route?.mod === 'sheets' ? S.route.wsp : ''; return w && shv_all() && (w === 'shared' || shvShown().includes(w)) ? w : null; };
+const shv_home = sp => shv_all() && sp ? 'sheets/s/' + sp : 'sheets';
+const shv_rows = () => [...shvShown().map(sp => [sp, shvSpaceName(sp), wsIcon(sp)]), ...((SHV.idx.all?.items || []).some(x => x.shared_in) ? [['shared', tr('Shared with me'), ic('users', 's')]] : [])];
 const shvSpaceName = sp => sp === 'private' ? tr('Private|workspace') : sp === 'shared' ? tr('Shared with me') : (wsOrg(sp.slice(4))?.name || tr('Organisation'));  // 2.124.0 C (#2113): + shared
 const shvListSpace = l => l?.org_id ? 'org:' + l.org_id : 'private';
 function shvNewSpace() {  // the space a new sheet goes to: the workspace switch, else the last one used, else the first organisation
   const ok = v => !!v && shvSpaces().includes(v), ws = typeof wsCur === 'function' ? wsCur() : 'all';
   if (ws && ws !== 'all' && ok(ws)) return ws;
+  if (ok(shv_open())) return shv_open();  // (#7564): the space open under "All"
   const ls = LS.get('shvSpace', ''); if (ok(ls)) return ls;
   const sh = shvShown(); return sh[1] || sh[0] || 'private';  // 2.1398.0 (#6722): a space where Tables is on
 }
@@ -167,6 +175,7 @@ function viewSheets() {
   if (typeof shf_data !== 'function') { ld_later('sheets'); return `<p class="muted lempty">${tr('Loading…')}</p>`; }
   const r = S.route;
   if (r.shl) return shvOverview(r.shl);
+  if (r.zle) return `<div class="shvwrap shvov">${/*html-ok*/ spo_recentPage('sheets', shv_rows())}</div>`;  // (#7564): #sheets/recent
   if (r.shf) return shf_folderView(r.shf, x => shvCardHtml(x, null));  // 2.199.0 C (#2742): one folder (sheetfold.js)
   if (!r.sh) return shvOverview(null);
   if (SHV.errFor !== r.sh + ':' + S.v && (!SHV.sh || SHV.sh.id !== r.sh || (SHV.sh._v !== S.v && !SHV.ed))) shvLoad(r.sh);
@@ -182,6 +191,8 @@ wso_open('sheets', () => {
   if (r.sh) return SHV.sh && SHV.sh.id === r.sh ? SHV.sh.space || 'private' : null;
   if (r.shf) return typeof shf_folder === 'function' ? shf_folder(r.shf)?.space || null : null;
   if (r.shl) return listById(r.shl) || null;
+  if (r.zle) return null;
+  const op = shv_open(); if (op) return op === 'shared' ? null : op;  // (#7564): the space open under "All" wears its colour (Shared with me: none)
   if (wsOn() && wsCur() === 'all') { const sh = shvShown(); if (sh.length === 1) return sh[0]; }  // 2.1398.0 (#6722): one space left = its overview wears its colour
   return null;
 });
@@ -191,23 +202,25 @@ newReg('sheets', {hk: ['shv', 'new'], get label() { return S.route.shl ? N_('Att
 function shvOverview(lid) {
   const key = lid ? 'l:' + lid : 'all', d = SHV.idx[key];
   if (!d || d.v !== S.v) shvLoadIdx(key);
-  const l = lid ? listById(lid) : null, ws = typeof wsCur === 'function' ? wsCur() : 'all';
+  const l = lid ? listById(lid) : null, ws = typeof wsCur === 'function' ? wsCur() : 'all', op = lid ? null : shv_open();
   let items = d?.items || [];
-  if (!lid && ws && ws !== 'all') items = items.filter(x => x.space === ws || x.shared_in);  // 2.124.0 C (#2113): shared with me: in every workspace
+  if (op) items = items.filter(x => op === 'shared' ? x.shared_in : x.space === op && !x.shared_in);  // (#7564): one space open under "All"
+  else if (!lid && ws && ws !== 'all') items = items.filter(x => x.space === ws || x.shared_in);  // 2.124.0 C (#2113): shared with me: in every workspace
   else if (!lid) items = items.filter(x => x.shared_in || shvShown().includes(x.space));  // 2.1398.0 (#6722): "All": the spaces where Tables is on
   const hooks = SHV_HOOKS.overview.length;
-  const head = `<div class="shvtop">${lid ? `<a class="btn sm" href="#l/${lid}" data-navup>${ic('back', 's')}${esc(l ? lname(l) : tr('Project'))}</a>` : ''}
+  const head = `<div class="shvtop">${/*html-ok*/ op ? spo_crumbHtml('sheets', shvSpaceName(op)) : '' /* (#7564): the core's path, it escapes the name */}${lid ? `<a class="btn sm" href="#l/${lid}" data-navup>${ic('back', 's')}${esc(l ? lname(l) : tr('Project'))}</a>` : ''}
     ${lid ? `<h2 class="shvh">${esc(tr('Attached to {0}', l ? lname(l) : ''))}</h2><a class="btn sm" href="#sheets">${esc(tr('All tables'))}</a>` : ''}<span class="spacer"></span>
     ${hooks ? `${typeof SHX_IMPORT_ACCEPT === 'string' ? `<input type="file" id="shx-import-file" accept="${SHX_IMPORT_ACCEPT}" hidden>` : ''}<button type="button" class="iconbtn" data-shv="omenu" aria-haspopup="menu" title="${esc(tr('More'))}" aria-label="${esc(tr('More'))}">${ic('dots')}</button>` : ''}
     ${''/* (#6370): "New table" / "Attach a new table" is the area's New (head bar / the +, newReg below) */}</div>`;
+  if (!lid && !op && shv_all()) return `<div class="shvwrap shvov shvall">${/*html-ok*/ head /* built above from escaped parts */}${/*html-ok*/ spo_recentHtml('sheets', 'sheets', shv_rows())}</div>`;  // (#7564): "All workspaces": the spaces first, no mixed list
   if (!d?.items) return `<div class="shvwrap shvov">${head}<p class="muted lempty" role="status">${d?.err ? esc(d.err) : tr('Loading…')}</p></div>`;
-  if (!items.length && (lid || !shf_data().folders.length)) return `<div class="shvwrap shvov">${head}${symEmpty('sheet', lid ? tr('No tables attached yet.') : tr('No tables yet.'), lid ? tr('Tables are independent. The ones you attached to this project appear here.') : tr('Lists and calculations; every cell can fetch figures from Kalmido: hours booked, budget, open tasks.'))}</div>`;
+  if (!items.length && (lid || !shf_data().folders.some(f => !op || f.space === op))) return `<div class="shvwrap shvov">${head}${symEmpty('sheet', lid ? tr('No tables attached yet.') : tr('No tables yet.'), lid ? tr('Tables are independent. The ones you attached to this project appear here.') : tr('Lists and calculations; every cell can fetch figures from Kalmido: hours booked, budget, open tasks.'))}</div>`;
   const card = x => shvCardHtml(x, lid);
   // 2.199.0 C (#2742): the folders of a workspace as cards first, its tables in a folder only there (sheetfold.js)
   const fold = sp => !lid && sp !== 'shared' ? shf_cardsHtml(sp, null) : '';
-  const groups = [...shvShown(), 'shared'].map(sp => [sp, items.filter(x => sp === 'shared' ? x.shared_in : x.space === sp && !x.shared_in), fold(sp)])
+  const groups = (op ? [op] : [...shvShown(), 'shared']).map(sp => [sp, items.filter(x => sp === 'shared' ? x.shared_in : x.space === sp && !x.shared_in), fold(sp)])
     .map(g => [g[0], lid ? g[1] : shf_topItems(g[1], g[0]), g[2]]).filter(g => g[1].length || g[2]);  // 2.124.0 C (#2113): + shared with me
-  const many = groups.length > 1 || (!lid && shvShown().length > 1);
+  const many = !op && (groups.length > 1 || (!lid && shvShown().length > 1));
   return `<div class="shvwrap shvov">${head}${groups.map(([sp, xs, fs]) => `<section class="shvgrp" aria-label="${esc(shvSpaceName(sp))}">${many ? `<h3>${/*html-ok*/ shvSpaceDot(sp)}${esc(shvSpaceName(sp))}</h3>` : ''}<ul class="shvcards">${fs}${xs.map(card).join('')}</ul></section>`).join('')}</div>`;
 }
 // 2.1224.0 (#6186): the organisation colour (docs/dev/kern.md "Organisation colour"): a group heading of an organisation wears its
@@ -227,7 +240,7 @@ function shv_panelHtml() {
   const r = S.route, ws = typeof wsCur === 'function' ? wsCur() : 'all', cur = r.mod === 'sheets' && r.sh ? (SHV.sh?.id === r.sh && SHV.sh.book_id) || r.sh : null;
   const row = x => sbb_row('sheets/' + x.id, 'sheet', x.title || tr('Untitled table'), x.id === cur, `data-sbbsh="${x.id}"`);
   const grp = (g, label, xs) => `<div class="sgroup sbbp">${sbb_head(g, label, xs.length, sbb_folded(g) && xs.some(x => x.id === cur))}${sbb_folded(g) ? '' : xs.map(row).join('')}</div>`;
-  const top = `<div class="sgroup sbbp">${sbb_row('sheets', 'all', tr('All tables'), r.mod === 'sheets' && !r.sh && !r.shl && !r.shf, 'data-sbbsh="all"')}</div>`;  // 2.224.0 B (#2816): "New table" only in the overview's head (a folder: its own button / menu)
+  const top = `<div class="sgroup sbbp">${/*html-ok*/ sbb_row('sheets', 'all', tr('All tables'), r.mod === 'sheets' && !r.sh && !r.shl && !r.shf && !r.wsp && !r.zle, 'data-sbbsh="all"') /* the row escapes its name; (#7564): not marked in an open space */}</div>`;  // 2.224.0 B (#2816): "New table" only in the overview's head (a folder: its own button / menu)
   if (!d?.items) return top + `<p class="muted sbbtl">${esc(d?.err || tr('Loading…'))}</p>`;
   const items = ws && ws !== 'all' ? d.items.filter(x => x.space === ws || x.shared_in) : d.items.filter(x => x.shared_in || shvShown().includes(x.space));  // like the overview (2.1398.0, #6722: "All" = where Tables is on) (2.124.0 C: shared ones in every workspace)
   // 2.199.0 C (#2742): one entry per workspace (a single workspace shown: only its entry) with its folders, the tables in no
@@ -242,7 +255,7 @@ function shvSheetHtml(sh) {
   const filt = shvFilt(sh), nf = Object.keys(filt).length;
   const pres = shvPresHtml(sh);
   SHV.rset = shvRangeSet();
-  const back = sh.list_id ? `<a class="btn sm" href="#sheets/l/${sh.list_id}" title="${esc(tr('Attached to {0}', sh.list_title || ''))}" data-navup>${ic('back', 's')}<span class="shvbk">${esc(sh.list_title || tr('Project'))}</span></a>` : `<a class="btn sm" href="#sheets" data-navup>${ic('back', 's')}<span class="shvbk">${tr('Tables')}</span></a>`;
+  const back = sh.list_id ? `<a class="btn sm" href="#sheets/l/${sh.list_id}" title="${esc(tr('Attached to {0}', sh.list_title || ''))}" data-navup>${ic('back', 's')}<span class="shvbk">${esc(sh.list_title || tr('Project'))}</span></a>` : `<a class="btn sm" href="#${esc(shv_home(sh.shared_in || !shvSpaces().includes(sh.space || 'private') ? 'shared' : sh.space || 'private'))}" data-navup>${ic('back', 's')}<span class="shvbk">${tr('Tables')}</span></a>`;  // (#7564): under "All" back into its space
   const top = `<div class="shvtop">${back}<h2 class="shvh"><button type="button" class="shvtitle" data-shv="rename" ${w ? '' : 'disabled'} title="${esc(w ? tr('Rename…') : '')}">${esc((sh.book_title ?? sh.title) || tr('Untitled table'))}</button></h2>
     ${w ? '' : `<span class="shvro">${ic('eye', 's')}${tr('Read-only')}</span>`}<span class="spacer"></span>
     ${typeof shg_btnHtml === 'function' ? shg_btnHtml(sh) : ''}${nf ? `<button type="button" class="btn sm" data-shv="unfilter" title="${esc(tr('Reset filters'))}">${ic('filter', 's')}${trn('{0} filter', '{0} filters', nf)}${ic('x', 's')}</button>` : ''}
@@ -1100,7 +1113,7 @@ document.addEventListener('click', async e => {
   if (!a || !$('#view')?.contains(a)) return;
   const k = a.dataset.shv, sh = SHV.sh;
   if (k === 'new') shvNew(S.route.shl || null);
-  else if (k === 'omenu') menu(a, SHV_HOOKS.overview.flatMap(f => { try { return f(S.route.shl ? null : (typeof wsCur === 'function' ? wsCur() : 'all'), S.route.shl || null) || []; } catch (er) { console.error(er); return []; } }));
+  else if (k === 'omenu') menu(a, SHV_HOOKS.overview.flatMap(f => { try { return f(S.route.shl ? null : (shv_open() !== 'shared' && shv_open()) || (typeof wsCur === 'function' ? wsCur() : 'all'), S.route.shl || null) || []; } catch (er) { console.error(er); return []; } }));
   else if (k === 'cmenu') {
     const id = +a.dataset.id, x = Object.values(SHV.idx).flatMap(d => d.items || []).find(y => y.id === id); if (!x) return;
     menu(a, [{label: tr('Open'), icon: 'sheet', fn: () => go('sheets/' + id)}, ...fv2_menuRow('r:sheet:' + id) /* 2.441.0 (#3592) */, ...(x.shared_in && x.share_role !== 'write' ? [] : [{label: tr('Rename…'), icon: 'edit', fn: () => shvRename(id, x.title)}]),

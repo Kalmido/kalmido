@@ -124,8 +124,8 @@ const now = new Date(), T0 = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${
   check(await until(() => d.querySelector('article.wkpage')?.textContent.includes('Mine.')), '#6182 the private page opens');
   check(await until(() => privMain() && !view().classList.contains('wac-loc')), '#7661 (was #6182 neutral): the private page: #main in Private\'s colour');
   check(privd(d.querySelector('article.wkpage')), '#7661 the private page: Private\'s stripe');
-  const sp = w.eval(`wk_spacesHtml()`);
-  check(new RegExp(`data-wksp="org:${ORG}" data-wso="1"`).test(sp) && /data-wksp="private" data-wso/.test(sp), '#6182 / #7661 the list of spaces: the organisation\'s and Private with their stripe');
+  const sp = w.eval(`wk_rows().map(r => spo_rowHtml(sp => 'wiki/s/' + sp, r)).join('')`);  // (#7564): the one row builder (wk_spacesHtml gone)
+  check(new RegExp(`data-spov="org:${ORG}" data-wso="1"`).test(sp) && /data-spov="private" data-wso/.test(sp), '#6182 / #7661 the list of spaces: the organisation\'s and Private with their stripe');
   const tree = w.eval(`sbb_treeHtml([{k: 't', name: 'Studio', go: 'wiki', wso: 'org:${ORG}'}, {k: 'u', name: 'Private', go: 'wiki', wso: 'private'}])`);
   check(/data-wso="1" data-wsc="1" style="--sbbl:0;--wsd:/.test(tree) && (tree.match(/data-wso/g) || []).length === 2 && /--wsd:var\(--acc-d\)/.test(tree), '#6182 / #7661 the panel\'s root nodes: the organisation\'s space and Private each with its stripe');
   w.close();

@@ -86,8 +86,10 @@ const openRow = async (d, name) => { const a = rowOf(d, name)?.querySelector('[d
   w.close();
   await call('PATCH', '/api/settings', {workspace: 'all'});
 
-  // ================= the overview: folder cards, one folder, a new table in it
+  // ================= the overview: folder cards, one folder, a new table in it ((#7564): under "All" a space opens at #sheets/s/<space>)
   w = await boot({user: 'alice', hash: 'sheets'}); d = w.document;
+  check(await until(() => d.querySelector('#view .spov [data-spov="private"]')) && !d.querySelector('#view .shfcard'), '#7564: under "All" the overview of the spaces, no cards');
+  w.location.hash = '#sheets/s/private';
   check(await until(() => d.querySelector(`#view .shfcard[data-fid="${FB}"]`)), 'the overview: the folder as a card');
   check(!d.querySelector(`#view .shvcard[data-id="${T1}"]`) && d.querySelector(`#view .shvcard[data-id="${T3}"]`), 'a filed table only in its folder, the others as before');
   w.location.hash = '#sheets/f/' + FB;
@@ -103,7 +105,7 @@ const openRow = async (d, name) => { const a = rowOf(d, name)?.querySelector('[d
   w.close();
 
   // ================= a phone: the folder cards, a tap opens the folder
-  w = await boot({user: 'alice', hash: 'sheets', mobile: true}); d = w.document;
+  w = await boot({user: 'alice', hash: 'sheets/s/private', mobile: true}); d = w.document;  // (#7564): the space open under "All"
   const card = await until(() => d.querySelector(`#view .shfcard[data-fid="${FB}"] a`));
   check(card, 'phone: the folder as a card');
   card?.click();
