@@ -7,6 +7,8 @@
 // - the network hangs: the worker serves the kept app page after its race (sw.js SW_RACE_MS), the app draws the kept state
 //   (a title the server has changed since), the header's chip says "Syncing" with the state's age (no "up to date"), a write
 //   goes into the queue; released: the server's state replaces the kept one, the chip goes, the write reaches the server once
+// - reader F2 / F4 (#6366, #7595): an own change, the page hidden at once: in the record; a record with a version above the server's
+//   (a restore of the server) gives way to the next full state
 // - the session ended elsewhere (signed out with a plain request) while the network hangs: the kept state is drawn (the gate
 //   devCopyOk is the device's only knowledge); released: the 401 of the sync clears the screen (sign-in, the app hidden) and the
 //   start record in IndexedDB is gone (devEnd)
@@ -75,6 +77,24 @@ const REC = `new Promise(res => { const r = indexedDB.open('kalmido-start'); r.o
       const c = await caches.open(ks.pop()); return !!(await c.match('/', {ignoreSearch: true})) && !!(await c.match('/static/js/offcache.js', {ignoreSearch: true})); })`, 60000),
       'online: the worker controls the page and holds the page and offcache.js');
     check(await ev(`!document.querySelector('#top .offline')`), 'online: no sync chip');
+
+    // ---- reader F2: an own change online moves neither S.v nor plans a write - the page hidden right after it writes it
+    const HID = 'Oil the hinges (mine, hidden at once)';
+    check(await pu(`!OC.t && OC.last > 0`), 'F2: the idle write landed, nothing planned');
+    check(await ev(`Promise.resolve(api('PATCH', '/api/tasks/${T}', {title: ${JSON.stringify(HID)}}))
+      .then(() => new Promise(ok => { const f = () => (OUT.q.length ? setTimeout(f, 20) : ok()); f(); }))
+      .then(() => { dispatchEvent(new Event('pagehide')); return 1; }, e => 'failed: ' + e.message)`) === 1, 'F2: an own change, the page hidden at once');
+    check(await pu(`(${REC}).then(r => Array.isArray(r) && r.includes(${JSON.stringify(HID)}))`), 'F2: the start record holds the own change');
+
+    // ---- reader F4: the server went back (a restore): a record with a higher version written before the next full state gives way
+    check(await ev(`new Promise(res => { const r = indexedDB.open('kalmido-start'); r.onsuccess = () => { const d = r.result, t = d.transaction('s', 'readwrite'), st = t.objectStore('s'), g = st.get('state');
+      g.onsuccess = () => { const x = g.result; if (x) { x.v = 1e9; x.at = 1; st.put(x, 'state'); } }; t.oncomplete = () => { d.close(); res(1); }; t.onerror = () => { d.close(); res(0); }; }; r.onerror = () => res(0); })`) === 1, 'F4: the record carries a version above the server\'s');
+    await nav(O + 'static/icon.svg');
+    await nav(O + `#l/${L}`);
+    check(await pu(`typeof S !== 'undefined' && S.booted && ld_net && !S.devOld`, 30000), 'F4: started again, the server\'s state applied');
+    check(await pu(`new Promise(res => { const r = indexedDB.open('kalmido-start'); r.onsuccess = () => { const d = r.result, g = d.transaction('s').objectStore('s').get('state');
+      g.onsuccess = () => { d.close(); res(g.result ? +g.result.v : null); }; g.onerror = () => { d.close(); res(null); }; }; r.onerror = () => res(null); }).then(v => v === S.v)`, 30000),
+      'F4: the record took the server\'s state with its lower version');
 
     // ---- the server changes meanwhile, then the line hangs
     const ch = await call('PATCH', `/api/tasks/${T}`, {title: SRV});
