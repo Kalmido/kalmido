@@ -115,7 +115,14 @@ def upload(s, data):
 
 
 def restore(s, **b):
-    return s.post(B + "/api/admin/backups/restore", json={"password": "password123", "confirm": "RESTORE", **b})
+    # F137: a fresh server's first schedule tick (KALMIDO_BACKUP_TICK=1) runs the daily rotation, which holds the backup
+    # lock for a moment; "busy" (409) says "try again in a moment", so the test does that instead of failing on the race
+    t0 = time.time()
+    while True:
+        r = s.post(B + "/api/admin/backups/restore", json={"password": "password123", "confirm": "RESTORE", **b})
+        if r.status_code != 409 or r.json().get("code") != "busy" or time.time() - t0 > 20:
+            return r
+        time.sleep(0.5)
 
 
 def verify(s, name):
