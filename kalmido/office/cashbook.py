@@ -492,7 +492,8 @@ def cb_entries_get(bid):
 @app.post("/api/office/cashbooks/<int:bid>/entries")
 def cb_entry_post(bid):
     """A new entry {day (default today), dir in|out, amount, vat_pct 19|7|0|null, text, category, node_id, invoice_id}.
-    The next number of the box (no gaps); 409 on a closed day; 400 when the balance would drop below zero. 201 the entry."""
+    The next number of the box (no gaps); 409 on a closed day; 400 when the balance would drop below zero. 201 the entry
+    with the box's new balance and count (book_balance, book_entries; #7500)."""
     c, uid, oid = _ctx()
     _book(c, oid, bid)
     b = _body()
@@ -507,7 +508,7 @@ def cb_entry_post(bid):
         hit = c.execute("SELECT id FROM office_cash_entries WHERE book_id=? AND created_by=? AND client_ref=?", (bid, uid, ref)).fetchone()
         if hit:
             c.rollback()
-            return jsonify(_one(c, oid, uid, hit[0]))
+            return jsonify(_posted(c, oid, uid, bid, hit[0]))
         row["client_ref"] = ref
     book = _book(c, oid, bid)
     if book["archived"]:
@@ -525,7 +526,14 @@ def cb_entry_post(bid):
     _cb_pay(c, oid, uid, eid, plain, no)
     bump(c)
     c.commit()
-    return jsonify(_one(c, oid, uid, eid)), 201
+    return jsonify(_posted(c, oid, uid, bid, eid)), 201
+
+
+def _posted(c, oid, uid, bid, eid):
+    """#7500: the answer of a new entry carries what the quick entry draws without a reload: the entry (its number, the
+    balance after it) and the box's new balance and count of entries (book_balance, book_entries)."""
+    book, rows = _book(c, oid, bid), _rows(c, oid, bid)
+    return dict(_one(c, oid, uid, eid), book_balance=dstr(cb_balance(book["opening"], rows)), book_entries=len(rows))
 
 
 def _cb_pay(c, oid, uid, eid, e, no):

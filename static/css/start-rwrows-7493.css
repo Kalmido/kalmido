@@ -1,4 +1,4 @@
-/* (#7493): write shows at once (core.js rwRows): a row's state, the sums while the server computes them */
+/* (#7493): write shows at once (core.js rwRows): a row's state, the sums while the server computes them; #7500 the cash book */
 .rwmark{display:inline-flex;align-items:center;gap:.25rem;flex:none;font-size:var(--fs-m);color:var(--muted)}
 .rwfail{color:var(--danger)}.rwfail .linkbtn{font-size:inherit}
 .rw-failed{border-color:var(--danger)}
@@ -8,3 +8,4 @@
 .rwwait{opacity:.6;cursor:progress}
 /* (#7497, #7499): a list row's action (W.act): its amount dims while it saves, an error names why */
 .rw-saving .bnkamt{opacity:.45}.rwfail small{color:inherit}
+.rw-saving .cb-amt,.rwcalc .cb-bal{opacity:.45}
