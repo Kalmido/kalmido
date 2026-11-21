@@ -598,12 +598,15 @@ ul.ofdpick .chkl{display:flex;align-items:flex-start;gap:.5rem;min-height:2.75re
   .bk-tab th,.bk-tab td{display:flex;justify-content:space-between;border:0;padding:.125rem .25rem}
   .bk-tab th{font-weight:600}
   .bk-tab td.num::before{content:attr(data-l);color:var(--muted);font-size:var(--fs-s)}
-  /* #7689: ONE arrangement of the two upload buttons wherever they stand (bookkeeping, receipts list, empty receipts, a member's
-     submit): side by side, half the width each; they wrap only when a label does not fit in one line (320 px). Was: full width
-     here, undone only in the receipts list by a rule of its own */
-  .bk-photo{width:100%}
+  /* #7689 (decided 21.11.2026 after reader #6082): ONE arrangement of the two upload buttons wherever they stand (bookkeeping,
+     receipts list, empty receipts, a member's submit), in every language: from 340 px side by side, half the room each; a label
+     longer than its half breaks onto two lines INSIDE its button (both as high, text centred) - never the row, no cutting, no
+     smaller type. Below 340 px one under the other (the width rule below) */
+  .bk-photo{width:100%;align-items:stretch}
   .empty.eact > .eacts:has(> .bk-photo){align-self:stretch}  /* the empty receipts view centres its actions at their own width */
-  .bk-shot,.bk-files{flex:1 1 0;min-width:max-content;justify-content:center;padding:0 .75rem;font-size:inherit}
+  .empty .bk-photo .btn svg{width:var(--ic);height:var(--ic);margin:0;opacity:1;display:inline-block;stroke-width:inherit}  /* the empty state's big symbol is not the buttons' */
+  .bk-shot,.bk-files{flex:1 1 0;min-width:0;align-self:stretch;height:auto;min-height:3rem;padding:.375rem .5rem;font-size:inherit;
+    white-space:normal;text-align:center;justify-content:center;overflow-wrap:normal}
   .bk-photohint{flex:1 1 100%}
   .bk-kz>div{flex-direction:column;gap:.125rem}
 }
@@ -1366,8 +1369,10 @@ button.dma-open:hover .dma-n,button.dma-open:focus-visible .dma-n{color:var(--ac
 .rcl-tools .bk-photohint{flex:1 1 100%;order:9}
 .rcl-tools .btn{min-height:var(--tb-h)}
 .rcl-mbtn{display:none}
+@media (max-width:339px){.bk-shot,.bk-files{flex:1 1 100%}}  /* #7689: below 340 px one under the other */
 @media (max-width:599px){
   .rcl-tools .rcl-wide{display:none}
+  .rcl-tools .bk-shot,.rcl-tools .bk-files{padding:.375rem .5rem;height:auto}  /* #7689: a long label breaks inside the button */
   .rcl-tools .spacer{display:none}
   .rcl-mbtn{display:inline-flex}
 }
