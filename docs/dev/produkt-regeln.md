@@ -52,9 +52,11 @@ file. What can be seen in the text of the code is checked by `tools/check_rules.
   the only limit is the minimum width of the neighbours.
 - **Arrows on rows** (06.11.2026, #4908): › (the icon `right`) opens a view or a form; ˅ (`chev`) only unfolds in place
   (aria-expanded, it turns).
-- **Organisation colour everywhere** (14.11.2026, #6179 - #6188): whatever belongs to an organisation carries its colour
-  in every area, in the navigation (the entry marked) and in the opened object; Private stays neutral - except in a
-  mixed view ("All workspaces"), where Private wears the person's own chosen Private colour, if any (#6957, #7393).
+- **Organisation colour everywhere** (14.11.2026, #6179 - #6188; Private 20.11.2026, #7661): whatever belongs to an
+  organisation carries its colour in every area, in the navigation (the entry marked) and in the opened object. As soon
+  as the person has an organisation, Private wears its colour too, at the same places (the own chosen Private colour,
+  else a fixed default); without an organisation everything stays neutral. One rule in the core (wscolor.js), no caller
+  decides it.
 
 ## Touch, gestures and calm
 
