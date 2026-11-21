@@ -1702,8 +1702,9 @@ class Dispatcher:
         lines.append(self.say("dispatch_lead", "-" if med is None else (f"{med:.1f}".rstrip("0").rstrip(".")), n_lead, cfg["close_ref"] or "HEAD"))
         lines.append(self.say("dispatch_open_end", n_open, n_ended, round(100 * n_open / n_ended) if n_ended else 0))
         lines.append(self.say("dispatch_overrides", n_over, (" - " + ", ".join(names)) if names else ""))  # #4064
-        if res.get("skipped"):  # 2.1308.0 (#6523)
-            lines.append(self.say("dispatch_skipped", " ".join(f"#{t}" for t in sorted(res["skipped"]))))
+        if res.get("skipped"):  # 2.1308.0 (#6523); (#7529): each with its reason, and the way to make it buildable
+            lines.append(self.say("dispatch_skipped", ", ".join(f"#{t} ({self.say('dispatch_why_' + w_)})" for t, w_ in sorted(res["skipped"].items())))
+                         + " " + self.say("dispatch_skipped_confirm"))
         if res.get("waiting"):  # 2.1394.0 (#5200)
             lines.append(self.say("dispatch_waiting", ", ".join(f"#{t} ({' '.join(res['waiting'][t])})" for t in sorted(res["waiting"]))))
         for f in res["findings"]:
