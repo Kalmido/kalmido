@@ -51,6 +51,21 @@ const stale = uid => execFileSync('python3', ['-c', `import sys, os, json; sys.p
     check(await until(async () => (await items(ck)).includes('v:assigned')), `${u}: My tasks is stored as a favourite ` + JSON.stringify(await items(ck)));
     check(!(await items(ck)).some(k => STALE.includes(k)), `${u}: the keys no longer known are gone ` + JSON.stringify(await items(ck)));
     check(await until(() => w.eval(`!JSON.parse(S.settings.fav_items).some(k => ${JSON.stringify(STALE)}.includes(k))`)), `${u}: the client holds the list as stored`);
+    // reader F3: taking the change back with the dropped keys in the value before -- "Recent steps" on the server and the app's undo
+    const g = ((await call(ck, 'GET', '/api/undo')).items || [])[0] || {};
+    const ru = await call(ck, 'POST', `/api/undo/${g.id}/undo`);
+    check(ru.http === 200 && JSON.stringify(await items(ck)) === '["v:today"]', `${u}: Recent steps takes the star back although the value before held unknown keys ${ru.http} ` + JSON.stringify(await items(ck)));
+    stale(uid);
+    w.close();
+    w = await boot({user: u, hash: 'assigned'}); d = w.document;
+    const star2 = await until(() => d.querySelector('[data-fv2-star="v:assigned"]'));
+    if (star2) click(w, star2);
+    check(await until(async () => (await items(ck)).includes('v:assigned')), `${u}: the star set again`);
+    await until(() => w.eval(`!JSON.parse(S.settings.fav_items).some(k => ${JSON.stringify(STALE)}.includes(k))`));
+    await w.eval(`histStep('undo')`);
+    check(await until(async () => JSON.stringify(await items(ck)) === '["v:today"]'), `${u}: the app's undo takes the star back (no 400) ` + JSON.stringify(await items(ck)));
+    await w.eval(`histStep('redo')`);
+    check(await until(async () => (await items(ck)).includes('v:assigned')), `${u}: redo sets it again ` + JSON.stringify(await items(ck)));
     await sleep(1500);  // a state load after the save must not take it back
     check(w.eval(`fv2_is('v:assigned')`) && d.querySelector('[data-fv2-star="v:assigned"]')?.getAttribute('aria-pressed') === 'true', `${u}: the star stays on`);
     // a view, an area, a tag: the same saving way

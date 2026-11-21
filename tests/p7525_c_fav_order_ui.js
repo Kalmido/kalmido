@@ -4,12 +4,12 @@
 // - two quick changes (two stars one after the other, a slow line under the first): each save sends the WHOLE list, so the
 //   older one arriving last took the newer favourite away again (the star showed and went). Now every favourite write goes
 //   one way, one after the other (favorites.js favWrite / FAV_Q, as the project star since #5013): both stay
-// - a state load begun before the save and answered after it does not take the star back (guard of #7150 S.wfly / S.wv)
+// - a state the server read before the save and that comes in after it does not take the star back (guard of #7150 S.wfly / S.wv)
 // - a refused save says the server's reason in the message (not a silent reload) and the shown list is the stored one again
 // P4: frida has no organisation and gets the same (freelancer-matrix: tasks)
 const path = require('path');
 const {execFileSync} = require('child_process');
-const {boot, sleep, B, login, until, slow} = require('./boot');
+const {boot, sleep, B, login, until} = require('./boot');
 const F = []; let ok = 0;
 const check = (c, what) => { if (c) ok++; else { F.push(what); console.log('FAIL:', what); } };
 const H = {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'};
@@ -27,6 +27,14 @@ const holdFav = w => {
     if (!/api\/settings/.test(String(u)) || o.method !== 'PATCH' || !String(o.body || '').includes('fav_items')) return f0(u, o);
     return ++w.__n === 1 ? first.then(() => f0(u, o)) : f0(u, o);
   };
+};
+
+// reader F2: the answer is held, not the request -- the state is read on the server BEFORE the save and comes in after it
+// (an older state); w.__got = answers the server already gave
+const slowAnswer = (w, re) => {
+  const f0 = w.fetch; let rel = null; const held = new Promise(r => { rel = r; });
+  w.__held = 0; w.__got = 0; w.__go = () => rel();
+  w.fetch = (u, o = {}) => re.test(String(u)) ? (w.__held++, f0(u, o).then(r => { w.__got++; return held.then(() => r); })) : f0(u, o);
 };
 
 (async () => {
@@ -60,9 +68,9 @@ const holdFav = w => {
 
     // (2) a state load begun before the save, answered after it: the star stays
     w = await boot({user: u, hash: 'assigned'});
-    slow(w, /api\/state/);
+    slowAnswer(w, /api\/state/);
     const ld = w.eval(`(window.__ld = load().then(() => 'done', e => 'err ' + e.message), 1)`);
-    check(ld === 1 && await u2(() => w.__held >= 1), `${u}: a state load is on its way`);
+    check(ld === 1 && await u2(() => w.__got >= 1), `${u}: a state load is answered by the server (before the save) and held on the way back`);
     w.eval(`fv2_set('v:assigned', true)`);
     check(await u2(async () => (await items(ck)).includes('v:assigned')), `${u}: My tasks stored while the state load waits`);
     await u2(() => w.eval('!S.wfly'));

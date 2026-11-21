@@ -295,11 +295,13 @@ async function fv2_save(arr) {
   render();
   if (await favWrite('PATCH', '/api/settings', {fav_items: arr})) fv2_fetch(true);
 }
-// one change = one undo step
+// one change = one undo step. A key both sides held that is no longer stored was dropped by the server as no longer known
+// (fv2_clean_items): undo / redo leave it out -- sent again it would count as new and refuse the whole list
+const fv2_kept = (a, other) => { const st = fv2_stored(); return a.filter(k => !other.includes(k) || st.includes(k) || k.startsWith('l:')); };
 function fv2_change(arr, msg) {
   const before = fv2_keys();
   fv2_save(arr);
-  offerUndo(msg, histAdd({label: msg, undo: () => fv2_save(before), redo: () => fv2_save(arr)}));
+  offerUndo(msg, histAdd({label: msg, undo: () => fv2_save(fv2_kept(before, arr)), redo: () => fv2_save(fv2_kept(arr, before))}));
 }
 // favorites.js favSet: a list's place follows its star at once (the server does the same)
 function fv2_listFollow(id, on) {
