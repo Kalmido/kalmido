@@ -28,7 +28,7 @@ const typeIn = (w, el, v) => { el.value = v; el.dispatchEvent(new w.Event('input
     // ---- empty page
     let w = await boot({hash: 'clients', mobile}); let d = w.document;
     await until(() => d.querySelector('#view .msclempty'), 60);
-    check(!d.querySelector('#view .ctbar') && !d.querySelector('#mscl-arch') && !d.querySelector('#mscl-dsb') && !d.querySelector('a[href="#mailhub"]'), tag + ': empty page without filters / e-mail filing');
+    check(!d.querySelector('#view .ctbar') && !d.querySelector('#view [data-mscl="more"]') && !d.querySelector('#mscl-dsb') && !d.querySelector('a[href="#mailhub"]'), tag + ': empty page without filters / e-mail filing');
     check(d.querySelectorAll('#view [data-act="client-new"]').length === 1, tag + ': "New client" only once');
     // ---- the short sheet (private: no organisation)
     w.eval("clientModal(null, {org_id: null})"); await sleep(100);
@@ -52,7 +52,7 @@ const typeIn = (w, el, v) => { el.value = v; el.dispatchEvent(new w.Event('input
     await call('PATCH', `/api/clients/${cl.id}`, {icon: '☕'});
     w = await boot({hash: 'clients', mobile}); d = w.document;
     await until(() => d.querySelector('#view .ctrow'), 60);
-    check(d.querySelector('#view #mscl-arch') && d.querySelector('#view .ctrow .mscav')?.textContent.includes('☕'), tag + ': filters back with clients; emoji still shown');
+    check(d.querySelector('#view [data-mscl="more"]') && d.querySelector('#view .ctrow .mscav')?.textContent.includes('☕'), tag + ': filters back with clients; emoji still shown');
     await call('PATCH', `/api/clients/${cl.id}`, {icon: 'ic:star'});
     w.eval('ms_clDirty && ms_clDirty()'); w.close();
     w = await boot({hash: 'clients', mobile}); d = w.document;

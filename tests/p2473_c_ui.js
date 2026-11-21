@@ -149,7 +149,9 @@ const typeIn = (w, el, v) => { el.value = v; el.dispatchEvent(new w.Event('input
   d.dispatchEvent(new w.KeyboardEvent('keydown', {key: 'Escape', bubbles: true})); await sleep(50);
   check(!d.querySelector('#ct-sbar') && w.eval('MSC.pick') === null, '#1733: Esc ends the selection');
   // 2.272.0 D (#3029): Beta lies in the clients' trash (box "Trash"), with the period; Restore brings it back
-  const tb = d.querySelector('#mscl-trash'); tb.checked = true; tb.dispatchEvent(new w.Event('change', {bubbles: true}));
+  // (#7017, audit D12): the trash is an entry of the area's "…" now (was a box in the bar)
+  d.querySelector('#view [data-mscl="more"]').click();
+  (await until(() => [...d.querySelectorAll('#pop:not(.hidden) [role="menuitem"]')].find(b => b.textContent.trim() === 'Trash'), 40))?.click();
   await until(() => d.querySelector('#view .mscltrash [data-mscl="trest"]'), 40);
   check(/Beta AG/.test(d.querySelector('#view .mscltrash')?.textContent || '') && /stay in the trash for now: emptying it automatically is not switched on/.test(d.querySelector('#view .mscltrdays')?.textContent || ''),  // 2.223.3 (#2877): runs off on the test server; 2.1199.0 (#6112): the note without server words
     '#3029: the trash lists Beta with the note that the trash keeps: ' + (d.querySelector('#view .ctlistw')?.textContent || '').slice(0, 200));
