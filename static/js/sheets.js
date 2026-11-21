@@ -205,7 +205,7 @@ function shvOverview(lid) {
   const l = lid ? listById(lid) : null, ws = typeof wsCur === 'function' ? wsCur() : 'all', op = lid ? null : shv_open();
   let items = d?.items || [];
   if (op) items = items.filter(x => op === 'shared' ? x.shared_in : x.space === op && !x.shared_in);  // (#7564): one space open under "All"
-  else if (!lid && ws && ws !== 'all') items = items.filter(x => x.space === ws || x.shared_in);  // 2.124.0 C (#2113): shared with me: in every workspace
+  else if (!lid && ws && ws !== 'all') items = items.filter(x => x.space === ws || x.shared_in);  // (#2113): shared with me: in every workspace
   else if (!lid) items = items.filter(x => x.shared_in || shvShown().includes(x.space));  // 2.1398.0 (#6722): "All": the spaces where Tables is on
   const hooks = SHV_HOOKS.overview.length;
   const head = `<div class="shvtop">${/*html-ok*/ op ? spo_crumbHtml('sheets', shvSpaceName(op)) : '' /* (#7564): the core's path, it escapes the name */}${lid ? `<a class="btn sm" href="#l/${lid}" data-navup>${ic('back', 's')}${esc(l ? lname(l) : tr('Project'))}</a>` : ''}
@@ -240,7 +240,7 @@ function shv_panelHtml() {
   const r = S.route, ws = typeof wsCur === 'function' ? wsCur() : 'all', cur = r.mod === 'sheets' && r.sh ? (SHV.sh?.id === r.sh && SHV.sh.book_id) || r.sh : null;
   const row = x => sbb_row('sheets/' + x.id, 'sheet', x.title || tr('Untitled table'), x.id === cur, `data-sbbsh="${x.id}"`);
   const grp = (g, label, xs) => `<div class="sgroup sbbp">${sbb_head(g, label, xs.length, sbb_folded(g) && xs.some(x => x.id === cur))}${sbb_folded(g) ? '' : xs.map(row).join('')}</div>`;
-  const top = `<div class="sgroup sbbp">${/*html-ok*/ sbb_row('sheets', 'all', tr('All tables'), r.mod === 'sheets' && !r.sh && !r.shl && !r.shf && !r.wsp && !r.zle, 'data-sbbsh="all"') /* the row escapes its name; (#7564): not marked in an open space */}</div>`;  // 2.224.0 B (#2816): "New table" only in the overview's head (a folder: its own button / menu)
+  const top = `<div class="sgroup sbbp">${/*html-ok*/ sbb_row('sheets', 'all', tr('All tables'), r.mod === 'sheets' && !r.sh && !r.shl && !r.shf && !r.wsp && !r.zle, 'data-sbbsh="all"') /* the row escapes its name; (#7564): not marked in an open space */}</div>`;  // (#2816): "New table" only in the overview's head (a folder: its own button / menu)
   if (!d?.items) return top + `<p class="muted sbbtl">${esc(d?.err || tr('Loading…'))}</p>`;
   const items = ws && ws !== 'all' ? d.items.filter(x => x.space === ws || x.shared_in) : d.items.filter(x => x.shared_in || shvShown().includes(x.space));  // like the overview (2.1398.0, #6722: "All" = where Tables is on) (2.124.0 C: shared ones in every workspace)
   // 2.199.0 C (#2742): one entry per workspace (a single workspace shown: only its entry) with its folders, the tables in no
