@@ -316,6 +316,46 @@ r = requests.delete(V + f"/agent/objects/task/{T1}/links/{EL}", headers=AGH)
 check(r.status_code == 403 and live(EL), f"F2: planbot removes a link whose source is an event: 403, it stays {r.status_code} {r.text[:160]}")
 sql("DELETE FROM obj_links WHERE id=?", (EL,), write=True)
 
+# 2.1507.0 (#6297 (8), audit #4741): a table, a file and a knowledge page carry their area's scopes; planbot holds read + tasks:write only
+for k in ("sheet_table", "fs_entry", "wiki_page"):
+    r = requests.post(V + f"/agent/objects/task/{T1}/links", headers=AGH, json={"kind": k, "id": 999004})
+    check(r.status_code == 403 and "lacks" in r.text, f"#6297 (8): planbot links a task with a {k} without its read scope: 403 {r.status_code} {r.text[:160]}")
+    r = requests.get(V + f"/agent/objects/{k}/999004/links", headers=AGH)
+    check(r.status_code == 403 and "lacks" in r.text, f"#6297 (8): planbot lists the links of a {k} without its read scope: 403 {r.status_code} {r.text[:160]}")
+    r = requests.post(V + f"/agent/objects/{k}/999004/links", headers=AGH, json={"kind": "task", "id": T1})
+    check(r.status_code == 403 and "lacks" in r.text, f"#6297 (8): planbot links a {k} without its write scope: 403 {r.status_code} {r.text[:160]}")
+# every registered kind names its scopes (obj_register has no default any more): an area with scopes of its own carries
+# them; a kind without one names read with tasks:write (or structure, as its v1 routes); a new kind must be added here
+AREA = {"sheet_table": ("sheets:read", "sheets:write"), "fs_entry": ("files:read", "files:write"), "docview": ("files:read", "files:write"),
+        "wiki_page": ("wiki:read", "wiki:write"), "event": ("calendar", "calendar"), "evcal": ("calendar", "calendar"),
+        "shoot_day": ("calendar", "calendar"), "callsheet": ("calendar", "calendar"), "address_book": ("contacts", "contacts"),
+        "tchat_room": ("comments", "comments")}
+PLAIN = {"task", "hub_mail", "bookmark_link", "rss_feed", "video_review", "objprobe", "objprobe_e"}
+STRUCT = {"list", "template", "client"}
+out = in_app("""import json
+from kalmido.core.objects import OBJ, obj_register
+from kalmido.office.okern import OFK
+print("KINDS", json.dumps({k: list(v["scopes"]) for k, v in OBJ.items()}))
+print("OFK", json.dumps(sorted(OFK)))
+try:
+    obj_register("noscope", "obj_probe", label="x", fields={})
+    print("NOSCOPE registered")
+except TypeError as e:
+    print("NOSCOPE TypeError", "scopes" in str(e))""")
+
+def printed(tag, empty):
+    line = next((x for x in out.splitlines() if x.startswith(tag + " ")), None)
+    return json.loads(line[len(tag) + 1:]) if line else empty
+
+
+kinds, ofk = printed("KINDS", {}), printed("OFK", [])
+check(len(kinds) > 15, f"#6297 (8): the registered kinds read ({len(kinds)}) {out[-300:]}")
+for k, sc in sorted(kinds.items()):
+    want = AREA.get(k) or (["office", "office"] if k in ofk else None) or (["read", "structure"] if k in STRUCT else None) \
+        or (["read", "tasks:write"] if k in PLAIN else None)
+    check(want is not None and list(want) == sc, f"#6297 (8): kind {k} carries the scopes of its area {sc} (expected {want})")
+check("NOSCOPE TypeError True" in out, f"#6297 (8): obj_register without scopes is a TypeError {out[-300:]}")
+
 # F3: a side deleted for good names its kind and id only to the link's creator; one in the trash only to who has a role on it
 sql(f"INSERT INTO obj_links(org_id, src_kind, src_id, dst_kind, dst_id, rel, created_by) VALUES({ORG}, 'task', {T1}, 'task', 999003, 'related', {BOB})",
     write=True)

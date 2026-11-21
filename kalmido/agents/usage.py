@@ -1192,7 +1192,7 @@ def agent_spec(paths, schemas, op, ok, errs, ref, q, pid, nul, page):
         "/agent/status": {"put": op("Report the agent's status", AG, ok(ref("Agent")) | errs("400", "403"), scope=W, body={
             "type": "object", "required": ["status"], "properties": {"status": {"type": "string", "enum": list(AGENT_STATUSES)}, "text": {"type": "string"},
                                                                   "text_key": {"type": "string", "maxLength": 40, "description": "2.450.0 (#3769): the key of a known status text; text stays the fallback"},
-                                                                  "text_at": {"type": "string", "description": "2.450.0 (#3769): the time in that text (ISO)"},
+                                                                  "text_at": {"type": "string", "format": "date-time", "description": "(#3769): the time in that text (ISO)"},
                                                                   "task_id": nul("integer"),
                                                                   # 2.32.0 (#1079)
                                                                   "model": {"type": "string", "maxLength": 80, "description": "2.32.0: the model the host really runs, "

@@ -310,7 +310,8 @@ sql("INSERT INTO org_members(org_id,user_id,role) VALUES(?,?,'admin') ON CONFLIC
 
 
 def member(oid, role):
-    r = A.put(B + f"/api/orgs/{oid}/members", json={"email": "bob@example.com", "role": role})
+    known = sql("SELECT 1 FROM org_members WHERE org_id=? AND user_id=?", (oid, BOB))  # a member's role goes down only by user_id (decision 21.11.2026, #6610)
+    r = A.put(B + f"/api/orgs/{oid}/members", json={"user_id": BOB, "role": role} if known else {"email": "bob@example.com", "role": role})
     check(r.ok and sql("SELECT role FROM org_members WHERE org_id=? AND user_id=?", (oid, BOB)) == [(role,)], f"setup: bob is {role} of {oid} {r.text[:160]}")
 
 

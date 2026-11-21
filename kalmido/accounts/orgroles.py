@@ -183,12 +183,68 @@ def office_allowed(c, uid, oid, write=None):
     return RO_MSG if r == "readonly" else ACC_MSG
 
 
-def cap_list_role(c, uid, oid, role):
-    """The list role uid has after their organisation role: read-only people view (participants stay participants, their
-    writes are refused by list_writable)."""
-    if role and oid and role in ("owner", "admin", "edit") and org_role_key(c, uid, oid) == "readonly":
-        return "view"
-    return role
+# #6610 (audit #4818 F3): what an organisation role may hold in the organisation -- THE one table (no area caps a role on its
+# own). top = the highest role on an object of the organisation (3 manage / owner, 2 edit, 1 view), own = may own its
+# projects, calendars, address books and core objects (ws_check_owner), office = keeps rows of the office's rights groups,
+# agents = may have personal agents in it. org_cap applies top at every request (obj_role, list_role, book_role): also to
+# a person demoted before this rule and to a guest someone gave the project role admin; the role change hands what the
+# role may not own to an admin (core/objhooks.person_revoked 'role' with heir) and takes office groups / agents as the
+# table says (accounts/orgs.py org_caps_out).
+ROLE_CAPS = {
+    "admin": {"top": 3, "own": True, "office": True, "agents": True},
+    "member": {"top": 3, "own": True, "office": True, "agents": True},
+    "readonly": {"top": 1, "own": False, "office": True, "agents": True},
+    "accounting": {"top": 2, "own": False, "office": False, "agents": False},
+    "guest": {"top": 2, "own": False, "office": False, "agents": False},
+}
+# the role words of the areas on the one scale (a word not named, e.g. a project's participant, is never raised or cut);
+# the second dict names the word a capped role becomes
+OBJ_SCALE = ({"manage": 3, "edit": 2, "view": 1}, {3: "manage", 2: "edit", 1: "view"})
+LIST_SCALE = ({"owner": 3, "admin": 3, "edit": 2, "view": 1}, {2: "edit", 1: "view"})
+OWNER_SCALE = ({"owner": 3, "edit": 2, "view": 1}, {3: "owner", 2: "edit", 1: "view"})  # calendars (ev_role) and address books (book_role)
+
+
+def role_caps(role_key):
+    """The row of ROLE_CAPS of an organisation role (an unknown one reads as guest, like role_known)."""
+    return ROLE_CAPS.get(role_key) or ROLE_CAPS["guest"]
+
+
+def role_down(old, new):
+    """#6610 (decision 21.11.2026, reader job/6130 F10): does organisation role new take anything from old (the admin right, or
+    any value of ROLE_CAPS: the highest object role, owning, the office groups, the agents)? -- what person_revoked would
+    hand over or take away."""
+    if old == new:
+        return False
+    if old == "admin":
+        return True
+    a, b = role_caps(old), role_caps(new)
+    return b["top"] < a["top"] or any(a[k] and not b[k] for k in ("own", "office", "agents"))
+
+
+def org_cap(c, uid, oid, role, scale=OBJ_SCALE):
+    """#6610: role (a word of scale) of uid on an object of organisation oid, at most what uid's organisation role may hold
+    (ROLE_CAPS top). Private objects (oid None) and people who are no member of oid (the area's own rules / the boundary
+    decide) keep role. Reads the role from the request's memo of memberships (org_roles_of): no query per object."""
+    if not role or not oid:
+        return role
+    rank, names = scale
+    lv = rank.get(role)
+    if lv is None:
+        return role
+    rk = org_role_key(c, uid, oid)
+    if rk is None:
+        return role
+    top = role_caps(rk)["top"]
+    return role if lv <= top else names[top]
+
+
+def org_may_own(c, uid, oid):
+    """#6610: may uid own projects, calendars, address books and core objects of organisation oid (ROLE_CAPS own)? Private
+    (oid None) and a person who is no member: True (the membership checks are the callers', e.g. ws_check_member)."""
+    if not oid:
+        return True
+    rk = org_role_key(c, uid, oid)
+    return rk is None or role_caps(rk)["own"]
 
 
 def roles_public(c, oid=None):

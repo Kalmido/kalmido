@@ -286,7 +286,21 @@ def agent_ro_refused(method, rule, scopes):
     return any(re.match(x, path) for x in AGENT_RO_REFUSED)
 
 
+def scope_file_answer(op):
+    """(#6297 11, audit #4741): True when the operation answers 200 with a file (a schema of format binary, or a
+    content type without a JSON body) -- such a GET is a download and needs attachments:read, never read alone."""
+    r = (op.get("responses") or {}).get("200") or {}
+    for ct, body in (r.get("content") or {}).items():
+        s = (body or {}).get("schema") or {}
+        if s.get("format") == "binary" or (ct != "application/json" and not s):
+            return True
+    return False
+
+
 def scope_refine(paths):
+    """The scope of each operation of the spec (x-kalmido-scope): a write by its path (SCOPE_RULES); a GET that answers with a
+    file (scope_file_answer) and the text of a task file need attachments:read. (#6297 11, audit #4741): the
+    downloads come from their declared answer, no list of paths by hand (the file of a sign-off version was missing there)."""
     for p, ms in paths.items():
         for m, op in ms.items():
             sc = op.get("x-kalmido-scope", "read")
@@ -295,9 +309,7 @@ def scope_refine(paths):
                     sc = "delete"
                 else:
                     sc = next((s for rx, s in SCOPE_RULES if re.search(rx, p)), "structure")
-            elif sc == "read" and m == "get" and (p in ("/attachments/{id}", "/attachments/{id}/text", "/lists/{id}/files/{file_id}")):
-                sc = "attachments:read"
-            elif sc == "read" and m == "get" and p in ("/team/files/{id}", "/chat-attachments/{id}"):
+            elif sc == "read" and m == "get" and (scope_file_answer(op) or p == "/attachments/{id}/text"):
                 sc = "attachments:read"  # 2.674.0 (#4382 finding 8): the binary of a chat file is a download like the others
                 if p == "/chat-attachments/{id}":  # the agent of the conversation reads what a person sent to it (as before)
                     op.setdefault("x-kalmido-agent-scope", "read")

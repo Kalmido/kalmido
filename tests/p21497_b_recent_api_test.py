@@ -177,7 +177,7 @@ check(("office", "offer", OFF) in k and ("office", "client", CL) not in k, f"#76
 check(("sheets", "", SH_ORG) not in k, "#7662 F4 (reader round 3): card without Tables: the organisation's table no")
 check(A.delete(B + f"/api/modcards/{r.json()['card']['id']}").ok, "setup: the card is deleted")
 ED, Ed = mkuser("edda", [ORG])
-r = A.put(B + f"/api/orgs/{ORG}/members", json={"email": "edda@example.com", "role": "accounting"})
+r = A.put(B + f"/api/orgs/{ORG}/members", json={"user_id": ED, "role": "accounting"})  # down only by user_id (decision 21.11.2026, #6610)
 check(r.ok, f"setup: edda is the organisation's accounting {r.status_code} {r.text[:200]}")
 k = keys(recent(Ed))
 check(("office", "client", CL) not in k, f"#7662 F5: the role accounting sees no client of the organisation (client_rows) {sorted(office(recent(Ed)))}")

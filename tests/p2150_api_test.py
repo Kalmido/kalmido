@@ -223,7 +223,27 @@ check(not bad_full, f"a token with the scope is never refused for the scope: {ba
 check(spec["paths"]["/attachments/{id}"]["get"]["x-kalmido-scope"] == "attachments:read"
       and spec["paths"]["/tasks/{id}"]["delete"]["x-kalmido-scope"] == "delete"
       and spec["paths"]["/tasks/{id}/comments"]["post"]["x-kalmido-scope"] == "comments"
-      and spec["paths"]["/agent/status"]["put"]["x-kalmido-scope"] == "agent", "OpenAPI: the scopes of some known operations")
+      and spec["paths"]["/agent/status"]["put"]["x-kalmido-scope"] == "agent"
+      # 2.1507.0 (#6297 (11)): the bytes of a sign-off version are a download like the others
+      and spec["paths"]["/videos/{id}/versions/{version_id}/file"]["get"]["x-kalmido-scope"] == "attachments:read",
+      "OpenAPI: the scopes of some known operations")
+
+
+# 2.1507.0 (#6297 (11), audit #4741): from the schema - no GET that answers with a file (200 with a binary schema or a non-JSON
+# body without one) keeps the scope read; a new download is covered without a list of paths
+def file_answer(o):
+    for ct, body in (((o.get("responses") or {}).get("200") or {}).get("content") or {}).items():
+        s = (body or {}).get("schema") or {}
+        if s.get("format") == "binary" or (ct != "application/json" and not s):
+            return True
+    return False
+
+
+downloads = {p: ms["get"].get("x-kalmido-scope") for p, ms in spec["paths"].items() if "get" in ms and file_answer(ms["get"])}
+check(len(downloads) >= 6 and not [p for p, sc in downloads.items() if sc == "read"],
+      f"#6297 (11): no download keeps the scope read ({len(downloads)}): {sorted(downloads.items())}")
+check(downloads.get("/team/files/{id}") == downloads.get("/lists/{id}/files/{file_id}") == "attachments:read",
+      f"#6297 (11): the team chat's and a project's files declare their file answer {downloads}")
 
 # ================================================================== agents: default scopes, changes, token expiry
 r = A.post(B + "/api/admin/agents", json={"username": "claude", "display_name": "Claude"})

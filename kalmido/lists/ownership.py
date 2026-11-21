@@ -120,9 +120,10 @@ def owner_reset_secrets(c, lid, new):
     return out
 
 
-def owner_transfer(c, lr, new, force=False):
+def owner_transfer(c, lr, new, force=False, old_role=None):
     """Moves list lr to user id new (checked by the caller); returns (old owner id, new owner name). force (2.64.1, #1817): a
-    transfer that must happen (leaving an organisation) also to someone without the key of a list with the lock."""
+    transfer that must happen (leaving an organisation) also to someone without the key of a list with the lock. old_role
+    (#6610): the old owner's project role afterwards (default: admin, an agent edit) -- a role down keeps the role's cap."""
     from ..collab.comments import user_names
     from ..collab.news import list_push, news_add
     from ..agents.core import agent_ids
@@ -141,7 +142,7 @@ def owner_transfer(c, lr, new, force=False):
     c.execute("DELETE FROM list_members WHERE list_id=? AND user_id IN (?, ?)", (lid, new, old))
     if old and c.execute("SELECT 1 FROM users WHERE id=?", (old,)).fetchone():
         c.execute("INSERT INTO list_members(list_id,user_id,role,own_role,folder,sort,view,added_at) VALUES(?,?,?,?,?,?,?,?)",
-                  (lid, old, "edit" if old in ag else "admin", "edit" if old in ag else "admin", lr["folder"] or "", lr["sort"], lr["view"], ts))
+                  (lid, old, *[old_role or ("edit" if old in ag else "admin")] * 2, lr["folder"] or "", lr["sort"], lr["view"], ts))
     c.execute("UPDATE lists SET owner_id=?, folder=?, sort=?, view=? WHERE id=?", (new, folder, sort, view, lid))
     if not lr["org_id"]:  # 2.64.0 (#1864): a private list's files get the new owner's account key (after the commit)
         from ..admin.orgcrypt_cli import oc_settle_kick
@@ -164,6 +165,31 @@ def owner_transfer(c, lr, new, force=False):
         news_add(c, old, "owner", list_id=lid, data={"name": lr["name"], "given": names.get(new, "")})
         list_push(c, old, "share", lid, lambda lg: tr("{0} handed your project to {1}", who, names.get(new, ""), lg=lg), lambda lg: lr["name"])
     return old, names.get(new, "")
+
+
+def owner_hand_over(c, oid, uid, heir, keep=None):
+    """#6610: the projects person uid owns in organisation oid go to heir -- the lists' part of the one hand-over
+    (core/objects.py obj_revoke_person through the lists' on_revoke, person_revoked 'leave' / 'role' with heir). keep = the
+    project role uid keeps ('edit' / 'view': a role down, uid stays a member); None: uid leaves, their member row goes too.
+    heir 0 or uid (leaving with nobody to take over): a project goes into uid's private space; one in the trash stays the
+    organisation's (2.102.0 A, #1988). Decision #935 (back with #6840): brought in or made there, every project goes to the
+    heir. Every hand-over is in the admins' history (2.148.1 A, #2480). Returns the number handed to heir."""
+    from ..accounts.orglists import _ol_log
+    from ..accounts.orgs import ol_private
+    n, priv = 0, []
+    for lr in c.execute("SELECT * FROM lists WHERE owner_id=? AND org_id=? AND NOT is_inbox ORDER BY id", (uid, oid)).fetchall():
+        if heir and heir != uid:
+            owner_transfer(c, lr, heir, force=True, old_role=keep)  # (#1817): a list with the lock too (the heir waits for its key)
+            if not keep:
+                c.execute("DELETE FROM list_members WHERE list_id=? AND user_id=?", (lr["id"], uid))
+            _ol_log(c, oid, lr, "owner", to_id=heir)
+            n += 1
+        elif not lr["deleted_at"]:
+            ol_private(c, lr["id"], uid)
+            priv.append(lr["id"])
+    if priv:  # (#2748, review N3): the lists now private leave the organisation's tree, its folders' roles end
+        grp_sync(c, priv)
+    return n
 
 
 def own_takeover_log(c, lr, old, to_name):

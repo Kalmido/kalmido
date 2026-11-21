@@ -18,7 +18,7 @@ from ..accounts.orgroles import FULL_READ, org_say_refusal, role_known
 from ..accounts.orgs import INSTANCE_ENV
 from ..tasks.validation import as_int
 from ..collab.comments import collab_on, comment_plain, lang_of, push_gate, push_gate_due, push_gate_reset, user_names
-from ..core.objcomments import OCM_MENTION_RE, ocm_kind, ocm_may_delete, ocm_mentions_clean, ocm_need_say  # 2.972.0 (#5272): the one mention token / name rule of the core; 2.981.0 (#5274): + the parser
+from ..core.objcomments import OCM_DEL_TXT, OCM_MENTION_RE, ocm_kind, ocm_may_delete, ocm_may_restore, ocm_mentions_clean, ocm_need_say  # (#6297 3): + OCM_DEL_TXT, ocm_may_restore; (#5272): the one mention token / name rule of the core; (#5274): + the parser
 from ..collab.news import list_bells
 from ..collab.news import NEWS_EXCERPT  # 2.1037.0 (#5800): the mention item's excerpt (tcm_news_items)
 from ..core.errors import reject_unknown, BadInput
@@ -1146,7 +1146,7 @@ def tchat_delete(mid):
     c = db()
     need_tchat(c)
     m, _r = need_tmsg(c, mid, edit="delete")
-    tcx_trash(c, mid)  # 2.763.0 (#5269): the reactions stay with it until the trash run (a restore brings them back, decided 08.11.2026)
+    tcx_trash(c, mid, by=me())  # (#5269): the reactions stay with it until the trash run (a restore brings them back, decided 08.11.2026)
     c.commit()
     return jsonify(ok=True, id=mid)
 
@@ -1158,6 +1158,12 @@ def tchat_restore(mid):
     c = db()
     need_tchat(c)
     m, _r = need_tmsg(c, mid, edit="delete")
+    # (#6297 3, audit #4741): like posting and editing: not in a frozen DM, not as a guest / read-only person; and
+    # a delete by a list owner / channel manager only they undo (the core's restore rule)
+    need_dm_open(c, _r)
+    tchat_need_say(c, _r)
+    if not ocm_may_restore(c, {"user_id": m["user_id"], "kind": "tchat", "ref_id": _r["id"]}, me(), m["deleted_by"]):
+        raise Denied(403, tr(OCM_DEL_TXT))
     if not m["deleted_at"] or not tcx_restore(c, mid):
         raise Denied(404)
     c.commit()

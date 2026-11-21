@@ -198,8 +198,8 @@ def visible_lists(c, uid, light=False):
         else:
             d["role"] = "owner"
         if r["org_id"]:
-            from ..accounts.orgroles import cap_list_role, org_say_refusal
-            d["role"] = cap_list_role(c, uid, r["org_id"], d["role"])  # 2.143.0 A (#2151): read-only in the organisation -> view
+            from ..accounts.orgroles import LIST_SCALE, org_cap, org_say_refusal
+            d["role"] = org_cap(c, uid, r["org_id"], d["role"], LIST_SCALE)  # #6610: the organisation role's cap (as list_role)
             sn = org_say_refusal(c, uid, r["org_id"])  # 2.607.0 (#4549): a guest / read-only person who cannot change the list
             if sn and d["role"] not in WRITE_ROLES:  # only reads: no comment box, no reactions (the server says 403 too)
                 d["say_no"] = tr(sn)

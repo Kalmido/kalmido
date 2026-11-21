@@ -32,6 +32,7 @@ def _title(c, rid):
 
 
 obj_register(TK_KIND, "templates", label=N_("Template"), fields={}, title=_title, org_access="view", org_join="admin",
+             scopes=("read", "structure"),  # (#6297 8): as v1 /templates (read; writing = structure)
              routes=False, listed=False, agent_own=True, trash_prune=True)  # 2.905.0 (#5288): the core's trash run (was tpl_trash_tick)
 
 

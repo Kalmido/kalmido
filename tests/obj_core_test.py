@@ -177,7 +177,7 @@ check(f"SHARED {uid['carl']}" in out and f"DENIED {uid['olga']} 409" in out,
       f"F5: obj_share outside a request takes its uid (the same workspace still only): {out[-300:]}")
 
 out = in_app(f"""from kalmido.core.objects import f_text, obj_register, obj_rows, obj_visible_sql
-obj_register("capprobe", "obj_probe", label="Capped", fields={{"title": f_text(120)}}, cap=lambda c, uid, rid: "view")
+obj_register("capprobe", "obj_probe", label="Capped", fields={{"title": f_text(120)}}, cap=lambda c, uid, rid: "view", scopes=("read", "tasks:write"))
 try:
     obj_visible_sql(c, {ALICE}, "capprobe")
     print("SQL")

@@ -46,7 +46,7 @@ from ..files.store import fs_log_add, need_node
 from ..files.fsmove import _rm, fsm_apply, fsm_plan
 from ..office.model import OfficeNoArea, office_pick, office_pick_req  # (#7313); (#7325); (#7321)
 from ..core.errors import BadInput  # 2.654.0 (#4823)
-from ..office.rights import ofr_allows  # review 2.522 (4)
+from ..office.rights import ofr_allows, ofr_need_area  # review 2.522 (4); (#6297 (14)): ofr_need_area
 from . import store as S
 from .ingest import doc_after
 from .split import sp_view
@@ -129,12 +129,17 @@ def ar_upload_need(c, uid, org):
     """(#7321 point 3): the office's own upload (POST /api/docs area=office: Office > Receipts, the bank's receipts) goes into
     the workspace org (None = Private) only when that is the office this request works in (office_pick_req: the area the app
     names with it, else the setting) -- a page left open in another office never puts a receipt into the wrong books.
-    A foreign area named: 400 like the office routes; none clear: 400 office_no_area; another one: 409."""
+    A foreign area named: 400 like the office routes; none clear: 400 office_no_area; another one: 409.
+    (#6297 (14), audit #4741): into an organisation's office only with its office right on receipts (edit), like
+    sorting a document into the office - before, a person ruled by office groups without it put documents into "New in the
+    office"; 403 (a person without an organisation has her own office, all rights)."""
     want = office_pick_req(c, uid, user_orgs(c, uid))
     if want == 0:
         raise OfficeNoArea()
     if (want or None) != (org or None):
         raise Denied(409, tr(AR_OTHER_OFFICE))
+    if org:
+        ofr_need_area(c, uid, org, "receipts", "edit")
 
 
 def ar_cands(c, uid):

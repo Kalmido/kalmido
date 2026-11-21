@@ -29,6 +29,8 @@ ACCESS_WAYS = (
      "what": "a sign-in or second-factor enrolment begun with the old password (#6498)"},
     {"key": "scan_keys", "tables": ("doc_fetchers",), "end": "always", "fn": "..docs.scankeys:sk_revoke_all",
      "what": "scan inbox keys and receipt fetchers (#2865, #3453)"},
+    {"key": "invites_made", "tables": (), "end": "always", "fn": ".invite:invite_pw_void",
+     "what": "the organisation invitations the person made (#6297: they end, the list keeps them as expired with send again)"},
     {"key": "app_passwords", "tables": ("app_passwords",), "end": "tick", "mail": "apppw_new",
      "sql": ("DELETE FROM app_passwords WHERE user_id=?",), "what": "app passwords (calendar and contacts apps)"},
     {"key": "api_tokens", "tables": ("api_tokens",), "end": "tick", "mail": "token_new",

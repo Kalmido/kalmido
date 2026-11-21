@@ -42,7 +42,8 @@ def _base(c, uid, vid):
 obj_register(VDR_KIND, "video_reviews", label=N_("Video sign-off"), fields={}, area="other", routes=False, listed=False,
              fsref=False, space=_space, base_role=_base, visible=_visible, cap=lambda c, uid, rid: None,
              title=lambda c, rid: ((obj_row(c, VDR_KIND, rid) or {"title": ""})["title"] or ""),
-             open_url=lambda rid: "videos", trash_prune=True)
+             open_url=lambda rid: "videos", trash_prune=True,
+             scopes=("read", "tasks:write"))  # (#6297 8): as v1 /videos (read; a version / a status = tasks:write)
 
 
 def _vd_back(c, uid, vid):

@@ -1075,8 +1075,8 @@ def _list_role(c, lid, uid, r=_LR_NO, m=_LR_NO, gone=_LR_NO):
         if not m:
             role = ov_role(c, lid, uid, r)  # 2.46.0 (#1603): a reader of an organisation-wide list (not shared with them)
     if role and r[2]:
-        from ..accounts.orgroles import cap_list_role
-        role = cap_list_role(c, uid, r[2], role)  # 2.143.0 A (#2151): read-only in the organisation -> view
+        from ..accounts.orgroles import LIST_SCALE, org_cap
+        role = org_cap(c, uid, r[2], role, LIST_SCALE)  # #6610: at most what uid's organisation role may hold (read-only view, guest / accounting edit)
     return role
 
 

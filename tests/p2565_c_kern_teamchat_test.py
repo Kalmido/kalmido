@@ -129,7 +129,8 @@ def org(name):
 
 def member(oid, who, role="member"):
     mail = sql("SELECT email FROM users WHERE id=?", (who,))[0][0]
-    r = A.put(B + f"/api/orgs/{oid}/members", json={"email": mail, "role": role})
+    known = sql("SELECT 1 FROM org_members WHERE org_id=? AND user_id=?", (oid, who))  # a member's role goes down only by user_id (decision 21.11.2026, #6610)
+    r = A.put(B + f"/api/orgs/{oid}/members", json={"user_id": who, "role": role} if known else {"email": mail, "role": role})
     check(r.ok and sql("SELECT role FROM org_members WHERE org_id=? AND user_id=?", (oid, who)) == [(role,)],
           f"setup: {who} is {role} of {oid} {r.text[:160]}")
 

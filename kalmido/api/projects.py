@@ -329,7 +329,9 @@ def overview_spec(paths, schemas, op, ok, errs, ref, pid, nul, page):
                          "type": "object", "properties": {"file": {"type": "array", "items": {"type": "string", "format": "binary"}}}}}}}}},
         "/lists/{id}/files/{file_id}": {
             "get": op("Download a project file (images and PDFs inline unless ?dl=1, everything else as a download)", L,
-                      {"200": {"description": "The file"}} | errs("404", "409"), [lp, sub("file_id", "File id")]),
+                      # (#6297 11): declared as a file like the other downloads (api/scopes.py scope_file_answer)
+                      {"200": {"description": "The file", "content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}}}}
+                      | errs("404", "409"), [lp, sub("file_id", "File id")]),
             "delete": op("Delete a project file", L, {"204": {"description": "Deleted"}} | errs("403", "404", "409"),
                          [lp, sub("file_id", "File id")], scope=W)},
     })

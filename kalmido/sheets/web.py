@@ -618,12 +618,19 @@ def sheets_purge_many():
     if b.get("all") is not True and (not isinstance(ids, list) or len(ids) > SHX_TRASH_MAX
                                      or any(isinstance(x, bool) or not isinstance(x, int) for x in ids)):
         raise BadInput(tr("Invalid value: {0}", "ids"))
-    mine = [r["id"] for r in shx_trashed(c, uid, oid) if sh_may(c, uid, r, write=True, share=False, fold=False)]
+    rows = [r for r in shx_trashed(c, uid, oid) if sh_may(c, uid, r, write=True, share=False, fold=False)]
     if b.get("all") is not True:
         want = set(ids)
-        mine = [x for x in mine if x in want]
-    if oid and (b.get("all") is True or len(mine) > 1) and not shx_may_empty(c, uid, oid):
-        raise Denied(403, tr(SHX_ADMIN_ONLY))  # one's own single table stays allowed (like knowledge)
+        rows = [r for r in rows if r["id"] in want]
+    mine = [r["id"] for r in rows]
+    if oid and not shx_may_empty(c, uid, oid):
+        if b.get("all") is True or len(mine) > 1:
+            raise Denied(403, tr(SHX_ADMIN_ONLY))  # one's own single table stays allowed (like knowledge)
+        # (#6297 7, audit #4741): one at a time only one's own - made by the person (before: any table of the
+        # organisation's trash, table by table); put into the trash by the person is not enough (another's table first into
+        # the trash, then for good = the admin's limit crossed in two steps)
+        if any(r["created_by"] != uid for r in rows):
+            raise Denied(403, tr(SHX_ADMIN_ONLY))
     from ..core.writes import obj_purge_after  # 2.809.0 (#5365): the core's delete for good (sheets/shkern.py)
     from .shkern import shk_purge
     with obj_purge_after() as box:

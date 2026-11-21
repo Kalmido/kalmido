@@ -5,7 +5,7 @@ names only.
  - the table: tchat_trash_text is gone; obj_comment_trash has a kind and the key (kind, comment_id), no foreign key
  - a message of a project's channel: who only takes part (edit / view) deletes no message of someone else (403), the project's
    owner (manage on the room) does; its text waits in obj_comment_trash kind 'tchat'; its reactions stay and come back with the
-   restore (question 5); the author restores it
+   restore (question 5); the owner restores it (2.1507.0, #6297 3: the author no longer undoes the owner's delete)
  - a channel of the organisation: its creator (manage) deletes and restores a member's message; another member does not (403)
  - the same id: a task comment and a team chat message with one id are kept side by side in the trash, each restore brings
    back its own text, never the other's
@@ -119,8 +119,10 @@ check(m is None or (m["deleted"] and m["body"] == "" and m["reactions"] == []), 
 check(dbx("SELECT COUNT(*) FROM obj_reactions WHERE target_kind='tchat' AND target_id=?", (M1,))[0][0] == 2,
       "the reactions stay in the core while the message is in the trash")
 check(Do.post(B + f"/api/team/messages/{M1}/restore").status_code == 403, "dora may not restore it")
-r = Bo.post(B + f"/api/team/messages/{M1}/restore")
-check(r.ok and r.json()["body"] == "Farbkorrektur fertig" and not r.json()["deleted"], f"bob restores it {r.status_code} {r.text[:160]}")
+# 2.1507.0 (#6297 3): the author does not undo a delete of the project's owner (was: bob restored it); the owner does
+check(Bo.post(B + f"/api/team/messages/{M1}/restore").status_code == 403, "bob (the author) does not restore what alice deleted (403)")
+r = A.post(B + f"/api/team/messages/{M1}/restore")
+check(r.ok and r.json()["body"] == "Farbkorrektur fertig" and not r.json()["deleted"], f"alice restores it {r.status_code} {r.text[:160]}")
 m = msgs(Do, RID).get(M1) or {}
 check(sorted((x["emoji"], x["count"]) for x in m.get("reactions") or []) == RX, f"question 5: the reactions are back {m.get('reactions')}")
 check(kept("tchat", M1) is None, "the kept text is gone after the restore")

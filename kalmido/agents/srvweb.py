@@ -32,8 +32,10 @@ from urllib.parse import urlparse
 
 from datetime import timedelta
 
+from flask import g
+
 from ..core.config import PUBLIC_URL
-from ..core.db import iso, now_utc
+from ..core.db import db, iso, now_utc
 from ..core.pg import system_ctx
 from ..core.i18n import tr
 from ..core.env import env_int
@@ -297,15 +299,17 @@ def srvweb_state(c, aid):
     from .srvagent_run import SRV_CALL_S, SRV_LOST_TEXT
     since = iso(now_utc() - timedelta(seconds=SRV_CALL_S))
     with system_ctx(c):  # the agent's own run row (asked for its own requests only)
-        r = c.execute("""SELECT web FROM agent_runs WHERE agent_id=? AND web<>'' AND (state='run' OR (state='failed' AND error=?
-                         AND ended>?)) ORDER BY id DESC LIMIT 1""", (aid, SRV_LOST_TEXT, since)).fetchone()
+        r = c.execute("""SELECT web, model FROM agent_runs WHERE agent_id=? AND web<>'' AND (state='run' OR (state='failed' AND
+                         error=? AND ended>?)) ORDER BY id DESC LIMIT 1""", (aid, SRV_LOST_TEXT, since)).fetchone()
     if not r:
         return None
     try:
         st = json.loads(r["web"])
     except (TypeError, ValueError):
-        return {"to": [], "urls": [], "hits": []}  # broken = as strict as it gets
-    return st if isinstance(st, dict) else {"to": [], "urls": [], "hits": []}
+        st = None
+    st = st if isinstance(st, dict) else {"to": [], "urls": [], "hits": []}  # broken = as strict as it gets
+    st["run_model"] = r["model"] or ""  # (#6297 (10)): the run's own model, the one free status / usage model
+    return st
 
 
 def srvweb_mark(text, srcs, lg, mx):
@@ -342,7 +346,9 @@ def srvweb_mark(text, srcs, lg, mx):
 # ---------------------------------------------------------------- the gate (agents/control.py ctl_gate)
 
 SRV_WEB_META_OK = (  # the agent's own channel that stays free in a web run (no content for other people, no lasting change)
-    r"^/agent/(status|typing|usage|aborted|progress|queue|quota)$",
+    # (#6297 (10), review round 3 F3): not quota - its window labels are text before the people of the chat; the gate
+    # never leans on the run not offering a tool (SRV_SKIP_TOOLS)
+    r"^/agent/(status|typing|usage|aborted|progress|queue)$",
     r"^/agent/jobs(/\{\})?$",
     r"^/agent/jobs/\{\}/proposal$",                 # a proposal the person decides on (its sources are added)
     r"^/tasks/\{\}/(typing|working)$",
@@ -351,15 +357,96 @@ SRV_WEB_META_OK = (  # the agent's own channel that stays free in a web run (no 
 )
 
 
-def srvweb_gate_step(st, method, path, b, va):
+# (#6297 (10), audit #4741): the fields of the free routes a web run may send without a card - a positive list. A field
+# not named here (a new one too) with a value makes the step "change" (a card): a web page's text never reaches other people
+# through the agent's own channel. PLAIN = no free text (an enum, a number, an id, a flag); RUN = a text only the people of the
+# run read (_srvweb_reader); MODEL = only the run's own model; NOTE = only the runner's own usage note (a run number, no text)
+PLAIN, RUN, MODEL, NOTE = "plain", "run", "model", "note"
+SRV_WEB_FIELDS = {
+    ("PUT", "/agent/status"): {"status": PLAIN, "text_at": PLAIN, "task_id": PLAIN, "model": MODEL, "permission_mode": PLAIN,
+                               "host_permission_mode": PLAIN, "permission_fixed": PLAIN},  # text, text_key, host: the avatar
+    ("POST", "/agent/typing"): {"chat_user_id": PLAIN},
+    ("POST", "/agent/usage"): {"model": MODEL, "note": NOTE, "input_tokens": PLAIN, "output_tokens": PLAIN, "cache_read_tokens": PLAIN,
+                               "cache_write_tokens": PLAIN, "cost_usd": PLAIN, "task_id": PLAIN, "list_id": PLAIN, "job_id": PLAIN,
+                               "run_class": PLAIN},
+    ("POST", "/agent/aborted"): {"seq": PLAIN, "job_id": PLAIN},
+    ("POST", "/agent/progress"): {"text": RUN, "chat_user_id": PLAIN, "job_id": PLAIN},
+    ("PUT", "/agent/queue"): {"order": PLAIN},
+    ("POST", "/agent/jobs"): {"title": RUN, "log": RUN, "name": RUN, "state": PLAIN, "user_id": PLAIN, "parent_id": PLAIN,
+                              "continue_of": PLAIN},  # task_id / task_ids: the task's job line, everyone who sees it reads it
+    ("PATCH", "/agent/jobs/{}"): {"title": RUN, "log": RUN, "append_log": RUN, "state": PLAIN},
+    ("POST", "/tasks/{}/working"): {"job_id": PLAIN},  # text / title / name: the mark everyone who sees the task reads
+    ("PATCH", "/tasks/{}/working"): {"job_id": PLAIN},
+    ("POST", "/news/read"): {"ids": PLAIN, "all": PLAIN},
+    ("POST", "/team/rooms/{}/read"): {"last_id": PLAIN, "muted": PLAIN, "thread": PLAIN},
+    ("POST", "/tasks/brief"): {"task_ids": PLAIN, "lang": PLAIN},  # reads only, nothing is stored
+}
+_SRV_NOTE_RE = re.compile(r"server agent run \d{1,18}")  # = srvagent_run.SRV_USAGE_NOTE with its run id
+# a step that is itself a card the person decides on (the proposal; its web sources are added to it)
+SRV_WEB_CARDS = (("POST", "/agent/jobs/{}/proposal"),)
+
+
+def srvweb_gate_step(st, method, path, b, va, c=None, aid=None):
     """The class of a write of an agent while its web run st is on: a meta step outside SRV_WEB_META_OK becomes "change" (needs a
-    card); chat messages and their reactions only to the people of the run; the cross proposal only as tasks (its sources are
-    added) -> None = keep the class."""
+    card), inside it only with the fields of SRV_WEB_FIELDS (_srvweb_free_text); chat messages and their reactions only to the
+    people of the run; the cross proposal only as tasks (its sources are added) -> None = keep the class. c / aid: the
+    connection and the agent (default: the request's)."""
     if any(re.search(rx, path) for rx in SRV_WEB_META_OK):
-        return None
+        return _srvweb_free_text(st, method, path, b if isinstance(b, dict) else {}, va, c, aid)
     if path.startswith("/agent/chats/{}"):
         return None if va.get("uid") in (st.get("to") or []) else "change"
     if path == "/agent/proposals" and method == "POST" and (b or {}).get("kind") in (None, "", "extract"):
         return None
     return "change"
+
+
+def _srvweb_job(c, aid, jid):
+    """(user_id, on a task) of the agent's own job jid, None when it is not one."""
+    if isinstance(jid, bool) or not isinstance(jid, int):
+        return None
+    r = c.execute("""SELECT user_id, (task_id IS NOT NULL OR EXISTS (SELECT 1 FROM agent_job_tasks t WHERE t.job_id=j.id)) AS on_task
+                     FROM agent_jobs j WHERE id=? AND agent_id=?""", (jid, aid)).fetchone()
+    return (r["user_id"], bool(r["on_task"])) if r else None
+
+
+def _srvweb_reader(c, aid, to, method, path, b, va):
+    """True when the text of the step reaches only the people of the run (to): a progress step for one of them (its chat, or a
+    job of theirs on no task), a job of theirs on no task (its title, log and name; a job on a task shows its log as the task's
+    working mark and its title as the task's job line to everyone who sees the task - review job/5254 F1, F4)."""
+    if path == "/agent/progress":
+        if b.get("job_id") is None:
+            return b.get("chat_user_id") in to
+        j = _srvweb_job(c, aid, b.get("job_id"))
+        return bool(j) and j[0] in to and not j[1]
+    if path == "/agent/jobs":
+        return b.get("user_id") in to and b.get("task_id") in (None, "") and not b.get("task_ids")
+    if path == "/agent/jobs/{}":
+        j = _srvweb_job(c, aid, va.get("jid"))
+        return bool(j) and j[0] in to and not j[1]
+    return False
+
+
+def _srvweb_free_text(st, method, path, b, va, c=None, aid=None):
+    """(#6297 (10), audit #4741): a free route of the agent's own channel in a web run is free only with the fields
+    SRV_WEB_FIELDS names for it (PLAIN; RUN when only the people of the run read it; MODEL only as the run's own, NOTE only as the runner's);
+    any other field with a value -> "change" (a card). Before, the route was free whatever it carried, and a fetched page's
+    text reached other people as a job title, a progress step, the working mark or the status text."""
+    if (method, path) in SRV_WEB_CARDS:
+        return None
+    rules = SRV_WEB_FIELDS.get((method, path)) or {}
+    to = st.get("to") or []
+    for k, v in b.items():
+        if v in (None, "", [], {}):
+            continue  # nothing said
+        rule = rules.get(k)
+        if rule == PLAIN:  # an enum / number / id / flag the route checks itself (anything else is refused there, 400)
+            continue
+        if rule == MODEL and str(v).strip() == str(st.get("run_model") or "").strip():
+            continue
+        if rule == NOTE and isinstance(v, str) and _SRV_NOTE_RE.fullmatch(v):
+            continue  # the runner's note: a number, no text (also the next run's while a lost run's gate still holds)
+        if rule == RUN and _srvweb_reader(db() if c is None else c, g.user["id"] if aid is None else aid, to, method, path, b, va):
+            continue
+        return "change"
+    return None
 

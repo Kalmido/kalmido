@@ -326,7 +326,8 @@ function newsText(it, U) {
       : trh('Decide on the held deletion of {0}: without a decision it runs on {1}', q(d.username || ''), fmtDate(String(d.until || '').slice(0, 10)));  // (#6395)
     case 'orglogin': return trh('Admin {0} signed in from a new address: {1}', q(d.name || ''), d.ip || '');  // (#2974)
     case 'support': return sgaNewsText(d, q);  // 2.1350.0 (#6502)
-    case 'orgjoinres': return d.yes ? trh('{0} accepted your invitation to {1}', who, q(d.name || '')) : trh('{0} rejected your invitation to {1}', who, q(d.name || ''));
+    case 'orgjoinres': return d.admin_join ? trh('{0} joined {1} as an admin', who, q(d.name || ''))  // #6297 (1): told to every admin
+      : d.yes ? trh('{0} accepted your invitation to {1}', who, q(d.name || '')) : trh('{0} rejected your invitation to {1}', who, q(d.name || ''));
     case 'orgrole': return trh('{0} changed your role in {1}: {2}', who, q(d.name || ''), ({admin: tr('Admin'), readonly: tr('Read-only'), accounting: tr('Accounting'), guest: tr('Guest')})[d.role] || tr('Member'));
     // (#6510): a server agent names the real receiver (provider and host); an older entry with the internal mark
     // 'kalmido-server' says only "its AI provider"

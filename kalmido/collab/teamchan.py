@@ -986,5 +986,7 @@ def tcx_spec(paths, schemas, op, ok, errs, ref, pid, nul, page):
                                                             TC, {"204": {"description": "Removed"}} | errs("403", "404"),
                                                             [rp, pid("uid", "User id")], scope="comments")}
     paths["/team/files/{id}"] = {"get": op("2.113.1 (#2059): the binary of a file of a team chat message (messages carry attachments[].url)", TC,
-                                           {"200": {"description": "The file", "content": {"application/octet-stream": {}}}} | errs("403", "404"),
+                                           # (#6297 11): declared as a file like the other downloads (api/scopes.py scope_file_answer)
+                                           {"200": {"description": "The file", "content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}}}}
+                                           | errs("403", "404"),
                                            [pid(desc="File id"), {"name": "dl", "in": "query", "required": False, "schema": {"type": "string"}}])}

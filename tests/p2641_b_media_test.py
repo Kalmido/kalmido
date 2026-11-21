@@ -301,6 +301,12 @@ check(isinstance(e, dict) and e.get("circle") == "wider", f"the PDF -> a project
 r = kt.circle_yes(r, dict(ag.headers), AG, A, B + "/api/v1", ALICE, base=B)
 check(r.status_code == 201 and r.json()["comment"]["pos"] == {"page": 2, "x": 0.8, "y": 0.9} and r.json()["comment"]["mark"] == 2,
       f"the agent comments at page 2 + point {r.status_code} {r.text[:300]}")
+# 2.1507.0 (#6297 (11)): the bytes are a download like the others - the scope attachments:read, read alone 403
+r = ag.get(B + f"/api/v1/videos/{RP}/versions/{pv['id']}/file")
+check(r.status_code == 403 and (r.json().get("error") or {}).get("required_scope") == "attachments:read",
+      f"#6297 (11): the agent without attachments:read gets no bytes {r.status_code} {r.text[:200]}")
+r = A.patch(B + f"/api/admin/agents/{AG}", json={"scopes": ["read", "comments", "attachments:read"]})
+check(r.ok, f"the agent gets attachments:read {r.status_code} {r.text[:200]}")
 r = ag.get(B + f"/api/v1/videos/{RP}/versions/{pv['id']}/file")
 check(r.ok and r.content == PDF, f"the agent reads the PDF's bytes {r.status_code}")
 web = [ag.get(B + f"{V}/{RP}").status_code, ag.get(B + f"/api/videos/{RP}/versions/{pv['id']}/file").status_code]

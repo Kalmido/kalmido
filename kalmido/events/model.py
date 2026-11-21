@@ -25,7 +25,7 @@ from ..tasks.validation import (
 )
 from ..collab.comments import user_names
 from ..core.errors import BadInput
-from ..accounts.orgroles import org_roles_of, org_readonly  # 2.369.5 (#2517): pulled up from functions
+from ..accounts.orgroles import OWNER_SCALE, org_cap, org_roles_of, role_caps  # (#2517): pulled up from functions; #6610: org_cap
 from ..accounts.wsplace import wsp_named, wsp_new, wsp_oid  # (#7309)
 from ..accounts.orgs import clean_org_id, ws_obj_default, need_visible, ws_fit_problem, may_see  # 2.369.5 (#2517): pulled up from functions
 from ..collab.news import news_add, notif_ok  # 2.369.5 (#2517): pulled up from functions
@@ -113,8 +113,8 @@ def ev_has_node(c, cid):
 
 
 def ev_role(c, uid, cal, trash=False):
-    """owner | edit | view | None of uid for the calendar row (members only while collaboration is on). 2.143.0 A (#2151):
-    read-only in the calendar's organisation -> view. 2.566.0 (#4712): THE role is the shared core's (obj_role of kind
+    """owner | edit | view | None of uid for the calendar row (members only while collaboration is on). #6610: the cap of
+    uid's organisation role (read-only view, guest / accounting edit) is obj_role's (accounts/orgroles.py org_cap). (#4712): THE role is the shared core's (obj_role of kind
     'evcal': the organisation floor, an agent's workspace and data lock, the calendar's own role from _ev_role and a share of
     its node, the higher one); 'manage' is the owner. A calendar in the trash (#4707) only with trash (its owner restores it)."""
     if cal is None or ("deleted_at" in cal.keys() and cal["deleted_at"] and not trash):
@@ -124,10 +124,6 @@ def ev_role(c, uid, cal, trash=False):
     if role and role != "owner":
         if not collab_all() or c.execute("SELECT disabled FROM users WHERE id=?", (cal["owner_id"],)).fetchone()[0]:
             return None  # members only while collaboration is on and the owner's account is active (also through the core)
-    oid = cal["org_id"] if role and "org_id" in cal.keys() else None
-    if oid:
-        if org_readonly(c, uid, oid):
-            return "view"
     return role
 
 
@@ -171,10 +167,9 @@ def my_cal_ids(c, uid, hidden=True):
     out = {r["id"]: "owner" for r in own}
     if collab_all():
         out.update(_ev_core_ids(c, uid, set(out)))  # 2.924.0 (#5069): the shares of the core only (no member rows any more)
-    if "readonly" in org_roles_of(c, uid).values():  # 2.143.0 A (#2151): read-only in an organisation -> its calendars view
-        ro = {r[0] for r in c.execute(f"SELECT id FROM ev_cals WHERE id IN ({','.join(str(int(k)) for k in out) or '0'}) AND org_id IN "
-                                      f"({','.join(str(int(o)) for o, rk in org_roles_of(c, uid).items() if rk == 'readonly')})")}
-        out = {k: ("view" if k in ro else v) for k, v in out.items()}
+    if out and any(role_caps(rk)["top"] < 3 for rk in org_roles_of(c, uid).values()):  # #6610: the organisation role's cap (ev_role)
+        orgs = {r[0]: r[1] for r in c.execute(f"SELECT id, org_id FROM ev_cals WHERE id IN ({','.join(str(int(k)) for k in out)})")}
+        out = {k: org_cap(c, uid, orgs.get(k), v, OWNER_SCALE) for k, v in out.items()}
     if not hidden:
         hid = set(json.loads(usettings(c, uid).get("evcals_hidden") or "[]") or [])
         out = {k: v for k, v in out.items() if k not in hid}

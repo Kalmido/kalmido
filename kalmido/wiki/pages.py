@@ -863,6 +863,12 @@ def wiki_purge_many():
         if oid and b.get("all") is not True and len(mine) > 1 and not _wkp_may_empty(c, uid, oid):
             # 2.306.0 (#2875 review N12): several pages at once = emptying the trash by hand; one's own single page stays allowed
             raise Denied(403, tr(WKP_ADMIN_ONLY))
+        # (#6297 7, audit #4741): one's own = made by the person (before: any page, one by one); put into the trash by
+        # the person is not enough (another's page into the trash, then for good = two steps past the admin)
+        if oid and b.get("all") is not True and mine and not _wkp_may_empty(c, uid, oid) and c.execute(
+                f"SELECT 1 FROM wiki_pages WHERE id IN ({','.join('?' * len(mine))}) AND created_by IS DISTINCT FROM ?",
+                [*sorted(mine), uid]).fetchone():
+            raise Denied(403, tr(WKP_ADMIN_ONLY))
     from ..core.writes import obj_purge_after  # 2.809.0 (#5365): the core's delete for good (the stored files after the commit)
     from .wkkern import wkk_purge
     done = []

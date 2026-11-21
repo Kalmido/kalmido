@@ -82,7 +82,9 @@ obj_register("meeting", "meetings", label=N_("Meeting"), area="calendar",
 - `area`: the change counter of `/api/version` (`core/db.py` LV_AREA_KEYS); the other devices reload that area.
 - `org_access`: what a full member of the organisation gets without a share: `"edit"` (default), `"view"` or `None`
   (only the owner, the admins and explicit shares).
-- `scopes`: the read / write scope an agent's token needs on the agent routes.
+- `scopes`: the read / write scope an agent's token needs on the agent routes and the links; required (2.1507.0, #6297):
+  the v1 scopes of the area (`sheets:read` / `sheets:write`, `files:read` / `files:write`, `calendar` ...), one without an area
+  scope names `("read", "tasks:write")` explicitly.
 - `routes=False` when the area brings its own routes only (then it calls the same functions).
 - Hooks for areas with rules of their own (stage 2 / 3): `base_role` (+ its `visible` SQL), `space`, `cap`, `hidden`,
   `dl_area` (an agent's data lock), `undo_scope` (more tables than the main row), `public`, `protect`, `on_trash`, `content`.
@@ -125,13 +127,22 @@ is the only role and reads the shares itself (collab/tcxcore.py).
 
 | Who | Private object | Organisation's object |
 |---|---|---|
-| Its owner | manage | manage (member), view (read-only / guest / accounting now) |
+| Its owner | manage | manage when the role may own (admin, member); otherwise the row of the role below (#6610) |
 | Organisation admin | - | manage |
 | Member | - | `org_access` (edit by default) |
 | Read-only member | - | view |
 | Guest, accounting | - | only a personal share |
 | A share (person, group, agent; folder above too) | view / edit | view / edit (read-only members and their agents at most view) |
 | An agent | only a share | only a share, only of its own workspace |
+
+What an organisation role may hold has ONE table (#6610): `accounts/orgroles.py` `ROLE_CAPS` -- per role the highest role on
+an object of the organisation (admin and member manage, read-only view, guest and accounting at most edit), whether it may
+own (projects, calendars, address books, core objects; `ws_check_owner` and the nightly boundary check read it), whether it
+keeps office rights groups and personal agents. `org_cap(c, uid, org, role, scale)` applies it at every request: `obj_role`
+(and so the calendars), `_list_role` / the start-up read's project roles (`LIST_SCALE`) and `book_role` / `my_book_ids` /
+`my_cal_ids` (`OWNER_SCALE`) end with it, as with `for_cap` -- also for an owner demoted before the rule and for a guest
+someone gave the project role admin. It reads the role from the request's memo of memberships (`org_roles_of`), no query
+per object. An area with its own role function ends with `org_cap`; no area caps a role on its own.
 
 On top: another organisation never (404), what `hidden` names never opens through a share (agents and tokens: not even
 through the area's own role), an agent's data lock, a token limited to lists, and the trash (only `manage` sees an object
@@ -148,8 +159,8 @@ method writes). A new area on these functions needs no path entry in `accounts/s
 The organisation role itself has one reading (#6605): `org_roles_of(c, uid)` (and `user_orgs` / `org_role`, which build on
 it) passes the stored memberships through `accounts/orgroles.py` `org_roles_cap`, per request and never in a longer cache:
 a personal agent has in each organisation at most the current role of its person (its person no longer there: no role).
-So a read-only person's agent is read-only too -- the role checks ask the agent's own role (`cap_list_role`, `org_readonly`,
-the file store's share role) and need no agent exception. A role change to guest / accounting takes the person's agents
+So a read-only person's agent is read-only too -- the role checks ask the agent's own role (`org_cap`, the file store's share
+role) and need no agent exception. A role change to guest / accounting takes the person's agents
 out of the organisation as leaving does (`accounts/orgs.py` `org_agents_out`). In a support session (#6977 F1) the same cap keeps only the
 organisations of the narrowed context (`sga_orgs_readable`), so a route that checks the role and then reads in the system
 context answers no organisation without its own grant (`tests/p6977_support_roles_src_test.py` holds that reading routes
@@ -164,7 +175,7 @@ have no route on the folder way (`/api/fsref/office_doc/<id>`: read, PDF, head f
 the master data, positions), and a finalised document stays unchangeable (409). Agents only through a share with exactly
 them, and then read only.
 
-Losing access is in one place too: `obj_revoke_person(c, uid, org, reason)` (called by the layer accounts through
+Losing access is in one place too: `obj_revoke_person(c, uid, org, reason, heir=None, role=None)` (called by the layer accounts through
 `core/objhooks.person_revoked`, so accounts never imports the core's modules; `core/objects.py` and `core/writes.py`
 belong to the layer domain, `core/objweb.py` to the layer integrations, `LAYER_OF` in `kalmido/__init__.py`) runs when a person leaves an organisation
 (their and their agents' shares on its nodes, their team chat rooms there; their objects go to the heir), when a role
@@ -174,6 +185,15 @@ account and its `owner_id` cascade; its private ones go with it; when other peop
 the deletion is refused as for calendars, `upg_heirless`). What goes waits 30 days in `obj_revoked`; a manager can put a
 share back (`obj_share_restore`). Retiring an organisation takes every share of the file store on its nodes for good:
 there is no way back out of the retirement, so after the 30 days those rows are gone (its export has no shares then).
+Leaving and a role down to a role that may not own (#6610) take the same way with `heir`: `org_leave` and the role branch
+of `org_member_put` only call `person_revoked` (heir 0 = nobody: leaving makes projects, calendars and address books
+private). What the person owns in the organisation goes to the heir in one loop over the registered kinds (`_heir_take`: the
+default rule's kinds and the kinds with `node_shares`; an organisation's own address book keeps its manager rule), the
+projects through the lists' `on_revoke` (`lists/ownership.py owner_hand_over`); after a role down the person keeps a share at
+the role's cap (the default rule's objects go to the heir alone). Office rights groups and personal agents go after
+`ROLE_CAPS` (`accounts/orgs.py org_caps_out`, a hook of `REVOKE`), the organisation invitations the person made end with the
+admin right (`accounts/invite.py invite_void`, #6297). The nightly boundary check counts owners whose role may not own;
+"Clean up" hands their objects to the organisation's first admin on this way.
 
 Whether a person's module (calendar, contacts, time ...) is switched on has one reading too (2.1327.0, #6823):
 `feat_has(c, uid, f)` in `core/access.py` (own switch plus an agent's data lock `DL_FEAT_AREA`), `feat_in(s, f)` for
@@ -204,7 +224,7 @@ route is closed in a run until it is listed (`tests/p6454_c_run_routes_test.py`)
 The browser has ONE rule for showing write entries: `canWrite(x)` in `static/js/workspace.js`. `x` is a space
 (`'private'` or `'org:<id>'`: may the person add at its top) or an object with its `role` for this person (and its
 `org_id`). Owner / admin / manage / edit write, view reads. A space: only admin / member add there (`FULL_WRITE`,
-`need_org_write`). An object: read-only members read everything of their organisation (`cap_list_role`); for guest and
+`need_org_write`). An object: read-only members read everything of their organisation (`org_cap`); for guest and
 accounting the role the server sends is already capped (`obj_role`, `_fs_limited_role`), so it counts as it comes. A person without an organisation is their own admin in Private. Unknown means no.
 
 Every area asks only `canWrite` - no own `role === 'edit'` checks. When it says no, the write entries (New, plus,

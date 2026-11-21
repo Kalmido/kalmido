@@ -16,9 +16,12 @@ freelancer-matrix: agents (the person without an organisation switches web resea
 usage: p2571_d_web_test.py <datadir>      (KMT_NOSTART=1 / P2571D_NOSTART=1: a running server)"""
 import json
 import os
+import re
 import shutil
 import subprocess
 from datetime import datetime, timedelta, timezone
+
+import requests
 
 from kt import B, CT, DATA, check, dbx, done, docker_logs_on_first_fail, fresh, until
 from freelancer_fixture import freelancer
@@ -288,6 +291,98 @@ hst = json.loads(hr[0][2]) if hr and hr[0][2] else {}
 check(hr and hr[0][1] == "mention" and HID not in hst.get("to", [0]), f"the mention run: Hugo is not among the people without a card {hr} {hst}")
 check(not dbx("SELECT 1 FROM agent_chat WHERE agent_id=? AND user_id=? AND body LIKE 'INJECTED%'", (TMA, HID)),
       "the person whose mention started the web run gets no message without a card")
+
+# 2.1507.0 (#6297 (10), audit #4741): the agent's own channel is free in a web run only with the fields that carry no free text
+# (agents/srvweb.py SRV_WEB_FIELDS): a job's title, a progress step, the working mark's line, the status text, a job on the task
+# and a status model not the run's reach other people only by card; a step and a job for the person who asked stay free
+until(lambda: not dbx("SELECT 1 FROM agent_runs WHERE agent_id=? AND state='run'", (TMA,)), 40)
+r = A.post(B + f"/api/agents/{TMA}/chat", json={"body": f"FAKEWEB_META {TA} {HID} {AU}"})
+check(r.status_code == 201, f"#6297 (10): the admin asks the team agent {r.status_code} {r.text[:120]}")
+ans = until(lambda: dbx("SELECT body FROM agent_chat WHERE agent_id=? AND user_id=? AND sender='agent' AND body LIKE 'FAKEWEB meta%'", (TMA, AU)), 40)
+res = {x.split(" ", 1)[0]: x for x in ((ans or [[""]])[0][0].split("FAKEWEB meta: ", 1)[-1].split("\n")[0].split(" | "))}
+for t, what in (("toolu_m1", "a job for the other person"), ("toolu_m2", "a progress step to the other person"),
+                ("toolu_m3", "a working line on the task"), ("toolu_m4", "a status text on the avatar"),
+                ("toolu_m6", "a job on the task (its line shows on the task)"), ("toolu_m7", "a status model other than the run's")):
+    # a step to another person of a run for one person is refused before the card already (2.1287.0, #6454: 403)
+    check("ERROR" in res.get(t, "") and ("approval" in res.get(t, "") or (t in ("toolu_m1", "toolu_m2") and "403" in res.get(t, ""))),
+          f"#6297 (10): {what} needs an approval card {res.get(t, '')[:240]!r}")
+for t, what in (("toolu_m5", "a step to the person who asked"), ("toolu_m8", "a job for the person who asked")):
+    check("ERROR" not in res.get(t, "ERROR"), f"#6297 (10): {what} stays free {res.get(t, '')[:240]!r}")
+check(not dbx("SELECT 1 FROM agent_jobs WHERE agent_id=? AND title LIKE 'INJECTED%'", (TMA,)), "#6297 (10): no job for the other person, none on the task")
+check(not dbx("SELECT 1 FROM agent_jobs WHERE agent_id=? AND task_id=? AND log LIKE 'INJECTED%'", (TMA, TA)), "#6297 (10): no working line on the task")
+check(dbx("SELECT 1 FROM agent_steps WHERE agent_id=? AND user_id=? AND text='web step ok'", (TMA, AU)), "#6297 (10): the step to the asker is free")
+check(not dbx("SELECT 1 FROM agents WHERE user_id=? AND (status_text LIKE 'INJECTED%' OR COALESCE(host_info, '') LIKE '%INJECTED%')", (TMA,)),
+      "#6297 (10): neither the status text nor the model of the page on the avatar")
+
+# the gate's fields from the schema: every field of every write of a route in SRV_WEB_META_OK that carries free text (a string
+# without enum or date format) needs a card in a web run, also towards nobody of the run; a field without free text stays
+# free -- a new field of such a route is checked here without a list (review round 3 of job/5254, F3: and quota is no such route)
+spec = requests.get(B + "/api/v1/openapi.json", timeout=30).json()
+NOT_FREE = {("POST", "/agent/jobs", "task_id"), ("POST", "/agent/jobs", "task_ids")}  # a job on a task: its line shows on the task
+
+
+def sample(sc):
+    sc = sc or {}
+    if sc.get("enum"):
+        return next((x for x in sc["enum"] if x not in ("", None)), sc["enum"][0]), False
+    t = sc.get("type")
+    t = next((x for x in t if x != "null"), "string") if isinstance(t, list) else t
+    if t == "string":
+        return ("2026-11-21T10:00:00Z", False) if sc.get("format") in ("date", "date-time") else ("INJECTED text", True)
+    if t == "integer":
+        return 999999, False
+    if t == "number":
+        return 1.5, False
+    if t == "boolean":
+        return True, False
+    if t == "array":
+        v, txt = sample(sc.get("items") or {"type": "string"})
+        return [v], txt
+    return {"x": "INJECTED text"}, True
+
+
+cases = []
+for path, ms in spec["paths"].items():
+    p = re.sub(r"\{[^}]+\}", "{}", path)
+    for m, o in ms.items():
+        if m not in ("post", "put", "patch") or not isinstance(o, dict):
+            continue
+        sch = ((o.get("requestBody") or {}).get("content") or {}).get("application/json", {}).get("schema") or {}
+        props = {}
+        for one in [sch, *(sch.get("oneOf") or [])]:
+            props.update(one.get("properties") or {})
+        for k, sc in props.items():
+            v, txt = sample(sc)
+            cases.append([m.upper(), p, k, v, txt])
+code = f"""import json, re
+from kalmido.core.db import connect
+from kalmido.agents.srvweb import SRV_WEB_META_OK, srvweb_gate_step
+c = connect()
+out = []
+for m, p, k, v, txt in json.loads({json.dumps(json.dumps(cases))}):
+    if any(re.search(rx, p) for rx in SRV_WEB_META_OK):
+        out.append([m, p, k, txt, srvweb_gate_step({{"to": []}}, m, p, {{k: v}}, {{"jid": 0}}, c=c, aid=0)])
+print("GATE", json.dumps(out))
+own = {{"model": "m-1", "note": "server agent run 12", "input_tokens": 1, "output_tokens": 2}}
+print("OWN", srvweb_gate_step({{"to": [], "run_model": "m-1"}}, "POST", "/agent/usage", own, {{}}, c=c, aid=0),
+      srvweb_gate_step({{"to": [], "run_model": "m-1"}}, "PUT", "/agent/status", {{"status": "working", "text": "", "model": "m-1"}}, {{}}, c=c, aid=0),
+      srvweb_gate_step({{"to": [], "run_model": "m-1"}}, "POST", "/agent/usage", {{**own, "note": "server agent run 12 see example.org"}}, {{}}, c=c, aid=0))
+print("QUOTA", srvweb_gate_step({{"to": []}}, "PUT", "/agent/quota", {{"windows": []}}, {{}}, c=c, aid=0),
+      any(re.search(rx, "/agent/quota") for rx in SRV_WEB_META_OK))
+c.close()"""
+g = subprocess.run(["docker", "exec", "-w", "/app", CT, "python", "-c", "import app\n" + code], capture_output=True, text=True)
+line = next((x for x in g.stdout.splitlines() if x.startswith("GATE ")), None)
+got = json.loads(line[5:]) if line else []
+routes = {(m, p) for m, p, *_ in got}
+check(len(routes) >= 10 and {("PUT", "/agent/status"), ("POST", "/agent/progress"), ("POST", "/agent/jobs"), ("PATCH", "/agent/jobs/{}"),
+                             ("POST", "/tasks/{}/working")} <= routes, f"#6297 (10): the free routes read from the schema {sorted(routes)} {g.stderr[-400:]}")
+cards = {("POST", "/agent/jobs/{}/proposal")}  # the proposal is itself a card the person decides on
+bad = [x for x in got if (x[0], x[1]) not in cards and x[3] and x[4] != "change"]
+check(got and not bad, f"#6297 (10): every free text field of a free route needs a card in a web run {bad[:8]}")
+bad = [x for x in got if (x[0], x[1]) not in cards and not x[3] and (x[4] is None) == ((x[0], x[1], x[2]) in NOT_FREE)]
+check(got and not bad, f"#6297 (10): a field without free text stays free (except a job on a task) {bad[:8]}")
+check("OWN None None change" in g.stdout, f"#6297 (10): the runner's own usage report and status stay free, a note with text not {g.stdout[-300:]}")
+check("QUOTA change False" in g.stdout, f"#6297 (10) F3: the plan usage is no free route of a web run {g.stdout[-200:]}")
 
 # ---------------------------------------------------------------- without the switch the same comment is written (the gate ends)
 check(Fr.put(SRV, json={"flow_web": {"other": False}}).ok, "web off again")

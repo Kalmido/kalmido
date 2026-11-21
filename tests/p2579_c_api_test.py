@@ -158,7 +158,8 @@ A.put(B + "/api/admin/agent-policy", json={"user_agents": True})
 
 
 def agent(name, org=None):
-    r = A.post(B + "/api/my/agents", json={"username": name, "display_name": name.title(), "scopes": ["read", "tasks:write"], **({"org_id": org} if org else {})})
+    # 2.1507.0 (#6297 8): a saved view of the documents needs their scope files:read (was read)
+    r = A.post(B + "/api/my/agents", json={"username": name, "display_name": name.title(), "scopes": ["read", "tasks:write", "files:read"], **({"org_id": org} if org else {})})
     check(r.ok, f"setup: agent {name} " + r.text[:160])
     return r.json()["id"], {**H, "Authorization": "Bearer " + r.json()["token"]}
 

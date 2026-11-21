@@ -41,6 +41,7 @@ USER_LOCKED = []  # #6978 F6: f(c, uid) when account uid is locked (accounts/use
 # check accounts/tenancy.py leaves them to their area's own checks) -- one list, read without importing the links' core
 OLNK_AREA_RELS = ("made", "device", "contact", "answers", "reply", "review_task")  # (#7533): review_task videos/vdtask.py
 TASK_ADDED = []  # (#7533): f(c, task id, source) after a lower area made a task (agents/core.py: agent_added_events) without an upward import
+HEIR_COUNT = []  # #6610 (reader job/6122 F8): core/objects._heir_count for accounts/orgleave.py without an upward import
 UNSHARE = []  # 2.1168.0 (#4782, Fable review F2): core/objects.obj_node_unshare for accounts/orgs.py without an upward import
 GONE = {}  # review 2.578 F2: kind -> table of an area's kind outside OBJ whose rows in obj_revoked / obj_history / obj_undo go
 #            with its objects when an account goes (contacts: contacts/ctfolder.py, cascade over their book)
@@ -53,6 +54,12 @@ def person_revoked(c, uid, org, reason, heir=None, role=None):
     for f in REVOKE:
         out.update(f(c, uid, org, reason, heir=heir, role=role) or {})
     return out
+
+
+def obj_heir_count(c, uid, org):
+    """#6610: {table: n} of what a hand-over of person uid in organisation org would give away (core/objects._heir_ids, the
+    same selection as the hand-over); the caller reads in the system context."""
+    return HEIR_COUNT[0](c, uid, org) if HEIR_COUNT else {}
 
 
 def person_locked(c, uid):

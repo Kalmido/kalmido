@@ -19705,5 +19705,12 @@
   "documents from templates": "documenten uit sjablonen",
   "invoice series": "factuurreeksen",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "De klant van dit document staat niet meer in dit kantoor (naar een andere werkruimte verplaatst). Kies eerst een andere klant.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "De klant van de sjabloonfactuur staat niet meer in dit kantoor (naar een andere werkruimte verplaatst). Kies een andere sjabloonfactuur en zet de reeks weer aan."
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "De klant van de sjabloonfactuur staat niet meer in dit kantoor (naar een andere werkruimte verplaatst). Kies een andere sjabloonfactuur en zet de reeks weer aan.",
+  "{0} joined {1} as an admin": "{0} is lid geworden van {1} als beheerder",
+  "Change the role of {0}?": "Rol van {0} wijzigen?",
+  "{0} owns things in this organisation that this role cannot own. They go to {1}: {2}. {0} stays in them and reads them.": "{0} bezit in deze organisatie dingen die deze rol niet kan bezitten. Ze gaan naar {1}: {2}. {0} blijft erbij en kan ze lezen.",
+  "{0} owns things in this organisation that this role cannot own. They go to {1}: {2}. {0} stays in them and may edit them.": "{0} bezit in deze organisatie dingen die deze rol niet kan bezitten. Ze gaan naar {1}: {2}. {0} blijft erbij en kan ze bewerken.",
+  "Change role": "Rol wijzigen",
+  "Invitations you sent to organisations end with a new password; an admin of the organisation can send them again from its members list.": "Uitnodigingen die je naar organisaties hebt gestuurd, eindigen met een nieuw wachtwoord; een beheerder van de organisatie kan ze opnieuw sturen vanuit de ledenlijst.",
+  "Invitations you sent to organisations end too; an admin of the organisation can send them again from its members list.": "Uitnodigingen die je naar organisaties hebt gestuurd, eindigen ook; een beheerder van de organisatie kan ze opnieuw sturen vanuit de ledenlijst."
 }
