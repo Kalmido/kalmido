@@ -370,6 +370,7 @@ def task_core(r, tags, fields):
             "delegate_agent_id": r["delegate_agent_id"] if "delegate_agent_id" in r.keys() else None,
             "watchers": list(r["watchers"]) if "watchers" in r.keys() else [],
             "review": (r["review"] or None) if "review" in r.keys() else None,
+            "review_by": r["review_by"] if "review_by" in r.keys() else None,  # (#7535): who decided it (null with approved = a pull request)
             "retest_person": bool(r["retest_person"]) if "retest_person" in r.keys() else False,  # (#7535): a person retests it
             # 2.35.0 (#1095): the code snippets: one task (GET / change / webhook row) all of them, lists only snippets_n
             **_snips(r)}

@@ -89,6 +89,9 @@ r = requests.post(V + f"/tasks/{T}/review", headers=AH, json={"action": "request
 check(r.ok, "the dispatcher's request (agent token) " + r.text[:200])
 check(T in [x["id"] for x in F.get(B + "/api/inbox").json()["items"] if x["kind"] == "review"], "the task waits for frida (Waiting for me)")
 check(review(F, {"action": "approve"}).ok, "frida: works")
+t2 = requests.get(V + f"/tasks/{T}", headers=AH).json()
+t2 = t2.get("data", t2)
+check(t2.get("review") == "approved" and t2.get("review_by") == FU, "the API v1 names who approved (the dispatcher passes only the person's own) " + str(t2.get("review_by")))
 check(review(F, {"action": "retest_person", "on": False}).ok, "setup: the field back")
 
 # only with the review job: person / off = 400 (the field has no effect there)

@@ -147,6 +147,9 @@ class FakeApi:
                 t.update(review="pending", reviewer_id=body.get("reviewer_id"))
             elif body.get("action") in ("approve", "changes"):
                 t["review"] = "approved" if body["action"] == "approve" else "changes"
+                t["review_by"] = 55
+        if path.endswith("/complete") and t and tid in REFUSE:
+            raise ad.ApiError(409, "approval needed")
         if path.endswith("/complete") and t:
             t["status"] = "done"
         return {}
@@ -158,7 +161,7 @@ class FakeApi:
         return [(m, p, b) for m, p, b in self.bodies if m != "GET" and (tid is None or p.startswith(f"/tasks/{tid}/"))]
 
 
-CHATS, STARTS, READS, JOBS = [], [], [], {}
+CHATS, STARTS, READS, JOBS, REFUSE = [], [], [], {}, set()
 
 
 class Host:
@@ -274,10 +277,26 @@ d.tick(force=True)
 check(any("#203" in c and "no verdict" in c for c in CHATS) and d.reg["retest"]["203"]["state"] == "person"
       and [b for m, p, b in h.api.writes(203) if p.endswith("/review")][-1]["reviewer_id"] == 7, "no verdict: in review with the owner, told")
 
-# ---- the person: approve closes, changes builds again
-by(204)["review"] = "approved"
+# ---- the person: only the owner's own approval passes (reader F1): a merged pull request (review_by empty) or another
+# account does not -- the review is asked of the owner again
+by(204).update(review="approved", review_by=None)
 d.tick(force=True)
-check(("POST", "/tasks/204/complete") in h.api.calls and any("Retested by a person" in c for c in comments_of(h.api, 204)), "the person approves: closed")
+check(("POST", "/tasks/204/complete") not in h.api.calls and by(204)["review"] == "pending" and by(204)["reviewer_id"] == 7,
+      f"approved by a pull request: not closed, asked of the owner again {by(204).get('review')}")
+by(204).update(review="approved", review_by=55)
+d.tick(force=True)
+check(("POST", "/tasks/204/complete") not in h.api.calls, "approved by the agent itself: not closed")
+# a refused completion (409, done only after approval) says its comment only once it went through (reader F5)
+REFUSE.add(204)
+by(204).update(review="approved", review_by=7)
+d.tick(force=True)
+d.tick(force=True)
+check(("POST", "/tasks/204/complete") in h.api.calls and not any("Retested by a person" in c for c in comments_of(h.api, 204)),
+      "completion refused: no comment yet, also not on the next round")
+REFUSE.discard(204)
+d.tick(force=True)
+check(("POST", "/tasks/204/complete") in h.api.calls and len([c for c in comments_of(h.api, 204) if "Retested by a person" in c]) == 1,
+      "the person approves: closed, the comment once")
 by(203)["review"] = "changes"
 d.tick(force=True)
 res = d.tick(force=True)
@@ -290,7 +309,24 @@ res = d.tick(force=True)
 rq = [b for m, p, b in h.api.writes(206) if p.endswith("/review")]
 check(rq and rq[0]["reviewer_id"] == 7 and not any(r[1] == 206 for r in READS), f"switch 'person': the owner reviews {rq}")
 check(any("#206" in c and "changes the retest guide" in c for c in CHATS), f"a commit changing the guide is told {CHATS[-1:]}")
-check(ad.retest_doc_state(proj, "HEAD", S[206], "docs/NACHTEST.md") == (True, True), "the guide changed by that commit")
+check(ad.retest_doc_state(proj, "HEAD", S[206], "docs/NACHTEST.md")[:2] == (True, True), "the guide changed by that commit")
+# a guide changed by ANOTHER commit than the one under test (no task number, or a merge) is found too (reader F4)
+commit("chore: a softer guide", "docs/NACHTEST.md", "Log in with NACHTEST_USER, the export needs no test.\n")
+TASKS.append(task(207, 10))
+S[207] = commit("#207: a label")
+n_chat = len(CHATS)
+d.tick(force=True)
+check(any("#207" in c and "changes the retest guide" in c for c in CHATS[n_chat:]), f"the guide changed by another commit is told {CHATS[n_chat:]}")
+check(d.reg["retest"]["207"]["doc"] and d.reg["retest"]["207"]["doc_before"], "the retest of #207 knows the guide from before")
+TASKS.append(task(208, 10))
+S[208] = commit("#208: another label")
+n_chat = len(CHATS)
+d.tick(force=True)
+check(not any("#208" in c and "changes the retest guide" in c for c in CHATS[n_chat:]) and not d.reg["retest"]["208"]["doc"],
+      "an unchanged guide is no finding")
+blob = d.reg["retest"]["207"]["doc_before"]
+b2 = ad.retest_brief(by(207), S[207], "main", "docs/NACHTEST.md", True, True, [], blob)
+check(f"git show {blob}" in b2, "the brief of #207: the guide from before the change")
 b = ad.retest_brief(by(206), S[206], "main", "docs/NACHTEST.md", True, True, [])
 check(f"{S[206]}^:docs/NACHTEST.md" in b and "finding" in b, "the brief: the guide from before the commit, the change a finding")
 b = ad.retest_brief(by(206), S[206], "main", "docs/NACHTEST.md", False, False, [])
