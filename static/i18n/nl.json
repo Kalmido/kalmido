@@ -19706,17 +19706,5 @@
   "documents from templates": "documenten uit sjablonen",
   "invoice series": "factuurreeksen",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "De klant van dit document staat niet meer in dit kantoor (naar een andere werkruimte verplaatst). Kies eerst een andere klant.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "De klant van de sjabloonfactuur staat niet meer in dit kantoor (naar een andere werkruimte verplaatst). Kies een andere sjabloonfactuur en zet de reeks weer aan.",
-  "This export comes from Kalmido {0}, this server runs {1}. Update this server to version {0} or newer first, then import the file.": "Deze export komt uit Kalmido {0}, deze server draait {1}. Werk deze server eerst bij naar versie {0} of nieuwer en importeer het bestand daarna.",
-  "This export comes from Kalmido {0}, this server runs {1}. It can be imported here as soon as this server runs {0} or newer.": "Deze export komt uit Kalmido {0}, deze server draait {1}. Hij kan hier worden geïmporteerd zodra deze server {0} of nieuwer draait.",
-  "{1} entries in {0} have no valid value in a required field and were not imported": "{1} items in {0} hebben geen geldige waarde in een verplicht veld en zijn niet geïmporteerd",
-  "{1} entries in {0} have an amount with more than two decimal places or no number and were not imported": "{1} items in {0} hebben een bedrag met meer dan twee decimalen of geen getal en zijn niet geïmporteerd",
-  "Whose office? Invoices and clients belong to one workspace each.": "Wiens kantoor? Facturen en klanten horen elk bij één werkruimte.",
-  "Whose tables? Each table belongs to one workspace.": "Wiens tabellen? Elke tabel hoort bij één werkruimte.",
-  "Whose pages? Each knowledge page belongs to one workspace.": "Wiens pagina's? Elke kennispagina hoort bij één werkruimte.",
-  "Whose files? Each file belongs to one workspace.": "Wiens bestanden? Elk bestand hoort bij één werkruimte.",
-  "Whose list? Each workspace keeps its own read-later list.": "Wiens lijst? Elke werkruimte heeft een eigen lijst om later te lezen.",
-  "Several versions lie between: read the upgrade guide first (oldest version to update from, steps by hand, the way back).": "Er liggen meerdere versies tussen: lees eerst de upgradehandleiding (oudste versie om vanaf bij te werken, handmatige stappen, de weg terug).",
-  "Upgrade guide": "Upgradehandleiding",
-  "Kalmido {0} is available (installed: {1}), several versions ahead: read docs/UPGRADING.md. Back up first. Nothing is installed automatically.": "Kalmido {0} is beschikbaar (geïnstalleerd: {1}), meerdere versies verder: lees docs/UPGRADING.md. Maak eerst een back-up. Er wordt niets automatisch geïnstalleerd."
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "De klant van de sjabloonfactuur staat niet meer in dit kantoor (naar een andere werkruimte verplaatst). Kies een andere sjabloonfactuur en zet de reeks weer aan."
 }

@@ -19706,17 +19706,5 @@
   "documents from templates": "des documents issus de modèles",
   "invoice series": "des séries de factures",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "Le client de ce document n'est plus dans ce bureau (déplacé vers un autre espace de travail). Choisis d'abord un autre client.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Le client de la facture modèle n'est plus dans ce bureau (déplacé vers un autre espace de travail). Choisis une autre facture modèle et réactive la série.",
-  "This export comes from Kalmido {0}, this server runs {1}. Update this server to version {0} or newer first, then import the file.": "Cette exportation provient de Kalmido {0}, ce serveur exécute {1}. Mets d'abord ce serveur à jour vers la version {0} ou plus récente, puis importe le fichier.",
-  "This export comes from Kalmido {0}, this server runs {1}. It can be imported here as soon as this server runs {0} or newer.": "Cette exportation provient de Kalmido {0}, ce serveur exécute {1}. Elle pourra être importée ici dès que ce serveur exécutera {0} ou plus récent.",
-  "{1} entries in {0} have no valid value in a required field and were not imported": "{1} entrées dans {0} n'ont pas de valeur valide dans un champ obligatoire et n'ont pas été importées",
-  "{1} entries in {0} have an amount with more than two decimal places or no number and were not imported": "{1} entrées dans {0} ont un montant avec plus de deux décimales ou qui n'est pas un nombre et n'ont pas été importées",
-  "Whose office? Invoices and clients belong to one workspace each.": "Quel bureau ? Les factures et les clients appartiennent chacun à un espace de travail.",
-  "Whose tables? Each table belongs to one workspace.": "Quelles tables ? Chaque table appartient à un espace de travail.",
-  "Whose pages? Each knowledge page belongs to one workspace.": "Quelles pages ? Chaque page de connaissances appartient à un espace de travail.",
-  "Whose files? Each file belongs to one workspace.": "Quels fichiers ? Chaque fichier appartient à un espace de travail.",
-  "Whose list? Each workspace keeps its own read-later list.": "Quelle liste ? Chaque espace de travail a sa propre liste à lire plus tard.",
-  "Several versions lie between: read the upgrade guide first (oldest version to update from, steps by hand, the way back).": "Plusieurs versions séparent les deux : lis d'abord le guide de mise à jour (version la plus ancienne depuis laquelle mettre à jour, étapes manuelles, retour en arrière).",
-  "Upgrade guide": "Guide de mise à jour",
-  "Kalmido {0} is available (installed: {1}), several versions ahead: read docs/UPGRADING.md. Back up first. Nothing is installed automatically.": "Kalmido {0} est disponible (installé : {1}), plusieurs versions plus loin : lis docs/UPGRADING.md. Sauvegarde d'abord. Rien n'est installé automatiquement."
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Le client de la facture modèle n'est plus dans ce bureau (déplacé vers un autre espace de travail). Choisis une autre facture modèle et réactive la série."
 }
