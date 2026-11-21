@@ -39,6 +39,13 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
     await ev(`(() => { const fd = new FormData(); fd.append('file', __png); return fetch('/api/wiki/pages/${pg.id}/files', {method: 'POST', headers: {'X-Requested-With': 'kalmido'}, body: fd}).then(r => r.ok); })()`);
     await nav(B + '#wiki/' + pg.id);
     check(await ready(ev, `!!document.querySelector('.wkfiles a.wkfile')`, 80), 'reading: the file is listed');
+    // (#7658): on a computer "Files · 1" is one folded line below the text; a click on it shows the file, the state stays on a redraw
+    const fo = await ev(`(() => { const d = document.querySelector('.wkfiles'); return {tag: d.tagName, open: d.open, line: d.querySelector('summary')?.textContent.trim(), h: Math.round(d.getBoundingClientRect().height), seen: d.querySelector('a.wkfile').checkVisibility()}; })()`);
+    check(fo.tag === 'DETAILS' && !fo.open && /^Files · 1/.test(fo.line) && fo.h <= 60 && !fo.seen, '#7658: "Files · 1" is a folded line on a computer ' + JSON.stringify(fo));
+    await ev(`(() => { document.querySelector('.wkfiles summary').click(); return 1; })()`);
+    check(await ready(ev, `document.querySelector('.wkfiles').open && document.querySelector('.wkfiles a.wkfile').checkVisibility()`), '#7658: a click on the line shows the file');
+    await ev(`(() => { renderView(); return 1; })()`);
+    check(await ready(ev, `!!document.querySelector('.wkfiles a.wkfile') && document.querySelector('.wkfiles').open`), '#7658: opened stays opened when the page is drawn again');
     const rd = await ev(`({add: !!document.querySelector('[data-wka="add"]'), inp: !!document.querySelector('#wka-file'), del: !!document.querySelector('[data-wka="del"]'), copy: !!document.querySelector('[data-wka="copy"]'), open: !!document.querySelector('.wkfiles a.wkfile')})`);
     check(!rd.add && !rd.inp && !rd.del && rd.copy && rd.open, 'reading: open + copy link stay, no delete, no attach, no #wka-file ' + JSON.stringify(rd));
     await shot('p2750b-wiki-read.png');

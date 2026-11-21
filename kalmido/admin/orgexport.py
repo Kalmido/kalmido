@@ -280,6 +280,8 @@ def ox_link_row(row):
         except ValueError:
             ex = {}
     ex = ex if isinstance(ex, dict) else {}
+    if row.get("rel") == "review_task":  # (#7533): no file before the core - its columns with the place (comment, version, time / page)
+        return {k: row.get(k) for k in ("id", "org_id", "src_kind", "src_id", "dst_kind", "dst_id", "rel", "created_by", "created_at")} | {"extra": ex}
     if row.get("src_kind") == "hub_mail":
         return {"id": row["id"], "mail_id": row["src_id"], "org_id": row.get("org_id"), "kind": row["dst_kind"], "ref_id": row["dst_id"],
                 "created_by": row.get("created_by"), "created_at": row.get("created_at")}
@@ -581,7 +583,7 @@ OX_AREAS = (
 # "in the export" never reads as "moves along"): the record of who changed what, the free links, the agents' rules, the files of
 # the templates (a template comes along without its file copies)
 OX_NOT_IMPORTED = (("history/changes.json", N_("History")), ("links.json", N_("Links")), ("agents/rules.json", N_("Agents")),
-                   ("lists/template_files.json", N_("Templates")))
+                   ("lists/template_files.json", N_("Templates")), ("videos/review_tasks.json", N_("Approvals|sign-off")))
 
 
 def ox_not_imported(files, lg):

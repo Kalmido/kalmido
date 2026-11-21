@@ -635,7 +635,7 @@ function wk_pageHtml(p) {
     ${edit ? `<div class="wkedwrap">${typeof wem_bar === 'function' ? wem_bar(p) : ''}${/*html-ok*/ !asMd && cm ? wkcm_html(p) : `<textarea id="wk-body" class="ntbody" aria-label="${esc(tr('Text'))}" placeholder="${esc(tr('Write …'))}">${esc(p.body)}</textarea>`}<div id="wk-ac" class="wkac hidden" role="listbox" aria-label="${esc(tr('Pages'))}"></div></div>`
       : `${wk_attrsHtml(p.attrs, p.space)}<div class="md ntmd wkmd" id="wk-md">${/*html-ok*/ wk_bodyStrip(p.body).trim() ? wk_dupTitle(wk_render(p), p) : `<p class="muted">${tr('Empty page.')}</p>`}</div>`}
     ${wka_html(p, may, edit)}${wko_cfHtml(p)}
-    ${p.backlinks?.length ? `<section class="wkback" aria-label="${esc(tr('Linked from'))}"><h4>${ic('link', 's')}${tr('Linked from')}</h4><ul>${p.backlinks.map(b => `<li><a href="#wiki/${b.id}">${/*html-ok*/ wk_pathHtml(b.path)/* built with esc() */}</a></li>`).join('')}</ul></section>` : ''}
+    ${p.backlinks?.length ? `<details class="wkback wkfold" data-wkfold="back"${wk_foldOpen('back') ? ' open' : ''} aria-label="${esc(tr('Linked from'))}"><summary><h4>${ic('link', 's')}${tr('Linked from')} · ${p.backlinks.length}</h4></summary><ul>${p.backlinks.map(b => `<li><a href="#wiki/${b.id}">${/*html-ok*/ wk_pathHtml(b.path)/* built with esc() */}</a></li>`).join('')}</ul></details>` : ''}
     <div class="ntfoot muted"><span id="wk-saved" role="status" aria-live="polite"${WK.unsaved === p.id ? ` class="wkunsaved">${/*html-ok*/ wk_unsavedHtml()}` : '>'}</span><span class="spacer"></span>${p._off ? `<span class="wkoff">${esc(tr('Offline · as of {0}', fmtWhen(p._off)))}</span> · ` : ''}<span>${esc(tr('Changed {0}', fmtWhen(p.updated_at)))}${p.updated_by_name ? ' · ' + esc(p.updated_by_name) : ''}</span></div>${wk_smvLine(p.moved)}`;
 }
 // 2.1108.0 (#5965): a first heading that only repeats the page's title (a SilverBullet import starts with "# Title") is hidden
@@ -766,10 +766,15 @@ ms_rowMenu('#view .wkfiles li', r => { const a = $('a.wkfile', r); if (a) ms_btn
 function wka_html(p, may, edit) {  // 2.750.0 (#5229): attach, drop and delete only while the page is in edit mode (WK.edit); reading keeps open + copy link
   const fs = p.files || [], open = !wk_e2e(p.space);
   if (!fs.length && !(may && open && edit)) return '';
-  return `<section class="wkfiles" aria-label="${esc(tr('Files'))}"><h4>${ic('file', 's')}${tr('Files')}${fs.length ? ` · ${fs.length}` : ''}<span class="spacer"></span>${may && open && edit ? `<input type="file" id="wka-file" multiple accept="${WKA_ACCEPT}" hidden><button type="button" class="btn" data-wka="add">${ic('upload', 's')}${tr('Attach files')}</button>` : ''}</h4>
+  return `<details class="wkfiles wkfold" data-wkfold="files"${wk_foldOpen('files') ? ' open' : ''} aria-label="${esc(tr('Files'))}"><summary><h4>${ic('file', 's')}${tr('Files')}${fs.length ? ` · ${fs.length}` : ''}<span class="spacer"></span>${may && open && edit ? `<input type="file" id="wka-file" multiple accept="${WKA_ACCEPT}" hidden><button type="button" class="btn" data-wka="add">${ic('upload', 's')}${tr('Attach files')}</button>` : ''}</h4></summary>
     ${fs.length ? `<ul>${fs.map(f => `<li><a class="wkfile" href="${esc(f.url)}" target="_blank" rel="noopener" title="${esc(f.name)}">${f.image ? `<img src="${esc(f.url)}" alt="" loading="lazy">${''/* sprung-ok: fixed 2.5rem box, wiki.css .wkfile img (#5227) */}` : ic('pdf')}<span class="an">${esc(f.name)}</span><span class="as">${fmtSize(f.size)}</span></a>
-      <button type="button" class="iconbtn" data-wka="copy" data-id="${f.id}" title="${esc(tr('Copy link'))}" aria-label="${esc(tr('Copy link'))}">${ic('link')}</button>${may && edit ? `<button type="button" class="iconbtn" data-wka="del" data-id="${f.id}" title="${esc(tr('Move to the trash'))}" aria-label="${esc(tr('Move to the trash'))}">${ic('trash')}</button>` : ''}</li>`).join('')}</ul>` : ''}</section>`;
+      <button type="button" class="iconbtn" data-wka="copy" data-id="${f.id}" title="${esc(tr('Copy link'))}" aria-label="${esc(tr('Copy link'))}">${ic('link')}</button>${may && edit ? `<button type="button" class="iconbtn" data-wka="del" data-id="${f.id}" title="${esc(tr('Move to the trash'))}" aria-label="${esc(tr('Move to the trash'))}">${ic('trash')}</button>` : ''}</li>`).join('')}</ul>` : ''}</details>`;
 }
+// (#7658): "Files" and "Linked from" below a page are folded lines (details) on a computer and a tablet - the text keeps the card's
+// height (wiki.css); a phone shows them open as before. What a person opened or closed stays so while the app runs (WK_FOLD).
+const WK_FOLD = {};
+const wk_foldOpen = k => k in WK_FOLD ? WK_FOLD[k] : matchMedia('(max-width:767px)').matches;
+document.addEventListener('toggle', e => { const d = /** @type {any} */ (e.target); if (d?.matches?.('details[data-wkfold]')) WK_FOLD[d.dataset.wkfold] = d.open; }, true);
 const wka_md = f => `${f.image ? '!' : ''}[${f.name.replace(/[[\]]/g, '')}](${f.url})`;
 // 2.633.0 (#4920): fixed hidden file input before "Attach files" (wka_html), its change uploads (a drop onto the window too, dropany.js)
 const WKA_ACCEPT = '.pdf,.png,.jpg,.jpeg,.gif,.webp,.svg,application/pdf,image/*';
@@ -778,6 +783,7 @@ async function wka_add(p, fl) {
   const fd = new FormData(); fl.forEach(f => fd.append('file', f));
   let r; try { r = await rawFetch('POST', `/api/wiki/pages/${p.id}/files`, fd); } catch (e) { toast(errText(e, tr('The file could not be attached'))); return; }
   const files = (r.files || []).map(f => f.id);
+  WK_FOLD.files = true;  // (#7658): the files just attached in sight
   wk_after(p.space);
   const e = histAdd({label: tr('Attach files'), ids: [], snaps: [], lids: [], wsp: p.space,
     undo: async () => { await rawFetch('POST', '/api/wiki/trash', {ids: [], files}); wk_after(p.space); return {skipped: []}; },

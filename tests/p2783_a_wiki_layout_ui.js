@@ -7,8 +7,12 @@
 //   hidden; Completed (.hview) as well; 320 / 460 (the phone's list) nothing runs over the side
 // #5376 a page open: #top's title stands where the list has it (+-4 px), the card takes >= 80 % of the main area from the list's
 //   left edge; the width switch: Read = the text column --w-lesen in the card's middle, Full = the card's width; 768 / 1280 / 1920 / 2560
-//   2.1163.0 (#6089): no area bar above the page (its head is the only one) and the page scrolls as a whole (no inner box; before:
-//   the card ended at the window's edge and the text scrolled inside it)
+//   2.1163.0 (#6089): no area bar above the page (its head is the only one)
+// #7658 (20.11.2026, back to #5376 point 3): the card ends at the window's lower edge again - the document does not scroll,
+//   the long text scrolls inside, "Attach files" and the footer in sight; "Files" / "Linked from" are folded lines that take at
+//   most an eighth of the window's height together (768 / 1280 / 1920 / 2560)
+//   Ersetzt Entscheidung #6089: gedeckt durch #7658 (only #6089's "the page scrolls as a whole"; its other points stay checked here
+//   and in p21163_a_wiki_ui)
 // freelancer-matrix: Wissen (alice has no organisation until the last part, "All workspaces" needs a second space)
 const path = require('path');
 const {execFileSync} = require('child_process');
@@ -119,15 +123,18 @@ if (!process.env.P2783A_NOSTART) execFileSync('bash', [path.join(__dirname, 'sta
         await idle();
         const pg = await until(`(() => { const m = ${M('#view article.wkpage')}; if (!m) return null; const a = document.querySelector('[data-wka="add"]')?.getBoundingClientRect(), f = document.querySelector('#view article.wkpage .ntfoot')?.getBoundingClientRect(),
           c = document.querySelector('#wk-cm'), h2 = document.querySelector('#view article.wkpage h2')?.textContent.trim();
-          return {...m, dsc: document.scrollingElement.scrollHeight - innerHeight, add: a ? [Math.round(a.top), Math.round(a.bottom)] : null, foot: f ? Math.round(f.bottom) : null, inner: c ? [c.scrollHeight, c.clientHeight] : null, h2}; })()`);
+          const fold = [...document.querySelectorAll('#view article.wkpage .wkfold')].reduce((n, d) => n + d.getBoundingClientRect().height, 0);
+          return {...m, dsc: document.scrollingElement.scrollHeight - innerHeight, add: a ? [Math.round(a.top), Math.round(a.bottom)] : null, foot: f ? Math.round(f.bottom) : null, inner: c ? [c.scrollHeight, c.clientHeight] : null, h2, fold: Math.round(fold)}; })()`);
         check(pg && pg.h2 === 'Shoot day', `${tag}: the page's title ${pg?.h2}`);
         // 2.1163.0 (#6089): the bar (Find a page, New page, ...) belongs to the list, the page has only its own head
         check(pg && pg.barL == null, `#6089 ${tag}: no area bar above the open page ${JSON.stringify(pg)}`);
         check(pg && L && pg.topL != null && Math.abs(pg.topL - L.topL) <= 4, `#5376 ${tag}: #top's title stands where the list has it ${JSON.stringify([L?.topL, pg?.topL])}`);
         check(pg && L && pg.w >= 0.8 * pg.area && Math.abs(pg.l - L.l) <= 8, `#5376 ${tag}: the card takes the full width from the list's left edge ${JSON.stringify(pg)}`);
-        // 2.1163.0 (#6089): the page scrolls as a whole: the text has no box of its own, the footer comes after the text
-        check(pg && pg.inner && pg.inner[0] <= pg.inner[1] + 1, `#6089 ${tag}: the long text does not scroll inside the card ${JSON.stringify(pg?.inner)}`);
-        check(pg && (pg.vsc > 100 || pg.dsc > 100) && pg.foot > pg.ih, `#6089 ${tag}: the page is longer than the window and scrolls as a whole ${JSON.stringify(pg)}`);
+        // #7658 (Ersetzt Entscheidung #6089: gedeckt durch #7658): the card ends at the window's edge, the text scrolls inside
+        check(pg && pg.vsc <= 1 && pg.dsc <= 1, `#7658 ${tag}: the page does not scroll as a whole ${JSON.stringify(pg)}`);
+        check(pg && pg.inner && pg.inner[0] > pg.inner[1] + 10, `#7658 ${tag}: the long text scrolls inside the card ${JSON.stringify(pg?.inner)}`);
+        check(pg && pg.add && pg.add[0] >= 0 && pg.add[1] <= pg.ih && pg.foot != null && pg.foot <= pg.ih, `#7658 ${tag}: "Attach files" and the footer in sight ${JSON.stringify(pg)}`);
+        check(pg && pg.fold > 0 && pg.fold <= pg.ih / 8, `#7658 ${tag}: "Files" / "Linked from" take at most an eighth of the height ${JSON.stringify([pg?.fold, pg?.ih])}`);
         if (open && (W === 1280 || W === 2560)) await shot(`p2783a-page-${W}.png`);
       }
     }

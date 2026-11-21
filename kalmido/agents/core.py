@@ -13,6 +13,7 @@ from ..core.pg import insert_id, system_ctx
 from ..core.longslots import LONG_SLOTS
 from ..core.pgbus import bus_active, bus_on, bus_send  # 2.622.0 (#3891)
 from ..core.ephem import eph_add  # 2.622.0 (#3891)
+from ..core.objhooks import TASK_ADDED  # (#7533)
 from ..core.i18n import tr
 from ..core.db import db, inbox_default, iso, iso_ms, now_utc, parse_iso  # db: 2.959.0 (#4030)
 from ..core.objcomments import ocm_extra, ocm_old_cols  # (#5272); (#7534): ocm_extra
@@ -1936,3 +1937,7 @@ def ag_pre(c, rows, uid):
             "tvis": tasks_visible(c, [a["status_task"] for a in rows if a["status_task"]], uid, full=True),
             "cost": usage_cost_sums(c, ids), "pending": agent_pending_ages(c, ids),  # 2.826.0 (#5509)
             "may_rt": lambda a: a["owner_id"] == uid if a["owner_id"] else bool(u and u["is_admin"])}  # = may_set_runtime
+
+
+# (#7533): a task made by a lower area (videos/vdtask.py) tells the project's agents like every new task, without its upward import
+TASK_ADDED.append(lambda c, tid, source=None: agent_added_events(c, tid, source=source))

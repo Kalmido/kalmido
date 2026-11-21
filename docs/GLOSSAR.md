@@ -882,6 +882,7 @@ Knowledge pages (wiki): pages, history, sharing, search, tags, folders and the l
 The start-up module.
 
 - `kalmido/startup.py` - Start-up: init_db() and the background threads (watchdog, update check, calendars, backups, webhooks, mail, git)
+- `kalmido/videos/vdtask.py` - a task from a comment of a review (sign-off of a video, an image or a PDF) with one click
 - `kalmido/tasks/boundyes.py` - the writing of THE yes of a person bound to a text state: give it, take it off, the hook after a write of the bound texts
 - `kalmido/wiki/wkdoc.py` - one knowledge page as a PDF or a Word file (.docx), for texts that go out (decision of 10.11.2026: no word processor of its own, the Mark...
 

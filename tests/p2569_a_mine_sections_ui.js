@@ -10,6 +10,8 @@
 // - (#7519) one head for both: an own section and a project's section show the same basic menu items (Rename, Move up,
 //   Move down, Delete) in the same order, the extras come from the adapter (Rules… / WIP limit…)
 // - (#7512) the "+" of an own section adds a task right there (one Undo takes it away), not on "Recently assigned"
+// - (#7518) an own section's head drags by its grip (the same code as a project's section), the order is saved and stays after a
+//   reload; "Recently assigned" has no grip and nothing goes before it
 // Firefox 320 x 640 (touch): the section heads, their "…" and "New section" inside the screen, no sideways scrolling.
 // freelancer-matrix: tasks - frida has no organisation.
 const path = require('path');
@@ -145,6 +147,25 @@ const click = (w, el) => el.dispatchEvent(new w.MouseEvent('click', {bubbles: tr
     '#7519: Delete last at both, the extras from the adapter (My tasks: Rules…, the project: WIP limit…)');
   w.eval(`go('assigned')`);
   check(await until(() => head(/This week/) && inSec(/This week/, TB)), '#7519: back in My tasks');
+
+  // (#7518): an own section's head drags by its grip like a project's section (the same code, dnd.js / secdrag.js); only the
+  // saving is My tasks' own (PUT /api/mine-sections/order); "Recently assigned" has no grip; the order stays after a reload
+  const dnd = (el, type) => { const e = new w.Event(type, {bubbles: true, cancelable: true}); e.dataTransfer = {setData() {}, getData: () => '', effectAllowed: '', dropEffect: ''}; e.clientY = 10; el.dispatchEvent(e); return e; };
+  const own = async () => (await call(CF, 'GET', '/api/state')).mine_sections.list.filter(x => x.kind !== 'recent').map(x => x.id);
+  check(head(/Someday/)?.querySelector('.shandle[draggable="true"][data-sk="mine"]') && head(/This week/)?.querySelector('.shandle') && !head(/Recently assigned/)?.querySelector('.shandle'),
+    '#7518: a grip on every own section, none on "Recently assigned"');
+  const o0 = await own(), SDY = sid(/Someday/), TWK = sid(/This week/);
+  const want = o0.filter(x => x !== SDY); want.splice(want.indexOf(TWK), 0, SDY);
+  check(JSON.stringify(want) !== JSON.stringify(o0), '#7518: Someday stands after This week before the drag ' + JSON.stringify(o0));
+  dnd(head(/Someday/).querySelector('.shandle'), 'dragstart');
+  check(dnd(head(/This week/), 'dragover').defaultPrevented && head(/This week/).classList.contains('dropbefore'), '#7518: dragged over This week - the insert mark above it');
+  if (head(/Recently assigned/)) check(!dnd(head(/Recently assigned/), 'dragover').defaultPrevented, '#7518: nothing goes before "Recently assigned"');  // (shown only while it holds tasks)
+  dnd(head(/This week/), 'drop');
+  check(await until(async () => JSON.stringify(await own()) === JSON.stringify(want)), `#7518: Someday dropped before This week, saved on the server ${JSON.stringify(await own())} want ${JSON.stringify(want)}`);
+  w.close?.();
+  w = await boot({user: 'frida', hash: 'assigned'}); d = w.document;
+  check(await until(() => heads().length > 3 && JSON.stringify(heads().filter(h => h.dataset.sid).map(h => +h.dataset.sid)) === JSON.stringify(want)), '#7518: after a reload the heads stand in the new order ' + heads().map(h => h.textContent.trim()).join(' | '));
+  check(await until(() => head(/This week/) && inSec(/This week/, TB)), '#7518: the tasks stay in their sections');
 
   // delete Someday: TA falls into the topmost section (Now)
   click(w, head(/Someday/).querySelector('[data-act="section-menu"]'));

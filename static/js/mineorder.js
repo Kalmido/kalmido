@@ -142,10 +142,13 @@ async function moPut(ids, w) {
   });
 }
 // (#7519): the section side of this adapter (dragmulti.js sh_head / sh_menu): an own section (not "Recently assigned") has the
-// "…" with Rename, Move up / down, Rules… and Delete, and (#7512) the "+"; no grip yet (#7518 is this adapter's next ability)
+// "…" with Rename, Move up / down, Rules… and Delete, and (#7512) the "+"; (#7518) the grip: the head drags through the same code
+// as a project's section (dnd.js / secdrag.js), only the saving is this adapter's (ids / order: PUT /api/mine-sections/order).
+// "Recently assigned" stays fixed on top: no grip, no menu, nothing goes before it.
 const mseSec = {
   of: g => g.mosec || null, byId: id => mseList().find(x => x.id === id), label: s => mseName(s),
-  drag: () => false, menu: s => s.kind !== 'recent',
+  drag: s => s.kind !== 'recent', grip: s => secHandle(s.id, 'mine'), menu: s => s.kind !== 'recent',
+  ids: () => mseList().filter(x => x.kind !== 'recent').map(x => x.id), order: (s, ids) => mseSetOrder(ids),
   // (#7512): the "+" of an own section (not "Recently assigned"): a new task assigned to me, in the project the quick add of My
   // tasks uses (a ~project typed wins; none = the Inbox), put into this section on top - one step (the creation's Undo)
   add: (s, v, ro) => !ro && mseOn() && moOwn() && s.kind !== 'recent',
@@ -355,10 +358,15 @@ async function mseRename(s, n) {  // (#7519): the name asked by the core (dragmu
   if (j?.section) toast(tr('Section renamed'), () => mseCall('PATCH', `/api/mine-sections/${s.id}`, {name: old, expect_updated_at: j.section.updated_at}));
 }
 async function mseMove(s, d) {
-  const ids = mseList().filter(x => x.kind !== 'recent').map(x => x.id), i = ids.indexOf(s.id), k = i + d;
+  const ids = mseSec.ids(), i = ids.indexOf(s.id), k = i + d;
   if (i < 0 || k < 0 || k >= ids.length) return;
   const nw = ids.slice(); nw.splice(i, 1); nw.splice(k, 0, s.id);
-  await mseCall('PUT', '/api/mine-sections/order', {ids: nw, _prev: {ids}});
+  await mseSetOrder(nw);
+}
+// the own sections in a new order (the menu's Move up / down, #7518 the grip's drag): one request, _prev = the order it started from
+async function mseSetOrder(nw) {
+  const ids = mseSec.ids();
+  if (nw.join() !== ids.join()) await mseCall('PUT', '/api/mine-sections/order', {ids: nw, _prev: {ids}});
 }
 async function mseDelete(s) {
   const j = await mseCall('DELETE', `/api/mine-sections/${s.id}`, {expect_updated_at: s.updated_at});

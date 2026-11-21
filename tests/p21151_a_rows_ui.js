@@ -149,7 +149,9 @@ const J = JSON.stringify;
     await nav(B + '#ablage/s/private');
     check(await until(`!!document.querySelector('#view .abrow[data-abid="${FILE}"] [data-ab="menu"]')`, {timeout: 20000}) && await W(ev, `#view .abrow[data-abid="${FILE}"] [data-ab="menu"]`) >= 24, 'computer files: the "…" stays');
     await go('#wiki/' + pg.id);
-    check(await until(`!!document.querySelector('#view .wkfiles li > .iconbtn')`, {timeout: 20000}) && await W(ev, '#view .wkfiles li > .iconbtn') >= 24, 'computer page: the file\'s symbols stay');
+    check(await until(`!!document.querySelector('#view .wkfiles li > .iconbtn')`, {timeout: 20000}), 'computer page: its file');
+    await ev(`(() => { const d = document.querySelector('#view .wkfiles'); if (!d.open) d.querySelector('summary').click(); return 1; })()`);  // (#7658): "Files" is a folded line on a computer
+    check(await until(`document.querySelector('#view .wkfiles').open`) && await W(ev, '#view .wkfiles li > .iconbtn') >= 24, 'computer page: the file\'s symbols stay');
     await go('#sheets');
     check(await until(`!!document.querySelector('#view .shvcard[data-id="${SH}"] [data-shv="cmenu"]')`, {timeout: 20000}) && await W(ev, `#view .shvcard[data-id="${SH}"] [data-shv="cmenu"]`) >= 24, 'computer tables: the "…" stays');
   }, false);

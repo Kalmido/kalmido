@@ -396,8 +396,8 @@ function rsb_tabHtml() {
     : `<ul class="ofclist rsb-list" role="list" aria-labelledby="rsb-mine">${RSB.rows.map(r => `<li class="ofcrow rsb-row"><span class="ofcn"><b>${esc(r.name || tr('Receipt'))}</b><small class="muted">${esc(fmtDateLoc(String(r.submitted_at || '').slice(0, 10)))}</small></span>${st(r)}</li>`).join('')}</ul>`;
   return `<div class="rsb"><h3 class="ofcgrp">${tr('Submit receipt')}</h3>
     <p class="muted rsb-hint">${tr('Photograph a receipt or upload the file: it goes to the bookkeeping. You only see your own receipts here.')}</p>
-    <div class="bk-photo rsb-up">${isTouch() ? `<label class="btn pri">${ic('camera')}<span>${tr('Photograph receipt')}</span><input type="file" id="rsb-shot" accept="image/*,application/pdf" capture="environment" multiple hidden></label>` : ''}
-    <label class="btn${isTouch() ? '' : ' pri'}">${ic('upload')}<span>${tr('Upload files')}</span><input type="file" id="rsb-files" accept="${typeof BK_ACCEPT === 'string' ? BK_ACCEPT : 'image/*,application/pdf'}" multiple hidden></label></div>
+    <div class="bk-photo rsb-up">${isTouch() ? `<label class="btn pri bk-shot">${ic('camera')}<span>${tr('Photograph receipt')}</span><input type="file" id="rsb-shot" accept="image/*,application/pdf" capture="environment" multiple hidden></label>` : ''}
+    <label class="btn${isTouch() ? '' : ' pri'} bk-files">${ic('upload')}<span>${tr('Upload files')}</span><input type="file" id="rsb-files" accept="${typeof BK_ACCEPT === 'string' ? BK_ACCEPT : 'image/*,application/pdf'}" multiple hidden></label></div>
     <h3 class="ofcgrp" id="rsb-mine">${tr('My receipts handed in')}</h3>${list}</div>`;
 }
 async function rsb_upload(files) {

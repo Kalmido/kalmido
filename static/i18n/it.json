@@ -19707,5 +19707,9 @@
   "documents from templates": "documenti da modelli",
   "invoice series": "serie di fatture",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "Il cliente di questo documento non è più in questo ufficio (spostato in un altro spazio di lavoro). Scegli prima un altro cliente.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Il cliente della fattura modello non è più in questo ufficio (spostato in un altro spazio di lavoro). Scegli un'altra fattura modello e riattiva la serie."
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Il cliente della fattura modello non è più in questo ufficio (spostato in un altro spazio di lavoro). Scegli un'altra fattura modello e riattiva la serie.",
+  "The task could not be created": "Non è stato possibile creare l’attività",
+  "From the sign-off “{0}”": "Dall’approvazione «{0}»",
+  "Tasks from a sign-off need a project you may write in": "Le attività da un’approvazione richiedono un progetto in cui puoi scrivere",
+  "Sign-off: {0}": "Approvazione: {0}"
 }

@@ -281,6 +281,35 @@ a.wemlink{display:inline-flex;align-items:center;gap:.25rem}
 .ntwrap.wkdesk.wkpgo > .ntedit{width:100%;max-width:none;margin-inline:0}
 .ntwrap.wkdesk.wkpgo > .ntedit > :not(.wkedwrap),.ntwrap.wkdesk.wkpgo > .ntedit > .wkedwrap > :not(.wkac){margin-inline:max(0px,(100% - var(--wktw)) / 2)}
 .ntwrap.wkdesk.wkpgo > .ntedit > .wkedwrap{display:flex;flex-direction:column}
+/* (#7658, back to #5376 point 3): on a computer and a tablet the card of an open page ends at the window's lower edge again - the
+   text scrolls inside, "Files" / "Linked from" and the footer stay in sight; replaces only the "scrolls as a whole" of #6089 (its
+   one head, the list's own area bar and the grouped menu stay). "Files" and "Linked from" are one folded line each below the text
+   (wkfold, wiki.js: counter, opened on demand), so they no longer take a third of the height. A phone still scrolls as a whole.
+   Without the height chain (e.g. inside a split pane) the card just grows. */
+@media (min-width:768px){
+  #view:has(> .wkdesk.wkpgo){display:flex;flex-direction:column;padding-bottom:.75rem}
+  #view > .wkdesk.wkpgo{flex:1 1 auto;min-height:0}
+  .wkdesk.wkpgo > :not(.ntedit){flex:none}
+  .ntwrap.wkdesk.wkpgo > .ntedit{flex:1 1 auto;min-height:0}
+  .ntwrap.wkdesk.wkpgo > .ntedit > :not(.wkedwrap,#wk-md){flex:none}
+  .ntwrap.wkdesk.wkpgo > .ntedit > .wkedwrap{flex:1 1 auto;min-height:0}
+  .ntwrap.wkdesk.wkpgo > .ntedit > .wkedwrap > :not(.wkcm,.ntbody,.wkac){flex:none}
+  /* the scrolling parts take the card's full width with the text in the middle (padding), so their scrollbar sits at the card's edge */
+  .ntwrap.wkdesk.wkpgo > .ntedit > .wkedwrap > :is(.wkcm,.ntbody),.ntwrap.wkdesk.wkpgo > .ntedit > #wk-md{flex:1 1 auto;min-height:0;overflow-y:auto;margin-inline:0;padding-inline:max(0px,(100% - var(--wktw)) / 2)}
+  .ntwrap.wkdesk.wkpgo > .ntedit > .wkedwrap > .ntbody{resize:none}
+  .ntwrap.wkdesk.wkpgo .wkcm .cm-content{min-height:max(8rem,calc(100dvh - 30rem))}  /* inside its own scroll box: about its free height */
+  .ntwrap.wkdesk.wkpgo > .ntedit > .wkfold[open] > ul{max-height:8rem;overflow-y:auto}  /* opened with many files / links: the card keeps its edge */
+}
+/* (#7658): "Files" / "Linked from" below a page as a folded line (details): the heading is the line, a small arrow shows the state */
+.wkfold > summary{list-style:none;cursor:pointer}
+.wkfold > summary::-webkit-details-marker{display:none}
+.wkfold > summary > h4{margin:0}
+.wkfold > summary > h4::after{content:"";flex:none;width:.4rem;height:.4rem;margin-left:.125rem;border:solid currentColor;border-width:0 1.5px 1.5px 0;transform:rotate(-45deg);transition:transform .15s}
+.wkfold[open] > summary > h4::after{transform:rotate(45deg)}
+.wkfold[open] > summary > h4{margin-bottom:.375rem}
+.wkfold > summary > h4 > .spacer{order:9}
+.wkfold > summary > h4 > :is(.btn,input){order:10}
+@media (prefers-reduced-motion:reduce){.wkfold > summary > h4::after{transition:none}}
 /* 2.1081.0 (#5907): a folder that has a page of the same name shows once (folder list, panel): the folder symbol with a small
    page mark; its folder view shows the page's text on top (wiki.js wk_dirPageHtml), the subfolders and subpages below */
 .wkpgdir{position:relative;display:inline-flex;flex:none;line-height:0}

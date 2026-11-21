@@ -129,3 +129,4 @@
 .vdrtt b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .vdrtc2{font-size:var(--fs-s);color:var(--text2)}
 .vdrtc2.has{color:var(--accent);font-weight:600}
+.vdrtask{display:flex;flex-wrap:wrap;align-items:center;gap:.25rem .5rem;margin-top:.25rem;font-size:var(--fs-s)}  /* (#7533): the task made from a comment, or "Task from it" */

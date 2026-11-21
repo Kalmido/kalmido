@@ -966,6 +966,7 @@ ROUTES = {
     "GET /api/videos/signoffs/orphaned": "own", "DELETE /api/videos/signoffs/orphaned/{}": "own",  # 2.360.2 D (#2561)
     "DELETE /api/videos/{}": "video", "POST /api/videos/{}/restore": "video", "POST /api/videos/{}/versions": "video",
     "DELETE /api/videos/{}/versions/{}": "video", "POST /api/videos/{}/comments": "video", "PATCH /api/videos/{}/comments/{}": "video",
+    "POST /api/videos/{}/comments/{}/task": "video",  # (#7533): p21501_b_review_task_test.py (another organisation 404, a reader 403, an agent refused, nothing made)
     "DELETE /api/videos/{}/comments/{}": "video", "POST /api/videos/{}/comments/{}/restore": "video", "GET /api/videos/{}/export": "video",
     "POST /api/videos/{}/signoff": "video", "POST /api/videos/{}/signoffs/{}/revoke": "video", "POST /api/videos/{}/move-space": "video",
     "GET /api/videos/{}/versions/{}/file": "video", "GET /api/v1/videos/{}/versions/{}/file": "video",  # 2.641.0 (#4769): p2641_b_media_test.py

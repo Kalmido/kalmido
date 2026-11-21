@@ -970,3 +970,5 @@ p2501_b_import_target_ui
 p2498_a_phone320_ui
 p21357_a_live_ui
 p7336_officetree_all_ui
+p21501_a_upload_ui
+p21501_c_review_task_ui

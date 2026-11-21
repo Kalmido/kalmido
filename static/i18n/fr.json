@@ -19706,5 +19706,9 @@
   "documents from templates": "des documents issus de modèles",
   "invoice series": "des séries de factures",
   "The client of this document is not in this office any more (moved to another workspace). Select another client first.": "Le client de ce document n'est plus dans ce bureau (déplacé vers un autre espace de travail). Choisis d'abord un autre client.",
-  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Le client de la facture modèle n'est plus dans ce bureau (déplacé vers un autre espace de travail). Choisis une autre facture modèle et réactive la série."
+  "The client of the template invoice is not in this office any more (moved to another workspace). Select another template invoice and switch the series on again.": "Le client de la facture modèle n'est plus dans ce bureau (déplacé vers un autre espace de travail). Choisis une autre facture modèle et réactive la série.",
+  "The task could not be created": "La tâche n’a pas pu être créée",
+  "From the sign-off “{0}”": "De la validation « {0} »",
+  "Tasks from a sign-off need a project you may write in": "Les tâches issues d’une validation nécessitent un projet dans lequel tu peux écrire",
+  "Sign-off: {0}": "Validation : {0}"
 }

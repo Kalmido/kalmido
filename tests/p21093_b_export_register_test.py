@@ -76,9 +76,10 @@ OLD_ORG = {
     ("videos/comments.json", "obj_comments", f"kind='video' AND org_id=? AND {live_sql()} AND ref_id NOT IN (SELECT id FROM video_reviews WHERE deleted_at IS NOT NULL)"),
     ("documents/notes.json", "obj_comments", f"kind='doc_note' AND org_id=? AND {live_sql()}"),
     ("hub/mail_links.json", "obj_links", "org_id=? AND src_kind='hub_mail' AND rel='made' AND src_id NOT IN (SELECT id FROM hub_mails WHERE deleted_at IS NOT NULL)"),
+    ("videos/review_tasks.json", "obj_links", f"org_id=? AND src_kind='video_review' AND rel='review_task' AND {live_sql()}"),  # (#7533)
     # 2.1334.0 (#6585, audit #4808 T13 4 / 5): + the free links and the change history (no longer "rebuilt on the target"), wanted
     # review F2: + both sides carried by the archive (LINKED, filled per archive by ox_build; FALSE elsewhere)
-    ("links.json", "obj_links", f"org_id=? AND rel NOT IN ('made', 'device', 'contact', 'answers', 'reply') AND {live_sql()} AND FALSE"),
+    ("links.json", "obj_links", f"org_id=? AND rel NOT IN ('made', 'device', 'contact', 'answers', 'reply', 'review_task') AND {live_sql()} AND FALSE"),  # (#7533): + review_task
     ("history/changes.json", "obj_history", "org_id=? AND FALSE"),  # its objects are filled in by ox_build (ox_history_where)
 }
 OLD_RX = {("books/procedure-documentation.csv", "obj_versions", "kind='procdoc' AND org_id=?"),
