@@ -30,6 +30,7 @@ function cf_view() {
   // scrolled up (the distance to the end without the new messages) -> "New message ↓", as in tcPatch
   const gap = box.scrollHeight - box.scrollTop - box.clientHeight - added.reduce((h, n) => h + n.offsetHeight, 0);
   if (added.length && gap >= 80) cf_pill('tc-new', true);
+  else if (added.length) chatToNew(box, added);  // (#7669): at the end: follows as tcPatch (a long new message from its top)
 }
 // the comments of the open task: the box is patched in drawTimeline; `wasSeen` = the last comment was in view before
 function cf_comments(box, wasSeen) {
